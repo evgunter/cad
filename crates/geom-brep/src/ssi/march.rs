@@ -30,19 +30,27 @@
 //!    derivation from unit speed).
 //! 4. `A·d₃ = b₃` minimum-norm, then `d₃ ← d₃ − κ²·d₁` with
 //!    `κ = ‖d₂‖` — Frenet's γ₃ = −κ².
-//! 5. **Step size**, every rung read on the carrier `C = P(x)` in
-//!    metres ([`LocalSystem::carrier_jet`]), never on the state curve,
-//!    whose bending on the ℝ⁴ lane holds the wall pcurve's: with
-//!    `κ = ‖C″⊥‖/‖C′‖²` the carrier's curvature, a step of `H` metres
-//!    keeps the approximant's quadratic and cubic terms within
-//!    [`SSI_STEP_RELATIVE`] of its linear one (Hoffmann's
-//!    small-contribution heuristic, p. 215: `H ≤ 2ρ/κ`, and the cubic
-//!    rung on `‖C‴⊥‖`), and the eventual cubic fit's between-sample
-//!    error within [`SSI_STEP_DEVIATION`]·ε (`H ≤ (24δε/κ³)^¼`). The
-//!    smallest binds, capped by the domain's diagonal. **`ssi_step_progress`** refuses if the step collapses
-//!    into the band — a stepper that cannot move at this tolerance says
-//!    so.
-//! 6. Advance by the cubic approximant, then **Newton refinement** to
+//! 5. **Step size**: the smallest of these rungs binds.
+//!    - Hoffmann's small-contribution heuristic (p. 215): the
+//!      approximant's quadratic and cubic terms within
+//!      [`SSI_STEP_RELATIVE`] of its linear one, read twice, on the
+//!      carrier `C = P(x)` in metres ([`LocalSystem::carrier_jet`]),
+//!      `H ≤ 2ρ/κ` with `κ = ‖C″⊥‖/‖C′‖²` and the cubic rung on `‖C‴⊥‖`,
+//!      and on the state, whose bending on the ℝ⁴ lane holds the wall
+//!      chart's.
+//!    - The eventual cubic fit's between-sample error within
+//!      [`SSI_STEP_DEVIATION`]·ε on the carrier (`H ≤ (24δε/κ³)^¼`).
+//!    - The domain's diagonal.
+//!    - The restart: twice the last step kept.
+//! 6. **The residual test.** The predicted state is kept where its
+//!    residual is at most ε plus the settling residual the start state
+//!    carries; a step whose end leaves the domain has its midpoint inside
+//!    and kept instead. Otherwise the step halves and predicts again,
+//!    every try counting against the step budget
+//!    ([`super::SSI_MAX_STEPS`]), down to the band, where
+//!    **`ssi_step_progress`** refuses: a stepper that cannot move at this
+//!    tolerance says so.
+//! 7. Advance by the cubic approximant, then **Newton refinement** to
 //!    the surface pair: a fixed [`SSI_NEWTON_ITERS`] cap of
 //!    minimum-norm corrections, early-exiting on
 //!    [`SSI_NEWTON_TOL`]·ε, or the coordinates' noise where that is larger
@@ -50,7 +58,7 @@
 //!
 //! # The idealized stepper (the differential spec, T4/PERF-PLAN §4.4)
 //!
-//! [`StepperMode::Idealized`] replaces steps 3–5 with a **tangent-line
+//! [`StepperMode::Idealized`] replaces steps 3–6 with a **tangent-line
 //! step of fixed tiny length** [`SSI_IDEALIZED_STEP`] — ten readable
 //! lines that *define* the traced locus. Everything else (the
 //! transversality band, Newton refinement, the closure trio, the
@@ -407,6 +415,27 @@ pub const SSI_STEP_RELATIVE: f64 = 0.1;
 /// The value is therefore set well below ε rather than at it.
 pub const SSI_STEP_DEVIATION: f64 = 0.02;
 
+/// Hoffmann's relative rungs (module docs, step 5) on an approximant
+/// whose linear term moves `speed` per unit of `h`, and whose second
+/// and third derivatives have norms `second` and `third`: the longest
+/// `h` keeping `h²·second/2` and `h³·third/6` within
+/// [`SSI_STEP_RELATIVE`] of `h·speed`. Each is unbounded at an exact
+/// zero, and the cubic where `cubic` is false; a poisoned norm carries
+/// through to the step guard.
+fn relative_rungs(speed: f64, second: f64, third: f64, cubic: bool) -> [f64; 2] {
+    let quad = if second != 0.0 {
+        2.0 * SSI_STEP_RELATIVE * speed / second
+    } else {
+        f64::INFINITY
+    };
+    let cub = if third != 0.0 && cubic {
+        (6.0 * SSI_STEP_RELATIVE * speed / third).sqrt()
+    } else {
+        f64::INFINITY
+    };
+    [quad, cub]
+}
+
 /// The idealized stepper's fixed step, as a fraction of the caller's
 /// named extent, clipped by the domain's diagonal where that is
 /// shorter. Tiny by construction: the tangent-line step's own
@@ -568,6 +597,11 @@ pub(crate) struct Held {
 }
 
 impl Held {
+    /// The steps kept, every one held by some rung.
+    fn steps(self) -> usize {
+        self.curvature + self.caps.iter().sum::<usize>()
+    }
+
     /// Both marches' tallies.
     fn plus(self, other: Self) -> Self {
         Self {
@@ -613,6 +647,9 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
         ctx: &MarchContext<N>,
         band: Band,
     ) -> Result<Option<Self::End>, SsiError>;
+    /// Whether a state lies in the lane's domain: the wall's rectangle,
+    /// or the caller's slab.
+    fn holds(&self, x: &[f64; N], ctx: &MarchContext<N>) -> bool;
     /// The end of a march whose predicted step to `predicted` would not
     /// settle back onto the locus, or `None` when that is the march
     /// losing its branch.
@@ -690,6 +727,10 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
             inside,
             outside: next,
         }))
+    }
+
+    fn holds(&self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
+        Self::inside(x, ctx)
     }
 
     fn unsettled(
@@ -781,6 +822,10 @@ impl<S: LocalSystem<2, 3>> Exit<2, 3, S> for SlabExit {
             }
             Err(diag) => Err(TraceDecision::BranchOpenEnd.escalated(diag)),
         }
+    }
+
+    fn holds(&self, x: &[f64; 3], ctx: &MarchContext<3>) -> bool {
+        within(x, &ctx.domain)
     }
 
     fn unsettled(
@@ -937,6 +982,7 @@ where
     let mut steps = 0usize;
     let mut held = Held::default();
     let mut longest_step = 0.0f64;
+    let mut last_kept: Option<f64> = None;
 
     while steps < ctx.max_steps {
         // ---- 1. the local decomposition ----
@@ -976,7 +1022,8 @@ where
             return Err(unusable(StepFault::SpeedUnusable));
         }
 
-        // ---- 4./5. the step ----
+        // ---- 4.–6. the step ----
+        let mut halved = 0usize;
         let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
@@ -1005,29 +1052,17 @@ where
                 let [c1, c2, c3] = sys.carrier_jet(&x, &d1, &d2, &d3);
                 let bend = across(c1, c2, speed);
                 let n3 = across(c1, c3, speed);
-                // (a) Hoffmann's relative heuristic on the carrier: the
-                //     quadratic and cubic terms within ρ of the linear
-                //     one, `h²·‖C″⊥‖/2 ≤ ρ·h·speed` and
-                //     `h³·‖C‴⊥‖/6 ≤ ρ·h·speed`. Both read the part across
-                //     the tangent: the part along it re-times the step
-                //     along the line the linear term already carries, and
-                //     on the ℝ⁴ lane it holds the state's Frenet `−κ²·d₁`,
-                //     the wall pcurve's bending. Each is unbounded only at
-                //     an exact zero, and a poisoned one carries through
-                //     `h` to the step guard. An overflowed κ² is not
-                //     poison but makes `C‴` NaN through ∞·0 in the
-                //     correction above; `h_quad` already binds there, so
-                //     the cubic rung stands aside.
-                let h_quad = if bend != 0.0 {
-                    2.0 * SSI_STEP_RELATIVE * speed / bend
-                } else {
-                    f64::INFINITY
-                };
-                let h_cub = if n3 != 0.0 && kappa_sq != f64::INFINITY {
-                    (6.0 * SSI_STEP_RELATIVE * speed / n3).sqrt()
-                } else {
-                    f64::INFINITY
-                };
+                // (a) Hoffmann's relative heuristic on the carrier
+                //     ([`relative_rungs`]), on the parts of `C″` and `C‴`
+                //     across the tangent: the part along it re-times the
+                //     step along the line the linear term already
+                //     carries, and on the ℝ⁴ lane it holds the state's
+                //     Frenet `−κ²·d₁`, the wall pcurve's bending. An
+                //     overflowed κ² is not poison but makes `C‴` NaN
+                //     through ∞·0 in the correction above; the quadratic
+                //     rung already binds there, so the cubic stands aside.
+                let cubic = kappa_sq != f64::INFINITY;
+                let [h_quad, h_cub] = relative_rungs(speed, bend, n3, cubic);
                 // (b) the fit's between-sample budget (module docs), at
                 // the carrier's curvature `‖C″⊥‖/speed²`. `> 0.0`, not
                 // `!= 0.0`: the quotient is NaN at an underflowing speed
@@ -1051,40 +1086,53 @@ where
                     f64::INFINITY
                 };
                 // (c) the same heuristic on the approximant the step
-                //     advances, the state's: `h²·‖d₂‖/2 ≤ ρ·h` and
-                //     `h³·‖d₃‖/6 ≤ ρ·h` in state units. On the ℝ⁴ lane
-                //     the state holds the wall chart's bending, which the
-                //     carrier rungs do not read, and a step they allow
-                //     would carry the predicted state off the locus where
-                //     the chart bends under a straight carrier.
-                let s_quad = if kappa != 0.0 {
-                    2.0 * SSI_STEP_RELATIVE / kappa
-                } else {
-                    f64::INFINITY
-                };
-                let n3_state = norm(&d3);
-                let s_cub = if n3_state != 0.0 && kappa_sq != f64::INFINITY {
-                    (6.0 * SSI_STEP_RELATIVE / n3_state).sqrt()
-                } else {
-                    f64::INFINITY
-                };
+                //     advances, the state's, in state units. On the ℝ⁴
+                //     lane the state holds the wall chart's bending, which
+                //     the carrier rungs do not read.
+                let [s_quad, s_cub] = relative_rungs(1.0, kappa, norm(&d3), cubic);
                 let h_curve = [h_cub, h_fit, s_quad, s_cub]
                     .into_iter()
                     .fold(h_quad, Real::min);
                 let h_cap = ctx.diagonal();
-                let h = Real::min(h_curve, h_cap);
+                // (d) the restart: no more than twice the last step kept.
+                let mut h = [h_cap, last_kept.map_or(f64::INFINITY, |l| 2.0 * l)]
+                    .into_iter()
+                    .fold(h_curve, Real::min);
+                // (e) the residual test: the predicted state on the locus
+                //     to ε plus the settling residual its start carries;
+                //     a step whose end leaves the domain has its midpoint
+                //     inside and on the locus instead. Otherwise halve,
+                //     down to the band, where the step guard below speaks.
+                let reach = ctx.tol.meters() + ctx.tol.settling();
+                let predict = |h: f64| -> [f64; N] {
+                    core::array::from_fn(|i| {
+                        h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i]
+                    })
+                };
+                let on_locus = |at: &[f64; N]| {
+                    exit.holds(at, &ctx) && sys.residual(at).iter().all(|r| r.abs() <= reach)
+                };
+                let kept = |h: f64| {
+                    let end = add(&x, &predict(h));
+                    if exit.holds(&end, &ctx) {
+                        on_locus(&end)
+                    } else {
+                        on_locus(&add(&x, &predict(0.5 * h)))
+                    }
+                };
+                while h * speed > band.escalate() && !kept(h) {
+                    h *= 0.5;
+                    halved += 1;
+                }
+                last_kept = Some(h);
                 // Bookkeeping for the budget's refusal only: a poisoned
                 // `h` reaches the step guard below whichever rung is named.
-                let bound = if h_curve < h_cap {
+                let bound = if h < h_cap {
                     StepBound::Curvature
                 } else {
                     StepBound::Cap(StepCap::Diagonal)
                 };
-                let mut step = [0.0f64; N];
-                for (i, s) in step.iter_mut().enumerate() {
-                    *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
-                }
-                (step, h * speed, bound)
+                (predict(h), h * speed, bound)
             }
         };
 
@@ -1119,7 +1167,7 @@ where
             return Err(unusable(StepFault::DoesNotMove));
         }
 
-        // ---- 6. Newton refinement to the surface pair ----
+        // ---- 7. Newton refinement to the surface pair ----
         let Some(refined) = newton_refine(sys, next, ctx.tol) else {
             // A step that will not settle is a step into nothing:
             // refuse rather than record a bad sample, unless it left
@@ -1128,7 +1176,7 @@ where
                 return Ok(Trace {
                     states,
                     end,
-                    steps: steps + 1,
+                    steps: steps + 1 + halved,
                     longest_step,
                     held,
                 });
@@ -1139,7 +1187,7 @@ where
             });
         };
         next = refined;
-        steps += 1;
+        steps += 1 + halved;
         match bound {
             StepBound::Curvature => held.curvature += 1,
             StepBound::Cap(cap) | StepBound::Both(cap) => held.caps[cap.index()] += 1,
@@ -1217,7 +1265,7 @@ where
     Err(SsiError::StepBudget {
         mode: mode.name(),
         budget: ctx.max_steps + spent,
-        bound: StepBound::of(held.curvature, held.caps, steps + spent),
+        bound: StepBound::of(held.curvature, held.caps, held.steps()),
     })
 }
 
@@ -1301,6 +1349,10 @@ fn neg<const N: usize>(a: &[f64; N]) -> [f64; N] {
         *v = -*v;
     }
     o
+}
+
+fn add<const N: usize>(a: &[f64; N], b: &[f64; N]) -> [f64; N] {
+    core::array::from_fn(|i| a[i] + b[i])
 }
 
 fn scale<const N: usize>(a: &[f64; N], k: f64) -> [f64; N] {

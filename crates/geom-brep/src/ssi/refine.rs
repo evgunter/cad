@@ -18,10 +18,16 @@
 //! it: halving the refused gap alone leaves an abrupt change of spacing
 //! next to it, where the refusal then moves, one gap a round.
 //!
+//! A midpoint settles within half its gap and the settling residual of
+//! the gap's chord midpoint where the gap holds one arc ([`halve`]); one
+//! that settles farther, or not at all, refuses the polyline as not one
+//! arc ([`SsiError::PolylineNotOneArc`]), so the fit never reads a
+//! polyline short of its samples.
+//!
 //! The rule is fixed (D9), and it stops on its own terms, which the
 //! refusal then names ([`RefineStop`]): where no selected gap can be
 //! halved, half of each falling in the band (`ssi_refine_halving`) or
-//! its midpoint not settling inside the domain, and where the next round
+//! its midpoint settling outside the domain, and where the next round
 //! would give the branch more steps than its budget
 //! ([`super::SSI_MAX_STEPS`], the march's own). The band stop is the
 //! termination: a gap is halved only while half of it clears the band,
@@ -50,7 +56,7 @@ use super::certify::{Located, SsiLimb};
 use super::march::{MarchContext, newton_refine, within};
 use super::section::BandVerdict;
 use super::system::LocalSystem;
-use super::{SSI_FIT_DEGREE, SsiError};
+use super::{ArcMiss, BranchBound, SSI_FIT_DEGREE, SsiError};
 
 /// Where refinement stopped short of a certificate
 /// ([`SsiError::RefinementExhausted`]).
@@ -60,8 +66,8 @@ pub enum RefineStop {
     NothingToHalve {
         /// Gaps half of which falls in the band.
         in_band: usize,
-        /// Gaps whose midpoint did not settle onto the locus inside the
-        /// domain.
+        /// Gaps whose midpoint settled outside the domain, or onto an
+        /// end.
         unsettled: usize,
     },
     /// The next round would have given the branch more steps, the gaps
@@ -127,22 +133,25 @@ pub(crate) fn stopped_falling(before: Option<RoundMargin>, last: Option<RoundMar
 ///
 /// # Errors
 ///
-/// A refusal the certificate does not locate (limb 3, a foot point, a
-/// limb whose margin is no number, the fit), as it is; a located one
-/// that refinement cannot answer as [`SsiError::RefinementExhausted`],
-/// naming where it stopped, on how many samples, and every round's
-/// refusal.
+/// [`fit_minimum`]'s refusals, the sized one bounded by `bounded_by`;
+/// [`SsiError::PolylineNotOneArc`] where a refined midpoint shows its
+/// gap does not hold one arc; a refusal the certificate does not locate
+/// (limb 3, a foot point, a limb whose margin is no number, the fit), as
+/// it is; and a located one that refinement cannot answer as
+/// [`SsiError::RefinementExhausted`], naming where it stopped, on how
+/// many samples, and every round's refusal.
 pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
     sys: &S,
     states: Vec<[f64; N]>,
     ctx: &MarchContext<N>,
     band: Band,
+    bounded_by: BranchBound,
     mut certify: impl FnMut(&[[f64; N]]) -> Result<C, Located>,
 ) -> Result<C, SsiError>
 where
     S: LocalSystem<M, N>,
 {
-    let mut states = fit_minimum(sys, states, ctx, band).map_err(|short| short.refusal(None))?;
+    let mut states = fit_minimum(sys, states, ctx, band, bounded_by)?;
     let mut earlier = Vec::new();
     loop {
         let (error, at) = match certify(&states) {
@@ -174,7 +183,8 @@ where
             match halve(sys, &pair[0], &pair[1], ctx, band) {
                 Halving::Settled(mid) => finer.push(mid),
                 Halving::InBand(_) => in_band += 1,
-                Halving::Unsettled => unsettled += 1,
+                Halving::OffDomain => unsettled += 1,
+                Halving::NotOneArc(miss) => return Err(not_one_arc(sys, pair, miss)),
             }
         }
         finer.extend(states.last().copied());
@@ -204,28 +214,6 @@ where
     }
 }
 
-/// A polyline too short for its gaps to be halved to the fit's
-/// samples, half of one falling in the band ([`fit_minimum`]).
-#[derive(Debug)]
-pub(crate) struct Short {
-    /// The polyline's length, in metres.
-    pub(crate) length: f64,
-    /// The verdict on half its longest gap that falls in the band.
-    pub(crate) verdict: BandVerdict,
-}
-
-impl Short {
-    /// The sized refusal, carrying the certificate's refusal of the
-    /// branch's other candidate where one was tried.
-    pub(crate) fn refusal(self, limb: Option<SsiError>) -> SsiError {
-        SsiError::ShortBranchUncertified {
-            length: self.length,
-            limb: limb.map(Box::new),
-            verdict: self.verdict,
-        }
-    }
-}
-
 /// **The fit's minimum** (C3): `states` given the cubic's
 /// `SSI_FIT_DEGREE + 1` samples where it has fewer. Each round halves the
 /// longest gap whose midpoint settles ([`halve`]), so a polyline reaches
@@ -234,16 +222,19 @@ impl Short {
 ///
 /// # Errors
 ///
-/// [`Short`] where no gap can be halved and half of one falls in the
-/// band (`ssi_refine_halving`). Where every midpoint fails to settle
-/// instead, or there is no gap, the states come back short and the fit
-/// refuses them by name.
+/// [`SsiError::PolylineNotOneArc`] for the first gap whose midpoint
+/// shows it does not hold one arc, or, where nothing halves and no half
+/// gap falls in the band, the longest gap, its midpoint settled outside
+/// the domain. Otherwise, where nothing halves,
+/// [`SsiError::ShortBranchUncertified`] in the polyline's length, on
+/// the first half gap that falls in the band, bounded by `bounded_by`.
 pub(crate) fn fit_minimum<const M: usize, const N: usize, S>(
     sys: &S,
     mut states: Vec<[f64; N]>,
     ctx: &MarchContext<N>,
     band: Band,
-) -> Result<Vec<[f64; N]>, Short>
+    bounded_by: BranchBound,
+) -> Result<Vec<[f64; N]>, SsiError>
 where
     S: LocalSystem<M, N>,
 {
@@ -257,7 +248,8 @@ where
                 .then(i.cmp(&j))
         });
         let mut in_band = None;
-        for i in gaps {
+        let mut off_domain = None;
+        for &i in &gaps {
             match halve(sys, &states[i], &states[i + 1], ctx, band) {
                 Halving::Settled(mid) => {
                     states.insert(i + 1, mid);
@@ -266,34 +258,80 @@ where
                 Halving::InBand(verdict) => {
                     in_band.get_or_insert(verdict);
                 }
-                Halving::Unsettled => {}
+                Halving::OffDomain => {
+                    off_domain.get_or_insert(i);
+                }
+                Halving::NotOneArc(miss) => {
+                    return Err(not_one_arc(sys, &states[i..=i + 1], miss));
+                }
             }
         }
-        return match in_band {
-            Some(verdict) => Err(Short {
-                length: (0..states.len() - 1).map(|i| chord(&states, i)).sum(),
-                verdict,
-            }),
-            None => Ok(states),
+        if let (None, Some(i)) = (&in_band, off_domain) {
+            return Err(not_one_arc(sys, &states[i..=i + 1], ArcMiss::OffDomain));
+        }
+        // A polyline of one state has no gap, and no length to halve.
+        let verdict = match in_band {
+            Some(verdict) => verdict,
+            None => match halving_verdict(0.0, band) {
+                Some(verdict) => verdict,
+                None => unreachable!("a zero length clears no band"),
+            },
         };
+        return Err(SsiError::ShortBranchUncertified {
+            length: (0..states.len().saturating_sub(1))
+                .map(|i| chord(&states, i))
+                .sum(),
+            limb: None,
+            verdict,
+            bounded_by,
+        });
     }
     Ok(states)
 }
 
+/// The refusal of a polyline whose gap from `pair[0]` to `pair[1]` does
+/// not hold one arc.
+fn not_one_arc<const M: usize, const N: usize, S: LocalSystem<M, N>>(
+    sys: &S,
+    pair: &[[f64; N]],
+    miss: ArcMiss,
+) -> SsiError {
+    SsiError::PolylineNotOneArc {
+        gap: (sys.point(&pair[1]) - sys.point(&pair[0])).norm(),
+        miss,
+    }
+}
+
 /// What halving one gap gave.
 enum Halving<const N: usize> {
-    /// The midpoint, settled onto the locus inside the domain.
+    /// The midpoint, settled onto the locus inside the domain, within
+    /// one arc's reach of the gap's chord.
     Settled([f64; N]),
     /// Half the gap's chord does not clear the band: the verdict on it.
     InBand(BandVerdict),
-    /// The midpoint did not settle onto the locus inside the domain, or
-    /// settled onto an end.
-    Unsettled,
+    /// The midpoint settled outside the domain, or onto an end.
+    OffDomain,
+    /// The midpoint shows the gap does not hold one arc.
+    NotOneArc(ArcMiss),
+}
+
+/// The verdict on half a gap `half` metres long where it does not clear
+/// the band (`ssi_refine_halving`, a length that passes positive).
+fn halving_verdict(half: f64, band: Band) -> Option<BandVerdict> {
+    match decide_reported("ssi_refine_halving", Margin::of(half), band) {
+        Ok(decided) => Refused::of(decided, band).map(BandVerdict::Refused),
+        Err(cause) => Some(BandVerdict::Undecided(cause)),
+    }
 }
 
 /// The midpoint of the gap from `a` to `b`, settled onto the locus,
-/// where half the gap's chord clears the band (`ssi_refine_halving`, a
-/// length that passes positive).
+/// where half the gap's chord clears the band.
+///
+/// **The one-arc stop.** An arc turning by at most π lies within `g/2`
+/// of its chord's midpoint, `g` the chord's length, and the curvature
+/// rungs keep each step's turn far below π. So a gap holding one arc has
+/// its midpoint settle within `g/2` and the settling residual of the
+/// chord's midpoint; one that settles farther, or not at all, does not.
 fn halve<const M: usize, const N: usize, S>(
     sys: &S,
     a: &[f64; N],
@@ -304,21 +342,23 @@ fn halve<const M: usize, const N: usize, S>(
 where
     S: LocalSystem<M, N>,
 {
-    let half = 0.5 * (sys.point(b) - sys.point(a)).norm();
-    match decide_reported("ssi_refine_halving", Margin::of(half), band) {
-        Ok(decided) => {
-            if let Some(refused) = Refused::of(decided, band) {
-                return Halving::InBand(BandVerdict::Refused(refused));
-            }
-        }
-        Err(cause) => return Halving::InBand(BandVerdict::Undecided(cause)),
+    let (pa, pb) = (sys.point(a), sys.point(b));
+    let half = 0.5 * (pb - pa).norm();
+    if let Some(verdict) = halving_verdict(half, band) {
+        return Halving::InBand(verdict);
     }
     let mid: [f64; N] = core::array::from_fn(|i| 0.5 * (a[i] + b[i]));
-    match newton_refine(sys, mid, ctx.tol) {
-        Some(settled) if within(&settled, &ctx.domain) && settled != *a && settled != *b => {
-            Halving::Settled(settled)
-        }
-        _ => Halving::Unsettled,
+    let Some(settled) = newton_refine(sys, mid, ctx.tol) else {
+        return Halving::NotOneArc(ArcMiss::Unsettled);
+    };
+    let off = (sys.point(&settled) - pa.lerp(pb, 0.5)).norm();
+    if off.is_nan() || off > half + ctx.tol.settling() {
+        return Halving::NotOneArc(ArcMiss::Far { off });
+    }
+    if within(&settled, &ctx.domain) && settled != *a && settled != *b {
+        Halving::Settled(settled)
+    } else {
+        Halving::OffDomain
     }
 }
 
@@ -328,7 +368,8 @@ mod tests {
     use geom_core::Band;
 
     use super::{
-        Located, RefineStop, RefusedRound, RoundMargin, SsiError, SsiLimb, refine_by_certificate,
+        BranchBound, Located, RefineStop, RefusedRound, RoundMargin, SsiError, SsiLimb,
+        refine_by_certificate,
     };
     use crate::ssi::SSI_MAX_STEPS;
     use crate::ssi::certify::RefusedSpan;
@@ -414,7 +455,7 @@ mod tests {
         let ctx = kernel_ctx(band);
         let mut rounds = 0;
         let mut certify = refusing(-0.05, 0.05, 0.1);
-        let out = refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
+        let out = refine_by_certificate(&sys, axis_states(), &ctx, band, BranchBound::Slab, |s| {
             rounds += 1;
             certify(s)
         })
@@ -443,7 +484,7 @@ mod tests {
         let mut finest = f64::INFINITY;
         let mut seen = Vec::new();
         let mut certify = refusing(0.0, 0.0, 0.0);
-        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, |s| {
+        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, BranchBound::Slab, |s| {
             for g in s.windows(2) {
                 finest = finest.min(g[1][0] - g[0][0]);
             }
@@ -520,7 +561,7 @@ mod tests {
         let sys = FixedSpeedR3::at_speed(1.0);
         let ctx = unit_ctx(band);
         let floor = 3.0e-9;
-        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, |_| {
+        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, BranchBound::Slab, |_| {
             Err::<(), _>(refusal(-0.8, 0.8, floor))
         });
         match r {
@@ -557,7 +598,7 @@ mod tests {
         let ctx = unit_ctx(band);
         let tau = 1.0e-3;
         let mut calls = 0usize;
-        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, |s: &[[f64; 3]]| {
+        let r = refine_by_certificate(&sys, axis_states(), &ctx, band, BranchBound::Slab, |s: &[[f64; 3]]| {
             calls += 1;
             match s.windows(2).find(|g| g[1][0] - g[0][0] > tau) {
                 Some(g) => Err(refusal(g[0][0] + 1e-12, g[1][0] - 1e-12, g[1][0] - g[0][0])),

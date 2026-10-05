@@ -183,7 +183,8 @@ pub type TracedTriple = (NurbsCurve3<f64>, NurbsCurve2<f64>, NurbsCurve2<f64>);
 pub const SSI_FIT_DEGREE: usize = 3;
 
 /// The steps one branch may hold: the gaps between its samples,
-/// whether the march stepped them or refinement split them. Exceeding
+/// whether the march stepped them or refinement split them, and every
+/// step the march tried, the halved ones counted with the kept. Exceeding
 /// it is a typed refusal ([`SsiError::StepBudget`] in the march,
 /// [`RefineStop::StepBudget`] in refinement), never a truncated branch.
 ///
@@ -259,6 +260,31 @@ impl<T: geom_core::Bounds> TubeScale<T> {
     pub fn split(arm: T, extent: f64) -> Self {
         Self { arm, extent }
     }
+}
+
+/// What bounds a branch, and so which lever lengthens one too short at
+/// the tolerance ([`SsiError::ShortBranchUncertified`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BranchBound {
+    /// The NURBS wall's knot rectangle: the plane × NURBS lane.
+    Wall,
+    /// The caller's ℝ³ slab: the implicit lane.
+    Slab,
+}
+
+/// What a gap's refined midpoint did where the gap does not hold one
+/// arc ([`SsiError::PolylineNotOneArc`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ArcMiss {
+    /// It did not settle onto the locus.
+    Unsettled,
+    /// It settled `off` metres from the chord's midpoint.
+    Far {
+        /// The distance, in metres.
+        off: f64,
+    },
+    /// It settled outside the domain, and no gap could be halved.
+    OffDomain,
 }
 
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
@@ -552,16 +578,35 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A branch too short for its gaps to be halved to the cubic fit's
-    /// samples, half of one falling in the band (`ssi_refine_halving`).
+    /// A branch too short at this tolerance for any candidate: between
+    /// known ends, its march refused for want of step and its Hermite
+    /// was refused; or its samples are too short for their gaps to be
+    /// halved to the cubic fit's, half of one falling in the band
+    /// (`ssi_refine_halving`).
     ShortBranchUncertified {
-        /// The branch's length along its samples, in metres.
+        /// The branch's length in metres: between its ends where its
+        /// march could not step, along its samples where they could not
+        /// be halved.
         length: f64,
-        /// The certificate's refusal of the Hermite cubic through the
-        /// branch's two ends, on the lane that tries one.
+        /// The refusal of the Hermite cubic through the branch's two
+        /// ends, on the lane that tries one.
         limb: Option<Box<SsiError>>,
-        /// The verdict on half the longest gap that could not be halved.
+        /// The verdict that fell in the band: on the march's step, or on
+        /// half the longest gap that could not be halved.
         verdict: BandVerdict,
+        /// What bounds the branch, whose lever the refusal names.
+        bounded_by: BranchBound,
+    },
+    /// A gap between a polyline's samples does not hold one arc of the
+    /// locus: its midpoint settled farther from the gap's chord midpoint
+    /// than half the gap and the settling residual, the most an arc
+    /// turning by less than π lies from it, or not at all. The march's
+    /// limit, a candidate's, so the fit never reads the polyline.
+    PolylineNotOneArc {
+        /// The gap's chord, in metres.
+        gap: f64,
+        /// What its midpoint did.
+        miss: ArcMiss,
     },
     /// The plane's chart window does not hold the wall's image, so it
     /// would bound the march where the wall does not.
@@ -927,22 +972,40 @@ impl core::fmt::Display for SsiError {
                 )
             }
             Self::ShortBranchUncertified { length, limb, .. } => {
-                write!(
-                    f,
-                    "ssi: a branch {length:e} m long is too short at this tolerance to halve its \
-                     gaps to the cubic fit's samples"
-                )?;
-                match limb.as_deref() {
+                let refused = match limb.as_deref() {
+                    None => {
+                        return write!(
+                            f,
+                            "ssi: a branch {length:e} m long is too short at this tolerance to \
+                             halve its gaps to the cubic fit's samples"
+                        );
+                    }
                     Some(
                         Self::CertificateLimb { limb, .. }
                         | Self::CertificateEscalated { limb, .. },
-                    ) => write!(
+                    ) => limb.name(),
+                    Some(_) => "the Hermite candidate",
+                };
+                write!(
+                    f,
+                    "ssi: a branch {length:e} m long is too short at this tolerance for the march \
+                     to give the cubic fit its samples, and {refused} refused the cubic through \
+                     its two ends"
+                )
+            }
+            Self::PolylineNotOneArc { gap, miss } => {
+                write!(
+                    f,
+                    "ssi: a gap {gap:e} m long between a traced branch's samples does not hold one \
+                     arc of the intersection: its midpoint "
+                )?;
+                match miss {
+                    ArcMiss::Unsettled => write!(f, "did not settle onto it"),
+                    ArcMiss::Far { off } => write!(
                         f,
-                        ", and {} refused the cubic through its two ends",
-                        limb.name()
+                        "settled {off:e} m from the gap's chord midpoint, farther than half the gap"
                     ),
-                    Some(_) => write!(f, ", and the cubic through its two ends was refused"),
-                    None => Ok(()),
+                    ArcMiss::OffDomain => write!(f, "settled outside the domain"),
                 }
             }
             Self::WindowShortOfWall { half_extent, reach } => write!(
@@ -1153,11 +1216,11 @@ impl SsiError {
                 refusal,
                 ..
             } => refusal.ending(reading),
-            // `march_both` hands the fit more samples than the cubic
-            // needs, or two or more whose length is not a number, which
+            // Refinement hands the fit the cubic's samples or refuses
+            // (`refine::fit_minimum`), and a sample that is not a number
             // `chord_parameters` refuses as `NonFinitePoint` before the
-            // interpolation counts: a short trace reaching the count is
-            // the kernel's.
+            // interpolation counts: a short polyline reaching the count
+            // is the kernel's.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Interpolation takes no tolerance, runs no knot algebra and
             // reads no rows: these are the approximating fits' refusals.
@@ -1201,12 +1264,19 @@ impl SsiError {
             Self::CrossingUnmatched { .. } => {
                 Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
             }
-            // Between known ends the wall bounds the branch; a branch
-            // traced from a seed is bounded by the caller's domain too.
-            Self::ShortBranchUncertified { verdict, limb, .. } => match limb {
-                Some(_) => SHORT_BRANCH.recourse(verdict.arm(), reading),
-                None => SHORT_TRACE.recourse(verdict.arm(), reading),
+            Self::ShortBranchUncertified {
+                verdict,
+                bounded_by,
+                ..
+            } => match bounded_by {
+                BranchBound::Wall => SHORT_BRANCH.recourse(verdict.arm(), reading),
+                BranchBound::Slab => SHORT_TRACE.recourse(verdict.arm(), reading),
             },
+            // A candidate generator's limit, as a march that loses its
+            // branch is.
+            Self::PolylineNotOneArc { .. } => {
+                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+            }
             Self::WindowShortOfWall { reach, .. } => format!(
                 "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
                  window holds the wall"
@@ -1651,31 +1721,32 @@ fn graze_recourse(side: Option<ChartSide>, verdict: &BandVerdict, reading: Readi
     }
 }
 
-/// A branch between known ends too short for its gaps to be halved to
-/// the fit's samples ([`SsiError::ShortBranchUncertified`]): its length
-/// is a size the user may intend, and a tolerance whose band half a gap
-/// clears fits it.
-const SHORT_BRANCH: SizedDecision = SizedDecision {
-    lever: "move the plane or the wall so the branch it clips is longer, or clear of the wall",
-    size: "branch length",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
+/// A branch too short at the tolerance
+/// ([`SsiError::ShortBranchUncertified`]), with `lever` its bound's:
+/// its length is a size the user may intend, and a tolerance whose band
+/// the verdict's length clears gives it its samples.
+const fn short_branch(lever: &'static str) -> SizedDecision {
+    SizedDecision {
+        lever,
+        size: "branch length",
+        passes: SizedPass::Positive,
+        stored: StoredDefinite::Lever,
+        at_zero: None,
+    }
+}
 
-/// A branch traced from a seed too short for its gaps to be halved to
-/// the fit's samples ([`SsiError::ShortBranchUncertified`] with no
-/// Hermite): the caller's domain may cut it, so a domain holding more of
-/// it lengthens it. A cylinder × sphere arc cut to a 30 µm cube refuses
-/// so at ε 1e-6, and the same arc in a 0.3 mm cube certifies.
-const SHORT_TRACE: SizedDecision = SizedDecision {
-    lever: "name a domain that holds more of the intersection, or move the surfaces so the \
-            branch where they meet is longer",
-    size: "branch length",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
+/// A short branch the wall bounds.
+const SHORT_BRANCH: SizedDecision =
+    short_branch("move the plane or the wall so the branch it clips is longer, or clear of the wall");
+
+/// A short branch the caller's slab bounds: the slab may cut it, so a
+/// domain holding more of it lengthens it. A cylinder × sphere arc cut
+/// to a 30 µm cube refuses so at ε 1e-6, and the same arc in a 0.3 mm
+/// cube certifies.
+const SHORT_TRACE: SizedDecision = short_branch(
+    "name a domain that holds more of the intersection, or move the surfaces so the branch \
+     where they meet is longer",
+);
 
 /// [`SsiError::ExhaustivenessInconclusive`]'s ending. A cell the search
 /// can neither exclude nor account for at the accounting floor
@@ -2004,12 +2075,12 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// The stepper's step against the operands and the domain the caller
-/// named ([`SsiError::StepCollapsed`], [`SsiError::StepUnusable`]): a
-/// step that collapses into the band, overflows, or does not move the
-/// state comes from operands outside the model's size range, or from a
-/// branch too little of which lies in the domain, whose diagonal caps
-/// the step.
+/// The stepper's step against the operands and the caller's domain
+/// ([`SsiError::StepCollapsed`], [`SsiError::StepUnusable`]): a step
+/// that collapses into the band, overflows, or does not move the state
+/// comes from operands outside the model's size range, or from a slab
+/// whose diagonal caps the step. Between a plane × NURBS branch's known
+/// ends, a march refused for want of step is a short branch instead.
 const STEP_SCALE: SizedDecision = SizedDecision {
     lever: "bring the operands within the model's size range, or name a domain that holds more \
             of the intersection",
@@ -2260,7 +2331,13 @@ fn finish_r3(
     let points = trace_points::<2, 3, _, _>(sys, trace);
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let (carrier, cert) =
-        refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states| {
+        refine::refine_by_certificate(
+            sys,
+            trace.states.clone(),
+            ctx,
+            band,
+            BranchBound::Slab,
+            |states| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
             let (carrier, _, _) = fit_branch(&points, None)?;
             let cert = certify::certify_located(
@@ -2684,7 +2761,13 @@ fn trace_plane_nurbs_within(
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
-    let densified = refine::refine_by_certificate(&sys, states, &ctx, band, |states| {
+    let densified = refine::refine_by_certificate(
+        &sys,
+        states,
+        &ctx,
+        band,
+        BranchBound::Wall,
+        |states| {
         let fitted = ends::fit_states(&sys, states)?;
         match certify::certify_located(
             &fitted.0,
@@ -3299,6 +3382,11 @@ mod ending_tests {
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
+            (
+                "polyline not one arc",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
             ("unsupported, side", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "refinement exhausted, step budget, floor",
@@ -3371,7 +3459,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 38;
+    const ARMS: usize = 39;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3416,6 +3504,7 @@ mod ending_tests {
             SsiError::WindowShortOfWall { .. } => 35,
             SsiError::TubeNotOneArc { .. } => 36,
             SsiError::RefinementExhausted { .. } => 37,
+            SsiError::PolylineNotOneArc { .. } => 38,
         }
     }
 
@@ -3770,6 +3859,7 @@ mod ending_tests {
                         value: 3e-9,
                     })),
                     verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
+                    bounded_by: super::BranchBound::Wall,
                 },
             ),
             (
@@ -3778,6 +3868,21 @@ mod ending_tests {
                     length: 3e-9,
                     limb: None,
                     verdict: BandVerdict::Refused(zero),
+                    bounded_by: super::BranchBound::Slab,
+                },
+            ),
+            (
+                "polyline not one arc",
+                SsiError::PolylineNotOneArc {
+                    gap: 2e-3,
+                    miss: super::ArcMiss::Far { off: 4e-3 },
+                },
+            ),
+            (
+                "polyline not one arc, unsettled",
+                SsiError::PolylineNotOneArc {
+                    gap: 2e-3,
+                    miss: super::ArcMiss::Unsettled,
                 },
             ),
             (
