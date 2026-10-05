@@ -62,3 +62,37 @@ lie disjoint. That is the shape `reconcile_shared` and `holds_whole`
 handle across several pairs. Measure whether that machinery, the join
 and the finish carry nested runs of one pair, then build it with every
 op at kernel-free volumes. Flip the pin when it builds.
+
+## Built
+
+Branch `join/six-crossing-pairing`.
+
+**The pairing was already right; the guard was wrong.** A's runs on
+one side of B are disjoint arcs of one disk B's link bounds, so A's
+consecutive pairing never crosses in B's walk order, whatever the
+count. A model over every closed meander checks this for 4, 6 and 8
+crossings (2, 8 and 42 link pairs), each with the four kept-side
+choices. The start on A's kept side then gives each kept vertex copy
+exactly one cycle of the result's link. So the pairing and its start
+are unchanged.
+
+**What changed** (`insert`):
+- `b_runs` replaces the adjacency guard. A pair adjacent in B runs as
+  before. Any other runs forward from its earlier B position to its
+  later and records the innermost pair whose run holds it (`holder`).
+- `mint_plans` mints a held run after its holder, at the holder's copy
+  where the holder is a fan.
+- `corner_bound` anchors a held strut in the holder's first corner on
+  the holder's null half.
+- A nested plan whose vertex another crossing plan shares refuses
+  `SharedVertexCrossings`; no battery reaches it.
+
+**`PairingMismatch` now guards** two pairs crossing in B's walk order,
+or a run whose codes disagree at its ends. No two simple links give
+either reading.
+
+**Measured.** The 1 746 `PairingMismatch` runs of both reviews' batteries
+(r1 324, r2 1 422) are SOUND at their oracles, and nothing else moved
+across 101 battery jobs. The pin is now
+`join_pierce_runs_sweep::six_crossing_corners_build_every_op`, and
+four mutants of the nested pairing redden it.

@@ -26,15 +26,14 @@
 //!    orders, at the volume clipping the tilted cube to the L-prism's
 //!    two boxes gives.
 //!
-//! At four crossings the guard cannot fire on distinct germs: each
-//! solid's link round its vertex is a simple closed curve, and both
-//! non-crossing matchings of four points fix one cyclic order on both
-//! (`insert`'s module docs). At six a nested matching is legal and the
-//! guard refuses; that class has its own witness and row
-//! (`join_pierce_runs_sweep::a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs`,
-//! `work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`). The hunts here stop on any `PairingMismatch` so that it is
-//! read: a six-crossing pose goes on that row, and a four-crossing one
-//! is a bug.
+//! The guard cannot fire on two simple links: A's runs on one side of
+//! B are disjoint arcs of one disk B's link bounds, so A's pairs never
+//! cross in B's walk order. At four crossings they are adjacent there
+//! too; at six they may nest, and the nested pairing builds
+//! (`insert`'s module docs,
+//! `join_pierce_runs_sweep::six_crossing_corners_build_every_op`). The
+//! hunts here stop on any `PairingMismatch` so that it is read: it is
+//! a bug at any number of crossings.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::common;
 use common::{finished, mapped_cube, prism_z};
@@ -224,8 +223,8 @@ fn tilt_sweep_no_silent_mispair() {
                 Ok(_) => {}
                 Err(BooleanError::PairingMismatch { .. }) => {
                     panic!(
-                        "PairingMismatch at zc={zc} k={k}: six crossings belong \
-                         on the six-crossing row, four are a bug"
+                        "PairingMismatch at zc={zc} k={k}: a bug at any number of \
+                         crossings"
                     );
                 }
                 // Any other refusal is typed and loud — acceptable.

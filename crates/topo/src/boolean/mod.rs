@@ -55,9 +55,10 @@
 //!    and explicit A↔B correspondence keys as data
 //!    ([`NullEdgePairRecord`]) — never correlated array order
 //!    (`ssortnulledges` is engineered out). The 15.11
-//!    consecutive-pairing invariant is guarded at runtime (the pair
-//!    must be cyclically adjacent in BOTH neighborhoods) and stressed
-//!    by the 4-crossing fixtures (F12).
+//!    consecutive-pairing invariant is guarded at runtime (no two pairs
+//!    may cross in either neighborhood, and where one nests another in
+//!    B's the inner mints at the outer's copy) and stressed by the
+//!    four- and six-crossing fixtures (F12).
 //!
 //! # The 15.7 sign resolution (F3)
 //!
@@ -1958,9 +1959,11 @@ pub enum BooleanError {
         /// What was wrong.
         what: &'static str,
     },
-    /// The 15.11 consecutive-pairing invariant failed: a surviving
-    /// crossing-record pair is not cyclically adjacent in both
-    /// neighborhoods (F12's guarded refusal — see `insert`).
+    /// The 15.11 consecutive-pairing invariant failed: two of A's
+    /// consecutive crossing-record pairs cross in B's walk order, or a
+    /// run's codes disagree at its two ends — readings no two simple
+    /// links round one point give (F12's guarded refusal — see
+    /// `insert`).
     PairingMismatch {
         /// The A-side vertex of the neighborhood.
         a_vertex: VertexKey,
@@ -3207,9 +3210,9 @@ impl core::fmt::Display for BooleanError {
             Self::PairingMismatch { a_vertex, b_vertex } => write!(
                 f,
                 "null-edge pairing mismatch at vertex pair \
-                 ({a_vertex:?}, {b_vertex:?}): a surviving crossing-record pair is not \
-                 cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
-                 refusal)"
+                 ({a_vertex:?}, {b_vertex:?}): two surviving crossing-record pairs cross in \
+                 one neighborhood, or a run's side codes disagree at its ends (the 15.11 \
+                 invariant's guarded refusal)"
             ),
             Self::SharedVertexCrossings { operand, .. } => write!(
                 f,
