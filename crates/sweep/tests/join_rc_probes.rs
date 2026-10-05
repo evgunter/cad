@@ -78,6 +78,37 @@ fn rc_wide_battery() {
     }
 }
 
+/// **A strut whose corner an earlier run of its pair carried away
+/// refuses typed.** At each pose `b ∖ a`'s four-germ corner runs a fan
+/// that moves the half bounding the corner its pair's strut hangs in
+/// (`work/join/four-germ-vertex-pairs-run-b-in-a-order`); one pose for
+/// each turned profile `rc_wide_battery` aborted on.
+#[test]
+fn a_strut_whose_corner_an_earlier_run_moved_refuses_typed() {
+    for (profile, rot, sx, sy) in [
+        ("sqQ1", -20.0, -0.75, 0.3),
+        ("dLeft", 190.0, -0.3, 0.25),
+        ("dDown", 100.0, -0.3, 0.25),
+        ("dRight", 7.0, -0.3, 0.25),
+        ("dRight", 33.0, -0.75, 0.25),
+        ("eBot", -20.0, -0.75, -0.75),
+        ("eLeft", 0.0, -0.75, 0.0),
+        ("eLeft", 33.0, -0.75, 0.0),
+    ] {
+        let p = reflex_pose(profile, rot, sx, sy, tol());
+        let r = reflex_run(&p, "S_ba", tol());
+        assert!(
+            matches!(
+                r,
+                Err(topo::BooleanError::ClassificationInvariant {
+                    what: "an earlier run at the vertex carried a strut's corner to its copy"
+                })
+            ),
+            "{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) b ∖ a: {r:?}"
+        );
+    }
+}
+
 /// **A strut at the reflex corner faces its germs by their true angle
 /// from the arrival edge.** Each pose puts both of a strut's germs in
 /// `a`'s 315° top face, at least one more than a half-turn from the

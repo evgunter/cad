@@ -4,6 +4,8 @@ kind: issue
 title: Four topo rows that build torn bodies on purpose are red under --features per-op-postcondition: the operator's own tier-1 postcondition fires before the row reads its answer
 status: open
 opened: 2026-10-04
+priority: P3
+cost: E
 ---
 
 
