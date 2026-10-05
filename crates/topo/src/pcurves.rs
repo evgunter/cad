@@ -3386,7 +3386,7 @@ pub(crate) fn site_rows<T: Decide>(
                 }
             };
             boxes.push(image.chart_box(t0, t1));
-            let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
+            let (entry_t, exit_t) = entry_exit(plus, t0, t1);
             images.push((image, entry_t, exit_t));
         }
         // Each joint: kept where the door keeps both halves and the link
