@@ -104,7 +104,7 @@ fn sym(
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(name),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -127,7 +127,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     ));
-    let w = Expr::param(VarName::from_static("w"), Dimension::Length);
+    let w = Expr::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Expr::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -213,7 +213,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("t"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -223,7 +223,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             }),
         }),
     });
-    let t = Expr::param(VarName::from_static("t"), Dimension::Scalar);
+    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
     let base = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -732,7 +732,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("t"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -742,7 +742,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
             }),
         }),
     });
-    let t = Expr::param(VarName::from_static("t"), Dimension::Scalar);
+    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
     let b = base_frame(&mut r, &t, base);
     let on = match place {
         Place::Authored => b,

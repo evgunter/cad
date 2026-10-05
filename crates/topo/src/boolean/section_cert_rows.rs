@@ -1550,7 +1550,7 @@ fn a_bow_tie_through_the_apex_twice_does_not_describe() {
         .into_iter()
         .filter(|&he| {
             let v = body.get_half_edge(he).unwrap().start;
-            (crate::readback::vertex_point_ref(&body, v).unwrap() - p(0.0, 0.0, 0.0)).norm() == 0.0
+            (crate::readback::vertex_point(&body, v).unwrap() - p(0.0, 0.0, 0.0)).norm() == 0.0
         })
         .count();
     assert_eq!(
@@ -1657,7 +1657,7 @@ fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, FaceKey) {
         });
     }
     let (first, last) = (edges[0], edges[edges.len() - 1]);
-    let end = crate::readback::vertex_point_ref(&body, last.vertex).unwrap();
+    let end = crate::readback::vertex_point(&body, last.vertex).unwrap();
     let face = body
         .mef(
             MefSite::Chords {

@@ -45,7 +45,7 @@ fn scene() -> Scene {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static(HOLE_R),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -100,7 +100,7 @@ fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         &DocEdit::DefineVar {
             var: VarName::from_static(HOLE_R).into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -365,10 +365,18 @@ fn the_hole_radii_are_addressable_slots() {
             "loop {loop_}'s radius should be addressable"
         );
     }
-    // Sanity: the helper builds the same loop the document carries.
+    // Sanity: the helper builds the same loop the document carries —
+    // its radius authored by name, and stored as a reader of the
+    // variable that name holds.
+    let circle = |lp: &editor_core::LoopProgram| match lp {
+        editor_core::LoopProgram::Circle { centre, radius } => {
+            (centre.clone(), s.doc.unparse(radius))
+        }
+        other => panic!("a hole is a circle, got {other:?}"),
+    };
     assert_eq!(
-        program.loops.get(1),
-        Some(&hole_loop(HOLE_CENTRES[0])),
+        program.loops.get(1).map(circle),
+        Some(circle(&hole_loop(HOLE_CENTRES[0]))),
         "the hole loop is the shared-parameter circle"
     );
 }

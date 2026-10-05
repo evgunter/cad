@@ -586,7 +586,7 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`, `vertex_without_point`,
+    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -790,12 +790,8 @@ class ReadbackError(PncadError):
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
     under its OWN tags rather than a wrapper tag (`dangling_entity`,
-    `dangling_geometry`, `no_canonical_frame`, `no_carrier`).
-
-    The two dangling tags stay apart because they are different facts
-    about the model: `dangling_entity` is a stale or foreign handle,
-    `dangling_geometry` is a live entity naming geometry the body
-    itself no longer has.
+    `no_canonical_frame`, `no_carrier`). `dangling_entity` is a stale
+    or foreign handle.
 
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
@@ -2849,7 +2845,7 @@ class Expr:
         promotion the expression language refuses."""
     @property
     def params(self) -> list[ParamName]:
-        """The document parameters this references, sorted and without
+        """The variable names this reads, sorted and without
         repeats."""
     def __eq__(self, other: object) -> bool: ...
 
@@ -2867,6 +2863,19 @@ class ParamName:
     def __init__(self, name: str) -> None: ...
     @property
     def name(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Var:
+    """A document variable's identity: the id the document minted it,
+    which every expression reading it holds. A rename moves the name
+    and keeps this handle; a delete leaves it naming nothing the
+    document holds, and the id is never minted again. Read one off
+    `Doc.var` or `Doc.vars`."""
+
+    @property
+    def hex(self) -> str:
+        """The id with every bit shown: sixteen lowercase hex digits."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -3185,12 +3194,38 @@ def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
     region the certified answer does not cover. Raises
     MeasureUnavailable for a band, which `param` names."""
 
+DEFINITION_NODE_BOUND: Final[int]
+"""The most expression nodes a variable's expansion through the
+definitions it reads may hold: a definition past it refuses
+`definition_too_large`, whose `count` is the expansion's size."""
+
+class VarDecl:
+    """A variable's definition as an edit carries it: a free value, or
+    an `Expr` over other variables, which the edit door lowers (its
+    names resolved against the document's) and stores."""
+
+    @staticmethod
+    def free(value: DocParam) -> VarDecl:
+        """A free variable holding `value`."""
+    @staticmethod
+    def defined(expr: Expr) -> VarDecl:
+        """A variable defined by `expr`, of `expr`'s dimension: its
+        value is `expr`'s, re-evaluated whenever a variable it reads
+        moves, and it takes no value, unit or distribution of its
+        own."""
+    @property
+    def expr(self) -> Expr | None:
+        """The defining expression, or None for a free variable."""
+    @property
+    def value(self) -> DocParam | None:
+        """The free value, or None for a defined variable."""
+
 class DocParam:
     """A named parameter's declared dimension and exact stored value
     (guide §3.2): what `DocEdit.declare_var` writes. Continuous
     values arrive as typed quantities, so the dimension rides the
     constructor. A non-finite value is refused typed at `Doc.apply`
-    (`non_finite_doc_param`), not pre-checked here.
+    (`non_finite_var`), not pre-checked here.
 
     The three continuous constructors take an optional `distribution`
     (ERROR-DESIGN E1/E2) whose offsets must be in the dimension the
@@ -3340,25 +3375,34 @@ class DocEdit:
 
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
         the node lacks, `slot_dimension_mismatch` carrying the
-        required and offered dimensions, and `slot_unknown_doc_param` /
-        `slot_doc_param_dimension` for a parameter reference the
+        required and offered dimensions, and `slot_unknown_var_name` /
+        `slot_var_kind` for a parameter reference the
         document does not answer."""
 
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
-    def declare_var(name: ParamName, value: DocParam) -> DocEdit:
+    def declare_var(name: ParamName, value: DocParam | Expr | VarDecl) -> DocEdit:
         """Declare a variable: mint its id and hold `name` beside it.
 
         Refuses typed on a name the document already holds
         (`var_name_taken`), and on a broken annotation:
         `invalid_distribution` for an E2 invariant,
-        `non_finite_doc_param` for a NaN or infinite nominal or
-        offset."""
+        `non_finite_var` for a NaN or infinite nominal or
+        offset.
+
+        An `Expr` (or `VarDecl.defined`) declares a DEFINED variable,
+        whose value is the expression's over the variables it reads. It
+        refuses `definition_unknown_var_name`,
+        `definition_unresolved_var` and `definition_var_kind` for a read
+        the document does not answer, `definition_cycle` for one that
+        reads the variable back, and `definition_too_large` for an
+        expansion past the bound."""
     @staticmethod
-    def define_var(name: ParamName, value: DocParam) -> DocEdit:
+    def define_var(var: Var | ParamName, value: DocParam | Expr | VarDecl) -> DocEdit:
         """Replace a variable's definition, keeping its identity, its
-        name and its kind.
+        name and its kind. An `Expr` (or `VarDecl.defined`) makes it a
+        defined variable; a `DocParam` makes it free again.
 
         The whole definition is replaced, so a `DocParam` rebuilt from
         a dimension and a number has no distribution and the annotation
@@ -3370,9 +3414,10 @@ class DocEdit:
         Refuses typed on a name the document does not hold
         (`unknown_var`), on a definition of another kind
         (`var_kind_fixed` — a kind is fixed when a variable is
-        declared), and on `declare_var`'s annotation faults."""
+        declared), and on `declare_var`'s annotation and definition
+        faults."""
     @staticmethod
-    def set_var_value(name: ParamName, value: DocParamValue) -> DocEdit:
+    def set_var_value(var: Var | ParamName, value: DocParamValue) -> DocEdit:
         """Write a new VALUE into a declared variable, keeping its
         definition — dimension and distribution alike.
 
@@ -3381,9 +3426,9 @@ class DocEdit:
         move a number DELETES any distribution the variable carried,
         with no refusal. Refuses typed on an undeclared name
         (`unknown_var`) and on a kind mismatch
-        (`doc_param_value_kind_mismatch`)."""
+        (`var_value_kind_mismatch`)."""
     @staticmethod
-    def set_var_unit(name: ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
+    def set_var_unit(var: Var | ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
         """Write a new NOTATION onto a declared variable, keeping its
         definition — dimension, exact value and distribution alike.
 
@@ -3397,11 +3442,11 @@ class DocEdit:
         kernel refusal; a `Scalar` variable has only the dimensionless
         row and needs no door. Refuses typed on an undeclared name
         (`unknown_var`), on a `Count`
-        (`doc_param_count_has_no_unit`) and on a unit that does not
-        measure the declared dimension (`doc_param_unit_mismatch`)."""
+        (`var_count_has_no_unit`) and on a unit that does not
+        measure the declared dimension (`var_unit_mismatch`)."""
     @staticmethod
     def set_var_distribution(
-        name: ParamName, distribution: Distribution | None
+        var: Var | ParamName, distribution: Distribution | None
     ) -> DocEdit:
         """Write an E1/E2 ANNOTATION onto a declared variable, keeping
         its definition — dimension, exact value and notation alike.
@@ -3423,10 +3468,10 @@ class DocEdit:
         `doc-param-edit-doors-drop-the-python-dimension`).
 
         Refuses typed on an undeclared name (`unknown_var`), on a
-        `Count` (`doc_param_count_has_no_distribution` — a count takes
+        `Count` (`var_count_has_no_distribution` — a count takes
         no annotation, for the reason `DocParam.count` gives) and on a
         broken E2 invariant (`invalid_distribution`,
-        `non_finite_doc_param`)."""
+        `non_finite_var`)."""
     @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.
@@ -3553,7 +3598,7 @@ class DocEdit:
         already holds; `not_minted`, an id the log lacks, is the load
         door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
-        refuses of a profile: `slot_unknown_doc_param` and its
+        refuses of a profile: `slot_unknown_var_name` and its
         siblings over every argument, `profile_program_refused` for a
         program that does not close, replay or validate."""
 
@@ -3585,6 +3630,26 @@ class DocEdit:
         source, so there is nothing to repair: a GUI's selection is
         not document state, and repairing one is re-selecting."""
 
+    @staticmethod
+    def rename_var(var: Var | ParamName, name: ParamName | None) -> DocEdit:
+        """Name, rename or unname a variable: writes the name and
+        nothing else, so nothing recomputes and a `Var` handle keeps
+        naming the same variable. `None` clears the name.
+
+        Refuses typed on a variable the document does not hold
+        (`unknown_var`), a name another variable holds
+        (`var_name_taken`), the name it already has
+        (`var_name_unchanged`), and clearing the name of a variable
+        nothing reads (`anonymous_var_unread`)."""
+    @staticmethod
+    def delete_var(var: Var | ParamName) -> DocEdit:
+        """Delete a named variable. Its readers stay, unresolved:
+        evaluation refuses at each (`unresolved_var`), and the id is
+        never minted again.
+
+        Refuses typed on a variable the document does not hold
+        (`unknown_var`) and on an anonymous one, whose lifecycle is its
+        readers' (`delete_anonymous_var`)."""
     @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
         """Bind `node`'s STRUCTURAL count slot to the document
@@ -3881,12 +3946,38 @@ class Doc:
     def order(self) -> list[NodeId]: ...
     @property
     def params(self) -> dict[ParamName, DocParam]:
-        """The document's named parameters, by name.
+        """The document's named free parameters, by name, in
+        declaration order. A defined variable is listed by
+        `Doc.definitions` instead.
 
-        The read side of `DocEdit.declare_var`, and the only door
-        that answers a whole parameter back: `Doc.eval` answers a
+        The read side of a free `DocEdit.declare_var`, and the only
+        door that answers a whole parameter back: `Doc.eval` answers a
         parameter reference's number with the dimension and the
         authored notation both erased. A snapshot, not a view."""
+    @property
+    def definitions(self) -> dict[ParamName, Expr]:
+        """The document's named defined variables, by name, in
+        declaration order: each one's definition, reading variables by
+        id (`Doc.unparse` writes it by name). With `Doc.params` it
+        lists every named variable once. A snapshot, not a view."""
+    @property
+    def vars(self) -> dict[Var, DocParam]:
+        """The document's free variables, by identity, in declaration
+        order — the named ones and the anonymous ones. A snapshot, not
+        a view. A defined variable's definition is `Doc.definition`."""
+    def definition(self, var: Var) -> Expr | None:
+        """The expression `var` is defined by, reading variables by id,
+        or None for a free variable or one the document does not
+        hold."""
+    def var(self, name: ParamName) -> Var | None:
+        """The variable this document names `name`, or None."""
+    def var_name(self, var: Var) -> ParamName | None:
+        """The name this document holds for `var`, or None — for an
+        anonymous variable, or one the document no longer holds."""
+    def unparse(self, expr: Expr) -> str:
+        """The text of `expr`, each variable it reads written by the
+        name this document holds for it; one with no name here writes
+        its full id, `#<16 hex>`."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...
@@ -3933,8 +4024,10 @@ class Doc:
         A `count` expression does not evaluate here — counts are exact
         and promotion is explicit or nothing — so it raises EvalError
         (`count_expr_in_continuous_eval`) and `eval_count` is the
-        door. Other refusals: `unknown_param`,
-        `param_dimension_mismatch`, `non_finite_result`."""
+        door. The names are read against this document. Other
+        refusals: `unlowered_name` (a name no variable holds at the
+        dimension it is read at), `var_kind_mismatch` (one held at
+        another), `unresolved_var`, `non_finite_result`."""
 
     def eval_count(self, expr: Expr) -> int:
         """This count expression's exact value (`eval_count`).

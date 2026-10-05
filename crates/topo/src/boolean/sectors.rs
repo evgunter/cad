@@ -50,7 +50,9 @@ use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
 };
 use crate::body::Body;
+use crate::chord_join::StaleSite;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
@@ -140,10 +142,6 @@ impl<T: geom_core::Real> BoolSector<T> {
     }
 }
 
-fn corrupt(operand: Operand, vertex: VertexKey) -> BooleanError {
-    BooleanError::corrupt_at(operand, vertex)
-}
-
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
@@ -151,55 +149,54 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
-    let orbit = body
-        .vertex_orbit_of(vertex)
-        .filter(|orbit| !orbit.is_empty())
-        .ok_or_else(|| corrupt(operand, vertex))?;
+    let orbit = body.vertex_orbit_linked(vertex);
+    if orbit.is_empty() {
+        unreachable!(
+            "{operand:?}'s vertex {vertex:?}, met through a contact, is a lone vertex: a gated \
+             operand holds none"
+        );
+    }
     // The outgoing direction of an orbit half-edge, scaled to the
     // edge's honest extent — the M3 chord for `Line` carriers
     // (bit-identical), the carrier's outgoing TANGENT at the base
     // vertex scaled by `edge_extent` for conic carriers (M5 PR 9: the
     // ON-set machinery consumes curved carrier tangents instead of
     // assuming straight edges — the splitting lane's C12.2 idiom).
-    let chord = |he: HalfEdgeKey| -> Result<(Vec3<T>, Reach<T>), BooleanError> {
-        let end = body
-            .half_edge_end(he)
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let p_base = *body
-            .get_point(
-                body.get_vertex(vertex)
-                    .ok_or_else(|| corrupt(operand, vertex))?
-                    .point,
-            )
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let p_end = *body
-            .get_point(
-                body.get_vertex(end)
-                    .ok_or_else(|| corrupt(operand, vertex))?
-                    .point,
-            )
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let he_data = body
-            .get_half_edge(he)
-            .ok_or_else(|| corrupt(operand, vertex))?;
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or_else(|| corrupt(operand, vertex))?;
+    let chord = |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
+        let end = body.proven_half_edge_end(he);
+        let p_base = body.resolve_vertex_point(vertex, Proven);
+        let p_end = body.resolve_vertex_point(end, Proven);
+        let he_data = proven(&body.half_edges, he, EntityId::HalfEdge);
+        let edge = linked(
+            &body.edges,
+            he_data.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
         let curve = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .ok_or_else(|| corrupt(operand, vertex))?;
+            .edge_curve_linked(he_data.edge, edge)
+            .certified()
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "{operand:?}'s vertex {vertex:?} has the null edge {:?} in its orbit: a \
+                     gated operand holds none, and the boolean reads a vertex's sectors once, \
+                     before it hangs one there (no vertex pierces two faces or both pierces \
+                     and pairs)",
+                    he_data.edge
+                )
+            });
         match curve.carrier() {
-            geom::Curve3::Line { .. } => Ok((
+            geom::Curve3::Line { .. } => (
                 p_end - p_base,
                 Reach::Chord {
                     base: p_base,
                     far: p_end,
                 },
-            )),
+            ),
             geom::Curve3::Nurbs(_) => {
                 let d = p_end - p_base;
-                Ok((d, Reach::Extent(d.norm())))
+                (d, Reach::Extent(d.norm()))
             }
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
@@ -208,15 +205,15 @@ pub(super) fn build_sectors<T: Decide>(
                 let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
                 let extent =
                     geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
-                Ok((tangent.normalize() * extent, Reach::Extent(extent)))
+                (tangent.normalize() * extent, Reach::Extent(extent))
             }
         }
     };
     let mut sectors = Vec::with_capacity(orbit.len() + 2);
     for (i, &he) in orbit.iter().enumerate() {
         let next_he = orbit[(i + 1) % orbit.len()];
-        let (dir_end, reach_end) = chord(he)?; // this entry's own chord = CCW-last
-        let (dir_start, reach_start) = chord(next_he)?; // next chord = CCW-first
+        let (dir_end, reach_end) = chord(he); // this entry's own chord = CCW-last
+        let (dir_start, reach_start) = chord(next_he); // next chord = CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he)?;
         // The three sector-shape rungs — metering arm, wideness, and
         // the subdivision direction (PR 2's derivation: the cone
@@ -314,13 +311,6 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
-        // The shared walk names the entity that did not resolve; this
-        // lane's corruption arm carries the operand and a VERTEX, so
-        // the payload is narrowed here the same way the splitting
-        // lane's is — a vertex names itself, anything else falls back
-        // to the base vertex (issue #695).
-        SectorFaceError::Corrupt(EntityId::Vertex(v)) => corrupt(operand, v),
-        SectorFaceError::Corrupt(_) => corrupt(operand, vertex),
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
@@ -776,27 +766,16 @@ pub(super) fn within<T: Decide>(
 pub(super) fn bound_edges<T: Decide>(
     body: &Body<T>,
     s: &BoolSector<T>,
-) -> Result<Vec<(crate::entity::EdgeKey, Vec3<T>)>, BooleanError> {
-    let edge = |he| {
-        body.get_half_edge(he)
-            .map(|h| h.edge)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a sector's half-edge no longer resolves",
-            })
-    };
+) -> Vec<(crate::entity::EdgeKey, Vec3<T>)> {
+    let edge = |he| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
     let mut out = Vec::new();
     if s.end_edge() {
-        out.push((edge(s.he)?, s.end));
+        out.push((edge(s.he), s.end));
     }
     if s.start_edge() {
-        let orbit = body
-            .vertex_orbit(s.he)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a sector's vertex orbit does not walk",
-            })?;
-        out.push((edge(orbit[1 % orbit.len()])?, s.start));
+        out.push((edge(body.proven_orbit_step(s.he)), s.start));
     }
-    Ok(out)
+    out
 }
 
 /// **The one fold rule for an on-bound**: an edge read On against the
@@ -893,7 +872,7 @@ pub(super) fn germ_locus<T: Decide>(
 ) -> Result<super::Locus, BooleanError> {
     let in_face = super::Locus::InFace(side.sector.face);
     Ok(match along(side)? {
-        Some(e) if touch(side, e.far, contacts) != Touch::Apart => super::Locus::OnEdge(e.edge),
+        Some(e) if touch(side, e.far, contacts)? != Touch::Apart => super::Locus::OnEdge(e.edge),
         _ => in_face,
     })
 }
@@ -920,10 +899,7 @@ pub(super) fn germ_loci<T: Decide>(
     let (Some(ea), Some(eb)) = (along(a)?, along(b)?) else {
         return Ok((germ_locus(a, contacts)?, germ_locus(b, contacts)?));
     };
-    let (far_a, far_b) = (
-        crate::chord_join::null_site(a.body, &[ea.far]),
-        crate::chord_join::null_site(b.body, &[eb.far]),
-    );
+    let (far_a, far_b) = (site_of(a.body, ea.far)?, site_of(b.body, eb.far)?);
     let paired = contacts
         .vv
         .iter()
@@ -932,9 +908,11 @@ pub(super) fn germ_loci<T: Decide>(
         return one_segment(a, ea, b, eb);
     }
     let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
-        tangent_face(side, partner, e.edge, contacts).map(|f| InFace(f.unwrap_or(side.sector.face)))
+        Ok::<_, BooleanError>(InFace(
+            tangent_face(side, partner, e.edge, contacts)?.unwrap_or(side.sector.face),
+        ))
     };
-    let (ta, tb) = (touch(a, ea.far, contacts), touch(b, eb.far, contacts));
+    let (ta, tb) = (touch(a, ea.far, contacts)?, touch(b, eb.far, contacts)?);
     Ok(match ta.cmp(&tb) {
         core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)?),
         core::cmp::Ordering::Less => (tangent(a, b, eb)?, OnEdge(eb.edge)),
@@ -956,11 +934,10 @@ fn germ_curve<T: Decide>(
     body: &Body<T>,
     edge: crate::entity::EdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
-    body.get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)
+    body.edge_curve_linked(edge, proven(&body.edges, edge, EntityId::Edge))
+        .certified()
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "a germ edge has no certified curve",
+            what: "a germ edge is null scaffolding",
         })
 }
 
@@ -1001,9 +978,8 @@ fn one_segment<T: Decide>(
 /// ([`super::solid_contain::point_in_face`]); the sweep splits an edge
 /// at every crossing of the partner, so the midpoint speaks for the
 /// whole edge. `None`: undecided — a midpoint on the face's boundary, a
-/// face that is not a plane, or no single face across `pe`. A face or
-/// loop that does not resolve, and a trim the walk cannot read, are
-/// refused.
+/// face that is not a plane, or no single face across `pe`. A trim the
+/// walk cannot read is refused.
 fn runs_in<T: Decide>(
     side: GermSide<'_, T>,
     e: Along,
@@ -1011,16 +987,11 @@ fn runs_in<T: Decide>(
     pe: Along,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let pb = partner.body;
-    let edge = pb
-        .get_edge(pe.edge)
-        .ok_or(invariant("a germ edge no longer resolves"))?;
+    let edge = proven(&pb.edges, pe.edge, EntityId::Edge);
     let mut faces = Vec::new();
     for h in [edge.he_plus, edge.he_minus] {
-        let f = pb
-            .face_of_half_edge(h)
-            .ok_or(invariant("a germ edge's half has no face"))?;
+        let f = pb.face_of_linked(h);
         if f != partner.sector.face {
             faces.push(f);
         }
@@ -1049,34 +1020,38 @@ fn runs_in<T: Decide>(
 /// that bound is an edge of the face.
 fn along<T: Decide>(side: GermSide<'_, T>) -> Result<Option<Along>, BooleanError> {
     let (body, s, read) = (side.body, side.sector, side.read);
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let on_start = read.0 == SideCode::On && s.start_edge();
     let on_end = read.1 == SideCode::On && s.end_edge();
     let he = match (on_start, on_end) {
         (false, false) => return Ok(None),
         (false, true) => s.he,
-        (true, false) => {
-            let orbit = body
-                .vertex_orbit(s.he)
-                .ok_or(invariant("a germ sector's vertex orbit does not walk"))?;
-            orbit[1 % orbit.len()]
-        }
+        (true, false) => body.proven_orbit_step(s.he),
         (true, true) => {
-            return Err(invariant(
-                "a germ sector with both edge bounds on the partner face",
-            ));
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a germ sector with both edge bounds on the partner face",
+            });
         }
     };
-    let half = body
-        .get_half_edge(he)
-        .ok_or(invariant("a germ sector's half-edge no longer resolves"))?;
-    let far = body
-        .half_edge_end(he)
-        .ok_or(invariant("a germ sector's half-edge no longer resolves"))?;
     Ok(Some(Along {
-        edge: half.edge,
-        far,
+        edge: proven(&body.half_edges, he, EntityId::HalfEdge).edge,
+        far: body.proven_half_edge_end(he),
     }))
+}
+
+/// The site of `vertex` ([`crate::chord_join::null_site`]), a stale
+/// site vertex refused ([`stale_site`]).
+fn site_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Vec<VertexKey>, BooleanError> {
+    crate::chord_join::null_site(body, &[vertex]).map_err(stale_site)
+}
+
+/// The boolean's refusal of a site vertex that no longer resolves
+/// ([`StaleSite`]): the null edges are the classification's, so a stale
+/// key or copy among them breaks its invariant, wherever the reduction
+/// reads the site.
+pub(super) fn stale_site(_: StaleSite) -> BooleanError {
+    BooleanError::ClassificationInvariant {
+        what: StaleSite::WHAT,
+    }
 }
 
 /// What the reduction recorded at the site of `far`, a vertex of the
@@ -1085,22 +1060,24 @@ fn touch<T: Decide>(
     side: GermSide<'_, T>,
     far: VertexKey,
     contacts: &super::ContactRecords,
-) -> Touch {
-    let site = crate::chord_join::null_site(side.body, &[far]);
-    if on_faces(contacts, side.operand)
-        .iter()
-        .any(|c| site.contains(&c.vertex))
-    {
-        Touch::Face
-    } else if contacts
-        .vv
-        .iter()
-        .any(|c| site.contains(&vv_sides(c, side.operand).0))
-    {
-        Touch::Boundary
-    } else {
-        Touch::Apart
-    }
+) -> Result<Touch, BooleanError> {
+    let site = site_of(side.body, far)?;
+    Ok(
+        if on_faces(contacts, side.operand)
+            .iter()
+            .any(|c| site.contains(&c.vertex))
+        {
+            Touch::Face
+        } else if contacts
+            .vv
+            .iter()
+            .any(|c| site.contains(&vv_sides(c, side.operand).0))
+        {
+            Touch::Boundary
+        } else {
+            Touch::Apart
+        },
+    )
 }
 
 /// The recorded contacts of `operand`'s vertices on the partner's faces.
@@ -1130,15 +1107,16 @@ fn tangent_face<T: Decide>(
     along: crate::entity::EdgeKey,
     contacts: &super::ContactRecords,
 ) -> Result<Option<FaceKey>, BooleanError> {
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let (u, v) = partner.body.edge_vertices(along).ok_or(invariant(
-        "a tangent germ's partner edge no longer resolves",
-    ))?;
-    let near = crate::chord_join::null_site(partner.body, &[partner.site]);
+    let edge = proven(&partner.body.edges, along, EntityId::Edge);
+    let (u, v) = (
+        proven(&partner.body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
+        proven(&partner.body.half_edges, edge.he_minus, EntityId::HalfEdge).start,
+    );
+    let near = site_of(partner.body, partner.site)?;
     let Some(far) = [u, v].into_iter().find(|w| !near.contains(w)) else {
         return Ok(None);
     };
-    let far_site = crate::chord_join::null_site(partner.body, &[far]);
+    let far_site = site_of(partner.body, far)?;
     let mut far_faces: Vec<FaceKey> = on_faces(contacts, partner.operand)
         .iter()
         .filter(|c| far_site.contains(&c.vertex))
@@ -1147,13 +1125,11 @@ fn tangent_face<T: Decide>(
     for c in &contacts.vv {
         let (mine, theirs) = vv_sides(c, side.operand);
         if far_site.contains(&theirs) {
-            far_faces.extend(faces_at(side.body, mine)?);
+            far_faces.extend(faces_at(side.body, mine).map_err(stale_site)?);
         }
     }
-    Ok(sole_common_face(
-        &faces_at(side.body, side.site)?,
-        &far_faces,
-    ))
+    let at_site = faces_at(side.body, side.site).map_err(stale_site)?;
+    Ok(sole_common_face(&at_site, &far_faces))
 }
 
 /// The one face in both `xs` and `ys`; `None` when not exactly one is.
@@ -1167,35 +1143,29 @@ pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey
 /// The faces around a site of `body` (every copy null edges tie
 /// `vertex` to), deduplicated, null faces skipped. With no null edges
 /// at the site, the faces around `vertex` itself. An isolated vertex
-/// (a pierce-ring vertex joined to nothing) contributes none; a vertex,
-/// half-edge, edge or loop of the site that does not resolve is refused.
+/// (a pierce-ring vertex joined to nothing) contributes none.
+/// [`StaleSite`]: a site vertex that does not resolve
+/// ([`crate::chord_join::null_site`]); every hop past a site vertex
+/// that resolves is a link.
 pub(super) fn faces_at<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-) -> Result<Vec<FaceKey>, BooleanError> {
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
+) -> Result<Vec<FaceKey>, StaleSite> {
     let mut out = Vec::new();
-    for v in crate::chord_join::null_site(body, &[vertex]) {
-        body.get_vertex(v)
-            .ok_or(invariant("a site's vertex no longer resolves"))?;
-        // An isolated vertex has an empty orbit and contributes no faces.
-        let orbit = body
-            .vertex_orbit_of(v)
-            .ok_or(invariant("a site's vertex orbit does not walk"))?;
-        for he in orbit {
-            let half = body
-                .get_half_edge(he)
-                .ok_or(invariant("a site's half-edge no longer resolves"))?;
-            let geom = body
-                .get_edge(half.edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .ok_or(invariant("a site's edge has no curve"))?;
-            if geom.null_scaffold().is_some() {
+    for v in crate::chord_join::null_site(body, &[vertex])? {
+        for he in body.vertex_orbit_linked(v) {
+            let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let data = linked(
+                &body.edges,
+                edge,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            if body.edge_curve_linked(edge, data).null_scaffold().is_some() {
                 continue;
             }
-            let f = body
-                .face_of_half_edge(he)
-                .ok_or(invariant("a site's half-edge has no face"))?;
+            let f = body.face_of_linked(he);
             if !out.contains(&f) {
                 out.push(f);
             }

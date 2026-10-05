@@ -129,7 +129,10 @@
 //! then runs after every operator exactly as it did before the scopes
 //! landed, and the panic message carries the operator's name. Opt-in,
 //! never default-on — the `shadow-exec` shape (`work/perf/plan.md`
-//! §4.5).
+//! §4.5). The one scope it leaves alone is a test's on a body the test
+//! tore on purpose (`Body::begin_surgery_on_a_torn_body`, `cfg(test)`):
+//! there the body is the row's subject, not a bug, and a sweep would
+//! answer before the operator does.
 
 use geom_core::Real;
 
@@ -150,7 +153,14 @@ use crate::Body;
 /// has no scope open on it to begin with.
 #[cfg(debug_assertions)]
 #[derive(Debug, Default)]
-pub(crate) struct SurgeryDepth(core::sync::atomic::AtomicU32);
+pub(crate) struct SurgeryDepth {
+    depth: core::sync::atomic::AtomicU32,
+    /// Whether the outermost scope was opened by
+    /// `Body::begin_surgery_on_a_torn_body`; cleared when that scope
+    /// closes.
+    #[cfg(test)]
+    torn: core::sync::atomic::AtomicBool,
+}
 
 #[cfg(debug_assertions)]
 impl Clone for SurgeryDepth {
@@ -172,12 +182,13 @@ impl Clone for SurgeryDepth {
 impl SurgeryDepth {
     /// The current depth.
     fn get(&self) -> u32 {
-        self.0.load(core::sync::atomic::Ordering::Relaxed)
+        self.depth.load(core::sync::atomic::Ordering::Relaxed)
     }
 
     /// The depth, written.
     fn set(&self, depth: u32) {
-        self.0.store(depth, core::sync::atomic::Ordering::Relaxed);
+        self.depth
+            .store(depth, core::sync::atomic::Ordering::Relaxed);
     }
 
     /// Opens a scope.
@@ -206,7 +217,25 @@ impl SurgeryDepth {
             )
         };
         self.set(next);
+        #[cfg(test)]
+        if next == 0 {
+            self.torn
+                .store(false, core::sync::atomic::Ordering::Relaxed);
+        }
         was
+    }
+
+    /// Whether the outermost open scope is a test's on a body it tore
+    /// on purpose — never outside `cfg(test)`.
+    fn on_a_torn_body(&self) -> bool {
+        #[cfg(test)]
+        {
+            self.torn.load(core::sync::atomic::Ordering::Relaxed)
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
     }
 
     /// **D1's closing sweep**: the tier-1 re-derivation over `body`,
@@ -270,14 +299,48 @@ impl<T: Real> Body<T> {
         }
     }
 
+    /// **Opens a surgery scope on a body a test tore on purpose** —
+    /// [`Body::begin_surgery`], and the `per-op-postcondition` scalpel
+    /// sweeps nothing inside it either.
+    ///
+    /// A row that tears a body to read what an operator does with it
+    /// has made the body its subject: a tier-1 sweep fails on the
+    /// input's corruption whatever the operator writes, so a sweep
+    /// that fires answers before the row can read the operator's
+    /// answer. Without the scalpel the plain scope already keeps the
+    /// sweep off; this one keeps it off under the scalpel too, so the
+    /// feature changes no row's answer. A row that runs an operator
+    /// on a body it tore opens its scope here, and drops it unswept.
+    ///
+    /// The scope is the outermost one on the body, and the mark goes
+    /// when it closes.
+    #[cfg(test)]
+    pub(crate) fn begin_surgery_on_a_torn_body(&mut self) -> Surgery<'_, T> {
+        assert_eq!(
+            self.open_surgery_scopes(),
+            0,
+            "a torn-body scope is the outermost one on its body"
+        );
+        let scope = self.begin_surgery();
+        #[cfg(debug_assertions)]
+        scope
+            .body
+            .surgery
+            .torn
+            .store(true, core::sync::atomic::Ordering::Relaxed);
+        scope
+    }
+
     /// Whether the tier-1 whole-body sweep is this call's to run.
     ///
     /// `false` exactly while a door has a scope open and has
     /// undertaken to sweep at its end. The `per-op-postcondition`
-    /// scalpel makes it unconditionally `true`.
+    /// scalpel makes it `true` inside every scope but a test's on a
+    /// body it tore on purpose (`Body::begin_surgery_on_a_torn_body`).
     #[cfg(debug_assertions)]
     pub(crate) fn tier1_sweep_is_mine(&self) -> bool {
-        cfg!(feature = "per-op-postcondition") || self.surgery.get() == 0
+        self.surgery.get() == 0
+            || (cfg!(feature = "per-op-postcondition") && !self.surgery.on_a_torn_body())
     }
 
     /// D1's whole-body tier-1 postcondition for a door that mints
@@ -601,6 +664,48 @@ pub(crate) mod tests {
         );
     }
 
+    /// **A torn-body scope keeps every operator inside it from
+    /// sweeping, in every build** — the `per-op-postcondition` scalpel
+    /// included — **and its mark goes with it**: a plain scope opened
+    /// next on the same body is the scalpel's again.
+    #[test]
+    fn a_torn_body_scope_silences_its_operators_and_its_mark_closes_with_it() {
+        let mut body = cube();
+        let he = a_half_edge(&body);
+        plant_an_orphan_surface(&mut body);
+        let mut scope = body.begin_surgery_on_a_torn_body();
+        scope
+            .mev_line(
+                MevSite::Fan { he1: he, he2: he },
+                Point3::new(0.5, 0.5, 2.0),
+                Tol::witness(),
+            )
+            .expect("mev's preconditions cannot see this corruption");
+        drop(scope);
+        assert_eq!(body.open_surgery_scopes(), 0);
+        let he = a_half_edge(&body);
+        let message = panic_message(std::panic::AssertUnwindSafe(|| {
+            let mut door = body.begin_surgery();
+            door.mev_line(
+                MevSite::Fan { he1: he, he2: he },
+                Point3::new(0.5, 0.5, 3.0),
+                Tol::witness(),
+            )
+            .expect("mev's preconditions cannot see this corruption");
+            door.sweep_and_close();
+        }));
+        let fired = if cfg!(feature = "per-op-postcondition") {
+            "mev postcondition: result is not tier-1 valid"
+        } else {
+            "door postcondition: result is not tier-1 valid"
+        };
+        assert!(
+            message.contains(fired),
+            "the torn mark closed with its scope, so the plain scope after it is \
+             swept as any other: {message}"
+        );
+    }
+
     /// **A nested door sweeps nothing; the OUTER door is the
     /// observable boundary.** The inner close runs at depth 2 and
     /// passes over a corrupt body; the outer close, at depth 1, fires.
@@ -675,14 +780,21 @@ pub(crate) mod tests {
         // guardless site and whose result body is grafted out of them.
         // Its operands are described: a scaffold they kept would reach
         // the result, which the result gate refuses.
-        let block =
-            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let offset = crate::transform_rigid(
-            &block,
-            &geom_core::Affine3::translation(geom_core::Vec3::new(0.5, 0.5, 0.5)),
+        let block = crate::test_support::finished(
+            "unit block",
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
             tol,
-        )
-        .expect("a rigid move of a cube");
+        );
+        let offset = crate::test_support::finished(
+            "offset block",
+            crate::transform_rigid(
+                &block,
+                &geom_core::Affine3::translation(geom_core::Vec3::new(0.5, 0.5, 0.5)),
+                tol,
+            )
+            .expect("a rigid move of a cube"),
+            tol,
+        );
         let united = crate::boolean::union(&block, &offset, tol).expect("two boxes unite");
         let crate::boolean::BooleanResult::Body(united) = united else {
             panic!("overlapping boxes produce a body")

@@ -3,7 +3,7 @@
 //! `(0, 0, 0.5)` with normal `(sin 0.3, 0, cos 0.3)`), its lower part,
 //! against a ring torus whose tube comes near the cut's `Ellipse` rim.
 //! Along an ellipse the torus's implicit is a trigonometric polynomial of
-//! degree four (`topo::boolean::ellipse_roots`, "Against a torus"), and
+//! degree four (`topo::boolean::ellipse_torus`, "Against a torus"), and
 //! the crossing layer must decide the rim against the torus face by its
 //! certified roots wherever the rim's arc enclosure cannot clear it.
 //!
@@ -145,6 +145,10 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
 /// named.
 fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
     let tol = Tol::witness();
+    let (a, b) = (
+        &sweep::test_support::finished("operand A", a.clone(), tol),
+        &sweep::test_support::finished("operand B", b.clone(), tol),
+    );
     [
         ("A ∪ B", topo::boolean::union(a, b, tol)),
         ("A ∩ B", topo::boolean::intersect(a, b, tol)),

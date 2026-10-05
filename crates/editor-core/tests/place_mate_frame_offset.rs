@@ -46,7 +46,7 @@ fn shift(t: [Expr; 3]) -> Step {
 /// The shift along the base cap's local +Y — its reference, world +x —
 /// by the document's `slide`.
 fn slid_by_the_parameter() -> Placement {
-    shift([len(0.0), Expr::param(slide(), Dimension::Length), len(0.0)]).into()
+    shift([len(0.0), Expr::named(slide(), Dimension::Length), len(0.0)]).into()
 }
 
 /// "Seat the top on the base": the top's lower cap (the mover) on its
@@ -97,7 +97,7 @@ fn declare_slide(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: slide(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0
@@ -230,13 +230,13 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
         unmated,
         DocEdit::DeclareVar {
             name: VarName::from_static("tilt"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let named = |name: &'static str, dim| -> Placement {
         shift([
             len(0.0),
-            Expr::param(VarName::from_static(name), dim),
+            Expr::named(VarName::from_static(name), dim),
             len(0.0),
         ])
         .into()
@@ -254,12 +254,12 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
     };
     let err = refused(named("nowhere", Dimension::Length));
     assert!(
-        matches!(&err, EditError::SlotUnknownDocParam { slot: s, .. } if *s == slot),
+        matches!(&err, EditError::SlotUnknownVarName { slot: s, .. } if *s == slot),
         "{err:?}"
     );
     let err = refused(named("tilt", Dimension::Length));
     assert!(
-        matches!(&err, EditError::SlotDocParamDimension { slot: s, .. } if *s == slot),
+        matches!(&err, EditError::SlotVarKind { slot: s, .. } if *s == slot),
         "{err:?}"
     );
 }
@@ -502,7 +502,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     )
     .expect_err("both sides read `slide`");
     assert!(
-        matches!(&err, SplitError::UncutParamReference { param, .. } if *param == slide()),
+        matches!(&err, SplitError::UncutVarReference { var, .. } if var.name() == Some(&slide())),
         "{err:?}"
     );
     // The cut seat re-authored to read nothing: the parameter stays.

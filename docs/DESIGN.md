@@ -171,14 +171,13 @@ representation of reversal. Normative consequences:
   normal.
 - Orientation reversal is **exact structure**, never a numeric decide:
   `revert` flips `sense` on every face carried by a non-plane surface,
-  negates the stored normal of `Plane`-carried faces, and moves every
-  loop's cycle anchor to its source predecessor (the anchor is where a
-  periodic chart's loop wrap is reported, and a reversed cycle keeps it
-  at the closure only if the anchor moves with the direction —
-  `topo`'s `LoopBoundary::Cycle`). The two normal encodings are
+  negates the stored normal of `Plane`-carried faces, and inverts every
+  joint element, moving it onto its source predecessor (a joint's
+  element read from the other side is its inverse — `topo`'s
+  `JointElement`); no loop's anchor moves. The two normal encodings are
   exclusive by surface kind, so every outward normal is negated exactly
-  once, the anchor move is a key swap, and `revert ∘ revert` is
-  bit-identical at every scalar backend.
+  once, inverting an element is exact integer arithmetic, and
+  `revert ∘ revert` is bit-identical at every scalar backend.
 - A face's `sense` is decided where its chart is decided. An Euler
   operator minting a face on its parent's chart (`same_chart`: one
   key, or keys sharing one payload) derives the bit from its own
@@ -289,6 +288,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    contact records: none, for a body that touches nothing, where the
    census must find no coincidence at all. Every door that returns or
    consumes one pays that gate once, at the door that built it.
+   The Boolean door's result meets tier 3 without the census: its
+   declared contacts ride beside it (`BooleanBody::contacts`), and the
+   census over them is parked on CONTACT's cross-solid curved lane
+   (`work/reach/boolean-door-runs-the-census-over-its-result.md`).
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.
@@ -544,10 +547,12 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   the cone section, the spline carrier, and the spiric and no-fitted
   classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
-  exists as `Pcurve::Fitted` and certifies at rest; what is missing is
-  the join window itself (`run_azimuth_window`/`chart_pcurve` have no
-  cyl×sphere analog). Sphere×sphere seams, cone and torus operands
-  refuse alongside it.
+  exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
+  its arc from the germs it joins, reading no window; what is missing
+  is the C5 table's cyl×sphere arm for the chord's carrier
+  (`chord_join::section_case` has no curved×curved arm) and a frame for
+  the germs' rotational-sense test (`boolean::join::pair_section_frame`).
+  Sphere×sphere seams, cone and torus operands refuse alongside it.
 - **(e) the NURBS extent test** — `NurbsExtentUnsupported`, above.
 - **(f) the canal-surface general blend** — an approximating surface
   for fillet chains whose rolling-ball spine is neither a line nor a

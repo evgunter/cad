@@ -131,8 +131,6 @@ mod issue86_double_subtract;
 mod issue93_nested_islands;
 #[path = "join1_r2_topo_probes.rs"]
 mod join1_r2_topo_probes;
-#[path = "join_pierce_strut_facing.rs"]
-mod join_pierce_strut_facing;
 #[path = "join_star_fixture.rs"]
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
@@ -197,6 +195,8 @@ mod mesh8_coherence;
 mod neighbours_across_a_closed_edge;
 #[path = "on_verdict.rs"]
 mod on_verdict;
+#[path = "pcurve_door_refusals.rs"]
+mod pcurve_door_refusals;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]
@@ -215,6 +215,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "result_gate_sites.rs"]
+mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
@@ -287,6 +289,8 @@ mod shell_roles;
 mod shell_tolerance_chain;
 #[path = "shell_winding.rs"]
 mod shell_winding;
+#[path = "site_mint_scaling.rs"]
+mod site_mint_scaling;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "sphere_twin_rows_interval.rs"]

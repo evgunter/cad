@@ -78,6 +78,38 @@ fn rc_wide_battery() {
     }
 }
 
+/// **A strut in the entry beside its pair's fan builds.** At each pose
+/// `b ∖ a`'s four-germ corner runs a fan and a strut in the two entries
+/// of one physical sector, and the fan moves the half that bounds the
+/// strut's corner (`work/join/four-germ-vertex-pairs-run-b-in-a-order`).
+/// The pair's struts mint before its fans (`insert::SideRun::shared`),
+/// so every op builds `SOUND` at the closed form. One pose for each
+/// turned profile `rc_wide_battery` once aborted on. Red as
+/// `ClassificationInvariant` "an earlier run at the vertex carried a
+/// strut's corner to its copy" when the fan mints first.
+#[test]
+fn a_strut_beside_its_pairs_fan_builds_every_op() {
+    for (profile, rot, sx, sy) in [
+        ("sqQ1", -20.0, -0.75, 0.3),
+        ("dLeft", 190.0, -0.3, 0.25),
+        ("dDown", 100.0, -0.3, 0.25),
+        ("dRight", 7.0, -0.3, 0.25),
+        ("dRight", 33.0, -0.75, 0.25),
+        ("eBot", -20.0, -0.75, -0.75),
+        ("eLeft", 0.0, -0.75, 0.0),
+        ("eLeft", 33.0, -0.75, 0.0),
+    ] {
+        let p = reflex_pose(profile, rot, sx, sy, tol());
+        for (op, want) in REFLEX_OPS.iter().zip(p.want) {
+            let line = outcome(reflex_run(&p, op, tol()), want, tol());
+            assert!(
+                line.starts_with("OK SOUND") || line.starts_with("EMPTY ok"),
+                "{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) {op}: {line}"
+            );
+        }
+    }
+}
+
 /// **A strut at the reflex corner faces its germs by their true angle
 /// from the arrival edge.** Each pose puts both of a strut's germs in
 /// `a`'s 315° top face, at least one more than a half-turn from the

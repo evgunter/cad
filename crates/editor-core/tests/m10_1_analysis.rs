@@ -25,7 +25,7 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -340,8 +340,8 @@ fn a_distribution_does_not_reach_the_parameter_environment() {
     let plain = doc_with(&[("d", FreeVar::continuous(Dimension::Length, 0.75))]);
     let annotated_doc = doc_with(&[("d", annotated(0.75, Distribution::Normal { sigma: 0.01 }))]);
     assert_eq!(
-        plain.param_env::<f64>().bindings,
-        annotated_doc.param_env::<f64>().bindings,
+        plain.var_env::<f64>().bindings,
+        annotated_doc.var_env::<f64>().bindings,
         "the nominal alone crosses into evaluation"
     );
 }

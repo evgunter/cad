@@ -45,7 +45,10 @@ const KERNEL_KEYED: &[&str] = &[
     "Revolve/Pcurve",
     "Split/Reduce/ScaffoldingOperand",
     "Split/Reduce/ConsecutiveOnSectors",
-    "Split/Reduce/CorruptOperand",
+    "Split/Reduce/StaleVertex",
+    "Split/Reduce/LoneVertex",
+    "Split/Reduce/UnrecordedSide",
+    "Split/Reduce/UnboundedFace",
     "Split/Reduce/CrossingInsertion",
     "Split/Join/SectionLoopMixed",
     "Split/Join/CutInvariant",
@@ -74,7 +77,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
-    "Shell/Corrupt",
     "Shell/Pcurve",
 ];
 
@@ -233,8 +235,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/CountOverflow",
     "Expr/CountToScalarOutOfRange",
     "Expr/NonFiniteResult",
-    "Expr/ParamDimensionMismatch",
-    "Expr/UnknownParam",
+    "Expr/UnloweredName",
+    "Expr/UnresolvedVar",
+    "Expr/VarKindMismatch",
     "FaceFrameKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
@@ -289,9 +292,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileLaneReplay(Flipped)",
     "ProfileLaneReplay(None)",
     "ProfilePieces",
-    "Seed/CountParam",
+    "Seed/CountVar",
     "Seed/TangentUnrepresentable",
-    "Seed/UnknownParam",
+    "Seed/UnknownVar",
     "SeedPinnedSection",
     "ShellLaneUnsupported",
     "ShellOpenKind",
@@ -355,7 +358,10 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Join/SectionLoopMixed",
     "Split/Join/UnpairedLooseEnds",
     "Split/Reduce/ConsecutiveOnSectors",
-    "Split/Reduce/CorruptOperand",
+    "Split/Reduce/StaleVertex",
+    "Split/Reduce/LoneVertex",
+    "Split/Reduce/UnrecordedSide",
+    "Split/Reduce/UnboundedFace",
     "Split/Reduce/ScaffoldingOperand",
     // work/carve/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
@@ -373,10 +379,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Tube/FullRangeWindow",
     // work/shell/shell-refusals-short-of-the-shape-guard.md
     "Shell/ChartSenseMixed",
-    "Shell/Corrupt",
-    "Shell/Face",
     "Shell/Insert",
-    "Shell/Lift",
     "Shell/NoSolid",
     "Shell/NotValid",
     "Shell/OpenFaceRimNotExpressible",
@@ -705,10 +708,10 @@ fn every_node_refusal_renders_within_the_budget() {
         // The shared one is the escalated arm's: `Indeterminate::ending`
         // composed over the levers the door has, so the split's text
         // carries the margin payload beside it. An arm with a lever of
-        // its own — `SectionArcSide`'s "move the geometry", for a
-        // definite verdict no declaration would change — is NOT it, and
-        // the levers alone no longer tell the two apart now that
-        // `NO_DECLARATION_RECOURSE` is the lever and not a sentence.
+        // its own — "move the geometry", for a definite verdict no
+        // declaration would change — is NOT it, and the levers alone no
+        // longer tell the two apart now that `NO_DECLARATION_RECOURSE`
+        // is the lever and not a sentence.
         if let Some(arm) = name.strip_prefix("Boolean/Join/") {
             let split = rows
                 .iter()
@@ -969,14 +972,16 @@ fn row(name: &str, kind: NodeErrorKind) -> (String, NodeErrorKind) {
 /// The arms whose sentence `NodeErrorKind` writes itself, each on a
 /// representative payload where it forwards.
 fn own_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Dimension, EvalError, SlotId, VarName};
+    use editor_core::{Dimension, EvalError, SlotId};
     use payloads::*;
     vec![
         row(
             "Expr",
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
-                source: EvalError::UnknownParam(VarName::from_static("width")),
+                source: EvalError::UnresolvedVar {
+                    var: editor_core::VarId(tagged(7)),
+                },
             },
         ),
         row(
@@ -1101,7 +1106,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "NegativeSpacing",
             NodeErrorKind::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: ["-1.0".to_owned(), "0.0".to_owned(), "0.0".to_owned()],
+                reversed: ["-1.0", "0.0", "0.0"].map(|text| Some(formula(text))),
             },
         ),
         row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
@@ -1109,7 +1114,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
-                step: "360 deg".to_owned(),
+                step: formula("360 deg"),
                 evaluated: None,
                 turns: StepTurns::Whole,
             },
@@ -1117,7 +1122,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: "720 deg * scalar(blades)".to_owned(),
+                step: formula("720 deg * scalar(blades)"),
                 evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
                 turns: StepTurns::Whole,
             },
@@ -1125,23 +1130,23 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within)",
             NodeErrorKind::FullRangeStep {
-                step: "760 deg".to_owned(),
+                step: formula("760 deg"),
                 evaluated: None,
-                turns: StepTurns::Within("40 deg".to_owned()),
+                turns: StepTurns::Within(formula("40 deg")),
             },
         ),
         row(
             "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: "360 deg / scalar(blades) - 400 deg".to_owned(),
+                step: formula("360 deg / scalar(blades) - 400 deg"),
                 evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
-                turns: StepTurns::Within("360 deg / scalar(blades) - 400 deg + 360 deg".to_owned()),
+                turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
             },
         ),
         row(
             "FullRangeStep(unresolved)",
             NodeErrorKind::FullRangeStep {
-                step: "1e20 rad".to_owned(),
+                step: formula("1e20 rad"),
                 evaluated: None,
                 turns: StepTurns::Unresolved,
             },
@@ -1478,7 +1483,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::UnderflowedSectorChord { vertex, face },
         ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
-        ("CorruptOperand", R::CorruptOperand { vertex }),
+        ("StaleVertex", R::StaleVertex { vertex }),
+        ("LoneVertex", R::LoneVertex { vertex }),
+        ("UnrecordedSide", R::UnrecordedSide { vertex }),
+        ("UnboundedFace", R::UnboundedFace { face, vertex }),
         (
             "CrossingInsertion",
             R::CrossingInsertion {
@@ -1559,14 +1567,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes),
                 },
             ),
-            (
-                "SectionArcWindow",
-                J::SectionArcWindow {
-                    face,
-                    case: topo::ArcWindowCase::NeitherContained,
-                    band: band(),
-                },
-            ),
+            ("ApexUnlifted", J::ApexUnlifted { face }),
             (
                 "SectionInvariant",
                 J::SectionInvariant {
@@ -1579,15 +1580,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RingOffCylinderChart {
                     face,
                     kind: geom::SurfaceKind::Sphere,
-                },
-            ),
-            ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
-            (
-                "SectionArcSide",
-                J::SectionArcSide {
-                    face,
-                    case: topo::ArcSideCase::EndsDisagree,
-                    band: band(),
                 },
             ),
             (
@@ -2908,15 +2900,23 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     };
     let eval: Vec<(&str, EvalError)> = vec![
         (
-            "UnknownParam",
-            EvalError::UnknownParam(VarName::from_static("width")),
+            "UnresolvedVar",
+            EvalError::UnresolvedVar {
+                var: editor_core::VarId(tagged(7)),
+            },
         ),
         (
-            "ParamDimensionMismatch",
-            EvalError::ParamDimensionMismatch {
+            "VarKindMismatch",
+            EvalError::VarKindMismatch {
+                var: editor_core::VarId(tagged(7)),
+                bound: Dimension::Angle,
+                read: Dimension::Length,
+            },
+        ),
+        (
+            "UnloweredName",
+            EvalError::UnloweredName {
                 name: VarName::from_static("width"),
-                expected: Dimension::Length,
-                found: Dimension::Angle,
             },
         ),
         (
@@ -2960,18 +2960,18 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     ];
     let seed = [
         (
-            "UnknownParam",
-            SeedError::UnknownParam {
-                param: editor_core::SpokenVar::new(
+            "UnknownVar",
+            SeedError::UnknownVar {
+                var: editor_core::SpokenVar::new(
                     editor_core::VarId(tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
             },
         ),
         (
-            "CountParam",
-            SeedError::CountParam {
-                param: editor_core::SpokenVar::new(
+            "CountVar",
+            SeedError::CountVar {
+                var: editor_core::SpokenVar::new(
                     editor_core::VarId(tagged(7)),
                     Some(VarName::from_static("n")),
                 ),
@@ -2980,7 +2980,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
-                param: editor_core::SpokenVar::new(
+                var: editor_core::SpokenVar::new(
                     editor_core::VarId(tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
@@ -3202,7 +3202,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
-    use topo::{DanglingRef, EntityId, FaceKey, ReadbackError};
+    use topo::{EntityId, FaceKey, ReadbackError};
     let face = || stable(EntityKind::Face, 3);
     let sited = |node| SitedRef {
         at: RecipeNodeId(tagged(node)),
@@ -3318,7 +3318,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "Dangling",
             ReadbackError::Dangling {
-                what: DanglingRef::Entity(EntityId::Face(FaceKey::default())),
+                what: EntityId::Face(FaceKey::default()),
             },
         ),
         (
@@ -3837,12 +3837,16 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
 
 fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
-    use topo::{EntityId, FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
+    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
-    // `Corrupt`, the one `ReplaceFaceError` arm that names no key: the
-    // wrapper's own sentence names none either, so a key on this row
-    // would be the wrapper's.
-    let replace = || Box::new(ReplaceFaceError::<f64>::Corrupt);
+    // `Band`, a `ReplaceFaceError` arm that names no key: the wrapper's
+    // own sentence names none either, so a key on this row would be the
+    // wrapper's.
+    let replace = || {
+        Box::new(ReplaceFaceError::<f64>::Band {
+            error: band_error(),
+        })
+    };
     [
         (
             "Band",
@@ -3944,12 +3948,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("Escalated", S::Escalated { source: diag() }),
-        (
-            "Corrupt",
-            S::Corrupt {
-                key: EntityId::Face(face),
-            },
-        ),
         ("Pcurve", S::Pcurve { source: pcurve() }),
         (
             "NotValid",
@@ -4676,4 +4674,13 @@ fn decode(literal: &str) -> String {
         }
     }
     out
+}
+
+/// `text` parsed as the formula a refusal carries, `blades` a count.
+fn formula(text: &str) -> editor_core::Expr {
+    let names = std::collections::BTreeMap::from([(
+        editor_core::VarName::new("blades").expect("a name"),
+        editor_core::Dimension::Count,
+    )]);
+    editor_core::parse_expr(text, &names).expect("the formula parses")
 }

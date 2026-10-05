@@ -1028,7 +1028,7 @@ pub fn die() -> Die {
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("pip_depth"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, DEPTH)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH)),
     });
     // The cube: profile on the xy plane, extruded +2.
     let cube_profile = r.profile(
@@ -1051,7 +1051,7 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
+            distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));
@@ -1405,7 +1405,7 @@ pub fn prism_edges(doc: &editor_core::ProfileDoc, node: RecipeNodeId, n: u32) ->
 pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p
-            .pieces(&doc.param_env::<f64>(), Tol::witness())
+            .pieces(&doc.var_env::<f64>(), Tol::witness())
             .expect("the profile's program replays and validates"),
         other => panic!("node {} is not a profile: {other:?}", profile.0),
     }

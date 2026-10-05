@@ -2148,7 +2148,7 @@ its shape is not one of these:
 - **A named `&'static str` owned by the layer the fact belongs to and
   spent by more than one door** — `refuse::NO_FACE_PICKED` (spent at
   `FaceFrameFault`'s `NoFace` arm and by `forms`), and
-  `editor_core::edit::UNDECLARED_PARAM_RECOURSE`,
+  `editor_core::edit::UNKNOWN_VAR_RECOURSE`,
   whose home is the crate that owns the fact.
 - **A literal at the chrome site, composed where it is drawn** —
   `pane::create`'s *add a frame datum first*, `pane::profile`'s *its
@@ -2237,7 +2237,7 @@ where, exhaustively:
   that can break one of those fourteen seeds the toolkit and takes the
   all-features pass. **The fifteenth does not.**
   `session::refuse`'s `Refusal::NoSuchParam` doc links
-  `` [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`] ``, and
+  `` [`editor_core::edit::UNKNOWN_VAR_RECOURSE`] ``, and
   `editor-core` is not in the seed set — so a branch that renames or
   deletes that constant reaches `viewer` through the closure, takes
   skip mode, and nothing anywhere reports the break. **The hole this

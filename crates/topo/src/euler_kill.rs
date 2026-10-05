@@ -321,8 +321,9 @@ use crate::euler::{
     Records, RunExtent, shared_loop,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::live::{Arg, Live, dangling_link, link, linked, lookup, proven};
-use crate::pcurves::SiteHalf;
+use crate::pcurves::{SiteFace, SiteHalf, SiteRows};
 use crate::provenance::Provenance;
 
 /// The outcome of one [`Body::kvfs`] call: five dead topology keys plus
@@ -468,6 +469,11 @@ struct KevPlan {
     members: Vec<EdgeKey>,
     /// `prev(he)`, `next(he)`, `prev(m)`, `next(m)`.
     links: [Live; 4],
+    /// Each killed half's turn — the element carrying its image's exit
+    /// onto its entry ([`KevUnsplice::elements`]): the identity for a
+    /// null edge, a point; where a band decided it
+    /// ([`Body::kev_describing`]), a closed carrier's; `None` otherwise.
+    turns: [Option<JointElement>; 2],
     /// `v`'s new `emanating` (the emanating rule, module docs), proved:
     /// it starts at `v` once the merge has re-based the fan, or leaves
     /// `v` lone.
@@ -500,6 +506,39 @@ impl KevUnsplice {
             // … c → m → he → b ….
             Self::Mirror => vec![(c, b)],
             Self::General => vec![(a, b), (c, d)],
+        }
+    }
+
+    /// The element of each joint [`KevUnsplice::links`] writes, in
+    /// order (C4, [`crate::joint`], "Kills are sums"), from the
+    /// elements into `he`, the mate `m`, `b = next(he)` and `d =
+    /// next(m)` as found, and each killed half's `turn` — the element
+    /// carrying its image's exit onto its entry. The strut's bridge
+    /// `a → he → m → d` enters at `he` and leaves into `d`, turning back
+    /// at the tip where the two halves meet on their one image, so it is
+    /// `e(he) · e(d)`; the mirror's is the same from the mate's side. A
+    /// general unsplice crosses each killed half whole, from its entry
+    /// back to its exit, which coincide in space: `e(he) · turn(he) ·
+    /// e(b)` and `e(m) · turn(m) · e(d)`.
+    fn elements(
+        self,
+        [he, m, b, d]: [Option<JointElement>; 4],
+        [turn_he, turn_m]: [Option<JointElement>; 2],
+    ) -> Vec<Option<JointElement>> {
+        let sum = |parts: &[Option<JointElement>]| {
+            parts
+                .iter()
+                .try_fold(None::<JointElement>, |acc, part| {
+                    let part = (*part)?;
+                    Some(Some(acc.map_or(part, |acc| acc.then(part))))
+                })
+                .flatten()
+        };
+        match self {
+            Self::Segment => Vec::new(),
+            Self::Strut => vec![sum(&[he, d])],
+            Self::Mirror => vec![sum(&[m, b])],
+            Self::General => vec![sum(&[he, turn_he, b]), sum(&[m, turn_m, d])],
         }
     }
 
@@ -553,6 +592,22 @@ impl KefSplice {
             Self::Unsplice => vec![(c, d)],
             Self::MateAlone(b) => vec![(a, b)],
             Self::General(b) => vec![(c, b), (a, d)],
+        }
+    }
+
+    /// For each link [`KefSplice::links`] writes, in order, the path
+    /// whose elements its joint's element sums ([`Body::bridged_joint`]),
+    /// from `he`, the mate `m` and the mate's next `d`. Each enters a
+    /// killed half and crosses to the other where the two meet on their
+    /// one image: `c → m`, then `he → b`, for the joint `c → b`; `a →
+    /// he`, then `m → d`, for `a → d`. A killed half alone in its loop
+    /// closes on itself, and the path takes its own joint too.
+    fn bridges(self, he: HalfEdgeKey, m: HalfEdgeKey, d: HalfEdgeKey) -> Vec<Vec<HalfEdgeKey>> {
+        match self {
+            Self::Lone => Vec::new(),
+            Self::Unsplice => vec![vec![m, he, d]],
+            Self::MateAlone(b) => vec![vec![he, m, b.key()]],
+            Self::General(b) => vec![vec![m, b.key()], vec![he, d]],
         }
     }
 }
@@ -804,6 +859,17 @@ impl<T: Decide> Body<T> {
     /// edge the merge moves one end of
     /// ([`EulerOpError::RebasedNullEdge`]); last, no member is certified
     /// ([`EulerOpError::MergeRebasesCarriers`], naming all of them).
+    /// Before the merged fan, where the unsplice crosses each killed half
+    /// whole and the killed edge is not a null edge, no side stores the
+    /// two elements its bridged joint would sum through the half's turn
+    /// ([`EulerOpError::PcurveMint`] with
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`]: this door takes no
+    /// band to decide the turn by, so it refuses rather than leave the
+    /// face half-minted; [`Body::kev_describing`] decides it). Last,
+    /// where the killed edge is a null edge, no loop the kill releases
+    /// is left missing a row on a face the site mint selects
+    /// ([`Body::plan_released_rows`]: [`EulerOpError::PcurveMint`] with
+    /// `KeysOnly` naming the face; [`Body::kev_describing`] mints it).
     ///
     /// # Errors
     ///
@@ -823,6 +889,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let plan = self.kev_plan(he)?;
         self.kev_keys_only_gate(&plan)?;
+        self.kev_released_rows(&plan, &[], None)?;
         let result = self.kev_execute(plan);
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, KEV_DELTA, "kev");
@@ -860,6 +927,10 @@ impl<T: Decide> Body<T> {
     ///   the merge moves one end of refused. Where the killed edge is a
     ///   null edge nothing moves and the gate is not asked ([`Body::kev`]
     ///   says why).
+    /// - **A loop a killed null edge releases** has what it missed while
+    ///   the edge held it open minted, over each face it is on as the
+    ///   kill leaves it ([`Body::plan_released_rows`]), where
+    ///   [`Body::kev`] refuses `KeysOnly`.
     ///
     /// An empty list is the kill for a caller whose members all pass
     /// where they land — a merge of two vertices at one point, or a band
@@ -898,10 +969,21 @@ impl<T: Decide> Body<T> {
     /// re-basing gate in orbit order ([`EulerOpError::RebasedNullEdge`]
     /// / [`EulerOpError::RebasedCarrier`] naming the first that fails).
     /// So an empty merged fan with an empty list asks nothing past the
-    /// structural list, and the two doors agree there. Last, where a
-    /// listed member is a null edge, its first description's site mint
-    /// is planned ([`EulerOpError::PcurveMint`], as
-    /// [`Body::set_edge_curve`]'s).
+    /// structural list but the released loops' rows (last), where the
+    /// two doors part: one refuses, this one mints. Then, where the
+    /// unsplice is general and the killed edge is not a null edge (each
+    /// killed half is crossed whole), `tol` builds a band
+    /// ([`EulerOpError::Certification`] with
+    /// [`geom_brep::CertifyError::Band`]) and each killed half's turn is
+    /// decided at it ([`EulerOpError::KillTurnEscalated`] naming the
+    /// first half, `he` before its mate, whose turn escalates). Then,
+    /// where a listed member is a null edge, its first description's
+    /// site mint is planned ([`EulerOpError::PcurveMint`], as
+    /// [`Body::set_edge_curve`]'s). Last, where the killed edge is a
+    /// null edge, the site mint over every other face its halves are on
+    /// that a loop it releases leaves with a gap
+    /// ([`Body::plan_released_rows`]: [`EulerOpError::Certification`]
+    /// where `tol` builds no band).
     ///
     /// # Errors
     ///
@@ -923,14 +1005,32 @@ impl<T: Decide> Body<T> {
     {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        let plan = self.kev_plan(he)?;
+        let mut plan = self.kev_plan(he)?;
         let described = self.kev_describing_gate(&plan, redescriptions, tol)?;
+        // A general unsplice of a certified edge crosses each killed half
+        // whole: the band decides each one's turn, which a closed carrier
+        // (two vertices at one point) has.
+        if plan.unsplice == KevUnsplice::General && plan.turns == [None; 2] {
+            let band = geom_core::Band::linear(tol).map_err(|e| EulerOpError::Certification {
+                error: geom_brep::CertifyError::Band(e),
+            })?;
+            for (slot, half) in [plan.he, plan.m].into_iter().enumerate() {
+                plan.turns[slot] =
+                    crate::pcurves::turn_element(self, half, band).map_err(|diag| {
+                        EulerOpError::KillTurnEscalated {
+                            half_edge: half,
+                            diag,
+                        }
+                    })?;
+            }
+        }
         let curves: Vec<(EdgeKey, &EdgeCurve<T>)> = described
             .iter()
             .map(|(edge, curve)| (*edge, curve))
             .collect();
-        let rows =
+        let mut rows =
             self.null_description_rows(&curves, |body| Ok(body.kev_loops_after(&plan)), tol)?;
+        rows.extend(self.kev_released_rows(&plan, &curves, Some(tol))?);
         let result = self.kev_execute(plan);
         // Every listed edge is a merged member, and no merged member is
         // the killed edge (`kev_plan` proves it), so each one survives
@@ -1091,6 +1191,17 @@ impl<T: Decide> Body<T> {
             (false, true) => KevUnsplice::Mirror,
             (false, false) => KevUnsplice::General,
         };
+        // A null edge is a point: crossing one of its halves whole moves
+        // nothing.
+        let turns = if self
+            .edge_curve_linked(edge, edge_data)
+            .null_scaffold()
+            .is_some()
+        {
+            [Some(JointElement::IDENTITY); 2]
+        } else {
+            [None; 2]
+        };
         let loops = [l1, l2];
         let loop_writes = unsplice.loop_writes(loops, [b.key(), d.key()], v);
         self.require_kill_anchors(&[(v, anchor, he)], &loop_writes, &[he, m], None);
@@ -1138,6 +1249,7 @@ impl<T: Decide> Body<T> {
             members,
             links: [a, b, c, d],
             anchor,
+            turns,
         })
     }
 
@@ -1163,6 +1275,7 @@ impl<T: Decide> Body<T> {
     /// [`Body::kev`]'s ε-free gate over the merged fan (its docs): the
     /// re-basing gate's null arm, and every certified member named.
     fn kev_keys_only_gate(&self, plan: &KevPlan) -> Result<(), EulerOpError> {
+        self.kev_turns_owed(plan)?;
         if !self.kev_merge_moves(plan) {
             return Ok(());
         }
@@ -1177,6 +1290,33 @@ impl<T: Decide> Body<T> {
         } else {
             Err(EulerOpError::MergeRebasesCarriers { edges: stranded })
         }
+    }
+
+    /// The keys-only refusal of a general unsplice that would leave a
+    /// face half-minted: where each killed half is crossed whole and
+    /// its turn is unknown (a certified carrier; only
+    /// [`Body::kev_describing`] takes the band that decides one), a side
+    /// whose two adjacent elements are stored would have its bridged
+    /// element written `None` ([`KevUnsplice::elements`]).
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] naming that side's
+    /// face, `he`'s before its mate's.
+    fn kev_turns_owed(&self, plan: &KevPlan) -> Result<(), EulerOpError> {
+        if plan.unsplice != KevUnsplice::General || plan.turns != [None; 2] {
+            return Ok(());
+        }
+        let [_, b, _, d] = plan.links;
+        for (half, after) in [(plan.he, b.key()), (plan.m, d.key())] {
+            if self.pcurve(half).is_some()
+                && self.joint(half).is_some()
+                && self.joint(after).is_some()
+            {
+                return Err(EulerOpError::PcurveMint {
+                    face: crate::pcurves::half_edge_face(self, half).0,
+                    refusal: crate::pcurves::SiteRowRefusal::KeysOnly,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// The loops the kill rewires, as it leaves them: each loop it
@@ -1209,6 +1349,63 @@ impl<T: Decide> Body<T> {
             after.push((r#loop, cycle));
         }
         after
+    }
+
+    /// The rows the kill owes the loops it releases
+    /// ([`Body::plan_released_rows`]), over the faces its halves are on
+    /// as [`Body::kev_loops_after`] leaves them, but a face a listed null
+    /// member's half is on: [`Body::null_description_rows`] plans that
+    /// one whole. `described` is [`Body::kev_describing`]'s listed
+    /// members, empty for [`Body::kev`].
+    ///
+    /// # Errors
+    ///
+    /// [`Body::plan_released_rows`]'.
+    fn kev_released_rows(
+        &self,
+        plan: &KevPlan,
+        described: &[(EdgeKey, &EdgeCurve<T>)],
+        tol: Option<Tol>,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let mut read: Vec<FaceKey> = Vec::with_capacity(2);
+        for lk in plan.loops {
+            let face = proven(&self.loops, lk, EntityId::Loop).face;
+            let planned = described.iter().any(|&(edge, _)| {
+                let edge_data = proven(&self.edges, edge, EntityId::Edge);
+                self.edge_curve_linked(edge, edge_data)
+                    .null_scaffold()
+                    .is_some()
+                    && [edge_data.he_plus, edge_data.he_minus]
+                        .into_iter()
+                        .any(|h| crate::pcurves::half_edge_face(self, h).0 == face)
+            });
+            if !planned && !read.contains(&face) {
+                read.push(face);
+            }
+        }
+        let after: Vec<(LoopKey, Vec<SiteHalf>)> = self
+            .kev_loops_after(plan)
+            .into_iter()
+            .map(|(lk, cycle)| (lk, cycle.into_iter().map(SiteHalf::Existing).collect()))
+            .collect();
+        let [_, b, _, d] = plan.links;
+        let made: Vec<(HalfEdgeKey, Option<JointElement>)> = plan
+            .unsplice
+            .links(plan.links)
+            .into_iter()
+            .zip(plan.unsplice.elements(
+                [plan.he, plan.m, b.key(), d.key()].map(|half| self.joint(half)),
+                plan.turns,
+            ))
+            .map(|((_, to), element)| (to.key(), element))
+            .collect();
+        self.plan_released_rows(
+            plan.edge,
+            &made,
+            &read,
+            |body, face| body.site_face(face, &after, None),
+            tol,
+        )
     }
 
     /// [`Body::kev_describing`]'s gate: every listed spec certified
@@ -1292,6 +1489,7 @@ impl<T: Decide> Body<T> {
             members: _,
             links: [a, b, c, d],
             anchor,
+            turns,
         } = plan;
         // Fan merge: everything starting at w except the doomed mate now
         // starts at v (the run move, reversed — module docs).
@@ -1305,8 +1503,12 @@ impl<T: Decide> Body<T> {
         }
         // Unsplice (derived as mev's exact inverse — module docs), then
         // the loop anchors the plan proved.
-        for (from, to) in unsplice.links([a, b, c, d]) {
-            self.link_half_edges(from, to);
+        let elements = unsplice.elements(
+            [he, m, b.key(), d.key()].map(|half| self.joint(half)),
+            turns,
+        );
+        for ((from, to), element) in unsplice.links([a, b, c, d]).into_iter().zip(elements) {
+            self.link_half_edges(from, to, element);
         }
         for (r#loop, boundary) in unsplice.loop_writes(loops, [b.key(), d.key()], v) {
             let Some(loop_data) = self.get_loop_mut(r#loop) else {
@@ -1385,7 +1587,11 @@ impl<T: Decide> Body<T> {
     /// new anchor, then the remnant) in the surviving face's chart. On
     /// a spline chart, or a surviving face that was unminted or
     /// half-minted, the drop is the whole answer at either door and the
-    /// surviving loop's own rows are untouched.
+    /// surviving loop's own rows are untouched. Where the remnant's rows
+    /// stand and the killed edge is a null edge, the kill can still
+    /// release the surviving loop missing rows it missed while held
+    /// open ([`Body::plan_released_rows`]): this door refuses `KeysOnly`
+    /// there too, and [`Body::kef_minting`] mints them.
     /// Which is why the surviving face RESOLVES in the plan phase
     /// below, and the chart is decided there: it is what the mutation
     /// phase acts on, and a mutation phase reads nothing it has not
@@ -1408,7 +1614,8 @@ impl<T: Decide> Body<T> {
     /// kill such an edge with [`Body::kev`], or via
     /// [`Body::mfkrh`]-then-`kef` for the self-loop variant); the dying
     /// face is ring-free ([`EulerOpError::FaceHasRings`]); then the site
-    /// mint's plan ([`Body::plan_moved_rows`]'s errors): where the
+    /// mint's plan ([`Body::plan_moved_rows`]'s errors, or, where the
+    /// remnant's rows stand, [`Body::plan_released_rows`]'): where the
     /// surviving face would be re-minted, [`EulerOpError::PcurveMint`]
     /// naming it (`KeysOnly` at this door).
     ///
@@ -1436,15 +1643,16 @@ impl<T: Decide> Body<T> {
 
     /// [`Body::kef`] with a band: where `kef` refuses
     /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the remnant's
-    /// rows do not stand on a complete surviving face — this door
-    /// re-mints the surviving face at `tol`'s band, the surviving loop
-    /// walked in its chart ([`Body::plan_moved_rows`]); everywhere else
-    /// it is `kef`.
+    /// rows do not stand on a complete surviving face, or a killed null
+    /// edge releases the surviving loop with a gap — this door re-mints
+    /// the surviving face at `tol`'s band, the surviving loop walked in
+    /// its chart ([`Body::plan_moved_rows`],
+    /// [`Body::plan_released_rows`]); everywhere else it is `kef`.
     ///
     /// # Errors
     ///
     /// As [`Body::kef`], except the `KeysOnly` refusal, and the site
-    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    /// mint's plan in its place.
     pub fn kef_minting(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
@@ -1452,6 +1660,57 @@ impl<T: Decide> Body<T> {
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, KEF_DELTA, "kef_minting");
         Ok(killed)
+    }
+
+    /// **The rows a kill owes the loops it releases**: where the killed
+    /// edge is a null edge, the site mint over each face of `read` — the
+    /// faces its halves are on that the kill keeps — that a loop it
+    /// releases leaves with a gap ([`crate::pcurves::releases_a_gap`]),
+    /// `site` describing the face as the kill leaves it, its rewired
+    /// loops without the killed halves, and `made` the joints the kill
+    /// writes, each into its half-edge with its element. A face the site mint selects
+    /// ([`crate::pcurves::StoredRows::remints`]) has the rows those loops
+    /// missed while they were held open minted with the rest of what is
+    /// missing there; every other face is left as found. Empty where the
+    /// killed edge is certified: the kill releases nothing.
+    ///
+    /// `tol` is the band door's. `None` is the keys-only kill, which
+    /// derives nothing and refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] where the band
+    /// door's plan writes a face: the kill would leave a loop no null
+    /// edge holds open half-minted.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::plan_site_mint_of`]'s.
+    pub(crate) fn plan_released_rows(
+        &self,
+        edge: EdgeKey,
+        made: &[(HalfEdgeKey, Option<JointElement>)],
+        read: &[FaceKey],
+        site: impl Fn(&Self, FaceKey) -> SiteFace<T>,
+        tol: Option<Tol>,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let edge_data = proven(&self.edges, edge, EntityId::Edge);
+        if self
+            .edge_curve_linked(edge, edge_data)
+            .null_scaffold()
+            .is_none()
+        {
+            return Ok(Vec::new());
+        }
+        self.plan_site_mint_of(
+            read.iter().copied(),
+            |body, minted| {
+                Ok(minted
+                    .iter()
+                    .map(|&(face, _)| site(body, face))
+                    .filter(|face| crate::pcurves::releases_a_gap(body, face, made))
+                    .collect())
+            },
+            crate::pcurves::SiteCarriers::Existing,
+            tol,
+        )
     }
 
     /// [`Body::kef`]'s plan and surgery, with the band its site mint
@@ -1632,35 +1891,63 @@ impl<T: Decide> Body<T> {
         // anchor: its own members from `next(m)` up to `m`, then the
         // remnant.
         let remnant_keys: Vec<HalfEdgeKey> = remnant.iter().map(|moved| moved.key()).collect();
-        let rows = self.plan_moved_rows(
+        let surviving = |body: &Self, moved: bool| {
+            let own: Vec<HalfEdgeKey> = if d.key() == m {
+                Vec::new()
+            } else {
+                body.site_cycle_from(d.key(), l2)
+                    .into_iter()
+                    .take_while(|&h| h != m)
+                    .collect()
+            };
+            let mut site = body.site_face(
+                f2,
+                &[(
+                    l2,
+                    own.into_iter()
+                        .chain(remnant_keys.iter().copied())
+                        .map(SiteHalf::Existing)
+                        .collect(),
+                )],
+                None,
+            );
+            site.moved = moved;
+            site
+        };
+        let mut rows = self.plan_moved_rows(
             &remnant_keys,
             !remnant_changes_chart,
             f2,
-            |body| {
-                let own: Vec<HalfEdgeKey> = if d.key() == m {
-                    Vec::new()
-                } else {
-                    body.site_cycle_from(d.key(), l2)
-                        .into_iter()
-                        .take_while(|&h| h != m)
-                        .collect()
-                };
-                let mut site = body.site_face(
-                    f2,
-                    &[(
-                        l2,
-                        own.into_iter()
-                            .chain(remnant_keys.iter().copied())
-                            .map(SiteHalf::Existing)
-                            .collect(),
-                    )],
-                    None,
-                );
-                site.moved = true;
-                Ok(site)
-            },
+            |body| Ok(surviving(body, true)),
             tol,
         )?;
+        // Each joint the splice makes bridges the killed edge, and its
+        // element is the sum of the elements it bridges, read before the
+        // drop (`Body::bridged_joint`). A remnant changing chart has no
+        // image on the surviving face, so neither joint has an element;
+        // the band door's site mint, written after the splice, re-mints
+        // the surviving face where it is owed.
+        let links = splice.links(a, [c, d]);
+        let elements: Vec<Option<JointElement>> = splice
+            .bridges(he, m, d.key())
+            .iter()
+            .map(|path| {
+                (!remnant_changes_chart)
+                    .then(|| self.bridged_joint(path))
+                    .flatten()
+            })
+            .collect();
+        // Where the remnant's rows stand, a null edge's kill can still
+        // release the surviving loop with gaps.
+        if rows.is_empty() {
+            let made: Vec<(HalfEdgeKey, Option<JointElement>)> = links
+                .iter()
+                .zip(&elements)
+                .map(|(&(_, to), &element)| (to.key(), element))
+                .collect();
+            rows =
+                self.plan_released_rows(edge, &made, &[f2], |body, _| surviving(body, false), tol)?;
+        }
 
         // ---- Mutation (infallible from here on). ----
         // The remnant joins the mate's loop.
@@ -1680,14 +1967,15 @@ impl<T: Decide> Body<T> {
         // (`pcurves::loop_rows`) attributes to the moved half-edges
         // once spliced: that loop is its own survivors plus the
         // remnant, and its own rows are not this op's to touch.
+
         if remnant_changes_chart {
             self.drop_rows(remnant.iter().map(|moved| moved.key()));
         }
-        crate::pcurves::apply_site_rows(self, rows, None);
         // Splice (derived as mef's exact inverse — module docs diagram).
-        for (from, to) in splice.links(a, [c, d]) {
-            self.link_half_edges(from, to);
+        for ((from, to), element) in links.into_iter().zip(elements) {
+            self.link_half_edges(from, to, element);
         }
+        crate::pcurves::apply_site_rows(self, rows, None);
         let Some(loop_data) = self.get_loop_mut(l2) else {
             unreachable!("kef: `l2` resolved in the plan phase")
         };
@@ -2041,7 +2329,7 @@ mod tests {
     use crate::euler::{BadArgument, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
         ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, ops_holed_box,
-        prov, through_the_scalpel,
+        prov,
     };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
@@ -2931,10 +3219,8 @@ mod tests {
         // surviving vertex's point gone, the describing door asks what
         // its docs list in their order: a listed non-member refuses as
         // one, and an empty list asks nothing past the structural list,
-        // as the keys-only door asks nothing, so both kill. (The body is
-        // tier-1-invalid, so the kills run inside a surgery scope,
-        // whose close is dropped unswept; under the scalpel each kill's
-        // own sweep reports the planted dangle and nothing else.)
+        // as the keys-only door asks nothing, so both kill, and leave
+        // the planted dangle the only fault.
         let tol = Tol::witness();
         let (mut body, _seed, seg, strut) = strutted();
         let v = body.get_half_edge(strut.he_plus).unwrap().start;
@@ -2956,23 +3242,19 @@ mod tests {
         }];
         for door in ["kev", "kev_describing"] {
             let mut copy = body.clone();
-            let mut scope = copy.begin_surgery();
-            let got = through_the_scalpel(&[door], || {
-                if door == "kev" {
-                    scope.kev(strut.he_plus)
-                } else {
-                    scope.kev_describing(strut.he_plus, &[], tol)
-                }
-            });
+            let mut scope = copy.begin_surgery_on_a_torn_body();
+            let got = if door == "kev" {
+                scope.kev(strut.he_plus)
+            } else {
+                scope.kev_describing(strut.he_plus, &[], tol)
+            };
             drop(scope);
-            match got {
-                Ok(got) => assert!(got.is_ok(), "{door}: {got:?}"),
-                Err(swept) => assert!(
-                    swept.contains(&format!("left: Err({planted:?})")),
-                    "{door} ran to its end and its sweep reports the planted dangle alone: \
-                     {swept}"
-                ),
-            }
+            assert!(got.is_ok(), "{door}: {got:?}");
+            assert_eq!(
+                validate(&copy),
+                Err(planted.clone()),
+                "{door} ran to its end and the planted dangle is the only fault"
+            );
         }
     }
 
@@ -4414,14 +4696,15 @@ mod tests {
 
     /// **The re-mint is planned before the kill mutates.** The wall's
     /// far side has lost its curve entry, which neither the kill's plan
-    /// nor its gate reads; the null member's re-mint reads the wall
-    /// and refuses it, and the kill is not run: the body is deep
-    /// unchanged, every pcurve row included.
+    /// nor its gate reads; the null member's re-mint reads the wall and
+    /// panics naming the edge whose curve link dangles (D2 row 4), and
+    /// the kill is not run: the body is deep unchanged, every pcurve row
+    /// included.
     #[test]
-    fn a_refused_null_member_re_mint_leaves_the_body_untouched() {
-        let (mut body, face, _, toward_tip, listed) =
+    fn a_torn_null_member_re_mint_panics_before_the_kill() {
+        let (mut body, _, _, toward_tip, listed) =
             crate::test_support_fixtures::kill_under_a_null_strut(Tol::witness());
-        let side = body
+        let (edge, side) = body
             .edges()
             .find(|(_, e)| {
                 body.get_curve_geom(e.curve)
@@ -4431,16 +4714,19 @@ mod tests {
                             if (origin.x - 1.4f64.cos()).abs() < 1e-12)
                     })
             })
-            .map(|(_, e)| e.curve)
+            .map(|(k, e)| (k, e.curve))
             .unwrap();
         body.curves.remove(side).unwrap();
-        let refused = EulerOpError::PcurveMint {
-            face,
-            refusal: crate::pcurves::SiteRowRefusal::Corrupt,
-        };
-        assert_err_deep_unchanged(&mut body, &refused, |b| {
-            b.kev_describing(toward_tip, &listed, Tol::witness())
-                .unwrap_err()
-        });
+        let premise = format!(
+            "{}'s curve names {}, which does not resolve",
+            EntityId::Edge(edge),
+            crate::entity::GeomRef::Curve(side)
+        );
+        assert_torn_op_panics(
+            "kev_describing",
+            &mut body,
+            &[premise.as_str(), ROW_FOUR],
+            |b| b.kev_describing(toward_tip, &listed, Tol::witness()),
+        );
     }
 }

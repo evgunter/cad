@@ -74,7 +74,7 @@ fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: VarName::new(axis).expect("a valid parameter name"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -292,7 +292,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
         input: solid,
         placement: editor_core::placement::Step::Rigid {
             translation: [
-                Expr::param(
+                Expr::named(
                     VarName::new("place").expect("a valid parameter name"),
                     Dimension::Length,
                 ),

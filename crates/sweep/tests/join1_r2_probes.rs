@@ -11,7 +11,7 @@ use sweep::ExtrudeSide;
 use crate::revolve_common::{axis_y, validated};
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::Body;
 
@@ -83,7 +83,8 @@ fn bbox(b: &Body<f64>) -> String {
     format!("{lo:?}..{hi:?}")
 }
 
-/// Runs ∪ ∖ ∩ in both orders. Returns (wrong bodies, outcomes).
+/// Runs ∪ ∖ ∩ in both orders on `a` and `b`, each finished once as an
+/// operand. Returns (wrong bodies, outcomes).
 fn probe(
     name: &str,
     a: &Body<f64>,
@@ -93,6 +94,8 @@ fn probe(
     ov: f64,
     abs: f64,
 ) -> Vec<String> {
+    let a = &finished(&format!("{name}: A"), a.clone(), tol());
+    let b = &finished(&format!("{name}: B"), b.clone(), tol());
     let mut wrong = Vec::new();
     for (ord, x, y, vx, vy) in [("A·B", a, b, va, vb), ("B·A", b, a, vb, va)] {
         for (op, r, want) in [

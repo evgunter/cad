@@ -37,7 +37,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+    Expr::named(name(n), dim)
 }
 
 fn eps() -> f64 {
@@ -128,11 +128,11 @@ fn stepped_shaft_sized(
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("h1"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, h1, d1)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, h1, d1)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("h2"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, h2, d2)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, h2, d2)),
     });
     // One frame, named by both profiles: two sketches meant to share
     // a plane bind the same id, which is how sharing is said now.
@@ -194,7 +194,7 @@ fn scalar_measure(
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("a"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
     let a = || MeasureExpr::value(param("a", Dimension::Scalar));
     let m = r.insert(Node::measure(build(&a), Vec::new()).expect("no references to address"));
@@ -211,7 +211,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, w, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, w, None)),
     });
     // A chain: (0,0) -> (w,0) [line, seg 0] -> (w,1) [line, seg 1] ->
     // arc through (w/2, 1.25) to (0,1) [seg 2] -> close [seg 3]. Both
@@ -863,7 +863,7 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
             assert_eq!(
                 blockers[0],
                 Unavailable::BandHasNoMeasure {
-                    param: doc.spoken_var(doc.var_named("h2").expect("declared"))
+                    var: doc.spoken_var(doc.var_named("h2").expect("declared"))
                 }
             );
         }
@@ -1015,11 +1015,11 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
 fn r1_seed_env_refuses_a_foreign_name() {
     let (a, _) = stepped_shaft(1.0, 0.5, None, None);
     assert!(
-        seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), editor_core::VarId(0)).is_err(),
+        seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId(0)).is_err(),
         "an unknown name refuses"
     );
     // And the bindings it does produce carry exactly one unit tangent.
-    let env = seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), a.var_named("h1").expect("h1"))
+    let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
         .expect("h1");
     let mut ones = 0_usize;
     let mut zeros = 0_usize;

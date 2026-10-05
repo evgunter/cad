@@ -26,8 +26,10 @@ pub struct DocDiff {
     pub nodes: Vec<NodeChange>,
     /// Variables added, removed, or whose definition changed — `self`'s
     /// as `self` declared them, then the added ones as `other` declared
-    /// them, as [`Self::nodes`] is ordered. A name is not a definition:
-    /// a variable whose name alone moved is not here (VR2).
+    /// them, as [`Self::nodes`] is ordered — then every defined
+    /// variable whose definition reads one of them, directly or through
+    /// other definitions, in definition order. A name is not a
+    /// definition: a variable whose name alone moved is not here (VR2).
     pub vars: Vec<VarId>,
     /// Whether the two insertion orders differ (reorder is not an
     /// edit in v1, but the diff reports it rather than assuming).
@@ -84,7 +86,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                 nodes.push(NodeChange::Added(id));
             }
         }
-        let vars: Vec<VarId> = self
+        let mut vars: Vec<VarId> = self
             .var_order
             .iter()
             .filter(|id| {
@@ -102,6 +104,20 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
             )
             .copied()
             .collect();
+        // Closed over definitions: a defined variable whose definition
+        // reads a moved variable, directly or through others, moved
+        // with it, so a reader of `h := 2·w` is dirty when `w` moves.
+        // Over `other` alone: a definition `self` holds that `other`
+        // does not hold bit-equal moved itself, and one it does hold is
+        // met here.
+        let mut moved: std::collections::BTreeSet<VarId> = vars.iter().copied().collect();
+        for id in other.definition_order() {
+            if !moved.contains(&id) && other.definition_reads(id).iter().any(|r| moved.contains(r))
+            {
+                moved.insert(id);
+                vars.push(id);
+            }
+        }
         let witness_moved = |id: &RecipeNodeId| self.witnesses.get(id) != other.witnesses.get(id);
         let label_moved = |id: &RecipeNodeId| self.labels.get(id) != other.labels.get(id);
         let mut witnesses: Vec<RecipeNodeId> = Vec::new();

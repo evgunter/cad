@@ -196,8 +196,10 @@ fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<String> {
 /// The kernel's pair union of two bodies, no declaration — the same
 /// door and strategy the document's `Boolean(Union)` runs.
 fn kernel_union(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    match topo::union(a, b, Tol::witness()).expect("the kernel union succeeds") {
-        BooleanResult::Body(bb) => bb.body,
+    let a = topo::test_support::finished("operand A", a.clone(), Tol::witness());
+    let b = topo::test_support::finished("operand B", b.clone(), Tol::witness());
+    match topo::union(&a, &b, Tol::witness()).expect("the kernel union succeeds") {
+        BooleanResult::Body(bb) => bb.body.into_body(),
         BooleanResult::Empty => panic!("a union of material is not empty"),
     }
 }

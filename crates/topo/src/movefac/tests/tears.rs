@@ -110,10 +110,6 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut Rng) {
 /// one across two, and the calls that panicked on a tier-1 premise.
 type Row = [usize; 6];
 
-/// The panic a `per-op-postcondition` build's sweep raises after an
-/// operator that ran to its end on a torn input.
-const SWEEP: &str = ": movefac postcondition: result is not tier-1 valid";
-
 /// The measurement under `tear`: for each seed, one and two tears on
 /// every [`BODIES`] body, then `movefac` on each of its shells, each on
 /// a clone inside a surgery scope, so a debug build's tier-1
@@ -142,7 +138,7 @@ fn rows(tear: Tear, seeds: &[u64]) -> Row {
                     let mut outcome = None;
                     let panicked =
                         crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
-                            let mut scope = trial.begin_surgery();
+                            let mut scope = trial.begin_surgery_on_a_torn_body();
                             outcome = Some(scope.movefac(shell));
                         }));
                     row[0] += 1;
@@ -158,16 +154,6 @@ fn rows(tear: Tear, seeds: &[u64]) -> Row {
                             row[1] += 1;
                             continue;
                         }
-                        // A fired sweep stood in front of the `Ok` naming
-                        // the shell and the shells the move minted.
-                        (Some(message), _) if message.contains(SWEEP) => std::iter::once(shell)
-                            .chain(
-                                trial
-                                    .shells()
-                                    .map(|(k, _)| k)
-                                    .filter(|&k| body.get_shell(k).is_none()),
-                            )
-                            .collect(),
                         (Some(message), _) => {
                             assert!(
                                 message.contains("tier-1-valid"),

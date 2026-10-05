@@ -103,7 +103,7 @@ fn fixture() -> ProfileDoc {
             &doc,
             &DocEdit::DeclareVar {
                 name: p(name),
-                def: editor_core::VarDef::Free(value),
+                def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -157,7 +157,7 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
         &before,
         &DocEdit::DefineVar {
             var: p("wall").into(),
-            def: editor_core::VarDef::Free(rebuilt),
+            def: editor_core::VarDecl::Free(rebuilt),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -290,13 +290,13 @@ fn the_unit_door_refuses_typed() {
     // A count is a number, not a quantity.
     assert_eq!(
         refuse("ribs", mm()),
-        EditError::DocParamCountHasNoUnit { var: sv("ribs") }
+        EditError::VarCountHasNoUnit { var: sv("ribs") }
     );
     // The unit must MEASURE the declared dimension — the pairing the
     // save/load validator refuses a document for.
     assert_eq!(
         refuse("wall", deg()),
-        EditError::DocParamUnitMismatch {
+        EditError::VarUnitMismatch {
             var: sv("wall"),
             unit: Dimension::Angle,
             declared: Dimension::Length,
@@ -319,7 +319,7 @@ fn the_unit_door_refuses_typed() {
     let notation = refuse("nonesuch", mm()).to_string();
     assert!(
         notation.contains("a notation edit")
-            && notation.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
+            && notation.contains(editor_core::edit::UNKNOWN_VAR_RECOURSE),
         "the sentence names the notation door and keeps its recourse: {notation:?}"
     );
     let value = apply(
@@ -334,8 +334,7 @@ fn the_unit_door_refuses_typed() {
     .expect_err("the value door refuses the same undeclared name")
     .to_string();
     assert!(
-        value.contains("a value edit")
-            && value.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
+        value.contains("a value edit") && value.contains(editor_core::edit::UNKNOWN_VAR_RECOURSE),
         "and the value door names itself, with the same recourse: {value:?}"
     );
     assert_ne!(
@@ -344,7 +343,7 @@ fn the_unit_door_refuses_typed() {
     );
 }
 
-/// **The mismatch sentence, in the right ORDER.** `DocParamUnitMismatch`
+/// **The mismatch sentence, in the right ORDER.** `VarUnitMismatch`
 /// carries two dimensions and renders both, so a rendering that swapped
 /// them would still contain both words and still name the parameter —
 /// invisible to the row above. This one pins each dimension to the
@@ -495,7 +494,7 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
     vec![
         DocEdit::DeclareVar {
             name: p("wall"),
-            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Length,
                 0.003,
                 sigma(),
@@ -503,11 +502,11 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
         },
         DocEdit::DeclareVar {
             name: p("sweep"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 1.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 1.5)),
         },
         DocEdit::DeclareVar {
             name: p("ribs"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 4 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
         },
     ]
 }
@@ -539,12 +538,12 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         (
             "\"Name\": \"wall\"",
             "\"Name\": \"ribs\"",
-            EditError::DocParamCountHasNoUnit { var: sv("ribs") },
+            EditError::VarCountHasNoUnit { var: sv("ribs") },
         ),
         (
             "\"unit\": \"mm\"",
             "\"unit\": \"deg\"",
-            EditError::DocParamUnitMismatch {
+            EditError::VarUnitMismatch {
                 var: sv("wall"),
                 unit: Dimension::Angle,
                 declared: Dimension::Length,
@@ -567,7 +566,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
                 var: var.clone(),
                 unit: mm(),
             },
-            EditError::DocParamCountHasNoUnit { var } => DocEdit::SetVarUnit {
+            EditError::VarCountHasNoUnit { var } => DocEdit::SetVarUnit {
                 var: var.id().into(),
                 unit: mm(),
             },
@@ -692,7 +691,7 @@ fn annotating_through_define_var_reverts_the_notation() {
         &in_mm,
         &DocEdit::DefineVar {
             var: p("wall").into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 dim,
                 value,
                 Distribution::Normal { sigma: 2e-5 },
@@ -734,7 +733,7 @@ fn the_table_has_exactly_one_scalar_row() {
 }
 
 /// **The sibling door, swept.** The review found this row's claim
-/// inverted: `EditError::DocParamUnitMismatch`'s rustdoc said the
+/// inverted: `EditError::VarUnitMismatch`'s rustdoc said the
 /// pairing fault was refused "at the edit door, before it can reach a
 /// document at all", while the whole-definition door still let a mismatched
 /// pair into a live document and only save/load objected. The finding
@@ -760,13 +759,13 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
             &doc,
             &DocEdit::DefineVar {
                 var: p("wall").into(),
-                def: editor_core::VarDef::Free(crooked)
+                def: editor_core::VarDecl::Free(crooked)
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .expect_err("a length written in degrees is refused at the edit door"),
-        EditError::DocParamUnitMismatch {
+        EditError::VarUnitMismatch {
             var: sv("wall"),
             unit: Dimension::Angle,
             declared: Dimension::Length,

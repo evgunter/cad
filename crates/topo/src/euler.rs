@@ -261,6 +261,7 @@ use crate::entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::live::{Arg, KeySource, Live, dangling_link, link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
@@ -298,12 +299,14 @@ pub enum FaceSurface<T: Real> {
     },
 }
 
-/// The keys-only door a [`EulerOpError::RechartStrandsDescriptions`] or
+/// The re-chart door a [`EulerOpError::RechartStrandsDescriptions`] or
 /// [`EulerOpError::RechartUnvouched`] refusal is raised by. Each puts
 /// existing half-edges, or a chord it mints, on a face wearing another
 /// key than the one they lay on, and the lever its refusal names is
 /// its own: a minting door picks the chart it mints the face on, a
-/// moving door the face it moves the loop onto.
+/// moving door the face it moves the loop onto, the describing door
+/// the re-descriptions it is handed. Every door but the describing one
+/// is keys-only, and only the keys-only doors strand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RechartDoor {
     /// [`Body::set_face_surface`]: re-charts a face in place.
@@ -321,6 +324,12 @@ pub enum RechartDoor {
     /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
     /// ring onto another face.
     RingMove,
+    /// [`Body::set_face_surfaces_describing`]: re-charts faces with the
+    /// re-descriptions it is handed. It refuses a stranded edge as
+    /// [`EulerOpError::RechartUndescribed`], so it raises only
+    /// [`EulerOpError::RechartUnvouched`]: onto a curved chart, where
+    /// no residual is read.
+    SetFaceSurfacesDescribing,
 }
 
 impl RechartDoor {
@@ -332,6 +341,7 @@ impl RechartDoor {
             Self::Mfkrh => "mfkrh",
             Self::MfkrhPlug => "mfkrh_plug",
             Self::RingMove => "ring_move",
+            Self::SetFaceSurfacesDescribing => "set_face_surfaces_describing",
         }
     }
 
@@ -360,6 +370,11 @@ impl RechartDoor {
             Self::RingMove => (
                 "the move",
                 "move the loop onto a face on the chart its edges name",
+            ),
+            Self::SetFaceSurfacesDescribing => unreachable!(
+                "RechartStrandsDescriptions is raised only by the keys-only doors \
+                 (`Body::vouch_move`); set_face_surfaces_describing refuses a stranded edge \
+                 as RechartUndescribed"
             ),
         };
         format!(
@@ -403,6 +418,13 @@ impl RechartDoor {
                 "{name}: the loop would move onto face {face:?}, on a chart that {named} not \
                  name, so nothing vouches that they lie on that chart. Recourse: move the \
                  loop onto a face on a chart its edges name"
+            ),
+            Self::SetFaceSurfacesDescribing => format!(
+                "{name}: face {face:?} would move onto a curved chart that {named} not name, \
+                 and a curved chart's residuals are not read, so nothing vouches that its \
+                 boundary lies on that chart. Recourse: list a re-description of each on the \
+                 new chart, which the door certifies against it, or move the face onto a \
+                 chart they name"
             ),
         }
     }
@@ -884,20 +906,21 @@ pub enum EulerOpError {
         /// The stranded edges.
         edges: Vec<EdgeKey>,
     },
-    /// A keys-only re-chart door ([`RechartDoor`]) would put these
-    /// certified edges — or the certified chord a minting door mints —
-    /// on a face whose key their descriptions do not name, so nothing
-    /// vouches that they, and the vertices they end at, lie on its
-    /// chart: on a plane, tier 3's `PlanarBoundaryResidual` /
-    /// `PlanarFaceResidual` at rest. Every one is named, in the order
-    /// [`EulerOpError::RechartStrandsDescriptions`] names them. The
-    /// lever is the door's own ([`RechartDoor`]); the describing door,
-    /// [`Body::set_face_surfaces_describing`], certifies every
-    /// re-description it is handed, and asks the boundary's own
-    /// residuals only on a plane: onto a curved chart, handed no
-    /// re-descriptions, it asks nothing
+    /// A re-chart door ([`RechartDoor`]) would put these certified
+    /// edges — or the certified chord a minting door mints — on a face
+    /// whose key their descriptions do not name, and no residual of
+    /// theirs is read there, so nothing vouches that they, and the
+    /// vertices they end at, lie on its chart: on a plane, tier 3's
+    /// `PlanarBoundaryResidual` / `PlanarFaceResidual` at rest. A
+    /// keys-only door reads no residual; the describing door,
+    /// [`Body::set_face_surfaces_describing`], reads them on a plane
+    /// ([`EulerOpError::RechartOffBoundary`]) and not on a curved chart
     /// (`work/restfront/validate-tier3-curved-boundary-containment`,
-    /// #638). Raised in the plan phase, so the body is untouched.
+    /// #638). Every one is named, in the order
+    /// [`EulerOpError::RechartStrandsDescriptions`] names them at a
+    /// keys-only door, and in the face's cycle order at the describing
+    /// one. The lever is the door's own ([`RechartDoor`]). Raised in the
+    /// plan phase, so the body is untouched.
     RechartUnvouched {
         /// The door that refuses.
         door: RechartDoor,
@@ -933,10 +956,10 @@ pub enum EulerOpError {
         error: CertifyError,
     },
     /// [`Body::set_face_surfaces_describing`]: a face moved onto a plane
-    /// has a vertex, or an interior certification sample of an edge,
-    /// definitely off that plane — tier 3's `PlanarFaceResidual` /
-    /// `PlanarBoundaryResidual`, asked before the move. Raised in the
-    /// plan phase, so the body is untouched.
+    /// has a certified edge no key vouches for there with an end, or an
+    /// interior certification sample, definitely off that plane — tier
+    /// 3's `PlanarFaceResidual` / `PlanarBoundaryResidual`, asked before
+    /// the move. Raised in the plan phase, so the body is untouched.
     RechartOffBoundary {
         /// The moved face.
         face: FaceKey,
@@ -1146,6 +1169,17 @@ pub enum EulerOpError {
         half_edge: HalfEdgeKey,
         /// The typed certification failure, nested whole.
         error: geom_brep::PcurveCertifyError,
+    },
+    /// [`Body::kev_describing`]: whether a killed half's image closes on
+    /// itself — the turn a general unsplice crosses it whole by — is
+    /// undecided at the door's band, so the joint the kill bridges
+    /// across it has no element to write. Raised in the plan phase, so
+    /// the body is untouched.
+    KillTurnEscalated {
+        /// The killed half-edge whose turn escalated.
+        half_edge: HalfEdgeKey,
+        /// The in-band/poisoned margin diagnostics.
+        diag: geom_core::Indeterminate,
     },
     /// [`Body::mev`], [`Body::mef`] or [`Body::mekr`] would add a
     /// half-edge to a face the site mint re-mints — one whose **pcurve
@@ -1398,6 +1432,12 @@ impl EulerOpError {
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {error}"
             ),
+            Self::KillTurnEscalated { half_edge, diag } => format!(
+                "kev_describing: whether killed half-edge {half_edge:?}'s pcurve image meets \
+                 itself across its closed carrier is undecided: {}. Recourse: kill the edge at \
+                 a tolerance that decides its ends, or move the geometry",
+                diag.payload()
+            ),
             Self::PcurveMint { face, refusal } => format!(
                 "the operator would add a half-edge to face {face:?}, whose pcurve rows are \
                  complete, and cannot mint its row: {refusal}"
@@ -1635,6 +1675,15 @@ pub(crate) fn every_euler_op_error_once()
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("split_edge_param_interior"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::KillTurnEscalated {
+            half_edge: HalfEdgeKey::default(),
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_loop_continuity"),
                 terminal_sliver: false,
             },
         },
@@ -2525,6 +2574,16 @@ impl<T: Decide> Body<T> {
             he1_loop,
             he2_loop,
         } = plan;
+        // The joints the splice makes (C4, `crate::joint`): a certified
+        // edge's are new, and the site mint, written after the splice,
+        // decides them. A NULL edge is a point with no image, so it
+        // carries nothing: its halves take the identity, and each joint
+        // out of it keeps the element its successor had, read across the
+        // point to the same predecessor's exit.
+        let null = matches!(mint, MevCurveMint::Null(_));
+        let carried = |half: Live| null.then(|| self.joint(half.key())).flatten();
+        let (into_he1, into_he2) = (carried(he1), carried(he2));
+        let into_new = null.then_some(JointElement::IDENTITY);
         let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(
@@ -2536,25 +2595,25 @@ impl<T: Decide> Body<T> {
             (w, he2_loop),
             &provenance,
         );
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
+        let minted = Some((he_plus.key(), he_minus.key()));
 
         // Splice. Derived (module docs) rather than transcribed; the two
         // cases are the sequential "insert before he1, then before he2"
         // with the strut's second insertion landing between the first
-        // and he1.
         if he1 == he2 {
             // Strut: … → prev → he_plus → he_minus → he1 → …
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he_minus);
-            self.link_half_edges(he_minus, he1);
+            self.link_half_edges(he1_prev, he_plus, into_new);
+            self.link_half_edges(he_plus, he_minus, into_new);
+            self.link_half_edges(he_minus, he1, into_he1);
         } else {
             // … → prev(he1) → he_plus → he1 → …  (in he1's loop)
             // … → prev(he2) → he_minus → he2 → … (in he2's loop)
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he1);
-            self.link_half_edges(he2_prev, he_minus);
-            self.link_half_edges(he_minus, he2);
+            self.link_half_edges(he1_prev, he_plus, into_new);
+            self.link_half_edges(he_plus, he1, into_he1);
+            self.link_half_edges(he2_prev, he_minus, into_new);
+            self.link_half_edges(he_minus, he2, into_he2);
         }
+        crate::pcurves::apply_site_rows(self, rows, minted);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         // Reassign the clockwise run to the new vertex.
@@ -2658,13 +2717,16 @@ impl<T: Decide> Body<T> {
         rows: Vec<SiteRows<T>>,
         provenance: Provenance,
     ) -> MevCreated {
+        // A null edge's halves carry nothing (`mev_fan_execute`); a
+        // certified edge's joints are the site mint's.
+        let into_new = matches!(mint, MevCurveMint::Null(_)).then_some(JointElement::IDENTITY);
         let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The two halves form the whole cycle: v → w → v.
-        self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, he_plus);
+        self.link_half_edges(he_plus, he_minus, into_new);
+        self.link_half_edges(he_minus, he_plus, into_new);
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
@@ -2889,16 +2951,16 @@ impl<T: Decide> Body<T> {
         // he_plus closes he2's side into the old loop.
         if he1 == he2 {
             // Circular one-edge face: the new loop is he_minus alone.
-            self.link_half_edges(he_minus, he_minus);
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he1_live);
+            self.link_half_edges(he_minus, he_minus, None);
+            self.link_half_edges(he1_prev, he_plus, None);
+            self.link_half_edges(he_plus, he1_live, None);
         } else {
             // New loop: … → prev(he2) → he_minus → he1 → … (he1's side)
             // Old loop: … → prev(he1) → he_plus → he2 → … (he2's side)
-            self.link_half_edges(he2_prev, he_minus);
-            self.link_half_edges(he_minus, he1_live);
-            self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he2_live);
+            self.link_half_edges(he2_prev, he_minus, None);
+            self.link_half_edges(he_minus, he1_live, None);
+            self.link_half_edges(he1_prev, he_plus, None);
+            self.link_half_edges(he_plus, he2_live, None);
         }
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
@@ -3027,12 +3089,12 @@ impl<T: Decide> Body<T> {
         let (new_loop, new_face) =
             self.mint_loop_and_face(surface, resolved.sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // Both halves are one-half-edge loops at v: the old loop keeps
         // he_plus, the new face's outer loop gets he_minus (the same
         // association as Chords — he1's "side" is the new loop).
-        self.link_half_edges(he_plus, he_plus);
-        self.link_half_edges(he_minus, he_minus);
+        self.link_half_edges(he_plus, he_plus, None);
+        self.link_half_edges(he_minus, he_minus, None);
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
@@ -3414,7 +3476,7 @@ impl<T: Decide> Body<T> {
             mate,
             EntityId::HalfEdge,
             EntityId::Edge(edge),
-            "slot",
+            claim.mate_field(),
         )
         .clone();
         require_halves(edge, edge_data, he, (mate, mate_data.edge));
@@ -3605,62 +3667,6 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Resolves a vertex's point coordinates (the certification gate's
-    /// endpoints): the vertex's miss answered as `from` says
-    /// ([`KeySource`]), and its point's, a link the vertex holds, a
-    /// panic.
-    #[track_caller]
-    pub(crate) fn resolve_vertex_point<S: KeySource>(
-        &self,
-        vertex: VertexKey,
-        from: S,
-    ) -> S::Answer<Point3<T>> {
-        S::map(
-            lookup(&self.vertices, vertex, EntityId::Vertex, from),
-            |v| {
-                *link(EntityId::Vertex(vertex), "point")
-                    .answer_geometry(self.points.get(v.point), GeomRef::Point(v.point))
-            },
-        )
-    }
-
-    /// `face`'s chart, a link its record holds.
-    #[track_caller]
-    pub(crate) fn face_surface_linked(&self, face: FaceKey, data: &Face) -> &Surface<T> {
-        self.get_surface(data.surface).unwrap_or_else(|| {
-            dangling_link(
-                EntityId::Face(face),
-                "surface",
-                GeomRef::Surface(data.surface),
-            )
-        })
-    }
-
-    /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`
-    /// names.
-    #[track_caller]
-    pub(crate) fn linked_vertex_point(
-        &self,
-        vertex: VertexKey,
-        holder: EntityId,
-        field: &'static str,
-    ) -> Point3<T> {
-        self.resolve_vertex_point(vertex, link(holder, field))
-    }
-
-    /// The key of a vertex's point, both resolving, with the misses
-    /// answered as [`Body::resolve_vertex_point`] answers them.
-    #[track_caller]
-    pub(crate) fn resolve_vertex_point_key<S: KeySource>(
-        &self,
-        vertex: VertexKey,
-        from: S,
-    ) -> S::Answer<PointKey> {
-        S::map(self.resolve_vertex_point(vertex, from), |_| {
-            self.vertices[vertex].point
-        })
-    }
-
     /// The attachment gate (D4 ¶2 at operation time): certifies an
     /// [`EdgeCurveSpec`] against its endpoint points, with surface keys
     /// resolved from this body's arena and the plane × NURBS lane read
@@ -3719,7 +3725,7 @@ impl<T: Decide> Body<T> {
         p_new: Point3<T>,
     ) -> (Point3<T>, Point3<T>) {
         let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        let endpoint = |he: HalfEdgeKey| -> Point3<T> {
+        let endpoint = |he: HalfEdgeKey, field| -> Point3<T> {
             if run.contains(&he) {
                 return p_new;
             }
@@ -3728,12 +3734,15 @@ impl<T: Decide> Body<T> {
                 he,
                 EntityId::HalfEdge,
                 EntityId::Edge(edge),
-                "slot",
+                field,
             )
             .start;
             self.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
         };
-        (endpoint(edge_data.he_plus), endpoint(edge_data.he_minus))
+        (
+            endpoint(edge_data.he_plus, "he_plus"),
+            endpoint(edge_data.he_minus, "he_minus"),
+        )
     }
 
     /// Every edge with a half-edge in `run`, once, in run order: the
@@ -4132,16 +4141,14 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// In this order, per face of `read` as it is reached: on a chart
-    /// that mints, a half of it does not resolve ([`EulerOpError::PcurveMint`] naming the face); then,
-    /// only when a face is read further, what `faces` raises; then
+    /// Only when a face is read further: what `faces` raises, then
     /// [`EulerOpError::PcurveMint`] naming the face.
     ///
     /// # Panics
     ///
     /// Where a face of `read`, read out of the body's records, or its
-    /// surface, or a loop's walk, does not resolve
-    /// ([`crate::pcurves::site_rows_from`]).
+    /// surface, or a loop's walk, or a half's edge or curve, does not
+    /// resolve ([`crate::pcurves::site_rows_from`]).
     pub(crate) fn plan_site_mint_of(
         &self,
         read: impl IntoIterator<Item = FaceKey>,
@@ -4161,9 +4168,7 @@ impl<T: Decide> Body<T> {
             seen.push(face);
             let face_data = proven(&self.faces, face, EntityId::Face);
             let surface = self.face_surface_linked(face, face_data);
-            if let Some(from) = crate::pcurves::site_rows_from(self, face_data, surface)
-                .map_err(|refusal| EulerOpError::PcurveMint { face, refusal })?
-            {
+            if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
                 minted.push((face, from));
             }
         }
@@ -4298,15 +4303,7 @@ impl<T: Decide> Body<T> {
     /// claim it.
     #[track_caller]
     pub(crate) fn site_cycle(&self, r#loop: LoopKey) -> Vec<HalfEdgeKey> {
-        match crate::pcurves::loop_rows(self, r#loop) {
-            crate::pcurves::LoopRows::Cycle(cycle) => cycle,
-            crate::pcurves::LoopRows::NoCycle => Vec::new(),
-            crate::pcurves::LoopRows::Corrupt => unreachable!(
-                "loop {loop:?} does not resolve, or its cycle walk does not close on the \
-                 half-edges that claim it: {CYCLES_ARE_CLAIMANTS}",
-                loop = r#loop
-            ),
-        }
+        crate::pcurves::loop_rows(self, r#loop)
     }
 
     /// [`Body::site_cycle`] proven to be every half-edge that claims
@@ -4396,8 +4393,15 @@ impl<T: Decide> Body<T> {
     /// call site the way a per-site `unreachable!` does, a shared
     /// helper knowing none of its callers, so this is `#[track_caller]`
     /// and the panic reports the caller's location instead.
+    ///
+    /// **A link is a joint, and the write takes its element** (C4,
+    /// [`crate::joint`]): `element` is the element of the joint `a → b`,
+    /// stored on `b`, or `None` where the door decides none — a side of
+    /// the joint is rowless, or its element is the site mint's to derive,
+    /// which writes it after the splice ([`crate::pcurves::apply_site_rows`]).
+    /// A kill sums the elements it bridges ([`JointElement::then`]).
     #[track_caller]
-    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live, element: Option<JointElement>) {
         let Some(he) = self.get_half_edge_mut(a.key()) else {
             unreachable!("link_half_edges: `a`'s proof outlived its key")
         };
@@ -4406,6 +4410,23 @@ impl<T: Decide> Body<T> {
             unreachable!("link_half_edges: `b`'s proof outlived its key")
         };
         he.prev = a.key();
+        self.write_joint(b.key(), element);
+    }
+
+    /// **The element of the joint a kill makes by bridging a killed
+    /// edge** (C4, [`crate::joint`], "Kills are sums"): the elements of
+    /// the joints into `path`'s half-edges, summed in order
+    /// ([`JointElement::then`]). A kill's path enters a killed half and
+    /// leaves into a survivor — `e(x) · e(n)` — and crosses between the
+    /// killed edge's two halves where they meet, where their one image
+    /// makes the exit of the one the entry of the other, so that crossing
+    /// carries nothing; where the killed edge closes on itself the path
+    /// also takes the closed half's own joint. `None` where any element
+    /// is: a side of the bridge is rowless.
+    pub(crate) fn bridged_joint(&self, path: &[HalfEdgeKey]) -> Option<JointElement> {
+        let mut elements = path.iter().map(|&he| self.joint(he));
+        let first = elements.next()??;
+        elements.try_fold(first, |sum, next| Some(sum.then(next?)))
     }
 
     /// D1's ratified postcondition-assert clause: after a successful
@@ -6563,7 +6584,7 @@ mod tests {
         assert_eq!(body.vertex_orbit_of(v), Some(vec![a, c]), "b is stranded");
         for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
             let mut trial = body.clone();
-            let mut scope = trial.begin_surgery();
+            let mut scope = trial.begin_surgery_on_a_torn_body();
             let site = MevSite::Fan { he1, he2 };
             let created = scope
                 .mev_null(site, crate::NewVertexSide::Above)
@@ -6893,27 +6914,19 @@ mod tests {
         }
     }
 
-    /// **Only the torn-body refusal names a defect** (D4 ¶1 (i)):
-    /// `PcurveMint`'s `Corrupt` side, the one typed refusal of a torn
-    /// body, ends in [`geom_core::KERNEL_DEFECT_ENDING`], its one
-    /// recourse; no other variant names a defect, and a caller's bad
-    /// [`EulerOpError::Argument`] states the fact and claims neither a
-    /// recourse nor a defect. `PcurveMint` answers by its payload and
-    /// `Argument` by its [`BadArgument`], so each side the shared array
-    /// does not hold is sampled beside it.
+    /// **No refusal names a defect** (D2 row 4): a torn body panics
+    /// rather than refuse, so no variant claims a kernel defect, and a
+    /// caller's bad [`EulerOpError::Argument`] states the fact and
+    /// claims neither a recourse nor a defect. `PcurveMint` answers by
+    /// its payload and `Argument` by its [`BadArgument`], so each side
+    /// the shared array does not hold is sampled beside it.
     #[test]
-    fn corruption_refusals_end_in_the_kernel_defect_ending() {
+    fn no_refusal_names_a_defect() {
         use crate::pcurves::SiteRowRefusal;
         let pcurve_mint = |refusal| EulerOpError::PcurveMint {
             face: FaceKey::default(),
             refusal,
         };
-        let torn = pcurve_mint(SiteRowRefusal::Corrupt).to_string();
-        assert!(
-            torn.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
-            "{torn}"
-        );
-        assert_eq!(test_utils::refusal::recourse_markers(&torn), 1, "{torn}");
         let mut arguments = 0;
         for error in every_euler_op_error_once().into_iter().chain([
             pcurve_mint(SiteRowRefusal::KeysOnly),
@@ -7174,7 +7187,7 @@ mod removal_census {
         ),
         (
             "DanglingDescription: Curve -> Surface",
-            Read("remove_surface_if_orphaned", &["description_surfaces("]),
+            Read("remove_surface_if_orphaned", &["Named::of(curve).keys()"]),
         ),
         (
             "DanglingGeometry: Vertex -> Point",

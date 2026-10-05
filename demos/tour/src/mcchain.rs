@@ -50,7 +50,7 @@
 //! # The claim the picture makes, and how it is checked
 //!
 //! Not "samples from the same laws" — **this run's samples**. Each one
-//! comes from `mc::sample_offsets(analyzed, config, i)`, and the cell
+//! comes from `mc::sample_offsets(doc, analyzed, config, i)`, and the cell
 //! then holds itself to it. Two checks, and what each one can see is
 //! worth stating exactly, because the review measured it:
 //!
@@ -189,8 +189,8 @@ fn study_over_certified() -> String {
 /// **Does the published certified box apply to THIS run?**
 ///
 /// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
-/// the compiled default ε, and the box MOVES with ε (`1.317e-4` at
-/// `1e-6` against `1.318e-7` at the default, measured) — so at another
+/// the compiled default ε, and the box MOVES with ε (`6.747e-5` at
+/// `1e-6` against `6.751e-8` at the default, measured) — so at another
 /// ε it is a different box, and `chaintol` says so (`demo-tour certified`).
 /// It moves because the wall is an enclosure escalating against the
 /// band (the placed rows' angular comparisons, since the extrude closes
@@ -290,8 +290,8 @@ fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
 
     (0..samples)
         .map(|i| {
-            let offsets =
-                sample_offsets(&analyzed, config, i).expect("the study's laws are sampleable");
+            let offsets = sample_offsets(&base.doc, &analyzed, config, i)
+                .expect("the study's laws are sampleable");
             let mut doc: ProfileDoc = base.doc.clone();
             for (var, value) in &nominal {
                 let offset = offsets[var];
@@ -1103,7 +1103,7 @@ fn sheet(
             ),
             [
                 format!(
-                    "\u{2014} the box MOVES with \u{03b5} (1.317e-4 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
+                    "\u{2014} the box MOVES with \u{03b5} (6.747e-5 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
                     CERTIFIABLE_FRACTION
                 ),
                 "\u{2014} the tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."

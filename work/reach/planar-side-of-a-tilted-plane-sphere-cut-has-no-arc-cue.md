@@ -2,11 +2,14 @@
 id: planar-side-of-a-tilted-plane-sphere-cut-has-no-arc-cue
 kind: issue
 title: The boolean's planar side of a plane x sphere cut tilted against the sphere's chart has no arc cue: it selects by the wall face's azimuth window, which a tilted section lacks
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [sphere-seam-in-a-plane-face-loses-the-fallback-recut-to-the-tilted-section-refusal, arc-side-rule-has-two-predicates]
+pr: 3985
+branch: reach/arc-from-pairing
+closed: 2026-10-04
 ---
 
 
@@ -59,3 +62,41 @@ it — `boolean::join` would join the wall side first), with the
 between-arc test re-stated against the same cue and the window
 computed only where a monotone section reads it. The three poses
 above, under every op, against their cap closed forms, are its rows.
+
+## Answered (PR 3985, `reach/arc-from-pairing`)
+
+The planar side reads the germ's direction, as the wall side does, and
+the up-front `face_azimuth_window` read is gone. Measured against the
+quarter-cap closed forms (`c` the cap beyond `x = 0.5`), every op:
+
+- `brick((0.5, 3), (−2, 2), (0, 2))` against the `y`-poled unit ball:
+  builds, `20 + 4π/3 − c/2`, `c/2`, `20 − c/2`, `4π/3 − c/2`;
+- the same box mirrored to `z ∈ (−2, 0)`: builds, the same forms;
+- `brick((0.5, 3), (−2, 2), (−2, 2))` (the planar face holds the whole
+  circle, a pierce ring): builds, `40 + 4π/3 − c`, `c`, `40 − c`, `4π/3 − c`;
+- the cube against the `y`-poled ball(0.3) at `(0.5, 0.5, 1)`: the
+  chords build and the role read refuses `SectionLoopUndecided`
+  (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+
+Rows: `crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_plane_tilted_against_the_balls_chart_builds_under_every_boolean` and
+`a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read`.
+
+## 2026-10-03 — a second reading, from PR 3987's dual review (REACH)
+
+The review's end-to-end probe (lane `reach-dual3987-r1`,
+`probes/review3987_e2e.rs` on `analysis/reach-dual/3987-r1`) cuts a box
+by a ball revolved about `y` (`ball_y`) under a 0.7 rad skew rotation:
+with the ball's polar axis tilted against the cut face, the op refuses
+`SectionNotPolar` (`crates/topo/src/chord_join.rs`), typed, as it does
+on main. With the pole normal to the cut face every op builds and
+matches the closed-form cap volume. Whether it is this item's site or a
+neighbour of it is not established.
+
+## Closed (2026-10-04)
+
+PR 3985 merged (`31eeed1268`); its answer above is on main, verified twice
+(`analysis/reach-verify/3985`, `analysis/reach-verify2/3985`).
+The 2026-10-03 reading above refused `SectionNotPolar` on a main that
+predates PR 3985, which retires that variant; it is not re-measured
+here, so it carries no open claim against this item.

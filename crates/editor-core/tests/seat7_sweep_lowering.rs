@@ -80,7 +80,7 @@ const H: f64 = 1.2;
 const PHI: f64 = PI / 4.0;
 
 fn param(name: &'static str) -> Expr {
-    Expr::param(VarName::from_static(name), Dimension::Length)
+    Expr::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
@@ -90,7 +90,7 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("r"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, R)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     )
     .0
@@ -299,11 +299,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xd700_1ed1_9074_909d),
+        ("die", 0x63de_edf2_4dee_ef58),
         ("corner_table", 0xd8b1_634f_074f_de08),
         ("cut_cylinder", 0x1676_4144_da9e_6975),
         ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0xcf76_ad0e_efcd_7abc),
+        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -766,7 +766,7 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, Q)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     // Hole first, deliberately.
@@ -929,7 +929,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
         doc,
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1158,7 +1158,7 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, Q)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     let (doc, profile_node, chain) =
@@ -1365,6 +1365,8 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         Vec3::new(0.0, 1.0, 0.0),
         PHI,
     );
+    let raw_a = topo::test_support::finished("the raw spun cylinder A", raw_a, tol());
+    let raw_b = topo::test_support::finished("the raw spun cylinder B", raw_b, tol());
     let raw = topo::union(&raw_a, &raw_b, tol()).expect_err("this family has no join arm");
     assert_eq!(
         pinch_evidence(&raw),

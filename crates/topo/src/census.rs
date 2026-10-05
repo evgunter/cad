@@ -607,7 +607,7 @@ impl Candidates {
         let edge_boxes: Vec<Aabb> = geo
             .edges
             .iter()
-            .map(|e| edge_box(body, e.key, pad).unwrap_or_else(|_| Aabb::poison()))
+            .map(|e| edge_box(body, e.key, pad))
             .collect();
         let face_boxes: Vec<Aabb> = geo
             .faces
@@ -1420,8 +1420,8 @@ fn contain<T: Decide>(
             None
         }
         // A loop with an edge no walk crosses, an exhausted ray
-        // schedule, unwalkable topology: three refusals
-        // that metred no margin, CARRIED rather than replaced. An
+        // schedule, a loop with no region or no walk, a curved chart
+        // read: refusals that metred no margin, CARRIED rather than replaced. An
         // escalation is what a predicate says when it measured and
         // could not decide, so minting one for a door that measured
         // nothing put a fabricated quantity in the field a reader
@@ -1439,8 +1439,13 @@ fn contain<T: Decide>(
         // `editor_core::attribute` classifies: a new `ContainError`
         // arm must be routed here deliberately rather than default
         // into the wrong half.
+        Err(ContainError::StaleFace(face)) => crate::boolean::driver_face_stale(face),
         Err(
-            e @ (ContainError::Uncrossable(_) | ContainError::RayExhausted | ContainError::Corrupt),
+            e @ (ContainError::Uncrossable(_)
+            | ContainError::RayExhausted
+            | ContainError::EmptyLoop(_)
+            | ContainError::LoopUnreadable(_)
+            | ContainError::Curved(_)),
         ) => {
             errors.push(ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(f.key)),

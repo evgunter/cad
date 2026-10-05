@@ -20,8 +20,10 @@ use core::f64::consts::PI;
 use crate::common::three_arc;
 use geom_core::{Point2, Point3, Tol, Vec3, tolerance::DEFAULT_EPS};
 use profile::{SketchPlane, test_support::bulge_loop};
-use sweep::test_support::{brick, extruded, sketch_from_axes};
-use topo::{AtRestOutcome, Body, BooleanError, BooleanErrorKind, BooleanOp, MassPropsError};
+use sweep::test_support::{brick, extruded, finished, sketch_from_axes};
+use topo::{
+    AtRestBody, AtRestOutcome, Body, BooleanError, BooleanErrorKind, BooleanOp, MassPropsError,
+};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -37,7 +39,7 @@ fn tilted_about_x(o: Point3<f64>, theta: f64) -> SketchPlane<f64> {
     )
 }
 
-fn body_of(r: Result<topo::BooleanResult<f64>, BooleanError>, what: &str) -> Body<f64> {
+fn body_of(r: Result<topo::BooleanResult<f64>, BooleanError>, what: &str) -> AtRestBody<f64> {
     r.unwrap_or_else(|e| panic!("{what}: the boolean refuses: {e:?}"))
         .body()
         .expect("a body remains")
@@ -80,19 +82,24 @@ fn definite_tilt() -> f64 {
 }
 
 /// The base, `[−1, 1]² × [0, 1]`.
-fn base() -> Body<f64> {
-    brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol())
+fn base() -> AtRestBody<f64> {
+    finished(
+        "the base",
+        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    )
 }
 
 /// A radius-[`BOSS_R`] cylinder of height 1 on the sketch plane through
 /// `(0, 0, z0)` turned `theta` about `x`.
-fn boss(theta: f64, z0: f64) -> Body<f64> {
-    extruded(
+fn boss(theta: f64, z0: f64) -> AtRestBody<f64> {
+    let boss = extruded(
         tilted_about_x(Point3::new(0.0, 0.0, z0), theta),
         vec![three_arc(Point2::new(0.0, 0.0), BOSS_R, 0.0)],
         1.0,
         tol(),
-    )
+    );
+    finished("the boss", boss, tol())
 }
 
 /// `base ∪ boss(θ, 1)`: the half of the cap below `z = 1` sinks into
@@ -193,30 +200,35 @@ fn a_boss_at_half_a_radian_measures_in_one_operand_order() {
 
 /// The rod: `r = 0.5` about the vertical through `(x0, 0)`, over
 /// `z ∈ [0, 4]`, an extruded circle.
-fn rod(x0: f64, r: f64) -> Body<f64> {
+fn rod(x0: f64, r: f64) -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(x0, 0.0), r, tol()).unwrap();
-    extruded(SketchPlane::xy(), vec![disc.into()], 4.0, tol())
+    finished(
+        "the rod",
+        extruded(SketchPlane::xy(), vec![disc.into()], 4.0, tol()),
+        tol(),
+    )
 }
 
 /// A box extruded 2 from the square `x0 + [−1, 1] × [−1, 1]` on the
 /// sketch plane through `(x0, 0, 3.5)` turned 20° about `x`.
-fn oblique_cutter(x0: f64) -> Body<f64> {
+fn oblique_cutter(x0: f64) -> AtRestBody<f64> {
     let square = bulge_loop(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
             .into_iter()
             .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
-    extruded(
+    let cutter = extruded(
         tilted_about_x(Point3::new(x0, 0.0, 3.5), 20f64.to_radians()),
         vec![square],
         2.0,
         tol(),
-    )
+    );
+    finished("the oblique cutter", cutter, tol())
 }
 
 /// The rod of radius `r` about `(x0, 0)` cut obliquely at `z = 3.5`.
-fn oblique_rod(x0: f64, r: f64) -> Body<f64> {
+fn oblique_rod(x0: f64, r: f64) -> AtRestBody<f64> {
     body_of(
         topo::subtract(&rod(x0, r), &oblique_cutter(x0), tol()),
         "the oblique rod",
@@ -249,8 +261,16 @@ fn a_notched_wall_measures_in_closed_form() {
         (Point2::new(0.0, 4.0), 0.0),
         (Point2::new(0.0, 0.0), 1.0),
     ]);
-    let half_disk: Body<f64> = extruded(SketchPlane::xy(), vec![half], 1.0, tol());
-    let notch = brick((1.5, 2.5), (1.5, 2.5), (0.5, 2.5), tol());
+    let half_disk: AtRestBody<f64> = finished(
+        "the half-disk",
+        extruded(SketchPlane::xy(), vec![half], 1.0, tol()),
+        tol(),
+    );
+    let notch = finished(
+        "the notch",
+        brick((1.5, 2.5), (1.5, 2.5), (0.5, 2.5), tol()),
+        tol(),
+    );
     let body = body_of(
         topo::subtract(&half_disk, &notch, tol()),
         "the notched half-disk",
@@ -422,6 +442,7 @@ fn a_planted_union_result_short_by_less_than_the_reporting_pads_refuses() {
         1.0,
         tol(),
     );
+    let short_boss = finished("the short boss", short_boss, tol());
     let short = body_of(topo::union(&base(), &short_boss, tol()), "the short union");
     let (pu, ps) = (
         topo::mass_properties(&u, tol()).unwrap(),
@@ -458,10 +479,14 @@ fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     let cutter = oblique_cutter(0.0);
     let arcs = body_of(
         topo::subtract(
-            &extruded(
-                SketchPlane::xy(),
-                vec![three_arc(Point2::new(0.0, 0.0), 0.5, 90.0)],
-                4.0,
+            &finished(
+                "the three-arc rod",
+                extruded(
+                    SketchPlane::xy(),
+                    vec![three_arc(Point2::new(0.0, 0.0), 0.5, 90.0)],
+                    4.0,
+                    tol(),
+                ),
                 tol(),
             ),
             &cutter,
@@ -500,7 +525,11 @@ fn a_dual_builds_the_tilted_boss_on_the_f64_bits() {
     use geom_core::{Dual, Dual64};
     let c = Dual::constant;
     let theta = 0.2f64;
-    let base_d = brick::<Dual64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol());
+    let base_d = finished(
+        "the dual base",
+        brick::<Dual64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     let plane = sketch_from_axes(
         Point3::new(c(0.0), c(0.0), c(1.0)),
         Vec3::new(c(1.0), c(0.0), c(0.0)),
@@ -513,6 +542,7 @@ fn a_dual_builds_the_tilted_boss_on_the_f64_bits() {
         c(1.0),
         tol(),
     );
+    let boss_d = finished("the dual boss", boss_d, tol());
     let dual = topo::union(&base_d, &boss_d, tol()).expect("the dual builds");
     let dual = &dual.body().expect("a body").body;
     let real = body_of(
@@ -530,9 +560,13 @@ fn a_dual_builds_the_tilted_boss_on_the_f64_bits() {
 }
 
 /// [`oblique_rod`] at `x0 = 0` with every length scaled by `s`.
-fn scaled_oblique_rod(s: f64, r: f64) -> Body<f64> {
+fn scaled_oblique_rod(s: f64, r: f64) -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, 0.0), r * s, tol()).unwrap();
-    let rod = extruded(SketchPlane::xy(), vec![disc.into()], 4.0 * s, tol());
+    let rod = finished(
+        "the scaled rod",
+        extruded(SketchPlane::xy(), vec![disc.into()], 4.0 * s, tol()),
+        tol(),
+    );
     body_of(
         topo::subtract(&rod, &scaled_cutter(s), tol()),
         "the scaled oblique rod",
@@ -540,19 +574,20 @@ fn scaled_oblique_rod(s: f64, r: f64) -> Body<f64> {
 }
 
 /// [`oblique_cutter`] at `x0 = 0` with every length scaled by `s`.
-fn scaled_cutter(s: f64) -> Body<f64> {
+fn scaled_cutter(s: f64) -> AtRestBody<f64> {
     let square = bulge_loop(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
             .into_iter()
             .map(|(x, y)| (Point2::new(x * s, y * s), 0.0))
             .collect(),
     );
-    extruded(
+    let cutter = extruded(
         tilted_about_x(Point3::new(0.0, 0.0, 3.5 * s), 20f64.to_radians()),
         vec![square],
         2.0 * s,
         tol(),
-    )
+    );
+    finished("the scaled cutter", cutter, tol())
 }
 
 /// **The last round fails loud.** What the last round leaves open grows

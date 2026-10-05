@@ -215,7 +215,7 @@ fn distributed_plate() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("half_spacing"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: SPACING / 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -228,7 +228,7 @@ fn distributed_plate() -> ProfileDoc {
     for n in ["hole_a_r", "hole_b_r"] {
         r.push(DocEdit::DeclareVar {
             name: name(n),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: RADIUS,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -257,12 +257,12 @@ fn distributed_plate() -> ProfileDoc {
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
-    let hs = Expr::param(name("half_spacing"), Dimension::Length);
+    let hs = Expr::named(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [Expr::neg(hs.clone()).expect("a shallow negation"), len(0.0)],
-            radius: Expr::param(name("hole_a_r"), Dimension::Length),
+            radius: Expr::named(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
@@ -275,7 +275,7 @@ fn distributed_plate() -> ProfileDoc {
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [hs, len(0.0)],
-            radius: Expr::param(name("hole_b_r"), Dimension::Length),
+            radius: Expr::named(name("hole_b_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
@@ -304,7 +304,7 @@ fn distributed_plate() -> ProfileDoc {
             &[editor_core::GeomPred::SurfaceKind(
                 editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the hole wall is an exact atom");
@@ -312,7 +312,7 @@ fn distributed_plate() -> ProfileDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &'static str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
+    let radius_of = |n: &'static str| MeasureExpr::value(Expr::named(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
@@ -385,7 +385,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("place"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -423,7 +423,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::param(name("place"), Dimension::Length),
+                Expr::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],
@@ -565,7 +565,7 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             entry.name,
             budget.basis,
             mass.basis.word(),
-            mass.render()
+            mass.render(&entry.doc)
         );
         let unresolved = mass
             .unresolved
@@ -576,13 +576,13 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             "{}: unresolved mass {unresolved} exceeds the recorded budget {}\n{}",
             entry.name,
             budget.unresolved,
-            mass.render()
+            mass.render(&entry.doc)
         );
         assert!(
             !verdict.certified().is_empty(),
             "{}: nothing certified, so no assertion was checked anywhere\n{}",
             entry.name,
-            mass.render()
+            mass.render(&entry.doc)
         );
 
         // Then the assertions, leaf by leaf.
@@ -776,9 +776,9 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // The band fixture is a `min_clearance` document (its measure is
     // the neck's), so it takes the numeric lane — see
     // [`drive_registered`].
-    let verdict =
-        drive_registered(&band_placement(), &analyzed, Tol::witness()).expect("the nominal builds");
-    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render();
+    let band = band_placement();
+    let verdict = drive_registered(&band, &analyzed, Tol::witness()).expect("the nominal builds");
+    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
     assert!(
         rendered.contains("FORCED, not priced"),
         "the rendering must not let a forced mass read as a priced one: {rendered}"

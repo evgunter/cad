@@ -21,7 +21,7 @@ struct FakeProfile(&'static str);
 impl editor_core::ProfilePayload for FakeProfile {
     fn drawn_pieces(
         &self,
-        _env: &editor_core::ParamEnv<f64>,
+        _env: &editor_core::VarEnv<f64>,
         _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {
@@ -104,7 +104,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::DeclareVar {
             name: VarName::from_static("pip_depth"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
     );
     // Cube: profile wrap + extrude.
@@ -140,7 +140,7 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::param(VarName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

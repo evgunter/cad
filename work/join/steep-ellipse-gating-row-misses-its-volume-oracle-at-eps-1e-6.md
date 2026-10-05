@@ -49,3 +49,11 @@ Scale the volume tolerance with the run's ε (or with the band over the
 body's surface area), so a correct body at ε 1e-6 is read as sound, and
 check that 1e-9 and 1e-12 still bound the misses this row exists to see.
 
+
+## Reproduced independently (2026-10-04)
+
+PR 3985's three-ε battery (`reach/arc-from-pairing`) found the same
+11 misses on main `e4a0a0d18` alone, with the same values (θ 60,
+`x = (−0.95, 0.05)`, A ∪ B 3.2679290807 against 3.2679292977). Its
+lane filed a second item for it, folded into this one at that PR's
+merge.

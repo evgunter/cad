@@ -523,3 +523,320 @@ the lane gets its own review. Verdict APPROVE-WITH-FIXES, 0/3/4.
 - `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times`
 
 Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4026 lands: a pierce with two Out runs builds
+
+`a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op` (P0) is
+closed.
+
+**What changed.**
+- The ring struts face their germs by the walk.
+- `kept_end` bookkeeping is fixed, and so is the seam guard.
+- A post-zip pierce weld welds one pierce's own copies.
+- `pinch_site`'s `Hole` chord welds with `kfmrh`.
+- ∩ faces the start germ: a measured rule, not a derived one. The row
+  `the-intersection-ring-facing-is-measured-not-derived` is filed to
+  derive it.
+- Three or more runs refuse typed (`PierceRunsUnordered`, a new Python
+  tag).
+
+**Measured.** On the row's tilts every op builds. Across both
+reviewers' batteries:
+- 0 SOUND→refusal;
+- about 2 000 refusal→SOUND;
+- 74 refusal→BAD: 72 escalated census bodies (main ships 139 of the
+  class) and 2 census false positives.
+
+**Review tier: DUAL, H / TRICKY (DR-78).** Five finish modules change
+(welds, seam guard, `kept_end`, an op-specific ∩ facing).
+- R1: APPROVE-WITH-FIXES, 1/4/4. R2: APPROVE-WITH-FIXES, 1/2/4.
+- Both MAJORs were near-tangent poses that main refused, newly built
+  with tier 3′ failing. The blinded coder found them bilateral, so the
+  tally is 0.
+- The fix pass root-caused R1's definite `EdgeEdgeOverlap` as a census
+  false positive. CONTACT's `ee_collinear_lane` reads the offset at the
+  long edge's start, so the verdict depends on arena order. Ruling (b):
+  it is filed on CONTACT and pinned by a census-independent row, and
+  `census.rs` is not touched under the hold.
+- A delta review (single FULL) on `f88ad91e`: APPROVE-WITH-FIXES, 0/3/4.
+  Its m1 is a class this PR newly certifies at 89 poses main refused:
+  two copies on one point carry edges that run within band for up to
+  0.6 of their length, and the census passes them through its parallel
+  arm. Filed P0 on CONTACT.
+
+**Filed.**
+- CONTACT:
+  - `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start`
+  - `two-copies-of-a-pierce-carry-edges-that-run-within-the-band`
+  - `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`
+    (pre-existing)
+- JOIN:
+  - `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census`
+    (P0)
+  - `a-pierce-whose-wide-run-pinches-its-intersection-refuses`
+  - `a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`
+  - `a-reflex-corner-on-a-cube-edge-or-corner-refuses-in-the-vertex-vertex-lane`
+  - `a-pierce-weld-refuses-where-its-copies-divide-a-kept-face`
+  - `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face`
+  - `ring-struts-of-three-or-more-runs-hang-in-run-order`
+  - `the-intersection-ring-facing-is-measured-not-derived`
+
+**Note for the near-tangent P0s.** Three classes of near-tangent body
+now ship on main where it once refused: escalated census, the census
+false positive, and in-band copy edges. Each was weighed and filed
+rather than refused, because each refusal would live in CONTACT's
+census or on D10's coincidence ground. They are the first thing to
+take up when the hold lifts.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-04 — PR 4031 lands: a parallel cylinder pair splits each wall along its own ruling
+
+`parallel-cylinder-germ-pair-has-no-join-arm` is closed. TANG's
+`cylinder-pair-germ-has-no-join-arm` was closed with it.
+
+**What changed.** `GermLane::Rulings` and a `(Cylinder, Cylinder)`
+dispatch arm were added. `parallel_radical_plane` gives the plane that
+holds both rulings.
+
+**Measured.**
+- `join1_delta_arc_battery`: 477 lines go from `CurvedBooleanUnsupported`
+  to SOUND, and the review re-judged all of them through
+  `differential::outcome`.
+- 324 of those lines are `decl=true`. Their undeclared twins either
+  refuse `UndeclaredCoincidence` or build at the same volume. The arm
+  reads no declaration.
+- 0 SOUND→refusal and 0 new BAD.
+
+**Review tier: single FULL**, cloud session. Reason: a contained new
+arm in the existing shape, with closed-form oracles. Verdict
+APPROVE-WITH-FIXES, 0/1/3.
+- The review ran over 1 300 poses at two tolerances: near-tangent,
+  equal radii, near-coaxial, across a cap rim, tilted.
+- MINOR-1: parallelism was levered by radius, so a long near-parallel
+  rod died at the pcurve backstop.
+- The fix pass levers by max(radius, the walls' reach), the same lever
+  geom-brep's cylinder table uses. The tipped rods now refuse
+  `GermFrameUnsupported`, and a band-scaled row pins them at every
+  tolerance.
+- I read the fix pass myself and ran no delta review: the lever change
+  only moves verdicts toward refusal, and the battery is byte-identical
+  apart from the 477.
+
+**Filed:**
+- `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another`
+  (design)
+- `cylinder-axes-parallel-is-spelled-at-two-sites`
+- `join1-delta-probes-keep-their-own-outcome`
+- `along-edge-ring-on-a-curved-face-has-no-join-arm`
+- TOPO's P0 `rc-wide-battery-panics-at-the-orbit-step-unreachable`:
+  main panics at `orbit_step_at` since `2ad740e2`, and 8 of 84 shards
+  panic.
+
+**Parked on D10** at this landing: the tube on a ball and the closed
+in-face loop. Both are coincidence verdicts; see the plan's hold
+section.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4038 lands: a pinch the zips would fuse twice is crossed first
+
+Four rows close:
+- the two P0s, `a-pierce-whose-wide-run-pinches-its-intersection-refuses` and `a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`;
+- `the-intersection-ring-facing-is-measured-not-derived`;
+- `a-two-run-pierce-on-a-notch-or-shallow-corner-refuses-its-intersection-every-chord-arc`.
+
+**What changed.** `zip::cross_pinches` is a new pre-pass in `ops::boolean_op_recut`. It replays the zips' fusions with a union-find, and where a vertex pair would be fused twice it crosses the pinch first. It crosses on two faces of one surface and one sense (`kef`), or on one ring (`kemr`). The zips' fusion order has one home, `zip::fusion_order`. PR 4026's measured ∩ start rule is removed, so the ring struts face by the walk in every op. A pinch no kept face can cross refuses typed `PinchUncrossed`, a new Python tag.
+
+**Measured** (main `1546630d` vs head):
+- refusal→SOUND: `pierce_runs_battery` 36, PR 4026's r1 battery 516, r1 1 110 + 761 + 103, r2 397 + 406.
+- refusal→`PinchUncrossed`: 509 in the PR's own measure.
+- refusal→BAD: only escalated census findings (5 + 19, plus the PR's 17), all added to the near-tangent P0. On the cylinder there are legal-operand-only failures, CONTACT's at-infinity row.
+- 0 SOUND→refusal anywhere.
+- `rc_wide` is line-identical, now running to the end since PR 4043 fixed main's `orbit_step_at` panic.
+
+**Review tier: DUAL, H / TRICKY (DR-81).** The unit adds a pre-pass that joins pinch copies before the zips, and removes an op-specific facing rule.
+- R1 APPROVE-WITH-FIXES 0/3/3, R2 APPROVE-WITH-FIXES 0/3/5. Tally 0: neither raised a MAJOR.
+- The blinded coder recorded one factual conflict, whether the B-side split branch is reached. The fix pass settled it: R2's 44 corner and edge unions reach it, while R1's batteries placed `v` only on faces.
+- The fix pass:
+  - pins two pinches in one op, and a second-operand split;
+  - gives the fusion order one home;
+  - makes the two-face crossing read sense;
+  - says in `PinchUncrossed`'s message only what is measured;
+  - restates the residue row per sub-family (nested / bow-tie / none-twice), with the bow-tie cure, a loop splice, marked unmeasured.
+
+I read the fix pass myself and judged no delta review needed: the new logic is a sense check that refuses, plus a moved order function.
+
+**Filed:**
+- `a-pinch-no-kept-face-can-cross-refuses` (P0/H, restated);
+- CLEAVE `a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point` (P0/M, pre-existing on main);
+- evidence on the near-tangent P0, CONTACT's at-infinity row and FLUX's ellipse-ring row.
+
+**Hold (D10).** Nothing on declared ground changed. One declared pose's refusal changed: `union_flush_onto_edge_contact` `cube ∖ y` went from `SelfLoopEdge` to `PinchUncrossed`, refusal to refusal. `rest.rs`'s zip calls are untouched.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4036 lands: a four-germ vertex pair reads each solid's own walk order
+
+Four rows close:
+- `a-reflex-corner-on-a-cube-edge-or-corner-refuses-in-the-vertex-vertex-lane` (P0);
+- `a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner`;
+- cleave's `a-corner-crossing-another-four-times-refuses-pairing-mismatch`;
+- **the parked `four-germ-vertex-pairs-run-b-in-a-order`**.
+
+**What changed** (`insert::plan_null_pairs`):
+1. Each solid orders its survivors by its own walk round the vertex (`walk_order`). The old order was the other solid's sector index. This is why the F12 guard fired, 243 times on the row: it was its own misordering.
+2. Each solid runs its null edges in its own order (`run_order`). This is the four-germ row's fix.
+3. A pair that crosses more than twice mints its struts first.
+4. The pairing starts where A's runs lie on the side the op keeps.
+
+The walk order is now read only for n > 2. A tie along one direction refuses typed.
+
+**Measured** (main `cced486c` vs head):
+- pierce: 507 refusal→SOUND. All 4 536 runs are now SOUND or rightly empty.
+- each reflex battery: 49 refusal→SOUND.
+- `rc_wide`: 2 300 refusal→SOUND, plus 20 refusals that change to a typed `Escalated`.
+- 0 SOUND→refusal and 0 refusal→BAD.
+- The editor-core goldens hold at main's values.
+- The reviewers' wider batteries found only census-escalated refusal→BAD: 3 notch343 runs and 15 flat181 runs, all on the near-tangent P0.
+
+**Review tier: DUAL, H / TRICKY (DR-82).** This is the pairing and run order at every vertex-vertex site, and it un-parks a held row.
+- R1 APPROVE-WITH-FIXES 0/2/5, about 90k runs.
+- R2 APPROVE-WITH-FIXES 0/4/4, 145k runs with an exact-rational oracle.
+- Tally 0.
+- Both found that the non-interleaving argument holds at four crossings only. At six, a nested pairing is legal, and the guard still fires and fails loud, as it did on main. The text now says "four", and the six-crossing case is a new row.
+
+**The parked row — the call, stated plainly for Ev.**
+- `four-germ-vertex-pairs-run-b-in-a-order` was parked under the D10 hold. Its fix alone had sent two declared-flush unions to wrong REST-zip bodies.
+- The fix is load-bearing for this undeclared P0: mutant M2, which removes it, reddens it.
+- Both reviewers measured that the REST door (`try_rest_union`) is entered 0 times across the reflex batteries, `rc_wide`, pierce and `join1_r1`.
+- The three declared-flush poses that once went to the REST zip are SOUND at the closed form.
+- No declared-contact, REST-zip, placement, census or coincidence code is in the diff. Declared-flush outcomes move only through the shared planner: 49 + 49 refusal→SOUND.
+
+So the row is closed as built, not as a ruling on held ground. If Ev reads it otherwise, reverting `run_order` re-parks it.
+
+**Merge order.** PR 4038 landed first. 4036 re-ran on the merged head, and only 4038's 17 face-placement pierce lines differ from its pre-merge head. 4038's `PinchUncrossed` pin (edge i=6 j=1 psi=0 cube ∖ prism) builds SOUND here, so it was flipped to `a_four_germ_pinch_the_pairing_start_avoids_builds_every_op`. That leaves **no committed test reaching `PinchUncrossed`**, which is noted on `a-pinch-no-kept-face-can-cross-refuses`. That row's next unit must pin a witness from the reviewers' batteries.
+
+**Filed:**
+- `a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch` (P0)
+- a consolidation row for the walk/precede/run order spellings
+- evidence on the near-tangent P0
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4051: the island pinched to its hole's ring crosses by `kef`
+
+`zip::split_across`'s two-face crossing now asks only that one of the two
+faces be ringless; that face dies into the other.
+- The holed block's 18 cube ∖ block lines go refusal→SOUND.
+- Review r2's 5 cylinder lines go refusal→refusal (`RingOnCurvedFace`).
+- The reviewer measured 130 more lines on new island families going
+  refusal→SOUND (deeper and shallower holes, two islands, a U hole
+  pinched twice). No other line moved in pierce, `rc_wide`, or any pinch
+  battery.
+- The bow-tie sub-family is the nested shape misread, so the residue is
+  one shape: a face crossed on its outer loop.
+
+**Review tier: single FULL.** The change is a contained guard relaxation,
+and the fork is stated, not built. APPROVE-WITH-FIXES, MAJOR 0, MINOR 1.
+- The MINOR: which face `kef` kills was unpinned (the `PX_KILLPLUS` mutant
+  survived). It is now pinned at `u2tip mid side=12 psi=0 th54`.
+- Notes and style were taken: the dying face is carried out of the
+  search, the sweep helpers are folded, the bow-tie count is 48 and not
+  49, and the hole-weld row says the split direction now builds the
+  island shape.
+
+**The row stays open as a design fork.** Two designers weighed the nested
+residue, and they recommend the same final state: one vertex per cone on
+one point key, so no face crosses between cones. Under that state the
+crossing pre-pass, the pinch welds and `PinchUncrossed` all retire, and
+this PR's island `kef` is undone. It lands as an interim step anyway: it
+turns refusals into gated SOUND bodies, and it is reversible. The `[ev]`
+PR follows.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4050: a six-crossing vertex pair nests its pairing in B
+
+At six or more crossings, B's link pairs nested rather than adjacent.
+- `insert::b_runs` reads B's runs as intervals, each holding whole pairs,
+  and refuses only a pairing that crosses.
+- Nested runs are minted outer before inner, at the copy of their
+  innermost fan holder. The held chain (depth, fan holder, held directly
+  by a strut) is carried in the plan.
+- A nested plan at a shared vertex refuses `SharedVertexCrossings`.
+
+Measured, main vs head:
+- On every battery, the only lines that moved were `PairingMismatch` →
+  SOUND (e.g. r2's n ≥ 8 grid: 13 614, 0 `ClassificationInvariant`).
+- pierce, both reflex batteries and all 84 `rc_wide` shards are
+  byte-identical.
+- The reviewers found 1 187 near-tangent `PairingMismatch` → BAD, all
+  census-escalated with exact volume, so on the near-tangent P0, and
+  no definite refusal→BAD.
+
+**Review tier: DUAL, H / TRICKY (DR-84).** R1 APPROVE-WITH-FIXES 0/3/4,
+R2 0/5/2; tally 0.
+- Both found that a strut held by a strut held by a fan minted at the
+  original vertex (`ClassificationInvariant`). It is fixed and pinned by
+  an eight-crossing row.
+- The innermost holder is now pinned, and the matching model is
+  committed as a unit test to n = 10.
+- R1's pinch-operand "In end / Out end" refusal is pre-existing (149
+  non-nested runs on main) and is filed as
+  `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.
+
+The six-crossing row is closed.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4059: the shared-vertex In/Out refusal waits on the pinch ruling
+
+The lane dispatched to give a vertex pair one run rule stopped at its
+first step, because the row's candidate cause was false. In all 217
+refusals, the run the reconcile turns belongs to the plan with more than
+two survivors. That plan pairs from A's kept side, and the reconcile
+turns the one run that holds the other plan's cut. That splits its sides
+at the shared vertex.
+
+Re-pairing from the other start builds a different subset: 45 runs
+fixed, and 414 SOUND lines broken into the pinch crossing and the
+finish. The fix options are:
+1. re-pair the plan whole;
+2. one vertex per cone, so no vertex is shared;
+3. refuse typed at the plan.
+
+Option 2 is the final state in front of Ev on PR 4057. The row now
+records `blocked_on: [a-pinch-no-kept-face-can-cross-refuses]`.
+
+**Review tier: orchestrator read.** The PR is measurement only: an
+ignored battery and the row's `## Measured` section. The same lane
+carries the consolidation row
+(`a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times`),
+which must leave behaviour unchanged, as a separate PR.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4061: one position order and one run rule round a vertex
+
+`insert.rs` is refactored, with no behaviour change:
+- `walks_before(sectors, origin, …)` is now the one position order. `walk_order`, `precedes` and `held_cut` each name their origin.
+- `walk_run` is now the one run rule, read by both A and B.
+- `edge_bound_entry` serves both walks to a physical sector's edge bound.
+- `is_strut` replaces eight spellings.
+
+Main vs head, every battery is byte-identical: pierce, both reflex batteries, all 84 `rc_wide` shards, `pinch_runs_battery`, and the reviewer's `corner_pairs_battery`, now committed but ignored.
+
+**Review tier: single FULL.** The unit is a refactor whose batteries are byte-identical. The review came back APPROVE-WITH-FIXES, MAJOR 0, MINOR 1.
+- The MINOR: no committed row reached `held_cut`'s fan branch with a cut in an end entry, so a mutant there survived. That is now pinned by `a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry`.
+- All nine mutants go red.
+- The style items were taken. `holds_whole` stays apart: it reads ties as inside, where `held_cut` asks `tied_held`, and a comment now names the difference.
+
+**Filed from the review's notes:**
+- `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses` (P1). On one pose the oracle wants 5.09, while the kernel's 4.318 agrees with Monte Carlo's 4.329.
+- `a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts` (P0, parked on D10). Its 287 tier-3′ failures are all definite and all at exact edge-in-plane coincidences.
+- `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` (P3). It carries the fixed-origin ask, `b_runs`' interval and `vtxfac.rs`.
+
+The consolidation row is closed.
+
+Signed (JOIN orchestrator).

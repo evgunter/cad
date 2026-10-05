@@ -16,9 +16,9 @@ use core::f64::consts::PI;
 use geom_core::Tol;
 use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ball_poled, cube};
+use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations};
+use topo::{AtRestBody, Body, BooleanDeclarations};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -32,12 +32,13 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 
 /// The blank: the cube with every edge filleted.
-fn blank() -> Body<f64> {
+fn blank() -> AtRestBody<f64> {
     let body = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    fillet_edges(&body, &edges, DIE_R, Tol::witness())
+    let blank = fillet_edges(&body, &edges, DIE_R, Tol::witness())
         .expect("the die blank")
-        .body
+        .body;
+    finished("the die blank", blank, Tol::witness())
 }
 
 /// The 2-D pip layout of face value `n`, in units of `PIP_D` about the
@@ -128,14 +129,17 @@ fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
 /// extent certificate needs the closed-group discipline and a trimmed
 /// patch has no per-face chart-trim extent. So the die's pips are one
 /// operation, by construction and not by luck.
-fn pip_tool() -> Body<f64> {
+fn pip_tool() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let pip =
+        |c: Vec3<f64>, n: Vec3<f64>| finished("a pip ball", ball_poled(PIP_R, c, n, tol), tol);
     let places = pip_placements();
-    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1, Tol::witness());
+    let mut tool = pip(places[0].0, places[0].1);
     for (c, n) in &places[1..] {
         tool = boolean_op_with(
             BooleanOp::Union,
             &tool,
-            &ball_poled(PIP_R, *c, *n, Tol::witness()),
+            &pip(*c, *n),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),
@@ -149,7 +153,7 @@ fn pip_tool() -> Body<f64> {
     tool
 }
 
-fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
     let out = boolean_op_with(
         BooleanOp::Subtract,
         a,
@@ -159,7 +163,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("pip subtraction: {e}"));
-    out.body().expect("a body").body.clone()
+    out.body().expect("a body").body.clone().into_body()
 }
 
 /// The blank's closed-form volume and area (core + 6 slabs + 12
@@ -239,7 +243,8 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         21,
         "21 disjoint closed sphere shells"
     );
-    let pipped = subtract(&cube(DIE_L, Tol::witness()), &tool);
+    let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
+    let pipped = subtract(&blank, &tool);
     assert_eq!(topo::validate(&pipped), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&pipped), Ok(()), "tier 2");
     assert_eq!(
@@ -279,7 +284,8 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
 /// die does not have.
 #[test]
 fn the_pip_caps_measure_through_the_closed_form() {
-    let pipped = subtract(&cube(DIE_L, Tol::witness()), &pip_tool());
+    let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
+    let pipped = subtract(&blank, &pip_tool());
     let props = topo::mass_properties(&pipped, Tol::witness()).unwrap();
     println!(
         "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
@@ -349,7 +355,7 @@ fn deviation_1_both_doors_compose_and_agree() {
     );
 
     // Door B: pip then fillet — the surgery composes.
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
     let surviving: Vec<_> = box_edges

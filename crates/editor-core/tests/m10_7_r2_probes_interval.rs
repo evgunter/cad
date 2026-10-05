@@ -38,7 +38,7 @@ use geom_core::Tol;
 use crate::fixture::{Recorder, len, scl, xy_frame};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(VarName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -62,7 +62,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -161,7 +161,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
@@ -255,7 +255,7 @@ fn r2_end_to_end_bracket_study() {
                         v.receipt(),
                         v.decisions()
                     );
-                    println!("{}", v.render(&analyzed));
+                    println!("{}", v.render(&doc, &analyzed));
                     let stack = editor_core::stackup::stackup(
                         &doc, measure, &analyzed, &v, None, false, None, tol,
                     );
@@ -461,7 +461,7 @@ fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -476,7 +476,7 @@ fn collinear_walls() -> ProfileDoc {
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::param(VarName::from_static("w"), Dimension::Length);
+    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![

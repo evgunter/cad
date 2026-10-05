@@ -52,7 +52,7 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(HOLE_R),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: R0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -82,7 +82,7 @@ pub fn document() -> CorpusDoc {
             plane,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(VarName::from_static(HOLE_R), Dimension::Length),
+                radius: Expr::named(VarName::from_static(HOLE_R), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -126,7 +126,7 @@ pub fn document() -> CorpusDoc {
             &[editor_core::GeomPred::SurfaceKind(
                 editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
             )],
-            &r.doc.param_env::<f64>(),
+            &r.doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the surface-kind atom is exact");
@@ -135,7 +135,7 @@ pub fn document() -> CorpusDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let radius =
-        || MeasureExpr::value(Expr::param(VarName::from_static(HOLE_R), Dimension::Length));
+        || MeasureExpr::value(Expr::named(VarName::from_static(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius(), radius()).expect("Length + Length"),

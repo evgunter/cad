@@ -24,6 +24,12 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
+/// `body` finished for the boolean doors (the panic names the
+/// validator's findings where it does not finish).
+fn fin(body: &topo::Body<f64>) -> topo::AtRestBody<f64> {
+    sweep::test_support::finished("an operand", body.clone(), tol())
+}
+
 /// The fan triangles of a wedge of `theta` degrees from `phi` at radius
 /// `r`, each spanning at most 60°, wound counter-clockwise.
 fn fan(phi: f64, theta: f64, r: f64) -> Vec<[(f64, f64); 3]> {
@@ -90,12 +96,12 @@ fn pose(theta_a: f64, theta_b: f64, phi_b: f64) -> Pose {
 fn run(p: &Pose, op: &str) -> Result<BooleanResult<f64>, BooleanError> {
     let (a, b, (dab, dba), t) = (&p.a, &p.b, &p.d, tol());
     match op {
-        "I_ab" => topo::intersect_with(a, b, dab, t),
-        "I_ba" => topo::intersect_with(b, a, dba, t),
-        "U_ab" => topo::union_with(a, b, dab, t),
-        "U_ba" => topo::union_with(b, a, dba, t),
-        "S_ab" => topo::subtract_with(a, b, dab, t),
-        _ => topo::subtract_with(b, a, dba, t),
+        "I_ab" => topo::intersect_with(&fin(a), &fin(b), dab, t),
+        "I_ba" => topo::intersect_with(&fin(b), &fin(a), dba, t),
+        "U_ab" => topo::union_with(&fin(a), &fin(b), dab, t),
+        "U_ba" => topo::union_with(&fin(b), &fin(a), dba, t),
+        "S_ab" => topo::subtract_with(&fin(a), &fin(b), dab, t),
+        _ => topo::subtract_with(&fin(b), &fin(a), dba, t),
     }
 }
 

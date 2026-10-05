@@ -81,7 +81,7 @@ fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(axis),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -175,7 +175,7 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         solid,
-        Expr::param(name("place"), Dimension::Length),
+        Expr::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
     ));
@@ -224,7 +224,7 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         probe,
-        Expr::param(name("place"), Dimension::Length),
+        Expr::named(name("place"), Dimension::Length),
         len(0.0),
         len(-0.05),
     ));
@@ -245,7 +245,7 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let b = r.insert(translated(a, len(1.0 + gap), len(0.0), len(0.0)));
     let _ = r.insert(translated(
         a,
-        Expr::param(name("place"), Dimension::Length),
+        Expr::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
     ));

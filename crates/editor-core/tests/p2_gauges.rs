@@ -159,7 +159,7 @@ pub(crate) fn lifting_gauge(
     Node::gauge(
         parent,
         Step::Rigid {
-            translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+            translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
             axis: [0.0, 0.0, 1.0].map(scl),
             angle: ang(angle),
         },
@@ -186,7 +186,7 @@ pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: lift(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0

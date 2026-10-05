@@ -82,7 +82,7 @@ use crate::null::NullEdge;
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
-pub use crate::chord_join::{ArcSideCase, ArcWindowCase, ConicCrossingsCase, SplitJoinError};
+pub use crate::chord_join::{ConicCrossingsCase, SplitJoinError};
 pub use containment::{
     LoopContainment, OffPlane, OffPlaneCause, PointInLoopError, Uncrossable, UncrossableCarrier,
     point_in_loop,
@@ -324,10 +324,30 @@ pub enum SplitReduceError {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,
     },
-    /// A traversal failed (broken orbit/loop or a lone vertex): the
-    /// operand is not a well-formed closed solid at this vertex.
-    CorruptOperand {
-        /// The vertex whose neighborhood could not be walked.
+    /// The vertex [`classify_neighborhood`] was asked about does not
+    /// resolve in the body.
+    StaleVertex {
+        /// The caller's vertex.
+        vertex: VertexKey,
+    },
+    /// The vertex is a lone vertex: no edge leaves it, so it has no
+    /// neighborhood to classify.
+    LoneVertex {
+        /// The lone vertex.
+        vertex: VertexKey,
+    },
+    /// The side map [`classify_neighborhood`] was handed holds no
+    /// verdict for a vertex its neighborhood reaches.
+    UnrecordedSide {
+        /// The vertex with no verdict.
+        vertex: VertexKey,
+    },
+    /// A face whose outer loop is a lone vertex: it has no outer
+    /// boundary, so no finite lever arm meters a predicate across it.
+    UnboundedFace {
+        /// The face.
+        face: FaceKey,
+        /// Its outer loop's lone vertex.
         vertex: VertexKey,
     },
     /// `split_edge` refused while inserting the crossing vertex on an
@@ -444,10 +464,22 @@ impl core::fmt::Display for SplitReduceError {
                 "consecutive on-plane sectors survived at vertex {vertex:?}, which the \
                  coplanar gate rules out (kernel bug)"
             ),
-            Self::CorruptOperand { vertex } => write!(
+            Self::StaleVertex { vertex } => {
+                write!(f, "vertex {vertex:?} does not resolve in this body")
+            }
+            Self::LoneVertex { vertex } => write!(
                 f,
-                "the neighborhood of vertex {vertex:?} could not be walked (broken orbit \
-                 or lone vertex)"
+                "vertex {vertex:?} is a lone vertex, with no neighborhood to classify"
+            ),
+            Self::UnrecordedSide { vertex } => write!(
+                f,
+                "the side map holds no verdict for vertex {vertex:?}, which the neighborhood \
+                 reaches"
+            ),
+            Self::UnboundedFace { face, vertex } => write!(
+                f,
+                "face {face:?}'s outer loop is the lone vertex {vertex:?}, so the face has no \
+                 extent to meter a predicate across"
             ),
             Self::CrossingInsertion {
                 edge,

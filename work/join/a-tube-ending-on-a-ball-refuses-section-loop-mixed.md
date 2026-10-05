@@ -2,11 +2,12 @@
 id: a-tube-ending-on-a-ball-refuses-section-loop-mixed
 kind: issue
 title: A tube whose end rim lies on a ball, unioned with it, passes the crossing layer and refuses Join(SectionLoopMixed)
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

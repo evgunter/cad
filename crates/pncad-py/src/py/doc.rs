@@ -867,6 +867,31 @@ pub(crate) struct Doc {
 /// shared door bodies that land there. None of it is a
 /// Python method.
 impl Doc {
+    /// **An authored expression, read against this document**: its
+    /// names lowered to the variables they name ([`d::Doc::lowered`]).
+    /// A name the document holds at another kind than the expression
+    /// reads it at refuses `var_kind_mismatch`, naming both kinds; a
+    /// name it does not hold stays, for evaluation to refuse
+    /// `unlowered_name`.
+    fn authored(&self, py: Python<'_>, expr: &d::Expr) -> PyResult<d::Expr> {
+        let lowered = self.inner.lowered(expr);
+        let mut names = Vec::new();
+        lowered.named_reads(&mut names);
+        for (name, read) in names {
+            if let Some(var) = self.inner.var_named(name.as_str())
+                && let Some(held) = self.inner.var(var)
+            {
+                let err = d::EvalError::VarKindMismatch {
+                    var,
+                    bound: held.kind().dimension(),
+                    read,
+                };
+                return Err(super::expr::eval_err(py, &err, Some(&self.inner)));
+            }
+        }
+        Ok(lowered)
+    }
+
     /// A single edit's door onto **the swap point**, [`Doc::take_up`],
     /// which replaces the held document and the maintenance record TOGETHER
     /// — which is what makes `last_maintenance` a fact about the
@@ -1196,7 +1221,7 @@ impl Doc {
     fn pieces(&self, profile: &NodeId) -> PyResult<Vec<Vec<super::step::Piece>>> {
         let program = profile_of(&self.inner, profile)?;
         let pieces = program
-            .pieces(&self.inner.param_env::<f64>(), Tol::witness())
+            .pieces(&self.inner.var_env::<f64>(), Tol::witness())
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "{} has no pieces under the current values: {refusal}",
@@ -1470,10 +1495,13 @@ impl Doc {
         self.inner.order().iter().copied().map(NodeId).collect()
     }
 
-    /// **The document's named parameters**, by name (`Doc::var_names`,
-    /// each read through `Doc::free`).
+    /// **The document's named free parameters**, by name, in
+    /// declaration order (`Doc::var_names`, each read through
+    /// `Doc::free`). A defined variable is listed by
+    /// [`Self::definitions`] instead: it holds no value, notation or
+    /// distribution of its own.
     ///
-    /// The read side of `DocEdit.declare_var`, and the only door
+    /// The read side of a free `DocEdit.declare_var`, and the only door
     /// that answers a whole parameter back: `Doc.eval` answers a
     /// parameter reference's NUMBER, with the dimension and the
     /// authored notation both erased, so a consumer showing a
@@ -1492,6 +1520,72 @@ impl Doc {
             }
         }
         Ok(out)
+    }
+
+    /// **The document's named defined variables**, by name, in
+    /// declaration order: each one's definition, reading variables by
+    /// id. The read side of a defined `DocEdit.declare_var` and of
+    /// `DocEdit.define_var`; with [`Self::params`] it lists every named
+    /// variable once.
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn definitions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for &id in self.inner.var_order() {
+            let Some(expr) = self.inner.var(id).and_then(|v| v.def().defined()) else {
+                continue;
+            };
+            if let Some(name) = self.inner.var_name(id) {
+                out.set_item(ParamName(name.clone()), super::expr::Expr(expr.clone()))?;
+            }
+        }
+        Ok(out)
+    }
+
+    /// **The document's free variables**, by identity, in declaration
+    /// order — the named ones and the anonymous ones (whose identity is
+    /// all an edit can address them by). A defined variable's
+    /// definition is [`Self::definition`].
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn vars<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (id, param) in self.inner.free_vars() {
+            out.set_item(Var(id), DocParam(param.clone()))?;
+        }
+        Ok(out)
+    }
+
+    /// **The definition of `var`**, when it is a defined variable: the
+    /// expression it was defined by, reading variables by id. `None`
+    /// for a free variable, or one the document does not hold.
+    fn definition(&self, var: &Var) -> Option<super::expr::Expr> {
+        self.inner
+            .var(var.0)
+            .and_then(|v| v.def().defined())
+            .map(|expr| super::expr::Expr(expr.clone()))
+    }
+
+    /// The variable this document names `name`, or `None`.
+    fn var(&self, name: &ParamName) -> Option<Var> {
+        self.inner.var_named(name.0.as_str()).map(Var)
+    }
+
+    /// The name this document holds for `var`, or `None` — for an
+    /// anonymous variable, or one the document no longer holds.
+    fn var_name(&self, var: &Var) -> Option<ParamName> {
+        self.inner.var_name(var.0).cloned().map(ParamName)
+    }
+
+    /// **The text of `expr`**, each variable it reads written by the
+    /// name this document holds for it (`Doc::unparse`); one with no
+    /// name here writes its full id, `#<16 hex>`.
+    fn unparse(&self, expr: &super::expr::Expr) -> String {
+        self.inner.unparse(&expr.0)
     }
 
     /// The document's tolerance.
@@ -1561,13 +1655,16 @@ impl Doc {
     /// and promotion to a continuous value is explicit in the
     /// expression language or not at all, so this refuses
     /// `count_expr_in_continuous_eval` and `eval_count` is the door.
-    /// Refuses typed on `EvalError` otherwise — `unknown_param` names
-    /// the parameter with no binding, `param_dimension_mismatch`
-    /// names both dimensions, and `non_finite_result` is the
-    /// arithmetic having overflowed or hit a pole.
+    /// The expression's names are read against this document. Refuses
+    /// typed on `EvalError` otherwise — `unlowered_name` names a name
+    /// no variable holds at the dimension it is read at,
+    /// `unresolved_var` a variable the document no longer holds, and
+    /// `non_finite_result` is the arithmetic having overflowed or hit
+    /// a pole.
     fn eval(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<Py<PyAny>> {
-        let env = self.inner.param_env::<f64>();
-        let value = d::eval(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))?;
+        let env = self.inner.var_env::<f64>();
+        let value = d::eval(&self.authored(py, &expr.0)?, &env)
+            .map_err(|err| super::expr::eval_err(py, &err, Some(&self.inner)))?;
         // Re-dimensioning what `eval` erased: the expression's own
         // dimension is what says which quantity the number is, and it
         // is correct by construction. `Count` cannot reach here — the
@@ -1603,8 +1700,9 @@ impl Doc {
     /// it actually has — a count is never inferred from a continuous
     /// value.
     fn eval_count(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<i64> {
-        let env = self.inner.param_env::<f64>();
-        d::eval_count(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))
+        let env = self.inner.var_env::<f64>();
+        d::eval_count(&self.authored(py, &expr.0)?, &env)
+            .map_err(|err| super::expr::eval_err(py, &err, Some(&self.inner)))
     }
 
     /// Serialize this document to the persistence text format
@@ -3217,6 +3315,135 @@ impl ParamName {
     }
 }
 
+/// **A document variable's identity** (VARIABLES-DESIGN VR1): the id
+/// the document minted it, which every expression reading it holds. A
+/// rename moves the name and keeps this handle; a delete leaves it
+/// naming nothing the document holds, and the id is never minted again.
+///
+/// An id is document-scoped: the same bits in another document name
+/// another variable, or none.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct Var(pub(crate) d::VarId);
+
+#[pymethods]
+impl Var {
+    /// The id with every bit shown: sixteen lowercase hex digits.
+    #[getter]
+    fn hex(&self) -> String {
+        self.0.full().to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Var({})", self.0.full())
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn __hash__(&self) -> u64 {
+        self.0.0
+    }
+}
+
+/// **A variable as an edit addresses it**: by its identity (`Var`), or
+/// by the name the document holds for it (`ParamName`).
+#[derive(FromPyObject)]
+pub(crate) enum VarArg {
+    /// By identity.
+    Id(Var),
+    /// By name.
+    Name(ParamName),
+}
+
+impl VarArg {
+    /// The kernel's address.
+    pub(crate) fn var_ref(&self) -> d::VarRef {
+        match self {
+            Self::Id(var) => d::VarRef::Id(var.0),
+            Self::Name(name) => d::VarRef::Name(name.0.clone()),
+        }
+    }
+}
+
+/// **A variable's definition as an edit carries it** — a free value, or
+/// an `Expr` over other variables that the edit door lowers (its names
+/// resolved against the document's) and stores as the variable's
+/// definition (VARIABLES-DESIGN VR3).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct VarDecl(pub(crate) d::VarDecl);
+
+#[pymethods]
+impl VarDecl {
+    /// A free variable holding `value`.
+    #[staticmethod]
+    fn free(value: &DocParam) -> Self {
+        Self(d::VarDecl::Free(value.0.clone()))
+    }
+
+    /// A variable defined by `expr`, of `expr`'s dimension: its value is
+    /// `expr`'s, re-evaluated whenever a variable it reads moves, and it
+    /// takes no value, unit or distribution of its own.
+    #[staticmethod]
+    fn defined(expr: &super::expr::Expr) -> Self {
+        Self(d::VarDecl::defined(expr.0.clone()))
+    }
+
+    /// The defining expression, or `None` for a free variable.
+    #[getter]
+    fn expr(&self) -> Option<super::expr::Expr> {
+        match &self.0 {
+            d::VarDecl::Free(_) => None,
+            d::VarDecl::Defined(expr) => Some(super::expr::Expr(expr.clone())),
+        }
+    }
+
+    /// The free value, or `None` for a defined variable.
+    #[getter]
+    fn value(&self) -> Option<DocParam> {
+        match &self.0 {
+            d::VarDecl::Free(free) => Some(DocParam(free.clone())),
+            d::VarDecl::Defined(_) => None,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        match &self.0 {
+            d::VarDecl::Free(free) => {
+                format!("VarDecl.free({})", DocParam(free.clone()).__repr__())
+            }
+            d::VarDecl::Defined(expr) => {
+                format!("VarDecl.defined({})", d::unparse(expr, &|_| None))
+            }
+        }
+    }
+}
+
+/// **A definition as a variable door takes it**: a free value, an
+/// expression (a defined variable), or a [`VarDecl`] spelling either.
+#[derive(FromPyObject)]
+pub(crate) enum DeclArg {
+    /// A free value.
+    Free(DocParam),
+    /// A defining expression.
+    Defined(super::expr::Expr),
+    /// Either, spelled.
+    Decl(VarDecl),
+}
+
+impl DeclArg {
+    /// The kernel's definition.
+    fn decl(&self) -> d::VarDecl {
+        match self {
+            Self::Free(value) => d::VarDecl::Free(value.0.clone()),
+            Self::Defined(expr) => d::VarDecl::defined(expr.0.clone()),
+            Self::Decl(decl) => decl.0.clone(),
+        }
+    }
+}
+
 /// `-0.0` folded to `0.0`, every other value untouched — the
 /// normalization a hash must apply wherever the equality it mirrors is
 /// IEEE (`-0.0 == 0.0`).
@@ -3259,7 +3486,7 @@ fn continuous(
 /// Continuous values arrive as typed quantities, so the
 /// dimension is carried by the constructor rather than guessed from a
 /// bare float. A non-finite value is NOT pre-checked here — the edit
-/// door refuses it typed (`non_finite_doc_param`), fail-loud where
+/// door refuses it typed (`non_finite_var`), fail-loud where
 /// the kernel refuses.
 ///
 /// The three continuous constructors take an OPTIONAL `distribution`
@@ -3745,7 +3972,7 @@ impl DocEdit {
     /// for a slot this node does not carry (naming the slot it
     /// lacks), `slot_dimension_mismatch` for an expression of the
     /// wrong dimension (carrying the required and offered pair), and
-    /// `slot_unknown_doc_param` / `slot_doc_param_dimension` for a
+    /// `slot_unknown_var_name` / `slot_var_kind` for a
     /// parameter reference the document does not answer.
     #[staticmethod]
     fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Expr) -> PyResult<Self> {
@@ -3774,16 +4001,24 @@ impl DocEdit {
     /// Refuses typed on a name the document already holds
     /// (`var_name_taken`), and on a broken annotation:
     /// `invalid_distribution` for an E2 invariant,
-    /// `non_finite_doc_param` for a NaN or infinite nominal or offset.
+    /// `non_finite_var` for a NaN or infinite nominal or offset.
     /// Neither annotation fault is reachable through the
     /// `Distribution` constructors, which run the same check at the
     /// value; both are reachable through a file.
+    ///
+    /// An `Expr` (or `VarDecl.defined`) declares a DEFINED variable,
+    /// whose value is the expression's over the variables it reads.
+    /// It refuses `definition_unknown_var_name`,
+    /// `definition_unresolved_var` and `definition_var_kind` for a read
+    /// the document does not answer, `definition_cycle` for one that
+    /// reads the variable back, and `definition_too_large` for an
+    /// expansion past the bound.
     #[staticmethod]
-    fn declare_var(name: &ParamName, value: &DocParam) -> Self {
+    fn declare_var(name: &ParamName, value: DeclArg) -> Self {
         Self {
             inner: d::DocEdit::DeclareVar {
                 name: name.0.clone(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                def: value.decl(),
             },
         }
     }
@@ -3797,16 +4032,20 @@ impl DocEdit {
     /// the old one carried is gone. `set_var_value` is the door for
     /// moving a number, because it cannot drop what it never takes.
     ///
+    /// An `Expr` (or `VarDecl.defined`) makes the variable a DEFINED
+    /// one, keeping its identity; a `DocParam` makes it free again.
+    ///
     /// Refuses typed on a name the document does not hold
     /// (`unknown_var`), on a definition of another kind
     /// (`var_kind_fixed` — a kind is fixed when a variable is
-    /// declared), and on `declare_var`'s annotation faults.
+    /// declared), and on `declare_var`'s annotation and definition
+    /// faults.
     #[staticmethod]
-    fn define_var(name: &ParamName, value: &DocParam) -> Self {
+    fn define_var(var: VarArg, value: DeclArg) -> Self {
         Self {
             inner: d::DocEdit::DefineVar {
-                var: name.0.clone().into(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                var: var.var_ref(),
+                def: value.decl(),
             },
         }
     }
@@ -3825,13 +4064,13 @@ impl DocEdit {
     /// Refuses typed on a name the document does not declare
     /// (`unknown_var`) and on a kind mismatch — a count for
     /// a continuous parameter or the reverse
-    /// (`doc_param_value_kind_mismatch`) — a kind is fixed when a
+    /// (`var_value_kind_mismatch`) — a kind is fixed when a
     /// variable is declared.
     #[staticmethod]
-    fn set_var_value(name: &ParamName, value: &DocParamValue) -> Self {
+    fn set_var_value(var: VarArg, value: &DocParamValue) -> Self {
         Self {
             inner: d::DocEdit::SetVarValue {
-                var: (name.0.clone()).into(),
+                var: var.var_ref(),
                 value: value.0,
             },
         }
@@ -3858,14 +4097,14 @@ impl DocEdit {
     ///
     /// Refuses typed on a name the document does not declare
     /// (`unknown_var`), on a `Count` parameter
-    /// (`doc_param_count_has_no_unit` — a count is an integer, not a
+    /// (`var_count_has_no_unit` — a count is an integer, not a
     /// quantity) and on a unit that does not measure the declared
-    /// dimension (`doc_param_unit_mismatch`).
+    /// dimension (`var_unit_mismatch`).
     #[staticmethod]
-    fn set_var_unit(name: &ParamName, unit: DisplayUnitSpec) -> Self {
+    fn set_var_unit(var: VarArg, unit: DisplayUnitSpec) -> Self {
         Self {
             inner: d::DocEdit::SetVarUnit {
-                var: (name.0.clone()).into(),
+                var: var.var_ref(),
                 unit: unit.sym(),
             },
         }
@@ -3888,10 +4127,10 @@ impl DocEdit {
     ///
     /// Refuses typed on a name the document does not declare
     /// (`unknown_var`), on a `Count` parameter
-    /// (`doc_param_count_has_no_distribution` — a count takes no
+    /// (`var_count_has_no_distribution` — a count takes no
     /// annotation, for the reason `DocParam.count` gives) and on a
     /// distribution that breaks an E2 invariant
-    /// (`non_finite_doc_param`, `invalid_distribution`).
+    /// (`non_finite_var`, `invalid_distribution`).
     ///
     /// The `Distribution`'s own dimension is NOT checked against the
     /// parameter's here: a kernel `Distribution` is dimension-free
@@ -3904,16 +4143,51 @@ impl DocEdit {
     /// instead carry the dropped dimension and refuse at `apply` is
     /// LIB's `doc-param-edit-doors-drop-the-python-dimension`.
     #[staticmethod]
-    #[pyo3(signature = (name, distribution))]
+    #[pyo3(signature = (var, distribution))]
     fn set_var_distribution(
-        name: &ParamName,
+        var: VarArg,
         distribution: Option<&super::analysis::Distribution>,
     ) -> Self {
         Self {
             inner: d::DocEdit::SetVarDistribution {
-                var: (name.0.clone()).into(),
+                var: var.var_ref(),
                 distribution: distribution.map(|d| d.inner),
             },
+        }
+    }
+
+    /// **Name, rename or unname a variable** (VR2): writes the name and
+    /// nothing else, so nothing recomputes and a `Var` handle keeps
+    /// naming the same variable. `None` clears the name.
+    ///
+    /// Refuses typed on a variable the document does not hold
+    /// (`unknown_var`), a name another variable holds
+    /// (`var_name_taken`), the name the variable already has
+    /// (`var_name_unchanged`), and clearing the name of a variable
+    /// nothing reads (`anonymous_var_unread`).
+    #[staticmethod]
+    #[pyo3(signature = (var, name))]
+    fn rename_var(var: VarArg, name: Option<&ParamName>) -> Self {
+        Self {
+            inner: d::DocEdit::RenameVar {
+                var: var.var_ref(),
+                name: name.map(|n| n.0.clone()),
+            },
+        }
+    }
+
+    /// **Delete a named variable** (VR7). Its readers stay, unresolved:
+    /// evaluation refuses at each (`unresolved_var`), and the id is
+    /// never minted again, so a later declare of the same name is a new
+    /// variable the old readers do not read.
+    ///
+    /// Refuses typed on a variable the document does not hold
+    /// (`unknown_var`) and on an anonymous one, whose lifecycle is its
+    /// readers' (`delete_anonymous_var`).
+    #[staticmethod]
+    fn delete_var(var: VarArg) -> Self {
+        Self {
+            inner: d::DocEdit::DeleteVar { var: var.var_ref() },
         }
     }
 
@@ -3954,7 +4228,7 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Count,
-                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -3995,7 +4269,7 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::Instance,
-                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -4024,7 +4298,7 @@ impl DocEdit {
             inner: d::DocEdit::SetStructuralParam {
                 node: node.0,
                 slot: d::SlotId::VDegree,
-                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+                expr: d::Expr::named(name.0.clone(), d::Dimension::Count),
             },
         }
     }
@@ -4247,7 +4521,7 @@ impl DocEdit {
     /// log lacks, is the load door's word for the same family) —
     /// `set_program_on_non_profile`
     /// for a node holding no program, and then everything an insert
-    /// refuses of a profile: `slot_unknown_doc_param` and its siblings
+    /// refuses of a profile: `slot_unknown_var_name` and its siblings
     /// over every argument, `profile_program_refused` for a program
     /// that does not close, replay or validate.
     #[staticmethod]
@@ -4444,7 +4718,12 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Doc>()?;
     m.add_class::<DocEdit>()?;
     m.add_class::<ParamName>()?;
+    m.add_class::<Var>()?;
     m.add_class::<DocParam>()?;
+    m.add_class::<VarDecl>()?;
+    // The expansion bound `definition_too_large`'s `count` is measured
+    // against.
+    m.add("DEFINITION_NODE_BOUND", d::DEFINITION_NODE_BOUND)?;
     m.add_class::<DocParamValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;

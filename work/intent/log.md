@@ -82,3 +82,97 @@ the build (REACH's plate row still blocks on it by id); its one unfiled
 finding is `a-failed-requirement-refuses-the-whole-product`. Partly
 superseded and left open: FUSE's #3955 (note on FUSE's log). 22 others
 are not superseded.
+
+## 2026-10-04 — VARS PR 3 merged (PR 4027): readers read ids
+
+The implementer ran in its own cloud session, and the PR went to a dual
+review at frozen head `b07891634f`. Each reviewer ran in its own cloud
+session from one brief, identical modulo the lane label (sha256 prefixes
+`fe4eec8319d1d0a0` for r1 and `78488713d2fd5f35` for r2). Both returned
+APPROVE-WITH-FIXES with no MAJOR, so the tally is 0.
+
+The union and the rulings made at adjudication:
+
+- A variable is spoken from the document wherever one is at hand,
+  including a refusal re-spoken after a rename and an analysis box taken
+  before one. Memoized pattern refusals hold their formula as an `Expr`;
+  the `#hex` text scan is gone.
+- An unnamed variable has one spelling, `#<16 hex>`.
+- Split or inline across an unresolved reader refuses typed
+  (`UnresolvedVarCrossesCut`).
+- The door checks a post-condition: no stored node holds a `Name` leaf
+  (`NameLeafWritten`).
+- The id-free corpus digest is a committed guard.
+- One expression walker and one lowering rule.
+- Every surviving mutant has a row.
+
+The viewer's "param" vocabulary keeps its names until it is moved in one
+piece (`viewer-param-vocabulary-names-a-variable`). Two more items were
+filed: the Python classes, and `range.rs`'s synthetic name. An
+independent verifier session checked the fix pass: 8 of 9 mutants red and every probe held; the one survivor, the door post-condition, got its row in a second pass.
+
+`variables-replace-the-parameter-table` is closed. The spec is in
+`docs/doc-ledger/intent-vars-1-spec.md`. `no-dimensioned-literal-in-a-slot`
+and `parameters-defined-by-formulas` are unparked; the literal retirement
+is next.
+
+## 2026-10-05 — the literal retirement's spec (`docs/INTENT-LITERALS-SPEC.md`)
+
+A spec writer read the merged code and sized every literal site. VR4
+cannot land before a slot can hold an anonymous *defined* variable, so
+`parameters-defined-by-formulas` merges into this unit as its first PR.
+The unit lands in four PRs, each green:
+
+- A: definitions.
+- B: authored `Formula` and stored `Expr`, with byte-identical goldens.
+- C: a slot holds a `VarId`.
+- D: `Expr` holds no float.
+
+All nine of the spec's recommendations were accepted (§11). Two were
+written into VARIABLES-DESIGN:
+
+- A lone number at a slot's root is a typed value (VR6).
+- A `Measure`'s arithmetic stays a formula in the node until stage 2
+  (VR4).
+
+Both elaborate D10 and change no ratified text. The spec found that C
+makes separately typed equal radii lose their declared evidence; a
+fixture that relied on it shares one variable instead. Ev has said to
+proceed through the plan without asking.
+
+## 2026-10-05 — INTENT-LITERALS PR A, definitions (`intent/literals-a`)
+
+A variable may be defined by an `Expr` over other variables
+(`VarDef::Defined`), authored as `VarDecl` and lowered at the edit door.
+The doors refuse a definition cycle, a read the document does not
+answer, and an expansion past `DEFINITION_NODE_BOUND` (4096 nodes); the
+load door refuses the same in two new walks. The environments bind
+definitions over their inputs in definition order, so a defined
+variable carries its inputs' enclosure, tangent or symbol; the seed door
+refuses one. Coincidence tokens and content keys expand definitions,
+`DocDiff::vars` closes over them, and the anonymous lifecycle cascades
+through them. The viewer's parameter text door defines a variable, and
+retires `Refusal::ParamNotANumber`.
+
+Filed: `viewer-value-doors-read-a-defined-variable-as-absent`.
+
+### PR A review pass (both reviewers APPROVE-WITH-FIXES, no MAJOR)
+
+- The viewer's text door folds constant text, continuous or count, to a
+  value (`SetVarValue`), so a toleranced parameter keeps its tolerance.
+  Only text that reads a variable defines one. A value typed over a
+  definition frees the variable and writes through the value door in one
+  action, so `3` over a length refuses `VarValueKindMismatch` whether the
+  variable is free or defined.
+- A defined parameter's row has the free row's field, showing its
+  formula. A formula typed into it redefines the variable; a number
+  frees it.
+- The order memo is gone. `definition_order` is Kahn's algorithm over
+  one adjacency, and the other definition walks read the same index.
+- The edit and load doors ask one `Doc::expansion_fault`, and the
+  definition sentences render once for both.
+- `Doc.definitions` lists the named defined variables in Python.
+- Each mutant the review found surviving has a row, and there are MC and
+  symbolic-tier rows.
+
+Filed: `definition-node-bound-is-re-measured-against-the-corpus-after-d`.

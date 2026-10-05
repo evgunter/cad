@@ -64,7 +64,7 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("fins"),
-        def: editor_core::VarDef::Free(FreeVar::Count { value: FINS }),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: FINS }),
     });
     let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
@@ -99,7 +99,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: fins,
         slot: SlotId::Count,
-        expr: Expr::param(VarName::from_static("fins"), Dimension::Count),
+        expr: Expr::named(VarName::from_static("fins"), Dimension::Count),
     });
     CorpusDoc {
         name: "heat_sink_fins",

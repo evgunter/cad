@@ -122,6 +122,10 @@ fn boolean(
     a: &Body<f64>,
     b: &Body<f64>,
 ) -> Result<topo::BooleanResult<f64>, BooleanError> {
+    let (a, b) = (
+        &sweep::test_support::finished("operand A", a.clone(), Tol::witness()),
+        &sweep::test_support::finished("operand B", b.clone(), Tol::witness()),
+    );
     match op {
         BooleanOp::Union => topo::boolean::union(a, b, Tol::witness()),
         BooleanOp::Intersect => topo::boolean::intersect(a, b, Tol::witness()),
@@ -135,7 +139,7 @@ fn built(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
     boolean(op, a, b)
         .unwrap_or_else(|e| panic!("{op:?} refused: {e:?}"))
         .body()
-        .map(|b| b.body.clone())
+        .map(|b| (*b.body).clone())
 }
 
 /// Every tier of validation, a closed tessellation, then the volume

@@ -81,3 +81,13 @@ every op.
   witness reaches until cleave's `PairingMismatch` row lands. No
   reachable refusal is left on this row, so it drops from P0 to P3.
 
+
+## Reached (JOIN, branch `join/reflex-corner-vertex-vertex`)
+
+With cleave's `PairingMismatch` row fixed on that branch, the
+interleave arm has a witness: cleave's
+`three_corners_alternating_round_the_cube_refuse_three_ops`.
+`y ∩ cube`, `cube ∪ y` and `cube ∖ y` refuse `SharedVertexCrossings` at
+the cube's corner. The band's pair crosses that corner four times, and
+the pairing those ops take has no run clear of the other two corners'
+cuts either way round (`work/cleave/three-corners-alternating-round-a-corner-refuse-at-the-join.md`).

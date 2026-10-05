@@ -106,7 +106,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+    Expr::named(name(n), dim)
 }
 
 pub(crate) fn uniform(half: f64) -> Distribution {
@@ -197,7 +197,7 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Sited
         &[editor_core::GeomPred::SurfaceKind(
             editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
         )],
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect("the surface-kind atom is exact");
@@ -240,11 +240,11 @@ fn plate_spaced(
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, R0, radius)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, R0, radius)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.1, depth)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.1, depth)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -308,7 +308,7 @@ fn square(nominal: f64, dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("a"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
     let a = || MeasureExpr::value(param("a", Dimension::Scalar));
     let m = r.insert(
@@ -331,7 +331,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("t"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, Some(dist))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(dist))),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -388,7 +388,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, Some(uniform(half)))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(uniform(half)))),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -717,7 +717,7 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
     .unwrap_or_else(|e| panic!("the stackup refused: {e}"));
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
-            let named: Vec<editor_core::VarId> = blockers.iter().map(|b| b.param().id()).collect();
+            let named: Vec<editor_core::VarId> = blockers.iter().map(|b| b.var().id()).collect();
             // Declaration order: the plate declares `hole_r` first.
             let want = vec![var(&doc, "hole_r"), var(&doc, "depth")];
             assert_eq!(named, want, "{blockers:?}");
@@ -849,14 +849,14 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
     assert_eq!(
         row.contribution,
         Err(Unavailable::TangentDegraded {
-            param: spoken(&doc, "t")
+            var: spoken(&doc, "t")
         })
     );
     assert_eq!(
         report.rss,
         Rss::UnavailableBecause {
             blockers: vec![Unavailable::TangentDegraded {
-                param: spoken(&doc, "t")
+                var: spoken(&doc, "t")
             }]
         }
     );
@@ -1162,7 +1162,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
         &[editor_core::GeomPred::SurfaceKind(
             editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
         )],
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect("exact atom");
@@ -1438,7 +1438,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
     });
     // One frame, named by the bore and the pin alike: they are drawn
     // on the same plane, so they bind the same id.
@@ -1563,7 +1563,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, Some(uniform(half)))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, Some(uniform(half)))),
     });
     // A frame per section height: the sections are drawn on DIFFERENT
     // planes, so they are different nodes.
@@ -1664,7 +1664,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     assert_eq!(
         row.contribution,
         Err(Unavailable::Unliftable {
-            param: spoken(&doc, "w")
+            var: spoken(&doc, "w")
         })
     );
     assert!(row.chamber_span.is_none());
@@ -1672,7 +1672,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
         report.rss,
         Rss::UnavailableBecause {
             blockers: vec![Unavailable::Unliftable {
-                param: spoken(&doc, "w")
+                var: spoken(&doc, "w")
             }]
         }
     );

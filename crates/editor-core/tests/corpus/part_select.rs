@@ -65,7 +65,7 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(H),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: BOX_H,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -86,7 +86,7 @@ pub fn document() -> CorpusDoc {
     )));
     let cube = r.insert(Node::Extrude {
         profile: box_p,
-        distance: Expr::param(VarName::from_static(H), Dimension::Length),
+        distance: Expr::named(VarName::from_static(H), Dimension::Length),
         side: ExtrudeSide::Along,
     });
 

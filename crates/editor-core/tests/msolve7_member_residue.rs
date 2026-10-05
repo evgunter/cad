@@ -8,7 +8,7 @@
 //! evaluation hands in its lane's, which it already holds
 //! (`solve_with_env`); either is passed down as a parameter. The
 //! build count is pinned here by the source rather than by a probe —
-//! no counter sees a `param_env` build — and the rows over parameters
+//! no counter sees a `var_env` build — and the rows over parameters
 //! pin what `solve_document`'s environment IS: the document's nominal,
 //! bit for bit, following an edit of the parameter and ignoring its
 //! distribution.
@@ -62,7 +62,7 @@ fn shipped(text: &str, must_hold: &[&str]) -> String {
 }
 
 /// **The solve's environment is built at one site of the solve**:
-/// `solve_document`'s body holds the one `param_env` build the solve
+/// `solve_document`'s body holds the one `var_env` build the solve
 /// makes, `solve_with_env` — the entry the evaluation uses — holds
 /// none, and `member.rs`, every reader of that environment, holds
 /// none. A reader that rebuilt its own would put a second build in
@@ -73,13 +73,13 @@ fn shipped(text: &str, must_hold: &[&str]) -> String {
 /// environment.
 ///
 /// What it cannot see: an environment reached through another door
-/// (`ParamEnv { .. }` written by hand, `param_env_over`, `seed_env`),
+/// (`VarEnv { .. }` written by hand, `var_env_over`, `seed_env`),
 /// and a build sited correctly but fed to nothing — the rows over
 /// parameters below are what pin that the environment the solve
 /// reads is the document's nominal.
 #[test]
 fn a1_the_solve_builds_its_nominal_environment_exactly_once() {
-    const NEEDLE: &str = "param_env";
+    const NEEDLE: &str = "var_env";
     let member = shipped(MEMBER, &["fn check_reference", "fn derived_offset"]);
     assert_eq!(
         member.matches(NEEDLE).count(),
@@ -234,7 +234,7 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, co
             doc,
             DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
         )
         .0;
@@ -291,14 +291,14 @@ fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDo
 fn linear_x_by_s(_axis: RecipeNodeId) -> PatternKind {
     PatternKind::Linear {
         direction: [1.0, 0.0, 0.0].map(scl),
-        spacing: Expr::param(VarName::from_static("s"), Dimension::Length),
+        spacing: Expr::named(VarName::from_static("s"), Dimension::Length),
     }
 }
 
 fn circular_by_th(axis: RecipeNodeId) -> PatternKind {
     PatternKind::Circular {
         axis,
-        step: Expr::param(VarName::from_static("th"), Dimension::Angle),
+        step: Expr::named(VarName::from_static("th"), Dimension::Angle),
     }
 }
 
@@ -329,7 +329,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
         ),
         ("n", FreeVar::Count { value: 3 }),
     ];
-    let count = || Expr::param(VarName::from_static("n"), Dimension::Count);
+    let count = || Expr::named(VarName::from_static("n"), Dimension::Count);
     let control = scene("msolve7-a1-linear-control", &params, None, 0);
     let c = top_pose(&control, "control");
     let test = scene(
@@ -348,8 +348,11 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
     // The same number through the public expression door against the
     // document's own nominal environment.
     let via_env = editor_core::eval::<f64>(
-        &Expr::param(VarName::from_static("s"), Dimension::Length),
-        &test.doc.param_env::<f64>(),
+        &Expr::var(
+            test.doc.var_named("s").expect("s is declared"),
+            Dimension::Length,
+        ),
+        &test.doc.var_env::<f64>(),
     )
     .unwrap();
     assert_eq!(via_env.to_bits(), diff.to_bits());
@@ -398,7 +401,7 @@ fn a1_the_count_is_read_at_the_documents_own_bindings() {
         ("s", FreeVar::continuous(Dimension::Length, 4.0)),
         ("n", FreeVar::Count { value: 3 }),
     ];
-    let count = Expr::param(VarName::from_static("n"), Dimension::Count);
+    let count = Expr::named(VarName::from_static("n"), Dimension::Count);
     let s = scene("msolve7-a1-count", &params, Some((linear_x_by_s, count)), 2);
     top_pose(&s, "n=3 copy 2");
     let shrunk = set_value(s.doc.clone(), "n", FreeValue::Count(2));

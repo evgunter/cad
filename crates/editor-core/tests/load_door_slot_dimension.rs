@@ -15,12 +15,10 @@
 //! shared answer onto the wrong arm reds it too, because each refusal
 //! is read by arm and by payload — node, slot and both dimensions.
 //!
-//! The PARAM TABLE's half of the same address is here too
-//! (`Doc::param_ref_fault`): a slot expression names a declared
-//! parameter and reads it at the dimension it was declared with, at
-//! both doors, because a redeclaration that moves a dimension breaks
-//! every expression referencing it and a file can be written with the
-//! pairing already broken.
+//! The variable table's half of the same address is here too
+//! (`Doc::var_read_faults`): a slot expression reads a minted variable,
+//! and a live one at its kind, at both doors, because a file can be
+//! written with the pairing already broken.
 //!
 //! The kinds below are the two the narrowed walk could not see: an
 //! extrude and a frame datum. A PROFILE program's own step argument is
@@ -188,7 +186,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                 Dimension::Length,
                 1.0,
             )),
@@ -203,7 +201,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::param(name.clone(), Dimension::Length),
+            expr: editor_core::Expr::named(name.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -225,12 +223,12 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::param(missing.clone(), Dimension::Length),
+            expr: editor_core::Expr::named(missing.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::SlotUnknownDocParam {
+        Err(EditError::SlotUnknownVarName {
             name: n,
             node,
             slot,
@@ -242,18 +240,15 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
+    let id = doc.var_named(name.as_str()).expect("a declared variable");
     let corrupt = doctored(&text, |wire| {
-        crate::wire::wire_undeclare(wire, name.as_str());
+        crate::wire::wire_unmint(wire, name.as_str());
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotUnknownDocParam {
-            node,
-            slot,
-            name: n,
-        })) => {
-            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (extrude, id));
         }
-        other => panic!("the load door must refuse an undeclared parameter, got {other:?}"),
+        other => panic!("the load door must refuse an unminted reader, got {other:?}"),
     }
 }
 
@@ -270,7 +265,10 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         &doc,
         &DocEdit::DefineVar {
             var: name.clone().into(),
-            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(Dimension::Angle, 1.0)),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                Dimension::Angle,
+                1.0,
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -291,14 +289,17 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDocParamDimension {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            name: n,
+            var,
             declared,
             referenced,
         })) => {
-            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
+            assert_eq!(
+                (node.id(), slot, var.name()),
+                (extrude, SlotId::Distance, Some(&name))
+            );
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)

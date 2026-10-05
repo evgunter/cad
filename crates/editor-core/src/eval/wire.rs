@@ -140,7 +140,7 @@ pub(crate) struct LaneEnv<'a, T> {
     pub lift: super::ProfileLift,
     /// The evaluation's parameter environment — nominals, or nominals
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
-    pub params: &'a crate::expr::ParamEnv<T>,
+    pub params: &'a crate::expr::VarEnv<T>,
     /// The document's own f64 parameter environment, under no box and
     /// no seed, built once per evaluation beside `params`. Every
     /// f64-pinned decision the evaluation makes reads it — the nominal
@@ -150,7 +150,7 @@ pub(crate) struct LaneEnv<'a, T> {
     /// embeds — so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
-    pub nominal: &'a crate::expr::ParamEnv<f64>,
+    pub nominal: &'a crate::expr::VarEnv<f64>,
     /// The E4 seed this evaluation carries, by its variable (`None` on
     /// the build path). Consulted by the one place the lift cannot
     /// reach: a C6/D9-pinned section refuses a seed it would otherwise
@@ -396,7 +396,7 @@ pub(crate) fn instance_frame<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
     poses: &crate::mate::SolvedPoses<T>,
-    env: &crate::expr::ParamEnv<T>,
+    env: &crate::expr::VarEnv<T>,
     tol: Tol,
 ) -> Result<Option<crate::placement::Motion<T>>, NodeErrorKind> {
     if poses.fault(id).is_some() {
@@ -842,6 +842,26 @@ fn body_operand<T: Decide>(
         });
     }
     read_body(results, input)
+}
+
+/// **A body operand, finished** for a door that takes finished bodies
+/// (the Boolean's): [`body_operand`]'s body through the at-rest gate
+/// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
+/// node. The evaluator holds the bodies its nodes built with no verdict
+/// kept beside them, so the consuming node pays the gate here.
+///
+/// # Errors
+///
+/// [`body_operand`]'s; [`NodeErrorKind::UnfinishedOperand`] where the
+/// gate refuses the body.
+fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    results: &Results<T>,
+    input: RecipeNodeId,
+    tol: Tol,
+) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
+    let body = body_operand(results, input)?;
+    T::gate_at_rest_kept((*body).clone(), tol)
+        .map_err(|errors| NodeErrorKind::UnfinishedOperand { input, errors })
 }
 
 /// **A body read for its geometry**: a Body value, or a boolean's
@@ -1707,7 +1727,8 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     // radius is the PROFILE's, so the token is the radius the operand
     // profile draws that wall's edge at. A straight edge yields none.
     let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
-    let tokens = crate::param_source::profile_radius_tokens(vp, scope);
+    let defs = crate::param_source::definitions_of(doc);
+    let tokens = crate::param_source::profile_radius_tokens(vp, scope, &defs);
     crate::param_source::attach_swept(
         &mut body,
         flow,
@@ -2053,7 +2074,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, expr),
+            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
@@ -2120,7 +2141,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, expr),
+            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
@@ -2804,8 +2825,8 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let sided = side_by_operand(declare, a, b, doc)?;
         resolve_declarations(&sided, doc, &a_table, &b_table)?
     };
-    let body_a = body_operand(results, a)?;
-    let body_b = body_operand(results, b)?;
+    let body_a = finished_operand(results, a, tol)?;
+    let body_b = finished_operand(results, b, tol)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(|err| refusal_menu((a, &a_table), (b, &b_table), err))?
@@ -2839,7 +2860,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 tol,
             )
             .map_err(NodeErrorKind::Naming)?;
-            let mut body = out.body;
+            let mut body = out.body.into_body();
             stamp_minted(&mut body, id);
             Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
@@ -2914,7 +2935,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .iter()
         .map(|&m| {
             Ok((
-                body_operand(results, m)?,
+                Arc::new(finished_operand(results, m, tol)?),
                 Arc::new(
                     names::member_view(id, m, &value_of(results, m)?.name_table)
                         .map_err(NodeErrorKind::Naming)?,
@@ -3055,7 +3076,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (table, published_groups) =
         names::name_union(id, &acc_body, &acc_table, &member_views, &fold, &links, tol)
             .map_err(NodeErrorKind::Naming)?;
-    let mut body = (*acc_body).clone();
+    let mut body = (*acc_body).clone().into_body();
     // ONCE, over the finished body: the stamp numbers from zero, so a
     // per-step pass would reuse an earlier step's index.
     stamp_minted(&mut body, id);
@@ -4450,12 +4471,9 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // THE SEED STOPS HERE, TYPED. The section stays `f64`, so a seed on
     // a parameter this program reads would arrive at the skinned
     // surface as a constant — a finite, wrong zero tangent.
-    // Keyed by the variable: the program's readers read names in this
-    // unit, so the variable's own name is what they are asked for.
+    // Keyed by the variable, which is what the program's readers read.
     if let Some(param) = lane.seed
-        && doc
-            .var_name(param)
-            .is_some_and(|name| program.references(name))
+        && program.reads(param)
     {
         return Err(NodeErrorKind::SeedPinnedSection { section: id, param });
     }
@@ -5617,7 +5635,7 @@ mod stepped_operand_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{NodeErrorKind, PATTERN_DIRECTION_ROLE, SteppedOperands, stepped_rule_map, unit};
-    use crate::expr::{Dimension, Expr, ParamEnv, eval};
+    use crate::expr::{Dimension, Expr, VarEnv, eval};
     use geom_core::{Affine3, Band, Tol, Vec3};
 
     fn band() -> Band {
@@ -5629,7 +5647,7 @@ mod stepped_operand_tests {
     }
 
     fn value(e: &Expr) -> f64 {
-        eval::<f64>(e, &ParamEnv::default()).unwrap()
+        eval::<f64>(e, &VarEnv::default()).unwrap()
     }
 
     /// **The negative spacing's recourse, followed.** The refusal
@@ -5658,10 +5676,9 @@ mod stepped_operand_tests {
             };
             let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap();
             let mirrored = |i: i64| Affine3::translation(unit_dir.get() * (-4.25 * i as f64));
-            let written = reversed.each_ref().map(|text| {
-                crate::parse::parse_expr(text, &std::collections::BTreeMap::new())
-                    .unwrap_or_else(|e| panic!("{text:?} parses: {e:?}"))
-            });
+            let written = reversed
+                .clone()
+                .map(|e| e.expect("the negation is within the expression bound"));
             let back = Vec3::new(value(&written[0]), value(&written[1]), value(&written[2]));
             let followed =
                 SteppedOperands::linear(back, 4.25, &written, band()).expect("the recourse builds");

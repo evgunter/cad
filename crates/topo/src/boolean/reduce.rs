@@ -71,8 +71,9 @@ use super::refusal_routes::NeighbourOffset;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::props::AtRestOutcome;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -299,9 +300,8 @@ pub(super) struct UnsupportedPair {
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] for a face whose surface
-/// key does not resolve, or whose topology is corrupt
-/// (`boxes::face_box`).
+/// [`BooleanError::ClassificationInvariant`] for a cylinder face whose
+/// axis has no decided length (`boxes::face_box`).
 pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
@@ -316,7 +316,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // pays nothing for this gate.
         let mut offenders: Vec<(FaceKey, geom::SurfaceKind)> = Vec::new();
         for (key, f) in body.faces() {
-            let s = surface_of(body, f)?;
+            let s = body.face_surface_linked(key, f);
             if !supported(s) {
                 offenders.push((key, s.kind()));
             }
@@ -330,7 +330,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         let others: Vec<(FaceKey, geom::SurfaceKind, bvh::Aabb)> = other
             .faces()
             .map(|(key, f)| {
-                let kind = surface_of(other, f)?.kind();
+                let kind = other.face_surface_linked(key, f).kind();
                 Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
@@ -371,17 +371,15 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`gate_operand`]'s per operand; [`BooleanError::CurvedPairUnsupported`]
-/// for a germ pair with no arm; [`BooleanError::CurvedBooleanUnsupported`]
-/// for a face whose surface key does not resolve.
-pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
+/// for a germ pair with no arm; [`first_unsupported_pair`]'s.
+pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     declared: &super::DeclaredPairs<T>,
     band: Band,
-    tol: Tol,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        gate_operand(body, operand, band, tol)?;
+        gate_operand(body, operand)?;
     }
     // A pair is covered by the certificate its consumer reads: the
     // declared descent through the carrier ladder, which runs on a pair
@@ -407,37 +405,31 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds + crate::props::AtRestPolicy
 /// **The operand gate's BODY-scoped half**, in order:
 ///
 /// 1. a closed solid at rest, by the validator's own verdict
-///    ([`crate::validate_closed`]): a tier-1 finding refuses as
-///    [`BooleanError::CorruptOperand`], and tier-2 scaffolding — a
-///    strut, an empty loop, a null edge, a split shell — as
-///    [`BooleanError::ScaffoldingOperand`], each carrying the findings;
+///    ([`crate::validate_closed`]): tier-2 scaffolding — a strut, an
+///    empty loop, a null edge, a split shell — refuses as
+///    [`BooleanError::ScaffoldingOperand`], carrying the findings. A
+///    tier-1 finding panics naming the first: every public door keeps
+///    a body tier-1-valid, so only a kernel bug hands one in;
 /// 2. the edge carriers ([`gate_operand_edges`]): `Line`/`Circle`/
 ///    `Ellipse` pass (every lane reads all three; the both-split point
 ///    lane still needs a `Line`, and says so where it refuses); a `Nurbs`
 ///    or spiric edge refuses [`BooleanError::CurvedEdgeUnsupported`]
 ///    wherever it sits;
-/// 3. orientation: tier 3's check 7, per solid, at the scalar's lane
-///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
-///    definitely negative refuses [`BooleanError::InsideOutOperand`];
-///    one whose sign it leaves open passes, as check 7 passes it, and
-///    the volume backstop keeps its own refusal of a body it cannot
-///    measure.
 ///
-/// The subject of 3 is the solid: a body's total hides a sign, so a
-/// several-solid operand is gated here before it is read as one solid
-/// (`ops::one_solid`).
-pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
+/// Orientation is not read here: a `Validated` operand's tier-3 verdict
+/// includes check 7 per solid, and [`gate_unverdicted_operand`] reads it
+/// for an operand that carries no verdict.
+pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     operand: Operand,
-    band: Band,
-    tol: Tol,
 ) -> Result<(), BooleanError> {
     let (broken, scaffolding) = crate::validate::closed_by_tier(body);
-    if !broken.is_empty() {
-        return Err(BooleanError::CorruptOperand {
-            operand,
-            corruption: super::Corruption::Structure { errors: broken },
-        });
+    if let Some(first) = broken.first() {
+        unreachable!(
+            "operand {operand:?} fails tier 1 ({} findings, the first {first:?}): every public \
+             door keeps the body tier-1-valid",
+            broken.len()
+        );
     }
     if !scaffolding.is_empty() {
         return Err(BooleanError::ScaffoldingOperand {
@@ -446,26 +438,38 @@ pub(super) fn gate_operand<T: Decide + crate::props::AtRestPolicy>(
         });
     }
     gate_operand_edges(body, operand)?;
+    Ok(())
+}
+
+/// **The operand gate where no at-rest gate ran** — an operand whose
+/// scalar's policy answers [`AtRestOutcome::NotRunAtThisScalar`] (a
+/// dual) carries no verdict, so the door owes it what it owes every
+/// operand without the type: [`gate_operand`], then orientation —
+/// tier 3's check 7, per solid, at the scalar's lane
+/// ([`crate::AtRestPolicy::quad_lane`]). A solid it decides definitely
+/// negative refuses [`BooleanError::InsideOutOperand`]; one whose sign
+/// it leaves open passes, as check 7 passes it. A `Validated` operand
+/// passes untouched: its verdict already holds both.
+///
+/// The subject of the orientation read is the solid: a body's total
+/// hides a sign, so this runs before the pipeline reads a several-solid
+/// operand as one solid (`ops::one_solid`).
+pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
+    body: &crate::AtRestBody<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    if body.outcome() == AtRestOutcome::Validated {
+        return Ok(());
+    }
+    gate_operand(body, operand)?;
     if let Some(&solid) =
         crate::validate::inside_out_solids(body, band, tol, T::quad_lane()).first()
     {
         return Err(BooleanError::InsideOutOperand { operand, solid });
     }
     Ok(())
-}
-
-/// A face's resolved surface. An unresolved key is arena corruption
-/// and says so, rather than acquiring a kind label by default —
-/// `Nurbs` was the old default and named a kind nothing had shown the
-/// face to have.
-fn surface_of<'a, T: Decide>(
-    body: &'a Body<T>,
-    face: &crate::entity::Face,
-) -> Result<&'a geom::Surface<T>, BooleanError> {
-    body.get_surface(face.surface)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "operand gate: an operand face's surface key does not resolve",
-        })
 }
 
 /// [`gate_operand`]'s edge carriers.
@@ -629,22 +633,16 @@ pub(super) fn face_oriented_source<T: Decide>(
 /// [`BooleanError::NonMaximalFaces`]. Numeric coplanarity NEVER
 /// triggers the refusal; a near-coplanar dihedral surfaces as the
 /// predicate's own typed escalation instead. The ladder is levered at
-/// the shared edge's extent ([`crate::readback::edge_extent`]); an edge
-/// whose sides or extent do not read refuses
-/// [`BooleanError::CorruptOperand`].
+/// the shared edge's extent ([`crate::readback::edge_extent`]). It runs
+/// on an operand [`gate_operand`] passed, so every edge it reads holds
+/// a certified carrier.
 pub(super) fn gate_maximal_faces<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let unreadable = |edge, absence| BooleanError::CorruptOperand {
-        operand,
-        corruption: super::Corruption::Edge { edge, absence },
-    };
-    for (edge_key, _) in body.edges() {
-        let sides = crate::readback::edge_sides(body, edge_key).map_err(|what| {
-            unreadable(edge_key, crate::readback::CarrierAbsence::Dangling(what))
-        })?;
+    for (edge_key, edge) in body.edges() {
+        let sides = crate::readback::edge_sides_of(body, edge_key, edge);
         let (f1, f2) = sides.faces();
         if f1 == f2 {
             continue; // seam/strut inside one face: not a coplanar PAIR
@@ -674,8 +672,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         };
         // The extent, not the chord: a closed edge's ends are one
         // vertex, and its faces still meet along all of it.
-        let arm = crate::readback::edge_extent(body, edge_key)
-            .map_err(|absence| unreadable(edge_key, absence))?;
+        let arm = crate::readback::edge_extent(body, edge_key).unwrap_or_else(|absence| {
+            unreachable!(
+                "{operand:?}'s edge {edge_key:?}, read out of its arena, has no extent \
+                 ({absence:?}): the operand gate refuses a null edge as scaffolding"
+            )
+        });
         // Same-operand comparison: sources apply (a shared recipe
         // source IS declared coplanarity — the pair should have been
         // merged by the producing op); cross-operand declared pairs
@@ -797,7 +799,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
     band: Band,
     pad: f64,
     face_box: impl Fn(&Body<T>, FaceKey) -> Result<bvh::Aabb, BooleanError>,
-    edge_box: impl Fn(&Body<T>, EdgeKey) -> Result<bvh::Aabb, BooleanError>,
+    edge_box: impl Fn(&Body<T>, EdgeKey) -> bvh::Aabb,
 ) -> Result<Vec<super::SettledPair>, BooleanError> {
     let mut settled = Vec::new();
     let a_faces: Vec<(FaceKey, bvh::Aabb)> = a
@@ -852,7 +854,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
                 _ => continue,
             };
             if edge_boxes.is_none() {
-                edge_boxes = Some([face_edges(a, &edge_box)?, face_edges(b, &edge_box)?]);
+                edge_boxes = Some([face_edges(a, &edge_box), face_edges(b, &edge_box)]);
             }
             let [ea, eb] = edge_boxes
                 .as_ref()
@@ -862,7 +864,7 @@ pub(super) fn refuse_undeclared_continuations<T: Decide>(
             let mut meets = false;
             'pairs: for &(ex, bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
                 for &(ey, by) in eb.get(&fb).map_or(&[][..], Vec::as_slice) {
-                    if bx.overlaps(&by) && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band)? {
+                    if bx.overlaps(&by) && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band) {
                         meets = true;
                         break 'pairs;
                     }
@@ -886,11 +888,11 @@ type FaceEdges = std::collections::BTreeMap<FaceKey, Vec<(EdgeKey, bvh::Aabb)>>;
 /// Every face's boundary edges, each with the box the driver hands in.
 fn face_edges<T: Decide>(
     body: &Body<T>,
-    edge_box: &impl Fn(&Body<T>, EdgeKey) -> Result<bvh::Aabb, BooleanError>,
-) -> Result<FaceEdges, BooleanError> {
+    edge_box: &impl Fn(&Body<T>, EdgeKey) -> bvh::Aabb,
+) -> FaceEdges {
     let mut out = FaceEdges::new();
     for (key, edge) in body.edges() {
-        let bx = edge_box(body, key)?;
+        let bx = edge_box(body, key);
         let f1 = body.face_of_half_edge(edge.he_plus);
         let f2 = body
             .face_of_half_edge(edge.he_minus)
@@ -899,7 +901,7 @@ fn face_edges<T: Decide>(
             out.entry(f).or_default().push((key, bx));
         }
     }
-    Ok(out)
+    out
 }
 
 /// **Do two edges share a CURVE, not merely a point?** Two faces meet
@@ -938,44 +940,41 @@ fn edges_share_a_curve<T: Decide>(
     by: &bvh::Aabb,
     pad: f64,
     band: Band,
-) -> Result<bool, BooleanError> {
-    let corrupt = || BooleanError::ClassificationInvariant {
-        what: "continuation scan: an edge lost its geometry",
-    };
-    let sampled = |body: &Body<T>, key: EdgeKey| -> Result<Option<_>, BooleanError> {
-        let edge = body.get_edge(key).ok_or_else(corrupt)?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(CurveGeom::certified)
-        else {
-            return Ok(None);
-        };
+) -> bool {
+    // Both edges are ones the scan read out of their operands.
+    let sampled = |body: &Body<T>, key: EdgeKey| {
+        let edge = crate::live::proven(&body.edges, key, EntityId::Edge);
+        let curve = body.edge_curve_linked(key, edge).certified()?;
         let (t0, t1) = curve.params();
         let mid = (t0 + t1) * T::from_f64(0.5);
         let carrier = curve.carrier().clone();
-        if carrier.param_near(carrier.eval(mid), mid).is_none() {
-            return Ok(None);
-        }
-        let end = |he| -> Result<Point3<T>, BooleanError> {
-            let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-            body.get_vertex(v)
-                .and_then(|v| body.get_point(v.point))
-                .copied()
-                .ok_or_else(corrupt)
+        carrier.param_near(carrier.eval(mid), mid)?;
+        let end = |he, field| {
+            let v = crate::live::linked(
+                &body.half_edges,
+                he,
+                EntityId::HalfEdge,
+                EntityId::Edge(key),
+                field,
+            )
+            .start;
+            body.linked_vertex_point(v, EntityId::HalfEdge(he), "start")
         };
-        let points = [end(edge.he_plus)?, end(edge.he_minus)?, carrier.eval(mid)];
-        Ok(Some((carrier, t0, t1, mid, points)))
+        let points = [
+            end(edge.he_plus, "he_plus"),
+            end(edge.he_minus, "he_minus"),
+            carrier.eval(mid),
+        ];
+        Some((carrier, t0, t1, mid, points))
     };
-    let (Some(cx), Some(cy)) = (sampled(x, ex)?, sampled(y, ey)?) else {
+    let (Some(cx), Some(cy)) = (sampled(x, ex), sampled(y, ey)) else {
         let run = |lo_x: f64, hi_x: f64, lo_y: f64, hi_y: f64| hi_x.min(hi_y) - lo_x.max(lo_y);
         let runs = [
             run(bx.min_x, bx.max_x, by.min_x, by.max_x),
             run(bx.min_y, bx.max_y, by.min_y, by.max_y),
             run(bx.min_z, bx.max_z, by.min_z, by.max_z),
         ];
-        return Ok(
-            runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > POINT_TOUCH_RUN * pad)
-        );
+        return runs.iter().all(|&r| r >= 0.0) && runs.iter().any(|&r| r > POINT_TOUCH_RUN * pad);
     };
     let zero = |m: T| {
         !matches!(
@@ -996,10 +995,10 @@ fn edges_share_a_curve<T: Decide>(
             .copied()
             .filter(|&p| on(&cx, p) && on(&cy, p))
             .collect();
-    Ok(shared
+    shared
         .iter()
         .enumerate()
-        .any(|(i, &p)| shared[i + 1..].iter().any(|&q| !zero((q - p).norm()))))
+        .any(|(i, &p)| shared[i + 1..].iter().any(|&q| !zero((q - p).norm())))
 }
 
 /// One sweep direction: every edge (fragment) of `x` against the faces
@@ -1110,14 +1109,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // preserved pair-for-pair.
         #[cfg(feature = "sweep-testing")]
         let candidates: Vec<usize> = match &tree {
-            Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)?),
+            Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)),
             // The idealized reference's candidate set: every face, in
             // arena order. Reachable only through the gated
             // `SweepStrategy::Idealized`, and compiled out with it.
             None => (0..faces.len()).collect(),
         };
         #[cfg(not(feature = "sweep-testing"))]
-        let candidates: Vec<usize> = tree.overlapping(&boxes::edge_box(x, edge_key, pad)?);
+        let candidates: Vec<usize> = tree.overlapping(&boxes::edge_box(x, edge_key, pad));
         let mut ci = 0;
         'faces: while let Some(&j) = candidates.get(ci) {
             ci += 1;
@@ -1350,8 +1349,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     Some(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
                             let p = curve.carrier().eval(t);
-                            let containment =
-                                contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
+                            let containment = contfp(y, face, plane.normal, p, band)
+                                .map_err(|e| esc(e, x_is.other(), face))?;
                             if !matches!(containment, FaceContainment::Out)
                                 && let Some(tr) = trace.as_deref_mut()
                             {
@@ -1433,8 +1432,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     let d2 = (pv - plane.origin).dot(plane.normal);
                     let t = t0 + (t1 - t0) * (d1 / (d1 - d2));
                     let p = curve.carrier().eval(t);
-                    let containment =
-                        contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
+                    let containment = contfp(y, face, plane.normal, p, band)
+                        .map_err(|e| esc(e, x_is.other(), face))?;
                     if !matches!(containment, FaceContainment::Out)
                         && let Some(tr) = trace.as_deref_mut()
                     {
@@ -1786,15 +1785,15 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// chart door declines to express.
 ///
 /// **A CIRCLE against a SPHERE, a CYLINDER or a TORUS takes the same
-/// arms as a line.** Against a sphere its residual is a first harmonic
-/// with closed-form roots ([`super::circle_sphere`]); against a torus
-/// or a cylinder wall it is a degree-2 trigonometric polynomial, a
-/// quartic in the tangent half-angle ([`super::circle_torus`],
-/// [`super::circle_cylinder`]; a circle square to the wall's axis is a
-/// first harmonic again, and takes the square arm, the first-harmonic door).
-/// An ELLIPSE against a sphere or a cylinder wall is a degree-2
-/// trigonometric polynomial in its eccentric anomaly too, and against a
-/// torus one of degree four ([`super::ellipse_roots`]). Every such door's
+/// arms as a line.** A circle or an ellipse against a sphere or a
+/// cylinder wall has a degree-2 trigonometric polynomial for its
+/// residual, in its eccentric anomaly, which one door decides
+/// ([`super::conic_quadric`]): a first harmonic, with closed-form roots,
+/// wherever its second harmonic is in the zero band (a circle against a
+/// sphere, a circle square to a wall's axis), a quartic in the tangent
+/// half-angle otherwise. Against a torus a circle's residual is of
+/// degree two ([`super::circle_torus`]) and an ellipse's of degree four
+/// ([`super::ellipse_torus`]). Every such door's
 /// answer is the certified subdivision's, decided on the residual itself
 /// ([`super::circle_roots`]). A conic reaches those arms only from the
 /// conic rung, after the enclosures failed to clear the arc, and never
@@ -1802,8 +1801,8 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// story.
 ///
 /// A successful wall pierce reaches the join with a ring in the
-/// pierced face, and the ring's chords take their arc from that face's
-/// own azimuth window (`chord_join`'s `cross_loop_window_cycle`).
+/// pierced face, and the ring's chords take the arc the pierce germs'
+/// directions name (`chord_join::Leave`).
 ///
 /// **This lane WIDENS what an undeclared pair reaches, and the widening
 /// is named here rather than left to be discovered.** Before it,
@@ -2138,9 +2137,8 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 // lanes.** An arc the enclosures could not clear against
                 // one of those kinds takes the same endpoint-sign arms as
                 // a line below, and the certified roots of
-                // [`super::circle_sphere`] / [`super::circle_cylinder`] /
-                // [`super::circle_torus`] decide every one of them
-                // through [`wall_crossing`].
+                // [`super::conic_quadric`] / [`super::circle_torus`]
+                // decide every one of them through [`wall_crossing`].
                 // Those arms never read convexity for a circle (the
                 // same-side pairs go to the roots, as a torus's do), so
                 // nothing they conclude rests on the carrier being
@@ -2813,7 +2811,7 @@ fn arc_chain_reaches<T: Decide>(
     // A chain visits each edge of `y` at most once.
     let mut at = from;
     for _ in 0..y.edges().count() {
-        let steps = super::arcs::arcs_along(y, at, dir, band)?.map_err(escalated)?;
+        let steps = super::arcs::arcs_along(y, at, dir, band).map_err(escalated)?;
         let [step] = steps[..] else {
             return Ok(false);
         };
@@ -3108,29 +3106,20 @@ fn wall_crossing<T: Decide>(
                 Err(verdict) => return Ok(verdict),
             }
         }
-        // The circle root doors ([`super::circle_roots`]), one per kind,
-        // one answer shape. A circle against any other kind has no root
-        // lane here.
-        geom::Curve3::Circle { .. } => match surface {
-            geom::Surface::Sphere { .. } => {
-                super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)?
+        // The conic root doors ([`super::circle_roots`]), one answer
+        // shape: one door for a circle or an ellipse against a sphere or a
+        // wall, whose residual is of degree two
+        // ([`super::conic_quadric`]), and one per conic against a torus.
+        // A conic against any other kind has no root lane here.
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => match (carrier, surface) {
+            (_, geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. }) => {
+                super::conic_quadric::conic_quadric_roots(carrier, t0, t1, surface, band)?
             }
-            geom::Surface::Cylinder { .. } => {
-                super::circle_cylinder::circle_cylinder_roots(carrier, t0, t1, surface, band)?
-            }
-            geom::Surface::Torus { .. } => {
+            (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => {
                 super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
             }
-            _ => return Ok(SpanVerdict::Unsettled),
-        },
-        // The ellipse door ([`super::ellipse_roots`]): its residual is a
-        // trigonometric polynomial of degree two against a sphere or a
-        // wall and of degree four against a torus.
-        geom::Curve3::Ellipse { .. } => match surface {
-            geom::Surface::Sphere { .. }
-            | geom::Surface::Cylinder { .. }
-            | geom::Surface::Torus { .. } => {
-                super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
+            (_, geom::Surface::Torus { .. }) => {
+                super::ellipse_torus::ellipse_torus_roots(carrier, t0, t1, surface, band)?
             }
             _ => return Ok(SpanVerdict::Unsettled),
         },
@@ -3225,13 +3214,19 @@ fn wall_crossing<T: Decide>(
                     diag,
                 });
             }
-            // Unwalkable topology under a query the crossing layer just
-            // routed: the operand is corrupt, and saying "the roots did
-            // not settle it" would report a geometry frontier for a
-            // structural break. It keeps the caller's door because that
-            // is the conservative direction, and the distinction is
-            // recorded here rather than left to the payload.
-            Err(_) => return Ok(SpanVerdict::Unsettled),
+            Err(super::contain::ContainError::StaleFace(face)) => {
+                super::contain::driver_face_stale(face)
+            }
+            // The face's boundary read refused (a lone-vertex loop, a
+            // loop it cannot walk, a chart refusal): the roots are not
+            // placed, so the caller keeps its door.
+            Err(
+                super::contain::ContainError::EmptyLoop(_)
+                | super::contain::ContainError::LoopUnreadable(_)
+                | super::contain::ContainError::Curved(_)
+                | super::contain::ContainError::RayExhausted
+                | super::contain::ContainError::Uncrossable(_),
+            ) => return Ok(SpanVerdict::Unsettled),
         }
     }
     Ok(no_pierce_verdict(crossed_elsewhere, at_end))
@@ -3402,10 +3397,13 @@ impl Placement {
     ///   ringed face) while every boundary edge is a line or a circle
     ///   (anything else answers `Unread` first), and the one such bore
     ///   tried — a full-turn collar less a partial-revolve wedge —
-    ///   refuses before any mate: `Join(SectionArcWindow{BothContained})`
-    ///   with the wedge inside the collar's height, `JoinDesync` where it
-    ///   crosses a cap
-    ///   (`work/tang/a-wedge-across-a-full-turn-collar-desyncs-its-chord-roles.md`);
+    ///   builds under every op
+    ///   (`sweep/tests/wedge_through_a_full_turn_collar.rs`) without
+    ///   ever placing an end `Undecided`: measured over the full suites
+    ///   of `topo`, `sweep`, `mesh`, `editor-core` and `step-import`
+    ///   and the tour at ε 1e-9 (all 48 of its poses among them), no
+    ///   endpoint is placed `Undecided` anywhere, and the rule reads
+    ///   one only in the truth-table rows below;
     /// - **any `Recorded`** records;
     /// - **every on-carrier end `Elsewhere`** has placed nothing on this
     ///   face. That is no event only when `interior_clear` — the arm
@@ -3508,7 +3506,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(Placement, Option<VertexKey>), BooleanError> {
     let placement = super::contain::curved_face_placement(y, face, px, band)
-        .map_err(|e| esc(e, x_is.other()))?;
+        .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
         CurvedPlacement::OffCarrier => None,
@@ -3556,7 +3554,6 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     // has no incidence", a `None` says "no verdict at all" — and the
     // caller decides what each licenses.
     for (vy, py) in y.vertex_points() {
-        let py = py.map_err(|_| BooleanError::corrupt_at(x_is.other(), vy))?;
         if super::one_vertex(px, py, band).map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::VertexOnVertex,
             diag,
@@ -3578,19 +3575,29 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     ))
 }
 
-pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
+/// A containment read of `face`, a face of `operand`, refused. The body
+/// is MID-OPERATION — a working copy the reduction has been splitting —
+/// so the operand gate's at-rest verdict does not bind it, and every
+/// arm but the stale face answers typed: a refusal the face door owns
+/// is carried whole with the face it read.
+pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanError {
     match e {
         ContainError::Escalated(diag) => BooleanError::Escalated {
             decision: BooleanDecision::Containment,
             diag,
         },
-        ContainError::RayExhausted => BooleanError::ClassificationInvariant {
-            what: "contfp ray schedule exhausted",
-        },
         ContainError::Uncrossable(cause) => {
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
-        ContainError::Corrupt => BooleanError::corrupt_at(operand, VertexKey::default()),
+        ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
+        refusal @ (ContainError::RayExhausted
+        | ContainError::EmptyLoop(_)
+        | ContainError::LoopUnreadable(_)
+        | ContainError::Curved(_)) => BooleanError::PointInFaceRefused {
+            operand,
+            face,
+            refusal,
+        },
     }
 }
 
@@ -3630,7 +3637,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other()))? {
+    match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other(), face))? {
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {
@@ -3888,6 +3895,7 @@ mod declaration_order_rows {
     };
     use crate::contact::{BooleanCoincidence, ContactClass};
     use crate::entity::VertexKey;
+    use crate::test_support::finished;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
     use geom_core::{Band, Point3, Tol};
 
@@ -4462,8 +4470,8 @@ mod declaration_order_rows {
 
     /// `a ∪ b` with the pair `(fa, fb)` declared as `class`.
     fn union_declared(
-        a: &crate::body::Body<f64>,
-        b: &crate::body::Body<f64>,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
         pair: (crate::entity::FaceKey, crate::entity::FaceKey),
         class: Option<BooleanCoincidence>,
     ) -> Result<(), BooleanError> {
@@ -4521,6 +4529,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, a, b, n) in poses {
+            let (a, b) = (finished(label, a, tol), finished(label, b, tol));
             let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
             let got = union_declared(&a, &b, pair, Some(BooleanCoincidence::TANGENT));
             assert_eq!(
@@ -4581,7 +4590,11 @@ mod declaration_order_rows {
         let band = Band::linear(tol).expect("the witness band");
         let phi = 5.0_f64.to_radians();
         let p = Point3::new(0.5, 0.2, 1.0);
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         let block_volume = 3.0 * 4.5;
         for (label, theta, sunk, facing, offered, other, volume) in [
             (
@@ -4609,11 +4622,15 @@ mod declaration_order_rows {
                 geom_core::Vec3::new(1.0, 0.0, 0.0),
                 geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
             );
-            let wedge = mapped_cube::<f64>(
-                move |u, v, w| {
-                    let z = if sunk { 0.5 * (w - 1.0) } else { w };
-                    p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
-                },
+            let wedge = finished(
+                label,
+                mapped_cube::<f64>(
+                    move |u, v, w| {
+                        let z = if sunk { 0.5 * (w - 1.0) } else { w };
+                        p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
+                    },
+                    tol,
+                ),
                 tol,
             );
             let pair = (
@@ -4672,7 +4689,11 @@ mod declaration_order_rows {
         let p = Point3::new(0.5, 0.2, 1.0);
         // Its top face reaches far enough from the tilt axis that each
         // of its corners reads definitely off the wedge's tilted plane.
-        let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+        let block = finished(
+            "block",
+            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        );
         type Pose = (
             &'static str,
             crate::body::Body<f64>,
@@ -4705,6 +4726,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, wedge, facing, offered, other) in poses {
+            let wedge = finished(label, wedge, tol);
             let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
                 let hits: Vec<_> = wedge
                     .faces()
@@ -4881,8 +4903,8 @@ mod edge_span_tests {
     /// wall at `θ = π/2 − 2e-8`, 2e-8 m of arc short of the span's end
     /// `π/2` of the span `[π/2 − 0.1, π/2]` (the wall's other crossings lie
     /// outside it), where the carrier runs at 1 m/rad — past the escalation
-    /// threshold, so the root is interior and goes on to the trim (which
-    /// an empty body cannot give, so `Unsettled`). Metered at the
+    /// threshold, so the root is interior and goes on to the trim, a
+    /// half-wall sheet holding it: a pierce. Metered at the
     /// semi-minor axis, the least speed, the same gap reads 1e-9 m, inside
     /// the zero band: the root read as the end's own incidence, and the
     /// span `NoInterior`.
@@ -4898,16 +4920,30 @@ mod edge_span_tests {
         };
         let root = core::f64::consts::FRAC_PI_2 - 2e-8;
         let p = ellipse.eval(root);
-        let wall = geom::Surface::Cylinder {
-            origin: Point3::new(p.x + 0.3, p.y, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.3,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let y = Body::<f64>::new();
+        let mut y = Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut y,
+            crate::test_support_fixtures::CylFrame {
+                origin: Point3::new(p.x + 0.3, p.y, 0.0),
+                axis: Vec3::unit_z(),
+                radius: 0.3,
+                u_ref: Vec3::unit_x(),
+            },
+            None,
+            (
+                core::f64::consts::FRAC_PI_2,
+                3.0 * core::f64::consts::FRAC_PI_2,
+            ),
+            (-1.0, 1.0),
+            Tol::witness(),
+        );
+        let wall = y
+            .get_surface(y.get_face(face).expect("the sheet's face").surface)
+            .expect("the sheet's wall")
+            .clone();
         let got = wall_crossing(
             &y,
-            FaceKey::default(),
+            face,
             &wall,
             &ellipse,
             core::f64::consts::FRAC_PI_2 - 0.1,
@@ -4915,8 +4951,8 @@ mod edge_span_tests {
             band,
         );
         assert!(
-            matches!(got, Ok(SpanVerdict::Unsettled)),
-            "the root is interior, and the empty body has no trim to place it in: {got:?}"
+            matches!(got, Ok(SpanVerdict::Pierce { .. })),
+            "the root is interior, and the half-wall's trim holds it: {got:?}"
         );
     }
 }
@@ -5001,7 +5037,7 @@ mod lying_on_rows {
 
     fn vertex_at(y: &Body<f64>, p: Point3<f64>) -> VertexKey {
         y.vertex_points()
-            .find(|(_, q)| (q.expect("an untorn operand") - p).norm() < 1e-12)
+            .find(|(_, q)| (*q - p).norm() < 1e-12)
             .map(|(k, _)| k)
             .unwrap_or_else(|| panic!("a vertex at {p:?}"))
     }
@@ -5498,36 +5534,45 @@ mod clearance_rows {
     }
 }
 
-/// **The operand gate answers a broken body as broken.** A tier-1
-/// finding is not scaffolding an edit left behind, so it refuses as
-/// [`BooleanError::CorruptOperand`] carrying tier 1's findings, never
-/// as [`BooleanError::ScaffoldingOperand`]. No public door tears a
-/// body, so the row tears one in-crate.
+/// **A broken body is a kernel bug at the operand gate.** A tier-1
+/// finding is not scaffolding an edit left behind: the at-rest gate
+/// refuses the torn body with tier 1's own findings, so it never
+/// finishes into an operand; and the operand gate, which runs on a body
+/// carried with no verdict, panics naming the operand and tier 1's
+/// first finding, never refusing as [`BooleanError::ScaffoldingOperand`].
+/// No public door tears a body, so the row tears one in-crate.
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::panic)]
+#[allow(clippy::expect_used)]
 mod operand_gate_rows {
-    use crate::boolean::{BooleanError, BooleanOp, Corruption, Operand, boolean_reduce};
+    use crate::AtRestBody;
+    use crate::boolean::{BooleanOp, boolean_reduce};
     use crate::test_support_fixtures::brick;
     use geom_core::Tol;
 
     #[test]
-    fn a_tier_one_broken_operand_refuses_as_corrupt() {
+    fn a_tier_one_broken_operand_panics_naming_it() {
         let tol = Tol::witness();
-        let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let a = AtRestBody::validate(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol)
+            .expect("the untorn brick finishes");
         let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
         let vertex = b.vertices().next().expect("a vertex").0;
         b.vertex_provenance.remove(vertex);
         let want = crate::validate::validate(&b).expect_err("the tear breaks tier 1");
-        let got = boolean_reduce(BooleanOp::Union, &a, &b, tol);
-        let Err(BooleanError::CorruptOperand {
-            operand,
-            corruption: Corruption::Structure { errors },
-        }) = got
-        else {
-            panic!("want CorruptOperand with tier 1's findings, got {got:?}");
-        };
-        assert_eq!(operand, Operand::B, "the refusal names the torn operand");
-        assert_eq!(errors, want, "the payload is tier 1's own verdict");
+        let at_rest =
+            AtRestBody::validate(b.clone(), tol).expect_err("the torn body does not finish");
+        assert_eq!(at_rest, want, "the at-rest refusal is tier 1's own verdict");
+        let b = AtRestBody::not_run(b);
+        let report = crate::surgery::tests::panic_message(|| {
+            let _ = boolean_reduce(BooleanOp::Union, &a, &b, tol);
+        });
+        let first = format!("{:?}", want[0]);
+        for fragment in [
+            "operand B fails tier 1",
+            first.as_str(),
+            "every public door keeps the body tier-1-valid",
+        ] {
+            assert!(report.contains(fragment), "want {fragment:?} in: {report}");
+        }
     }
 }
 
@@ -5535,9 +5580,8 @@ mod operand_gate_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod neighbour_extent_rows {
     use super::gate_maximal_faces;
-    use crate::boolean::{BooleanDecision, BooleanError, Corruption, Operand, PlaneRung};
-    use crate::entity::GeomRef;
-    use crate::readback::{CarrierAbsence, DanglingRef};
+    use crate::boolean::{BooleanDecision, BooleanError, Operand, PlaneRung};
+    use crate::entity::{EntityId, GeomRef};
     use crate::test_support_fixtures::{plant_disc_face, plant_ring_face, prism_z};
     use geom_core::{Band, Point3, Tol};
 
@@ -5611,12 +5655,11 @@ mod neighbour_extent_rows {
         };
     }
 
-    /// **A curve lookup that fails is announced, never read as a
+    /// **A curve lookup that fails is a kernel bug, never read as a
     /// length**: a disc planted in the top, its circle's curve entry
-    /// then removed, refuses as a corrupt operand naming the edge and
-    /// the curve key.
+    /// then removed, panics naming the edge and the curve key (D2 row 4).
     #[test]
-    fn a_dangling_curve_refuses_as_a_corrupt_operand() {
+    fn a_dangling_curve_panics_naming_the_edge() {
         let (mut body, _, at) = top();
         let disc = plant_disc_face(
             &mut body,
@@ -5627,19 +5670,92 @@ mod neighbour_extent_rows {
         );
         let curve = body.edges[disc.edge].curve;
         body.curves.remove(curve).expect("the circle's entry");
-        let got = gate_maximal_faces(&body, Operand::A, band());
-        let Err(BooleanError::CorruptOperand {
-            operand: Operand::A,
-            corruption: Corruption::Edge { edge, absence },
-        }) = got
-        else {
-            panic!("the circle's extent does not read: {got:?}");
-        };
-        assert_eq!(edge, disc.edge, "the refusal names the circle");
-        assert_eq!(
-            absence,
-            CarrierAbsence::Dangling(DanglingRef::Geometry(GeomRef::Curve(curve))),
-            "and the curve key that does not resolve"
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = gate_maximal_faces(&body, Operand::A, band());
+        }));
+        let want = format!(
+            "{}'s curve names {}, which does not resolve",
+            EntityId::Edge(disc.edge),
+            GeomRef::Curve(curve)
         );
+        assert!(report.contains(&want), "{report}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod esc_tests {
+    use super::{BooleanError, ContactAcc, Operand, esc, vertex_on_face};
+    use crate::Body;
+    use crate::boolean::contain::ContainError;
+    use crate::boolean::plane_eq::PlaneDesc;
+    use crate::boolean::solid_contain::PointInSolidError;
+    use crate::entity::{FaceKey, LoopKey, VertexKey};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **The reduction answers `ContainError`'s refusals typed on a
+    /// working copy.** Mid-operation the gate's at-rest verdict does not
+    /// bind, so every refusal the face door owns — the lone-vertex loop
+    /// included — is carried whole with the face and its operand.
+    #[test]
+    fn esc_carries_the_face_doors_refusal_whole() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let (face, lk) = (FaceKey::from(key(7)), LoopKey::from(key(9)));
+        for e in [
+            ContainError::EmptyLoop(lk),
+            ContainError::LoopUnreadable(lk),
+            ContainError::RayExhausted,
+            ContainError::Curved(PointInSolidError::CorruptFace { face }),
+        ] {
+            let got = esc(e.clone(), Operand::B, face);
+            assert!(
+                matches!(
+                    &got,
+                    BooleanError::PointInFaceRefused { operand: Operand::B, face: f, refusal }
+                        if *f == face && *refusal == e
+                ),
+                "{e:?} answered {got:?}"
+            );
+        }
+    }
+
+    /// **`vertex_on_face` names the operand that owns the face**, not
+    /// the vertex's: a vertex of A read against a face of B whose loop
+    /// is a lone vertex (the `mvfs` seed) refuses on B.
+    #[test]
+    fn vertex_on_face_refuses_on_the_faces_operand() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let at = Point3::new(0.0, 0.0, 0.0);
+        let mut y = Body::<f64>::new();
+        let seed = y.mvfs(at, true).expect("the seed state");
+        let plane = PlaneDesc {
+            origin: at,
+            normal: Vec3::unit_z(),
+        };
+        for (x_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
+            let got = vertex_on_face(
+                x_is,
+                &mut y,
+                VertexKey::default(),
+                Point3::new(1.0, 0.0, 0.0),
+                seed.face,
+                &plane,
+                &mut ContactAcc::default(),
+                band,
+                tol,
+            );
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::PointInFaceRefused {
+                        operand,
+                        face,
+                        refusal: ContainError::EmptyLoop(lk),
+                    }) if *operand == face_is && *face == seed.face && *lk == seed.r#loop
+                ),
+                "a vertex of {x_is:?} answered {got:?}"
+            );
+        }
     }
 }

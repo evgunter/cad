@@ -23,6 +23,7 @@ use geom_core::predicate::{Band, Decide, Sign};
 
 use crate::doc::VarName;
 use crate::node::{RecipeNodeId, SlotId};
+use crate::var::VarId;
 
 /// The v1 quantity-dimension lattice (ratified F1, GQ5's banked
 /// decision): four dimensions, no products of dimensions.
@@ -268,6 +269,21 @@ impl core::fmt::Display for DimensionError {
 
 impl core::error::Error for DimensionError {}
 
+/// **Why a name leaf did not lower** ([`Expr::lower_names`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unlowered {
+    /// No variable holds the name.
+    Unheld,
+    /// The variable holding the name reads at `declared`, not at the
+    /// dimension the leaf reads it at.
+    Kind {
+        /// The variable holding the name.
+        var: VarId,
+        /// The dimension its kind reads at.
+        declared: Dimension,
+    },
+}
+
 /// A dimension-checked expression tree (ratified F7 shape).
 ///
 /// Construction goes through the smart constructors below, which run
@@ -501,7 +517,7 @@ impl UnitSym {
     /// that arm; what can is [`crate::FreeVar::continuous`], whose
     /// `dim` is a caller's argument and whose `Count` spelling is a
     /// corrupt parameter the edit door refuses typed
-    /// (`EditError::ContinuousParamCannotBeCount`). Panicking here
+    /// (`EditError::ContinuousVarCannotBeCount`). Panicking here
     /// would replace that typed refusal with a crash on the way to it,
     /// which is the wrong trade: the answer is the dimensionless row,
     /// nothing ever renders it (a count is an integer), and the
@@ -686,7 +702,7 @@ impl PartialEq for Lit {
 /// operand sub-patterns.
 ///
 /// Four matches partition `ExprKind` by arity — `Expr::child`'s two
-/// arms, `param_refs` and `literal_bits` — and each wrote the same
+/// arms, `var_reads` and `literal_bits` — and each wrote the same
 /// seven names out. Sharing them as patterns keeps every one of those
 /// matches exhaustive: a new variant absent from this macro breaks all
 /// four builds, and its arity is one decision at one site.
@@ -716,7 +732,7 @@ macro_rules! unary_kind {
 /// The zero-operand (leaf) [`ExprKind`] variants — see [`binary_kind`].
 macro_rules! leaf_kind {
     () => {
-        ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Param(_)
+        ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Var(_) | ExprKind::Name(_)
     };
 }
 
@@ -732,10 +748,14 @@ pub(crate) enum ExprKind {
     /// A `Count` literal — exact integer (spec D4: Count is
     /// integer-valued, never a float).
     CountLiteral(i64),
-    /// A document-level named-parameter reference, carrying the
-    /// dimension the parameter was declared with at construction time
-    /// (`apply` re-checks it against the document's table).
-    Param(VarName),
+    /// A reader of a document variable, by identity: the stored form.
+    /// The leaf's `dim` caches the variable's kind, which cannot change
+    /// (VR3); the doors re-check the cache against the table.
+    Var(VarId),
+    /// A variable by NAME: the authored form, which the edit door
+    /// lowers to [`ExprKind::Var`] against the document's names. No
+    /// stored document holds one.
+    Name(VarName),
     /// Same-dimension addition.
     Add(Box<Expr>, Box<Expr>),
     /// Same-dimension subtraction.
@@ -958,11 +978,16 @@ impl Expr {
         Self::leaf(Dimension::Count, ExprKind::CountLiteral(value))
     }
 
-    /// A document-parameter reference, recording the dimension the
-    /// parameter is declared with; `apply` re-checks the record against
-    /// the document's table (spec D6).
-    pub fn param(name: VarName, dim: Dimension) -> Self {
-        Self::leaf(dim, ExprKind::Param(name))
+    /// A reader of the variable `var`, read at `dim` (the variable's
+    /// kind; the doors re-check it against the document's table).
+    pub fn var(var: VarId, dim: Dimension) -> Self {
+        Self::leaf(dim, ExprKind::Var(var))
+    }
+
+    /// A variable by name, read at `dim`: authored, and lowered to
+    /// [`Expr::var`] by the edit door against the document's names.
+    pub fn named(name: VarName, dim: Dimension) -> Self {
+        Self::leaf(dim, ExprKind::Name(name))
     }
 
     fn leaf(dim: Dimension, kind: ExprKind) -> Self {
@@ -1148,16 +1173,96 @@ impl Expr {
         path.iter().try_fold(self, |e, &i| e.child(i))
     }
 
-    /// The parameter names this expression references, with their
-    /// recorded dimensions (used by `apply`'s re-check, spec D6).
-    pub fn param_refs(&self, out: &mut Vec<(VarName, Dimension)>) {
+    /// The variables this expression reads, with the dimension each
+    /// leaf reads it at, in pre-order.
+    pub fn var_reads(&self, out: &mut Vec<(VarId, Dimension)>) {
         match &self.kind {
-            ExprKind::Param(name) => out.push((name.clone(), self.dim)),
-            ExprKind::Literal(_) | ExprKind::CountLiteral(_) => {}
-            unary_kind!(a) => a.param_refs(out),
+            ExprKind::Var(var) => out.push((*var, self.dim)),
+            ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Name(_) => {}
+            unary_kind!(a) => a.var_reads(out),
             binary_kind!(a, b) => {
-                a.param_refs(out);
-                b.param_refs(out);
+                a.var_reads(out);
+                b.var_reads(out);
+            }
+        }
+    }
+
+    /// The names this expression reads (authored leaves the edit door
+    /// has not lowered yet), with the dimension each is read at, in
+    /// pre-order.
+    pub fn named_reads(&self, out: &mut Vec<(VarName, Dimension)>) {
+        match &self.kind {
+            ExprKind::Name(name) => out.push((name.clone(), self.dim)),
+            ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Var(_) => {}
+            unary_kind!(a) => a.named_reads(out),
+            binary_kind!(a, b) => {
+                a.named_reads(out);
+                b.named_reads(out);
+            }
+        }
+    }
+
+    /// Whether this expression reads the variable `var`.
+    #[must_use]
+    pub fn reads(&self, var: VarId) -> bool {
+        let mut reads = Vec::new();
+        self.var_reads(&mut reads);
+        reads.iter().any(|&(read, _)| read == var)
+    }
+
+    /// **Lower every name leaf `scope` resolves** to a reader of the
+    /// variable it resolves to, when the variable's kind is the one the
+    /// leaf reads it at — the one lowering rule. A name `scope` does not
+    /// hold, or holds at another kind, stays a name leaf, for the door
+    /// that writes the expression to refuse at its address; each such
+    /// leaf is answered, in leaf order, with the dimension it reads at
+    /// and why it stayed ([`Unlowered`]).
+    pub fn lower_names(
+        &mut self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+    ) -> Vec<(VarName, Dimension, Unlowered)> {
+        let mut left = Vec::new();
+        self.lower_into(scope, &mut left);
+        left
+    }
+
+    fn lower_into(
+        &mut self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        left: &mut Vec<(VarName, Dimension, Unlowered)>,
+    ) {
+        let dim = self.dim;
+        match &mut self.kind {
+            ExprKind::Name(name) => match scope(name) {
+                Some((var, declared)) if declared == dim => self.kind = ExprKind::Var(var),
+                Some((var, declared)) => {
+                    left.push((name.clone(), dim, Unlowered::Kind { var, declared }));
+                }
+                None => left.push((name.clone(), dim, Unlowered::Unheld)),
+            },
+            ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Var(_) => {}
+            unary_kind!(a) => a.lower_into(scope, left),
+            binary_kind!(a, b) => {
+                a.lower_into(scope, left);
+                b.lower_into(scope, left);
+            }
+        }
+    }
+
+    /// Re-point every reader of a key of `map` at its value; a reader
+    /// of any other variable is untouched.
+    pub fn remap_vars(&mut self, map: &std::collections::BTreeMap<VarId, VarId>) {
+        match &mut self.kind {
+            ExprKind::Var(var) => {
+                if let Some(&to) = map.get(var) {
+                    *var = to;
+                }
+            }
+            ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Name(_) => {}
+            unary_kind!(a) => a.remap_vars(map),
+            binary_kind!(a, b) => {
+                a.remap_vars(map);
+                b.remap_vars(map);
             }
         }
     }
@@ -1169,7 +1274,7 @@ impl Expr {
     pub fn literal_bits(&self, out: &mut Vec<u64>) {
         match &self.kind {
             ExprKind::Literal(lit) => out.push(lit.value.to_bits()),
-            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
+            ExprKind::CountLiteral(_) | ExprKind::Var(_) | ExprKind::Name(_) => {}
             unary_kind!(a) => a.literal_bits(out),
             binary_kind!(a, b) => {
                 a.literal_bits(out);
@@ -1186,7 +1291,7 @@ impl Expr {
         let dim = self.dim;
         match &mut self.kind {
             ExprKind::Literal(lit) => lit.display_unit = UnitSym::canonical_for(dim),
-            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
+            ExprKind::CountLiteral(_) | ExprKind::Var(_) | ExprKind::Name(_) => {}
             unary_kind!(a) => a.erase_display_units(),
             binary_kind!(a, b) => {
                 a.erase_display_units();
@@ -1287,7 +1392,7 @@ pub struct ExprPath {
 
 /// A document-parameter value bound for evaluation (spec D4). The
 /// scalar type is generic: the document stores exact `f64`/`i64`;
-/// [`crate::Doc::param_env`] embeds them into any [`Real`].
+/// [`crate::Doc::var_env`] embeds them into any [`Real`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ParamValue<T> {
     /// A continuous value with its declared dimension (kernel units).
@@ -1311,20 +1416,41 @@ impl<T> ParamValue<T> {
     }
 }
 
-/// The name→value environment [`eval`] and [`eval_count`] read
-/// parameter refs from (spec D4's `params`).
+/// The id→value environment [`eval`] and [`eval_count`] read variable
+/// readers from (spec D4's `params`).
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParamEnv<T> {
-    /// The bindings, by parameter name.
-    pub bindings: std::collections::BTreeMap<VarName, ParamValue<T>>,
+pub struct VarEnv<T> {
+    /// The bindings, by variable.
+    pub bindings: std::collections::BTreeMap<VarId, ParamValue<T>>,
+    /// The defined variables whose definition refused, by variable: a
+    /// reader of one refuses [`EvalError::DefinitionRefused`] with
+    /// this refusal as its source.
+    pub refused: std::collections::BTreeMap<VarId, EvalError>,
+}
+
+impl<T> VarEnv<T> {
+    /// The binding of `var`, or why it has none.
+    pub(crate) fn binding(&self, var: VarId) -> Result<&ParamValue<T>, EvalError> {
+        match self.bindings.get(&var) {
+            Some(bound) => Ok(bound),
+            None => Err(match self.refused.get(&var) {
+                Some(source) => EvalError::DefinitionRefused {
+                    var,
+                    source: Box::new(source.clone()),
+                },
+                None => EvalError::UnresolvedVar { var },
+            }),
+        }
+    }
 }
 
 // Manual impl: the derive would demand `T: Default`, which certified
 // scalars (Interval) deliberately do not provide.
-impl<T> Default for ParamEnv<T> {
+impl<T> Default for VarEnv<T> {
     fn default() -> Self {
         Self {
             bindings: std::collections::BTreeMap::new(),
+            refused: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -1335,27 +1461,47 @@ impl<T> Default for ParamEnv<T> {
 /// docs) — the evaluator has no branches to hide them behind.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalError {
-    /// A parameter ref with no binding in the environment.
-    UnknownParam(VarName),
-    /// A parameter bound with a different dimension than the ref
-    /// recorded at construction.
+    /// A reader of a variable with no binding in the environment: a
+    /// variable the document deleted (VR7: its readers stay, unresolved),
+    /// or one a hand-built environment left out.
+    UnresolvedVar {
+        /// The variable read.
+        var: VarId,
+    },
+    /// A reader of a defined variable whose definition refused: the
+    /// definition's own refusal is `source`. The reader's address is
+    /// the wrapper's, as for [`Self::VarKindMismatch`].
+    DefinitionRefused {
+        /// The defined variable read.
+        var: VarId,
+        /// Why its definition refused.
+        source: Box<EvalError>,
+    },
+    /// A reader whose cached kind disagrees with the dimension the
+    /// environment bound the variable at.
     ///
-    /// The dimension fact at EVALUATION, where the edit and load
-    /// doors spell it `{Slot,Payload}DocParamDimension`. It is named
-    /// by the fact alone because the address is not this arm's to
-    /// carry: the wrapper supplies it
-    /// ([`crate::eval::NodeErrorKind::Expr`] a node and a slot,
-    /// [`crate::eval::NodeErrorKind::PayloadExpr`] a node and a
+    /// The kind fact at EVALUATION, where the edit and load doors
+    /// spell it `{Slot,Payload}VarKind`. It is named by the fact alone
+    /// because the address is not this arm's to carry: the wrapper
+    /// supplies it ([`crate::eval::NodeErrorKind::Expr`] a node and a
+    /// slot, [`crate::eval::NodeErrorKind::PayloadExpr`] a node and a
     /// payload), and it forwards this refusal unaltered.
-    /// [`crate::edit::EditError`]'s enum doc is where that convention
-    /// and its two families are stated.
-    ParamDimensionMismatch {
-        /// The parameter name.
-        name: VarName,
-        /// The dimension the expression's ref recorded.
-        expected: Dimension,
+    VarKindMismatch {
+        /// The variable read.
+        var: VarId,
         /// The dimension the environment bound.
-        found: Dimension,
+        bound: Dimension,
+        /// The dimension the reader reads at.
+        read: Dimension,
+    },
+    /// A name leaf reached evaluation: an authored expression whose name
+    /// no document resolved — none holds it at the dimension it is read
+    /// at, or none was asked. Unreachable from a stored document (the
+    /// doors lower every name, and the load door refuses a file holding
+    /// one).
+    UnloweredName {
+        /// The name.
+        name: VarName,
     },
     /// [`eval`] applied to a `Count`-dimension expression — Count
     /// evaluates exactly via [`eval_count`]; promotion to `T` is only
@@ -1398,18 +1544,21 @@ pub enum EvalError {
 impl core::fmt::Display for EvalError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownParam(name) => write!(
+            Self::UnresolvedVar { var } => write!(
                 f,
-                "parameter {name} has no binding in the evaluation environment — declare \
-                 the document parameter or fix the reference"
+                "variable {var} has no binding in the evaluation environment — it was \
+                 deleted, or never declared here; point the reader at a live variable"
             ),
-            Self::ParamDimensionMismatch {
-                name,
-                expected,
-                found,
-            } => write!(
+            Self::DefinitionRefused { var, source } => {
+                write!(f, "the definition of variable {var} refused: {source}")
+            }
+            Self::VarKindMismatch { var, bound, read } => {
+                write!(f, "variable {var} is read as {read} but bound as {bound}")
+            }
+            Self::UnloweredName { name } => write!(
                 f,
-                "parameter {name} is referenced as {expected} but bound as {found}"
+                "the name {name} reads no variable — no variable holds it at the dimension \
+                 it is read at; declare it, or read a declared variable"
             ),
             Self::CountExprInContinuousEval => f.write_str(
                 "a count expression does not evaluate continuously — promote it \
@@ -1449,7 +1598,7 @@ impl core::error::Error for EvalError {}
 /// door-2 finiteness check on the FINAL value is a reified decision,
 /// so it goes through `sign_within`, never a raw comparison. The
 /// evaluation itself needs only `Real` (see `eval_inner`).
-pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+pub fn eval<T: Decide>(expr: &Expr, params: &VarEnv<T>) -> Result<T, EvalError> {
     refuse_non_finite(eval_inner(expr, params)?)
 }
 
@@ -1499,7 +1648,7 @@ pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
 /// [`eval`]'s final check). The walk keeps its own stack
 /// ([`crate::tree::fold`]), so how deep the expression nests costs the
 /// thread's stack nothing.
-fn eval_inner<T: Real>(root: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+fn eval_inner<T: Real>(root: &Expr, params: &VarEnv<T>) -> Result<T, EvalError> {
     use crate::tree::{Operands as O, Visit};
     use ExprKind as K;
     crate::tree::fold(
@@ -1514,19 +1663,19 @@ fn eval_inner<T: Real>(root: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
                 // LIB-SWITCH §4g).
                 K::Literal(lit) => Visit::Value(T::from_f64(lit.value)),
                 K::CountLiteral(_) => return Err(EvalError::CountExprInContinuousEval),
-                K::Param(name) => match params.bindings.get(name) {
-                    None => return Err(EvalError::UnknownParam(name.clone())),
-                    Some(ParamValue::Continuous { dim, value }) if *dim == expr.dim => {
+                K::Var(var) => match params.binding(*var)? {
+                    ParamValue::Continuous { dim, value } if *dim == expr.dim => {
                         Visit::Value(*value)
                     }
-                    Some(bound) => {
-                        return Err(EvalError::ParamDimensionMismatch {
-                            name: name.clone(),
-                            expected: expr.dim,
-                            found: bound.dim(),
+                    bound => {
+                        return Err(EvalError::VarKindMismatch {
+                            var: *var,
+                            bound: bound.dim(),
+                            read: expr.dim,
                         });
                     }
                 },
+                K::Name(name) => return Err(EvalError::UnloweredName { name: name.clone() }),
                 K::CountToScalar(a) => {
                     let n = eval_count(a, params)?;
                     // i32::try_from is total on i64 (no abs, no panic —
@@ -1564,7 +1713,7 @@ fn eval_inner<T: Real>(root: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
 /// Evaluate a `Count` expression to an exact `i64` (spec D4: Count is
 /// integer-valued; arithmetic is checked, overflow a typed error). The
 /// walk keeps its own stack, as [`eval`]'s does.
-pub fn eval_count<T>(root: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError> {
+pub fn eval_count<T>(root: &Expr, params: &VarEnv<T>) -> Result<i64, EvalError> {
     use crate::tree::{Operands as O, Visit};
     use ExprKind as K;
     let checked = |r: Option<i64>| r.ok_or(EvalError::CountOverflow);
@@ -1576,17 +1725,17 @@ pub fn eval_count<T>(root: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError
             }
             Ok(match &expr.kind {
                 K::CountLiteral(n) => Visit::Value(*n),
-                K::Param(name) => match params.bindings.get(name) {
-                    None => return Err(EvalError::UnknownParam(name.clone())),
-                    Some(ParamValue::Count(n)) => Visit::Value(*n),
-                    Some(bound) => {
-                        return Err(EvalError::ParamDimensionMismatch {
-                            name: name.clone(),
-                            expected: Dimension::Count,
-                            found: bound.dim(),
+                K::Var(var) => match params.binding(*var)? {
+                    ParamValue::Count(n) => Visit::Value(*n),
+                    bound => {
+                        return Err(EvalError::VarKindMismatch {
+                            var: *var,
+                            bound: bound.dim(),
+                            read: Dimension::Count,
                         });
                     }
                 },
+                K::Name(name) => return Err(EvalError::UnloweredName { name: name.clone() }),
                 K::Add(a, b) | K::Sub(a, b) | K::Mul(a, b) | K::Min(a, b) | K::Max(a, b) => {
                     Visit::Two(a, b)
                 }
@@ -1648,7 +1797,8 @@ fn precedence(expr: &Expr) -> u8 {
         ExprKind::Neg(_) => PREC_UNARY,
         ExprKind::Literal(_)
         | ExprKind::CountLiteral(_)
-        | ExprKind::Param(_)
+        | ExprKind::Var(_)
+        | ExprKind::Name(_)
         | ExprKind::Sin(_)
         | ExprKind::Cos(_)
         | ExprKind::Tan(_)
@@ -1663,7 +1813,7 @@ fn precedence(expr: &Expr) -> u8 {
 /// [`crate::parse_expr`] reads back as this very expression.
 ///
 /// **The contract is the round trip, structurally**: for every `e`
-/// the constructors admit, `parse_expr(&unparse(&e), params)` is
+/// the constructors admit, `parse_expr(&unparse(&e, names), params)` is
 /// [`Expr::bit_eq`] to `e` — same tree, so the same nesting, and the
 /// same literal BITS — and its literals remember the same display
 /// units (which `bit_eq` deliberately does not compare, being
@@ -1686,21 +1836,29 @@ fn precedence(expr: &Expr) -> u8 {
 /// parser reads as the literal's own; the negation of a non-negative
 /// literal is therefore bracketed (`-(25 mm)`), the one place a
 /// bracket around an atom is needed.
-pub fn unparse(expr: &Expr) -> String {
+///
+/// A reader writes the name `names` gives its variable, so the text
+/// parses back to a name leaf that lowers, against the same names, to
+/// the same reader. A reader `names` has no name for writes
+/// `#<16 hex>`, its full id, which the parser refuses.
+pub fn unparse<'n>(expr: &Expr, names: &impl Fn(VarId) -> Option<&'n VarName>) -> String {
     let mut out = String::new();
-    write_expr(expr, &mut out);
+    write_expr(expr, names, &mut out);
     out
 }
 
+/// The names a rendering reads its readers' text from.
+type Names<'a, 'n> = &'a dyn Fn(VarId) -> Option<&'n VarName>;
+
 /// `expr`, wrapped in parentheses unless it already binds at least as
 /// tightly as `needs`.
-fn write_nested(expr: &Expr, needs: u8, out: &mut String) {
+fn write_nested(expr: &Expr, needs: u8, names: Names<'_, '_>, out: &mut String) {
     if precedence(expr) < needs {
         out.push('(');
-        write_expr(expr, out);
+        write_expr(expr, names, out);
         out.push(')');
     } else {
-        write_expr(expr, out);
+        write_expr(expr, names, out);
     }
 }
 
@@ -1711,56 +1869,70 @@ fn write_nested(expr: &Expr, needs: u8, out: &mut String) {
 /// and `a - b - c` are different trees, so a right operand binding at
 /// its parent's own level has to be bracketed even where arithmetic
 /// would not care.
-fn write_infix(left: &Expr, op: &str, right: &Expr, level: u8, out: &mut String) {
-    write_nested(left, level, out);
+fn write_infix(
+    left: &Expr,
+    op: &str,
+    right: &Expr,
+    level: u8,
+    names: Names<'_, '_>,
+    out: &mut String,
+) {
+    write_nested(left, level, names, out);
     out.push(' ');
     out.push_str(op);
     out.push(' ');
-    write_nested(right, level + 1, out);
+    write_nested(right, level + 1, names, out);
 }
 
 /// A call in the parser's own spelling — the arguments are delimited,
 /// so no argument is ever parenthesised.
-fn write_call(name: &str, args: &[&Expr], out: &mut String) {
+fn write_call(name: &str, args: &[&Expr], names: Names<'_, '_>, out: &mut String) {
     out.push_str(name);
     out.push('(');
     for (i, arg) in args.iter().enumerate() {
         if i > 0 {
             out.push_str(", ");
         }
-        write_expr(arg, out);
+        write_expr(arg, names, out);
     }
     out.push(')');
 }
 
 /// The rendering proper (see [`unparse`] for the contract).
-fn write_expr(expr: &Expr, out: &mut String) {
+fn write_expr(expr: &Expr, names: Names<'_, '_>, out: &mut String) {
     use ExprKind as K;
     match &expr.kind {
         K::Literal(lit) => out.push_str(&write_literal(lit, expr.dim)),
         K::CountLiteral(n) => out.push_str(&n.to_string()),
-        K::Param(name) => out.push_str(name.as_str()),
-        K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, out),
-        K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, out),
-        K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, out),
-        K::Div(a, b) => write_infix(a, "/", b, PREC_PRODUCT, out),
+        K::Name(name) => out.push_str(name.as_str()),
+        // A reader the names cannot speak — an anonymous variable, or
+        // one the document no longer holds — writes its full id, which
+        // the parser does not read: such text names no variable.
+        K::Var(var) => match names(*var) {
+            Some(name) => out.push_str(name.as_str()),
+            None => out.push_str(&var.to_string()),
+        },
+        K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, names, out),
+        K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, names, out),
+        K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, names, out),
+        K::Div(a, b) => write_infix(a, "/", b, PREC_PRODUCT, names, out),
         K::Neg(a) => {
             out.push('-');
             if matches!(a.kind, K::Literal(_) | K::CountLiteral(_)) && precedence(a) == PREC_ATOM {
                 out.push('(');
-                write_expr(a, out);
+                write_expr(a, names, out);
                 out.push(')');
             } else {
-                write_nested(a, PREC_UNARY, out);
+                write_nested(a, PREC_UNARY, names, out);
             }
         }
-        K::Sin(a) => write_call("sin", &[a], out),
-        K::Cos(a) => write_call("cos", &[a], out),
-        K::Tan(a) => write_call("tan", &[a], out),
-        K::CountToScalar(a) => write_call("scalar", &[a], out),
-        K::Atan2(y, x) => write_call("atan2", &[y, x], out),
-        K::Min(a, b) => write_call("min", &[a, b], out),
-        K::Max(a, b) => write_call("max", &[a, b], out),
+        K::Sin(a) => write_call("sin", &[a], names, out),
+        K::Cos(a) => write_call("cos", &[a], names, out),
+        K::Tan(a) => write_call("tan", &[a], names, out),
+        K::CountToScalar(a) => write_call("scalar", &[a], names, out),
+        K::Atan2(y, x) => write_call("atan2", &[y, x], names, out),
+        K::Min(a, b) => write_call("min", &[a, b], names, out),
+        K::Max(a, b) => write_call("max", &[a, b], names, out),
     }
 }
 
@@ -1848,9 +2020,9 @@ mod tests {
             let levels = 1_000_000;
             let half = Expr::literal(0.5, Dimension::Length).expect("a finite length");
             let deep = raw_chain(half, levels, raw_neg);
-            assert_eq!(eval(&deep, &ParamEnv::<f64>::default()), Ok(-0.5));
+            assert_eq!(eval(&deep, &VarEnv::<f64>::default()), Ok(-0.5));
             let counted = raw_chain(Expr::count(3), levels, raw_neg);
-            assert_eq!(eval_count(&counted, &ParamEnv::<f64>::default()), Ok(-3));
+            assert_eq!(eval_count(&counted, &VarEnv::<f64>::default()), Ok(-3));
             drop((deep, counted));
         });
     }

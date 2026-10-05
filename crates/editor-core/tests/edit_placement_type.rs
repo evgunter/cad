@@ -11,8 +11,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Expr, Frame, FrameSite,
-    FreeValue, FreeVar, Node, ParamEnv, PersistError, Placement, ProfileDoc, ProfileProgram,
-    REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload,
+    FreeValue, FreeVar, Node, PersistError, Placement, ProfileDoc, ProfileProgram,
+    REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload, VarEnv,
     VarName, VectorSlot, evaluate, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
@@ -89,7 +89,7 @@ fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
 }
 
 fn motion(p: &Placement) -> Affine3<f64> {
-    p.eval::<f64>(&ParamEnv::default(), band())
+    p.eval::<f64>(&VarEnv::default(), band())
         .expect("the placement evaluates")
 }
 
@@ -369,14 +369,14 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         doc,
         DocEdit::DeclareVar {
             name: turn.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let placement = Placement::literal(&Frame::translation([5.0, 0.0, 0.0])).compose(
         &Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::param(turn.clone(), Dimension::Angle),
+            angle: Expr::named(turn.clone(), Dimension::Angle),
         }
         .into(),
     );
@@ -456,7 +456,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         doc,
         DocEdit::DeclareVar {
             name: turn.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let chain = |late: Step| {
@@ -491,7 +491,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let unknown = Step::Rigid {
         translation: [len(0.0), len(0.0), len(0.0)],
         axis: [scl(0.0), scl(0.0), scl(1.0)],
-        angle: Expr::param(VarName::from_static("nope"), Dimension::Angle),
+        angle: Expr::named(VarName::from_static("nope"), Dimension::Angle),
     };
     assert!(
         door(
@@ -509,7 +509,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         node: Box::new(chain(Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::param(turn, Dimension::Angle),
+            angle: Expr::named(turn, Dimension::Angle),
         })),
     };
     let (doc, t) = step(doc, insert_edit.clone());
@@ -564,13 +564,16 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let bad_ref = doctored(&full, |w| {
         let angle = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"][2]
             ["Rigid"]["angle"];
-        let text = angle.to_string().replace("\"turn\"", "\"nope\"");
-        assert_ne!(text, angle.to_string(), "aimed at the parameter");
+        let turn = doc.var_named("turn").expect("the fixture declares turn");
+        let text = angle
+            .to_string()
+            .replace(&format!("\"var\":{}", turn.0), "\"var\":1");
+        assert_ne!(text, angle.to_string(), "aimed at the variable");
         *angle = serde_json::from_str(&text).expect("still an expression");
     });
     assert!(
         load(&bad_ref, Tol::witness()).is_err(),
-        "an unknown parameter at step 2 refuses at load"
+        "a reader of an unminted variable at step 2 refuses at load"
     );
     let bad_dim = doctored(&full, |w| {
         let steps = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"];

@@ -21,10 +21,8 @@ its own evidence.
 1. **The scope's own construction is a whole-body structural walk.**
    `crates/topo/src/offset_together.rs`, `Scope::of_solids` — it walks
    every shell, face, loop and half-edge of the body to build the
-   face/edge/vertex → solid partition, and returns `None` (which both
-   doors raise as `ReplaceFaceError::Corrupt`) for a corrupt entity on
-   ANY solid, including ones the moves do not name. A move set about
-   one solid therefore refuses on another solid's corruption. The maps
+   face/edge/vertex → solid partition, and panics naming the record
+   (D2 row 4) on a torn entity of any solid it walks. The maps
    do not depend on the scope — `Scope::re_scope` exists precisely
    because they do not — so a lazy or per-solid construction is
    available; what it costs is that a caller with N scopes over one

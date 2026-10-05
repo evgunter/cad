@@ -86,7 +86,7 @@ fn box_of(doc: &ProfileDoc, axis: &'static str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(axis),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -194,7 +194,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let placed = r.insert(translated(
         probe,
         [
-            Expr::param(name("place"), Dimension::Length),
+            Expr::named(name("place"), Dimension::Length),
             len(0.0),
             len(-0.05),
         ],
@@ -351,7 +351,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         [
             len(0.0),
             len(0.0),
-            Expr::param(name("place"), Dimension::Length),
+            Expr::named(name("place"), Dimension::Length),
         ],
     ));
     (r.doc, solid, placed)
@@ -477,7 +477,7 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(0.3), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+            Expr::add(len(0.3), Expr::named(name("place"), Dimension::Length)).expect("a length"),
         ],
     ))
 }
@@ -633,7 +633,7 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(-0.2), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+            Expr::add(len(-0.2), Expr::named(name("place"), Dimension::Length)).expect("a length"),
         ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));

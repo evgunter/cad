@@ -71,16 +71,18 @@
 //!   own.
 
 use geom::Surface;
-use geom_brep::{EdgeCurve, EdgeDescription, PcurveCache};
+use geom_brep::{EdgeCurve, PcurveCache};
 use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
+use crate::attach::Named;
 use crate::entity::{
-    DanglingRef, Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop,
-    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell,
+    ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
@@ -211,12 +213,12 @@ pub struct Body<T: Real> {
     pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
     pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
     // M5 PR 6 pcurve caches (C4): the per-HALF-EDGE certified chart
-    // image of an edge's carrier. Parallel to the half-edge arena
-    // exactly as provenance is — and per half-edge, not per edge and
-    // not per (edge, face), because a SEAM edge's two half-edges lie
-    // on the SAME surface with DIFFERENT pcurves (the u = 0 vs u = 2π
-    // branches), which any coarser key cannot hold (C4, spec §1). A
-    // row is present only where a cache was minted and certified
+    // image of an edge's carrier, a function of the edge and the face's
+    // chart alone. Parallel to the half-edge arena exactly as
+    // provenance is — per half-edge, because a SEAM edge's two
+    // half-edges lie on the SAME surface with one image and two joint
+    // elements (`joints`), which a coarser key cannot hold (C4, spec
+    // §1). A row is present only where a cache was minted and certified
     // (`crate::pcurves`); planar faces store nothing (M2's
     // derive-on-demand status, C4 verbatim), so an all-planar body
     // carries an empty map. On every other chart a row is mandatory at
@@ -225,6 +227,13 @@ pub struct Body<T: Real> {
     // a fitted face at a scalar with no fitted door: C4's exemption,
     // `crate::pcurves`' `not_owed`), which may store none.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
+    // The other half of a pcurve row (C4, `crate::joint`): per
+    // half-edge, the element of the joint INTO it — the deck
+    // transformation carrying its image onto the end of its `prev`'s
+    // image. Present where both images of the joint are stored and the
+    // writer decided or summed it; a door that leaves either side
+    // rowless leaves no element there.
+    pub(crate) joints: SecondaryMap<HalfEdgeKey, JointElement>,
     // Null-face annotations (F9): typed loop-role attributes on null
     // (section-polygon) faces, parallel to the face arena like the
     // provenance maps. A record lives only while its face holds both
@@ -300,6 +309,7 @@ impl<T: Real> Body<T> {
             curves: SlotMap::with_key(),
             surfaces: SlotMap::with_key(),
             pcurves: SecondaryMap::new(),
+            joints: SecondaryMap::new(),
             null_faces: SecondaryMap::new(),
             solid_provenance: SecondaryMap::new(),
             shell_provenance: SecondaryMap::new(),
@@ -532,7 +542,7 @@ impl<T: Real> Body<T> {
     /// a no-op returning `false`.
     ///
     /// A removed curve's description was a live surface reference
-    /// ([`Body::description_surfaces`] — the same references that keep
+    /// ([`Named::keys`] — the same references that keep
     /// [`Body::remove_surface_if_orphaned`] from dangling it), so
     /// dropping the curve can orphan a surface whose faces are already
     /// gone: sweep its description surfaces through the same guarded
@@ -548,7 +558,7 @@ impl<T: Real> Body<T> {
             return false;
         };
         self.curve_origins.remove(curve);
-        for surface in Self::description_surfaces(&removed) {
+        for surface in Named::of(&removed).keys() {
             self.remove_surface_if_orphaned(surface);
         }
         true
@@ -569,7 +579,7 @@ impl<T: Real> Body<T> {
     /// it, returning whether it was removed. Used by face-killing
     /// operators (`kfmrh`, `kef`) and the surface-attachment setter.
     /// References counted (M2 PR 3): faces' `surface` keys AND edge
-    /// descriptions' surface keys ([`Body::description_surfaces`]) — an
+    /// descriptions' surface keys ([`Named::keys`]) — an
     /// `Intersection`/`Seam` description keeps its surfaces alive
     /// exactly like a face does, so removal can never dangle a
     /// description. Deterministic (D9), same shape as
@@ -581,7 +591,7 @@ impl<T: Real> Body<T> {
         if self
             .curves
             .values()
-            .any(|curve| Self::description_surfaces(curve).contains(&surface))
+            .any(|curve| Named::of(curve).keys().any(|k| k == surface))
         {
             return false;
         }
@@ -645,25 +655,6 @@ impl<T: Real> Body<T> {
         s2: SurfaceKey,
     ) -> bool {
         (d1, d2) == (s1, s2) || (d1, d2) == (s2, s1)
-    }
-
-    /// The surface keys an edge description references: the two
-    /// intrinsic arms' pair, a chart image's chart, none for the
-    /// scaffolding door (whose pushforward carries its own defining
-    /// data and names no surface). Consulted by orphan hygiene and by
-    /// the validator's referential-integrity pass.
-    pub(crate) fn description_surfaces(curve: &CurveGeom<T>) -> Vec<SurfaceKey> {
-        match curve {
-            CurveGeom::Certified(curve) => match curve.description() {
-                EdgeDescription::Intersection { s1, s2, .. }
-                | EdgeDescription::TangentIntersection { s1, s2, .. } => vec![*s1, *s2],
-                EdgeDescription::Chart(c) => vec![c.surface],
-                EdgeDescription::Scaffold(_) => Vec::new(),
-            },
-            // Null scaffolding has no description and keeps no surface
-            // alive.
-            CurveGeom::NullScaffold(_) => Vec::new(),
-        }
     }
 
     /// **The one door that moves vertices**: mints ONE fresh point at
@@ -1146,11 +1137,10 @@ impl<T: Real> Body<T> {
     ///
     /// - **A refusal that distinguishes the hops.**
     ///   `offset_together::scope_of_moves` names the caller's own
-    ///   stale face key on hop 1 and the body's incoherence on hop 2;
-    ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
-    ///   a typed refusal for the caller's face on hop 1 and a panic
-    ///   for a face's shell that does not resolve on hop 2.
-    ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
+    ///   stale face key on hop 1 and panics naming the face's `shell`
+    ///   link on hop 2; [`Body::kfmrh`](crate::Body::kfmrh) does it
+    ///   twice, the same way.
+    ///   `offset_together::scope_walks::the_two_hops_answer_differently`
     ///   reds on either way of collapsing `scope_of_moves`'s two.
     /// - **A caller still using the intermediate shell key.**
     ///   `seqgen::fusion_remake_shell` refuses uniformly, but its
@@ -1565,6 +1555,100 @@ impl<T: Real> Body<T> {
             .filter(|orbit| self.orbit_inverts(orbit))
     }
 
+    /// [`Body::vertex_orbit_of`] for a vertex this call resolved or read
+    /// out of a record: on a tier-1-valid body every hop of it resolves
+    /// and the walk closes, so each miss panics naming the hop.
+    #[track_caller]
+    pub(crate) fn vertex_orbit_linked(&self, vertex: VertexKey) -> Vec<HalfEdgeKey> {
+        let data = crate::live::proven(&self.vertices, vertex, EntityId::Vertex);
+        let Some(first) = data.emanating else {
+            return Vec::new();
+        };
+        let start = crate::live::linked(
+            &self.half_edges,
+            first,
+            EntityId::HalfEdge,
+            EntityId::Vertex(vertex),
+            "emanating",
+        )
+        .start;
+        if start != vertex {
+            unreachable!(
+                "{}'s emanating {} starts at {}: {}",
+                EntityId::Vertex(vertex),
+                EntityId::HalfEdge(first),
+                EntityId::Vertex(start),
+                crate::live::NAMES_ONLY_LIVE
+            );
+        }
+        let orbit = self.orbit_walk(first).closed("orbit", first);
+        if !self.orbit_inverts(&orbit) {
+            unreachable!(
+                "the orbit walk from {first:?} does not walk back by mate(prev), and {WALKS_CLOSE}"
+            );
+        }
+        orbit
+    }
+
+    /// [`Body::edges_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s.
+    #[track_caller]
+    pub(crate) fn edges_of_vertex_linked(&self, vertex: VertexKey) -> Vec<EdgeKey> {
+        let mut out: Vec<EdgeKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let edge = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+            if !out.contains(&edge) {
+                out.push(edge);
+            }
+        }
+        out
+    }
+
+    /// [`Body::faces_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s,
+    /// and each member's loop and face are links of the record before.
+    #[track_caller]
+    pub(crate) fn faces_of_vertex_linked(&self, vertex: VertexKey) -> Vec<FaceKey> {
+        let mut out: Vec<FaceKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let face = self.face_of_linked(he);
+            if !out.contains(&face) {
+                out.push(face);
+            }
+        }
+        out
+    }
+
+    /// The face of `he`'s loop, for a half-edge this call resolved or
+    /// read out of a record: its `parent_loop` and that loop's `face`
+    /// are links, and the face lists the loop; a miss of either panics
+    /// naming the record.
+    #[track_caller]
+    pub(crate) fn face_of_linked(&self, he: HalfEdgeKey) -> FaceKey {
+        let parent = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).parent_loop;
+        let face = crate::live::linked(
+            &self.loops,
+            parent,
+            EntityId::Loop,
+            EntityId::HalfEdge(he),
+            "parent_loop",
+        )
+        .face;
+        let data = crate::live::linked(
+            &self.faces,
+            face,
+            EntityId::Face,
+            EntityId::Loop(parent),
+            "face",
+        );
+        assert!(
+            data.outer == parent || data.rings.contains(&parent),
+            "loop {parent:?} names face {face:?}, which does not list it: on a tier-1-valid \
+             body a loop's face lists it"
+        );
+        face
+    }
+
     /// The edges meeting `vertex`, each ONCE — or `None` where the
     /// vertex key is stale, its stored [`Vertex::emanating`] starts at
     /// another vertex, or its orbit does not walk
@@ -1778,36 +1862,25 @@ impl<T: Real> Body<T> {
 
     /// **Every live vertex with its point**, in vertex slot-index order
     /// (deterministic per D9): [`Body::vertices`], then each record's
-    /// point through [`Body::get_point`], made once.
+    /// point, made once.
     ///
-    /// The vertex key is live by construction; only the point read can
-    /// fail. A vertex whose point key does not resolve is a torn body —
-    /// a record of the body names nothing — and its row carries that
-    /// refusal beside the key, rather than being skipped.
+    /// # Panics
     ///
-    /// # Errors
-    ///
-    /// A row's point is [`DanglingRef::Geometry`] naming the point key
-    /// the live vertex holds and the point arena does not.
-    pub fn vertex_points(
-        &self,
-    ) -> impl Iterator<Item = (VertexKey, Result<Point3<T>, DanglingRef>)> + '_ {
-        self.vertices.iter().map(|(k, v)| (k, self.point_of(v)))
+    /// Where a live vertex's point key does not resolve: every public
+    /// door keeps the body tier-1-valid (D2 row 4).
+    pub fn vertex_points(&self) -> impl Iterator<Item = (VertexKey, Point3<T>)> + '_ {
+        self.vertices.iter().map(|(k, v)| (k, self.point_of(k, v)))
     }
 
     /// The point `vertex`'s record names: the one read of a vertex's
     /// point key, behind both [`Body::vertex_points`] and
-    /// [`readback::vertex_point_ref`](crate::readback::vertex_point_ref).
-    ///
-    /// # Errors
-    ///
-    /// [`DanglingRef::Geometry`] naming the point key when the point
-    /// arena does not hold it.
-    pub(crate) fn point_of(&self, vertex: &Vertex) -> Result<Point3<T>, DanglingRef> {
-        self.points
-            .get(vertex.point)
-            .copied()
-            .ok_or(DanglingRef::Geometry(GeomRef::Point(vertex.point)))
+    /// [`readback::vertex_point`](crate::readback::vertex_point). A
+    /// miss panics naming the vertex (D2 row 4).
+    #[track_caller]
+    pub(crate) fn point_of(&self, key: VertexKey, vertex: &Vertex) -> Point3<T> {
+        self.points.get(vertex.point).copied().unwrap_or_else(|| {
+            crate::live::dangling_link(EntityId::Vertex(key), "point", GeomRef::Point(vertex.point))
+        })
     }
 
     /// All points, in slot-index order (deterministic per D9).
@@ -1838,12 +1911,92 @@ impl<T: Real> Body<T> {
         self.pcurves.iter()
     }
 
-    /// The stored pcurve cache of `half_edge`, or `None` when the
-    /// half-edge stores none (derive it on demand through
-    /// [`crate::pcurves::pcurve_of`]) or the key is stale;
+    /// The stored pcurve cache of `half_edge` — the edge's IMAGE in the
+    /// face's chart, a function of the edge and the chart alone, which
+    /// a seam's two halves share — or `None` when the half-edge stores
+    /// none (derive it on demand through [`crate::pcurves::pcurve_of`])
+    /// or the key is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    /// Where the face's loop sits in the chart is the lift's
+    /// ([`Body::loop_lift`]).
     pub fn pcurve(&self, half_edge: HalfEdgeKey) -> Option<&PcurveCache<T>> {
         self.pcurves.get(half_edge)
+    }
+
+    /// The element of the joint into `half_edge` (C4,
+    /// [`crate::joint`]): the deck transformation carrying its image
+    /// onto the end of its `prev`'s image, or `None` where the joint
+    /// stores none — a side of it is rowless, or the key is stale.
+    pub fn joint(&self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+        self.joints.get(half_edge).copied()
+    }
+
+    /// Every stored joint element, in half-edge-slot order (D9).
+    pub fn joints(&self) -> impl Iterator<Item = (HalfEdgeKey, JointElement)> + '_ {
+        self.joints.iter().map(|(he, e)| (he, *e))
+    }
+
+    /// **A loop's lift** ([`crate::pcurves::loop_lift`]): each half-edge
+    /// of `r#loop` in cycle order from its `first`, with its image moved
+    /// by the elements summed along the loop — the chain of chart curves
+    /// the loop's readers draw.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pcurves::LiftGap`] naming the first half-edge whose
+    /// image or joint element is missing.
+    ///
+    /// # Panics
+    ///
+    /// [`crate::pcurves::loop_lift`]'s.
+    #[track_caller]
+    pub fn loop_lift(
+        &self,
+        r#loop: crate::entity::LoopKey,
+    ) -> Result<Vec<crate::pcurves::LiftedRow<'_, T>>, crate::pcurves::LiftGap>
+    where
+        T: geom_core::Decide,
+    {
+        crate::pcurves::loop_lift(self, r#loop)
+    }
+
+    /// Writes one row — `half_edge`'s image and the element of the joint
+    /// into it, or no element where the writer decided none.
+    pub(crate) fn write_row(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        image: PcurveCache<T>,
+        element: Option<JointElement>,
+    ) {
+        self.pcurves.insert(half_edge, image);
+        self.write_joint(half_edge, element);
+    }
+
+    /// Writes the element of the joint into `half_edge`: `None` clears
+    /// it.
+    pub(crate) fn write_joint(&mut self, half_edge: HalfEdgeKey, element: Option<JointElement>) {
+        match element {
+            Some(element) => {
+                self.joints.insert(half_edge, element.canonical());
+            }
+            None => {
+                self.joints.remove(half_edge);
+            }
+        }
+    }
+
+    /// Attaches the element of the joint into `half_edge`, returning the
+    /// one it replaced — [`Body::attach_pcurve`]'s companion, under the
+    /// same trust posture: the tier-3 pcurve pass re-decides every joint
+    /// ([`crate::pcurves::validate_pcurves`]). The element is stored in
+    /// its canonical form ([`JointElement::canonical`]: a reset's
+    /// azimuth periods dropped).
+    pub fn attach_joint(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        element: JointElement,
+    ) -> Option<JointElement> {
+        self.joints.insert(half_edge, element.canonical())
     }
 
     /// Attaches a **certified** pcurve cache to `half_edge`, returning
@@ -1878,6 +2031,12 @@ impl<T: Real> Body<T> {
         self.pcurves.remove(half_edge)
     }
 
+    /// Removes and returns the element of the joint into `half_edge` —
+    /// [`Body::attach_joint`]'s inverse.
+    pub fn detach_joint(&mut self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+        self.joints.remove(half_edge)
+    }
+
     /// All null-face annotations (F9 — see [`crate::null`]), in
     /// face-slot order (deterministic per D9).
     pub fn null_faces(&self) -> impl Iterator<Item = (FaceKey, &NullFacePair)> {
@@ -1908,7 +2067,6 @@ impl<T: Real> Default for Body<T> {
 mod tests {
     use super::*;
     use crate::EntityId;
-    use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, ops_strut_cube, pillow, prov, refile_shells};
     use geom_core::Tol;
 
@@ -2226,16 +2384,17 @@ mod tests {
         assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
     }
 
-    /// All three refusal postures over the one door, because a fold
-    /// that flattened any of them into another leaves every other row
-    /// green.
+    /// The walk consumers over one torn `parent_loop`: the public edge
+    /// door names WHICH faces on a sound body, and every consumer —
+    /// that door, the vertex fan, and the sector walk — panics naming
+    /// the torn link (D2 row 4) rather than answering a refusal a caller
+    /// could mistake for one about its own keys.
     #[test]
-    fn the_walk_consumers_keep_their_own_refusal() {
+    fn the_walk_consumers_panic_naming_the_torn_link() {
         let mut t = pillow(Tol::witness());
-        // Typed `DanglingRef`: the edge door names WHICH faces, in
-        // `he_plus`-then-`he_minus` order. `is_ok()` would pass on an
-        // `(f_plus, f_plus)` — the typo a re-spelling of two
-        // near-identical lines makes — so the pair is asserted.
+        // `is_ok()` would pass on an `(f_plus, f_plus)` — the typo a
+        // re-spelling of two near-identical lines makes — so the pair
+        // is asserted.
         let e = t.body.get_edge(t.edges[0]).unwrap().clone();
         assert_eq!(e.he_plus, t.hes_a[0]);
         assert_eq!(e.he_minus, t.hes_b[0]);
@@ -2243,28 +2402,29 @@ mod tests {
         assert_eq!(faces(&t.body), Ok((t.face_a, t.face_b)));
         assert_ne!(t.face_a, t.face_b);
         let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
-        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
         assert_eq!(
-            faces(&t.body),
-            Err(crate::readback::DanglingRef::Entity(
-                crate::entity::EntityId::Loop(LoopKey::default())
-            ))
+            t.body.faces_of_vertex_linked(v).len(),
+            2,
+            "both faces meet the untorn vertex"
         );
-        // Typed `Result`, entity-AGNOSTIC: the same staleness is a
-        // REFUSAL, not a `None` a caller may drop.
-        assert!(matches!(
-            crate::offset_together::faces_at_vertex(&t.body, v),
-            Err(ReplaceFaceError::Corrupt)
-        ));
-        // Typed `Result` that NAMES the entity. This is the arm the
-        // door cannot express, so it is the arm a fold would flatten
-        // silently; the agnostic arm above is never at risk.
-        assert!(matches!(
-            crate::sector_face::resolve(&t.body, v, t.hes_b[0]),
-            Err(crate::sector_face::SectorFaceError::Corrupt(
-                EntityId::Loop(_)
-            ))
-        ));
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        let premise = format!(
+            "{}'s parent_loop names {}",
+            EntityId::HalfEdge(t.hes_a[0]),
+            EntityId::Loop(LoopKey::default())
+        );
+        let edge_door = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = faces(&t.body);
+        }));
+        let fan = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = t.body.faces_of_vertex_linked(v);
+        }));
+        let sector = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = crate::sector_face::resolve(&t.body, v, t.hes_b[0]);
+        }));
+        for (label, report) in [("edge door", edge_door), ("fan", fan), ("sector", sector)] {
+            assert!(report.contains(&premise), "{label}: {report}");
+        }
     }
 
     /// The door removes the one entity and repairs nothing: the
@@ -2684,9 +2844,9 @@ mod tests {
     /// The door against the chain it replaces, on the validator's own
     /// point tear (`validate`'s `dangling_geometry_is_reported`): the
     /// `filter_map` chain loses the torn vertex and reports a shorter
-    /// cloud; the door names the dangling key.
+    /// cloud; the door panics naming the vertex and its dangling key.
     #[test]
-    fn vertex_points_refuses_a_torn_point_where_the_chain_drops_it() {
+    fn vertex_points_panics_on_a_torn_point_where_the_chain_drops_it() {
         let chain = |b: &Body<f64>| -> Vec<(VertexKey, [f64; 3])> {
             b.vertices()
                 .filter_map(|(k, _)| b.get_vertex(k).map(|v| (k, v)))
@@ -2697,12 +2857,7 @@ mod tests {
         let read: Vec<_> = t
             .body
             .vertex_points()
-            .map(|(k, p)| {
-                (
-                    k,
-                    p.expect("an untorn pillow reads every vertex").to_array(),
-                )
-            })
+            .map(|(k, p)| (k, p.to_array()))
             .collect();
         assert_eq!(
             read,
@@ -2719,14 +2874,22 @@ mod tests {
             t.vertices.len() - 1,
             "the chain silently drops the torn vertex"
         );
-        assert_eq!(
-            t.body
-                .vertex_points()
-                .filter_map(|(k, p)| p.err().map(|e| (k, e)))
-                .collect::<Vec<_>>(),
-            vec![(t.vertices[0], DanglingRef::Geometry(GeomRef::Point(dead)))],
-            "exactly the torn vertex refuses, naming itself and the dangling point key"
-        );
+        let report = crate::surgery::tests::panic_message(|| {
+            t.body.vertex_points().for_each(drop);
+        });
+        for fragment in [
+            format!(
+                "{}'s point names {}",
+                EntityId::Vertex(t.vertices[0]),
+                GeomRef::Point(dead)
+            ),
+            crate::live::NAMES_ONLY_LIVE.to_owned(),
+        ] {
+            assert!(
+                report.contains(&fragment),
+                "the torn vertex panics naming itself and its point key: {report}"
+            );
+        }
     }
 
     #[test]

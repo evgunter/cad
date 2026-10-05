@@ -267,7 +267,7 @@ pub(crate) fn d_tab_at(
         |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
             r.push(DocEdit::DeclareVar {
                 name: VarName::from_static(n),
-                def: editor_core::VarDef::Free(FreeVar::Continuous {
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
                     dim,
                     value,
                     display_unit: UnitSym::canonical_for(dim),
@@ -305,7 +305,7 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::param(VarName::from_static("bulge"), Dimension::Scalar)
+        Expr::named(VarName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
@@ -335,10 +335,10 @@ pub(crate) fn d_tab_at(
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::param(VarName::from_static("hole_x"), Dimension::Length),
+                Expr::named(VarName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
+            radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
@@ -355,7 +355,7 @@ pub(crate) fn d_tab_at(
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,

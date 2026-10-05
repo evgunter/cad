@@ -393,6 +393,7 @@ use geom_brep::{
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
+use crate::attach::Named;
 use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
@@ -2895,8 +2896,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     const CLOSE: &str = "the boundary is too close to call at this tolerance";
     let (why, recourse) = match e {
-        M::Corrupt
-        | M::LoopDiscontinuity { .. }
+        M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
         | M::SingularChartJoint { .. }
         | M::MissingCache { .. }
@@ -2918,11 +2918,22 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         M::Band(b) => (classify_band(b), TOLERANCE),
-        // Never produced at rest (the pass skips a placeholder face);
-        // classified as its Display states it.
+        // A null edge at rest is tier 2's finding, and a row stored on
+        // one of its halves is the producer's.
+        M::NoCarrier { .. } => ("an edge of the face has no curve yet", DEFECT),
+        // Never produced at rest: the pass takes no key from a caller,
+        // so a key it named that did not resolve would be its own.
+        M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
+        // Never produced at rest (the pass skips a placeholder face, and
+        // describes no face's boundary); classified as its Display
+        // states it.
         M::PlaceholderChart { .. } => (
             geom::PLACEHOLDER_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
+        M::EmptyOuter { .. } => (
+            "the face's outline is a lone vertex, so it bounds no region",
+            crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
             let (why, own) = match error {
@@ -2987,7 +2998,19 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
             "a point of it lies too close to a boundary to place at this tolerance".into(),
             OFF_BOUNDARY,
         ),
-        ContainError::Corrupt => ("its boundary could not be walked".into(), DEFECT),
+        ContainError::StaleFace(_) => (
+            "a face the check asked about does not resolve in the body".into(),
+            DEFECT,
+        ),
+        ContainError::EmptyLoop(_) => (
+            "a loop of its boundary is a lone vertex, which bounds no region".into(),
+            DEFECT,
+        ),
+        ContainError::LoopUnreadable(_) => ("its boundary could not be walked".into(), DEFECT),
+        ContainError::Curved(_) => (
+            "a curved face's trim is one the check cannot yet read".into(),
+            NOT_YET,
+        ),
         // The edge is whatever the body's producer made — a shell's or a
         // revolve's section of a torus as readily as a drawn spline — so
         // the cause is the check's, and no redrawing is prescribed.
@@ -6397,9 +6420,9 @@ pub(crate) fn tier3_local_checks_marked<
                 Sign::Positive
             };
             // Line, Circle and Ellipse carriers (banner); an empty
-            // ring, a loop riding a spiric or NURBS edge, and a torn
-            // lookup (unreachable on tier-1 input) are not asked.
-            let Ok(Some(winding)) = body.planar_loop_winding(l, outward, band) else {
+            // ring and a loop riding a spiric or NURBS edge are not
+            // asked. Tier 3 runs on a body tier 1 cleared.
+            let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
             };
             if winding == Ok(wrong) {
@@ -8375,7 +8398,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // pass-8 orphan count exactly like a face's reference does (the
     // removal guard `remove_surface_if_orphaned` honors the same rule).
     for (curve_key, curve) in body.curves.iter() {
-        for surface in Body::description_surfaces(curve) {
+        for surface in Named::of(curve).keys() {
             if body.surfaces.contains_key(surface) {
                 count_ref(&mut surface_refs, surface);
             } else {

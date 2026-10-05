@@ -54,8 +54,9 @@ or the REST zip are parked with `blocked_on: [3990]` (the ruling's
 item is not on main yet, so the PR number stands for it, as MSOLVE
 parks):
 
-- `four-germ-vertex-pairs-run-b-in-a-order` (P0): its fix waits on the
-  REST zip refusing a union that is not a pure REST contact;
+- `four-germ-vertex-pairs-run-b-in-a-order` (P0): closed 2026-10-05 by
+  PR 4036 (see the log: its fix needed no REST-zip ruling once the
+  undeclared lane's four fixes landed together);
 - `peg-in-socket-union-refuses-join-desync-at-a-coarse-eps`;
 - `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync`;
 - `declared-flush-intersect-refuses-in-one-operand-order`;
@@ -63,8 +64,19 @@ parks):
   (its poses are declared-flush).
 
 Still startable, because they are undeclared booleans or join topology
-alone: the reflex vertex's B senses, the tube on a ball, the closed
-in-face loop (its join half) and parallel cylinders. The ring
+alone: the residue of the pierce families, `a-pinch-no-kept-face-can-cross-refuses`
+(PR 4038's; its island sub-family built in PR 4051, the nested residue a
+design fork going to Ev). The six-crossing row
+(`a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`,
+PR 4036's) closed with PR 4050; its pinch-operand residue is
+`a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.
+The pinch families landed in PR 4038, and the vertex-vertex
+lane in PR 4036 (with the four-germ row and the reflex vertex's B
+senses). Parked on
+`d10-one-way-to-say-intent-is-unbuilt` on 2026-10-04, on a closer
+read: the tube on a ball (its rim lies ON the ball, a coincidence
+verdict) and the closed in-face loop (a conic lying in the partner's
+face). Parallel cylinders landed in PR 4031. The ring
 re-homing pocket and conic ranking landed in PR 4008, the fan-end
 consolidation in PR 4004, and the cylinder-sphere frame in PR 4025
 (its lane, `cylinder-sphere-germ-pair-has-no-join-lane`, is a design

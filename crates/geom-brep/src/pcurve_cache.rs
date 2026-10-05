@@ -4438,6 +4438,22 @@ pub fn whole_periods<T: Decide>(
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<T, BranchMiss> {
+    whole_period_count(name, gap, period, meter, band).map(|k| T::from_f64(f64::from(k)))
+}
+
+/// [`whole_periods`]' `k` as the integer it is, for a caller that
+/// stores the branch as structure (`topo`'s joint elements).
+///
+/// # Errors
+///
+/// [`whole_periods`]'.
+pub fn whole_period_count<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<i32, BranchMiss> {
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
         decide(
@@ -4479,7 +4495,7 @@ pub fn whole_periods<T: Decide>(
                 }
             }
         }
-        return Ok(T::from_f64(f64::from(k)));
+        return Ok(k);
     }
 }
 

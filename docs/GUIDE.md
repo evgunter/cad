@@ -538,7 +538,7 @@ use pncad::prelude::*;
 
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
     let tol = Tol::witness();
     let rect: ClosedLoop<f64> = Open
         .at(p2(x.0, y.0))
@@ -548,7 +548,9 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
         .line_to(Start, tol)?;
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
-    Ok(extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+    let body = extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body;
+    // The boolean takes finished bodies: the at-rest gate (tier 3) makes one.
+    Ok(AtRestBody::validate(body, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?)
 }
 
 let mm = |v: f64| (v * MM).meters();
@@ -564,7 +566,10 @@ assert_eq!(lightened.kind, BooleanResultKind::Seamed);
 # Ok::<(), E>(())
 ```
 
-`union` and `subtract` return a `BooleanResult`, which is `Empty` or
+`union` and `subtract` take finished bodies (`AtRestBody`): a sweep's
+body passes the at-rest gate once (`AtRestBody::validate`, tier 3), and a
+boolean's result is already finished, so it goes straight into the next
+operation. They return a `BooleanResult`, which is `Empty` or
 a `BooleanBody`. That is the first fail-loud habit to build: an empty
 result is a *value*, not an error and not a crash, and you say what
 you expect. The `kind` field records how the result came to be —
@@ -582,7 +587,7 @@ first one wastes your time.
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -591,7 +596,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -637,7 +642,7 @@ an undeclared contact.
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -646,7 +651,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -666,7 +671,7 @@ theorem on the real surfaces, not on a mesh:
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -675,7 +680,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -739,7 +744,7 @@ decision.
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -748,7 +753,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -779,7 +784,7 @@ use pncad::prelude::*;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -788,7 +793,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -829,7 +834,7 @@ use pncad::prelude::*;
 use pncad::step_import::StepImport;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -838,7 +843,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -1796,7 +1801,7 @@ form is a **named document parameter** that several places reference,
 so one edit moves all of them coherently. That is
 `crates/editor-core/tests/corpus/plate_param.rs`, and it is the
 corpus document to read after this guide: a plate with **two** holes
-whose radii are both `Expr::param("hole_r")` — one parameter, two
+whose radii are both `Expr::named("hole_r")` — one parameter, two
 loops, one edit.
 
 Its acceptance rows (`crates/editor-core/tests/switch_plate_param.rs`)
@@ -1823,7 +1828,7 @@ edit.
 
 Named document parameters were LIB-U10's headline finding: the façade
 did not re-export `VarName` or `FreeVar`, so declaring a variable
-and `Expr::param` were doors a `pncad`-only consumer could see and not
+and `Expr::named` were doors a `pncad`-only consumer could see and not
 open, and a `compile_fail` doctest sat here pinning the hole.
 R1-PARAMS cured it — both names are curated through `pncad::document`
 (and the prelude), so what follows is `plate_param` itself, authored
@@ -1847,7 +1852,7 @@ let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 // ONE expression, shared: BOTH holes' radius reads `hole_r`.
 let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     centre: [lit(cx), lit(cy)],
-    radius: Expr::param(VarName::from_static("hole_r"), Dimension::Length),
+    radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
 };
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
@@ -1856,7 +1861,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // ordinary edit: recorded, replayable, undoable like any other.
 doc = apply(&doc, &DocEdit::DeclareVar {
     name: VarName::from_static("hole_r"),
-    def: VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+    def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1937,15 +1942,34 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 // One `DefineVar` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
-    def: VarDef::Free(FreeVar::continuous(Dimension::Length, 0.4)),
+    def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
                                // branch, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
+
+// The holes were authored by NAME and are stored by IDENTITY: the
+// edit door resolved `hole_r` to the variable it names. So a rename
+// writes the name and nothing else, and nothing recomputes.
+let held = bigger.var_named("hole_r").expect("declared");
+let renamed = apply(&bigger, &DocEdit::RenameVar {
+    var: VarName::from_static("hole_r").into(),
+    name: Some(VarName::from_static("hole_radius")),
+}, tol, &pncad::document::RefusingReach)?.doc;
+assert_eq!(renamed.var_named("hole_radius"), Some(held));
+let ev3 = evaluate::<f64>(&renamed, Some(&ev2), &CancelToken::new(), &EvalOptions::default(), tol);
+assert_eq!(ev3.recomputed, 0);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
+
+A slot reads a variable by its minted id, never by its name; the name
+lives beside the variable and is resolved only where text is read
+(`parse_expr`, an expression authored with `Expr::named`) or written
+(`Doc::unparse`). `DocEdit::DeleteVar` removes a named variable and
+leaves its readers in place, unresolved: evaluation refuses at each
+one, typed, and the id is never minted again.
 
 Note what row 3 of §3.1 already told you: `DefineVar` applies
 cleanly even for a value the geometry will refuse — a program that
@@ -1958,7 +1982,7 @@ DocParam.length(…))`, demonstrated against this exact document in
 above from Python now awaits exactly ONE door. Circles came with the
 audit's G1 and the three-loop profile with G9; what is left is a
 profile step whose argument is an EXPRESSION rather than a literal —
-the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
+the holes above are `LoopProgram::Circle { radius: Expr::named(…) }`,
 and `pncad.circle(centre, radius)` takes a `Length`, so the radius
 crosses as a number and the parameter link is lost.
 
@@ -1999,7 +2023,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: FreeVar| {
-    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDef::Free(value) }, tol, &pncad::document::RefusingReach)
+    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDecl::Free(value) }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 

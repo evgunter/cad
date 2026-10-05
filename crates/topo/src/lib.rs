@@ -172,6 +172,7 @@ pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
+pub mod joint;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -288,13 +289,32 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
-        StraddleSeat, assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
-        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, flush_declarations,
-        geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line, mapped_cube,
-        plane, plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane,
-        straddle_seat,
+        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
+        cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
+        describe_as_intersections, drill_hole, flush_declarations, geometric_cube, holed_block,
+        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
+        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// `body` finished for a door that takes finished bodies (the
+    /// boolean's): through the scalar's at-rest gate
+    /// ([`crate::AtRestPolicy::gate_at_rest_kept`]).
+    ///
+    /// # Panics
+    ///
+    /// Naming `what` and the validator's findings, where the gate
+    /// refuses it — a fixture that is not a finished body.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn finished<T: crate::AtRestPolicy>(
+        what: &str,
+        body: Body<T>,
+        tol: geom_core::Tol,
+    ) -> crate::AtRestBody<T> {
+        T::gate_at_rest_kept(body, tol)
+            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    }
 
     /// Which bridge a graft ran ([`take_graft_bridges`]).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -376,6 +396,22 @@ pub mod test_support {
         crate::boolean::join_refusal(op, a, b, decls, tol)
     }
 
+    /// The operand's maximal-faces gate (F7) alone, at `tol`'s band —
+    /// for a body below tier 3, which no boolean door takes, so the
+    /// gate's own reading of it stays measurable
+    /// (`boolean::maximal_faces_gate`).
+    ///
+    /// # Errors
+    ///
+    /// The gate's refusal.
+    pub fn maximal_faces_gate(
+        body: &Body<f64>,
+        operand: crate::Operand,
+        tol: geom_core::Tol,
+    ) -> Result<(), crate::BooleanError> {
+        crate::boolean::maximal_faces_gate(body, operand, tol)
+    }
+
     /// The join's section segments of `op`: the pair-record count and
     /// each segment's two germ sites (`boolean::section_segment_sites`).
     /// `None` where the reduction registers no pair.
@@ -385,8 +421,8 @@ pub mod test_support {
     /// The reduction's refusal, or the matcher's.
     pub fn boolean_segment_sites(
         op: crate::BooleanOp,
-        a: &Body<f64>,
-        b: &Body<f64>,
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
         tol: geom_core::Tol,
     ) -> Result<Option<crate::boolean::SegmentSites>, crate::BooleanError> {
         crate::boolean::section_segment_sites(op, a, b, tol)
@@ -431,9 +467,7 @@ pub mod test_support {
         let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
             || matches!(
                 err.kind(),
-                BooleanErrorKind::ClassificationInvariant
-                    | BooleanErrorKind::CorruptOperand
-                    | BooleanErrorKind::JoinDesync
+                BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
             );
         (key, defect)
     }
@@ -645,19 +679,19 @@ pub use boolean::{
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
     CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords, ContainError,
-    Contradiction, Corruption, CurveContact, DeclarationRead, DiscardRow, FaceContainment,
-    FacePairDeclaration, HeldEdge, LeverArm, NeighbourOffset, NullEdgePairRecord, Operand,
-    OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord,
-    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
-    RestZipFrontier, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment,
-    SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, intersect_with, lineage_root, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
-    union_with,
+    Contradiction, CurveContact, DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration,
+    HeldEdge, LeverArm, NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace,
+    PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung,
+    SelfCheck, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion,
+    SweepStrategy, SweepTrace, TorusConvention, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    subtract, subtract_with, tangent_pair_relation, union, union_with,
 };
+pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -737,9 +771,7 @@ pub use query::{
     CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimBreak, RimError, SEL_DATUM_DISTANCE,
     SurfaceKind, SurfaceKindSet,
 };
-pub use readback::{
-    DanglingRef, EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError,
-};
+pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
@@ -752,12 +784,12 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ArcSideCase, ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision,
-    LoopContainment, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
-    SectionEdge, SectionError, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind,
-    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
-    SplitReduction, SplitResult, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ConicCrossingsCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord,
+    OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionError,
+    SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
+    SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,
+    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

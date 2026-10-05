@@ -121,7 +121,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         origin: [
             common::len(0.0),
             common::len(0.0),
-            Expr::param(VarName::from_static("height"), Dimension::Length),
+            Expr::named(VarName::from_static("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
@@ -131,7 +131,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         &Doc::empty_derived("frame-labels-driven", tol),
         DocEdit::DeclareVar {
             name: VarName::from_static("height"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.001)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
         tol,
     );
@@ -223,7 +223,7 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
         &doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("unused"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.001)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
         tol,
     );

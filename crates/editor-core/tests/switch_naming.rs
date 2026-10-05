@@ -31,12 +31,12 @@ use geom_core::Tol;
 /// the extrude over that: `doc.order()[1]` is the profile and
 /// `doc.order()[2]` the body.
 fn param_rect_doc(x0: f64) -> ProfileDoc {
-    let x0e = || Expr::param(VarName::from_static("x0"), Dimension::Length);
+    let x0e = || Expr::named(VarName::from_static("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
             &DocEdit::DeclareVar {
                 name: VarName::from_static("x0"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, x0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, x0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

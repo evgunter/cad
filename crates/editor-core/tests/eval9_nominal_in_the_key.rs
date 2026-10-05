@@ -62,7 +62,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
         .apply(
             &DocEdit::DeclareVar {
                 name: p(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -76,7 +76,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
                     origin: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
                     u: [
                         fixture::scl(1.0),
-                        u_y_of(Expr::param(p(), Dimension::Scalar)),
+                        u_y_of(Expr::named(p(), Dimension::Scalar)),
                         fixture::scl(0.0),
                     ],
                     v: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
@@ -320,15 +320,13 @@ fn the_probe_document_carries_the_parameter_only_in_the_frame() {
         panic!("a frame first");
     };
     for e in u {
-        e.param_refs(&mut refs);
+        e.var_reads(&mut refs);
     }
-    assert_eq!(refs, vec![(p(), Dimension::Scalar)]);
+    let var = doc.var_named(p().as_str()).expect("the frame's variable");
+    assert_eq!(refs, vec![(var, Dimension::Scalar)]);
     let Some(Node::Profile(program)) = doc.node(profile(&doc)) else {
         panic!("a profile second");
     };
     assert_eq!(program.plane, frame(&doc));
-    assert!(
-        !program.references(&p()),
-        "the program must hold no parameter"
-    );
+    assert!(!program.reads(var), "the program must hold no parameter");
 }

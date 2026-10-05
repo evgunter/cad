@@ -398,7 +398,7 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
 
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: pncad::document::VarName::from_static("nope"),
+            var: pncad::document::VarId(0x6e6f_7065),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
@@ -432,7 +432,11 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(
                 params,
-                &vec![common::thickness_param()],
+                &vec![
+                    session
+                        .committed_doc()
+                        .spoken_var(common::thickness_var(session.committed_doc()))
+                ],
                 "the affordance's navigation target: probe THIS instead"
             );
             assert_eq!(
@@ -453,7 +457,7 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
     // freely — which is what the refusal above sends a user to.
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: common::thickness_param(),
+            var: common::thickness_var(session.committed_doc()),
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -488,7 +492,7 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     session.pump();
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: common::thickness_param(),
+            var: common::thickness_var(session.committed_doc()),
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -554,7 +558,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         pncad::document::DocEdit::DeclareVar {
             name: common::thickness_param(),
-            def: pncad::document::VarDef::Free(pncad::document::FreeVar::written_length(
+            def: pncad::document::VarDecl::Free(pncad::document::FreeVar::written_length(
                 WrittenLength::in_unit(8.0, MM),
             )),
         },
@@ -565,7 +569,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(common::thickness_param(), Dimension::Length),
+            distance: Expr::named(common::thickness_param(), Dimension::Length),
             side: ExtrudeSide::Along,
         },
         tol,

@@ -89,8 +89,12 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "carved_sphere_operand.rs"]
+mod carved_sphere_operand;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
+#[path = "four_crossings_on_one_section_circle.rs"]
+mod four_crossings_on_one_section_circle;
 #[path = "general_circle_octant_dual.rs"]
 mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
@@ -103,8 +107,12 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "offset_restates_a_neighbour_chart_rim.rs"]
+mod offset_restates_a_neighbour_chart_rim;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
+#[path = "parallel_cylinder_join.rs"]
+mod parallel_cylinder_join;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
 #[path = "pieces_oblique_bore.rs"]
@@ -638,6 +646,10 @@ mod join3_r2_probes;
 mod join3_r2_r1copy;
 #[path = "join3_review_r1.rs"]
 mod join3_review_r1;
+#[path = "join_pierce_runs_sweep.rs"]
+mod join_pierce_runs_sweep;
+#[path = "join_pierce_strut_facing.rs"]
+mod join_pierce_strut_facing;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
 #[path = "join_reflex_wedge_probes.rs"]
@@ -889,6 +901,10 @@ mod review_ring2_r1_e2e;
 
 #[path = "full_turn_bore_mate.rs"]
 mod full_turn_bore_mate;
+
+#[path = "wedge_through_a_full_turn_collar.rs"]
+mod wedge_through_a_full_turn_collar;
+
 #[path = "rest_mate_every_op.rs"]
 mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]

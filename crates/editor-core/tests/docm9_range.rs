@@ -53,7 +53,7 @@ fn var(doc: &editor_core::ProfileDoc, n: &'static str) -> editor_core::VarId {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+    Expr::named(name(n), Dimension::Length)
 }
 
 /// The drive's budgets, both of them the caller's: the query is on
@@ -73,7 +73,7 @@ fn frame(r: &mut Recorder) -> RecipeNodeId {
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(n),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
     });
 }
 
@@ -171,7 +171,7 @@ fn two_param_slab() -> ProfileDoc {
     declare(&mut r, "depth", 1.0);
     r.push(DocEdit::DeclareVar {
         name: name("side"),
-        def: editor_core::VarDef::Free(FreeVar::continuous_with(
+        def: editor_core::VarDecl::Free(FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Uniform { lo: -0.1, hi: 0.1 },
@@ -726,10 +726,7 @@ fn the_slot_rewrite_is_exact() {
             .doc
             .node(node)
             .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&Expr::param(
-            derived.doc.var_name(derived.axis).expect("named").clone(),
-            Dimension::Length
-        ))
+        Some(&Expr::var(derived.axis, Dimension::Length))
     );
     // The input document declared no parameter at all; the derived one
     // declares exactly the query's.
@@ -939,10 +936,7 @@ fn a_profile_step_argument_widens() {
     .unwrap_or_else(|e| panic!("the {} slot widens: {e}", slot.label()));
     assert_eq!(
         derived.doc.node(p).and_then(|n| n.expr(slot)),
-        Some(&Expr::param(
-            derived.doc.var_name(derived.axis).expect("named").clone(),
-            slot.dimension()
-        )),
+        Some(&Expr::var(derived.axis, slot.dimension())),
         "the slot names the synthetic parameter"
     );
 }
@@ -965,7 +959,7 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::new(spelled.clone()).expect("an author can type it"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(
+                def: editor_core::VarDecl::Free(FreeVar::continuous(
                     Dimension::Length,
                     3.0 + i as f64,
                 )),
@@ -1003,10 +997,7 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
             .doc
             .node(node)
             .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&Expr::param(
-            derived.doc.var_name(derived.axis).expect("named").clone(),
-            Dimension::Length
-        )),
+        Some(&Expr::var(derived.axis, Dimension::Length)),
         "the slot reads the synthetic parameter, not an authored one"
     );
 }

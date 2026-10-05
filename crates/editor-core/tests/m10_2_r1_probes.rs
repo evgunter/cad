@@ -56,8 +56,8 @@ fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (Profile
     (applied.doc, applied.record.minted.expect("insert mints"))
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).var_env::<f64>()
 }
 
 fn faces_of_kind(
@@ -116,7 +116,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -144,7 +144,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(VarName::from_static("depth"), Dimension::Length),
+            distance: Expr::named(VarName::from_static("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },
     );
@@ -1099,7 +1099,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let [bottom, top] = caps(&ev, slab);
     let expr = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(
+        MeasureExpr::value(Expr::named(
             VarName::from_static("ghost"),
             Dimension::Length,
         )),
@@ -1115,7 +1115,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     )
     .expect_err("an undeclared parameter refuses");
     assert!(
-        matches!(err, EditError::PayloadUnknownDocParam { .. }),
+        matches!(err, EditError::PayloadUnknownVarName { .. }),
         "got {err:?}"
     );
 }
@@ -1132,7 +1132,7 @@ fn r1_own_document_web_and_flip() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("r"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -1146,7 +1146,7 @@ fn r1_own_document_web_and_flip() {
             plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(VarName::from_static("r"), Dimension::Length),
+                radius: Expr::named(VarName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -1171,7 +1171,7 @@ fn r1_own_document_web_and_flip() {
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Expr::param(VarName::from_static("r"), Dimension::Length));
+    let r = || MeasureExpr::value(Expr::named(VarName::from_static("r"), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),

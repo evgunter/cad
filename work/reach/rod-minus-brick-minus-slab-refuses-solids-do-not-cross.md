@@ -29,3 +29,13 @@ other 107 outcomes build at the closed form.
 Measure first: run the probe's case alone, read the refusal's raising
 site and payload, and find which door decides "do not cross" on an
 overlapping pair.
+
+## 2026-10-05 — the symptom text is gone, the cause is not
+
+TOPO's PR 4055 dropped "the solids do not cross" from
+`BooleanError::Containment`'s `Display` (it now reads "the Boolean
+{e}"). So the symptom sentence in this row's title no longer
+reproduces. Its cause does: the refusal is still `Containment`
+carrying `WallOutlineUnsupported`, and nothing in that PR touched what
+raises it. The row is still live; look for `Containment` and
+`WallOutlineUnsupported`, not the old sentence.

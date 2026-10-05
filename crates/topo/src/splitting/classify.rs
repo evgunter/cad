@@ -38,8 +38,9 @@ use crate::validate::decide;
 ///
 /// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
 /// `Nurbs` carrier refuses typed only when the plane may meet it
-/// ([`edge_clears`]). A face whose surface key does not resolve is a
-/// torn body and panics; null scaffolding refuses as ever.
+/// ([`edge_clears`]). A face whose surface key, or an edge whose curve
+/// key, does not resolve is a torn body and panics (the operand is a
+/// public body, at rest); null scaffolding refuses as ever.
 pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -65,8 +66,8 @@ pub(super) fn gate_operand<T: Decide>(
         }
     }
     for (edge_key, edge) in body.edges() {
-        match body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(curve)) => match curve.carrier() {
+        match body.edge_curve_linked(edge_key, edge) {
+            CurveGeom::Certified(curve) => match curve.carrier() {
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
@@ -89,6 +90,13 @@ pub(super) fn gate_operand<T: Decide>(
 /// sound box of its own (`EdgeBoxRule::NoSoundBox`), so its faces'
 /// reaches are what clear it. `frame` is the plane's
 /// ([`BoxFrame::aimed`] at its normal).
+///
+/// `edge` is one this call's caller read out of the body: the gate's
+/// arena walk over the at-rest operand, or `insert_crossings`' snapshot
+/// of it, where only `split_edge`s of other snapshot edges stand
+/// between, and they remove no edge and rewrite no other edge's halves.
+/// So `edge` is proven, and its halves and their faces are links, which
+/// panic on a miss ([`crate::live::OPERATORS_KEEP_LINKS`]).
 fn edge_clears<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -96,15 +104,12 @@ fn edge_clears<T: Decide>(
     band: Band,
     frame: &BoxFrame<T>,
 ) -> bool {
-    let bounding = body
-        .get_edge(edge)
-        .map(|e| [e.he_plus, e.he_minus].map(|he| body.face_of_half_edge(he)));
+    let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
     reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
-        || bounding
-            .into_iter()
-            .flatten()
-            .flatten()
-            .any(|face| reach_clears(gate_face_reach(body, face, band, frame), plane, band))
+        || [e.he_plus, e.he_minus].into_iter().any(|he| {
+            let face = body.face_of_linked(he);
+            reach_clears(gate_face_reach(body, face, band, frame), plane, band)
+        })
 }
 
 /// K name: a sphere face's polar axis, read as a unit direction for
@@ -126,14 +131,19 @@ const SPLIT_GATE_TORUS_RING: &str = "split_gate_torus_ring";
 /// cylinder would refuse every cut of the cylinder; its box for a torus
 /// samples the rectangle and pays a subdivision charge that reaches
 /// thousandths of the radii.
+///
+/// `face` is read out of the body by the caller (the gate's arena walk,
+/// or a half's face in [`edge_clears`]), so it is proven, and its
+/// surface is a link ([`crate::live::OPERATORS_KEEP_LINKS`]): either
+/// miss panics. `None` is the reach's own: no claim to make.
 fn gate_face_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
     frame: &BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let f = body.get_face(face)?;
-    let patch = match body.get_surface(f.surface)? {
+    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+    let patch = match body.face_surface_linked(face, f) {
         surface @ geom::Surface::Sphere { .. } => {
             sphere_zone_reach(body, face, f, surface, band, frame)
         }
@@ -371,7 +381,6 @@ pub(super) fn classify_vertices<T: Decide>(
     let mut sides = SecondaryMap::new();
     let mut on_vertices = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
-        let p = p.map_err(|_| SplitReduceError::CorruptOperand { vertex: vertex_key })?;
         let margin = Margin::of(crate::sector_shape::plane_offset(
             plane.origin,
             plane.normal.get(),
@@ -694,8 +703,7 @@ fn conic_plane_meet<T: Decide>(
     // every sub-period span, which is what makes the retry a different
     // representation rather than a second try at the same one — they
     // sit **(τ − span)/2 apart** on the circle, half the span's
-    // COMPLEMENT (the same quantity `chord_join`'s window recentre
-    // states for itself). Not half a period: that is the span → 0
+    // COMPLEMENT. Not half a period: that is the span → 0
     // limit, and the separation SHRINKS as the span grows, reaching
     // zero only at a full period. So the retry has room exactly when
     // the span is well under τ, and is degenerate exactly where the
@@ -817,9 +825,14 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         };
         let u = start(body, edge.he_plus, "he_plus");
         let v = start(body, edge.he_minus, "he_minus");
-        let curve = match body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(c)) => c.clone(),
-            _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
+        // The snapshot's record is the live one: no `split_edge` before
+        // this one touched this edge. So the curve is a link, and its
+        // miss panics (`live::OPERATORS_KEEP_LINKS`).
+        let curve = match body.edge_curve_linked(edge_key, &edge) {
+            CurveGeom::Certified(c) => c.clone(),
+            CurveGeom::NullScaffold(_) => {
+                return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key });
+            }
         };
         let (t0, t1) = curve.params();
         let roots: Vec<T> = match plane_crossing_lane(
@@ -860,13 +873,11 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 if !crossing {
                     continue;
                 }
-                let dist = |body: &Body<T>, vk: VertexKey| -> Option<T> {
-                    let p = *body.get_point(body.get_vertex(vk)?.point)?;
-                    Some((p - plane.origin).dot(plane.normal.get()))
+                let dist = |vk: VertexKey| {
+                    let p = body.resolve_vertex_point(vk, crate::live::Proven);
+                    (p - plane.origin).dot(plane.normal.get())
                 };
-                let (Some(d1), Some(d2)) = (dist(body, u), dist(body, v)) else {
-                    return Err(SplitReduceError::CorruptOperand { vertex: u });
-                };
+                let (d1, d2) = (dist(u), dist(v));
                 vec![t0 + (t1 - t0) * (d1 / (d1 - d2))]
             }
         };
@@ -1173,12 +1184,11 @@ mod tests {
         // hairline under the midpoint anchor and a whole period under
         // the `t₀` anchor.
         //
-        // DISPOSITION: like its chord_join twin, this half re-derives
-        // both anchorings inline and so pins the two WINDOWS rather
-        // than the site. The site's own pin is the
-        // `on_split_plane` call above, which reds if the anchor
-        // order changes; this half says why that order is the right
-        // one.
+        // DISPOSITION: this half re-derives both anchorings inline and
+        // so pins the two WINDOWS rather than the site. The site's own
+        // pin is the `on_split_plane` call above, which reds if the
+        // anchor order changes; this half says why that order is the
+        // right one.
         let tau = Interval::tau();
         let mid = (t0 + t1) * ex(0.5);
         let cand = Interval::from_bounds(-1e-15, 1e-15);
@@ -1302,5 +1312,106 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+/// **A torn curve panics at the split gate and at the crossing
+/// insertion**, where a read that took the miss for scaffolding refused
+/// it as `ScaffoldingOperand` (real scaffolding keeps that refusal:
+/// `review_m3_pr2`'s gate row).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::entity::EntityId;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn a_torn_curve_panics_at_the_gate_and_the_crossing_insertion() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::unit_z(),
+            tol,
+        );
+        let (edge, curve) = body.edges().next().map(|(k, e)| (k, e.curve)).unwrap();
+        let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
+        body.curves.remove(curve);
+        let named = format!("{}'s curve names", EntityId::Edge(edge));
+        assert_torn_op_panics("gate_operand", &mut body, &[&named, ROW_FOUR], |b| {
+            super::gate_operand(b, &plane, band)
+        });
+        assert_torn_op_panics("insert_crossings", &mut body, &[&named, ROW_FOUR], |b| {
+            super::insert_crossings(b, &plane, &mut sides, &mut on, tol)
+        });
+    }
+
+    /// **The gate's reads past a face it walked panic on a torn link.**
+    /// `edge_clears` reads both faces of an edge the plane crosses, and a
+    /// half whose loop was dropped panics naming it, where a read of the
+    /// miss as no face would clear the edge on its other face alone.
+    /// `gate_face_reach` reads the face's surface, and a dropped one
+    /// panics naming it, where a read of the miss as no claim to make
+    /// would answer the census's box.
+    #[test]
+    fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
+        use crate::boolean::boxes::BoxFrame;
+        use crate::live::OPERATORS_KEEP_LINKS;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::unit_z(),
+            tol,
+        );
+        let frame = BoxFrame::aimed(plane.normal);
+
+        let mut body = fresh();
+        let crosses = |b: &crate::body::Body<f64>, e| {
+            let (u, v) = b.edge_vertices(e).unwrap();
+            let z = |w| b.get_point(b.get_vertex(w).unwrap().point).unwrap().z;
+            (z(u) - 0.5) * (z(v) - 0.5) < 0.0
+        };
+        let (edge, data) = body
+            .edges()
+            .find(|&(k, _)| crosses(&body, k))
+            .map(|(k, e)| (k, e.clone()))
+            .unwrap();
+        assert!(
+            !super::edge_clears(&body, edge, &plane, band, &frame),
+            "the plane meets an edge it crosses"
+        );
+        let lost = body.get_half_edge(data.he_plus).unwrap().parent_loop;
+        body.loops.remove(lost);
+        let named = format!(
+            "{}'s parent_loop names {}",
+            EntityId::HalfEdge(data.he_plus),
+            EntityId::Loop(lost)
+        );
+        assert_torn_op_panics(
+            "edge_clears",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::edge_clears(b, edge, &plane, band, &frame),
+        );
+
+        let mut body = fresh();
+        let (face, surface) = body.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
+        assert!(
+            super::gate_face_reach(&body, face, band, &frame).is_some(),
+            "a sound face has a reach"
+        );
+        body.surfaces.remove(surface);
+        let named = format!("{}'s surface names", EntityId::Face(face));
+        assert_torn_op_panics(
+            "gate_face_reach",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::gate_face_reach(b, face, band, &frame),
+        );
     }
 }

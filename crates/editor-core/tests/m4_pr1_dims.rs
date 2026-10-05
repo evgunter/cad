@@ -5,10 +5,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
-use editor_core::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval, eval_count};
+use editor_core::{Dimension, DimensionError, EvalError, Expr, VarEnv, eval, eval_count};
 
-fn env() -> ParamEnv<f64> {
-    ParamEnv::default()
+fn env() -> VarEnv<f64> {
+    VarEnv::default()
 }
 
 #[test]

@@ -50,8 +50,6 @@ pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>]) -> Option<Vec3<T>> {
 /// Why a loop's role could not be read.
 #[derive(Debug)]
 pub(super) enum SenseFault {
-    /// [`Torn`].
-    Torn,
     /// The winding has no sign: in the band (`Some`), or (`None`) zero,
     /// or unread because the loop carries a NURBS or spiric edge.
     Undecided(Option<Indeterminate>),
@@ -72,10 +70,7 @@ pub(super) fn loop_sense<T: Decide>(
     normal: Vec3<T>,
     band: geom_core::Band,
 ) -> Result<bool, SenseFault> {
-    match body
-        .planar_loop_winding(l, normal, band)
-        .map_err(|_| SenseFault::Torn)?
-    {
+    match body.planar_loop_winding(l, normal, band) {
         Some(Ok(geom_core::Sign::Positive)) => Ok(true),
         Some(Ok(geom_core::Sign::Negative)) => Ok(false),
         Some(Ok(geom_core::Sign::Zero)) | None => Err(SenseFault::Undecided(None)),

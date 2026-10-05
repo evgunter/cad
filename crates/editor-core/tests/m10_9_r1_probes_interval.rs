@@ -161,12 +161,12 @@ fn r1_the_plate_ceiling_bisected_both_ways() {
 /// radius Uniform (±), all scaled together, so a ceiling is a multiple
 /// of a study a user would ask for.
 pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let plen = |n: &'static str| Expr::param(VarName::from_static(n), Dimension::Length);
+    let plen = |n: &'static str| Expr::named(VarName::from_static(n), Dimension::Length);
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -238,7 +238,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
@@ -300,7 +300,7 @@ fn r1_split_bore_disc_end_to_end() {
                         v.receipt(),
                         v.decisions()
                     );
-                    for line in v.render(&analyzed).lines().filter(|l| {
+                    for line in v.render(&doc, &analyzed).lines().filter(|l| {
                         l.contains("registered") || l.contains("symbolic") || l.contains("certif")
                     }) {
                         println!("      render| {line}");

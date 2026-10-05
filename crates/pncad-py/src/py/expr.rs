@@ -18,7 +18,7 @@
 //! shape `Evaluation.face_frame` already has and for its reason: the
 //! answer is only meaningful against the document that supplies the
 //! table, and threading the table in separately would let the two
-//! drift. `ParamEnv` itself therefore never crosses — it is built
+//! drift. `VarEnv` itself therefore never crosses — it is built
 //! inside the door from the document in hand, exactly as
 //! `Evaluation` already builds one for `select_where`.
 //!
@@ -277,10 +277,13 @@ impl Expr {
     /// The text door OUTWARD: what a panel shows in an edit box, and
     /// what `Doc.parse_expr` reads back to an equal expression. It is
     /// a RENDERING, not the caller's original string — whitespace and
-    /// redundant parentheses are the parser's to normalise.
+    /// redundant parentheses are the parser's to normalise. A name is
+    /// written as authored; a reader of a variable by id has no name
+    /// here and writes its full id, `#<16 hex>`, which the parser does
+    /// not read.
     #[getter]
     fn text(&self) -> String {
-        d::unparse(&self.0)
+        d::unparse(&self.0, &|_| None)
     }
 
     /// The number a BARE literal carries, in canonical kernel units
@@ -297,8 +300,8 @@ impl Expr {
         self.0.literal_value()
     }
 
-    /// The document parameters this expression references, in sorted
-    /// order and without repeats.
+    /// The variable names this expression reads, in sorted order and
+    /// without repeats.
     ///
     /// What tells a consumer WHEN to re-evaluate: a displayed value
     /// is stale exactly when one of these parameters moves. Sorted
@@ -308,7 +311,7 @@ impl Expr {
     #[getter]
     fn params(&self) -> Vec<ParamName> {
         let mut refs = Vec::new();
-        self.0.param_refs(&mut refs);
+        self.0.named_reads(&mut refs);
         let mut names: Vec<_> = refs.into_iter().map(|(name, _)| name).collect();
         names.sort();
         names.dedup();
@@ -316,7 +319,7 @@ impl Expr {
     }
 
     fn __repr__(&self) -> String {
-        format!("Expr({:?}, {})", d::unparse(&self.0), self.dimension())
+        format!("Expr({:?}, {})", self.text(), self.dimension())
     }
 
     /// The kernel's own `PartialEq`: same tree, and IEEE-equal
@@ -506,8 +509,19 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
 /// `Expr.dimension` and `Measurement.dimension` already answer in —
 /// the kernel's `Dimension` type itself does not cross, by the
 /// census's own reading of it.
-pub(crate) fn eval_err(py: Python<'_>, err: &d::EvalError) -> PyErr {
+///
+/// `doc` names the variables an id-keyed arm carries; with none, or for
+/// a variable it holds no name for, the arm carries the full id.
+pub(crate) fn eval_err(
+    py: Python<'_>,
+    err: &d::EvalError,
+    doc: Option<&pncad::document::ProfileDoc>,
+) -> PyErr {
     use d::EvalError as E;
+    let var_text = |var: &d::VarId| {
+        doc.and_then(|doc| doc.var_name(*var))
+            .map_or_else(|| var.full().to_string(), |name| name.as_str().to_owned())
+    };
 
     let none = || py.None();
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
@@ -521,12 +535,15 @@ pub(crate) fn eval_err(py: Python<'_>, err: &d::EvalError) -> PyErr {
     };
 
     let (name, expected, found, count) = match err {
-        E::UnknownParam(param) => (text(param.as_str()), none(), none(), none()),
-        E::ParamDimensionMismatch {
-            name,
-            expected,
-            found,
-        } => (text(name.as_str()), dim(*expected), dim(*found), none()),
+        // The defined variable read; its definition's own refusal is
+        // the sentence's.
+        E::UnresolvedVar { var } | E::DefinitionRefused { var, .. } => {
+            (text(&var_text(var)), none(), none(), none())
+        }
+        E::VarKindMismatch { var, bound, read } => {
+            (text(&var_text(var)), dim(*read), dim(*bound), none())
+        }
+        E::UnloweredName { name } => (text(name.as_str()), none(), none(), none()),
         E::ContinuousExprInCountEval { found } => (none(), none(), dim(*found), none()),
         E::CountToScalarOutOfRange(value) => (none(), none(), none(), int(*value)),
         E::CountExprInContinuousEval | E::CountOverflow | E::NonFiniteResult => {

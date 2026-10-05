@@ -1005,7 +1005,7 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
 ///
 /// `FreeVar::first_non_finite` is the one rule and both doors ask it:
 /// the nominal first, then the annotation's offsets. The edit door
-/// names its answer `EditError::NonFiniteDocParam` and the load door
+/// names its answer `EditError::NonFiniteVar` and the load door
 /// `NonFiniteSite::DocParam`, and each carries the field the predicate
 /// identified — a door that dropped it would be answering a coarser
 /// question than the one that was asked.
@@ -1042,12 +1042,12 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
             &doc,
             &DocEdit::DeclareVar {
                 name: name.clone(),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
-            Err(EditError::NonFiniteDocParam { var: n, field }) => {
+            Err(EditError::NonFiniteVar { var: n, field }) => {
                 assert_eq!(n.name(), Some(&name));
                 assert_eq!(field, expected, "the edit door names the offending float");
             }
@@ -1056,7 +1056,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 
         let edit = DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(value),
+            def: editor_core::VarDecl::Free(value),
         };
         match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
@@ -1080,7 +1080,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 ///
 /// `FreeVar::is_continuous_count` is the one rule and both doors ask
 /// it; this row pins the edit door's answer
-/// (`ContinuousParamCannotBeCount`).
+/// (`ContinuousVarCannotBeCount`).
 ///
 /// At the load door the same document refuses by another name, and
 /// that is what this row asserts: no unit in the table measures a
@@ -1099,12 +1099,12 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Count, 3.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Count, 3.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::ContinuousParamCannotBeCount { var: n }) => {
+        Err(EditError::ContinuousVarCannotBeCount { var: n }) => {
             assert_eq!(n.name(), Some(&name));
         }
         other => panic!("a count-dimensioned continuous param must refuse typed, got {other:?}"),
@@ -1116,7 +1116,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
         doc,
         DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 3.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 3.0)),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -1214,7 +1214,7 @@ fn saved_with_width() -> (ProfileDoc, String) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("width"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1275,7 +1275,7 @@ fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
     let (doc, _) = saved_with_width();
     let log = vec![DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0)),
     }];
     let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
@@ -1320,7 +1320,7 @@ fn agrees(text: &str, replay: &str) {
             assert!(read_back, "{shown} is admitted but not read back{replay}");
             let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
             assert!(
-                parse_expr(text, &table) == Ok(Expr::param(name, Dimension::Scalar)),
+                parse_expr(text, &table) == Ok(Expr::named(name, Dimension::Scalar)),
                 "{shown} is admitted, but declared it does not read back as itself{replay}"
             );
         }

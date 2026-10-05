@@ -58,7 +58,7 @@ fn eps() -> f64 {
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(name),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -154,7 +154,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     );
     let cube = r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(VarName::from_static("h"), Dimension::Length),
+        distance: Expr::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
@@ -185,7 +185,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
         origin: [
             len(0.0),
             len(0.0),
-            Expr::param(VarName::from_static("z0"), Dimension::Length),
+            Expr::named(VarName::from_static("z0"), Dimension::Length),
         ],
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
@@ -225,7 +225,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
             translation: [
                 len(0.0),
                 len(0.0),
-                Expr::param(VarName::from_static("lift"), Dimension::Length),
+                Expr::named(VarName::from_static("lift"), Dimension::Length),
             ],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: ang(0.0),

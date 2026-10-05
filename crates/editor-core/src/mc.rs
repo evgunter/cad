@@ -382,7 +382,7 @@ pub fn monte_carlo(
         let node = standing.node();
         let cause = nominal
             .node_error(node)
-            .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
+            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
         return Err(McRefusal::NominalDoesNotBuild {
             node: doc.spoken(node),
             cause,
@@ -393,7 +393,7 @@ pub fn monte_carlo(
     // happens: a band refuses the whole run, and refusing it here
     // rather than at the first draw keeps the refusal a property of the
     // document instead of a property of which parameter came first.
-    let laws = laws_of(analyzed)?;
+    let laws = laws_of(doc, analyzed)?;
     for (_, spoken, dist) in &laws {
         sample_offset(spoken, dist, 0.5).map_err(McRefusal::BandHasNoMeasure)?;
     }
@@ -666,11 +666,14 @@ impl Rng {
 /// derivations of this list are two streams as soon as either moves.
 type Law = (VarId, SpokenVar, crate::distribution::Distribution);
 
-fn laws_of(analyzed: &AnalyzedBox) -> Result<Vec<Law>, McRefusal> {
+fn laws_of(doc: &Doc<ProfileProgram>, analyzed: &AnalyzedBox) -> Result<Vec<Law>, McRefusal> {
     analyzed
         .varying()
         .map(|(id, p)| {
-            let spoken = analyzed.spoken(id);
+            // Spoken from the document the run is over, not the box: a
+            // box taken before a rename compares equal after it, and
+            // the refusal says the name the document holds now.
+            let spoken = doc.spoken_var(id);
             match p.distribution {
                 Some(d) => Ok((id, spoken, d)),
                 None => Err(MeasureUnavailable::BandHasNoMeasure { param: spoken }),
@@ -703,11 +706,12 @@ fn laws_of(analyzed: &AnalyzedBox) -> Result<Vec<Law>, McRefusal> {
 /// band — the same refusal, for the same reason, that would stop the
 /// whole run.
 pub fn sample_offsets(
+    doc: &Doc<ProfileProgram>,
     analyzed: &AnalyzedBox,
     config: &McConfig,
     index: usize,
 ) -> Result<std::collections::BTreeMap<VarId, f64>, McRefusal> {
-    let laws = laws_of(analyzed)?;
+    let laws = laws_of(doc, analyzed)?;
     let mut rng = Rng::for_sample(config.seed, index);
     let mut out = std::collections::BTreeMap::new();
     for (id, spoken, dist) in &laws {

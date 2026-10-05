@@ -124,7 +124,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .apply(
             &editor_core::DocEdit::DefineVar {
                 var: editor_core::VarName::from_static("pip_depth").into(),
-                def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                     editor_core::Dimension::Length,
                     0.0625,
                 )),
@@ -226,7 +226,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     let mut r = fixture::Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: h.clone(),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, -0.25)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.25)),
     });
     let profile = r.profile(
         [0.0; 3],
@@ -236,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     );
     let block = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(h.clone(), Dimension::Length),
+        distance: Expr::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
@@ -269,7 +269,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     for edit in [
         DocEdit::DefineVar {
             var: h.into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         DocEdit::SetExtrudeSide {
             node: block,
@@ -286,11 +286,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
-    let mut z: Vec<f64> = body
-        .vertex_points()
-        .map(|(_, p)| p.unwrap())
-        .map(|p| p.z)
-        .collect();
+    let mut z: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.z).collect();
     z.sort_by(f64::total_cmp);
     z.dedup();
     assert_eq!(z, [-0.25, 0.0], "below the sketch plane, a quarter deep");
@@ -309,7 +305,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
                 expr: editor_core::Expr::div(
-                    editor_core::Expr::param(
+                    editor_core::Expr::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),

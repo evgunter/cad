@@ -67,7 +67,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+    Expr::named(name(n), dim)
 }
 
 fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
@@ -175,7 +175,7 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Sited
         &[editor_core::GeomPred::SurfaceKind(
             editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
         )],
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect("the surface-kind atom is exact");
@@ -216,15 +216,15 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, w_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, w_dist)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("d"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, d_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, d_dist)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("k"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, None)),
     });
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -297,7 +297,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.2, r_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, r_dist)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -350,11 +350,11 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("h"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, h_dist)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("u"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, None)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -414,7 +414,7 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, None)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, None)),
     });
     let section = |z: f64| {
         let chain = LoopProgram::Chain(vec![
@@ -490,7 +490,7 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
     ] {
         r.push(DocEdit::DeclareVar {
             name: name(p),
-            def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, dist)),
+            def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, dist)),
         });
     }
     let v = |p: &'static str| MeasureExpr::value(param(p, Dimension::Length));
@@ -513,9 +513,9 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
 #[test]
 fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     let s = slab(None, None);
-    let env = seed_env::<Dual64, _>(&s.doc, s.doc.param_env::<Dual64>(), var(&s.doc, "w"))
+    let env = seed_env::<Dual64, _>(&s.doc, s.doc.var_env::<Dual64>(), var(&s.doc, "w"))
         .expect("w is continuous");
-    let binding = |n: &'static str| match env.bindings[&name(n)] {
+    let binding = |n: &'static str| match env.bindings[&var(&s.doc, n)] {
         ParamValue::Continuous { value, .. } => value,
         ParamValue::Count(_) => panic!("{n} is continuous"),
     };
@@ -752,7 +752,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         &s.doc,
         DocEdit::DefineVar {
             var: name("w").into(),
-            def: editor_core::VarDef::Free(continuous(
+            def: editor_core::VarDecl::Free(continuous(
                 Dimension::Length,
                 2.0,
                 Some(uniform(-0.1, 0.1)),
@@ -912,7 +912,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     );
     assert_eq!(wc.leaves, verdict.certified().len());
     let blockers: Vec<editor_core::VarId> = match &report.rss {
-        Rss::UnavailableBecause { blockers } => blockers.iter().map(|b| b.param().id()).collect(),
+        Rss::UnavailableBecause { blockers } => blockers.iter().map(|b| b.var().id()).collect(),
         other => panic!("{other:?}"),
     };
     // In declaration order, the order every lane lists variables in.
@@ -965,7 +965,7 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("a"),
-        def: editor_core::VarDef::Free(continuous(
+        def: editor_core::VarDecl::Free(continuous(
             Dimension::Scalar,
             1.0,
             Some(uniform(-0.5, 0.5)),
@@ -1228,13 +1228,13 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
         Rss::UnavailableBecause { blockers } => {
             let mut want = vec![
                 Unavailable::BandHasNoMeasure {
-                    param: doc.spoken_var(var(&doc, "tn")),
+                    var: doc.spoken_var(var(&doc, "tn")),
                 },
                 Unavailable::BandHasNoMeasure {
-                    param: doc.spoken_var(var(&doc, "u")),
+                    var: doc.spoken_var(var(&doc, "u")),
                 },
             ];
-            want.sort_by_key(|b| doc.var_order().iter().position(|v| *v == b.param().id()));
+            want.sort_by_key(|b| doc.var_order().iter().position(|v| *v == b.var().id()));
             assert_eq!(blockers, &want);
         }
         other => panic!("{other:?}"),

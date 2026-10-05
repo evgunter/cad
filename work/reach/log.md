@@ -789,3 +789,43 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Verification.** An independent verifier session found the pass VERIFIED. No inside-out body passes in any family at 1e-9 or 1e-12, and no valid in-domain body that main accepts is refused beyond the sliver fixture main also refuses. All seven mutants behave as stated. One digest line moved, `sym_thin_strip`, and the move is explained.
 - **Its notes.** The backstop's interval confirm now re-runs quadrature faces about c, a cost change outside check 7. `validate_geometric` costs about 1.3–2.5× main on curved bodies.
 — (REACH orchestrator)
+
+## 2026-10-04 — a chord takes the arc its pairing named (PR 3985)
+
+- **The change.** One datum, the section's direction at each crossing, is minted with the crossing. Both the pairing and `chord_spec` read it, and the chord only orients itself by it. The azimuth-window selector and the run-side selector retire. The design fork behind it converged on its first reports (fork-log row 66) and was adopted, not sent to Ev.
+- **Review.** It was a dual review frozen at `7e33abf087`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR; nothing enters the tally. The last pass removed the stale prose citing the retired selectors, restated `Placement::Undecided`'s reachability, recorded the cross-check counts, and added a four-crossing walk-order row.
+- **The merge with JOIN (PR 4008).** After it, JOIN's chord ranking superseded the walk-order filter, so the filter pinned nothing. Ruling (a) removed it, with its rows. Main's `wall_region` and `ChordJoiner::fragments`, which only fed the retired window, went with it.
+- **Verification.** Two independent verifier sessions found it VERIFIED, the second on the final head. The head mints every chord main mints (26,499 in the suites, 10,830 in the tour). All four mutants are killed. Every ε red is red on main too: the four torn-body rows, the steep ellipse at 1e-6, and the arc loft at 1e-12.
+- **Also in this sync.** The two items filed for the steep-ellipse 1e-6 red, one by this lane and one by #3977's, are folded into the one on main.
+## 2026-10-04 — the boolean door takes finished bodies (PR 3987)
+
+- **The change.** The boolean doors take `&AtRestBody<T>`, and `ops::gate` is the one result gate (tier 3 via `T::gate_at_rest_kept`) at every site that builds a `BooleanBody`. A sub-tier-3 operand refuses where it is finished, naming its own entities. The editor finishes each operand once at the seat. The census half is parked on `boolean-door-runs-the-census-over-its-result`. The seat's second tier-3 run is filed as `the-evaluator-carries-kept-bodies`.
+- **Review.** The dual review froze at `b8eb4dd0eb` and both reviews came back NOT-MERGEABLE-AS-IS. Both raised the merge order ahead of #3977 (the contact9 row red at 1e-12). Only R2 raised that an inside-out operand at a dual ships its complement, a regression from main. That enters the tally.
+- **Fix pass 1.** At duals the door runs main's operand gate and `validate::inside_out_solids` (`reduce::gate_unverdicted_operand`) and main's structural result gate. The public `boolean_reduce` doors take `&AtRestBody`. **Delta review:** APPROVE-WITH-FIXES, 0/2/5, the dual MAJOR closed by execution.
+- **The last pass.** It restored the public `NonMaximalFaces`/`CoplanarNeighbours` rows and pinned the public reduction with compile-fail doctests and a dual row. Then it merged main after #3977.
+- **Verification.** An independent verifier session found the pass VERIFIED. Mutants MA, MC and MD go red on the rows stated. The workspace runs 11651/11651 at 1e-9, 1e-6 and 1e-12. Main's new door callers refuse nothing main built.
+- **Its notes.** The nightly dev-probe k-lint count is 104 on both trees against the current base, not 100; `k-lint-reads-the-boolean-doors-tier-3-at-probe` is updated.
+— (REACH orchestrator)
+
+## 2026-10-04 — four items PR 3985 answered are closed
+
+PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's ruling arm now carries the datum too). Its state sync closed only the unit item. Four items it answered stayed at `review`, and they close now: the planar side's arc cue, the run-side rule (retired), TANG's tilted pierce ring and TANG's collar wedge (all 48 poses build). Wave 2 is three units: the carved-sphere body, the trimmed-sphere escape and the conic × quadric door. None touches what the D10 hold covers.
+— (REACH orchestrator)
+
+## 2026-10-05 — a carved sphere body is classified and reused (PR 4046)
+
+- **The change.** One module, `topo::boolean::sphere_region`, reads a trimmed sphere face without a chart rectangle. It casts a geodesic ray, takes the closest boundary crossing, and reads leave or enter against the arc's traversal. The ray is cast both ways, and every graze abandons the ray. The point classifier and the pierce arm's face door both read through it. That retires `PartialSphereFace` for every circle-bounded face and `CurvedPierceUnsupported` for the lens-centre ball. The lane chose this over a signed combination of caps by measurement: 2 of 16 trimmed faces in the row bodies have a reflex vertex, where a per-circle combination is wrong.
+- **Tier.** Dual review (H / TRICKY). A wrong In/Out ships a wrong body.
+- **Review.** Dual review frozen at `b793623189`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR, so nothing enters the tally. Bilaterally: the seam exclusion was pinned only at 1e-12. Unilaterally: no answer when a face vertex sits at the query's antipode; the strut row and the tilted-cut row could not see a flipped heading; and a stale filing.
+- **The last pass.** It added a default-ε seam row and reverse rays for the antipode, and made both rows read a region. It corrected the filing, renamed the sphere residual's decision, and filed a JOIN item (`SpheresMeet` off every edge) and a CLEAVE item (three closest-crossing readers). Then it merged main through #3339b7b20d's typed `ContainError`.
+- **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in 52,500 random queries plus both reviewers' probes at three ε, and the mutant table reproduced. The azimuth period gate `sphere_chart_trim` keeps is defensive only: no public boolean builds the pole-circling loop it guards.
+— (REACH orchestrator)
+
+## 2026-10-05 — one conic × quadric door decides its arm on A₂ (PR 4042)
+
+- **The change.** The circle × cylinder, circle × sphere and ellipse × sphere/wall root doors are one door, `conic_quadric_roots`. It takes the first-harmonic arm when the second harmonic's amplitude `A₂` reads zero and charges `A₂` to the noise. The tilt predicate retires. The ellipse × torus arm keeps its own door (degree four).
+- **Tier.** Single full review (M). A consolidation over one algebra, backed by a 0-diff differential, with correctness claims on the arm's charge and its losses.
+- **Review.** APPROVE-WITH-FIXES, 0/1/4. There were no wrong answers in 2,000 fuzzed poses per ε, and 6,479 suite door calls were identical on main and head. The MINOR: no row guarded the arm's `A₂` charge on a circle; a mutant that drops it ships `OnSurface` for a circle 1.62ε off its wall.
+- **The last pass.** It added the circle row (the only red under that mutant, at three ε), measured the coefficient rounding against the charge, gave the test oracles one home with extremum refinement, and carried the review's notes to the filed items. One near-copy helper is left in `circle_wall_rows.rs:102`.
+- **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in the fuzz at three ε, and the mutant table holds. The single charge covers the rounding with about 3× room (max 0.316 of it, not the 0.19 the PR first quoted).
+— (REACH orchestrator)

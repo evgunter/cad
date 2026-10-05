@@ -40,7 +40,7 @@ fn small() -> (ProfileDoc, String) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -275,7 +275,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("d"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.5)),
         },
     );
     // 2 InsertNode xN — the two quads sit at different x offsets, so
@@ -299,7 +299,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: p0,
-                distance: Expr::param(VarName::from_static("d"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -454,7 +454,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     );
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("neg".to_owned(), MetaValue::Float(-0.0));
     push(
         &mut doc,
@@ -628,11 +628,11 @@ fn attack_meta_order_canonical() {
     let tree = |order: bool| {
         let mut m = std::collections::BTreeMap::new();
         if order {
-            m.insert("v".to_owned(), MetaValue::Int(1));
-            m.insert("a".to_owned(), MetaValue::Int(2));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
         } else {
-            m.insert("a".to_owned(), MetaValue::Int(2));
-            m.insert("v".to_owned(), MetaValue::Int(1));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
         }
         MetaValue::map(m).expect("a shallow value")
     };
@@ -696,7 +696,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .unwrap()
     .doc;
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     let doc = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {

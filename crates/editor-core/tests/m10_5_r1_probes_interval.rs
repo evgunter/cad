@@ -67,7 +67,7 @@ fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
 fn declare_with(r: &mut Recorder, axis: &'static str, nominal: f64, hw: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(axis),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -115,7 +115,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+    Expr::named(name(n), Dimension::Length)
 }
 
 /// Two unit blocks whose facing walls stand `gap` apart, the gap a

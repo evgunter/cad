@@ -42,7 +42,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("w"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -52,7 +52,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             }),
         }),
     });
-    let w = || Expr::param(VarName::from_static("w"), Dimension::Length);
+    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
     let plane = r.insert(xy_frame());
     let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {

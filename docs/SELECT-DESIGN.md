@@ -159,7 +159,7 @@ GeomPred =                       -- a CONJUNCTION of atoms
 select_where<T: Decide>(
     ev: &Evaluation<T>, node: RecipeNodeId,
     sel: &Selector, geom: &[GeomPred],
-    params: &ParamEnv<T>, tol: Tol,
+    params: &VarEnv<T>, tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal>
 ```
 

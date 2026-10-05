@@ -9,14 +9,14 @@
 //! two ids, and nothing that identifies a variable is text.
 
 use crate::doc::FreeVar;
-use crate::expr::Dimension;
+use crate::expr::{Dimension, Expr};
 
 /// **A variable's identity** (VR1): minted from the document's mint
 /// chain ([`crate::Mint`]) by `DeclareVar`, never reused (a deleted
 /// variable's id stays in the mint log), never positional.
 ///
-/// Its `Display` is the 12-hex tag a node's is; [`VarId::full`] gives
-/// every bit.
+/// Its `Display` is `#` and every bit (`#3fa9c1d2a0b1c3d4`), the text
+/// a nameless reader unparses to; [`VarId::full`] gives the bits alone.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -69,12 +69,20 @@ impl core::fmt::Display for VarKind {
     }
 }
 
-/// **A variable's definition** (VR3). A free variable is a value, its
-/// written unit and optionally a distribution.
+/// **A variable's definition** (VR3): free — a value, its written
+/// unit and optionally a distribution — or defined by an expression
+/// over other variables, whose dimension is the variable's kind.
+///
+/// The stored form: a definition's expression reads variables by id
+/// alone, as the edit door wrote it. [`VarDecl`] is the authored twin.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum VarDef {
     /// A free variable.
     Free(FreeVar),
+    /// A variable defined by an expression over other variables. It
+    /// holds no distribution: its uncertainty is the pushforward of
+    /// its inputs'.
+    Defined(Expr),
 }
 
 impl VarDef {
@@ -83,6 +91,7 @@ impl VarDef {
     pub fn kind(&self) -> VarKind {
         match self {
             Self::Free(free) => VarKind::from(free.dim()),
+            Self::Defined(expr) => VarKind::from(expr.dim()),
         }
     }
 
@@ -91,6 +100,16 @@ impl VarDef {
     pub fn free(&self) -> Option<&FreeVar> {
         match self {
             Self::Free(free) => Some(free),
+            Self::Defined(_) => None,
+        }
+    }
+
+    /// The defining expression, when the definition is one.
+    #[must_use]
+    pub fn defined(&self) -> Option<&Expr> {
+        match self {
+            Self::Free(_) => None,
+            Self::Defined(expr) => Some(expr),
         }
     }
 
@@ -99,6 +118,72 @@ impl VarDef {
     pub fn bit_eq(&self, other: &VarDef) -> bool {
         match (self, other) {
             (Self::Free(a), Self::Free(b)) => a.bit_eq(b),
+            (Self::Defined(a), Self::Defined(b)) => a.bit_eq(b),
+            (Self::Free(_) | Self::Defined(_), _) => false,
+        }
+    }
+}
+
+/// **A variable's definition as an edit carries it** — the authored
+/// twin of [`VarDef`]. A defining expression may read variables by
+/// name; the edit door lowers each name to the variable it names and
+/// stores the [`VarDef`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum VarDecl {
+    /// A free variable.
+    Free(FreeVar),
+    /// A variable defined by an expression over other variables.
+    Defined(Expr),
+}
+
+impl VarDecl {
+    /// A variable defined by `expr`.
+    #[must_use]
+    pub fn defined(expr: Expr) -> Self {
+        Self::Defined(expr)
+    }
+
+    /// The kind this definition holds.
+    #[must_use]
+    pub fn kind(&self) -> VarKind {
+        match self {
+            Self::Free(free) => VarKind::from(free.dim()),
+            Self::Defined(expr) => VarKind::from(expr.dim()),
+        }
+    }
+
+    /// The stored definition this declares. A name leaf the door did
+    /// not lower stays, and the door refuses it.
+    #[must_use]
+    pub fn stored(&self) -> VarDef {
+        match self {
+            Self::Free(free) => VarDef::Free(free.clone()),
+            Self::Defined(expr) => VarDef::Defined(expr.clone()),
+        }
+    }
+
+    /// The defining expression, when the declaration is one.
+    pub(crate) fn defined_mut(&mut self) -> Option<&mut Expr> {
+        match self {
+            Self::Free(_) => None,
+            Self::Defined(expr) => Some(expr),
+        }
+    }
+}
+
+impl From<FreeVar> for VarDecl {
+    fn from(free: FreeVar) -> Self {
+        Self::Free(free)
+    }
+}
+
+impl From<VarDef> for VarDecl {
+    /// A stored definition re-authored: what the door stored, which
+    /// lowers to itself.
+    fn from(def: VarDef) -> Self {
+        match def {
+            VarDef::Free(free) => Self::Free(free),
+            VarDef::Defined(expr) => Self::Defined(expr),
         }
     }
 }

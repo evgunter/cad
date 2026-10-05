@@ -95,8 +95,8 @@ pub mod witness;
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
     DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
-    SeedScalar, analyzed_box, box_mass, param_env_over, sample_offset, seed_env, std_deviation,
-    tail_mass,
+    SeedScalar, analyzed_box, box_mass, sample_offset, seed_env, std_deviation, tail_mass,
+    var_env_over,
 };
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
@@ -123,9 +123,9 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, MaintenanceNet,
-    Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed, cascade_delete_order,
-    regauge_then_mate,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
+    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed,
+    cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
@@ -146,7 +146,7 @@ pub use spoken::{
 // than through the module path.
 pub use eval::entity_door::Found;
 pub use expr::{
-    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
+    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamValue, UnitSym, VarEnv, eval,
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
@@ -169,7 +169,7 @@ pub use measure::{
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
     WINDOW_TIGHTENING,
 };
-pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
+pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub(crate) use mint::NodeIdCollides;
 pub use mint::{Mint, Minted};
 pub use names::{
@@ -236,7 +236,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use var::{Var, VarDef, VarId, VarKind, VarRef};
+pub use var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.

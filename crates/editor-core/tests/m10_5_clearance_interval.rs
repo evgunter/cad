@@ -169,7 +169,7 @@ fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(axis),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -254,7 +254,7 @@ fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         solid,
-        Expr::param(name("place"), Dimension::Length),
+        Expr::named(name("place"), Dimension::Length),
     ));
     (r.doc, solid, placed)
 }
@@ -316,7 +316,7 @@ fn hexagon() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let solid = extruded(&mut r, &corners, 1.0);
     let placed = r.insert(translated(
         solid,
-        Expr::param(name("place"), Dimension::Length),
+        Expr::named(name("place"), Dimension::Length),
     ));
     (r.doc, solid, placed)
 }
@@ -338,7 +338,7 @@ fn facing_blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let by = Expr::add(len(1.0), Expr::param(name("gap"), Dimension::Length))
+    let by = Expr::add(len(1.0), Expr::named(name("gap"), Dimension::Length))
         .expect("1 m + a length is a length");
     let b = r.insert(translated(a, by));
     (r.doc, a, b)

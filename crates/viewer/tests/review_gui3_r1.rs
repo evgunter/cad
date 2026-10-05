@@ -66,7 +66,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::DeclareVar {
             name: depth_param(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -76,7 +76,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::mul(Expr::param(depth_param(), Dimension::Length), scl(3.0))
+            distance: Expr::mul(Expr::named(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
             side: ExtrudeSide::Along,
         },
@@ -87,7 +87,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 
 fn set_depth(session: &mut DocSession, metres: f64) {
     let outcome = session.perform(SessionOp::SetParam {
-        name: depth_param(),
+        var: crate::common::var_of(session.committed_doc(), depth_param().as_str()),
         value: SlotValue::Continuous(metres),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -96,7 +96,7 @@ fn set_depth(session: &mut DocSession, metres: f64) {
 fn depth_of(doc: &Doc<ProfileProgram>) -> f64 {
     match props::param_rows(doc)
         .into_iter()
-        .find(|row| row.name == depth_param())
+        .find(|row| row.label.name() == Some(&depth_param()))
         .expect("the fixture declares r1_depth")
         .value
     {
@@ -309,7 +309,7 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         &doc,
         DocEdit::DeclareVar {
             name: depth_param(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );

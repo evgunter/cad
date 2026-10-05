@@ -506,13 +506,13 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
         s.doc.clone(),
         DocEdit::DeclareVar {
             name: k.clone(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 0 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 0 }),
         },
     );
     s.doc = doc;
     let index = Expr::add(
         Expr::mul(
-            Expr::param(k.clone(), Dimension::Count),
+            Expr::named(k.clone(), Dimension::Count),
             Expr::count(i64::MAX),
         )
         .unwrap(),
@@ -778,13 +778,13 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         s.doc.clone(),
         DocEdit::DeclareVar {
             name: k.clone(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 0 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 0 }),
         },
     );
     s.doc = doc;
     let index = Expr::add(
         Expr::mul(
-            Expr::param(k.clone(), Dimension::Count),
+            Expr::named(k.clone(), Dimension::Count),
             Expr::count(i64::MAX),
         )
         .unwrap(),
@@ -938,7 +938,7 @@ fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
         s.doc.clone(),
         DocEdit::DeclareVar {
             name: w.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
     );
     let derived = derive(

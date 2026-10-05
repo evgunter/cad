@@ -39,7 +39,7 @@ fn vertex_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> VertexKey {
     let hits: Vec<_> = body
         .vertex_points()
         .filter(|(_, p)| {
-            let p = p.unwrap();
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .map(|(k, _)| k)

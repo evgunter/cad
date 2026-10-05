@@ -54,7 +54,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+    Expr::named(name(n), Dimension::Length)
 }
 
 fn continuous(value: f64) -> FreeVar {
@@ -131,7 +131,7 @@ fn two_param_web() -> ProfileDoc {
         &doc,
         DocEdit::DeclareVar {
             name: name("depth"),
-            def: editor_core::VarDef::Free(continuous(0.1)),
+            def: editor_core::VarDecl::Free(continuous(0.1)),
         },
     );
     // The plate is the corpus web's extrude; its distance becomes the
@@ -186,7 +186,7 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(w)),
+        def: editor_core::VarDecl::Free(continuous(w)),
     });
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -224,7 +224,7 @@ fn with_count() -> ProfileDoc {
         &doc,
         &DocEdit::DeclareVar {
             name: name("n"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -285,7 +285,7 @@ fn a_seed_at_f64_refuses_every_node_typed() {
         assert_eq!(
             *e,
             SeedError::TangentUnrepresentable {
-                param: spoken(&doc, "hole_r")
+                var: spoken(&doc, "hole_r")
             }
         );
     });
@@ -300,8 +300,8 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
     every_node_refuses_seed(&unknown, |e| {
         assert_eq!(
             *e,
-            SeedError::UnknownParam {
-                param: spoken(&doc, "nope")
+            SeedError::UnknownVar {
+                var: spoken(&doc, "nope")
             }
         );
     });
@@ -309,8 +309,8 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
     every_node_refuses_seed(&count, |e| {
         assert_eq!(
             *e,
-            SeedError::CountParam {
-                param: spoken(&doc, "n")
+            SeedError::CountVar {
+                var: spoken(&doc, "n")
             }
         );
     });
@@ -318,15 +318,15 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
     // DOCUMENT first, so an unknown name refuses as unknown even at a
     // scalar that would have refused the tangent.
     assert_eq!(
-        seed_env::<f64, _>(&doc, doc.param_env::<f64>(), var(&doc, "nope")).err(),
-        Some(SeedError::UnknownParam {
-            param: spoken(&doc, "nope")
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "nope")).err(),
+        Some(SeedError::UnknownVar {
+            var: spoken(&doc, "nope")
         })
     );
     assert_eq!(
-        seed_env::<f64, _>(&doc, doc.param_env::<f64>(), var(&doc, "w")).err(),
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "w")).err(),
         Some(SeedError::TangentUnrepresentable {
-            param: spoken(&doc, "w")
+            var: spoken(&doc, "w")
         })
     );
 }
@@ -338,9 +338,9 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
 #[test]
 fn the_seed_is_exactly_one_and_zero_by_construction() {
     let doc = two_param_web();
-    let env = seed_env::<Dual64, _>(&doc, doc.param_env::<Dual64>(), var(&doc, "hole_r"))
+    let env = seed_env::<Dual64, _>(&doc, doc.var_env::<Dual64>(), var(&doc, "hole_r"))
         .expect("hole_r is continuous");
-    let binding = |n: &'static str| match env.bindings[&name(n)] {
+    let binding = |n: &'static str| match env.bindings[&var(&doc, n)] {
         ParamValue::Continuous { value, .. } => value,
         ParamValue::Count(_) => panic!("{n} is continuous"),
     };
@@ -442,7 +442,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
         .iter()
         .copied()
         .filter(|&id| match doc.node(id) {
-            Some(Node::Profile(p)) => p.references(&name("hole_r")),
+            Some(Node::Profile(p)) => doc.var_named("hole_r").is_some_and(|v| p.reads(v)),
             _ => false,
         })
         .flat_map(|id| corpus::cone(&doc, id))
@@ -612,7 +612,7 @@ fn seed_and_box_compose_exactly_at_dual_interval() {
         assert_eq!(
             *e,
             SeedError::TangentUnrepresentable {
-                param: spoken(&doc, "depth")
+                var: spoken(&doc, "depth")
             }
         );
     });

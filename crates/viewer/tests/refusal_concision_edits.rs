@@ -106,7 +106,9 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 node: s(4, "Profile"),
                 refusal: Box::new(ProgramRefusal::Resolve {
                     slot: SlotId::Distance,
-                    source: EvalError::UnknownParam(param()),
+                    source: EvalError::UnresolvedVar {
+                        var: pncad::document::VarId(tagged(7)),
+                    },
                 }),
             },
         ),
@@ -235,17 +237,17 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "SlotUnknownDocParam",
-            EditError::SlotUnknownDocParam {
+            "SlotUnknownVarName",
+            EditError::SlotUnknownVarName {
                 name: param(),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
             },
         ),
         (
-            "SlotDocParamDimension",
-            EditError::SlotDocParamDimension {
-                name: param(),
+            "SlotVarKind",
+            EditError::SlotVarKind {
+                var: spoken_var(),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
                 declared: Dimension::Angle,
@@ -253,19 +255,34 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "PayloadUnknownDocParam",
-            EditError::PayloadUnknownDocParam {
+            "SlotUnresolvedVar",
+            EditError::SlotUnresolvedVar {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                node: s(5, "Extrude"),
+                slot: SlotId::Distance,
+            },
+        ),
+        (
+            "PayloadUnknownVarName",
+            EditError::PayloadUnknownVarName {
                 name: param(),
                 node: s(5, "Measure"),
             },
         ),
         (
-            "PayloadDocParamDimension",
-            EditError::PayloadDocParamDimension {
-                name: param(),
+            "PayloadVarKind",
+            EditError::PayloadVarKind {
+                var: spoken_var(),
                 node: s(5, "Measure"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
+            },
+        ),
+        (
+            "PayloadUnresolvedVar",
+            EditError::PayloadUnresolvedVar {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+                node: s(5, "Measure"),
             },
         ),
         (
@@ -296,8 +313,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "ContinuousParamCannotBeCount",
-            EditError::ContinuousParamCannotBeCount { var: spoken_var() },
+            "ContinuousVarCannotBeCount",
+            EditError::ContinuousVarCannotBeCount { var: spoken_var() },
         ),
         (
             "UnknownVar",
@@ -311,6 +328,22 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::VarNameTaken {
                 name: param(),
                 holder: spoken_var(),
+            },
+        ),
+        (
+            "VarNameUnchanged",
+            EditError::VarNameUnchanged { var: spoken_var() },
+        ),
+        (
+            "AnonymousVarUnread",
+            EditError::AnonymousVarUnread {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
+            },
+        ),
+        (
+            "DeleteAnonymousVar",
+            EditError::DeleteAnonymousVar {
+                var: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(7)), None),
             },
         ),
         (
@@ -328,24 +361,77 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "DocParamCountHasNoUnit",
-            EditError::DocParamCountHasNoUnit { var: spoken_var() },
+            "NotAFreeVar",
+            EditError::NotAFreeVar {
+                var: spoken_var(),
+                door: editor_core::CarryForwardDoor::Value,
+            },
         ),
         (
-            "DocParamCountHasNoDistribution",
-            EditError::DocParamCountHasNoDistribution { var: spoken_var() },
+            "DefinitionCycle",
+            EditError::DefinitionCycle {
+                var: spoken_var(),
+                through: vec![
+                    spoken_var(),
+                    pncad::document::SpokenVar::new(
+                        pncad::document::VarId(tagged(8)),
+                        Some(VarName::from_static("height")),
+                    ),
+                ],
+            },
         ),
         (
-            "DocParamUnitMismatch",
-            EditError::DocParamUnitMismatch {
+            "DefinitionTooLarge",
+            EditError::DefinitionTooLarge {
+                var: spoken_var(),
+                nodes: 4097,
+            },
+        ),
+        (
+            "DefinitionUnknownVarName",
+            EditError::DefinitionUnknownVarName {
+                var: spoken_var(),
+                name: VarName::from_static("height"),
+            },
+        ),
+        (
+            "DefinitionUnresolvedVar",
+            EditError::DefinitionUnresolvedVar {
+                var: spoken_var(),
+                read: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(8)), None),
+            },
+        ),
+        (
+            "DefinitionVarKind",
+            EditError::DefinitionVarKind {
+                var: spoken_var(),
+                read: pncad::document::SpokenVar::new(
+                    pncad::document::VarId(tagged(8)),
+                    Some(VarName::from_static("height")),
+                ),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+        ),
+        (
+            "VarCountHasNoUnit",
+            EditError::VarCountHasNoUnit { var: spoken_var() },
+        ),
+        (
+            "VarCountHasNoDistribution",
+            EditError::VarCountHasNoDistribution { var: spoken_var() },
+        ),
+        (
+            "VarUnitMismatch",
+            EditError::VarUnitMismatch {
                 var: spoken_var(),
                 unit: Dimension::Angle,
                 declared: Dimension::Length,
             },
         ),
         (
-            "DocParamValueKindMismatch",
-            EditError::DocParamValueKindMismatch {
+            "VarValueKindMismatch",
+            EditError::VarValueKindMismatch {
                 var: spoken_var(),
                 declared: Dimension::Count,
                 offered: FreeValue::Continuous(2.5),
@@ -398,8 +484,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "NonFiniteDocParam",
-            EditError::NonFiniteDocParam {
+            "NonFiniteVar",
+            EditError::NonFiniteVar {
                 var: spoken_var(),
                 field: DocParamField::Offset(DistributionField::Sigma),
             },
@@ -714,7 +800,7 @@ fn next_distribution_fault(fault: &DistributionFault) -> Option<DistributionFaul
         }
         DistributionFault::NominalOutsideSupport { .. } => None,
         // No row: no edit door raises it, because `distribution_fault_error`
-        // routes a non-finite offset to `NonFiniteDocParam`, which has
+        // routes a non-finite offset to `NonFiniteVar`, which has
         // its own.
         DistributionFault::NonFinite { .. } => None,
     }

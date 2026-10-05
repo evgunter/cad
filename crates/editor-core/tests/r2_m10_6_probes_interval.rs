@@ -145,7 +145,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("place"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -173,7 +173,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::param(name("place"), Dimension::Length),
+                Expr::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],

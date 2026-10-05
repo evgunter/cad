@@ -55,8 +55,8 @@ fn try_push(
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("r2-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("r2-noparams", Tol::witness()).var_env::<f64>()
 }
 
 /// Faces of one surface kind on one node's value, canonically ordered.
@@ -1420,7 +1420,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         &d0,
         &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -1433,7 +1433,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(VarName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
     let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
@@ -1447,7 +1447,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
                 profile: d1.order()[1],
                 distance: Expr::div(
                     len(13.0),
-                    Expr::param(VarName::from_static("s"), Dimension::Scalar),
+                    Expr::named(VarName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
@@ -1488,7 +1488,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &d0,
         &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -1501,7 +1501,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(VarName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);

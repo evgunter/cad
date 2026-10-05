@@ -474,6 +474,15 @@ fn sym_9_what_each_retry_recovers() {
 /// Measured by a probe binding each variable under its old name-hash
 /// symbol, which restores 156 and 162: the move is the order alone.
 ///
+/// A loop walk that decides each loop's closure joint as every other
+/// joint, between two images, and reads the winding off the integer
+/// joint elements (the re-anchor ruling, PR 4024) trades the closure
+/// margins for that joint's branch, pole-lever and continuity margins:
+/// `numeric` up on all five, with and without the ladder alike (the
+/// plate +14 to 704, the annulus +14 to 451, the boss +10 to 414, the
+/// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
+/// Theorems, `sign_gated`, `registered` and `retried` do not move.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -493,21 +502,21 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [955, 0, 148, 690], [955, 0, 148, 690], 0),
-        ("r1_annulus", [440, 32, 148, 437], [440, 32, 148, 437], 0),
+        ("two_hole_plate", [955, 0, 148, 704], [955, 0, 148, 704], 0),
+        ("r1_annulus", [440, 32, 148, 451], [440, 32, 148, 451], 0),
         (
             "r1_segment_boss",
-            [459, 26, 102, 404],
-            [459, 26, 102, 404],
+            [459, 26, 102, 414],
+            [459, 26, 102, 414],
             0,
         ),
         (
             "r2_filleted_bracket",
-            [1259, 45, 154, 1070],
-            [1259, 45, 160, 1064],
+            [1259, 45, 154, 1087],
+            [1259, 45, 160, 1081],
             6,
         ),
-        ("r2_link", [689, 0, 118, 735], [691, 0, 130, 721], 14),
+        ("r2_link", [689, 0, 118, 748], [691, 0, 130, 734], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -607,7 +616,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         retry: SymRetry::none(),
         ..editor_core::drive::SymbolicDials::default()
     });
-    let (line, human) = (shipped.serialize(), shipped.render(&analyzed));
+    let (line, human) = (shipped.serialize(), shipped.render(&doc, &analyzed));
     println!("{line}\n{human}");
     assert_eq!(shipped.receipt().certified, 1, "the leaf certifies whole");
     assert_eq!(
@@ -624,7 +633,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1259, 45, 160, 1064, 6],
+        [1259, 45, 160, 1081, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -644,11 +653,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1259, 45, 154, 1070, 0]
+        [1259, 45, 154, 1087, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
     );
-    assert!(!bare.render(&analyzed).contains("second attempt"));
+    assert!(!bare.render(&doc, &analyzed).contains("second attempt"));
 }

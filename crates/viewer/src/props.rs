@@ -108,21 +108,20 @@
 //!   — so the field and the unit picker agree afterwards without
 //!   either being told about the other.
 //!
-//! **The two doors differ in WHERE that text may land, and only
-//! there.** A slot can be driven by an expression, so its text door is
-//! `SessionOp::SetSlotExpression` and `w * 2` is an edit. A document
-//! parameter holds an `f64` and nothing else — there is no
-//! `SetVarExpression` — so its text door is
-//! `SessionOp::SetParamText`, which takes a number and its notation
-//! (`50 mm`) and refuses every other expression by name.
+//! **The two doors differ in WHERE that text lands.** A slot's text
+//! door is `SessionOp::SetSlotExpression`, and `w * 2` drives the slot.
+//! A document parameter's is `SessionOp::SetParamText`: a number and
+//! its notation (`50 mm`) are the free parameter's value, and any
+//! other expression DEFINES the parameter (`DocEdit::DefineVar`),
+//! keeping its identity.
 //!
 //! A slot field that evaluated to a literal shows its number, which
 //! the widget formats (`crate::widgets::number_text`); the unit is the
 //! picker's to say, not the field's. Every other slot field shows
 //! [`field_text`] in its number's place: a driven slot the value its
 //! expression equals, with its keyboard edit opening on the source
-//! ([`field_source`]). A parameter's always shows its number, because
-//! a parameter is never driven by anything.
+//! ([`field_source`]). A free parameter's always shows its number; a
+//! defined parameter's row shows its formula ([`defined_rows`]).
 //!
 //! **Text the field itself produced is not an edit**, at either field
 //! — [`echoed`], one function because it is one rule, asked of the
@@ -133,8 +132,8 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, UnitSym, VarName, VectorSlot, eval,
-    eval_count, unparse,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VectorSlot, eval,
+    eval_count,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -494,8 +493,9 @@ pub enum SlotDriver {
     /// the document parameters it references, in first-seen order and
     /// deduplicated — the affordance's navigation targets.
     Expression {
-        /// The parameters this expression reads.
-        params: Vec<VarName>,
+        /// The variables this expression reads, first-read order, each
+        /// as the document speaks it.
+        params: Vec<SpokenVar>,
     },
 }
 
@@ -507,19 +507,21 @@ impl SlotDriver {
     /// arithmetic, however constant — is driven, which is the
     /// conservative direction: refusing to overwrite a computed slot
     /// is recoverable, silently flattening one to a number is not.
-    pub fn of(expr: &Expr) -> Self {
+    pub fn of(doc: &Doc<ProfileProgram>, expr: &Expr) -> Self {
         let mut refs = Vec::new();
-        expr.param_refs(&mut refs);
+        expr.var_reads(&mut refs);
         if refs.is_empty() && expr.child(0).is_none() {
             return Self::Literal;
         }
-        let mut params: Vec<VarName> = Vec::new();
-        for (name, _) in refs {
-            if !params.contains(&name) {
-                params.push(name);
+        let mut read: Vec<VarId> = Vec::new();
+        for (var, _) in refs {
+            if !read.contains(&var) {
+                read.push(var);
             }
         }
-        Self::Expression { params }
+        Self::Expression {
+            params: read.into_iter().map(|var| doc.spoken_var(var)).collect(),
+        }
     }
 
     /// Whether this slot refuses a direct numeric edit.
@@ -631,7 +633,7 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
             source: None,
         };
     };
-    let env = doc.param_env::<f64>();
+    let env = doc.var_env::<f64>();
     let value = if slot.dimension() == Dimension::Count {
         eval_count(expr, &env)
             .map(SlotValue::Count)
@@ -645,10 +647,10 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
         slot,
         dimension: slot.dimension(),
         structural: slot.is_structural(),
-        driver: SlotDriver::of(expr),
+        driver: SlotDriver::of(doc, expr),
         value,
         unit: expr.display_unit(),
-        source: Some(unparse(expr)),
+        source: Some(doc.unparse(expr)),
     }
 }
 
@@ -897,8 +899,12 @@ pub fn slot_unit(doc: &Doc<ProfileProgram>, node: RecipeNodeId, slot: SlotId) ->
 /// One document-level parameter, as the panel shows it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamRow {
-    /// The parameter's name.
-    pub name: VarName,
+    /// The variable — the row's identity, which a rename does not
+    /// move.
+    pub var: VarId,
+    /// The variable as the panel labels it: its name, or its tag when
+    /// it has none.
+    pub label: SpokenVar,
     /// Its declared dimension.
     pub dimension: Dimension,
     /// Its exact stored value, canonical.
@@ -916,18 +922,13 @@ pub struct ParamRow {
     pub unit: Option<UnitDef>,
 }
 
-/// Every named free variable, name order.
+/// Every free variable, declaration order — the order a rename
+/// leaves alone, so a row keeps its place when its label changes.
 pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
-    let mut named: Vec<(&VarName, &FreeVar)> = doc
-        .var_names()
-        .iter()
-        .filter_map(|(id, name)| Some((name, doc.free(*id)?)))
-        .collect();
-    named.sort_by(|a, b| a.0.cmp(b.0));
-    named
-        .into_iter()
-        .map(|(name, param)| ParamRow {
-            name: name.clone(),
+    doc.free_vars()
+        .map(|(var, param)| ParamRow {
+            var,
+            label: doc.spoken_var(var),
             dimension: param.dim(),
             value: match param {
                 FreeVar::Continuous { value, .. } => SlotValue::Continuous(*value),
@@ -937,6 +938,45 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
                 FreeVar::Continuous { display_unit, .. } => Some(display_unit.def()),
                 FreeVar::Count { .. } => None,
             },
+        })
+        .collect()
+}
+
+/// One defined variable, as the panel shows it: its formula as the
+/// document's names write it, in a field that takes a new formula or a
+/// value ([`crate::session::SessionOp::SetParamText`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DefinedRow {
+    /// The variable.
+    pub var: VarId,
+    /// The variable as the panel labels it.
+    pub label: SpokenVar,
+    /// Its dimension.
+    pub dimension: Dimension,
+    /// Its definition, unparsed (`Doc::unparse`).
+    pub formula: String,
+    /// What the definition evaluates to, or `None` when it refuses.
+    pub value: Option<SlotValue>,
+}
+
+/// Every defined variable, declaration order.
+pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
+    let env = doc.var_env::<f64>();
+    doc.var_order()
+        .iter()
+        .filter_map(|&var| {
+            let expr = doc.var(var)?.def().defined()?;
+            Some(DefinedRow {
+                var,
+                label: doc.spoken_var(var),
+                dimension: expr.dim(),
+                formula: doc.unparse(expr),
+                value: if expr.dim() == Dimension::Count {
+                    eval_count(expr, &env).ok().map(SlotValue::Count)
+                } else {
+                    eval(expr, &env).ok().map(SlotValue::Continuous)
+                },
+            })
         })
         .collect()
 }
@@ -1063,12 +1103,12 @@ pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) 
 /// Unlike a slot's, this rebuilds nothing: `DocEdit::SetVarUnit`
 /// carries the declaration forward, so the dimension, the value and
 /// any distribution ride through without this function naming them.
-/// The refusals (an undeclared name, a `Count`, a unit that does not
+/// The refusals (a variable the document does not hold, a `Count`, a unit that does not
 /// measure the declared dimension) belong to the edit door; this is
 /// the spelling, not a second validator.
-pub fn param_unit_edit(name: VarName, unit: UnitDef) -> DocEdit<ProfileProgram> {
+pub fn param_unit_edit(var: VarId, unit: UnitDef) -> DocEdit<ProfileProgram> {
     DocEdit::SetVarUnit {
-        var: name.into(),
+        var: var.into(),
         unit: UnitSym::from_def(&unit),
     }
 }
@@ -1083,11 +1123,11 @@ pub fn param_unit_edit(name: VarName, unit: UnitDef) -> DocEdit<ProfileProgram> 
 /// to delete an annotation it never mentions, rather than remembering
 /// to copy one across.
 ///
-/// The refusals (an undeclared name, a kind mismatch) belong to the
+/// The refusals (a variable the document does not hold, a kind mismatch) belong to the
 /// edit door; this is the spelling, not a second validator.
-pub fn param_edit(name: VarName, value: SlotValue) -> DocEdit<ProfileProgram> {
+pub fn param_edit(var: VarId, value: SlotValue) -> DocEdit<ProfileProgram> {
     DocEdit::SetVarValue {
-        var: name.into(),
+        var: var.into(),
         value: match value {
             SlotValue::Count(value) => FreeValue::Count(value),
             SlotValue::Continuous(value) => FreeValue::Continuous(value),
