@@ -658,10 +658,10 @@ mod crossing_rows {
             ),
             "a face the caller passed that does not resolve refuses typed"
         );
-        // A member's start, on a span the circle does not cross the
-        // boundary in: no containment read follows, so the start is the
-        // only read that passes through it.
-        let clear = (0.3, 0.5);
+        // A member's start, on a span no candidate falls strictly inside:
+        // no containment read follows, so the start is the only read that
+        // passes through it.
+        let clear = (0.4, 0.401);
         assert!(
             matches!(
                 boundary_crossing(&body, Operand::B, face, &tilted, clear, band),
