@@ -244,8 +244,7 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
 /// Where a face's surface does not resolve: the reduction's body is
 /// mid-operation, where a face's surface is a link
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]), and a torn one is not
-/// curved. It is read before the face's crossings, whose leaving
-/// directions read it again ([`split_leave`]).
+/// curved.
 fn fixed_partners<T: Decide>(
     red: &SplitReduction<T>,
     above_set: &SecondaryMap<VertexKey, ()>,
@@ -278,10 +277,7 @@ fn fixed_partners<T: Decide>(
             continue;
         }
         let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let plane_normal = match *body.face_surface_linked(face, face_data) {
-            geom::Surface::Plane { normal, .. } => Some(normal),
-            _ => None,
-        };
+        let wall = body.face_surface_linked(face, face_data);
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -291,12 +287,18 @@ fn fixed_partners<T: Decide>(
                 // The half's up/down sense, read as the sweep reads it
                 // (`Sweep::is_down`).
                 down: above_set.contains_key(start),
-                leave: split_leave(body, red.plane.normal, above_set, h)?,
+                leave: leave_on(
+                    body,
+                    red.plane.normal,
+                    above_set,
+                    h,
+                    (wall, face_data.sense),
+                )?,
             });
         }
-        let pairs = match plane_normal {
-            Some(normal) => line_pairs(red, face, normal, &crossings, band)?,
-            None => conic_pairs(red, face, &crossings, band)?,
+        let pairs = match *wall {
+            geom::Surface::Plane { normal, .. } => line_pairs(red, face, normal, &crossings, band)?,
+            _ => conic_pairs(red, face, &crossings, band)?,
         };
         for (a, b) in pairs {
             partner.insert(a, b);
@@ -331,11 +333,23 @@ fn split_leave<T: Decide>(
     let face = he_face(body, half)?;
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let wall = body.face_surface_linked(face, face_data);
+    leave_on(body, plane_normal, above_set, half, (wall, face_data.sense))
+}
+
+/// [`split_leave`] past its face's lookup: `wall` and `sense` are the
+/// face's.
+fn leave_on<T: Decide>(
+    body: &Body<T>,
+    plane_normal: geom_core::UnitVec3<T>,
+    above_set: &SecondaryMap<VertexKey, ()>,
+    half: HalfEdgeKey,
+    (wall, sense): (&geom::Surface<T>, bool),
+) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let start = body
         .get_half_edge(half)
         .ok_or_else(|| corrupt_he(half))?
         .start;
-    let out = geom_brep::implicit_outward_normal(wall, face_data.sense, vertex_point(body, start));
+    let out = geom_brep::implicit_outward_normal(wall, sense, vertex_point(body, start));
     let heading = plane_normal.get().cross(out.vec());
     Ok(if above_set.contains_key(start) {
         heading
@@ -959,5 +973,163 @@ mod tests {
                 entity: EntityId::Loop(_)
             })
         ));
+    }
+}
+
+/// **The sweep's reads past a face or a loop it resolved panic on a
+/// torn link** (the split's body is mid-operation, so the panic names
+/// `OPERATORS_KEEP_LINKS`). Each row reads the sound answer first, then
+/// tears one record, and the body is deep-unchanged after the panic.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::entity::{EntityId, GeomRef};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom_core::Vec3;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn reduced(body: &Body<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> SplitReduction<f64> {
+        let tol = Tol::witness();
+        let plane = crate::test_support_fixtures::split_plane(origin, normal, tol);
+        crate::splitting::split_reduce(body, &plane, tol).unwrap()
+    }
+
+    fn above_set(red: &SplitReduction<f64>) -> SecondaryMap<VertexKey, ()> {
+        red.null_edges
+            .iter()
+            .map(|r| (r.attr.above_end, ()))
+            .collect()
+    }
+
+    /// Drops `face`'s surface, and names the link that dangles.
+    fn drop_surface(body: &mut Body<f64>, face: FaceKey) -> String {
+        let surface = body.get_face(face).unwrap().surface;
+        body.surfaces.remove(surface);
+        format!(
+            "{}'s surface names {}",
+            EntityId::Face(face),
+            GeomRef::Surface(surface)
+        )
+    }
+
+    /// `fixed_partners`: a U prism cut across both arms, whose top face
+    /// holds four crossings. Its torn surface panics, where it read as a
+    /// curved face (and, first, refused `Corrupt` in the crossing's
+    /// leaving direction).
+    #[test]
+    fn the_fixed_partners_panic_on_a_torn_surface() {
+        let u = [
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        let prism = crate::test_support_fixtures::prism::<f64>(&u, 1.0, Tol::witness());
+        let mut red = reduced(&prism.body, Point3::new(0.0, 1.5, 0.0), Vec3::unit_y());
+        let above = above_set(&red);
+        assert_eq!(
+            fixed_partners(&red, &above, band()).unwrap().len(),
+            8,
+            "the top and bottom faces' four crossings each pair along their lines"
+        );
+        let named = drop_surface(&mut red.body, prism.top_face);
+        let (plane, null_edges) = (red.plane, red.null_edges.clone());
+        assert_torn_op_panics(
+            "fixed_partners",
+            &mut red.body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| {
+                let red = SplitReduction {
+                    body: b.clone(),
+                    plane,
+                    sides: SecondaryMap::new(),
+                    on_vertices: Vec::new(),
+                    null_edges: null_edges.clone(),
+                };
+                fixed_partners(&red, &above, band()).map(|p| p.len())
+            },
+        );
+    }
+
+    /// `split_leave`: a crossing on a cube's side face, whose torn
+    /// surface panics where it refused `Corrupt`.
+    #[test]
+    fn the_leaving_direction_panics_on_a_torn_surface() {
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let mut red = reduced(&cube, Point3::new(0.0, 0.0, 0.5), Vec3::unit_z());
+        let above = above_set(&red);
+        let half = red.body.get_edge(red.null_edges[0].edge).unwrap().he_plus;
+        let normal = red.plane.normal;
+        let leave = |b: &Body<f64>| split_leave(b, normal, &above, half).map(|d| d.norm());
+        assert!(
+            (leave(&red.body).unwrap() - 1.0).abs() < 1e-12,
+            "a side face's leaving direction is the unit in-plane one"
+        );
+        let face = he_face(&red.body, half).unwrap();
+        let named = drop_surface(&mut red.body, face);
+        assert_torn_op_panics(
+            "split_leave",
+            &mut red.body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| leave(b),
+        );
+    }
+
+    /// `certify_section_area`: a torn curve on a completed section's
+    /// below loop panics, where it was stepped over as null scaffolding
+    /// and its edge read as no line to the spur check.
+    #[test]
+    fn the_section_area_panics_on_a_torn_curve() {
+        let tol = Tol::witness();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let mut red = reduced(&cube, Point3::new(0.0, 0.0, 0.5), Vec3::unit_z());
+        let (completed, _) = split_connect(&mut red, band(), tol).unwrap();
+        let [section] = completed[..] else {
+            panic!("a cube cut through its middle has one section");
+        };
+        let sweep = Sweep {
+            ends: Vec::new(),
+            partner: SecondaryMap::new(),
+            joiner: ChordJoiner::new(band()),
+            completed: Vec::new(),
+            above_set: above_set(&red),
+            plane: red.plane,
+            band: band(),
+            section: SectionCtx {
+                origin: red.plane.origin,
+                normal: red.plane.normal,
+                plane_key: None,
+            },
+        };
+        let certify =
+            |b: &Body<f64>| sweep.certify_section_area(b, section.face, section.below_loop);
+        assert!(certify(&red.body).is_ok(), "the sound section certifies");
+        let LoopBoundary::Cycle { first } = red.body.get_loop(section.below_loop).unwrap().boundary
+        else {
+            panic!("the below loop is a cycle");
+        };
+        let edge = red.body.get_half_edge(first).unwrap().edge;
+        let curve = red.body.get_edge(edge).unwrap().curve;
+        red.body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "certify_section_area",
+            &mut red.body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| certify(b),
+        );
     }
 }

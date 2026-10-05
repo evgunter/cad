@@ -1152,3 +1152,63 @@ pub(crate) fn carve<T: Decide>(
     }
     Ok(body)
 }
+
+/// **The section boundary's description reads a torn curve as a torn
+/// body**: on a split cube's lower half, a torn curve on the section
+/// face's first boundary edge panics before any write, where it read
+/// as an edge with no description and was described afresh.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::entity::{EntityId, GeomRef, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn the_section_boundary_description_panics_on_a_torn_curve() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::unit_z(),
+            tol,
+        );
+        let split = crate::splitting::split(&cube, &plane, tol).unwrap();
+        let mut body = split.below.body().unwrap().clone();
+        let face = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.5).abs() < 1e-12
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        assert!(
+            super::describe_section_boundary(&mut body.clone(), face, band, tol).is_ok(),
+            "the sound section face's boundary is described"
+        );
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the section face's outer loop is a cycle");
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "describe_section_boundary",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::describe_section_boundary(b, face, band, tol),
+        );
+    }
+}

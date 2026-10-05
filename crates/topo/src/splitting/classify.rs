@@ -1639,7 +1639,8 @@ mod zone_rows {
     fn a_torn_record_under_the_sphere_zone_panics() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let frame = BoxFrame::aimed(geom_core::UnitVec3::new(Vec3::unit_z(), "zone_rows", band).unwrap());
+        let frame =
+            BoxFrame::aimed(geom_core::UnitVec3::new(Vec3::unit_z(), "zone_rows", band).unwrap());
         let (body, face) = sphere_zone_sheet((0.2, 1.4), (-0.3, 0.4), tol);
         let reach = |b: &Body<f64>| super::gate_face_reach(b, face, band, &frame);
         let (lo, hi) = reach(&body).expect("the sound zone has a reach");

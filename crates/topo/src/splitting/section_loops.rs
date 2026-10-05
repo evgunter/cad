@@ -378,3 +378,55 @@ fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) ->
     positive("split_nest_conic_conic", inside, band)
         || positive("split_nest_conic_conic", outside, band)
 }
+
+/// **The outline reading reads a torn curve as a torn body**: on a
+/// holed block's top face, whose ring lies clear inside its outer loop,
+/// a torn curve on the ring panics, where it read as an edge nothing
+/// decides and the pair as not disjoint.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Tol, Vec3};
+
+    use crate::entity::{EntityId, GeomRef};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn the_outline_reading_panics_on_a_torn_curve() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::test_support_fixtures::holed_block::<f64>(2.0, &[1.0], tol);
+        let (outer, ring) = body
+            .faces()
+            .find(|(_, f)| f.rings.len() == 1)
+            .map(|(_, f)| (f.outer, f.rings[0]))
+            .unwrap();
+        let disjoint = |b: &crate::body::Body<f64>| {
+            super::outlines_disjoint(b, outer, ring, Vec3::unit_z(), band).map_err(|_| "torn")
+        };
+        assert_eq!(
+            disjoint(&body),
+            Ok(true),
+            "the sound ring lies clear inside the outer loop"
+        );
+        let first = match body.get_loop(ring).unwrap().boundary {
+            crate::entity::LoopBoundary::Cycle { first } => first,
+            crate::entity::LoopBoundary::Empty { .. } => panic!("the ring is a cycle"),
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "outlines_disjoint",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| disjoint(b),
+        );
+    }
+}

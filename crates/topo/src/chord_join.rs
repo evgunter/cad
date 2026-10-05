@@ -3680,3 +3680,231 @@ mod null_site_rows {
         );
     }
 }
+
+/// **The chord join's hops past a resolved face, half-edge or edge
+/// panic on a torn link; a key the caller carries keeps its typed
+/// answer.** Each row reads the sound fixture's answer first, then tears
+/// one record and asserts the panic names the link and the premise
+/// (`OPERATORS_KEEP_LINKS`: the join runs mid-operation), with the
+/// body deep-unchanged.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
+
+    use super::{Datum, Departure, JoinLane, SectionCtx, SplitJoinError};
+    use crate::body::Body;
+    use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn cyl_sheet() -> (Body<f64>, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        (body, face)
+    }
+
+    fn first_member(body: &Body<f64>, face: FaceKey) -> HalfEdgeKey {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the fixture's outer loop is a cycle");
+        };
+        first
+    }
+
+    /// Drops the curve of `he`'s edge, and names the link that dangles.
+    fn drop_curve(body: &mut Body<f64>, he: HalfEdgeKey) -> String {
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        )
+    }
+
+    /// `face_azimuth_images` (`outer_cycle`, `run_azimuth_images`): a
+    /// torn outer loop and a torn curve panic, where the loop answered
+    /// `Corrupt` and the curve was stepped over as null scaffolding; a
+    /// stale face keeps `Corrupt`.
+    #[test]
+    fn the_azimuth_walk_panics_on_a_torn_loop_and_a_torn_curve() {
+        let (body, face) = cyl_sheet();
+        let surface = body
+            .get_surface(body.get_face(face).unwrap().surface)
+            .unwrap()
+            .clone();
+        let images = |b: &Body<f64>| {
+            super::face_azimuth_images(b, &surface, face, band()).map(|i| i.map(|i| i.len()))
+        };
+        assert_eq!(
+            images(&body).unwrap(),
+            Some(4),
+            "every edge of the sound sheet has an image"
+        );
+
+        let mut stale = body.clone();
+        let data = stale.get_face(face).unwrap().clone();
+        let gone = stale.faces.insert(data);
+        stale.faces.remove(gone);
+        assert!(
+            matches!(
+                super::face_azimuth_images(&stale, &surface, gone, band()),
+                Err(SplitJoinError::Corrupt {
+                    entity: EntityId::Face(f)
+                }) if f == gone
+            ),
+            "a stale face is the caller's key, refused typed"
+        );
+
+        let mut torn = body.clone();
+        let outer = torn.get_face(face).unwrap().outer;
+        torn.loops.remove(outer);
+        let named = format!(
+            "{}'s outer names {}",
+            EntityId::Face(face),
+            EntityId::Loop(outer)
+        );
+        assert_torn_op_panics(
+            "face_azimuth_images (loop)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
+
+        let mut torn = body.clone();
+        let he = first_member(&torn, face);
+        let named = drop_curve(&mut torn, he);
+        assert_torn_op_panics(
+            "face_azimuth_images (curve)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
+    }
+
+    /// `between_edge_is_section`: a torn curve panics, where it read as
+    /// null scaffolding, which lies in the plane (`Some(true)`). The
+    /// sound rim lies off the plane.
+    #[test]
+    fn the_adjacency_skip_panics_on_a_torn_curve() {
+        let (mut body, face) = cyl_sheet();
+        let ctx = SectionCtx {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            normal: UnitVec3::new(Vec3::unit_z(), "torn_hop_rows", band()).unwrap(),
+            plane_key: None,
+        };
+        let he = body
+            .loop_cycle(first_member(&body, face))
+            .unwrap()
+            .into_iter()
+            .find(|&h| {
+                let e = body.get_edge(body.get_half_edge(h).unwrap().edge).unwrap();
+                body.get_curve_geom(e.curve)
+                    .and_then(super::CurveGeom::certified)
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+            })
+            .unwrap();
+        assert_eq!(
+            super::between_edge_is_section(&body, &ctx, he, band()).unwrap(),
+            Some(false),
+            "a sound rim lies off the plane z = 0.5"
+        );
+        let named = drop_curve(&mut body, he);
+        assert_torn_op_panics(
+            "between_edge_is_section",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::between_edge_is_section(b, &ctx, he, band()),
+        );
+    }
+
+    /// `chord_spec`: a torn surface on the divided face panics, where it
+    /// read as a curved face and refused as a curved chord outside the
+    /// split's lane.
+    #[test]
+    fn the_chord_spec_panics_on_a_torn_surface() {
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let he = first_member(&body, face);
+        let u1 = body.get_half_edge(he).unwrap().start;
+        let u2 = body.half_edge_end(he).unwrap();
+        let leave = Departure {
+            dir: Vec3::unit_x(),
+            datum: Datum::Germ,
+        };
+        let spec = |b: &mut Body<f64>| {
+            super::chord_spec(b, band(), JoinLane::Planar, face, u1, u2, leave).map(|s| s.is_some())
+        };
+        assert!(
+            !spec(&mut body).unwrap(),
+            "a planar face's chord is the straight one"
+        );
+        let surface = body.get_face(face).unwrap().surface;
+        body.surfaces.remove(surface);
+        let named = format!(
+            "{}'s surface names {}",
+            EntityId::Face(face),
+            GeomRef::Surface(surface)
+        );
+        assert_torn_op_panics(
+            "chord_spec",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            spec,
+        );
+    }
+
+    /// `along_edge_spec`: a torn curve on the segment's edge panics,
+    /// where it read as an edge with no certified curve; a stale segment
+    /// edge, a key the boolean carries, refuses typed.
+    #[test]
+    fn the_along_edge_spec_panics_on_a_torn_curve_and_refuses_a_stale_edge() {
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let he = first_member(&body, face);
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let u1 = body.get_half_edge(he).unwrap().start;
+        let u2 = body.half_edge_end(he).unwrap();
+        let spec = |b: &Body<f64>, segment| {
+            super::along_edge_spec(b, &JoinLane::AlongEdge, Some(segment), face, u1, u2)
+                .map(|s| s.is_some())
+        };
+        assert!(
+            spec(&body, edge).unwrap(),
+            "a line segment's chord is its own line"
+        );
+        let data = body.get_edge(edge).unwrap().clone();
+        let gone = body.edges.insert(data);
+        body.edges.remove(gone);
+        assert!(
+            matches!(
+                spec(&body, gone),
+                Err(SplitJoinError::SectionInvariant {
+                    what: "the segment's edge no longer resolves",
+                    ..
+                })
+            ),
+            "a stale segment edge is the boolean's key, refused typed"
+        );
+        let named = drop_curve(&mut body, he);
+        assert_torn_op_panics(
+            "along_edge_spec",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| spec(b, edge),
+        );
+    }
+}

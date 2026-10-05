@@ -9233,3 +9233,114 @@ mod tests {
         );
     }
 }
+
+/// **The reach rules read a torn boundary as a torn body**: each tears
+/// one record a sound face's or edge's reach passes through and asserts
+/// the panic names the link and the premise, where the old reads
+/// answered "no claim" (`None`). The sound reach is read first.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_reach_rows {
+    use crate::body::Body;
+    use crate::boolean::boxes::BoxFrame;
+    use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom_core::{Band, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn first_member(body: &Body<f64>, face: FaceKey) -> HalfEdgeKey {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the fixture's outer loop is a cycle");
+        };
+        first
+    }
+
+    fn reach(body: &Body<f64>, face: FaceKey) -> bool {
+        super::face_reach_in(body, face, band(), &BoxFrame::World).is_some()
+    }
+
+    /// `boundary_reach` and the edge rule, on a cube face (the boundary
+    /// hull arm): a torn outer loop and a torn curve.
+    #[test]
+    fn the_boundary_hull_panics_on_a_torn_loop_and_a_torn_curve() {
+        let body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        assert!(reach(&body, face), "the sound face has a reach");
+
+        let mut torn = body.clone();
+        let outer = torn.get_face(face).unwrap().outer;
+        torn.loops.remove(outer);
+        let named = format!(
+            "{}'s outer names {}",
+            EntityId::Face(face),
+            EntityId::Loop(outer)
+        );
+        assert_torn_op_panics(
+            "face_reach_in (loop)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b, face),
+        );
+
+        let mut torn = body.clone();
+        let edge = torn.get_half_edge(first_member(&torn, face)).unwrap().edge;
+        assert!(
+            super::edge_reach_in(&torn, edge, &BoxFrame::World).is_some(),
+            "the sound edge has a reach"
+        );
+        let curve = torn.get_edge(edge).unwrap().curve;
+        torn.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "face_reach_in (curve)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b, face),
+        );
+        assert_torn_op_panics(
+            "edge_reach_in (curve)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::edge_reach_in(b, edge, &BoxFrame::World).is_some(),
+        );
+    }
+
+    /// `boundary_axial`, on a cylinder wall sheet (the slab arm, which
+    /// reads the axial window before the boundary hull): a torn point.
+    #[test]
+    fn the_axial_window_panics_on_a_torn_point() {
+        let mut body = Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        assert!(reach(&body, face), "the sound wall has a reach");
+        let v = body.get_half_edge(first_member(&body, face)).unwrap().start;
+        let point = body.get_vertex(v).unwrap().point;
+        body.points.remove(point);
+        let named = format!(
+            "{}'s point names {}",
+            EntityId::Vertex(v),
+            GeomRef::Point(point)
+        );
+        assert_torn_op_panics(
+            "face_reach_in (axial)",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b, face),
+        );
+    }
+}
