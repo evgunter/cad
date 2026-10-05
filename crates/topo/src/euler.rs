@@ -371,9 +371,10 @@ impl RechartDoor {
                 "the move",
                 "move the loop onto a face on the chart its edges name",
             ),
-            Self::SetFaceSurfacesDescribing => (
-                "the move",
-                "list a re-description of each on the chart it moves onto",
+            Self::SetFaceSurfacesDescribing => unreachable!(
+                "RechartStrandsDescriptions is raised only by the keys-only doors \
+                 (`Body::vouch_move`); set_face_surfaces_describing refuses a stranded edge \
+                 as RechartUndescribed"
             ),
         };
         format!(

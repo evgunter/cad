@@ -348,7 +348,7 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::NullScaffoldCurve { curve: curve_key });
             }
             let sides = self.sides(edge, moved);
-            if !sides.coherent_after(Named::of_spec(&spec.description)) {
+            if !sides.coherent_after(Named::of_spec(&spec.description), Spelling::Listed) {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
             let (p_start, p_end) = self.edge_endpoints(edge);
@@ -370,7 +370,7 @@ impl<T: Decide> Body<T> {
 
         // ---- No unlisted edge stranded. ----
         let undescribed: Vec<EdgeKey> = self
-            .rechart_edges(self.edges.keys(), moved, false)
+            .rechart_edges(self.edges.keys(), moved, Spelling::Stored)
             .stranded
             .into_iter()
             .map(|(e, _)| e)
@@ -471,7 +471,10 @@ impl<T: Decide> Body<T> {
         let faces = self.plan_recharts(charts)?;
         let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
         let mut out = Vec::new();
-        for (edge, sides) in self.rechart_edges(self.edges.keys(), moved, true).carried {
+        for (edge, sides) in self
+            .rechart_edges(self.edges.keys(), moved, Spelling::Listed)
+            .carried
+        {
             out.push((edge, self.carried_spec(edge, sides, charts)));
         }
         Ok(out)
@@ -530,9 +533,9 @@ impl<T: Decide> Body<T> {
     /// description names — its samples lie on each within the band, its
     /// ends on its vertices — so a moving half lands vouched for where
     /// that description names the key its face wears after the move: a
-    /// re-description the door writes (`reading`'s, its keys read
-    /// through [`Sides::repoint`]), else the stored one (each key
-    /// standing for itself). A `New` key is one no description names.
+    /// re-description the door writes (`reading`'s, read
+    /// [`Spelling::Listed`]), else the stored one (read
+    /// [`Spelling::Stored`]). A `New` key is one no description names.
     /// Where no key vouches, a [`Reading::Residuals`] door asks the
     /// edge's own residuals against a plane — its ends, then its
     /// interior certification samples — refusing
@@ -559,23 +562,19 @@ impl<T: Decide> Body<T> {
         let mut out = Vec::new();
         for edge in edges {
             let curve_key = proven(&self.edges, edge, EntityId::Edge).curve;
-            let (listed, curve) = match reading.written().iter().find(|(e, ..)| *e == edge) {
-                Some((.., curve)) => (true, Some(curve)),
-                None => (false, self.edge_curve(edge, curve_key).certified()),
+            let (spelling, curve) = match reading.written().iter().find(|(e, ..)| *e == edge) {
+                Some((.., curve)) => (Spelling::Listed, Some(curve)),
+                None => (
+                    Spelling::Stored,
+                    self.edge_curve(edge, curve_key).certified(),
+                ),
             };
             let Some(curve) = curve else {
                 continue;
             };
             let named = Named::of_description(curve.description());
             let sides = self.sides(edge, &moved);
-            let slot_of = |k: SurfaceKey| {
-                if listed {
-                    sides.repoint(k)
-                } else {
-                    Slot::Kept(k)
-                }
-            };
-            for side in sides.unnamed(named, slot_of) {
+            for side in sides.unnamed(named, spelling) {
                 let face = sides.faces[side];
                 if !asked(face) {
                     continue;
@@ -647,16 +646,15 @@ impl<T: Decide> Body<T> {
     /// its face wears now. Scaffold and null edges, and an edge both of
     /// whose halves keep their keys, are skipped. Of those whose stored
     /// description is adjacency-coherent now, `stranded` holds those the move
-    /// leaves incoherent. With `repoint`, a description's keys are read
-    /// through [`Sides::repoint`] and `carried` holds those it leaves
-    /// coherent only through a key their moved face wore; without it, a
-    /// key stands for itself — the reading every door gives a stored
-    /// description — and `carried` is empty. Pure.
+    /// leaves incoherent, its keys read as `spelling` reads them. Read
+    /// [`Spelling::Listed`], `carried` holds those it leaves coherent
+    /// only through a key their moved face wore; read
+    /// [`Spelling::Stored`], it is empty. Pure.
     fn rechart_edges(
         &self,
         edges: impl IntoIterator<Item = EdgeKey>,
         moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
-        repoint: bool,
+        spelling: Spelling,
     ) -> RechartEdges {
         let mut out = RechartEdges::default();
         for edge_key in edges {
@@ -672,14 +670,11 @@ impl<T: Decide> Body<T> {
             if !sides.coherent_before(named) {
                 continue;
             }
-            let coherent = if repoint {
-                sides.coherent_after(named)
-            } else {
-                named.adjacent_to(sides.after, Slot::Kept)
-            };
-            if !coherent {
+            if !sides.coherent_after(named, spelling) {
                 out.stranded.push((edge_key, sides));
-            } else if repoint && named.keys().any(|k| sides.repoint(k) != Slot::Kept(k)) {
+            } else if spelling == Spelling::Listed
+                && named.keys().any(|k| sides.repoint(k) != Slot::Kept(k))
+            {
                 out.carried.push((edge_key, sides));
             }
         }
@@ -723,7 +718,7 @@ impl<T: Decide> Body<T> {
         let edges: Vec<EdgeKey> = edges.into_iter().collect();
         let moved = |he, l, f| moves(he, l, f).then_some(after);
         let stranded = self
-            .rechart_edges(edges.iter().copied(), moved, false)
+            .rechart_edges(edges.iter().copied(), moved, Spelling::Stored)
             .stranded;
         if !stranded.is_empty() {
             return Err(EulerOpError::RechartStrandsDescriptions {
@@ -741,7 +736,7 @@ impl<T: Decide> Body<T> {
                 after: [Slot::Kept(old), after],
                 faces: [face, face],
             }
-            .unnamed(Named::of_description(curve.description()), Slot::Kept)
+            .unnamed(Named::of_description(curve.description()), Spelling::Stored)
             .next()
             .is_some()
         });
@@ -1431,27 +1426,46 @@ impl Sides {
         named.adjacent_to(self.before.map(Slot::Kept), Slot::Kept)
     }
 
-    fn coherent_after(self, named: Named) -> bool {
-        named.adjacent_to(self.after, |k| self.repoint(k))
+    /// What `key`, named in a description spelled `spelling`, stands
+    /// for once the re-chart lands.
+    fn slot_of(self, spelling: Spelling) -> impl Fn(SurfaceKey) -> Slot {
+        move |key| match spelling {
+            Spelling::Listed => self.repoint(key),
+            Spelling::Stored => Slot::Kept(key),
+        }
+    }
+
+    fn coherent_after(self, named: Named, spelling: Spelling) -> bool {
+        named.adjacent_to(self.after, self.slot_of(spelling))
     }
 
     /// The sides that move and land on no key `named` names, its keys
-    /// read through `slot_of`: those the edge's certificate does not
-    /// vouch for on the chart their face moves onto. A scaffold or null
-    /// edge names nothing and carries no certificate, so it is not
+    /// read as `spelling` reads them: those the edge's certificate does
+    /// not vouch for on the chart their face moves onto. A scaffold or
+    /// null edge names nothing and carries no certificate, so it is not
     /// asked.
-    fn unnamed(
-        self,
-        named: Named,
-        slot_of: impl Fn(SurfaceKey) -> Slot,
-    ) -> impl Iterator<Item = usize> {
+    fn unnamed(self, named: Named, spelling: Spelling) -> impl Iterator<Item = usize> {
         let asked = !matches!(named, Named::Nothing);
+        let slot_of = self.slot_of(spelling);
         (0..2).filter(move |&i| {
             asked
                 && self.after[i] != Slot::Kept(self.before[i])
                 && !named.keys().any(|k| slot_of(k) == self.after[i])
         })
     }
+}
+
+/// Whose a description is, which decides what its keys stand for once
+/// a re-chart lands ([`Sides::slot_of`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Spelling {
+    /// A re-description the describing door is handed, or one
+    /// [`Body::carried_redescriptions`] would hand it: it names a chart
+    /// the call mints by a key the moving face wears now
+    /// ([`Sides::repoint`]).
+    Listed,
+    /// A stored description: each key stands for itself.
+    Stored,
 }
 
 /// The surface a face wears, or a description names, once a re-chart
@@ -2276,6 +2290,63 @@ mod tests {
         assert_eq!(specs.len(), 1, "the rim, restated on the copy");
         let got = body.set_face_surfaces_describing(charts, &specs, tol());
         assert!(got.is_ok(), "the wall onto a copy of its cylinder: {got:?}");
+    }
+
+    /// **A listed re-description names the chart its face moves onto by
+    /// the key the face leaves.** A cylinder wall, its rim the
+    /// intersection of the wall and a cap, onto a sphere the rim lies
+    /// on: handed nothing, the describing door refuses the rim, whose
+    /// intersection names the key the wall leaves; handed the rim
+    /// spelled with that key, it reads the key as the sphere
+    /// ([`Sides::repoint`]), takes the move, and stores the rim naming
+    /// the sphere's key.
+    #[test]
+    fn a_listed_spec_names_the_minted_chart_by_the_key_its_face_leaves() {
+        let (mut body, seed, [cyl, _, cap], _) = cylinder_seed();
+        body.mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim(cyl, cap),
+            FaceSurface::Shared {
+                key: cap,
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap();
+        let edges = cycle_edges(&body, seed.face);
+        assert_eq!(edges.len(), 1, "the wall is bounded by its rim alone");
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let charts = || vec![Rechart::new(sphere.clone(), seed.face, true)];
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::RechartUndescribed {
+                edges: edges.clone(),
+            },
+            |b| {
+                b.set_face_surfaces_describing(charts(), &[], tol())
+                    .unwrap_err()
+            },
+        );
+        let minted = body
+            .set_face_surfaces_describing(charts(), &[(edges[0], rim(cyl, cap))], tol())
+            .unwrap();
+        assert_eq!(
+            surf(&body, seed.face),
+            minted[0],
+            "the wall wears the sphere"
+        );
+        assert_eq!(
+            edges_naming(&body, minted[0]),
+            edges,
+            "the rim names the sphere's key"
+        );
     }
 
     /// **An empty loop's lone vertex carries no certificate, and neither

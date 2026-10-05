@@ -2413,13 +2413,12 @@ pub(crate) mod tests {
         );
     }
 
-    /// A cylinder WALL face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
-    /// the radius-`r` cylinder about the z axis, bounded below and
-    /// above by circular rims and on the sides by axial lines.
     /// `face` re-labelled onto `surface`, its edges' descriptions as
     /// they stand.
     fn relabel(body: &mut Body<f64>, face: FaceKey, surface: Surface<f64>) {
-        // Lifts RechartUnvouched: each box arm reads the surface a face is labelled with, and the fixture's edges name the chart it was built on.
+        // Lifts RechartUnvouched: each box arm reads the surface a face
+        // is labelled with, and the fixture's edges name the chart it
+        // was built on.
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
                 vec![crate::Rechart::new(surface, face, true)],
@@ -2430,6 +2429,9 @@ pub(crate) mod tests {
         .unwrap();
     }
 
+    /// A cylinder WALL face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
+    /// the radius-`r` cylinder about the z axis, bounded below and
+    /// above by circular rims and on the sides by axial lines.
     fn cyl_wall(r: f64, u0: f64, u1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
         revolved_wall(&|_| r, u0, u1, z0, z1)
     }

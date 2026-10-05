@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-05
 priority: P3
 cost: M
-refs: [boundary-on-the-new-chart-has-two-homes-in-the-attach-doors, validate-tier3-curved-boundary-containment]
+refs: [boundary-on-the-new-chart-has-two-homes-in-the-attach-doors, validate-tier3-curved-boundary-containment, an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for]
 ---
 
 ## What
@@ -41,9 +41,31 @@ The constructions that hit it are honest ones, each now built through
   `a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change`:
   a panel onto a fresh key of an equal (or rotated) cylinder.
 
-No production caller of the describing door moves onto a curved chart
-today (the split finish and the shell rim lift move onto planes), and
-the join batteries do not move.
+One refusal witness is an instance too:
+`crates/topo/src/attach.rs`
+`a_curved_chart_no_edge_names_is_refused_by_both_doors`, "the patch
+through the cap". The membrane wears the cap's key (it was planted on
+it), and its rim edges are images in the cap's chart. Moved onto a
+NURBS patch that is the cap's plane, the boundary lies on the new
+chart, but a listed rim can name only keys the body holds, the cap
+among them, which the top keeps; `carried_redescriptions` returns
+nothing. Probed: listing each rim edge restated (an image in the cap's
+chart) is refused `RechartUnvouched` naming all four. So that
+witness refuses a sound move with no recourse.
+
+The production callers of the describing door that move onto curved
+charts are the offset doors (`replace_face_offset` /
+`replace_faces_offset`, `offset_charts_together`, through
+`replace_face::move_points_then_rechart`): cylinder, cone and sphere
+offsets, and the curved shell. They pass because they list a spec for
+every boundary edge, and a restated spec naming the face's old key
+reaches the minted chart through `Sides::repoint`. They do not reach
+this row's shape: each mints one fresh chart per moved group, and
+`replace_faces_offset` refuses `SharedSurfaceKey` before the door. The
+offset doors' reachable cousin, a restated spec naming a held
+neighbour's chart, is
+`an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for`.
+The join batteries do not move.
 
 ## Shapes a fix could take
 
