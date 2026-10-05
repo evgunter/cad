@@ -1,0 +1,171 @@
+diff --git a/crates/sweep/tests/common/differential.rs b/crates/sweep/tests/common/differential.rs
+index 172c5e2d..4397a752 100644
+--- a/crates/sweep/tests/common/differential.rs
++++ b/crates/sweep/tests/common/differential.rs
+@@ -162,7 +162,7 @@ pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol)
+     match r {
+         Err(e) => {
+             let s = format!("{e:?}");
+-            let cut: String = s.chars().take(110).collect();
++            let cut: String = s.chars().take(std::env::var("OUTCOME_WIDE").map_or(110, |_| 4000)).collect();
+             format!("ERR {cut}")
+         }
+         Ok(r) => match r.body() {
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index b5205137..f3c83d0e 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -606,6 +606,13 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+         seam_edges.extend(rep.seam_edges);
+         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
+     }
++    if std::env::var("PX_SPLICE").is_ok() {
++        super::zip::px_splice(&mut body);
++    } else if std::env::var("PX_MFKRH").is_ok() {
++        super::zip::px_mfkrh(&mut body, tol);
++    } else {
++        super::zip::PX_FACES.with(|c| c.borrow_mut().clear());
++    }
+     let welds =
+         super::finish::weld_pierce_copies(&mut body, &fin.pierce_copies, &vertex_merges, tol)?;
+     desc.absorb_fusions(&welds);
+diff --git a/crates/topo/src/boolean/zip.rs b/crates/topo/src/boolean/zip.rs
+index 63229db7..402ea0bf 100644
+--- a/crates/topo/src/boolean/zip.rs
++++ b/crates/topo/src/boolean/zip.rs
+@@ -271,6 +271,19 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+                     }
+                 }
+                 let Some((v, new)) = fresh else {
++                    if std::env::var("PX_DUMP").is_ok() {
++                        for (side, v, keep) in [("a", a, ob[j]), ("b", b, rs[j])] {
++                            let orbit = body.vertex_orbit_of(v).unwrap_or_default();
++                            eprintln!("PX side={side} v={v:?} keep={keep:?} moving={:?}", fused.get(&v));
++                            for he in orbit {
++                                let l = body.get_half_edge(he).unwrap().parent_loop;
++                                let ld = body.get_loop(l).unwrap();
++                                let fd = body.get_face(ld.face).unwrap();
++                                let n = match ld.boundary { LoopBoundary::Cycle { first } => body.loop_cycle(first).map_or(0, |c| c.iter().filter(|&&h| body.get_half_edge(h).unwrap().start == v).count()), _ => 0 };
++                                eprintln!("PX   he={he:?} face={:?} sec={} {} loop={l:?} passes={n} surf={:?} sense={} shell={:?}", ld.face, sections.contains(&ld.face), if fd.outer == l {"outer"} else {"ring"}, fd.surface, fd.sense, fd.shell);
++                            }
++                        }
++                    }
+                     return Err(BooleanError::PinchUncrossed { vertex: a });
+                 };
+                 match vmap.get(&v).cloned() {
+@@ -365,12 +378,12 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+             }
+             let (lj, fj) = face_of(orbit[j])?;
+             let outer = |f: FaceKey, l: LoopKey| body.get_face(f).is_some_and(|d| d.outer == l);
+-            let crossing = if lj == l && !outer(face, l) {
++            let crossing = if lj == l && (!outer(face, l) || std::env::var("PX_OUTERLOOP").is_ok()) {
+                 Some(Crossing::OneLoop)
+             } else if fj != face
+                 && !sections.contains(&fj)
+-                && outer(face, l)
+-                && outer(fj, lj)
++                && ((outer(face, l) && outer(fj, lj))
++                    || (std::env::var("PX_RINGFACE").is_ok() && (outer(face, l) || outer(fj, lj))))
+                 && chart_of(fj).is_some()
+                 && chart_of(fj) == chart_of(face)
+             {
+@@ -397,16 +410,24 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+     )?;
+     let merged = match crossing {
+         Crossing::OneLoop => {
++            let f = body.get_half_edge(made.he_plus).and_then(|h| body.get_loop(h.parent_loop)).map(|l| l.face);
+             body.kemr(made.he_plus, made.he_minus)?;
++            if let Some(f) = f {
++                PX_FACES.with(|c| c.borrow_mut().push(f));
++            }
+             None
+         }
+         Crossing::TwoFaces => {
+-            let kept = body
+-                .get_half_edge(made.he_minus)
+-                .and_then(|h| body.get_loop(h.parent_loop))
+-                .ok_or_else(|| corr("a pinch split's edge no longer resolves"))?
+-                .face;
+-            Some((body.kef_minting(made.he_plus, tol)?.killed_face, kept))
++            let face_of_he = |body: &Body<T>, h: HalfEdgeKey| {
++                body.get_half_edge(h).and_then(|h| body.get_loop(h.parent_loop)).map(|l| l.face)
++            };
++            let (dies, stays) = match face_of_he(body, made.he_plus).and_then(|f| body.get_face(f)) {
++                Some(fd) if !fd.rings.is_empty() => (made.he_minus, made.he_plus),
++                _ => (made.he_plus, made.he_minus),
++            };
++            let kept = face_of_he(body, stays)
++                .ok_or_else(|| corr("a pinch split's edge no longer resolves"))?;
++            Some((body.kef_minting(dies, tol)?.killed_face, kept))
+         }
+     };
+     Ok(Some(Split {
+@@ -415,6 +436,68 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+     }))
+ }
+ 
++thread_local! {
++    /// Instrumentation: faces a one-loop crossing split.
++    pub(crate) static PX_FACES: std::cell::RefCell<Vec<FaceKey>> = const { std::cell::RefCell::new(Vec::new()) };
++}
++
++/// Instrumentation: splices each split face's ring that meets its outer
++/// loop at a vertex back into the outer loop.
++pub(super) fn px_mfkrh<T: Decide + crate::props::AtRestPolicy>(body: &mut Body<T>, tol: Tol) {
++    let faces = PX_FACES.with(|c| std::mem::take(&mut *c.borrow_mut()));
++    for f in faces {
++        let Some(fd) = body.get_face(f) else { continue };
++        let (surface, sense) = (fd.surface, fd.sense);
++        for r in fd.rings.clone() {
++            match body.mfkrh_minting(r, crate::euler::FaceSurface::Shared { key: surface, sense }, tol) {
++                Ok(c) => eprintln!("PX mfkrh {r:?} -> {:?}", c.face),
++                Err(e) => eprintln!("PX mfkrh {r:?} failed {e:?}"),
++            }
++        }
++    }
++}
++
++pub(super) fn px_splice<T: Decide>(body: &mut Body<T>) {
++    let faces = PX_FACES.with(|c| std::mem::take(&mut *c.borrow_mut()));
++    for f in faces {
++        loop {
++            let Some(fd) = body.get_face(f) else { break };
++            let outer = fd.outer;
++            let rings = fd.rings.clone();
++            let cyc = |body: &Body<T>, l: LoopKey| match body.get_loop(l).map(|l| l.boundary) {
++                Some(LoopBoundary::Cycle { first }) => body.loop_cycle(first).unwrap_or_default(),
++                _ => Vec::new(),
++            };
++            let oc = cyc(body, outer);
++            let mut done = false;
++            'r: for r in rings {
++                for &h2 in &cyc(body, r) {
++                    let v = body.get_half_edge(h2).unwrap().start;
++                    if let Some(&h1) = oc.iter().find(|&&h| body.get_half_edge(h).unwrap().start == v) {
++                        let p1 = body.get_half_edge(h1).unwrap().prev;
++                        let p2 = body.get_half_edge(h2).unwrap().prev;
++                        for h in cyc(body, r) {
++                            body.half_edges.get_mut(h).unwrap().parent_loop = outer;
++                        }
++                        body.half_edges.get_mut(p1).unwrap().next = h2;
++                        body.half_edges.get_mut(h2).unwrap().prev = p1;
++                        body.half_edges.get_mut(p2).unwrap().next = h1;
++                        body.half_edges.get_mut(h1).unwrap().prev = p2;
++                        body.faces.get_mut(f).unwrap().rings.retain(|&x| x != r);
++                        body.loops.remove(r);
++                        eprintln!("PX spliced ring {r:?} into {outer:?} of {f:?}");
++                        done = true;
++                        break 'r;
++                    }
++                }
++            }
++            if !done {
++                break;
++            }
++        }
++    }
++}
++
+ /// A pinch split: the new vertex, and the face a `kef` crossing
+ /// absorbed with the one it kept.
+ struct Split {
