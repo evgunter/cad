@@ -4695,6 +4695,9 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Var>()?;
     m.add_class::<DocParam>()?;
     m.add_class::<VarDecl>()?;
+    // The expansion bound `definition_too_large`'s `count` is measured
+    // against.
+    m.add("DEFINITION_NODE_BOUND", d::DEFINITION_NODE_BOUND)?;
     m.add_class::<DocParamValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;

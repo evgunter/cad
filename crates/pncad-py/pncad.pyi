@@ -3194,6 +3194,11 @@ def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
     region the certified answer does not cover. Raises
     MeasureUnavailable for a band, which `param` names."""
 
+DEFINITION_NODE_BOUND: Final[int]
+"""The most expression nodes a variable's expansion through the
+definitions it reads may hold: a definition past it refuses
+`definition_too_large`, whose `count` is the expansion's size."""
+
 class VarDecl:
     """A variable's definition as an edit carries it: a free value, or
     an `Expr` over other variables, which the edit door lowers (its
