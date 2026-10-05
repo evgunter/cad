@@ -131,3 +131,17 @@ measure. The closed-form volumes are written down in
 `crates/sweep/tests/parallel_cylinder_join.rs` (`rim_poses`), and the
 poses are pinned at this door by
 `the_rim_crossing_rods_stop_at_the_volume_probe`.
+
+## Another witness (JOIN, PR 4038's pinch crossing)
+
+PR 4038's review r1 (`r1b_pinch_probes cyl` on
+`join/pierce-pinch-families-review-r1`, a prism corner on a cylinder of
+axis y, r = 5): 24 intersections that main refused `JoinDesync`
+("derived ring role order") now build at the exact volume (to 1e-9),
+with tiers 2, 3′ and 3 and the certificate passing. Only the
+legal-operand check fails: the union with a far brick refuses
+`Containment(VolumeUncertified)`. Both orders of each pose: Lbot
+`phi40 th120`; Ltop `phi230 th285`, `phi230 th300`, `phi300 th105`;
+notch327 `phi230 th210`, `th225`, `th315`, `th330`, `phi300 th135`,
+`th150`, `th30`, `th45`. Main already ships 294 such intersection
+lines in that battery.

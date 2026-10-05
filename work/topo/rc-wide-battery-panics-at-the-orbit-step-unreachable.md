@@ -48,3 +48,15 @@ aborted. Now a public `union`, `intersect` or `subtract` aborts the
 process on them. Under the fail-loud rule that is a typed refusal to
 restore, or an invariant to prove at the site. Which commit in the
 range moved the walk here was not bisected.
+
+## The same panic in two more batteries (JOIN, PR 4038)
+
+- `join_pierce_runs_sweep::pierce_runs_battery` panics on main
+  `8793177b` alone at its 595th line, the edge placement
+  `i = 0, j = 3, psi = 4`, prism ∪ cube (`orbit_step_at`: "the orbit
+  step from HalfEdgeKey(31v1) at VertexKey(10v1) lands on
+  HalfEdgeKey(20v1), which starts at VertexKey(27v1)"), and every later
+  pose goes unmeasured. Main `81dde823` refused that op typed
+  (`Euler(SelfLoopEdge)`).
+- `join1_r1_probes::join1_r1_reflex_battery` panics at line 971 on both
+  main `8793177b` and PR 4038's head (PR 4038's review r1, N1).

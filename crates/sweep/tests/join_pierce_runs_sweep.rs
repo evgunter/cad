@@ -280,10 +280,10 @@ fn pierce_runs_battery() {
 /// none, if they share one point and no face runs through two of them
 /// (a face meeting two is where the pierce weld joins them), else the
 /// finding.
-fn pierce_point_finding(body: &Body<f64>) -> Option<String> {
+fn pierce_point_finding(body: &Body<f64>, at: [f64; 3]) -> Option<String> {
     let at_v: Vec<_> = body
         .vertex_points()
-        .filter(|(_, p)| [p.x, p.y, p.z] == V)
+        .filter(|(_, p)| [p.x, p.y, p.z] == at)
         .map(|(k, _)| k)
         .collect();
     let point = |k| body.get_vertex(k).unwrap().point;
@@ -328,7 +328,7 @@ fn the_sweep_subset_ships_no_bad_body() {
                 for (tag, r, want) in pose_runs((place, lo), (i, j, psis[0])) {
                     let finding = match &r {
                         Ok(res) if place == "face" => {
-                            res.body().and_then(|bb| pierce_point_finding(&bb.body))
+                            res.body().and_then(|bb| pierce_point_finding(&bb.body, V))
                         }
                         _ => None,
                     };
@@ -351,6 +351,132 @@ fn the_sweep_subset_ships_no_bad_body() {
         bad.len(),
         bad.join("\n")
     );
+}
+
+/// The staircase prism: reflex corners at `(2, 1, 1)` and `(1, 2, 1)`,
+/// translates of one L corner.
+const STAIR: [(f64, f64); 8] = [
+    (0.0, 0.0),
+    (3.0, 0.0),
+    (3.0, 1.0),
+    (2.0, 1.0),
+    (2.0, 2.0),
+    (1.0, 2.0),
+    (1.0, 3.0),
+    (0.0, 3.0),
+];
+/// [`STAIR`] as three boxes with disjoint interiors, `(lo, hi)`.
+const STAIR_BOXES: [([f64; 3], [f64; 3]); 3] = [
+    ([0.0, 0.0, 0.0], [3.0, 1.0, 1.0]),
+    ([0.0, 1.0, 0.0], [2.0, 2.0, 1.0]),
+    ([0.0, 2.0, 0.0], [1.0, 3.0, 1.0]),
+];
+
+/// **Two pinches in one op are each crossed.** The cube's near face lies
+/// in a plane through both of [`STAIR`]'s reflex top corners, turned so
+/// that each corner has two Out runs (PR 4038's review r1, `u2 S_tt`,
+/// direction 204 of 720). The intersection pinches at both corners, so
+/// `cross_pinches` crosses two vertices in one op. Every op in both
+/// orders builds `SOUND` at the boxes' clipped volume and holds each
+/// corner as one vertex wherever a face meets it. Red if the pre-pass
+/// stops after its first crossing: the second pinch's zip fuses it to
+/// itself.
+#[test]
+fn two_pinches_in_one_op_are_each_crossed() {
+    let (a, b) = ([2.0, 1.0, 1.0], [1.0, 2.0, 1.0]);
+    let [e1, e2, _] = frame(unit([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), 0.0);
+    let t = std::f64::consts::TAU * (204.0 + 0.37) / 720.0;
+    let m = [0, 1, 2].map(|k| t.cos() * e1[k] + t.sin() * e2[k]);
+    let f = frame(m, 0.0);
+    let lo = [-2.0, -2.0, 0.0];
+    let mid = [1.5, 1.5, 1.0];
+    let prism = finished(
+        "the staircase",
+        fixtures::prism::<f64>(&STAIR, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_at(mid, f, lo));
+    let planes = cube_planes_at(mid, f, lo);
+    let common: f64 = STAIR_BOXES
+        .iter()
+        .map(|&(blo, bhi)| {
+            let mut all = planes.clone();
+            for t in 0..3 {
+                let mut e = [0.0; 3];
+                e[t] = 1.0;
+                all.push((e, bhi[t]));
+                all.push((e.map(|c| -c), -blo[t]));
+            }
+            convex_volume(&all)
+        })
+        .sum();
+    assert!(
+        common > 1e-3,
+        "the cube holds some of the staircase: {common}"
+    );
+    let (va, vb) = (6.0, SIDE * SIDE * SIDE);
+    let decls = BooleanDeclarations::default();
+    for (order, x, y, vx) in [("pc", &prism, &cube, va), ("cp", &cube, &prism, vb)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, va + vb - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vx - common),
+        ];
+        for (op, run, want) in ops {
+            let r = run(x, y, &decls, tol());
+            let findings: Vec<String> = match &r {
+                Ok(res) => res
+                    .body()
+                    .map(|bb| {
+                        [a, b]
+                            .into_iter()
+                            .filter_map(|p| pierce_point_finding(&bb.body, p))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                Err(_) => Vec::new(),
+            };
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{order} {op}: {line}");
+            assert!(findings.is_empty(), "{order} {op}: {findings:?}");
+        }
+    }
+}
+
+/// **A pinch crossed on the second operand's side.** The L-prism's
+/// bottom reflex corner `(1, 1, 0)` at a corner of the cube, the cube
+/// along Fibonacci direction 19 of 120 and turned 1.9 about it (PR
+/// 4038's review r2, `Lbot fib19 corner psi=1.9`). In cube ∪ prism the
+/// collision's first operand has no face to cross, and the prism does:
+/// `cross_pinches` splits the second operand's vertex, so every first
+/// operand vertex that corresponded to it gains the new vertex. The union
+/// builds `SOUND` with one vertex at the corner wherever a face meets
+/// it. Red if the new vertex gains no correspondents: the zip finds no
+/// ring half-edge for it.
+#[test]
+fn a_pinch_split_on_the_second_operands_side_builds() {
+    let v = [1.0, 1.0, 0.0];
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let z: f64 = 1.0 - 2.0 * (19.0 + 0.5) / 120.0;
+    let r = (1.0 - z * z).sqrt();
+    let m = [r * (ga * 19.0).cos(), r * (ga * 19.0).sin(), z];
+    let f = frame(m, 1.9);
+    let lo = [0.0, 0.0, 0.0];
+    let prism = finished(
+        "the prism",
+        fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let common = shared(&cube_planes_at(v, f, lo));
+    let want = 3.0 + SIDE * SIDE * SIDE - common;
+    let r = topo::union_with(&cube, &prism, &BooleanDeclarations::default(), tol());
+    let finding = r
+        .as_ref()
+        .ok()
+        .and_then(|res| res.body())
+        .and_then(|bb| pierce_point_finding(&bb.body, v));
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "cube ∪ prism: {line}");
+    assert_eq!(finding, None, "cube ∪ prism");
 }
 
 /// **A pinch no kept face can cross refuses typed.** With `v` on the

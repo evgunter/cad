@@ -121,7 +121,7 @@ mod surface_group;
 pub mod tables;
 pub mod voids;
 pub(crate) mod vtxfac;
-mod zip;
+pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
@@ -2005,11 +2005,13 @@ pub enum BooleanError {
     /// The result pinches at `vertex`: two cones of its boundary meet
     /// there, and the seam zips would fuse the point to itself
     /// (`zip::cross_pinches`). One vertex holds two cones only where a
-    /// face's boundary crosses from one to the other there, and no kept
-    /// face can: none has a ring through the point on both sides, and
-    /// no two of one surface meet there. What licenses it: the two
-    /// cones kept apart on one point, which needs the pinched shell
-    /// divided before the zips.
+    /// face's boundary crosses from one to the other there, and the
+    /// pre-pass crosses only two corners of one ring, or the outer
+    /// corners of two faces of one surface and sense. Here none offer:
+    /// the faces through the point pass it twice on one outer loop, or
+    /// none passes it twice. Which body is right there is measured per
+    /// arrangement, not derived
+    /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
     PinchUncrossed {
         /// The pinch vertex, in the joined body's keys.
         vertex: VertexKey,
@@ -3227,9 +3229,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::PinchUncrossed { .. } => write!(
                 f,
-                "the result would touch itself at one point from two sides, and no face of \
-                 either solid runs through that point on both sides, so the Boolean cannot yet \
-                 keep the two sides apart there. There is no way through this in the kernel yet"
+                "the result would pinch at one point, where two parts of its boundary meet, \
+                 and the Boolean cannot yet join the faces that pass through that point. \
+                 There is no way through this in the kernel yet"
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,

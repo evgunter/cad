@@ -27,6 +27,16 @@
 //! computed once and inserted into both bodies; ring vertices copy the
 //! pierce point bitwise); anything less refuses loudly at
 //! certification, never zips approximately.
+//!
+//! **Pinches are crossed before any zip** ([`cross_pinches`]). Where
+//! the zips' fusions would join a vertex to itself (a pinch both
+//! operands keep as one vertex), the op stage first splits that vertex
+//! across two corners of kept faces: `mev`, then `kemr` (two corners of
+//! one ring) or `kef` (two faces' outer corners on one surface and
+//! sense). That rewrites kept faces' topology, not only the section
+//! faces', and a `kef` absorption is reported to the op stage for its
+//! `Descendants` and naming rows. The pre-pass and the zip read one
+//! alignment ([`align`]) and one fusion order ([`fusion_order`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -179,6 +189,13 @@ pub(super) struct ZipReport {
     pub interior_edges: Vec<crate::entity::EdgeKey>,
 }
 
+/// The order the loopglue zip fuses a seam's `n` vertex pairs in:
+/// pair 0 first (its `mekr` joins the two loops), then `n − 1` down to
+/// 1 (each a `mef` and the `kef` of the strip behind it).
+pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
+    core::iter::once(0).chain((1..n).rev())
+}
+
 /// **A pinch the zips would fuse twice is crossed first.** The zips
 /// fuse each seam's vertex pairs in their order (pair 0, then `n − 1`
 /// down to 1), seam after seam. A pair whose two vertices are one by
@@ -234,7 +251,7 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
                 &section_cycle(body, outer(body, b_face)?)?,
                 vmap,
             )?;
-            for j in core::iter::once(0).chain((1..ob.len()).rev()) {
+            for j in fusion_order(ob.len()) {
                 let (a, b) = (start_of(body, ob[j])?, start_of(body, rs[j])?);
                 let (ra, rb) = (find(&root, a), find(&root, b));
                 if ra != rb {
@@ -273,6 +290,10 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
         }
         return Ok(absorbed);
     }
+    // Unreachable while the A and B keys are disjoint: a split moves
+    // every earlier corner of its vertex away, so no pair collides twice
+    // and at most `pairs` passes split. Refused rather than asserted, as
+    // a body this door did not build could break the premise.
     Err(corr("a pinch split did not separate its pair"))
 }
 
@@ -281,11 +302,17 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
 /// `mev` between the two moves `moving`'s side to a new vertex, and
 /// killing the new edge crosses the two corners. Two corners of one
 /// ring cross by `kemr`, which leaves two holes meeting at the point.
-/// Two faces' outer corners on one surface cross by `kef`, which makes
-/// them one face whose boundary meets itself there. A section face
-/// cannot cross, as the zips kill it, and neither can an outer loop
-/// alone: its halves would be a ring meeting the outer loop, or a
-/// ring that is not a hole. `None` when no corners qualify.
+/// Two faces' outer corners on one surface, with one sense, cross by
+/// `kef`, which makes them one face whose boundary meets itself there.
+/// A section face cannot cross, as the zips kill it, and neither can an
+/// outer loop alone: its halves would be a ring meeting the outer loop,
+/// or a ring that is not a hole. `None` when no corners qualify.
+///
+/// This is the inverse direction of `finish::pinch_site`, which joins
+/// two vertices on one point across one face: across a ring (its
+/// `Joint::Hole`) both leave two holes meeting at the point, one shape
+/// at rest. Across an outer loop `pinch_site` divides the face, a step
+/// this split does not take, so the two agree wherever both act.
 fn split_across<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     v: VertexKey,
@@ -325,7 +352,7 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
             .face;
         Ok((l, face))
     };
-    let surface_of = |f: FaceKey| body.get_face(f).map(|d| d.surface);
+    let chart_of = |f: FaceKey| body.get_face(f).map(|d| (d.surface, d.sense));
     let mut site = None;
     'search: for i in 0..n {
         let (l, face) = face_of(orbit[i])?;
@@ -344,8 +371,8 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
                 && !sections.contains(&fj)
                 && outer(face, l)
                 && outer(fj, lj)
-                && surface_of(fj).is_some()
-                && surface_of(fj) == surface_of(face)
+                && chart_of(fj).is_some()
+                && chart_of(fj) == chart_of(face)
             {
                 Some(Crossing::TwoFaces)
             } else {
@@ -444,22 +471,24 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
                 .and_then(|vd| body.get_point(vd.point).copied())
                 .ok_or_else(|| corr("seam vertex has no point"))
         };
-    let p0 = point_of(body, ob[0])?;
-    let joint = Joint::Loops {
-        target: ob[0],
-        ring: rs[0],
-    };
-    let (merge, _) = fuse_by_joint(body, joint, p0, corr, tol)?;
-    report.vertex_merges.push(merge);
-    for j in (1..n).rev() {
+    for j in fusion_order(n) {
         let pj = point_of(body, ob[j])?;
-        let joint = Joint::Chord {
-            he1: ob[j],
-            he2: rs[j],
+        let joint = if j == 0 {
+            Joint::Loops {
+                target: ob[0],
+                ring: rs[0],
+            }
+        } else {
+            Joint::Chord {
+                he1: ob[j],
+                he2: rs[j],
+            }
         };
         let (merge, _) = fuse_by_joint(body, joint, pj, corr, tol)?;
         report.vertex_merges.push(merge);
-        body.kef_minting(rs[(j + 1) % n], tol)?;
+        if j != 0 {
+            body.kef_minting(rs[(j + 1) % n], tol)?;
+        }
     }
     body.kef_minting(rs[1 % n], tol)?;
     for &he in &ob {
