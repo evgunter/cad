@@ -6849,3 +6849,8 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - **R:** the fix lane posted its review fixes on 4037 (`41d6248d`); CI is running. 4039 is now `a580e4d8`.
   - **Cross-program:** PCERT's open PR 3945 (approved, dirty since 10-03) implements C4's joint deck element as "identity at every joint". R stores non-identity elements under the later C4 (PR 4024). Filed `work/pcert/pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways` (P1) for the PCERT orchestrator; whichever lands second reconciles. R proceeds.
   - Nothing new on PR 3970.
+- 01:40: PR 4045 (sync) merged at `2e28e78c5c`.
+  - **PR 4043 review: merge** (diagnosis sure, placement sure, atomic). It found one small doc fix: `orbit_step_at`'s `unreachable!` still cited `WALKS_CLOSE`, the premise the PR refuted.
+  - I merged main into `claude/rcw-orbit-step` (the row conflict: kept `closed`) and re-worded the message and doc to name the real premise (the `mint_directed` corner check, the strut-first `keyed` sort). Pushed `9d2e4b1d06`; `cargo check -p topo` and fmt are clean. Merge on green.
+  - Reviewer (about $1.6) and P0 implementer (about $3.2) archived.
+  - Style notes left for the parked four-germ row's owner: three spellings of one refusal, and the `reconcile_shared` caveat.
