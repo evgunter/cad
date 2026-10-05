@@ -122,8 +122,7 @@ fn desync(what: &'static str) -> BooleanError {
 
 /// The boundary of loop `l`, which `holder`'s field `field` names: a
 /// link, so a miss panics, as does a walk of it ([`Body::loop_walk`]
-/// closed): the lane's Euler operators keep the body link-valid between
-/// them.
+/// closed; [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn loop_boundary<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
@@ -799,6 +798,12 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// [`PairUnread`]: a face whose surface kind is outside the ladder's
 /// inventory — there is no description to compare — or whose extent
 /// cannot be read. The ladder's own refusals ride inside the `Ok`.
+///
+/// # Panics
+///
+/// Where a link of either face does not resolve: its surface
+/// ([`face_carrier`]), its loops, their walks, or a boundary vertex's
+/// point.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -816,6 +821,10 @@ pub fn carrier_pair_relation<T: Decide>(
 /// One traversal, two projections.
 ///
 /// # Errors
+///
+/// As [`carrier_pair_relation`].
+///
+/// # Panics
 ///
 /// As [`carrier_pair_relation`].
 pub fn carrier_pair_verdict<T: Decide>(
