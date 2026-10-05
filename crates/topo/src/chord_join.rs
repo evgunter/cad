@@ -1321,20 +1321,21 @@ pub(crate) fn face_azimuth_window<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`face_azimuth_window`], and [`SplitJoinError::Corrupt`] for a
-/// face or surface key that does not resolve.
+/// As [`face_azimuth_window`]: [`SplitJoinError::Corrupt`] for a face
+/// key that does not resolve.
+///
+/// # Panics
+///
+/// As [`face_azimuth_window`], and where the face's surface does not
+/// resolve: a torn link past the caller's key (D2 row 4).
 #[cfg(feature = "sweep-testing")]
 pub fn face_azimuth_window_traces<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let key = body
-        .get_face(face)
-        .ok_or_else(|| corrupt_face(face))?
-        .surface;
-    let surface = body.get_surface(key).ok_or_else(|| corrupt_face(face))?;
-    face_azimuth_window(body, surface, face, band)
+    let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    face_azimuth_window(body, body.face_surface_linked(face, data), face, band)
 }
 
 /// The azimuth hull of a walk's images: the window every caller folds.
