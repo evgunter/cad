@@ -2,10 +2,11 @@
 id: a-reflex-corner-on-a-cube-edge-or-corner-refuses-in-the-vertex-vertex-lane
 kind: issue
 title: The L-prism's reflex corner on a cube's edge or corner, undeclared, refuses in 526 of 4 032 sweep runs (PairingMismatch, B senses agree, SelfLoopEdge)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
+closed: 2026-10-05
 ---
 
 
@@ -63,3 +64,52 @@ Sort the refusals by cause on a few representative poses, using
 lane's copies of the pierce row's class: several runs at one vertex,
 or a seam passing a pinch vertex twice. Fold each cause into the row
 that owns it, or give it its own row.
+
+## Built
+
+Branch `join/reflex-corner-vertex-vertex`. All 526 refusing runs build
+`SOUND` (`pierce_runs_battery`: every one of the edge and corner
+placements' 4 032 runs is `SOUND` or rightly empty, against the
+clipping oracle). The face placement's 17 refusals
+are the pierce rows'. Four wrong states, all in
+`insert::plan_null_pairs` and its mints, each the first wrong state on
+some of the 526:
+
+- **The guard, not the pairing (`PairingMismatch`, 243).** F12 guard 1
+  ordered the survivors in one B sector by their A sector, and the
+  pairing ordered those in one A sector by their B sector (cleave's
+  `a-corner-crossing-another-four-times-refuses-pairing-mismatch`). Each
+  solid now walks its own orbit (`walk_order`): by sector entry, and
+  round the entry by `walks_after`; two germs along one direction in
+  one entry refuse typed. Each link is a simple closed curve on the
+  sphere, and at four crossings both non-crossing matchings fix one
+  cyclic order on both, so the guard cannot fire there on distinct
+  germs. At six a nested matching is legal and it does fire, as on
+  main (both reviews' notch poses; filed as
+  `a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`).
+- **B ran forward in A's order** (`four-germ-vertex-pairs-run-b-in-a-order`):
+  each solid now runs a null edge from the germ the other follows in
+  its own walk order (`run_order`). That row's fix, built here; its
+  REST-zip wrong bodies do not reappear (`join1_r1_reflex_battery`, 0
+  refusal→BAD).
+- **A strut anchored on a half a fan had moved.** A fan and a strut in
+  the two entries of one physical sector (the cube's edge vertex, a
+  bisected half-turn): the fan minted first and took the half the strut
+  splices beside, so the strut hung at the fan's copy (`JoinDesync`
+  "B senses agree", `NotSameFace`, `UnpairedLooseEnds`). The runs of a
+  pair that crosses more than twice are now shared (`SideRun::shared`):
+  struts mint before fans, anchored off the sectors, as
+  `reconcile_shared`'s pairs do.
+- **The pairing start ignored the op.** Either start pairs the corner;
+  one leaves a kept vertex of A holding both null edges, which the
+  finish's seam correspondence and the zip refuse ("conflicting seam
+  vertex correspondence", `Euler(SelfLoopEdge)`). The pairing now starts
+  where A's runs lie on the side the op keeps of A
+  (`finish::kept_side`).
+
+Rows: `join_pierce_runs_sweep.rs` `four_germ_vertex_pairs_build_every_op`
+(red under each of the four mutants), its subset row now asks `SOUND`
+of every edge and corner run, and
+`a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs`
+drives the planner into the guard (red when a non-adjacent pair falls
+to the run-swallowing test instead).

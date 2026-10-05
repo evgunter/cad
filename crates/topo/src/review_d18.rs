@@ -195,9 +195,7 @@ std::thread_local! {
 /// drops. It captures only on threads inside [`PanicCapture::run`] and
 /// hands every other thread's panic to the previous hook, so a test
 /// panicking concurrently on another thread prints and fails as it
-/// would have. `fixtures::through_the_scalpel` installs its own hook
-/// once, without that lock, so the guard has it install first and
-/// chains to it.
+/// would have.
 pub(crate) struct PanicCapture {
     previous: Option<std::sync::Arc<PanicHook>>,
     _serialized: std::sync::MutexGuard<'static, ()>,
@@ -208,7 +206,6 @@ impl PanicCapture {
         let serialized = crate::surgery::tests::PANIC_HOOK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let _ = crate::fixtures::through_the_scalpel(&[], || ());
         let previous = std::sync::Arc::new(std::panic::take_hook());
         let chained = std::sync::Arc::clone(&previous);
         std::panic::set_hook(Box::new(move |info| {
@@ -278,7 +275,7 @@ pub(crate) fn assert_torn_op_panics<R: core::fmt::Debug>(
     let planted = kill_anchor_faults(body);
     let capture = PanicCapture::install();
     let outcome = capture.run(|| {
-        let mut scope = body.begin_surgery();
+        let mut scope = body.begin_surgery_on_a_torn_body();
         format!("{:?}", op(&mut scope))
     });
     drop(capture);
@@ -2134,12 +2131,10 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 /// [`kill_anchor_faults`] fault the tear did not plant, which is one the
 /// operator wrote; a typed refusal and a row-4 premise panic count as
 /// `Err`, and any other panic, or a stale-key refusal of a key read out
-/// of the body, fails. Each call runs inside a surgery scope, so a debug
-/// build's tier-1 postcondition, which a torn input fails whatever the
-/// operator writes, does not answer first; under the
-/// `per-op-postcondition` scalpel, whose sweep answers after the
-/// operator's last write, a fired sweep counts as the `Ok` it stood in
-/// front of.
+/// of the body, fails. Each call runs inside a torn-body surgery scope
+/// (`Body::begin_surgery_on_a_torn_body`), so a debug build's tier-1
+/// postcondition, which a torn input fails whatever the operator
+/// writes, does not answer first.
 fn kill_anchor_rows(tear: Tear, seeds: &[u64], capture: &PanicCapture) -> AnchorRows {
     use test_utils::fuzz::Rng;
     let tol = Tol::witness();
@@ -2170,19 +2165,9 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64], capture: &PanicCapture) -> Anchor
                 for call in anchor_calls(&body) {
                     let cells = &mut table[call.op()];
                     let mut trial = body.clone();
-                    let doors: &[&str] = match call {
-                        AnchorCall::Kev(_) => &["kev", "kev_describing"],
-                        _ => &ANCHOR_OPS[call.op()..=call.op()],
-                    };
-                    let outcome = capture.run(|| call.run(&mut trial.begin_surgery(), tol));
+                    let outcome =
+                        capture.run(|| call.run(&mut trial.begin_surgery_on_a_torn_body(), tol));
                     cells[0] += 1;
-                    let swept = |report: &str| {
-                        doors.iter().any(|op| {
-                            report.contains(&format!(
-                                ": {op} postcondition: result is not tier-1 valid"
-                            ))
-                        })
-                    };
                     match outcome {
                         Ok(Ok(())) => {}
                         Ok(Err(
@@ -2193,7 +2178,6 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64], capture: &PanicCapture) -> Anchor
                             "{call:?} under {tear:?} refused a key read out of the body as \
                              stale: {stale:?}"
                         ),
-                        Err(report) if swept(&report) => {}
                         Ok(Err(_)) => {
                             cells[1] += 1;
                             continue;
@@ -2481,9 +2465,10 @@ fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
 /// **`revert` writes no anchor off a torn `next` or `prev`**: every
 /// single tear of each [`REVERT_BODIES`] body, and no `Ok` carries an
 /// anchor fault the tear did not plant. An enumeration, not a sample.
-/// Each body, and each tear kind, is refused somewhere, so the tears
-/// reach the proofs. (A `Prev` tear of a body with one cycle loop,
-/// the segment, cannot move a `first` out of its loop.)
+/// `Next` tears are refused somewhere, so they reach the proofs. A
+/// `Prev` tear reaches none: `revert` follows no `prev` (it moves no
+/// loop's `first`), so the tear is carried, swapped into the result's
+/// `next`, and the row reads only that it writes no fault.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
@@ -2514,13 +2499,9 @@ fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
             );
             *per_tear += refused;
         }
-        assert!(
-            cells.iter().any(|&[_, refused, _]| refused > 0),
-            "no tear of {name} was refused"
-        );
     }
     assert!(
-        refused_per_tear.iter().all(|&n| n > 0),
+        refused_per_tear[0] > 0 && refused_per_tear[1] == 0,
         "refusals per tear kind {tears:?}: {refused_per_tear:?}"
     );
 }
@@ -2625,8 +2606,9 @@ fn revert_rename_rows(body: &Body<f64>, tear: RevertTear) -> RenameCells {
 /// a `next` or `prev` tear is the tear's image, and no `Ok` of a `start`
 /// tear carries a validator kind its torn source does not. The kinds
 /// the images carry beyond their sources are [`RENAMED_KINDS`], pinned
-/// per tear kind. An enumeration, not a sample; each tear kind is
-/// refused somewhere, so the tears reach the proofs.
+/// per tear kind. An enumeration, not a sample; `next` and `start`
+/// tears are refused somewhere, so they reach the proofs, and a `prev`
+/// tear, which no proof follows, is carried as its image.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
@@ -2679,8 +2661,9 @@ fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
             "the kinds `{tear:?}` tears' images carry beyond their sources"
         );
     }
-    assert!(
-        refused_per_tear.iter().all(|&n| n > 0),
+    assert_eq!(
+        refused_per_tear.map(|n| n > 0),
+        [true, false, true],
         "refusals per tear kind {REVERT_TEARS:?}: {refused_per_tear:?}"
     );
 }

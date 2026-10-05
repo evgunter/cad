@@ -2,8 +2,11 @@
 id: tests-fail-under-the-per-op-postcondition-feature
 kind: issue
 title: Four euler and row_walk_proofs tests fail under topo/per-op-postcondition
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-10-05
+branch: topo/torn-rows-per-op-postcondition
+refs: [torn-body-rows-are-red-under-per-op-postcondition]
 ---
 
 
@@ -35,3 +38,11 @@ failures that say nothing about their change.
 Either the rows opt out of the postcondition (they plant a tear on
 purpose, so a postcondition firing on it is not the finding they test),
 or the feature's documentation says which rows it excludes and why.
+
+## Closed
+
+A duplicate of
+`work/topo/torn-body-rows-are-red-under-per-op-postcondition.md`,
+closed with it: the rows open their scope with
+`Body::begin_surgery_on_a_torn_body`, which the feature leaves
+unswept, and `cargo nextest run -p topo --all-features` is green.

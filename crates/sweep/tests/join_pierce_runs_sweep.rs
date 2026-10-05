@@ -280,10 +280,10 @@ fn pierce_runs_battery() {
 /// none, if they share one point and no face runs through two of them
 /// (a face meeting two is where the pierce weld joins them), else the
 /// finding.
-fn pierce_point_finding(body: &Body<f64>) -> Option<String> {
+fn pierce_point_finding(body: &Body<f64>, at: [f64; 3]) -> Option<String> {
     let at_v: Vec<_> = body
         .vertex_points()
-        .filter(|(_, p)| [p.x, p.y, p.z] == V)
+        .filter(|(_, p)| [p.x, p.y, p.z] == at)
         .map(|(k, _)| k)
         .collect();
     let point = |k| body.get_vertex(k).unwrap().point;
@@ -317,7 +317,9 @@ fn pierce_point_finding(body: &Body<f64>) -> Option<String> {
 /// direction of the edge and corner placements at their first turn. No
 /// pose ships a body that is not `SOUND` by [`outcome`], and in the
 /// face placement every body holds `v` as one vertex wherever a face
-/// meets it. Refusals pass: the residue is the filed rows'.
+/// meets it. In the face placement refusals pass: the residue is the
+/// filed rows'. The edge and corner placements reach `v` through the
+/// vertex-vertex lane, where every run builds `SOUND`.
 #[test]
 fn the_sweep_subset_ships_no_bad_body() {
     let mut bad = Vec::new();
@@ -328,12 +330,14 @@ fn the_sweep_subset_ships_no_bad_body() {
                 for (tag, r, want) in pose_runs((place, lo), (i, j, psis[0])) {
                     let finding = match &r {
                         Ok(res) if place == "face" => {
-                            res.body().and_then(|bb| pierce_point_finding(&bb.body))
+                            res.body().and_then(|bb| pierce_point_finding(&bb.body, V))
                         }
                         _ => None,
                     };
                     let line = outcome(r, want, tol());
-                    if line.starts_with("OK") && !line.starts_with("OK SOUND")
+                    let sound = line.starts_with("OK SOUND") || line.starts_with("EMPTY ok");
+                    if place != "face" && !sound
+                        || line.starts_with("OK") && !line.starts_with("OK SOUND")
                         || line.starts_with("EMPTY WRONG")
                     {
                         bad.push(format!("{tag}: {line}"));
@@ -351,6 +355,238 @@ fn the_sweep_subset_ships_no_bad_body() {
         bad.len(),
         bad.join("\n")
     );
+}
+
+/// **A reflex corner crossing a cube's edge or corner four times builds
+/// every op**, in both operand orders, `SOUND` by [`outcome`] against
+/// the clipping oracle. One pose per way the vertex-vertex lane used to
+/// stop there (`boolean/insert.rs`):
+/// - `corner i=0 j=0 psi=2.2`: two germs in one sector of each solid.
+///   Red as `PairingMismatch` when they are ordered by the other solid's
+///   sector rather than round their own. Union and difference are red
+///   as `JoinDesync` or `Euler(SelfLoopEdge)` when the pairing starts
+///   at A's first germ whatever the op keeps of A: a kept vertex of A
+///   then holds both null edges.
+/// - `edge i=2 j=0 psi=1`: a fan and a strut in the two entries of one
+///   physical sector of the cube's edge vertex. Red as `JoinDesync`
+///   "B senses agree" when the fan mints first and moves the half the
+///   strut anchors on, and as a `ClassificationInvariant` when B runs a
+///   null edge forward in A's order, the long way round.
+/// - `edge i=6 j=0 psi=0`: `PairingMismatch` in both orders on the
+///   other solid's sector order.
+#[test]
+fn four_germ_vertex_pairs_build_every_op() {
+    let mut bad = Vec::new();
+    for (place, pose) in [
+        ("corner", (0, 0, 2.2)),
+        ("edge", (2, 0, 1.0)),
+        ("edge", (6, 0, 0.0)),
+    ] {
+        let lo = PLACEMENTS.iter().find(|p| p.0 == place).unwrap().1;
+        for (tag, r, want) in pose_runs((place, lo), pose) {
+            let line = outcome(r, want, tol());
+            if !line.starts_with("OK SOUND") {
+                bad.push(format!("{tag}: {line}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **The F12 adjacency guard fires on six distinct germs.** A 343°
+/// notch's reflex corner at `v` on the cube's edge (the grid's `i=3
+/// j=0 psi=1`) crosses the cube six times. A's walk order pairs
+/// `(0, 3) (2, 4) (5, 1)`, and B reads them at `(2, 5) (0, 1) (4, 3)` of
+/// six: a nested, non-crossing matching, so `(0, 3)` is not adjacent in
+/// B and every op in both orders refuses `PairingMismatch`
+/// (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
+/// Red when a pair not adjacent in B falls to the run-swallowing test
+/// instead (the run's In and Out ends then meet at one vertex), and red,
+/// as it should be, when the nested pairing builds.
+#[test]
+fn a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs() {
+    let notch = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 0.85),
+        (1.0, 1.0),
+        (2.0, 1.15),
+        (2.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let notch = finished("the notch", fixtures::prism::<f64>(&notch, 1.0, tol()).body);
+    let cube = finished(
+        "the cube",
+        cube(frame(direction(3, 0), 1.0), PLACEMENTS[1].1),
+    );
+    let decls = BooleanDeclarations::default();
+    for (order, x, y) in [("nc", &notch, &cube), ("cn", &cube, &notch)] {
+        let ops: [(&str, Op); 3] = [
+            ("U", topo::union_with),
+            ("I", topo::intersect_with),
+            ("S", topo::subtract_with),
+        ];
+        for (op, run) in ops {
+            let r = run(x, y, &decls, tol());
+            assert!(
+                matches!(r, Err(BooleanError::PairingMismatch { .. })),
+                "{order} {op}: {:?}",
+                r.map(|_| ())
+            );
+        }
+    }
+}
+
+/// The staircase prism: reflex corners at `(2, 1, 1)` and `(1, 2, 1)`,
+/// translates of one L corner.
+const STAIR: [(f64, f64); 8] = [
+    (0.0, 0.0),
+    (3.0, 0.0),
+    (3.0, 1.0),
+    (2.0, 1.0),
+    (2.0, 2.0),
+    (1.0, 2.0),
+    (1.0, 3.0),
+    (0.0, 3.0),
+];
+/// [`STAIR`] as three boxes with disjoint interiors, `(lo, hi)`.
+const STAIR_BOXES: [([f64; 3], [f64; 3]); 3] = [
+    ([0.0, 0.0, 0.0], [3.0, 1.0, 1.0]),
+    ([0.0, 1.0, 0.0], [2.0, 2.0, 1.0]),
+    ([0.0, 2.0, 0.0], [1.0, 3.0, 1.0]),
+];
+
+/// **Two pinches in one op are each crossed.** The cube's near face lies
+/// in a plane through both of [`STAIR`]'s reflex top corners, turned so
+/// that each corner has two Out runs (PR 4038's review r1, `u2 S_tt`,
+/// direction 204 of 720). The intersection pinches at both corners, so
+/// `cross_pinches` crosses two vertices in one op. Every op in both
+/// orders builds `SOUND` at the boxes' clipped volume and holds each
+/// corner as one vertex wherever a face meets it. Red if the pre-pass
+/// stops after its first crossing: the second pinch's zip fuses it to
+/// itself.
+#[test]
+fn two_pinches_in_one_op_are_each_crossed() {
+    let (a, b) = ([2.0, 1.0, 1.0], [1.0, 2.0, 1.0]);
+    let [e1, e2, _] = frame(unit([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), 0.0);
+    let t = std::f64::consts::TAU * (204.0 + 0.37) / 720.0;
+    let m = [0, 1, 2].map(|k| t.cos() * e1[k] + t.sin() * e2[k]);
+    let f = frame(m, 0.0);
+    let lo = [-2.0, -2.0, 0.0];
+    let mid = [1.5, 1.5, 1.0];
+    let prism = finished(
+        "the staircase",
+        fixtures::prism::<f64>(&STAIR, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_at(mid, f, lo));
+    let planes = cube_planes_at(mid, f, lo);
+    let common: f64 = STAIR_BOXES
+        .iter()
+        .map(|&(blo, bhi)| {
+            let mut all = planes.clone();
+            for t in 0..3 {
+                let mut e = [0.0; 3];
+                e[t] = 1.0;
+                all.push((e, bhi[t]));
+                all.push((e.map(|c| -c), -blo[t]));
+            }
+            convex_volume(&all)
+        })
+        .sum();
+    assert!(
+        common > 1e-3,
+        "the cube holds some of the staircase: {common}"
+    );
+    let (va, vb) = (6.0, SIDE * SIDE * SIDE);
+    let decls = BooleanDeclarations::default();
+    for (order, x, y, vx) in [("pc", &prism, &cube, va), ("cp", &cube, &prism, vb)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, va + vb - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vx - common),
+        ];
+        for (op, run, want) in ops {
+            let r = run(x, y, &decls, tol());
+            let findings: Vec<String> = match &r {
+                Ok(res) => res
+                    .body()
+                    .map(|bb| {
+                        [a, b]
+                            .into_iter()
+                            .filter_map(|p| pierce_point_finding(&bb.body, p))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                Err(_) => Vec::new(),
+            };
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{order} {op}: {line}");
+            assert!(findings.is_empty(), "{order} {op}: {findings:?}");
+        }
+    }
+}
+
+/// **A pinch crossed on the second operand's side.** The L-prism's
+/// bottom reflex corner `(1, 1, 0)` at a corner of the cube, the cube
+/// along Fibonacci direction 19 of 120 and turned 1.9 about it (PR
+/// 4038's review r2, `Lbot fib19 corner psi=1.9`). In cube ∪ prism the
+/// collision's first operand has no face to cross, and the prism does:
+/// `cross_pinches` splits the second operand's vertex, so every first
+/// operand vertex that corresponded to it gains the new vertex. The union
+/// builds `SOUND` with one vertex at the corner wherever a face meets
+/// it. Red if the new vertex gains no correspondents: the zip finds no
+/// ring half-edge for it.
+#[test]
+fn a_pinch_split_on_the_second_operands_side_builds() {
+    let v = [1.0, 1.0, 0.0];
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let z: f64 = 1.0 - 2.0 * (19.0 + 0.5) / 120.0;
+    let r = (1.0 - z * z).sqrt();
+    let m = [r * (ga * 19.0).cos(), r * (ga * 19.0).sin(), z];
+    let f = frame(m, 1.9);
+    let lo = [0.0, 0.0, 0.0];
+    let prism = finished(
+        "the prism",
+        fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let common = shared(&cube_planes_at(v, f, lo));
+    let want = 3.0 + SIDE * SIDE * SIDE - common;
+    let r = topo::union_with(&cube, &prism, &BooleanDeclarations::default(), tol());
+    let finding = r
+        .as_ref()
+        .ok()
+        .and_then(|res| res.body())
+        .and_then(|bb| pierce_point_finding(&bb.body, v));
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "cube ∪ prism: {line}");
+    assert_eq!(finding, None, "cube ∪ prism");
+}
+
+/// **A vertex-vertex pinch the pairing start avoids.** With `v` on the
+/// cube's edge (direction `i = 6, j = 1`), cube ∖ prism used to pinch at
+/// `v` over two seams: each cube face through `v` passes it twice on its
+/// outer loop, round a notch the prism cuts, so no kept face could cross
+/// the pinch and the op refused `PinchUncrossed`
+/// (`a-pinch-no-kept-face-can-cross-refuses`). The vertex pair crosses
+/// four times, and its pairing starts where A's runs lie on the side the
+/// op keeps of A (`insert::pairing_start_turns`): each run A keeps is a
+/// copy of its own, and the result needs no crossing at `v`. Every op in
+/// both orders builds `SOUND` at the clipping oracle. Red when the
+/// pairing starts at A's first germ (`JoinDesync` "conflicting seam
+/// vertex correspondence" in prism ∩ cube, the first run checked).
+#[test]
+fn a_four_germ_pinch_the_pairing_start_avoids_builds_every_op() {
+    let (place, lo, psis) = PLACEMENTS[1];
+    for (tag, r, want) in pose_runs((place, lo), (6, 1, psis[0])) {
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+    }
 }
 
 /// The oracle against the kernel-free closed form the strut-facing row

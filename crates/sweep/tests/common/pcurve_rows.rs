@@ -32,15 +32,16 @@
 use topo::Body;
 
 /// One line per stored row, in half-edge-slot order: the half-edge,
-/// its face, the parameter window and the image.
+/// its face, the parameter window, the image and the joint element.
 pub fn rows(body: &Body<f64>) -> Vec<String> {
     body.pcurves()
         .map(|(he, cache)| {
             format!(
-                "he {he:?} face {:?} params {:?} pcurve {:?}",
+                "he {he:?} face {:?} params {:?} pcurve {:?} joint {:?}",
                 body.face_of_half_edge(he).unwrap(),
                 cache.params(),
-                cache.pcurve()
+                cache.pcurve(),
+                body.joint(he)
             )
         })
         .collect()

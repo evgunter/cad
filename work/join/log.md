@@ -638,3 +638,88 @@ in-face loop. Both are coincidence verdicts; see the plan's hold
 section.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4038 lands: a pinch the zips would fuse twice is crossed first
+
+Four rows close:
+- the two P0s, `a-pierce-whose-wide-run-pinches-its-intersection-refuses` and `a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`;
+- `the-intersection-ring-facing-is-measured-not-derived`;
+- `a-two-run-pierce-on-a-notch-or-shallow-corner-refuses-its-intersection-every-chord-arc`.
+
+**What changed.** `zip::cross_pinches` is a new pre-pass in `ops::boolean_op_recut`. It replays the zips' fusions with a union-find, and where a vertex pair would be fused twice it crosses the pinch first. It crosses on two faces of one surface and one sense (`kef`), or on one ring (`kemr`). The zips' fusion order has one home, `zip::fusion_order`. PR 4026's measured ∩ start rule is removed, so the ring struts face by the walk in every op. A pinch no kept face can cross refuses typed `PinchUncrossed`, a new Python tag.
+
+**Measured** (main `1546630d` vs head):
+- refusal→SOUND: `pierce_runs_battery` 36, PR 4026's r1 battery 516, r1 1 110 + 761 + 103, r2 397 + 406.
+- refusal→`PinchUncrossed`: 509 in the PR's own measure.
+- refusal→BAD: only escalated census findings (5 + 19, plus the PR's 17), all added to the near-tangent P0. On the cylinder there are legal-operand-only failures, CONTACT's at-infinity row.
+- 0 SOUND→refusal anywhere.
+- `rc_wide` is line-identical, now running to the end since PR 4043 fixed main's `orbit_step_at` panic.
+
+**Review tier: DUAL, H / TRICKY (DR-81).** The unit adds a pre-pass that joins pinch copies before the zips, and removes an op-specific facing rule.
+- R1 APPROVE-WITH-FIXES 0/3/3, R2 APPROVE-WITH-FIXES 0/3/5. Tally 0: neither raised a MAJOR.
+- The blinded coder recorded one factual conflict, whether the B-side split branch is reached. The fix pass settled it: R2's 44 corner and edge unions reach it, while R1's batteries placed `v` only on faces.
+- The fix pass:
+  - pins two pinches in one op, and a second-operand split;
+  - gives the fusion order one home;
+  - makes the two-face crossing read sense;
+  - says in `PinchUncrossed`'s message only what is measured;
+  - restates the residue row per sub-family (nested / bow-tie / none-twice), with the bow-tie cure, a loop splice, marked unmeasured.
+
+I read the fix pass myself and judged no delta review needed: the new logic is a sense check that refuses, plus a moved order function.
+
+**Filed:**
+- `a-pinch-no-kept-face-can-cross-refuses` (P0/H, restated);
+- CLEAVE `a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point` (P0/M, pre-existing on main);
+- evidence on the near-tangent P0, CONTACT's at-infinity row and FLUX's ellipse-ring row.
+
+**Hold (D10).** Nothing on declared ground changed. One declared pose's refusal changed: `union_flush_onto_edge_contact` `cube ∖ y` went from `SelfLoopEdge` to `PinchUncrossed`, refusal to refusal. `rest.rs`'s zip calls are untouched.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4036 lands: a four-germ vertex pair reads each solid's own walk order
+
+Four rows close:
+- `a-reflex-corner-on-a-cube-edge-or-corner-refuses-in-the-vertex-vertex-lane` (P0);
+- `a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner`;
+- cleave's `a-corner-crossing-another-four-times-refuses-pairing-mismatch`;
+- **the parked `four-germ-vertex-pairs-run-b-in-a-order`**.
+
+**What changed** (`insert::plan_null_pairs`):
+1. Each solid orders its survivors by its own walk round the vertex (`walk_order`). The old order was the other solid's sector index. This is why the F12 guard fired, 243 times on the row: it was its own misordering.
+2. Each solid runs its null edges in its own order (`run_order`). This is the four-germ row's fix.
+3. A pair that crosses more than twice mints its struts first.
+4. The pairing starts where A's runs lie on the side the op keeps.
+
+The walk order is now read only for n > 2. A tie along one direction refuses typed.
+
+**Measured** (main `cced486c` vs head):
+- pierce: 507 refusal→SOUND. All 4 536 runs are now SOUND or rightly empty.
+- each reflex battery: 49 refusal→SOUND.
+- `rc_wide`: 2 300 refusal→SOUND, plus 20 refusals that change to a typed `Escalated`.
+- 0 SOUND→refusal and 0 refusal→BAD.
+- The editor-core goldens hold at main's values.
+- The reviewers' wider batteries found only census-escalated refusal→BAD: 3 notch343 runs and 15 flat181 runs, all on the near-tangent P0.
+
+**Review tier: DUAL, H / TRICKY (DR-82).** This is the pairing and run order at every vertex-vertex site, and it un-parks a held row.
+- R1 APPROVE-WITH-FIXES 0/2/5, about 90k runs.
+- R2 APPROVE-WITH-FIXES 0/4/4, 145k runs with an exact-rational oracle.
+- Tally 0.
+- Both found that the non-interleaving argument holds at four crossings only. At six, a nested pairing is legal, and the guard still fires and fails loud, as it did on main. The text now says "four", and the six-crossing case is a new row.
+
+**The parked row — the call, stated plainly for Ev.**
+- `four-germ-vertex-pairs-run-b-in-a-order` was parked under the D10 hold. Its fix alone had sent two declared-flush unions to wrong REST-zip bodies.
+- The fix is load-bearing for this undeclared P0: mutant M2, which removes it, reddens it.
+- Both reviewers measured that the REST door (`try_rest_union`) is entered 0 times across the reflex batteries, `rc_wide`, pierce and `join1_r1`.
+- The three declared-flush poses that once went to the REST zip are SOUND at the closed form.
+- No declared-contact, REST-zip, placement, census or coincidence code is in the diff. Declared-flush outcomes move only through the shared planner: 49 + 49 refusal→SOUND.
+
+So the row is closed as built, not as a ruling on held ground. If Ev reads it otherwise, reverting `run_order` re-parks it.
+
+**Merge order.** PR 4038 landed first. 4036 re-ran on the merged head, and only 4038's 17 face-placement pierce lines differ from its pre-merge head. 4038's `PinchUncrossed` pin (edge i=6 j=1 psi=0 cube ∖ prism) builds SOUND here, so it was flipped to `a_four_germ_pinch_the_pairing_start_avoids_builds_every_op`. That leaves **no committed test reaching `PinchUncrossed`**, which is noted on `a-pinch-no-kept-face-can-cross-refuses`. That row's next unit must pin a witness from the reviewers' batteries.
+
+**Filed:**
+- `a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch` (P0)
+- a consolidation row for the walk/precede/run order spellings
+- evidence on the near-tangent P0
+
+Signed (JOIN orchestrator).

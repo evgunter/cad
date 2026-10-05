@@ -355,6 +355,9 @@ where
         )
         .expect("the fitted cache certifies through the M6-2 door");
         body.attach_pcurve(he, cache);
+        // The spur's two halves share the image, so each joint turns
+        // back on the point the other left: the identity.
+        body.attach_joint(he, topo::JointElement::IDENTITY);
     }
 
     Built {

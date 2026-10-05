@@ -2,10 +2,11 @@
 id: a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass
 kind: issue
 title: A kill that re-anchors a minted loop's first leaves its rows a whole period off the rows the minting pass derives from the new first
-status: dispatched
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: H
+closed: 2026-10-04
 ---
 
 Found by the fix pass of `a-null-edge-that-is-killed-leaves-its-face-half-minted`
@@ -211,3 +212,40 @@ too, since no stored byte then depends on `first`.
 
 **Sequencing:** build after PR 4029 (the `EulerOpError` conversion) merges.
 Both touch `euler_kill.rs`.
+
+## Closed
+
+PR #4037 and its follow-up (the site mint), building R.
+
+- **The representation.** A row is the edge's image (`Body::pcurve`) and
+  the half-edge's joint element (`Body::joint`, `crates/topo/src/joint.rs`):
+  a deck element `T_u^a·T_v^b·σ^c`, or a reset at a pole or apex.
+- **The pass decides every joint between two images, and the winding is
+  the sum.** `decide_joint` and `Winding::closes` in `pcurves.rs`.
+- **Tier 3 re-decides each element.** `validate_pcurves` check 4.
+- **Readers lift through one accessor.** `Body::loop_lift`.
+- **Kills are keys-only and exact.** They sum the elements they bridge:
+  `Body::bridged_joint`, and null halves carry the identity.
+- **`revert` inverts the elements and moves no anchor.**
+- **The site mint mints only what a door creates.**
+
+**Measured on the build's head** (a probe at the outermost kill door,
+over sweep's `ci` profile, on the periodic faces the killed edge's halves
+are on): every face a kill leaves complete is byte-equal to the pass,
+images and elements, and tier-3 clean. That is `kef` 21, `kef_minting`
+8,355, `kev` 140 and `kemr` 89; the merge base's mixed `kef` (8) and
+`kef_minting` (1,649 loud, 168 clean) faces are among them. The
+witnesses in `euler_site_pcurve_rows` run un-ignored, and the sums are
+pinned at `kef`, `kev` (strut and mirror) and `kemr`.
+
+**Spline charts closed in u.** The iso lane was already gauge-free:
+`nurbs_iso_derive` reads the edge and the chart, never a half-edge's
+sense or position, so a seam's halves share one image, and their elements
+carry the knot-domain period. The drop on a chart change stays; it is a
+derivation in another chart, not a gauge.
+
+**Residue, filed rather than disclosed here:**
+- `work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`;
+- `work/topo/kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`:
+  404 faces `kef_minting` leaves wholly unminted, none half-minted, as
+  the merge base does.

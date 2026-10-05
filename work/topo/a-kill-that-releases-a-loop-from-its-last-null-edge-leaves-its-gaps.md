@@ -2,7 +2,7 @@
 id: a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps
 kind: issue
 title: A kill that takes the last null edge off a minted loop leaves the rows the loop missed while it was held open
-status: open
+status: dispatched
 opened: 2026-09-30
 priority: P3
 cost: M

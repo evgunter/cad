@@ -6808,3 +6808,98 @@ Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and
   - Main's PR 3987 (`AtRestBody`) was merged in.
 
   Fix lane archived (about $14). **Stale-key row closed** (both units merged; items 1-6 hold for every named variant). The residue row `torn-body-refusal-families-beyond-the-six-doors` gets P3 and M. **R build dispatched** (`session_01Gh7MVn8yRcX5XCDaEt6YQK`; the re-anchor row is `dispatched`). It includes the pole-slit row, takes the in-band-lever row optionally, is accepted on a probe re-run (every kill-kept face byte-equal and tier-3-clean), and may be staged in 2-3 PRs.
+- 19:31: PR 4035 (sync) merged at `79aafa8b66`.
+- 20:29 check-in: the R build (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, branch `topo/joint-elements`) has finished the element-carrier flow and is fixing sweep test failures; no PR yet. Nothing new on PR 3970. No topo commits incoming.
+- 21:31: **The R build opened PR 4037** (part 1 of 2; about 3k lines, 36 files).
+  - Adds a deck-group `JointElement` (`joint.rs`) with `Reset` at zero-lever joints. `pin_branch` becomes `decide_joint`. `Winding::closes` is independent of `first`. Tier 3 re-decides elements.
+  - One `loop_lift` accessor; 7 readers moved.
+  - `link_half_edges(a, b, element)`; kills sum elements; `revert` inverts elements and moves no anchor.
+  - **Probe re-run: every kill-kept complete periodic face in sweep ci is byte-equal and tier-3-clean** (`kef` 21, `kef_minting` 8,102, `kev` 592, `kemr` 73; previously 1,641 mixed). The snowman refusal is gone.
+
+  Subscribed. Reviewer `session_01KiZYQJiYUBLPTVuYdBx6zs` dispatched: deck-group laws, kill sums including the `kev_describing` turn (D9), tier-3 acceptance looseness, `first`-independence, the `revert` involution, readers missed, staging honesty. The implementer is already on part 2 and its status says "checking CI before merge"; it may self-merge before review. If so, the review is fixed forward.
+- 21:37: PR 4037 `test` job red on `b076ce4b` (nextest exit 100; logs unreachable from here, annotations do not name the test). Left to the implementer, which is live and watching its CI. The reviewer also runs the suite.
+- 22:00: PR 4037 got a new head `843fcb69` (the implementer fixed the `test` job); `demos` is now red there, and the implementer is polling CI on both its PRs. Part 2 is **PR 4039** (`topo/joint-site-mint`, base main): the site-mint shrink and row closures. Subscribed; to be reviewed after part 1's verdict.
+
+## 22:23 check-in (2026-10-04)
+
+**PR 4037 review: fix first, three BLOCKING findings.**
+1. CI is red, and two moved goldens are unexplained (the thread-count digest: `sym_arc_loft` and `sym_thin_strip` decision counts; the demos chaintol fraction).
+2. Tier 3's "same kind and fits" arm accepts a wrong pole element: a planted `Reset(σ)` on a lune validates clean and the lift draws outside the chart region. The arm is otherwise dead, so it becomes strict equality.
+3. About 20 "rows are the pass's" helpers stopped comparing the branch, since the element is not in their output.
+
+Minor findings: no kev/kemr sum witness; `Deck::apply` and `shift_polar_branch` fail quietly on `General`; `lift_decks` reset inconsistency; the reset invariant is unpinned; the closure escalation is reported as `NotClosed`; `turn_element` swallows escalation; DESIGN.md D1's revert bullet is stale (the re-wording lands with R); staging gaps, including keys-only `kev` General unsplice leaving a face half-minted.
+
+It confirmed: the acceptance table reproduces (`kef`/`kef_minting` exact, the snowman clean); the witnesses are green; the removed `RevertLink` variants have no readers; arithmetic is deterministic.
+
+The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupted and archived** mid-chaintol fix. It could not receive the review, and a second lane on the same branch would collide; it might also have self-merged with the blockers open. Reviewer archived (about $7). **Fix lane `session_01M66dcYc3UYLm1j7WJ4WNsJ` takes over both PRs**: all findings on 4037, then carry 4039 (merge 4037 in, the same test strictness, zero complete-to-incomplete transitions). It merges nothing; the orchestrator merges. Nothing new on PR 3970.
+- 23:27 check-in: the R fix lane (`session_01M66dcYc3UYLm1j7WJ4WNsJ`) reports items 2 and 5-9 green, items 3 and 4 witnesses done, and is now re-baselining goldens. Nothing pushed yet: 4037 is still `843fcb69`, 4039 still `d71cb6b1`. Nothing new on PR 3970. No topo commits incoming.
+
+## 00:33 check-in (2026-10-05)
+
+- **P0 on the slate** (filed by JOIN from PR 4031's fix pass): `rc-wide-battery-panics-at-the-orbit-step-unreachable`.
+  - A public boolean aborts in 8 of 84 shards of the nightly `rc_wide_battery`, at `insert.rs` `orbit_step_at`'s `unreachable!`. Main `45dc18f9` (before 4029 and 4033) answered every pose.
+  - The site is the `None`-holder strut arm that PR 4033's review finding 2 asked for. Its tier-1 premise does not hold mid-insertion.
+  - **Our regression.** It was missed because the battery is `#[ignore]`d and nightly-only; no lane ran it.
+  - P0 lane `session_01Md9o53Bne536g8T24SKSq2` dispatched: repro, root-cause (insertion bug vs legitimate mid-op state), all 84 shards clean with the base's line set, and an audit of the other mid-op premise sites.
+  - **Lesson:** a brief that converts boolean sites must run the `join_rc` batteries.
+- Also filed on the slate: `torn-body-rows-are-red-under-per-op-postcondition` (4 rows red under `--features per-op-postcondition`), set to P3 and E; it waits.
+- R fix lane: 4037 head moved to `e57bfa67` (not yet green); 4039 is unchanged and dirty. Nothing new on PR 3970.
+- 01:20 check-in.
+  - **P0 PR 4043 opened.** Reading (a): a real insertion defect (a fan `mev_null` moves the strut's corner before the strut reads its stale sector table), already parked on JOIN's four-germ row. It now refuses `ClassificationInvariant` before any read. All 84 shards are clean: 40,320 lines, with exactly 56 refusals changed from `JoinDesync` to the new one and no body lost. A repro row is added. Subscribed. Quick reviewer `session_01NGRK6qh17Rp2APL4DWHZub` dispatched.
+  - **R:** the fix lane posted its review fixes on 4037 (`41d6248d`); CI is running. 4039 is now `a580e4d8`.
+  - **Cross-program:** PCERT's open PR 3945 (approved, dirty since 10-03) implements C4's joint deck element as "identity at every joint". R stores non-identity elements under the later C4 (PR 4024). Filed `work/pcert/pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways` (P1) for the PCERT orchestrator; whichever lands second reconciles. R proceeds.
+  - Nothing new on PR 3970.
+- 01:40: PR 4045 (sync) merged at `2e28e78c5c`.
+  - **PR 4043 review: merge** (diagnosis sure, placement sure, atomic). It found one small doc fix: `orbit_step_at`'s `unreachable!` still cited `WALKS_CLOSE`, the premise the PR refuted.
+  - I merged main into `claude/rcw-orbit-step` (the row conflict: kept `closed`) and re-worded the message and doc to name the real premise (the `mint_directed` corner check, the strut-first `keyed` sort). Pushed `9d2e4b1d06`; `cargo check -p topo` and fmt are clean. Merge on green.
+  - Reviewer (about $1.6) and P0 implementer (about $3.2) archived.
+  - Style notes left for the parked four-germ row's owner: three spellings of one refusal, and the `reconcile_shared` caveat.
+- 01:55: **P0 PR 4043 merged** at `d01d8ae1fe` (CI green on `9d2e4b1d06`); unsubscribed. A public boolean no longer aborts in `rc_wide_battery`: 84/84 shards complete, 40,320 lines, with 56 downstream `JoinDesync` refusals now answered at the stale-corner step. The row is closed with the PR.
+- 01:57: **PR 4037 merged** at `201239b0e4`. The code head `e57bfa67` was green on its `pull_request` and dispatch runs; the head commit `41d6248d` is the render bot's `[skip ci]` re-baselines; the test merge with main (after 4043) was clean.
+  - The fix lane mapped all 13 findings: tier 3 strict with the pole-twin row; helpers compare elements (about 15 dumps swept); kev/kemr sum witnesses; `Deck::apply` returns `Option` with `LiftGap`; reset canonicalised; closure miss at index 0; `KillTurnEscalated`; keys-only kev refuses where it would write `None`; DESIGN D1 bullet re-worded.
+  - Four mutations each go red.
+  - Acceptance: every kill-kept face byte-equal and clean (`kef` 21, `kef_minting` 8,102, `kev` 140, `kemr` 73). There are 400 complete-to-incomplete transitions on both base and head, all whole-face `Clear`s, so pre-existing.
+  - Fix lane archived (about $28). Unsubscribed.
+  - **PR 4039** (R part 2, `a580e4d8`, brought up on top of 4037) is subscribed; reviewer `session_01Nwzvm72ye7rapYpyEhZypv` dispatched.
+- 02:09 check-in: the PR 4039 review is pending. The topo rows incoming on main come from the merged 4037 and 4043: the band-straddle residual row filed by R part 1, kev-describing evidence, and the P0 row closed. Nothing new on PR 3970.
+
+## 03:01 check-in (2026-10-05)
+
+**PR 4039 review: fix first, no blocker.**
+- Against main it is only the part-2 delta: `pcurves.rs` +208/-51 plus 5 rows. topo 2293/2293, sweep ci 2066/2066.
+- Mutations M1 and M4 (skip joint writes) turn 34 and 21 rows red.
+- `kef_minting` faces are `moved`, so part 2 cannot change the 400 transitions; they are pre-existing.
+- Findings, all adopted:
+  1. Stale docs: "one certification home", `walk_cycle`'s callers, and `site_rows`' re-walk text.
+  2. A false "hull as the pass's" claim.
+  3. The `prev == p` guard cannot go red (M3).
+  4. The O(N^2) residue row should stay P3.
+  5. The re-walk's incidental repair of stale `kev_describing` far-face rows is lost.
+  - Style: the site mint re-spells `certify_walked` and `walk_cycle` (Q1); double bindings; three write paths.
+
+Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the one certification home, a `kev_describing` M3 witness, residue P3. Reviewer archived (about $3.3). Nothing new on PR 3970.
+- 03:52: **PR 4039 merged** at `4b1fe513c5`; **R complete.**
+  - Fixes: `site_rows` reuses `walk_cycle` and `certify_walked` (one certification home again); the window hulls the kept loops' stored rows (matches the pass; no extra cost); a direct `kept_joint_tests` witness, red under M3; residue row P3; the far-face-staleness line added.
+  - The witness does not use `kev_describing`: the lane argued no coherent `kev_describing` can reach the guard with a stale `Some`, which instrumentation confirms (only torn-body rows fire).
+  - The params `debug_assert` was left out as unsound (a reachable stale state).
+  - Acceptance: every kill-kept face byte-equal and clean (`kef_minting` 8,355). 404 pre-existing transitions, filed as `kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`.
+  - Fix lane archived (about $5.8). Unsubscribed.
+- Dispatched two lanes (both rows now `dispatched`):
+  - `session_01DbT7iaUmiEzfBXActEdZSR`: `torn-body-rows-are-red-under-per-op-postcondition` (E).
+  - `session_016cnJLHrxZC86vFUEVjxVGE`: `torn-body-refusal-families-beyond-the-six-doors` (M). Its brief carries the P0 lesson: say at-rest vs mid-op at every site, and run every `#[ignore]`d boolean/split battery with zero panics and an unchanged line set.
+- 04:50: **PR 4047 merged** at `d3beaa6f67`, reviewed by the orchestrator (an E unit with a small, `cfg(test)`-only diff). It adds a `begin_surgery_on_a_torn_body` scope that the `per-op-postcondition` scalpel leaves unswept.
+  - The 4 red rows are fixed, and the 3 sweeps that tolerated the scalpel through `through_the_scalpel` and `SWEEP` now read the real answer; those hacks are deleted.
+  - topo `--all-features` 2310 green; sweep with the feature 2113 green. A mutation reds the scope row.
+  - Closed the row and its duplicate. Lane archived (about $2.7).
+- The families lane (`session_016cnJLHrxZC86vFUEVjxVGE`) is still running (88 `rest.rs` sites audited). Disk 28G free.
+
+## 05:47 check-in (2026-10-05)
+
+- The families lane opened **PR 4048** (+651/-487, 27 files).
+  - `ContainError::Corrupt` is deleted and split into honest arms. `sectors`, `rest`, the split gate and `chord_join` are converted.
+  - Batteries: `rc_wide` x84, `rw`, `rw_coplanar` and `pierce_runs` all have the same line sets and 0 panics.
+  - Filed 2 rows; closed `work/issues/corrupt-operand-means-two-things-…` (P0 issue); the families row stays open with a listed residue.
+  - Subscribed. Reviewer `session_01V9YuE6tUq1XgyBKtdtGbQX` dispatched, to re-check at-rest vs mid-op premises and re-run the batteries.
+- **Closed `mint-pcurves-refusal-leaves-the-cache-partly-cleared` (P2) on reading.** PR 4033's derive-then-write already fixed both entries, pinned by `pcurve_door_refusals::a_null_edges_half_…_leaves_the_body_as_found` and the review_d18 clone-unchanged mint check.
+- **Dispatched** `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps` (P3, M) to `session_01E5dJcd5P2Wvx2mz83fCp6q`. The direction is PR 2527's ruling (the kills stay keys-only; the band twins mint the released loop's gaps; a `kemr` twin if needed; producers switch). It re-measures first after R.
+- My merge of main conflicted on the per-op row (main closed it); resolved with main's version. Nothing new on PR 3970.
