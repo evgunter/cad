@@ -52,7 +52,8 @@ each minted shell back into `shell` and re-promotes. It skips only
 where a moved component has no ring-free face, and
 `OpChoice::may_skip_roundtrip_at` admits exactly that site. Any
 fusion order restores the shell list, since every fusion keeps
-`shell` and retains a minted shell (all appended last) out;
+`shell` and removes one minted shell (all appended last) from the
+solid's list;
 `seqgen::tests::movefac_roundtrip_restores_the_partitioned_shell`
 pins a three-component shell and a two-component one ahead of
 another shell, the second the case a fusion that kept the minted

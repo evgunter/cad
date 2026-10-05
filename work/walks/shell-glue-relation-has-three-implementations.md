@@ -57,6 +57,11 @@ the shape of the API is the whole question:
 - `seqgen` needs a count per shell, cheaply, on every step, with no
   allocation it can avoid — the cost measured in `S69` was ~7% of
   `choose_op` + `apply` for the two new rows together.
+- `seqgen` also needs `movefac`'s LABELS before the partition (PR
+  4053): `movefac_remake_sites` picks the face that stays and one
+  face per component that moves, by `movefac`'s component order. A
+  plan-phase component reader exposed by `movefac` itself would make
+  `seqgen` a caller of (1) here instead of a copy of its labelling.
 
 A single `pub(crate)` labelling routine returning the component map,
 with counts derived from it, serves all three; the risk to weigh is
@@ -68,6 +73,13 @@ Not done in `S69` (PR 2014): that unit's fence was the generator, the
 ledger and one postcondition site, and moving a relation the operator
 and the validator both depend on is not a change to make from a
 generator branch.
+
+`crates/topo/src/review_m1_pr4.rs`'s `shell_components` is not a
+fourth copy. It glues faces that share a VERTEX (an empty loop glues
+through its vertex too), so two components that touch only at a vertex
+are one component there and two under this relation. It counts the
+per-component v, e, f, r of an Euler–Poincaré derivation in a review
+module, and is out of this row's scope.
 
 ## Evidence (PR 3669)
 

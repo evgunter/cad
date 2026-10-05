@@ -85,8 +85,9 @@ use super::tests::{RoundtripTally, run_properties};
 ///
 /// No numeric threshold is asserted, because there is no number to
 /// assert: proptest seeds its RNG from entropy, so every run draws a
-/// fresh sample. Four consecutive runs gave 339/335/4/47,
-/// 331/325/6/43, 333/328/5/51 and 351/345/6/47 for
+/// fresh sample. Four consecutive runs at `CAD_FUZZ_EFFORT=1`, with
+/// `Movefac` admitted per site, gave 256/247/9/19, 274/259/15/23,
+/// 307/289/18/27 and 307/301/6/16 for
 /// selected/executed/skipped/skippable — a threshold would have
 /// pinned that spread, not a property.
 ///
