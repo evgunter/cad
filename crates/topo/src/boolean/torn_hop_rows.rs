@@ -303,6 +303,26 @@ fn the_sphere_region_panics_on_a_torn_curve() {
     );
 }
 
+/// `rim_wedge.rs` `face_boundary_arcs`: a torn curve panics, where it
+/// was left out as null scaffolding; a stale face reads no arcs.
+#[test]
+fn the_boundary_arcs_panic_on_a_torn_curve() {
+    use super::rim_wedge::face_boundary_arcs;
+    let (mut body, face) = cyl_sheet();
+    assert_eq!(face_boundary_arcs(&body, face).len(), 4, "four sides");
+    let mut stale = body.clone();
+    stale.faces.remove(face);
+    assert!(face_boundary_arcs(&stale, face).is_empty(), "a stale face");
+    let he = outer_members(&body, face)[0];
+    let named = drop_curve(&mut body, he);
+    assert_torn_op_panics(
+        "face_boundary_arcs",
+        &mut body,
+        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+        |b| face_boundary_arcs(b, face).len(),
+    );
+}
+
 /// `surface_group.rs` `unmated_boundary` (through `wrap_rims`): a torn
 /// curve on an unmated edge panics, where it read as an edge that is
 /// not a circle and answered "does not wrap".
