@@ -49,3 +49,9 @@ node id above `i64::MAX` (a minted id can be), it refuses as
 `RecipeNodeId` serializes as a `u64`. So `to_value` refuses a deep name
 as a deep value, not as a name, and a shallow one by accident of its
 id. A caller's own serializer outside `to_json` is unchanged.
+
+The `IntOutOfRange` half no longer holds: `MetaValue::Int` holds every
+`i64` and `u64` (`meta::MetaInt`, RECIPE's
+`a-node-id-above-i64-max-cannot-become-metadata`), so a name minted
+above `i64::MAX` goes through `to_value` as deep as any other name
+(`tests/meta_minted_ids.rs`).
