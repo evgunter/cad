@@ -7124,3 +7124,21 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - PR 4060: the second fix lane is still running its probes (`9a3f463e` pushed, CI green).
 - PR 4067: the reviewer is still running.
 - Nothing new on PR 3970.
+
+## 19:43 check-in (2026-10-05)
+
+- **PR 4067 review: merge, no BLOCKING.**
+  - The proof holds; its load-bearing step is the undo's new site check, which would refuse typed a site that is a later strut's copy. The mint order holds independently.
+  - Per-op-postcondition 4388 passed; batteries 12 shards + 49, 0 moved; 11 of 12 mutations red.
+  - MINOR-1: A's fusion log has no witness (M7 green).
+  - MINOR-2: a sound public union (pinch first) now answers `SeamOrientation`, documented as a kernel bug, while prism-first declines the same pair at `correspond` (non-injective `vcorr`).
+  - Fix lane `session_01MUNo6ucXgZ6bfeDQJa6BXD`:
+    - an A-side witness;
+    - decline a non-injective correspondence typed in both orders, before the seam;
+    - `survivor_checked`;
+    - one home for the copy rule (or a row);
+    - the split's one-hop `copy_to_original` checked;
+    - NITs.
+  - Reviewer archived (about $5.1).
+- PR 4060: the second fix lane is running batteries. PR 4066: its fix lane is running.
+- Nothing new on PR 3970.
