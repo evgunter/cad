@@ -2,7 +2,8 @@
 id: trimmed-sphere-group-escaping-through-a-plane-face-refuses
 kind: issue
 title: A trimmed sphere face group that a plane face cuts with no edge crossing refuses: the escape re-chart serves only closed groups
-status: open
+status: review
+branch: reach/trimmed-sphere-escape
 opened: 2026-10-02
 priority: P1
 cost: H
@@ -41,3 +42,36 @@ plane and the crossing layer sees the section circle. A trimmed group
 alone, so its real escape has no repair and refuses. A fix supplies
 an event for the circle on a trimmed face: re-charting the face's own
 seam, or cutting the circle in directly.
+
+## Fixed (branch `reach/trimmed-sphere-escape`)
+
+Re-measured on `origin/main` `38a4e17083`: the 20° pose refused every
+op in both orders as filed; the z-tilted pose already BUILT every op to
+the cap closed form (PR 3985 retired `SectionNotPolar`).
+
+Where the plane arm finds a trimmed group's circle inside the plane
+face, it now reads the section certificate's verdict on the group's
+faces: an R-loop names the face holding the circle, and that face is
+cut along the meridian of its own sphere's chart through the circle,
+from its boundary below the circle to its boundary above
+(`ops::apply_cut_ins`, `SphereCutIn`); any other verdict refuses with
+the certificate's own reason. The pipeline re-enters once, as after a
+closed group's re-chart. The cut is a new seam of the face, so the
+operand stays maximal, its faces stay chart rectangles where the face
+was one, and the result carries no ring on a sphere face. The cut's
+own predicates escalate as `SphereQuestion::CutIn`.
+
+A ring edge across the circle was measured first and reached the
+crossing layer, then the join's sphere ring lane
+(`a-ring-on-a-sphere-face-has-no-island-winding`), props and point
+classification (`sphere-face-with-a-hole-has-no-closed-form`); the
+meridian cut needs none of them.
+
+Rows (`snowman.rs`): `a_tilted_slab_against_the_lens_builds_off_the_seam`
+(was `…_builds_or_refuses_the_trimmed_escape`), the z pose
+`a_slab_tilted_across_the_lens_seams_builds`, a second carve
+`a_slab_cutting_a_cap_off_a_banded_ball_builds`, and the pole strut
+`a_slab_cutting_a_cap_off_a_pole_strut_carve_refuses_the_unplaced_witness`,
+which flips with `carved-sphere-body-cannot-be-classified-or-reused-as-an-operand`.
+Filed from the sweep: `sphere-pair-meeting-inside-both-faces-refuses-spheres-meet`,
+`closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`.
