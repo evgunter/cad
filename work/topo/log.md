@@ -6849,3 +6849,12 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - **R:** the fix lane posted its review fixes on 4037 (`41d6248d`); CI is running. 4039 is now `a580e4d8`.
   - **Cross-program:** PCERT's open PR 3945 (approved, dirty since 10-03) implements C4's joint deck element as "identity at every joint". R stores non-identity elements under the later C4 (PR 4024). Filed `work/pcert/pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways` (P1) for the PCERT orchestrator; whichever lands second reconciles. R proceeds.
   - Nothing new on PR 3970.
+- 03:52: **PR 4039 merged** at `4b1fe513c5`; **R complete.**
+  - Fixes: `site_rows` reuses `walk_cycle` and `certify_walked` (one certification home again); the window hulls the kept loops' stored rows (matches the pass; no extra cost); a direct `kept_joint_tests` witness, red under M3; residue row P3; the far-face-staleness line added.
+  - The witness does not use `kev_describing`: the lane argued no coherent `kev_describing` can reach the guard with a stale `Some`, which instrumentation confirms (only torn-body rows fire).
+  - The params `debug_assert` was left out as unsound (a reachable stale state).
+  - Acceptance: every kill-kept face byte-equal and clean (`kef_minting` 8,355). 404 pre-existing transitions, filed as `kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`.
+  - Fix lane archived (about $5.8). Unsubscribed.
+- Dispatched two lanes (both rows now `dispatched`):
+  - `session_01DbT7iaUmiEzfBXActEdZSR`: `torn-body-rows-are-red-under-per-op-postcondition` (E).
+  - `session_016cnJLHrxZC86vFUEVjxVGE`: `torn-body-refusal-families-beyond-the-six-doors` (M). Its brief carries the P0 lesson: say at-rest vs mid-op at every site, and run every `#[ignore]`d boolean/split battery with zero panics and an unchanged line set.
