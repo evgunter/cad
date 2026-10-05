@@ -100,11 +100,6 @@
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
 //!   ([`Exempt::Rest`]).
-//! - **Six-crossing vertex–vertex sites**: where two corners' links
-//!   cross six times, A's consecutive pairing can nest in B's walk
-//!   order, and `insert`'s F12 guard refuses `PairingMismatch`
-//!   (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
-//!   Four crossings pair in both solids' orders and build.
 
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};

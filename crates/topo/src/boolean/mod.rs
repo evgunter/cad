@@ -55,9 +55,11 @@
 //!    and explicit A↔B correspondence keys as data
 //!    ([`NullEdgePairRecord`]) — never correlated array order
 //!    (`ssortnulledges` is engineered out). The 15.11
-//!    consecutive-pairing invariant is guarded at runtime (the pair
-//!    must be cyclically adjacent in BOTH neighborhoods) and stressed
-//!    by the 4-crossing fixtures (F12).
+//!    consecutive-pairing invariant is guarded at runtime (no two pairs
+//!    may cross in either neighborhood, and where one nests another in
+//!    B's the inner mints after it, at the copy of the innermost fan
+//!    that holds it) and stressed by the four-, six- and eight-crossing
+//!    fixtures (F12).
 //!
 //! # The 15.7 sign resolution (F3)
 //!
@@ -1967,9 +1969,11 @@ pub enum BooleanError {
         /// What was wrong.
         what: &'static str,
     },
-    /// The 15.11 consecutive-pairing invariant failed: a surviving
-    /// crossing-record pair is not cyclically adjacent in both
-    /// neighborhoods (F12's guarded refusal — see `insert`).
+    /// The 15.11 consecutive-pairing invariant failed: two of A's
+    /// consecutive crossing-record pairs cross in B's walk order, or a
+    /// run's codes disagree at its two ends — readings no two simple
+    /// links round one point give (F12's guarded refusal — see
+    /// `insert`).
     PairingMismatch {
         /// The A-side vertex of the neighborhood.
         a_vertex: VertexKey,
@@ -1985,6 +1989,10 @@ pub enum BooleanError {
     /// edges with one segment, or a null edge both of whose ways round
     /// hold one (`insert::reconcile_shared`). A dangling null edge whose
     /// segment holds another's whole builds: the inner hangs at its tip.
+    /// It also refuses where the shared vertex is B's and B's walk order
+    /// nests one of its pairs' runs inside another's: the reconcile turns
+    /// runs to clear the other pairs' cuts, and a nested run turned would
+    /// hold the rest of its own plan.
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
@@ -3218,9 +3226,9 @@ impl core::fmt::Display for BooleanError {
             Self::PairingMismatch { a_vertex, b_vertex } => write!(
                 f,
                 "null-edge pairing mismatch at vertex pair \
-                 ({a_vertex:?}, {b_vertex:?}): a surviving crossing-record pair is not \
-                 cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
-                 refusal)"
+                 ({a_vertex:?}, {b_vertex:?}): two surviving crossing-record pairs cross in \
+                 one neighborhood, or a run's side codes disagree at its ends (the 15.11 \
+                 invariant's guarded refusal)"
             ),
             Self::SharedVertexCrossings { operand, .. } => write!(
                 f,
