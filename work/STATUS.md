@@ -1526,7 +1526,7 @@ area `kernel`; prefix `join/`; tag `(JOIN orchestrator)`.
 | P1 | `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` | issue | M | open | A roof-cross valley corner on a cube's edge refuses JoinDesync 'every chord arc separates a loose scaffolding pair' every op |  |  |
 | P1 | `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` | issue | H | open | Two spheres crossing in a circle no edge reaches refuse SpheresMeet: a ball whose seam lies inside another ball's face, plain or carved |  |  |
 | P1 | `a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times` | issue | M | open | insert.rs spells a vertex orbit's walk order three times and the run that holds no third germ twice |  |  |
-| P1 | `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` | issue | M | open | A vertex two crossing pairs cut refuses ClassificationInvariant: the In end of one null edge and the Out end of another |  |  |
+| P1 | `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` | issue | M +design | open | A vertex two crossing pairs cut refuses ClassificationInvariant: the In end of one null edge and the Out end of another | a-pinch-no-kept-face-can-cross-refuses |  |
 | P1 | `an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact` | issue | M | open | A cube ∪/∖ L-prism whose top edge lies exactly in the cube's face plane ships a body with an undeclared contact (tier 3′ red, pre-existing) |  |  |
 | P1 | `cylinder-sphere-germ-pair-has-no-join-lane` | issue | H +design | open | A transverse cylinder wall x sphere germ pair has its section frame and no chord lane at the join (CurvedBooleanUnsupported): its section is a space quartic, and every lane rides a plane |  |  |
 | P1 | `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times` | issue | M | open | The cylinder x sphere walls' tangency is decided at two sites under two names and two radius conventions, and the axis-to-centre offset is computed three times |  |  |
@@ -2327,6 +2327,7 @@ area `kernel`; prefix `zip/`; tag `(ZIP orchestrator)`; ab_band `7200-7299`.
 | `typing-a-value-mints-or-offers-a-variable` | intent | parked | no-dimensioned-literal-in-a-slot |
 | `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `a-tube-ending-on-a-ball-refuses-section-loop-mixed` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
+| `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` | join | open | a-pinch-no-kept-face-can-cross-refuses |
 | `closed-in-face-section-loop-has-one-site` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `declared-flush-intersect-refuses-in-one-operand-order` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
 | `peg-in-socket-union-refuses-join-desync-at-a-coarse-eps` | join | parked | d10-one-way-to-say-intent-is-unbuilt |
