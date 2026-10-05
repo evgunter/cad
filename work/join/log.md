@@ -723,3 +723,35 @@ So the row is closed as built, not as a ruling on held ground. If Ev reads it ot
 - evidence on the near-tangent P0
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4051: the island pinched to its hole's ring crosses by `kef`
+
+`zip::split_across`'s two-face crossing now asks only that one of the two
+faces be ringless; that face dies into the other.
+- The holed block's 18 cube ∖ block lines go refusal→SOUND.
+- Review r2's 5 cylinder lines go refusal→refusal (`RingOnCurvedFace`).
+- The reviewer measured 130 more lines on new island families going
+  refusal→SOUND (deeper and shallower holes, two islands, a U hole
+  pinched twice). No other line moved in pierce, `rc_wide`, or any pinch
+  battery.
+- The bow-tie sub-family is the nested shape misread, so the residue is
+  one shape: a face crossed on its outer loop.
+
+**Review tier: single FULL.** The change is a contained guard relaxation,
+and the fork is stated, not built. APPROVE-WITH-FIXES, MAJOR 0, MINOR 1.
+- The MINOR: which face `kef` kills was unpinned (the `PX_KILLPLUS` mutant
+  survived). It is now pinned at `u2tip mid side=12 psi=0 th54`.
+- Notes and style were taken: the dying face is carried out of the
+  search, the sweep helpers are folded, the bow-tie count is 48 and not
+  49, and the hole-weld row says the split direction now builds the
+  island shape.
+
+**The row stays open as a design fork.** Two designers weighed the nested
+residue, and they recommend the same final state: one vertex per cone on
+one point key, so no face crosses between cones. Under that state the
+crossing pre-pass, the pinch welds and `PinchUncrossed` all retire, and
+this PR's island `kef` is undone. It lands as an interim step anyway: it
+turns refusals into gated SOUND bodies, and it is reversible. The `[ev]`
+PR follows.
+
+Signed (JOIN orchestrator).
