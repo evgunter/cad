@@ -14,6 +14,10 @@
 //! exponent lattice is a purely additive future extension, so the
 //! refusal forecloses nothing; it is pinned by test.
 //!
+//! One tree serves two forms: the stored [`Expr`] reads every variable
+//! by id, and the authored [`crate::Formula`] may also write a name,
+//! which the edit door lowers to an id (VR6).
+//!
 //! Units erase at the evaluation boundary (GQ5): [`eval`] returns raw
 //! `T` in kernel units (meters/radians); display units are document
 //! presentation metadata, not this layer's concern.
@@ -269,7 +273,7 @@ impl core::fmt::Display for DimensionError {
 
 impl core::error::Error for DimensionError {}
 
-/// **Why a name leaf did not lower** ([`Expr::lower_names`]).
+/// **Why a name leaf did not lower** ([`crate::Formula::lower`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unlowered {
     /// No variable holds the name.

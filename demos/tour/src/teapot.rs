@@ -278,9 +278,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr,
+    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
 };
@@ -511,32 +512,32 @@ const DELTA: f64 = 2e-4;
 // ---------------------------------------------------------------------
 
 /// A length in the canonical metres this document is authored in.
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("a finite length")
 }
 
 /// A dimensionless component — the spelling a direction takes.
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 
 /// An angle in radians, the unit this scene's turns are written in.
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("a finite angle")
+fn ang(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Angle).expect("a finite angle")
 }
 
 /// One authored point of a meridian, in the sketch's own coordinates.
-fn lpt(x: f64, y: f64) -> [Expr; 2] {
+fn lpt(x: f64, y: f64) -> [Formula; 2] {
     [len(x), len(y)]
 }
 
 /// A straight meridian step to `(x, y)`.
-fn line_to(x: f64, y: f64) -> ProgramStep {
+fn line_to(x: f64, y: f64) -> ProgramStep<Formula> {
     ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
 }
 
 /// A meridian arc about `(cx, cy)` to `(x, y)`.
-fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep {
+fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep<Formula> {
     ProgramStep::ArcTo(ProgramArcData::Center {
         c: lpt(cx, cy),
         winding,
@@ -564,7 +565,7 @@ fn arc_to(cx: f64, cy: f64, winding: ArcSweep, x: f64, y: f64) -> ProgramStep {
 /// Station for station the corpus document `vessel`'s meridian
 /// (`crates/editor-core/tests/corpus/vessel.rs`), which is the
 /// document spelling of this shape.
-fn vessel_meridian() -> LoopProgram {
+fn vessel_meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         line_to(R_FOOT, 0.0),
@@ -584,7 +585,7 @@ const SEG_MOUTH: u32 = 3;
 /// the step that runs to the axis at the mouth's own station — and it
 /// has to be the only one, or the index would be a choice rather than
 /// the program's answer.
-fn mouth_segment(program: &LoopProgram) -> u32 {
+fn mouth_segment(program: &LoopProgram<Formula>) -> u32 {
     let LoopProgram::Chain(steps) = program else {
         panic!("the meridian is a chain program");
     };
@@ -607,7 +608,7 @@ fn mouth_segment(program: &LoopProgram) -> u32 {
 /// centre on their perpendicular bisector — `(7/64, 5/64)`, off the
 /// axis, so the revolve mints a TORUS. Both residuals are still
 /// exactly zero (3-4-5 twice again).
-fn torus_belly_meridian() -> LoopProgram {
+fn torus_belly_meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         line_to(R_FOOT, 0.0),
@@ -632,7 +633,7 @@ fn torus_belly_meridian() -> LoopProgram {
 /// over `40/256 → 46/256`, and the dome's centre sits at `41/256` so
 /// its two junctions are still the sphere's own 5-12-13 points —
 /// `(12, 46)` is `(12, 5)` from the centre and `(5, 53)` is `(5, 12)`.
-fn lid_meridian() -> LoopProgram {
+fn lid_meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, LID_BASE)),
         line_to(R_FLANGE, LID_BASE),
@@ -738,7 +739,7 @@ fn spout_loft(
         doc,
         Node::Loft {
             profiles,
-            v_degree: Expr::count(3),
+            v_degree: Formula::count(3),
         },
         tol,
     )
@@ -785,7 +786,7 @@ struct Recipe {
     spout_union: RecipeNodeId,
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -805,7 +806,7 @@ fn revolved(
     doc: &mut Doc<ProfileProgram>,
     plane: RecipeNodeId,
     axis: RecipeNodeId,
-    loop_: LoopProgram,
+    loop_: LoopProgram<Formula>,
     tol: Tol,
 ) -> RecipeNodeId {
     let profile = insert(

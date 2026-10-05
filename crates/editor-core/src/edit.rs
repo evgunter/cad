@@ -790,9 +790,8 @@ fn loops_refusal<P: crate::ProfilePayload>(
 
 /// **The reads of one expression an edit writes**, against the
 /// document's table, in this door's vocabulary: every leaf must read a
-/// live variable at its kind (a name leaf here is one no lowering
-/// reached). The rule is `Doc::var_read_faults`, which the load door
-/// reads too.
+/// live variable at its kind. The rule is `Doc::var_read_faults`, which
+/// the load door reads too.
 fn check_reads<P>(
     doc: &Doc<P>,
     node: &SpokenNode,

@@ -480,6 +480,18 @@ impl<S> Alignment<S> {
     }
 }
 
+impl Alignment {
+    /// **This alignment re-authored**: both frames' offsets formulas
+    /// reading what they read ([`Placement::authored`]).
+    #[must_use]
+    pub fn authored(&self) -> Alignment<crate::Formula> {
+        let Ok(authored) = self.try_map_slots(&mut |e| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
+        });
+        authored
+    }
+}
+
 impl<L: crate::expr::LeafSet> Alignment<crate::expr::ExprTree<L>> {
     /// **Bit-semantic equality** (D7), the one comparator every reader
     /// of an alignment's equality asks: both frames by
