@@ -7,7 +7,6 @@ opened: 2026-10-04
 priority: P0
 cost: H
 design: true
-needs_ev: true
 refs: [a-pierce-whose-wide-run-pinches-its-intersection-refuses, a-pierce-whose-difference-pinches-at-two-edge-runs-refuses, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face, three-corners-alternating-round-a-corner-refuse-at-the-join]
 ---
 
@@ -84,44 +83,33 @@ the class with PR 4036.
 
 ## The shape to give
 
-**The question.** What is a pinch at rest? The cones at the point are
-really two. Gluing the two seams at one vertex, the second fusion splits
-that vertex's orbit in two, whatever the order: the cone link is two
-circles. The notched face lies in both cones.
+**A pinch is one vertex per cone** (Ev, PR 4057, 2026-10-05). At a
+pinch the result holds several vertices on one point key, each a
+manifold cone, and no face crosses between cones:
+- The notched face keeps one outer loop through both vertices.
+- An island stays its own face, and a bow-tie is two faces.
+- The crossing pre-pass (`zip::split_across`'s `kemr`/`kef`), the
+  pinch welds (`finish::weld_pinches`, `weld_pierce_copies`) and
+  `BooleanError::PinchUncrossed` retire. PR 4051's island `kef` goes
+  with them.
+- Check 9 can then refuse every meeting of two loops of one face.
 
-Today a pinch is **one vertex, crossed**. One vertex holds both cones,
-which is legal only where a kept face's corner runs from one cone into
-the other there. The zips cross by `kemr` (two holes meeting) or `kef`
-(an island to its hole's ring). This residue would need a third crossing,
-on a face's outer loop, which leaves a ring meeting the outer loop
-(`RingMeetsOuter`, check 9).
+Why: a crossing reads one handle more than the solid has. D1 already
+calls touching via two vertices at one point representable.
 
-What has been measured:
-- Splicing the crossed face's two loops back into one changes
-  `V − E + F − R` by one (`SplitVertexOrbit` on all 43 staircase lines).
-  A crossing reads one handle more than the solid has.
-- The copies-apart rule ("copies on one point stay apart only where no
-  face meets both", `finish::weld_pierce_copies`) is the join lanes'
-  text. Ev's PR 3813 ruling is the shared point key.
+The construction route is the lane's to choose. The designers named two
+routes:
+- a zero-length seam edge, minted at each operand's section-face
+  corners at the pinch and consumed by the zip's second pass;
+- splitting each operand vertex per result cone (the cycles of seam-pair
+  fusions `cross_pinches` already computes) before the zips.
 
-The answers weighed:
-
-1. **One vertex per cone.** A pinch is several vertices on one point
-   key, each a manifold cone, and no face crosses between cones. The
-   notched face keeps one outer loop through both vertices, an island
-   stays its own face, and a bow-tie is two faces. The crossing
-   pre-pass, the pinch welds and `PinchUncrossed` retire. Check 9 can
-   then refuse every meeting of two loops of one face.
-2. **One vertex, crossings widened.** Check 9 admits a ring that meets
-   its outer loop at a shared vertex key, and `split_across` crosses
-   the outer loop by `kemr`, the ring being the half that winds
-   clockwise.
-
-This answer also decides
-`a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point`
-(under 1 its bodies are right, and its check inverts) and
-`a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face`
-(dissolved under 1).
+This ruling also decides two rows:
+- `a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point`:
+  its bodies are right, and its check becomes "every corner is a slice
+  of its own face".
+- `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face`:
+  dissolved.
 
 ## Built (branch `join/pinch-uncrossed-residue`)
 

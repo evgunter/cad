@@ -860,3 +860,21 @@ Main vs head, every battery is byte-identical: pierce, both reflex batteries, al
 The consolidation row is closed.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — Ev rules on PR 4057: a pinch is one vertex per cone
+
+Ev took the designers' shared recommendation ("sounds good!").
+- The crossing pre-pass, the pinch welds and `PinchUncrossed` retire.
+- `a-pinch-no-kept-face-can-cross-refuses` now carries the ruling, and
+  its unit builds it.
+- The unit also settles four rows: the cleave row on two vertices at one
+  point (its check inverts), the figure-eight hole-weld row (dissolved),
+  PR 4059's shared-vertex In/Out row (option 2), and the pierce-weld P0
+  (its weld retires).
+
+The optional D1 clause ("a vertex is one cone") was not taken up: the
+answer named the recommendation only. D1 is left as it reads.
+
+The design-fork row is now 68, because main took 67 in the meantime.
+
+Signed (JOIN orchestrator).
