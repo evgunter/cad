@@ -7082,3 +7082,27 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - **Dispatched** `segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo` (P3, M; `rest.rs`) → `session_01KMJUBZvcozeoq7D8PdbVHd`. A nested-strut witness comes first; a panic only on a proven premise.
 - `kef-minting-clears-…` stays open: its "describing door for kills across keys" shape is PR 3970's question.
 - Torn-hops boolean lane: no PR yet. Nothing new on PR 3970.
+
+## 16:51 and 17:37 check-ins (2026-10-05)
+
+- PR 4064 (sync) merged at `1120a0e7`.
+- **PR 4060:** the fix lane's pass (`9ebef695`) answered every item:
+  - `stranded` arm → `unreachable!` with its premise;
+  - a second listed-repoint witness (a sphere), red under `listed_kept`;
+  - a `Spelling { Listed, Stored }` helper owns repoint-or-kept;
+  - NITs;
+  - the cap-inlay witness recorded as an instance of the no-recourse row.
+- But its MINOR-1 fixture turned the reviewer's "reachable in principle" into a **confirmed regression on a public sequence**. A drum's rim is re-described in the cap's chart via `set_edge_curve`, then `offset_charts_together` moves the wall: `Ok(())` on main, `RechartUnvouched` on the PR, and the move is sound.
+  - The lane filed it P2 (`an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for`) and left the PR mergeable.
+  - Adjudicated BLOCKING per the standing rule (a user-visible new refusal on a sound input). Fix lane `session_01NHgrNydjuzjBJAt1XAWw1z` makes the offset restate name the post-move intersection, turns the fixture into a passing witness, and re-runs the probes.
+  - First fix lane archived (about $4.6).
+- **The torn-hops boolean lane opened PR 4066** (+1223/-297, 20 files).
+  - 18 sites converted, each tabled with at rest / mid-op and premise. Declared-pair and coincidence sites (mod, ops, recl, reduce, rim_wedge, vtxfac) are left for D10 and listed on the row, which stays open.
+  - Mutations: M3 and M7 are green, "shadowed" by a later read in the same call. `flush_pair_relation` joined `review_d18`.
+  - Reviewer `session_011odueoNyit5A7otetjoDfo` dispatched (FULL). Implementer archived (about $16.7).
+- **The segment-end lane opened PR 4067** (+569/-97, 8 files).
+  - `undo_struts` logs its fusions; `read_segments` reads ends through them. `realize_seam`'s stale end becomes a panic, backed by a four-step proof.
+  - A public nested-strut witness (pinch ∪ prism): main falls back with `NotSameFace`, head refuses `SeamOrientation` at the glue. A pinch-apex gap and `ChordEndpointRevisited` were filed.
+  - Batteries: 84 + 49, 0 moved.
+  - Reviewer `session_015vTj4CuFMXSJPwehrjaB68` dispatched (FULL); it attacks the proof first. Implementer archived.
+- Nothing new on PR 3970. PR 4065 (INTENT-LITERALS) is not ours.
