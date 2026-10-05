@@ -3675,8 +3675,10 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
 /// walk closes, and each half-edge's edge, curve and start point is live.
 #[cfg(not(debug_assertions))]
 fn loop_reads_whole(body: &Body<f64>, lk: crate::entity::LoopKey) -> bool {
-    let Some(LoopBoundary::Cycle { first }) = body.get_loop(lk).map(|l| l.boundary) else {
-        return false;
+    let first = match body.get_loop(lk).map(|l| l.boundary) {
+        Some(LoopBoundary::Cycle { first }) => first,
+        // A lone-vertex loop answers `EmptyLoop`, never `LoopUnreadable`.
+        Some(LoopBoundary::Empty { .. }) | None => return false,
     };
     body.loop_cycle(first).is_some_and(|cycle| {
         cycle.into_iter().all(|he| {
