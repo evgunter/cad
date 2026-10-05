@@ -44,7 +44,10 @@
 //!    (`kev`, reverse mint order) from clones of the annotated operands
 //!    — the sweep's edge splits and the pierce-ring vertices remain
 //!    (both are load-bearing: they make the seam vertex sets congruent
-//!    across the mate).
+//!    across the mate). The segments' end vertices are read before the
+//!    undo and are not remapped across it: a segment end is a strut's
+//!    `at_vertex`, and a nested strut's is its holder's copy, which the
+//!    undo kills, so such an end no longer resolves in step 4.
 //! 4. **Seam realization** (splitting machinery reused): per segment
 //!    and per solid, a segment whose cell is an edge already IS that
 //!    edge (reused as the seam, minted nowhere), and one whose cell is
@@ -119,8 +122,7 @@ fn desync(what: &'static str) -> BooleanError {
 
 /// The boundary of loop `l`, which `holder`'s field `field` names: a
 /// link, so a miss panics, as does a walk of it ([`Body::loop_walk`]
-/// closed): the lane's Euler operators keep the body link-valid between
-/// them.
+/// closed; [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn loop_boundary<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
@@ -616,11 +618,14 @@ pub enum PairUnread {
 /// ([`pair_extent`]). A sphere's or a torus's own ball
 /// ([`ExtentBall::of_carrier`]: the torus's `R + r`, whatever the
 /// trim); otherwise the ball around the face's certified box, from the
-/// kernel's one kind→box rule (`census::face_reach`). `None` where that
-/// box has no claim to make, or the ball does not read.
+/// kernel's one kind→box rule (`census::face_reach`). `None` where
+/// `face`, the caller's key, does not resolve, where that box has no
+/// claim to make, or where the ball does not read. The face's surface
+/// is a link, and its miss panics (on an at-rest operand by tier 1,
+/// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
     let f = body.get_face(face)?;
-    let ball = match ExtentBall::of_carrier(body.get_surface(f.surface)?) {
+    let ball = match ExtentBall::of_carrier(body.face_surface_linked(face, f)) {
         Some(ball) => ball,
         None => {
             let (lo, hi) = crate::census::face_reach(body, face, band)?;
@@ -632,21 +637,25 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 
 /// The face's boundary vertex positions (outer loop then rings; an
 /// empty loop contributes its lone vertex): points known to lie on the
-/// face. `None` where the boundary cannot be walked.
+/// face. `None` where `face`, the caller's key, does not resolve.
+///
+/// Every hop past the face is a link (its loops, their walks, each
+/// member's start vertex and its point; a null strut's half-edges walk
+/// like any other), and a miss panics (on an at-rest body by tier 1,
+/// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
     let f = body.get_face(face)?;
-    let vertex_point = |vk| {
-        body.get_vertex(vk)
-            .and_then(|v| body.get_point(v.point))
-            .copied()
-    };
     let mut out = Vec::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        match body.get_loop(lk)?.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => out.push(vertex_point(vertex)?),
-            crate::entity::LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first)? {
-                    out.push(vertex_point(body.get_half_edge(he)?.start)?);
+    let loops = core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&l| (l, "rings")));
+    for (lk, field) in loops {
+        match loop_boundary(body, lk, EntityId::Face(face), field) {
+            LoopBoundary::Empty { vertex } => {
+                out.push(body.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary"));
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in cycle(body, first) {
+                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                    out.push(body.linked_vertex_point(start, EntityId::HalfEdge(he), "start"));
                 }
             }
         }
@@ -720,7 +729,14 @@ pub(crate) fn pair_extent<T: Decide>(
 /// (cone, NURBS, `Approx`): the C4 table names the kinds
 /// [`mod@super::carrier_eq`] carries a rung for, and a kind it cannot
 /// compare refuses typed at the caller rather than being approximated
-/// by one it can.
+/// by one it can. `None` too where `face`, the caller's key, does not
+/// resolve.
+///
+/// # Panics
+///
+/// Where the face's surface does not resolve: a link, which every
+/// public door keeps live, and which the reduction's operators keep
+/// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.get_face(face)?;
     // `sense` is the material-side bit: true means the face's outward
@@ -729,34 +745,34 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
     // comparison on `T` — the scalar backends order intervals, not
     // signs (S10's exact-bit discipline).
     let outward = f.sense;
-    match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
+    match body.face_surface_linked(face, f) {
+        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
             origin: *origin,
             normal: plane_outward_normal(f, *normal).vec(),
         }),
-        Some(geom::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
+        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
             center: *center,
             radius: *radius,
             outward,
         }),
-        Some(geom::Surface::Cylinder {
+        geom::Surface::Cylinder {
             origin,
             axis,
             radius,
             ..
-        }) => Some(CarrierDesc::Cylinder {
+        } => Some(CarrierDesc::Cylinder {
             origin: *origin,
             axis: *axis,
             radius: *radius,
             outward,
         }),
-        Some(geom::Surface::Torus {
+        geom::Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        }) => Some(CarrierDesc::Torus {
+        } => Some(CarrierDesc::Torus {
             center: *center,
             axis: *axis,
             major_radius: *major_radius,
@@ -782,6 +798,12 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// [`PairUnread`]: a face whose surface kind is outside the ladder's
 /// inventory — there is no description to compare — or whose extent
 /// cannot be read. The ladder's own refusals ride inside the `Ok`.
+///
+/// # Panics
+///
+/// Where a link of either face does not resolve: its surface
+/// ([`face_carrier`]), its loops, their walks, or a boundary vertex's
+/// point.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -799,6 +821,10 @@ pub fn carrier_pair_relation<T: Decide>(
 /// One traversal, two projections.
 ///
 /// # Errors
+///
+/// As [`carrier_pair_relation`].
+///
+/// # Panics
 ///
 /// As [`carrier_pair_relation`].
 pub fn carrier_pair_verdict<T: Decide>(
@@ -932,6 +958,15 @@ struct Span {
 /// typed ([`RestZipFrontier::SegmentsBetweenIsolatedPierces`]).
 /// `Ok(None)`: a segment does not resolve structurally — not this lane's
 /// frontier (pre-identification phase).
+///
+/// A segment's ends are keys the lane carries, read before
+/// [`undo_struts`] and across its kills and the chords' `mef`/`mekr`
+/// here, so they are no links. `mef` and `mekr` kill no vertex, but the
+/// undo does: a segment end from a nested strut pair is the outer
+/// strut's copy (the inner record's `at_vertex`), which the undo fuses
+/// away, and no step remaps it to the vertex that survives. Every open
+/// segment's ends are read before each take, so such an end refuses as
+/// a desync before any segment is taken, rather than reading unjoined.
 fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     other: &Body<T>,
@@ -942,15 +977,20 @@ fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Option<SeamSet>, BooleanError> {
     let mut per_segment: Vec<Option<EdgeKey>> = vec![None; spans.len()];
     loop {
-        let has_edge = |w: VertexKey| body.get_vertex(w).is_some_and(|d| d.emanating.is_some());
-        let open = || (0..spans.len()).filter(|&i| per_segment[i].is_none());
-        let unjoined = |i: usize| {
-            let (u, v) = spans[i].ends;
-            usize::from(!has_edge(u)) + usize::from(!has_edge(v))
+        let unjoined_end = |w: VertexKey| {
+            body.get_vertex(w)
+                .map(|d| usize::from(d.emanating.is_none()))
+                .ok_or_else(|| desync("REST lane: a segment's end no longer resolves"))
         };
-        let next = open()
-            .find(|&i| unjoined(i) == 1)
-            .or_else(|| open().find(|&i| unjoined(i) == 0));
+        let open = || (0..spans.len()).filter(|&i| per_segment[i].is_none());
+        let unjoined = open()
+            .map(|i| {
+                let (u, v) = spans[i].ends;
+                Ok((i, unjoined_end(u)? + unjoined_end(v)?))
+            })
+            .collect::<Result<Vec<_>, BooleanError>>()?;
+        let taking = |n: usize| unjoined.iter().find(|&&(_, k)| k == n).map(|&(i, _)| i);
+        let next = taking(1).or_else(|| taking(0));
         let Some(i) = next else {
             if open().next().is_some() {
                 return Err(unsupported(RestZipFrontier::SegmentsBetweenIsolatedPierces));
@@ -1013,16 +1053,15 @@ fn fragment_holding<T: Decide>(
 
 /// The edges of `body` interior to its contact patch, with their
 /// endpoints: both sides on patch faces, and not on the seam. Arena
-/// order.
+/// order. Each edge comes off the arena walk, so its halves, and their
+/// faces ([`Body::face_of_linked`]), are links, and a miss panics
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]).
 fn interior_edges<T: Decide>(
     body: &Body<T>,
     patch: &[FaceKey],
     seam: &SeamSet,
 ) -> Result<Vec<(EdgeKey, VertexKey, VertexKey)>, BooleanError> {
-    let in_patch = |he| {
-        body.face_of_half_edge(he)
-            .is_some_and(|f| patch.contains(&f))
-    };
+    let in_patch = |he| patch.contains(&body.face_of_linked(he));
     let mut out = Vec::new();
     for (key, edge) in body.edges() {
         if seam.set.contains_key(key) || !in_patch(edge.he_plus) || !in_patch(edge.he_minus) {
@@ -1104,7 +1143,9 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
 /// zero numerics). An isolated ring vertex has an empty orbit.
 fn joined<T: Decide>(body: &Body<T>, u: VertexKey, v: VertexKey) -> Result<bool, BooleanError> {
     if body.get_vertex(u).is_none() {
-        return Err(desync("REST lane: a site vertex no longer resolves"));
+        return Err(desync(
+            "REST lane: a mirrored edge's end no longer resolves",
+        ));
     }
     Ok(body
         .vertex_orbit_linked(u)
@@ -1216,12 +1257,15 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<EdgeKey, BooleanError> {
     let hu = halves_at(body, face, u)?;
     let hv = halves_at(body, face, v)?;
+    // `halves_at` resolved `face` above, and nothing writes the body
+    // before `mef` or `mekr`, so the face is proven until then and its
+    // rings are links.
     let ring_loop_of = |body: &Body<T>, w: VertexKey| -> Option<LoopKey> {
-        let f = body.get_face(face)?;
+        let f = proven(&body.faces, face, EntityId::Face);
         f.rings.iter().copied().find(|&l| {
             matches!(
-                body.get_loop(l).map(|ld| ld.boundary),
-                Some(LoopBoundary::Empty { vertex }) if vertex == w
+                loop_boundary(body, l, EntityId::Face(face), "rings"),
+                LoopBoundary::Empty { vertex } if vertex == w
             )
         })
     };
@@ -1253,10 +1297,7 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
                 created.edge
             } else {
                 // Outer ↔ ring (or ring ↔ ring): mekr absorbs the ring.
-                let outer = body
-                    .get_face(face)
-                    .ok_or_else(|| desync("REST lane: chord host face vanished"))?
-                    .outer;
+                let outer = proven(&body.faces, face, EntityId::Face).outer;
                 let ((target, from), ring) = if lv == outer {
                     ((*hv, v), *hu)
                 } else {
@@ -1292,16 +1333,13 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The faces incident to `u` ([`super::sectors::faces_at`]); a
-/// pierce-ring vertex joined to nothing contributes its host face. `u`
-/// is a key the lane carries across its own surgery, so one that no
-/// longer resolves is refused.
+/// pierce-ring vertex joined to nothing contributes its host face.
 fn incident_faces<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Vec<FaceKey>, BooleanError> {
-    let faces = super::sectors::faces_at(body, u)
-        .ok_or_else(|| desync("REST lane: a chord endpoint no longer resolves"))?;
+    let faces = super::sectors::faces_at(body, u).map_err(super::sectors::stale_site)?;
     Ok(if faces.is_empty() {
         rings.get(u).copied().into_iter().collect()
     } else {
@@ -1383,10 +1421,10 @@ fn patch_faces<T: Decide>(
                 }
             }
         }
-        let qualified = region.iter().all(|&f| {
-            body.get_face(f)
-                .is_some_and(|fd| rest.contains_key(fd.surface))
-        });
+        // Every region face came off the arena walk or a link.
+        let qualified = region
+            .iter()
+            .all(|&f| rest.contains_key(proven(&body.faces, f, EntityId::Face).surface));
         if qualified && touches_seam {
             found = true;
             patch.extend(region);
@@ -2065,6 +2103,182 @@ mod tests {
             what(settle_glue(&body, &mut seam, &[killed, other])),
             "REST lane: an edge the glue reported interior survived it",
             "an interior report on a live edge is a desync"
+        );
+    }
+
+    /// **The carrier reads answer a caller's stale face `None` and panic
+    /// on a torn link past it.** A face the body once held, freed so the
+    /// body around it is sound, reads no carrier, ball or witnesses; a
+    /// live face whose surface was dropped panics in `face_carrier` and
+    /// `face_ball` naming the surface, and one whose boundary vertex lost
+    /// its point panics in `face_witnesses` naming the point. A read that
+    /// took either tear for an absent record would answer instead.
+    #[test]
+    fn the_carrier_reads_answer_a_stale_face_none_and_panic_on_a_torn_link() {
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let mut body = fresh();
+        let (face, data) = body.faces().next().map(|(k, f)| (k, f.clone())).unwrap();
+        let stale = body.faces.insert(data.clone());
+        body.faces.remove(stale);
+        assert!(
+            face_carrier(&body, face).is_some()
+                && face_ball(&body, face, band).is_some()
+                && face_witnesses(&body, face).is_some(),
+            "the live face reads"
+        );
+        assert!(face_carrier(&body, stale).is_none(), "face_carrier, stale");
+        assert!(face_ball(&body, stale, band).is_none(), "face_ball, stale");
+        assert!(
+            face_witnesses(&body, stale).is_none(),
+            "face_witnesses, stale"
+        );
+
+        body.surfaces.remove(data.surface);
+        let surface = format!("{}'s surface names", EntityId::Face(face));
+        assert_torn_op_panics("face_carrier", &mut body, &[&surface, ROW_FOUR], |b| {
+            face_carrier(b, face)
+        });
+        assert_torn_op_panics("face_ball", &mut body, &[&surface, ROW_FOUR], |b| {
+            face_ball(b, face, band)
+        });
+
+        let mut body = fresh();
+        let LoopBoundary::Cycle { first } = body.get_loop(data.outer).unwrap().boundary else {
+            panic!("the cube's faces are bounded by cycles");
+        };
+        let vertex = body.get_half_edge(first).unwrap().start;
+        let point = body.get_vertex(vertex).unwrap().point;
+        body.points.remove(point);
+        let named = format!("{}'s point names", EntityId::Vertex(vertex));
+        assert_torn_op_panics("face_witnesses", &mut body, &[&named, ROW_FOUR], |b| {
+            face_witnesses(b, face)
+        });
+    }
+
+    /// **A segment's end the lane carried that no longer resolves
+    /// refuses as a desync**, rather than reading unjoined: read
+    /// unjoined, the segment is taken first and refuses at its edge as
+    /// not joining its ends, a different fault.
+    #[test]
+    fn a_segment_end_that_no_longer_resolves_refuses_as_a_desync() {
+        let prism = crate::fixtures::raw_prism(3, Tol::witness());
+        let mut body = prism.body;
+        let edge = prism.et[0];
+        let (u, _) = body.edge_vertices(edge).unwrap();
+        let data = body.get_vertex(u).unwrap().clone();
+        let stale = body.vertices.insert(data);
+        body.vertices.remove(stale);
+        let other = body.clone();
+        let spans = [Span {
+            ends: (stale, u),
+            cell: Locus::OnEdge(edge),
+            theirs: (u, u),
+            twin: None,
+        }];
+        let got = realize_seam(
+            &mut body,
+            &other,
+            &spans,
+            &SecondaryMap::new(),
+            &mut Vec::new(),
+            Tol::witness(),
+        );
+        let got = got.map(|seam| seam.map(|s| s.per_segment));
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::JoinDesync {
+                    what: "REST lane: a segment's end no longer resolves"
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **Every open segment's ends are read before any is taken.** The
+    /// first segment taken (both ends joined) lies in a face holding
+    /// neither end, so alone it answers `Ok(None)`, the fallback to the
+    /// join's own refusal; beside it, a segment whose ends no longer
+    /// resolve, which would be taken after it, turns that answer into
+    /// the desync. A lane that read a stale end only once its segment
+    /// was taken, or read it unjoined, would answer `Ok(None)`.
+    #[test]
+    fn a_stale_end_refuses_before_the_first_segment_is_taken() {
+        let prism = crate::fixtures::raw_prism(3, Tol::witness());
+        let mut body = prism.body;
+        let data = body.get_vertex(prism.u[0]).unwrap().clone();
+        let stale = body.vertices.insert(data);
+        body.vertices.remove(stale);
+        let other = body.clone();
+        let taken_first = || Span {
+            ends: (prism.u[0], prism.u[1]),
+            cell: Locus::InFace(prism.face_top),
+            theirs: (prism.u[0], prism.u[1]),
+            twin: None,
+        };
+        let stale_ends = Span {
+            ends: (stale, stale),
+            cell: Locus::OnEdge(prism.et[0]),
+            theirs: (stale, stale),
+            twin: None,
+        };
+        let mut realize = |spans: Vec<Span>| {
+            realize_seam(
+                &mut body,
+                &other,
+                &spans,
+                &SecondaryMap::new(),
+                &mut Vec::new(),
+                Tol::witness(),
+            )
+            .map(|seam| seam.map(|s| s.per_segment))
+        };
+        let alone = realize(vec![taken_first()]);
+        assert!(
+            matches!(alone, Ok(None)),
+            "the first segment alone: {alone:?}"
+        );
+        let both = realize(vec![taken_first(), stale_ends]);
+        assert!(
+            matches!(
+                both,
+                Err(BooleanError::JoinDesync {
+                    what: "REST lane: a segment's end no longer resolves"
+                })
+            ),
+            "beside a stale segment: {both:?}"
+        );
+    }
+
+    /// **The interior-edge walk panics on a torn half's face**: an edge
+    /// of the arena walk whose half's loop was dropped panics naming
+    /// that loop, where a read of the miss as off the patch would skip
+    /// the edge and answer.
+    #[test]
+    fn the_interior_edge_walk_panics_on_a_half_whose_loop_does_not_resolve() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let patch: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let seam = SeamSet {
+            set: SecondaryMap::new(),
+            per_segment: Vec::new(),
+        };
+        assert_eq!(
+            interior_edges(&body, &patch, &seam).unwrap().len(),
+            12,
+            "a patch of every face holds every edge"
+        );
+        let lost = body.get_face(patch[0]).unwrap().outer;
+        body.loops.remove(lost);
+        let named = format!("'s parent_loop names {}", EntityId::Loop(lost));
+        assert_torn_op_panics(
+            "interior_edges",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| interior_edges(b, &patch, &seam).map(|e| e.len()),
         );
     }
 }

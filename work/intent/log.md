@@ -115,3 +115,27 @@ independent verifier session checked the fix pass: 8 of 9 mutants red and every 
 `docs/doc-ledger/intent-vars-1-spec.md`. `no-dimensioned-literal-in-a-slot`
 and `parameters-defined-by-formulas` are unparked; the literal retirement
 is next.
+
+## 2026-10-05 — the literal retirement's spec (`docs/INTENT-LITERALS-SPEC.md`)
+
+A spec writer read the merged code and sized every literal site. VR4
+cannot land before a slot can hold an anonymous *defined* variable, so
+`parameters-defined-by-formulas` merges into this unit as its first PR.
+The unit lands in four PRs, each green:
+
+- A: definitions.
+- B: authored `Formula` and stored `Expr`, with byte-identical goldens.
+- C: a slot holds a `VarId`.
+- D: `Expr` holds no float.
+
+All nine of the spec's recommendations were accepted (§11). Two were
+written into VARIABLES-DESIGN:
+
+- A lone number at a slot's root is a typed value (VR6).
+- A `Measure`'s arithmetic stays a formula in the node until stage 2
+  (VR4).
+
+Both elaborate D10 and change no ratified text. The spec found that C
+makes separately typed equal radii lose their declared evidence; a
+fixture that relied on it shares one variable instead. Ev has said to
+proceed through the plan without asking.
