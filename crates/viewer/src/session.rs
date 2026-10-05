@@ -58,10 +58,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, FreeValue, FreeVar,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Formula, FreeValue, FreeVar,
     Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError, ProfileProgram,
     RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -240,7 +240,7 @@ fn driver_of(
 }
 
 /// Whether `expr` reads any variable, by id or by name.
-fn reads_a_variable(expr: &pncad::document::Expr) -> bool {
+fn reads_a_variable(expr: &Formula) -> bool {
     let (mut ids, mut names) = (Vec::new(), Vec::new());
     expr.var_reads(&mut ids);
     expr.named_reads(&mut names);
@@ -294,10 +294,10 @@ fn carry_unmoved(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     current: &ProfileProgram,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: &[Vec<Option<StepId>>],
     notation: Notation,
-) -> Result<Vec<LoopProgram>, Refusal> {
+) -> Result<Vec<LoopProgram<Formula>>, Refusal> {
     let was: std::collections::HashMap<StepId, (u32, u32)> = current
         .ids
         .iter()
@@ -349,7 +349,7 @@ fn carry_unmoved(
             arg,
         };
         match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(committed) => *held = committed.clone(),
+            Some(held) if held.bit_eq(&Formula::from(committed)) => *held = Formula::from(committed),
             _ if committed.literal_value().is_some() => {}
             _ => guard_driven(doc, node, slot, notation)?,
         }
@@ -1850,7 +1850,7 @@ impl DocSession {
     }
 
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1870,7 +1870,7 @@ impl DocSession {
         // source is no echo of anything. `Self::writes_nothing` asks the question
         // that is actually being asked here — whether the expression
         // offered is the expression standing — and the `unparse` /
-        // `parse_expr` round trip preserves both the bits and the
+        // `parse_formula` round trip preserves both the bits and the
         // display unit, so a source re-typed as itself compares equal.
         self.commit_written(edit)
     }
@@ -1901,7 +1901,7 @@ impl DocSession {
     /// one piece of typed text — or an expression, which DEFINES the
     /// variable (`DocEdit::DefineVar`), keeping its identity.
     ///
-    /// **One parser.** `parse_expr` reads `50 mm` into a literal that
+    /// **One parser.** `parse_formula` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
     /// the one multiply is the parser's — so what arrives here is read
     /// off the literal and never scaled again.
@@ -1929,7 +1929,7 @@ impl DocSession {
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
     fn set_param_text(&mut self, var: VarId, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1938,8 +1938,12 @@ impl DocSession {
         // A count typed as a constant is a value, as a written
         // quantity is; any other expression is a definition.
         let constant_count = (expr.dim() == Dimension::Count && !reads_a_variable(&expr))
-            .then(|| pncad::document::eval_count(&expr, &pncad::document::VarEnv::<f64>::default()))
-            .and_then(Result::ok);
+            .then(|| Expr::try_from(&expr).ok())
+            .flatten()
+            .and_then(|stored| {
+                pncad::document::eval_count(&stored, &pncad::document::VarEnv::<f64>::default())
+                    .ok()
+            });
         let free = match (expr.literal_value(), expr.display_unit(), constant_count) {
             (Some(value), Some(unit), _) => Some((SlotValue::Continuous(value), Some(unit))),
             (_, _, Some(count)) => Some((SlotValue::Count(count), None)),
@@ -2371,7 +2375,7 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let plane = match plane {
             // The plane is a PICK, so it is gated where every other
             // pick is: at this door, by kind, before the edit. Without
@@ -2411,7 +2415,7 @@ impl DocSession {
     /// free with that — a profile the insert door refuses leaves no
     /// orphan frame behind, because nothing is recorded until both
     /// edits have landed.
-    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram<Formula>>) -> OpOutcome {
         let frame = match ProfilePlane::world_xy() {
             Ok(frame) => datum_node(frame),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
@@ -2433,7 +2437,7 @@ impl DocSession {
         &mut self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> OpOutcome {
         match self.set_program_of(node, base, loops, ids) {
@@ -2461,7 +2465,7 @@ impl DocSession {
         &self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Vec<Maintenance>, Refusal> {
         let Some(edit) = self.set_program_of(node, base, loops, ids)? else {
@@ -2481,7 +2485,7 @@ impl DocSession {
         &self,
         node: RecipeNodeId,
         base: &ProfileProgram,
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         ids: Vec<Vec<Option<StepId>>>,
     ) -> Result<Option<DocEdit<ProfileProgram>>, Refusal> {
         self.require_kind(node, NodeKindWanted::Profile)?;
@@ -2505,7 +2509,7 @@ impl DocSession {
 
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
-    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
+    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Formula) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2520,7 +2524,7 @@ impl DocSession {
 
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
-    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
+    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Formula) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2611,9 +2615,9 @@ impl DocSession {
     fn add_transform(
         &mut self,
         input: RecipeNodeId,
-        translation: [Expr; 3],
-        rotation_axis: [Expr; 3],
-        rotation_angle: Expr,
+        translation: [Formula; 3],
+        rotation_axis: [Formula; 3],
+        rotation_angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
@@ -2758,7 +2762,7 @@ impl DocSession {
     fn add_blend(
         &mut self,
         target: RecipeNodeId,
-        size: Expr,
+        size: Formula,
         selection: Vec<StableName>,
         kind: BlendKindChoice,
     ) -> OpOutcome {
@@ -2828,7 +2832,9 @@ impl DocSession {
             // expression reads ids.
             DocEdit::SetParam { node, slot, expr }
             | DocEdit::SetStructuralParam { node, slot, expr } => {
-                doc.node(*node).and_then(|node| node.expr(*slot)) == Some(&doc.lowered(expr))
+                doc.lowered(expr).is_ok_and(|offered| {
+                    doc.node(*node).and_then(|node| node.expr(*slot)) == Some(&offered)
+                })
             }
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:

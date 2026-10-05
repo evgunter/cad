@@ -24,13 +24,14 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::AuthoredNode;
 use crate::common;
 
 use core::f64::consts::TAU;
 
 use common::{ang, body_volume, len, len2, len3, near, scl, scl2, scl3, session_insert, shape};
 use pncad::document::{
-    Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
+    Datum, Dimension, DimensionError, Doc, DocumentId, Formula, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, RecordedProgramError, SlotId,
 };
 use pncad::geom_core::Tol;
@@ -455,9 +456,9 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
         },
     );
     let doc = session.committed_doc();
-    let expect_bit_eq = |id: RecipeNodeId, want: Node<ProfileProgram>| {
+    let expect_bit_eq = |id: RecipeNodeId, want: AuthoredNode| {
         assert!(
-            doc.node(id).expect("the datum is live").bit_eq(&want),
+            doc.node(id).expect("the datum is live").bit_eq(&editor_core::test_support::stored(&want)),
             "the inserted node is the literal spelling of the form"
         );
     };
@@ -486,7 +487,7 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
     // that door is now BEFORE the op: an `Expr` cannot hold one, so
     // the datum spec has no spelling for a NaN origin.
     assert!(matches!(
-        Expr::literal(f64::NAN, Dimension::Length),
+        Formula::literal(f64::NAN, Dimension::Length),
         Err(DimensionError::NonFiniteLiteral)
     ));
 
@@ -549,7 +550,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
             .committed_doc()
             .node(profile)
             .expect("the profile is live")
-            .bit_eq(&want),
+            .bit_eq(&editor_core::test_support::stored(&want)),
         "corners at (±w/2, ±h/2), counter-clockwise from lower-left"
     );
 }
@@ -1070,7 +1071,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 
     // The extrude form's one field, authored the way the chrome does:
     // the draft is canonical, the picker says how it is written.
-    let extrude_distance = Expr::written_length(WrittenLength::canonical_in(0.01, mm.length))
+    let extrude_distance = Formula::written_length(WrittenLength::canonical_in(0.01, mm.length))
         .expect("10 mm is a length");
     let plane = common::xy_frame_in(&mut session);
     let profile = session_insert(
@@ -1132,7 +1133,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         SessionOp::AddDatum {
             datum: DatumSpec::Point {
                 position: [0.001, 0.002, 0.003].map(|metres| {
-                    Expr::written_length(WrittenLength::canonical_in(metres, mm.length))
+                    Formula::written_length(WrittenLength::canonical_in(metres, mm.length))
                         .expect("a finite length")
                 }),
             },
@@ -1165,7 +1166,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         SessionOp::AddRevolve {
             profile,
             axis,
-            angle: Expr::written_angle(WrittenAngle::canonical_in(
+            angle: Formula::written_angle(WrittenAngle::canonical_in(
                 core::f64::consts::FRAC_PI_2,
                 mm.angle,
             ))

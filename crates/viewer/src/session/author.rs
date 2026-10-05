@@ -8,7 +8,8 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Datum, Dimension, DimensionError, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::AuthoredNode;
+use pncad::document::{Datum, Dimension, DimensionError, Formula, Node, RecipeNodeId};
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
 use pncad::select::SplitHalf;
@@ -28,21 +29,21 @@ pub enum DatumSpec {
     /// A plane through `origin` with normal `normal`.
     Plane {
         /// Origin components (`Length`).
-        origin: [Expr; 3],
+        origin: [Formula; 3],
         /// Normal components (`Scalar`).
-        normal: [Expr; 3],
+        normal: [Formula; 3],
     },
     /// An axis through `origin` along `direction`.
     Axis {
         /// Origin components (`Length`).
-        origin: [Expr; 3],
+        origin: [Formula; 3],
         /// Direction components (`Scalar`).
-        direction: [Expr; 3],
+        direction: [Formula; 3],
     },
     /// A point at `position`.
     Point {
         /// Position components (`Length`).
-        position: [Expr; 3],
+        position: [Formula; 3],
     },
     /// An axis written in a sketch frame — a revolve's axis of
     /// revolution.
@@ -56,21 +57,21 @@ pub enum DatumSpec {
         /// The frame node the axis lives in.
         plane: RecipeNodeId,
         /// Origin components in the frame's coordinates (`Length`).
-        origin: [Expr; 2],
+        origin: [Formula; 2],
         /// Direction components in the frame's coordinates (`Scalar`),
         /// unnormalized — the kernel's `RevolveAxis` normalizes and
         /// refuses a sliver at its own door.
-        direction: [Expr; 2],
+        direction: [Formula; 2],
     },
     /// A sketch frame through `origin`, spanned by `u` and `v`.
     Frame {
         /// Origin components (`Length`).
-        origin: [Expr; 3],
+        origin: [Formula; 3],
         /// Sketch +x components (`Scalar`).
-        u: [Expr; 3],
+        u: [Formula; 3],
         /// Sketch +y components (`Scalar`), orthogonalized against
         /// `u` at evaluation.
-        v: [Expr; 3],
+        v: [Formula; 3],
     },
     /// A sketch frame read off a PICKED FACE: its origin and normal
     /// are the face's, and `spin` is the only number an author
@@ -99,7 +100,7 @@ pub enum DatumSpec {
         /// The rotation of sketch +x about the outward normal
         /// (`Angle`) — the node's only slot, because the origin and
         /// the normal are read off the face.
-        spin: Expr,
+        spin: Formula,
     },
 }
 
@@ -177,18 +178,18 @@ impl ProfilePlane {
     /// the expression door, rather than an `unwrap` here.
     pub fn world_xy() -> Result<DatumSpec, DimensionError> {
         let (origin, u, v) = Self::xy_numbers();
-        let lengths = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+        let lengths = |v: [f64; 3]| -> Result<[Formula; 3], DimensionError> {
             Ok([
-                Expr::literal(v[0], Dimension::Length)?,
-                Expr::literal(v[1], Dimension::Length)?,
-                Expr::literal(v[2], Dimension::Length)?,
+                Formula::literal(v[0], Dimension::Length)?,
+                Formula::literal(v[1], Dimension::Length)?,
+                Formula::literal(v[2], Dimension::Length)?,
             ])
         };
-        let scalars = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+        let scalars = |v: [f64; 3]| -> Result<[Formula; 3], DimensionError> {
             Ok([
-                Expr::literal(v[0], Dimension::Scalar)?,
-                Expr::literal(v[1], Dimension::Scalar)?,
-                Expr::literal(v[2], Dimension::Scalar)?,
+                Formula::literal(v[0], Dimension::Scalar)?,
+                Formula::literal(v[1], Dimension::Scalar)?,
+                Formula::literal(v[2], Dimension::Scalar)?,
             ])
         };
         Ok(DatumSpec::Frame {
@@ -224,16 +225,16 @@ pub enum PatternRuleSpec {
     /// Stepped along a direction (`PatternKind::Linear`).
     Linear {
         /// Step direction components (`Scalar`).
-        direction: [Expr; 3],
+        direction: [Formula; 3],
         /// Distance between instances (`Length`).
-        spacing: Expr,
+        spacing: Formula,
     },
     /// Stepped around a datum axis (`PatternKind::Circular`).
     Circular {
         /// The datum-axis node stepped around.
         axis: RecipeNodeId,
         /// Angular step between instances (`Angle`).
-        step: Expr,
+        step: Formula,
     },
 }
 
@@ -269,7 +270,7 @@ pub enum PartSelectSpec {
 /// Total, for [`crate::combine::pattern_node`]'s reason: the components arrive
 /// as `Expr`s that were checked at their own construction, and whether
 /// each suits the slot it lands in is the edit door's question.
-pub(crate) fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
+pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
     Node::Datum(match spec {
         DatumSpec::Plane { origin, normal } => Datum::Plane { origin, normal },
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },

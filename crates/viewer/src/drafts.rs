@@ -1021,11 +1021,11 @@ impl Drafts {
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
-        Expr::literal(v[2], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[2], Dimension::Scalar)?,
     ])
 }
 
@@ -1035,10 +1035,10 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
 /// # Errors
 ///
 /// A non-finite component.
-pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
     Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
+        Formula::literal(v[0], Dimension::Scalar)?,
+        Formula::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
@@ -1550,7 +1550,7 @@ mod tests {
         assert_ne!(at, held.node, "and not the node the form is displaying");
         assert_ne!(at, held.feature(), "nor the feature that minted the name");
         assert_eq!(name, seat.1);
-        let want = Expr::written_angle(pncad::quantity::WrittenAngle::canonical_in(
+        let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,
             pncad::quantity::DEG,
         ))

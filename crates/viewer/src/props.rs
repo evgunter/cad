@@ -80,7 +80,7 @@
 //!
 //! **What the affordance offers, measured against this substrate.**
 //! The typed expression API has a text door in BOTH directions —
-//! `parse_expr` inward and `unparse` outward (issue #1103, closed) —
+//! `parse_formula` inward and `unparse` outward (issue #1103, closed) —
 //! so the panel neither parses nor renders expression text itself. It
 //! shows the slot's own source, and hands edited text straight back
 //! through the parser. Beside that it still shows what a user needs in
@@ -130,6 +130,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
     ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VectorSlot, eval,
@@ -278,8 +279,8 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite value (the literal door's refusal).
-    pub fn length_literal(self, metres: f64) -> Result<Expr, DimensionError> {
-        Expr::written_length(WrittenLength::canonical_in(metres, self.length))
+    pub fn length_literal(self, metres: f64) -> Result<Formula, DimensionError> {
+        Formula::written_length(WrittenLength::canonical_in(metres, self.length))
     }
 
     /// An `Angle` literal — [`Self::length_literal`]'s twin.
@@ -287,8 +288,8 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite value.
-    pub fn angle_literal(self, radians: f64) -> Result<Expr, DimensionError> {
-        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle))
+    pub fn angle_literal(self, radians: f64) -> Result<Formula, DimensionError> {
+        Formula::written_angle(WrittenAngle::canonical_in(radians, self.angle))
     }
 
     /// Three `Length` literals — a datum origin, a translation.
@@ -296,7 +297,7 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn length_literals(self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+    pub fn length_literals(self, v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
         Ok([
             self.length_literal(v[0])?,
             self.length_literal(v[1])?,
@@ -309,7 +310,7 @@ impl Notation {
     /// # Errors
     ///
     /// A non-finite component.
-    pub fn point_literals(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+    pub fn point_literals(self, p: [f64; 2]) -> Result<[Formula; 2], DimensionError> {
         Ok([self.length_literal(p[0])?, self.length_literal(p[1])?])
     }
 }
@@ -414,7 +415,7 @@ pub fn written_text(canonical: f64, unit: UnitDef) -> String {
 }
 
 /// A written value back to canonical — `n * factor`, which is exactly
-/// the literal semantics `parse_expr` applies to `n <symbol>`, so a
+/// the literal semantics `parse_formula` applies to `n <symbol>`, so a
 /// number typed into a panel field and the same number typed into the
 /// expression field land on the same bits.
 pub fn from_written(written: f64, unit: UnitDef) -> f64 {
@@ -1003,10 +1004,10 @@ pub fn slot_edit(
     unit: Option<UnitDef>,
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
     let expr = match (value, unit) {
-        (SlotValue::Count(count), _) => Expr::count(count),
-        (SlotValue::Continuous(v), None) => Expr::literal(v, slot.dimension())?,
+        (SlotValue::Count(count), _) => Formula::count(count),
+        (SlotValue::Continuous(v), None) => Formula::literal(v, slot.dimension())?,
         (SlotValue::Continuous(v), Some(unit)) => {
-            Expr::literal_with_unit(v, slot.dimension(), unit)?
+            Formula::literal_with_unit(v, slot.dimension(), unit)?
         }
     };
     Ok(if slot.is_structural() {
@@ -1292,7 +1293,7 @@ pub fn slot_unit_edit(
     unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
     let value = slot_literal(doc, node, slot)?;
-    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+    let expr = Formula::literal_with_unit(value, slot.dimension(), unit)
         .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
     Ok(DocEdit::SetParam { node, slot, expr })
 }

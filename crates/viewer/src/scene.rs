@@ -26,12 +26,13 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::AuthoredNode;
 use pncad::document::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, HeldNodes, LoopProgram,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, Frame, HeldNodes, LoopProgram,
     Node, ProductError, ProfileProgram, RecipeNodeId, Said, Speaker, apply, evaluate, held_by,
     product,
 };
@@ -806,7 +807,7 @@ pub fn plate_bounds() -> Aabb {
 ///
 /// Two ways to give a length live ten lines apart below:
 /// `LoopProgram::polygon` takes bare `(f64, f64)` metres, while
-/// `LoopProgram::Circle` takes `Expr::literal(x, Dimension::Length)`.
+/// `LoopProgram::Circle` takes `Formula::literal(x, Dimension::Length)`.
 /// Both are canonical metres and both are correct; the asymmetry is
 /// the profile-program vocabulary's, not this scene's, and a user
 /// authoring their first ring meets it immediately. Recorded per
@@ -1514,17 +1515,17 @@ pub fn scene_of(
     scene_of_body(&body, delta, tol)
 }
 
-fn length(metres: f64) -> Result<Expr, SceneDocError> {
-    Expr::literal(metres, Dimension::Length).map_err(SceneDocError::Dimension)
+fn length(metres: f64) -> Result<Formula, SceneDocError> {
+    Formula::literal(metres, Dimension::Length).map_err(SceneDocError::Dimension)
 }
 
-fn scalar(v: f64) -> Result<Expr, SceneDocError> {
-    Expr::literal(v, Dimension::Scalar).map_err(SceneDocError::Dimension)
+fn scalar(v: f64) -> Result<Formula, SceneDocError> {
+    Formula::literal(v, Dimension::Scalar).map_err(SceneDocError::Dimension)
 }
 
 fn insert(
     doc: Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
+    node: AuthoredNode,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
     // The scene's document has no instance and no mate, so no edit

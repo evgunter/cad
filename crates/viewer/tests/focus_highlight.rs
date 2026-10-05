@@ -309,7 +309,7 @@ fn die(tol: Tol) -> Die {
             .copied()
             .expect("the die's chain is unbroken")
     };
-    let first = |doc: &DieDoc, want: fn(&Node<pncad::document::ProfileProgram>) -> bool| {
+    let first = |doc: &DieDoc, want: fn(&pncad::document::Node<pncad::document::ProfileProgram>) -> bool| {
         doc.order()
             .iter()
             .copied()

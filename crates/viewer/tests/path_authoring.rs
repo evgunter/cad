@@ -446,7 +446,7 @@ fn a_path_authored_in_millimetres_remembers_its_notation() {
     else {
         panic!("a chain lowers to a chain");
     };
-    let written = |expr: &pncad::document::Expr| expr.display_unit().map(|unit| unit.symbol());
+    let written = |expr: &pncad::document::Formula| expr.display_unit().map(|unit| unit.symbol());
     let [
         ProgramStep::At([x, y]),
         ProgramStep::Angle(theta),

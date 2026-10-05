@@ -13,6 +13,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::AuthoredNode;
 use crate::common;
 
 use common::{frame, inserted, len3, scl3, square, xy_frame};
@@ -25,7 +26,7 @@ use viewer::datums::{self, DatumKind, View, datum_view, grid_pitch};
 use viewer::input::ViewportSize;
 
 /// A document holding just the datums given.
-fn evaluated(nodes: Vec<Node<ProfileProgram>>) -> (Doc<ProfileProgram>, Tol) {
+fn evaluated(nodes: Vec<AuthoredNode>) -> (Doc<ProfileProgram>, Tol) {
     let tol = Tol::witness();
     let mut doc = Doc::empty(DocumentId::derive("datum-draw"), tol);
     for node in nodes {
@@ -111,21 +112,21 @@ fn segment_lengths(segments: &[[f64; 3]]) -> Vec<f64> {
 }
 
 /// A plane datum, a point datum and an axis datum.
-fn plane(origin: [f64; 3], normal: [f64; 3]) -> Node<ProfileProgram> {
+fn plane(origin: [f64; 3], normal: [f64; 3]) -> AuthoredNode {
     Node::Datum(Datum::Plane {
         origin: len3(origin),
         normal: scl3(normal),
     })
 }
 
-fn axis(origin: [f64; 3], direction: [f64; 3]) -> Node<ProfileProgram> {
+fn axis(origin: [f64; 3], direction: [f64; 3]) -> AuthoredNode {
     Node::Datum(Datum::Axis {
         origin: len3(origin),
         direction: scl3(direction),
     })
 }
 
-fn point(position: [f64; 3]) -> Node<ProfileProgram> {
+fn point(position: [f64; 3]) -> AuthoredNode {
     Node::Datum(Datum::Point {
         position: len3(position),
     })
@@ -874,7 +875,7 @@ fn drawn_under(doc: &Doc<ProfileProgram>, tol: Tol, view: View) -> Vec<datums::D
 
 /// One of each kind at the same origin, for the rows that ask what a
 /// whole picture does under a view that has gone wrong.
-fn one_of_each(origin: [f64; 3]) -> Vec<Node<ProfileProgram>> {
+fn one_of_each(origin: [f64; 3]) -> Vec<AuthoredNode> {
     vec![
         plane(origin, [0.0, 0.0, 1.0]),
         frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),

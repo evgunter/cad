@@ -3580,7 +3580,7 @@ mod value_field_tests {
                 &doc,
                 Node::Extrude {
                     profile,
-                    distance: Expr::written_length(WrittenLength::canonical_in(canonical, MM))
+                    distance: Formula::written_length(WrittenLength::canonical_in(canonical, MM))
                         .expect("a finite written length"),
                     side: pncad::document::ExtrudeSide::Along,
                 },
@@ -3631,7 +3631,7 @@ mod value_field_tests {
                 base.session.doc(),
                 Node::Pattern {
                     input: extrude,
-                    count: Expr::count(count),
+                    count: Formula::count(count),
                     kind: PatternKind::Linear {
                         direction: [scl(0.0), scl(1.0), scl(0.0)],
                         spacing: len(0.08),

@@ -87,6 +87,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::Formula;
 use crate::common;
 use pncad::document::ExtrudeSide;
 
@@ -143,7 +144,7 @@ fn face(node: RecipeNodeId) -> StableName {
 }
 
 /// A seat for the mate door — well-formed and never evaluated here.
-fn alignment() -> Alignment {
+fn alignment() -> Alignment<Formula> {
     Alignment {
         a: MateFrame::authored(
             [0.0; 3],

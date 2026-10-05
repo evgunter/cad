@@ -2041,13 +2041,13 @@ fn lib_doors_vocabulary_is_nameable() {
 /// A length literal, in canonical metres, through the façade.
 fn len(metres: f64) -> pncad::document::Expr {
     use pncad::document::{Dimension, Expr};
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
+    Formula::literal(metres, Dimension::Length).expect("a finite length")
 }
 
 /// A dimensionless literal — a direction component — as [`len`].
 fn scl(value: f64) -> pncad::document::Expr {
     use pncad::document::{Dimension, Expr};
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
 }
 
 /// The world xy frame — the plane the box document sketches on.
@@ -2524,11 +2524,11 @@ fn the_export_door_refuses_typed_not_vaguely() {
 fn expr_literal_refusals_are_matchable_through_the_facade() {
     use pncad::document::{Dimension, DimensionError, Expr};
     assert!(matches!(
-        Expr::literal(f64::NAN, Dimension::Length),
+        Formula::literal(f64::NAN, Dimension::Length),
         Err(DimensionError::NonFiniteLiteral)
     ));
     assert!(matches!(
-        Expr::literal(2.0, Dimension::Count),
+        Formula::literal(2.0, Dimension::Count),
         Err(DimensionError::LiteralCountIsInteger)
     ));
 }
@@ -2548,7 +2548,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     use pncad::document::{BooleanOp, FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
-        radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
+        radius: Formula::named(VarName::from_static("hole_r"), Dimension::Length),
     };
 
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());

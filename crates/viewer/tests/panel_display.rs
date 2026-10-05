@@ -30,7 +30,7 @@ use crate::common;
 use pncad::document::ExtrudeSide;
 
 use pncad::document::{
-    Axis3, Datum, Dimension, Doc, DocEdit, Expr, FreeVar, Node, ProfileProgram, SlotId, VarName,
+    Axis3, Datum, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, SlotId, VarName,
     VectorSlot,
 };
 use pncad::geom_core::Tol;
@@ -226,7 +226,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     // Half-turns are still a row a user can PICK — the notation this
     // editor says angles in, and the creation forms' angle default. It
     // is now named by the literal rather than supplied by the reader.
-    let turn = Expr::literal_with_unit(core::f64::consts::TAU, Dimension::Angle, PI.def())
+    let turn = Formula::literal_with_unit(core::f64::consts::TAU, Dimension::Angle, PI.def())
         .expect("a full turn in half-turns");
     let unit = turn.display_unit().expect("a literal names its unit");
     assert_eq!(unit.symbol(), "pi rad");
@@ -377,7 +377,7 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
             pncad::document::Step::Rigid {
                 translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
                 axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: Expr::literal_with_unit(
+                angle: Formula::literal_with_unit(
                     core::f64::consts::FRAC_PI_2,
                     Dimension::Angle,
                     DEG.def(),
@@ -799,7 +799,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
             &doc,
             Node::Extrude {
                 profile,
-                distance: Expr::named(name.clone(), Dimension::Length),
+                distance: Formula::named(name.clone(), Dimension::Length),
                 side: ExtrudeSide::Along,
             },
             tol,

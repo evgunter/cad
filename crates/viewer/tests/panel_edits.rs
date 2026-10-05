@@ -124,7 +124,7 @@ fn literal_and_pattern_doc(
         &doc,
         pncad::document::Node::Pattern {
             input: extrude,
-            count: pncad::document::Expr::count(3),
+            count: pncad::document::Formula::count(3),
             kind: pncad::document::PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.03),
@@ -247,7 +247,7 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: pncad::document::Expr::count(3),
+            expr: pncad::document::Formula::count(3),
         },
         tol,
         &pncad::document::RefusingReach,
@@ -1078,7 +1078,7 @@ fn the_create_door_forwards_the_declares_name_taken_and_setparam_still_replaces(
 
 /// **`50 mm` sets the value AND the notation, as one undo step.**
 ///
-/// The text door reads both out of one literal — `parse_expr` applies
+/// The text door reads both out of one literal — `parse_formula` applies
 /// the unit factor once, on the way in — and commits them as one
 /// action, so the history gains exactly one state and an undo puts
 /// both halves back.
@@ -1458,9 +1458,9 @@ fn param_row(session: &DocSession, name: &VarName) -> props::ParamRow {
 /// back as the count it names.
 #[test]
 fn a_count_slot_refuses_a_value_that_is_not_a_number() {
-    use pncad::document::{Dimension, Expr};
+    use pncad::document::{Dimension, Formula};
 
-    let literal_door = Expr::literal(f64::NAN, Dimension::Length)
+    let literal_door = Formula::literal(f64::NAN, Dimension::Length)
         .expect_err("a non-finite continuous literal is refused at construction");
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let refused = SlotValue::of(Dimension::Count, poison).expect_err(

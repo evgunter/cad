@@ -158,19 +158,26 @@ pub use editor_core::{
 };
 
 // Expressions and their text door.
+// `Formula` is what a caller writes (VARIABLES-DESIGN VR6) and `Expr`
+// what a document stores; the edit door lowers the one to the other, so
+// a node an edit carries is an `AuthoredNode`. `NameFault` is the
+// lowering's refusal, for a caller that lowers a formula itself
+// (`Doc::lowered`); `Slot` is the bound a reader generic over the two
+// node forms states.
 // `VarEnv` joins them because `select_where` takes one, so a
 // caller who cannot spell the type cannot call the door.
-// `DimensionError` is the refusal `Expr`'s constructor doors return
+// `DimensionError` is the refusal `Formula`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
-// `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
+// `unparse` is `parse_formula`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
 // `ExprPath` is here by the payload rule: it is the ADDRESS
 // `DocEdit::SetExpression` takes, so without it a consumer cannot spell
 // which expression the edit replaces.
 pub use editor_core::{
-    Dimension, DimensionError, Expr, ExprPath, ParseError, VarEnv, parse_expr, unparse,
+    AuthoredNode, Dimension, DimensionError, Expr, ExprPath, Formula, NameFault, ParseError, Slot,
+    VarEnv, parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a
