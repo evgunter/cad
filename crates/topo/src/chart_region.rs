@@ -1854,11 +1854,14 @@ fn interior_witness<T: Decide + Bounds>(
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
         return WitnessOutcome::Declined;
     };
-    let inside = |body: &Body<T>, face: FaceKey, n, q| {
-        matches!(
-            crate::boolean::contfp(body, face, n, q, band),
-            Ok(crate::boolean::FaceContainment::In)
-        )
+    let inside = |body: &Body<T>, face: FaceKey, n, q| match crate::boolean::contfp(
+        body, face, n, q, band,
+    ) {
+        Ok(at) => at == crate::boolean::FaceContainment::In,
+        Err(crate::boolean::ContainError::StaleFace(face)) => {
+            crate::boolean::driver_face_stale(face)
+        }
+        Err(_) => false,
     };
     let strictly_inside_both = |x: T, y: T| -> bool {
         let q = origin + u_ref * x + v_ref * y;
