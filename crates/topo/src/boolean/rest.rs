@@ -962,14 +962,8 @@ fn undo_struts<T: Decide + crate::props::AtRestPolicy>(
 // 4. Seam realization.
 // ---------------------------------------------------------------
 
-/// Why every segment end resolves in [`realize_seam`], its one reader
-/// past the undo. [`read_segments`] reads each end as a strut's site
-/// (`at_vertex`) through [`undo_struts`]' fusions to the vertex left
-/// standing. The undo checks each site live at its strut's kill and
-/// logs every vertex it kills, with the site it fuses into, and nothing
-/// else kills a vertex before the seam is realized: the lane only reads
-/// between the undo and [`realize_seam`], whose chords' `mef` and
-/// `mekr` kill none.
+/// Why every segment end resolves where [`realize_seam`] looks it up
+/// ([`read_segments`], [`undo_struts`]; the chords are `mef`/`mekr`).
 const SEGMENT_ENDS_SURVIVE: &str = "each segment end is its strut site read through the strut \
      undo's fusions, the undo checks every site live at its kill and logs every vertex it kills, \
      and the lane kills none between the undo and the seam's chords, which kill none";
@@ -2335,7 +2329,7 @@ mod tests {
                     .null_edges
                     .iter()
                     .find(|i| i.operand == o.operand && i.at_vertex == copy(o))?;
-                Some((o.clone(), i.clone()))
+                Some((*o, *i))
             })
             .expect("the prism's corner nests the wedge pair's strut in the notch pair's");
         assert_eq!(outer.operand, Operand::B, "the nest is the prism's");
@@ -2351,7 +2345,7 @@ mod tests {
                 crate::null::NewVertexSide::Above,
             )
             .unwrap();
-        let mut deeper = inner.clone();
+        let mut deeper = inner;
         deeper.edge = hand.edge;
         deeper.at_vertex = site(c1, c2);
         deeper.attr = crate::null::NullEdge {

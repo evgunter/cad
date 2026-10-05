@@ -108,3 +108,15 @@ there on all 16 union lines, as main refused them at
 reviewers' batteries (`join2_r1_probes` with its grid,
 `join2_r2_probes`, `join2_d_probes`; 35 208 lines) reaches it at the
 head, and no row pins it. The other fifteen are reached by no row.
+
+## `ChordEndpointRevisited` reached by a planar pose (2026-10-05)
+
+The pinch-apex witness's pose (`crates/sweep/tests/rest_nested_strut.rs`)
+with the wedge's radius cut from 1.6 to 0.8, so that its far edge lies
+inside the prism's bottom face, refuses `ChordEndpointRevisited` in
+`mint_chord`, pinch first, once the segment ends are read through the
+strut undo. `realize_seam` takes the chord from the joined apex to a
+pierce-ring vertex as a spur (`mekr` `EmptyRing`), and the apex's next
+chord then meets it twice in that face. The prism's corner edges ending
+at pierce-ring vertices inside the block's top do the same. Measured
+by instrumenting the takes; no row asserts it.
