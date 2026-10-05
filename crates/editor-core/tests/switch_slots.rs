@@ -246,7 +246,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::DeclareVar {
                 name: VarName::from_static("r"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.5)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -285,7 +285,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::DefineVar {
                 var: VarName::from_static("r").into(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

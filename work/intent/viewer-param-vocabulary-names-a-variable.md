@@ -13,8 +13,7 @@ vocabulary still calls a variable a parameter:
   (`crates/viewer/src/session/op.rs:133`, `:152`, `:181`), and the
   `BeginParamGesture`/`PreviewParamGesture`/`CommitParamGesture` ops
   and `ValueGestureName::Param` (`op.rs:899`);
-- `Refusal::NoSuchParam` and `Refusal::ParamNotANumber`
-  (`crates/viewer/src/session/refuse.rs:274`, `:288`);
+- `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs:274`);
 - `Selection::Param` (`crates/viewer/src/session/select.rs:187`) and the
   second `Param { present }` arm in the same file;
 - `props::param_rows` and `ParamRow` (`crates/viewer/src/props.rs:928`).

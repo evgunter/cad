@@ -104,7 +104,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::DeclareVar {
             name: VarName::from_static("pip_depth"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
     );
     // Cube: profile wrap + extrude.

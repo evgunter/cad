@@ -121,7 +121,7 @@ use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use crate::spoken::SpokenNode;
 use crate::spoken::SpokenVar;
-use crate::var::{VarDef, VarId};
+use crate::var::{VarDecl, VarId};
 
 /// The field a range is asked about: one document parameter, or one
 /// node slot.
@@ -694,7 +694,7 @@ pub fn derive(
                 doc,
                 &DocEdit::DeclareVar {
                     name: name.clone(),
-                    def: VarDef::Free(FreeVar::continuous(dim, value)),
+                    def: VarDecl::Free(FreeVar::continuous(dim, value)),
                 },
                 tol,
                 &crate::mate::RefusingReach,

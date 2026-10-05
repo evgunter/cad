@@ -16,8 +16,9 @@
 
 use pncad::document::{
     BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
-    Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram, RecipeNodeId, Said,
-    SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
+    EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram,
+    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
+    held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
@@ -272,22 +273,15 @@ pub enum Refusal {
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchParam(VarId),
-    /// A parameter's value field was given text that is not a number.
-    ///
-    /// **A document parameter holds a number, not an expression** —
-    /// `FreeVar::Continuous` holds an `f64` — so there is no
-    /// `SetVarExpression` for such text to reach and no partial
-    /// reading of it that would be honest. A slot's field takes the
-    /// expression door here; a parameter's says why it has none, which
-    /// is itself the affordance.
-    ///
-    /// **Raised only for text that PARSED.** Text that did not carries
-    /// [`Self::Parse`], whose sentence names the token and its offset;
-    /// re-wording it at this door would be a second opinion about a
-    /// refusal the parser already made.
-    ParamNotANumber {
+    /// A parameter's field was given a constant expression that does
+    /// not evaluate to a value — a non-finite result, or a count past
+    /// its range. Constant text typed as a value is folded here, before
+    /// any door, so the evaluator's refusal is this door's to forward.
+    ConstantRefused {
         /// The parameter whose field was typed into.
         var: SpokenVar,
+        /// The evaluator's refusal, in its own words.
+        source: EvalError,
     },
     /// The New door was asked for a blank name. The document id is
     /// derived from the name (`DocumentId::derive` — the identity
@@ -446,6 +440,10 @@ impl Refusal {
                 wanted,
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::ConstantRefused { var, source } => Self::ConstantRefused {
+                var: var.respoken(doc),
+                source,
+            },
             Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
             Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
@@ -463,9 +461,6 @@ impl Refusal {
                 params: params.iter().map(|var| var.respoken(doc)).collect(),
                 current,
                 notation,
-            },
-            Self::ParamNotANumber { var } => Self::ParamNotANumber {
-                var: var.respoken(doc),
             },
             unspoken @ (Self::NoSuchParam(_)
             | Self::EmptyName
@@ -493,7 +488,7 @@ impl Refusal {
             Self::DrivenByExpression { .. }
             | Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
-            | Self::ParamNotANumber { .. }
+            | Self::ConstantRefused { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -534,7 +529,7 @@ impl Refusal {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
-            | Self::ParamNotANumber { .. }
+            | Self::ConstantRefused { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -798,12 +793,8 @@ impl core::fmt::Display for Refusal {
                     "variable {var} is not in this document — {UNKNOWN_VAR_RECOURSE}"
                 )
             }
-            Self::ParamNotANumber { var } => {
-                write!(
-                    f,
-                    "parameter {var} holds a number, not an expression — write a number, with a \
-                     unit if you want one (50 mm)"
-                )
+            Self::ConstantRefused { var, source } => {
+                write!(f, "the value typed for {var} does not evaluate: {source}")
             }
             Self::EmptyName => {
                 write!(

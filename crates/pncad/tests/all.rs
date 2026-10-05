@@ -2556,7 +2556,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("hole_r"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2914,7 +2914,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.75)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3097,7 +3097,7 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     let (origin, _) = ws_doc("ws-logged");
     let edit = DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+        def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
@@ -3219,7 +3219,7 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6187,7 +6187,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
             doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: pncad::document::VarDef::Free(value),
+                def: pncad::document::VarDecl::Free(value),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,

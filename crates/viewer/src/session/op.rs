@@ -170,14 +170,13 @@ pub enum SessionOp {
     /// action is one undo, and a document that took the value without
     /// the notation would be a half-applied edit nobody asked for.
     ///
-    /// **A parameter holds a number, not an expression**
-    /// (`FreeVar::Continuous` holds an `f64`), so text that parses to
-    /// anything but a literal is refused with
-    /// [`Refusal::ParamNotANumber`] — there is no
-    /// `SetVarExpression` for it to reach, and saying so is the
-    /// affordance. Text that does not parse at all carries
-    /// `parse_expr`'s own refusal, which names the token and its
-    /// offset.
+    /// **Text that parses to anything but a number defines the
+    /// parameter** (`DocEdit::DefineVar`): `base_r * 2` makes it a
+    /// defined variable, keeping its identity, and a number typed over
+    /// a defined one makes it free again. Text that does not parse
+    /// carries `parse_expr`'s own refusal, which names the token and
+    /// its offset; a definition the door refuses (a cycle, a read the
+    /// document does not answer) carries the door's.
     SetParamText {
         /// The parameter.
         var: VarId,

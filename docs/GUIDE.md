@@ -1861,7 +1861,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // ordinary edit: recorded, replayable, undoable like any other.
 doc = apply(&doc, &DocEdit::DeclareVar {
     name: VarName::from_static("hole_r"),
-    def: VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+    def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1942,7 +1942,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 // One `DefineVar` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
-    def: VarDef::Free(FreeVar::continuous(Dimension::Length, 0.4)),
+    def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
@@ -2023,7 +2023,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: FreeVar| {
-    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDef::Free(value) }, tol, &pncad::document::RefusingReach)
+    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDecl::Free(value) }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 

@@ -1247,7 +1247,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
         s.doc,
         DocEdit::DeclareVar {
             name: k.clone(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 1 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 1 }),
         },
     );
     let (doc, pattern) = insert(doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));

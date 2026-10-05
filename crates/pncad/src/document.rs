@@ -194,12 +194,14 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // held beside it — a string newtype admissible by construction (one
 // identifier an expression reads back), whose fallible constructor
 // answers `VarNameFault`. `Var` is the variable a document holds, of a
-// `VarKind` fixed at minting and defined by a `VarDef`; `FreeVar` is a
-// free definition's dimension plus exact stored value. `VarRef` is how
+// `VarKind` fixed at minting and defined by a `VarDef` (free, or defined
+// by an `Expr` over other variables); `VarDecl` is the definition as
+// an edit carries it, read by name before the door lowers it; `FreeVar`
+// is a free definition's dimension plus exact stored value. `VarRef` is how
 // an edit addresses a variable, by id or by name. Recipe vocabulary,
 // plain values, no arena key anywhere: they complete doors this module
 // already carries — `DocEdit::DeclareVar` takes a name and a
-// definition, the variable edits take a `VarRef`, and `Expr::named`
+// `VarDecl`, the variable edits take a `VarRef`, and `Expr::named`
 // takes a `VarName` — so without them the parametric flagship
 // (`plate_param`, guide §3.2) could not be authored façade-only.
 // `SpokenVar` is a variable as a refusal speaks it.
@@ -223,9 +225,12 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // it holds could otherwise read the reason only out of prose.
 // `DistributionRefusal` is the same thing at the third field, for
 // `FreeVar::with_distribution`.
+// `DEFINITION_NODE_BOUND` is the expansion bound
+// `EditError::DefinitionTooLarge` refuses past, so a caller holding that
+// refusal's count can read what it was measured against.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym, Var, VarDef, VarId,
-    VarKind, VarName, VarNameFault, VarNameReason, VarRef,
+    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
+    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the

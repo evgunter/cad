@@ -37,7 +37,7 @@ fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Recipe
     if let Some((name, radians)) = th {
         r.push(DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, radians)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, radians)),
         });
     }
     let axis = r.insert(Node::Datum(editor_core::Datum::Axis {

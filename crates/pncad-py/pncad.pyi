@@ -3194,6 +3194,32 @@ def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
     region the certified answer does not cover. Raises
     MeasureUnavailable for a band, which `param` names."""
 
+DEFINITION_NODE_BOUND: Final[int]
+"""The most expression nodes a variable's expansion through the
+definitions it reads may hold: a definition past it refuses
+`definition_too_large`, whose `count` is the expansion's size."""
+
+class VarDecl:
+    """A variable's definition as an edit carries it: a free value, or
+    an `Expr` over other variables, which the edit door lowers (its
+    names resolved against the document's) and stores."""
+
+    @staticmethod
+    def free(value: DocParam) -> VarDecl:
+        """A free variable holding `value`."""
+    @staticmethod
+    def defined(expr: Expr) -> VarDecl:
+        """A variable defined by `expr`, of `expr`'s dimension: its
+        value is `expr`'s, re-evaluated whenever a variable it reads
+        moves, and it takes no value, unit or distribution of its
+        own."""
+    @property
+    def expr(self) -> Expr | None:
+        """The defining expression, or None for a free variable."""
+    @property
+    def value(self) -> DocParam | None:
+        """The free value, or None for a defined variable."""
+
 class DocParam:
     """A named parameter's declared dimension and exact stored value
     (guide §3.2): what `DocEdit.declare_var` writes. Continuous
@@ -3356,18 +3382,27 @@ class DocEdit:
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
-    def declare_var(name: ParamName, value: DocParam) -> DocEdit:
+    def declare_var(name: ParamName, value: DocParam | Expr | VarDecl) -> DocEdit:
         """Declare a variable: mint its id and hold `name` beside it.
 
         Refuses typed on a name the document already holds
         (`var_name_taken`), and on a broken annotation:
         `invalid_distribution` for an E2 invariant,
         `non_finite_var` for a NaN or infinite nominal or
-        offset."""
+        offset.
+
+        An `Expr` (or `VarDecl.defined`) declares a DEFINED variable,
+        whose value is the expression's over the variables it reads. It
+        refuses `definition_unknown_var_name`,
+        `definition_unresolved_var` and `definition_var_kind` for a read
+        the document does not answer, `definition_cycle` for one that
+        reads the variable back, and `definition_too_large` for an
+        expansion past the bound."""
     @staticmethod
-    def define_var(var: Var | ParamName, value: DocParam) -> DocEdit:
+    def define_var(var: Var | ParamName, value: DocParam | Expr | VarDecl) -> DocEdit:
         """Replace a variable's definition, keeping its identity, its
-        name and its kind.
+        name and its kind. An `Expr` (or `VarDecl.defined`) makes it a
+        defined variable; a `DocParam` makes it free again.
 
         The whole definition is replaced, so a `DocParam` rebuilt from
         a dimension and a number has no distribution and the annotation
@@ -3379,7 +3414,8 @@ class DocEdit:
         Refuses typed on a name the document does not hold
         (`unknown_var`), on a definition of another kind
         (`var_kind_fixed` — a kind is fixed when a variable is
-        declared), and on `declare_var`'s annotation faults."""
+        declared), and on `declare_var`'s annotation and definition
+        faults."""
     @staticmethod
     def set_var_value(var: Var | ParamName, value: DocParamValue) -> DocEdit:
         """Write a new VALUE into a declared variable, keeping its
@@ -3910,17 +3946,29 @@ class Doc:
     def order(self) -> list[NodeId]: ...
     @property
     def params(self) -> dict[ParamName, DocParam]:
-        """The document's named parameters, by name.
+        """The document's named free parameters, by name, in
+        declaration order. A defined variable is listed by
+        `Doc.definitions` instead.
 
-        The read side of `DocEdit.declare_var`, and the only door
-        that answers a whole parameter back: `Doc.eval` answers a
+        The read side of a free `DocEdit.declare_var`, and the only
+        door that answers a whole parameter back: `Doc.eval` answers a
         parameter reference's number with the dimension and the
         authored notation both erased. A snapshot, not a view."""
     @property
+    def definitions(self) -> dict[ParamName, Expr]:
+        """The document's named defined variables, by name, in
+        declaration order: each one's definition, reading variables by
+        id (`Doc.unparse` writes it by name). With `Doc.params` it
+        lists every named variable once. A snapshot, not a view."""
+    @property
     def vars(self) -> dict[Var, DocParam]:
-        """The document's variables, by identity, in declaration
+        """The document's free variables, by identity, in declaration
         order — the named ones and the anonymous ones. A snapshot, not
-        a view."""
+        a view. A defined variable's definition is `Doc.definition`."""
+    def definition(self, var: Var) -> Expr | None:
+        """The expression `var` is defined by, reading variables by id,
+        or None for a free variable or one the document does not
+        hold."""
     def var(self, name: ParamName) -> Var | None:
         """The variable this document names `name`, or None."""
     def var_name(self, var: Var) -> ParamName | None:

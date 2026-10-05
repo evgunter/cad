@@ -69,7 +69,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -609,7 +609,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
         for (n, nominal) in [("hole_r", 0.25_f64), ("plate_h", 0.5)] {
             r.push(DocEdit::DeclareVar {
                 name: name(n),
-                def: editor_core::VarDef::Free(FreeVar::Continuous {
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
