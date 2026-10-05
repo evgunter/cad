@@ -7170,3 +7170,15 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - The fixes are already checked. `gate ok` and `lint` were green on `d288f84f`.
 - PR 4067: the fix lane is pushing (`66532eff`), with no "fixes pushed" comment yet.
 - Nothing new on PR 3970.
+
+## 22:14 check-in (2026-10-05)
+
+- **PR 4067:** the fix lane's pass (`66532ef`) answered everything.
+  - M7 is red: the nest is witnessed in A and in B.
+  - New `RestZipFrontier::PinchApex`: a non-injective correspondence refuses typed while `correspond` builds both directions, before any chord, in both orders. The public witness now pins `PinchApex` in both orders, and the remap's load-bearing witness moved to a unit row on the real reduction.
+  - `Fused::end` uses `survivor_checked`; M5/M8 are red in release.
+  - `NullEdge::copy_at` is the one home for the copy rule.
+  - The split cannot nest a strut, so `copy_to_original` is exact.
+  - Batteries: 12 shards + 49 tests, 0 moved.
+  - Its CI lost runners too (`change filter` cancelled). Main now carries real code (PR 4071), so I merged it in at `452bb74b` (`cargo check` ok) for a fresh run. Fix lane archived.
+- PR 4066 waits for PR 4067's merge, then the same main merge.
