@@ -7,6 +7,7 @@ opened: 2026-10-05
 priority: P1
 cost: M
 design: true
+blocked_on: [a-pinch-no-kept-face-can-cross-refuses]
 ---
 
 
@@ -87,3 +88,7 @@ directions × 6 turns, every op, both orders), in release:
 
   So each start builds a different subset, and the In start reaches
   the pinch crossing in `zip.rs`, which is held under PR 4057.
+- Option 2 of PR 4059's question (one vertex per cone on one point key,
+  so no vertex is shared) is the final state in front of Ev on PR
+  4057. Options 1 (re-pair a plan whole) and 3 (refuse typed at the
+  plan) wait on that ruling.
