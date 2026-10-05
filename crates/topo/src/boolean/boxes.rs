@@ -2403,6 +2403,22 @@ pub(crate) mod tests {
         );
     }
 
+    /// `face` re-labelled onto `surface`, its edges' descriptions as
+    /// they stand.
+    fn relabel(body: &mut Body<f64>, face: FaceKey, surface: Surface<f64>) {
+        // Lifts RechartUnvouched: each box arm reads the surface a face
+        // is labelled with, and the fixture's edges name the chart it
+        // was built on.
+        body.lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(surface, face, true)],
+                &[],
+                Tol::witness(),
+            )
+        })
+        .unwrap();
+    }
+
     /// A cylinder WALL face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
     /// the radius-`r` cylinder about the z axis, bounded below and
     /// above by circular rims and on the sides by axial lines.
@@ -2577,21 +2593,16 @@ pub(crate) mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let center = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(
-                    Surface::Sphere {
-                        center,
-                        radius: r,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
-                    },
-                    face,
-                    true,
-                )],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(
+                &mut body,
+                face,
+                Surface::Sphere {
+                    center,
+                    radius: r,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+            );
             let b = face_box(&body, face, pad(), witness_band()).unwrap();
             for i in 0..=32 {
                 let theta = core::f64::consts::PI * f64::from(i) / 32.0;
@@ -2631,12 +2642,7 @@ pub(crate) mod tests {
         let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-        body.set_face_surfaces_describing(
-            vec![crate::Rechart::new(surface, face, true)],
-            &[],
-            Tol::witness(),
-        )
-        .unwrap();
+        relabel(&mut body, face, surface);
         (
             body,
             face,
@@ -2989,21 +2995,16 @@ pub(crate) mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let c = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(
-                    Surface::Sphere {
-                        center: c,
-                        radius: r,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
-                    },
-                    face,
-                    true,
-                )],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(
+                &mut body,
+                face,
+                Surface::Sphere {
+                    center: c,
+                    radius: r,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+            );
             let b = face_box(&body, face, pad, witness_band()).unwrap();
             agrees_with_the_rule(
                 &b,
@@ -3242,12 +3243,7 @@ pub(crate) mod tests {
         for s in kinds {
             let kind = s.kind();
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(s, face, true)],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(&mut body, face, s);
             let b = face_box(&body, face, pad(), witness_band()).unwrap();
             assert!(
                 !b.min_x.is_nan(),
@@ -3468,12 +3464,7 @@ pub(crate) mod tests {
             half_angle: alpha,
             u_ref: Vec3::unit_x(),
         };
-        body.set_face_surfaces_describing(
-            vec![crate::Rechart::new(cone, face, true)],
-            &[],
-            Tol::witness(),
-        )
-        .unwrap();
+        relabel(&mut body, face, cone);
         (body, face)
     }
 
@@ -3599,22 +3590,17 @@ pub(crate) mod tests {
                 let (u_ref, _) = axis.orthonormal_basis();
                 let v_ref = axis.cross(u_ref);
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surfaces_describing(
-                    vec![crate::Rechart::new(
-                        Surface::Torus {
-                            center,
-                            axis,
-                            major_radius: major,
-                            minor_radius: minor,
-                            u_ref,
-                        },
-                        face,
-                        true,
-                    )],
-                    &[],
-                    Tol::witness(),
-                )
-                .unwrap();
+                relabel(
+                    &mut body,
+                    face,
+                    Surface::Torus {
+                        center,
+                        axis,
+                        major_radius: major,
+                        minor_radius: minor,
+                        u_ref,
+                    },
+                );
                 let b = face_box(&body, face, pad(), witness_band()).unwrap();
                 for i in 0..=48 {
                     let theta = 2.0 * core::f64::consts::PI * f64::from(i) / 48.0;
@@ -4303,22 +4289,17 @@ pub(crate) mod tests {
                 let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
                 let u_ref = axis.orthonormal_basis().0;
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surfaces_describing(
-                    vec![crate::Rechart::new(
-                        Surface::Torus {
-                            center: c,
-                            axis,
-                            major_radius: major,
-                            minor_radius: minor,
-                            u_ref,
-                        },
-                        face,
-                        true,
-                    )],
-                    &[],
-                    Tol::witness(),
-                )
-                .unwrap();
+                relabel(
+                    &mut body,
+                    face,
+                    Surface::Torus {
+                        center: c,
+                        axis,
+                        major_radius: major,
+                        minor_radius: minor,
+                        u_ref,
+                    },
+                );
                 let b = face_box(&body, face, pad, witness_band()).unwrap();
                 let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
                 let (rx, ry, rz) = (reach(axis.x), reach(axis.y), reach(axis.z));
@@ -4434,12 +4415,7 @@ pub(crate) mod tests {
         };
         let relabelled = |s: Surface<f64>| {
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(s, face, true)],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(&mut body, face, s);
             (body, face)
         };
         let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();

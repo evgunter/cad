@@ -64,7 +64,7 @@ use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
 use super::{PlaneSide, SplitReduction, section_loops};
-use crate::attach::Rechart;
+use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
@@ -645,7 +645,7 @@ fn section_plane_restatements<T: Decide>(
             let Some(curve) = geom.certified() else {
                 continue;
             };
-            if !Body::description_surfaces(geom).contains(&chart) {
+            if !Named::of(geom).keys().any(|k| k == chart) {
                 continue;
             }
             let image = geom_brep::EdgeDescriptionSpec::chart(chart);
@@ -1133,7 +1133,7 @@ pub(crate) fn carve<T: Decide>(
     // description on a surviving edge must never dangle (extrude-built
     // operands carry them — M3 PR 5).
     for (_, curve) in body.curves() {
-        for s in Body::description_surfaces(curve) {
+        for s in Named::of(curve).keys() {
             live_surfaces.insert(s, ());
         }
     }

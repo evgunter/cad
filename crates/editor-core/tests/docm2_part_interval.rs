@@ -64,7 +64,7 @@ fn widened_document(width: f64) -> ProfileDoc {
         &cd.doc,
         &DocEdit::DefineVar {
             var: VarName::from_static(corpus::part_select::H).into(),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),

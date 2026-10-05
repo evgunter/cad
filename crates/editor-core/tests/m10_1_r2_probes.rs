@@ -68,7 +68,7 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
             &doc,
             &DocEdit::DeclareVar {
                 name: p(name),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -585,7 +585,7 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
         &plain,
         &DocEdit::DefineVar {
             var: p("pip_depth").into(),
-            def: editor_core::VarDef::Free(annotated(
+            def: editor_core::VarDecl::Free(annotated(
                 fixture::DEPTH,
                 Distribution::Normal { sigma: 0.001 },
             )),
@@ -638,7 +638,7 @@ fn a_distribution_changes_no_content_key_at_interval() {
         &plain,
         &DocEdit::DefineVar {
             var: p("pip_depth").into(),
-            def: editor_core::VarDef::Free(annotated(
+            def: editor_core::VarDecl::Free(annotated(
                 fixture::DEPTH,
                 Distribution::Normal { sigma: 0.001 },
             )),
@@ -701,7 +701,7 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         &before,
         &DocEdit::DefineVar {
             var: p("hole_r").into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(existing.dim(), 0.004)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(existing.dim(), 0.004)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

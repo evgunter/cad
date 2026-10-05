@@ -247,7 +247,7 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
             &doc,
             &DocEdit::DeclareVar {
                 name: p("n"),
-                def: editor_core::VarDef::Free(FreeVar::continuous_with(
+                def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                     Dimension::Length,
                     0.0,
                     dist,
@@ -328,7 +328,7 @@ fn every_annotation_pair_is_visible_to_bit_eq_and_diff() {
             &doc,
             &DocEdit::DeclareVar {
                 name: p("q"),
-                def: editor_core::VarDef::Free(value),
+                def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -371,7 +371,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
         &d.doc,
         &DocEdit::DefineVar {
             var: p(corpus::plate_param::HOLE_R).into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Length,
                 corpus::plate_param::HOLE_R_VALUE,
                 Distribution::Normal { sigma: 1e-4 },
@@ -420,7 +420,7 @@ fn the_var_env_is_blind_to_annotations_even_after_a_round_trip() {
             &doc,
             &DocEdit::DeclareVar {
                 name: p("d"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.25)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.25)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -434,7 +434,7 @@ fn the_var_env_is_blind_to_annotations_even_after_a_round_trip() {
             &doc,
             &DocEdit::DeclareVar {
                 name: p("d"),
-                def: editor_core::VarDef::Free(FreeVar::continuous_with(
+                def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                     Dimension::Angle,
                     0.25,
                     Distribution::Uniform {
@@ -510,7 +510,7 @@ fn a_mixed_document_analyzes_end_to_end() {
             &doc,
             &DocEdit::DeclareVar {
                 name: p(name),
-                def: editor_core::VarDef::Free(value),
+                def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

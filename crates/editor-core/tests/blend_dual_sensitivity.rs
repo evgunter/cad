@@ -94,11 +94,11 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("radius"),
-        def: editor_core::VarDef::Free(length(R0)),
+        def: editor_core::VarDecl::Free(length(R0)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(length(D0)),
+        def: editor_core::VarDecl::Free(length(D0)),
     });
     let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -140,7 +140,7 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
         doc,
         &DocEdit::DefineVar {
             var: name(param).into(),
-            def: editor_core::VarDef::Free(length(value)),
+            def: editor_core::VarDecl::Free(length(value)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

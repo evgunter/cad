@@ -1028,7 +1028,7 @@ pub fn die() -> Die {
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("pip_depth"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, DEPTH)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH)),
     });
     // The cube: profile on the xy plane, extruded +2.
     let cube_profile = r.profile(

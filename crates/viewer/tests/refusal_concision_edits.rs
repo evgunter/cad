@@ -361,6 +361,59 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
+            "NotAFreeVar",
+            EditError::NotAFreeVar {
+                var: spoken_var(),
+                door: editor_core::CarryForwardDoor::Value,
+            },
+        ),
+        (
+            "DefinitionCycle",
+            EditError::DefinitionCycle {
+                var: spoken_var(),
+                through: vec![
+                    spoken_var(),
+                    pncad::document::SpokenVar::new(
+                        pncad::document::VarId(tagged(8)),
+                        Some(VarName::from_static("height")),
+                    ),
+                ],
+            },
+        ),
+        (
+            "DefinitionTooLarge",
+            EditError::DefinitionTooLarge {
+                var: spoken_var(),
+                nodes: 4097,
+            },
+        ),
+        (
+            "DefinitionUnknownVarName",
+            EditError::DefinitionUnknownVarName {
+                var: spoken_var(),
+                name: VarName::from_static("height"),
+            },
+        ),
+        (
+            "DefinitionUnresolvedVar",
+            EditError::DefinitionUnresolvedVar {
+                var: spoken_var(),
+                read: pncad::document::SpokenVar::new(pncad::document::VarId(tagged(8)), None),
+            },
+        ),
+        (
+            "DefinitionVarKind",
+            EditError::DefinitionVarKind {
+                var: spoken_var(),
+                read: pncad::document::SpokenVar::new(
+                    pncad::document::VarId(tagged(8)),
+                    Some(VarName::from_static("height")),
+                ),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+        ),
+        (
             "VarCountHasNoUnit",
             EditError::VarCountHasNoUnit { var: spoken_var() },
         ),

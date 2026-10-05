@@ -1495,10 +1495,13 @@ impl Doc {
         self.inner.order().iter().copied().map(NodeId).collect()
     }
 
-    /// **The document's named parameters**, by name (`Doc::var_names`,
-    /// each read through `Doc::free`).
+    /// **The document's named free parameters**, by name, in
+    /// declaration order (`Doc::var_names`, each read through
+    /// `Doc::free`). A defined variable is listed by
+    /// [`Self::definitions`] instead: it holds no value, notation or
+    /// distribution of its own.
     ///
-    /// The read side of `DocEdit.declare_var`, and the only door
+    /// The read side of a free `DocEdit.declare_var`, and the only door
     /// that answers a whole parameter back: `Doc.eval` answers a
     /// parameter reference's NUMBER, with the dimension and the
     /// authored notation both erased, so a consumer showing a
@@ -1519,9 +1522,32 @@ impl Doc {
         Ok(out)
     }
 
-    /// **The document's variables**, by identity, in declaration order —
-    /// the named ones and the anonymous ones (whose identity is all an
-    /// edit can address them by).
+    /// **The document's named defined variables**, by name, in
+    /// declaration order: each one's definition, reading variables by
+    /// id. The read side of a defined `DocEdit.declare_var` and of
+    /// `DocEdit.define_var`; with [`Self::params`] it lists every named
+    /// variable once.
+    ///
+    /// A snapshot, not a view: the map is built here and mutating it
+    /// changes no document.
+    #[getter]
+    fn definitions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for &id in self.inner.var_order() {
+            let Some(expr) = self.inner.var(id).and_then(|v| v.def().defined()) else {
+                continue;
+            };
+            if let Some(name) = self.inner.var_name(id) {
+                out.set_item(ParamName(name.clone()), super::expr::Expr(expr.clone()))?;
+            }
+        }
+        Ok(out)
+    }
+
+    /// **The document's free variables**, by identity, in declaration
+    /// order — the named ones and the anonymous ones (whose identity is
+    /// all an edit can address them by). A defined variable's
+    /// definition is [`Self::definition`].
     ///
     /// A snapshot, not a view: the map is built here and mutating it
     /// changes no document.
@@ -1532,6 +1558,16 @@ impl Doc {
             out.set_item(Var(id), DocParam(param.clone()))?;
         }
         Ok(out)
+    }
+
+    /// **The definition of `var`**, when it is a defined variable: the
+    /// expression it was defined by, reading variables by id. `None`
+    /// for a free variable, or one the document does not hold.
+    fn definition(&self, var: &Var) -> Option<super::expr::Expr> {
+        self.inner
+            .var(var.0)
+            .and_then(|v| v.def().defined())
+            .map(|expr| super::expr::Expr(expr.clone()))
     }
 
     /// The variable this document names `name`, or `None`.
@@ -3331,6 +3367,83 @@ impl VarArg {
     }
 }
 
+/// **A variable's definition as an edit carries it** — a free value, or
+/// an `Expr` over other variables that the edit door lowers (its names
+/// resolved against the document's) and stores as the variable's
+/// definition (VARIABLES-DESIGN VR3).
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct VarDecl(pub(crate) d::VarDecl);
+
+#[pymethods]
+impl VarDecl {
+    /// A free variable holding `value`.
+    #[staticmethod]
+    fn free(value: &DocParam) -> Self {
+        Self(d::VarDecl::Free(value.0.clone()))
+    }
+
+    /// A variable defined by `expr`, of `expr`'s dimension: its value is
+    /// `expr`'s, re-evaluated whenever a variable it reads moves, and it
+    /// takes no value, unit or distribution of its own.
+    #[staticmethod]
+    fn defined(expr: &super::expr::Expr) -> Self {
+        Self(d::VarDecl::defined(expr.0.clone()))
+    }
+
+    /// The defining expression, or `None` for a free variable.
+    #[getter]
+    fn expr(&self) -> Option<super::expr::Expr> {
+        match &self.0 {
+            d::VarDecl::Free(_) => None,
+            d::VarDecl::Defined(expr) => Some(super::expr::Expr(expr.clone())),
+        }
+    }
+
+    /// The free value, or `None` for a defined variable.
+    #[getter]
+    fn value(&self) -> Option<DocParam> {
+        match &self.0 {
+            d::VarDecl::Free(free) => Some(DocParam(free.clone())),
+            d::VarDecl::Defined(_) => None,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        match &self.0 {
+            d::VarDecl::Free(free) => {
+                format!("VarDecl.free({})", DocParam(free.clone()).__repr__())
+            }
+            d::VarDecl::Defined(expr) => {
+                format!("VarDecl.defined({})", d::unparse(expr, &|_| None))
+            }
+        }
+    }
+}
+
+/// **A definition as a variable door takes it**: a free value, an
+/// expression (a defined variable), or a [`VarDecl`] spelling either.
+#[derive(FromPyObject)]
+pub(crate) enum DeclArg {
+    /// A free value.
+    Free(DocParam),
+    /// A defining expression.
+    Defined(super::expr::Expr),
+    /// Either, spelled.
+    Decl(VarDecl),
+}
+
+impl DeclArg {
+    /// The kernel's definition.
+    fn decl(&self) -> d::VarDecl {
+        match self {
+            Self::Free(value) => d::VarDecl::Free(value.0.clone()),
+            Self::Defined(expr) => d::VarDecl::defined(expr.0.clone()),
+            Self::Decl(decl) => decl.0.clone(),
+        }
+    }
+}
+
 /// `-0.0` folded to `0.0`, every other value untouched — the
 /// normalization a hash must apply wherever the equality it mirrors is
 /// IEEE (`-0.0 == 0.0`).
@@ -3892,12 +4005,20 @@ impl DocEdit {
     /// Neither annotation fault is reachable through the
     /// `Distribution` constructors, which run the same check at the
     /// value; both are reachable through a file.
+    ///
+    /// An `Expr` (or `VarDecl.defined`) declares a DEFINED variable,
+    /// whose value is the expression's over the variables it reads.
+    /// It refuses `definition_unknown_var_name`,
+    /// `definition_unresolved_var` and `definition_var_kind` for a read
+    /// the document does not answer, `definition_cycle` for one that
+    /// reads the variable back, and `definition_too_large` for an
+    /// expansion past the bound.
     #[staticmethod]
-    fn declare_var(name: &ParamName, value: &DocParam) -> Self {
+    fn declare_var(name: &ParamName, value: DeclArg) -> Self {
         Self {
             inner: d::DocEdit::DeclareVar {
                 name: name.0.clone(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                def: value.decl(),
             },
         }
     }
@@ -3911,16 +4032,20 @@ impl DocEdit {
     /// the old one carried is gone. `set_var_value` is the door for
     /// moving a number, because it cannot drop what it never takes.
     ///
+    /// An `Expr` (or `VarDecl.defined`) makes the variable a DEFINED
+    /// one, keeping its identity; a `DocParam` makes it free again.
+    ///
     /// Refuses typed on a name the document does not hold
     /// (`unknown_var`), on a definition of another kind
     /// (`var_kind_fixed` — a kind is fixed when a variable is
-    /// declared), and on `declare_var`'s annotation faults.
+    /// declared), and on `declare_var`'s annotation and definition
+    /// faults.
     #[staticmethod]
-    fn define_var(var: VarArg, value: &DocParam) -> Self {
+    fn define_var(var: VarArg, value: DeclArg) -> Self {
         Self {
             inner: d::DocEdit::DefineVar {
                 var: var.var_ref(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                def: value.decl(),
             },
         }
     }
@@ -4595,6 +4720,10 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ParamName>()?;
     m.add_class::<Var>()?;
     m.add_class::<DocParam>()?;
+    m.add_class::<VarDecl>()?;
+    // The expansion bound `definition_too_large`'s `count` is measured
+    // against.
+    m.add("DEFINITION_NODE_BOUND", d::DEFINITION_NODE_BOUND)?;
     m.add_class::<DocParamValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;

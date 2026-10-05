@@ -98,7 +98,7 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(HOLE_R),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
     });
 
     let plate_plane = r.insert(xy_frame());

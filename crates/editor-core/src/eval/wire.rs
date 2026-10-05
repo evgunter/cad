@@ -1727,7 +1727,8 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     // radius is the PROFILE's, so the token is the radius the operand
     // profile draws that wall's edge at. A straight edge yields none.
     let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
-    let tokens = crate::param_source::profile_radius_tokens(vp, scope);
+    let defs = crate::param_source::definitions_of(doc);
+    let tokens = crate::param_source::profile_radius_tokens(vp, scope, &defs);
     crate::param_source::attach_swept(
         &mut body,
         flow,
@@ -2073,7 +2074,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, expr),
+            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
@@ -2140,7 +2141,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, expr),
+            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;

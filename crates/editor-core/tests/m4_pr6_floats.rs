@@ -53,7 +53,7 @@ fn round_trip(value: f64) -> ProfileDoc {
         &doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("p"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     );
     // **The profile has no raw-float channel any more.** v4's was the

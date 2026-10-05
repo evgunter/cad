@@ -52,7 +52,7 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(HOLE_R),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: R0,
             display_unit: UnitSym::canonical_for(Dimension::Length),

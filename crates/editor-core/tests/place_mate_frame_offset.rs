@@ -97,7 +97,7 @@ fn declare_slide(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: slide(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0
@@ -230,7 +230,7 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
         unmated,
         DocEdit::DeclareVar {
             name: VarName::from_static("tilt"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let named = |name: &'static str, dim| -> Placement {

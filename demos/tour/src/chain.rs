@@ -319,7 +319,7 @@ fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distri
         doc,
         &DocEdit::DeclareVar {
             name,
-            def: pncad::document::VarDef::Free(FreeVar::continuous_with(
+            def: pncad::document::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Angle,
                 value,
                 distribution,

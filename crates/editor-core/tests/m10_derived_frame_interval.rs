@@ -58,7 +58,7 @@ fn eps() -> f64 {
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static(name),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),

@@ -131,7 +131,7 @@ fn measure_value<T: geom_core::Decide>(
 fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
     r.push(DocEdit::DeclareVar {
         name: name(n),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value,
             display_unit: UnitSym::canonical_for(Dimension::Length),

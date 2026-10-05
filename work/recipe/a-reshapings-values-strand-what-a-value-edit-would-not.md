@@ -2,11 +2,12 @@
 id: a-reshapings-values-strand-what-a-value-edit-would-not
 kind: issue
 title: A SetProgram reports a piece its new VALUES leave undrawn (a Zero-fit run), where the same values through SetParam report nothing
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: E
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

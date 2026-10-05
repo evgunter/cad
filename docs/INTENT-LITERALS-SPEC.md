@@ -123,7 +123,7 @@ Minting order is deterministic: rows order, then depth-first within a formula, w
    - Load gets a new walk, `DefinitionCycle`, which runs after the kind walk.
    - Load also checks `kind == expr.dim()` (`DefinedVarKind`).
 3. Environments:
-   - `Doc::var_env` and `analysis::var_env_over` bind the free variables, then evaluate the defined ones in topological order (a `Doc::definition_order()`, memoized on the doc), at the lane scalar.
+   - `Doc::var_env` and `analysis::var_env_over` bind the free variables, then evaluate the defined ones in topological order (a `Doc::definition_order()`, computed where it is used: Kahn's algorithm, linear in the variables and their reads), at the lane scalar.
    - A failing definition refuses at each reader with `EvalError::DefinitionRefused { var, source }`, wrapped with the slot address by `NodeErrorKind::Expr`.
 4. Analysis reads free variables only:
    - axes and MC draws are already `free_vars`;

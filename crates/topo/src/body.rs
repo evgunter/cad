@@ -71,10 +71,11 @@
 //!   own.
 
 use geom::Surface;
-use geom_brep::{EdgeCurve, EdgeDescription, PcurveCache};
+use geom_brep::{EdgeCurve, PcurveCache};
 use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
+use crate::attach::Named;
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell,
     ShellKey, Solid, SolidKey, Vertex, VertexKey,
@@ -544,7 +545,7 @@ impl<T: Real> Body<T> {
     /// a no-op returning `false`.
     ///
     /// A removed curve's description was a live surface reference
-    /// ([`Body::description_surfaces`] — the same references that keep
+    /// ([`Named::keys`] — the same references that keep
     /// [`Body::remove_surface_if_orphaned`] from dangling it), so
     /// dropping the curve can orphan a surface whose faces are already
     /// gone: sweep its description surfaces through the same guarded
@@ -560,7 +561,7 @@ impl<T: Real> Body<T> {
             return false;
         };
         self.curve_origins.remove(curve);
-        for surface in Self::description_surfaces(&removed) {
+        for surface in Named::of(&removed).keys() {
             self.remove_surface_if_orphaned(surface);
         }
         true
@@ -581,7 +582,7 @@ impl<T: Real> Body<T> {
     /// it, returning whether it was removed. Used by face-killing
     /// operators (`kfmrh`, `kef`) and the surface-attachment setter.
     /// References counted (M2 PR 3): faces' `surface` keys AND edge
-    /// descriptions' surface keys ([`Body::description_surfaces`]) — an
+    /// descriptions' surface keys ([`Named::keys`]) — an
     /// `Intersection`/`Seam` description keeps its surfaces alive
     /// exactly like a face does, so removal can never dangle a
     /// description. Deterministic (D9), same shape as
@@ -593,7 +594,7 @@ impl<T: Real> Body<T> {
         if self
             .curves
             .values()
-            .any(|curve| Self::description_surfaces(curve).contains(&surface))
+            .any(|curve| Named::of(curve).keys().any(|k| k == surface))
         {
             return false;
         }
@@ -657,25 +658,6 @@ impl<T: Real> Body<T> {
         s2: SurfaceKey,
     ) -> bool {
         (d1, d2) == (s1, s2) || (d1, d2) == (s2, s1)
-    }
-
-    /// The surface keys an edge description references: the two
-    /// intrinsic arms' pair, a chart image's chart, none for the
-    /// scaffolding door (whose pushforward carries its own defining
-    /// data and names no surface). Consulted by orphan hygiene and by
-    /// the validator's referential-integrity pass.
-    pub(crate) fn description_surfaces(curve: &CurveGeom<T>) -> Vec<SurfaceKey> {
-        match curve {
-            CurveGeom::Certified(curve) => match curve.description() {
-                EdgeDescription::Intersection { s1, s2, .. }
-                | EdgeDescription::TangentIntersection { s1, s2, .. } => vec![*s1, *s2],
-                EdgeDescription::Chart(c) => vec![c.surface],
-                EdgeDescription::Scaffold(_) => Vec::new(),
-            },
-            // Null scaffolding has no description and keeps no surface
-            // alive.
-            CurveGeom::NullScaffold(_) => Vec::new(),
-        }
     }
 
     /// **The one door that moves vertices**: mints ONE fresh point at

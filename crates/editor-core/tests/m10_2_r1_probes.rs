@@ -116,7 +116,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -1132,7 +1132,7 @@ fn r1_own_document_web_and_flip() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("r"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
                 display_unit: UnitSym::canonical_for(Dimension::Length),

@@ -267,7 +267,7 @@ pub(crate) fn d_tab_at(
         |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
             r.push(DocEdit::DeclareVar {
                 name: VarName::from_static(n),
-                def: editor_core::VarDef::Free(FreeVar::Continuous {
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
                     dim,
                     value,
                     display_unit: UnitSym::canonical_for(dim),
