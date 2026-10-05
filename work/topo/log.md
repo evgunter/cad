@@ -6969,3 +6969,15 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Subscribed. Reviewer `session_01N4kLf3CaQuwaYs326CpQWW` dispatched (FULL). It checks the at-rest premise of the extent scan's inputs, and whether a ratified clause states the old `Display` meaning.
 - **Dispatched** `boundary-on-the-new-chart-has-two-homes-in-the-attach-doors` (P3, M; `attach.rs`; no overlap) → `session_01LKocsNRnizpgjZhDr8YckW`. `kef`/`kfmrh` are excluded (PR 3970's question). The lane stops and asks on a ratified clause or a real fork.
 - Torn-reads lane: no PR yet. Nothing new on PR 3970.
+
+## 10:55 (2026-10-05)
+
+- **PR 4053 merged** at `e63e549b` (head `8d3f2d76`). The review fixes:
+  - rows (a), ring on the first face (a different `f2`, Done), and (b), every face ringed (skip admitted, form unchanged), plus the c=3 not-last row; M1/M4/M6 are all red;
+  - the `None` doc matches the code;
+  - one policy in `may_skip_roundtrip_at` (Kev's);
+  - `GENERATOR_SENSE`, checked once in `kfmrh_then_plug`;
+  - the walks row lists seqgen's labelling as a fourth API need (`review_m1_pr4`'s vertex-glued walk is a different relation);
+  - the fuzz sample was re-taken.
+  - Fix lane archived (about $1.7).
+- **PR 4055:** CI lint failed at my merge head `700d0ed3`. `payload-rung-sweep.py --check` flagged the new `PointInFaceCause` as an undispositioned rung. That is the PR's own miss: the lane ran `scripts/gates/*.sh` but not this second step. I filed it under `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error` (the row that holds `BooleanError`'s rungs), with an evidence paragraph, and pushed `15c8ed5a`. The reviewer is still running.
