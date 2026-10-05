@@ -85,3 +85,34 @@ is left in it. Each unit extends
 `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise` with its
 doors (judged on a clone, unchanged on a premise panic) and proves the
 extension can go red with one mutation.
+
+## 2026-10-05 — what `ContainError::Curved` carries into the boolean (measured)
+
+Read off `contain.rs` `curved_face_placement` and its chart arms: the
+only `PointInSolidError` payloads that reach `solid_err` uncaught are
+`CorruptFace` (the cylinder arm's `full_turn_outline` and
+`wall_outline`, both arena misses; the sphere arm's
+`sphere_chart_trim`, arena misses and `face_azimuth_window`'s
+`Corrupt`/`UnpairedLooseEnds`) and `Loop(CorruptLoop)`
+(`wall_outline`'s `loop_reach`: a control-point-less spline edge or a
+poisoned extent). `PartialConeFace`, `PartialTorusFace` and
+`WallOutlineUnsupported` never get there: the cone and torus arms map
+them to `Trim(None)`, and the cylinder arm never hands
+`point_on_wall_in_face` an `Unsupported` outline. The arms disagree
+about `CorruptFace`: cone, torus and `cylinder_chart_trim` read it as
+`Trim(None)`, the honest remainder, while `full_turn_outline`,
+`wall_outline` and `sphere_chart_trim` pass it on. The `CorruptFace`
+split above is therefore also the decision about which of those
+readings is right. The boolean now carries whatever arrives as
+`BooleanError::PointInFaceRefused { refusal: Curved(e), .. }`
+(`contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant`).
+
+That moved a user-visible claim for the `CorruptFace` arm. Before, the
+reduction's `esc` folded it into `ClassificationInvariant`, which says
+"kernel bug". Now it renders as "the Boolean cannot tell what is
+inside the solid: one of its faces is broken (it cannot be walked, or
+names something that is gone)". Mid-reduction the
+face is a working copy of a gated operand, so an arena miss there is
+the kernel's own surgery, not the user's broken face: the text went
+from "our bug" to "your face is broken" for that arm. Whichever
+reading the `CorruptFace` split settles on, it decides this text too.

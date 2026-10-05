@@ -14,7 +14,7 @@
 //! typed wherever it could matter.
 
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
@@ -107,10 +107,10 @@ impl core::fmt::Display for ContainError {
             Self::Escalated(diag) => write!(f, "contfp: {diag}"),
             Self::RayExhausted => write!(
                 f,
-                "contfp: every direction of the parity schedule grazed the face's \
-                 boundary, so no ray read a definite crossing count — the point sits \
-                 within ε of the boundary at this tolerance; move the point off the \
-                 boundary"
+                "contfp: the point is off the face's boundary, but every direction of \
+                 the parity schedule grazed one of its vertices or edges, so no ray read \
+                 a definite crossing count at this tolerance. Recourse: \
+                 {NO_DECLARATION_RECOURSE}"
             ),
             Self::StaleFace(face) => {
                 write!(f, "contfp: face {face:?} does not resolve in this body")

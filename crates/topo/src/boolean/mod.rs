@@ -127,7 +127,7 @@ pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point3, Real, Sign, Tol,
+    Margin, MarginDiag, NO_DECLARATION_RECOURSE, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -1709,6 +1709,21 @@ pub enum BooleanError {
         /// The loop, and the edge no ray got past.
         cause: crate::splitting::Uncrossable,
     },
+    /// **A point-in-face read of an operand face refused.** The
+    /// reduction and the sphere extent scan ask which side of an
+    /// operand face's boundary a point lies on, and the face door
+    /// ([`contfp`], or a curved face's chart read) refused; its
+    /// refusal is carried whole. A sliver margin is
+    /// [`BooleanError::Escalated`] and an edge the walk cannot cross is
+    /// [`BooleanError::ArcLoopContainmentUnsupported`], not this.
+    PointInFaceRefused {
+        /// The operand whose face was read.
+        operand: Operand,
+        /// The face.
+        face: FaceKey,
+        /// The face door's refusal.
+        refusal: ContainError,
+    },
     /// An operand is well-formed but not a closed solid at rest: tier 2
     /// ([`crate::validate_closed`]) refuses it for construction
     /// scaffolding an edit left behind — a strut's valence-1 vertex, an
@@ -2400,7 +2415,9 @@ pub enum BooleanError {
         /// What the settled pairs said about orientation.
         orientation: ShellOrientation,
     },
-    /// The containment fallback / uncut-component probe refused (F8).
+    /// A read the Boolean put to the solid door (`solid_contain`) about
+    /// an operand refused; the door's refusal, carried whole, says what
+    /// stopped it.
     Containment(PointInSolidError),
     /// `revert` refused on the ∖ B side.
     Revert(RevertError),
@@ -2557,6 +2574,8 @@ pub enum BooleanErrorKind {
     GermEdgeCarrierUnsupported,
     /// [`BooleanError::ArcLoopContainmentUnsupported`].
     ArcLoopContainmentUnsupported,
+    /// [`BooleanError::PointInFaceRefused`].
+    PointInFaceRefused,
     /// [`BooleanError::ScaffoldingOperand`].
     ScaffoldingOperand,
     /// [`BooleanError::InsideOutOperand`].
@@ -2769,6 +2788,7 @@ impl BooleanError {
             Self::ArcLoopContainmentUnsupported { .. } => {
                 BooleanErrorKind::ArcLoopContainmentUnsupported
             }
+            Self::PointInFaceRefused { .. } => BooleanErrorKind::PointInFaceRefused,
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
@@ -2982,6 +3002,41 @@ impl core::fmt::Display for BooleanError {
                  guess. Recourse: model the outline with lines, circles or ellipses",
                 cause.carrier.word()
             ),
+            // `ContainError`'s own text names the loop by arena key; the
+            // arms the reduction carries are re-worded for a user here,
+            // and a curved chart read's refusal is the solid door's text.
+            Self::PointInFaceRefused {
+                operand, refusal, ..
+            } => {
+                let operand = operand_word(*operand);
+                let preamble = format_args!(
+                    "the Boolean cannot tell which side of a face of the {operand} solid a \
+                     point lies on"
+                );
+                match refusal {
+                    ContainError::EmptyLoop(_) => write!(
+                        f,
+                        "{preamble}: one of the face's loops is a lone vertex, which bounds \
+                         no region"
+                    ),
+                    ContainError::LoopUnreadable(_) => write!(
+                        f,
+                        "{preamble}: one of the face's loops could not be walked as an \
+                         outline (a whole-turn construction circle, or an arc wound past a \
+                         full turn, is one it cannot read)"
+                    ),
+                    ContainError::RayExhausted => write!(
+                        f,
+                        "{preamble}: the point is off the face's boundary, but every test \
+                         ray grazed one of its vertices or edges. Recourse: \
+                         {NO_DECLARATION_RECOURSE}"
+                    ),
+                    ContainError::Curved(e) => write!(f, "the Boolean {e}"),
+                    ContainError::Escalated(_)
+                    | ContainError::StaleFace(_)
+                    | ContainError::Uncrossable(_) => write!(f, "{preamble}: {refusal}"),
+                }
+            }
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
                 "the {} operand is not a finished solid: it still carries what an edit \
@@ -3339,9 +3394,10 @@ impl core::fmt::Display for BooleanError {
                     ),
                 }
             }
-            // The payload does not say which operand was being tested, so
-            // the sentence says "one of the solids" rather than guess.
-            Self::Containment(e) => write!(f, "the solids do not cross, and the Boolean {e}"),
+            // The payload does not say which operand was being tested,
+            // nor which question asked: the uncut-component probe asks it
+            // of solids that do not cross, the reduction of ones that do.
+            Self::Containment(e) => write!(f, "the Boolean {e}"),
             Self::Revert(e) => write!(f, "revert of the ∖ B side refused: {e}"),
             Self::SeamOrientation { a_face, b_face } => write!(
                 f,
@@ -5615,6 +5671,11 @@ mod tests {
                     carrier: crate::splitting::UncrossableCarrier::Spiric,
                 },
             },
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: ContainError::RayExhausted,
+            },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
                 errors: vec![ValidationError::ScaffoldingStrutVertex {
@@ -5843,6 +5904,7 @@ mod tests {
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
+                BooleanErrorKind::PointInFaceRefused => "PointInFaceRefused",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
