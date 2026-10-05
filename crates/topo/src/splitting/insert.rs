@@ -102,9 +102,10 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
                 unreachable!(
                     "the run {:?} ..= {:?} at {vertex:?} has no orbit successor: its halves come \
                      from the orbit the reduction just walked, the reduction kills nothing, and \
-                     its Euler operators keep every mate link",
+                     {}",
                     first.he,
-                    last.he
+                    last.he,
+                    crate::live::NAMES_ONLY_LIVE
                 )
             }) {
                 site @ RunSite::Fan { .. } => (site.mev_site(), false, false),

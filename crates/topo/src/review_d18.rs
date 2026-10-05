@@ -3422,7 +3422,7 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 11] = [
+const READ_DOORS: [&str; 14] = [
     "mint_pcurves",
     "mint_pcurves_of",
     "face_pose",
@@ -3434,7 +3434,17 @@ const READ_DOORS: [&str; 11] = [
     "vertex_points",
     "rim_of",
     "planar_loop_winding",
+    "contfp",
+    "curved_face_containment",
+    "classify_neighborhood",
 ];
+
+/// The doors the read sweep floors on a premise panic: the split, which
+/// reads every face, edge and vertex before it builds, and the
+/// containment and neighborhood doors, whose walks a torn loop or orbit
+/// reaches.
+#[cfg(not(debug_assertions))]
+const PREMISE_DOORS: [&str; 3] = ["split_reduce", "contfp", "classify_neighborhood"];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
 /// geometry, and three that carry it — planar faces for the face doors,
@@ -3618,6 +3628,44 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             Ok(body.planar_loop_winding(l, Vec3::unit_z(), band).is_some())
         });
     }
+    let q = Point3::new(0.5, 0.5, 0.0);
+    for (face, _) in body.faces() {
+        use crate::boolean::ContainError;
+        let contain = |answer: Result<bool, ContainError>| match answer {
+            Err(e @ ContainError::StaleFace(_)) => Err(e.to_string()),
+            answer => Ok(answer.unwrap_or(false)),
+        };
+        judge_read(capture, &mut census, "contfp", || {
+            contain(crate::boolean::contfp(body, face, Vec3::unit_z(), q, band).map(|_| true))
+        });
+        judge_read(capture, &mut census, "curved_face_containment", || {
+            contain(crate::boolean::curved_face_containment(body, face, q, band).map(|_| true))
+        });
+    }
+    // The split plane crosses every fixture; the side map holds a
+    // verdict for every live vertex, so a vertex it lacks is a dangling
+    // record's, and its refusal had to panic.
+    let plane = crate::test_support_fixtures::split_plane(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::unit_z(),
+        Tol::witness(),
+    );
+    let sides: slotmap::SecondaryMap<crate::entity::VertexKey, crate::splitting::PlaneSide> = body
+        .vertices()
+        .map(|(v, _)| (v, crate::splitting::PlaneSide::Above))
+        .collect();
+    for (vertex, _) in body.vertices() {
+        judge_read(capture, &mut census, "classify_neighborhood", || {
+            use crate::splitting::SplitReduceError as E;
+            match crate::splitting::classify_neighborhood(body, &plane, &sides, vertex, band) {
+                Err(e @ (E::StaleVertex { .. } | E::UnrecordedSide { .. })) => Err(e.to_string()),
+                answer => Ok(answer.is_ok()),
+            }
+        });
+    }
+    judge_read(capture, &mut census, "split_reduce", || {
+        Ok(crate::splitting::split_reduce(body, &plane, Tol::witness()).is_ok())
+    });
     census
 }
 
@@ -3734,8 +3782,13 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
             fuzz::replay()
         ),
     );
+    let premise_doors: Vec<String> = PREMISE_DOORS
+        .iter()
+        .map(|d| format!("{d}: {PREMISE}"))
+        .collect();
+    let premise_doors: Vec<&str> = premise_doors.iter().map(String::as_str).collect();
     census.require_each(
-        &[PREMISE, UNION_PREMISE],
+        &[&[PREMISE, UNION_PREMISE][..], &premise_doors].concat(),
         1,
         &format!(
             "no read met a tear, or the boolean answered a torn operand without naming its \
