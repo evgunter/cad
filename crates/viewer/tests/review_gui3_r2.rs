@@ -65,7 +65,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::DeclareVar {
             name: width_param(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.005)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.005)),
         },
         tol,
     );

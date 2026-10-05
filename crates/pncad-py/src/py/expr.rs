@@ -535,7 +535,11 @@ pub(crate) fn eval_err(
     };
 
     let (name, expected, found, count) = match err {
-        E::UnresolvedVar { var } => (text(&var_text(var)), none(), none(), none()),
+        // The defined variable read; its definition's own refusal is
+        // the sentence's.
+        E::UnresolvedVar { var } | E::DefinitionRefused { var, .. } => {
+            (text(&var_text(var)), none(), none(), none())
+        }
         E::VarKindMismatch { var, bound, read } => {
             (text(&var_text(var)), dim(*read), dim(*bound), none())
         }

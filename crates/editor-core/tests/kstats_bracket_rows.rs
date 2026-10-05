@@ -581,7 +581,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
         doc,
         DocEdit::DeclareVar {
             name: edge.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
     );
     let (doc, plane) = insert(doc, xy_frame());
@@ -658,7 +658,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
         doc,
         DocEdit::DeclareVar {
             name: divisor.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, 1.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 1.0)),
         },
     );
     let (doc, plane) = insert(doc, xy_frame());

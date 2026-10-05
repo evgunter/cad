@@ -6953,3 +6953,132 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Their files are disjoint. Both briefs carry the at-rest/mid-op rule and the full battery requirement.
 - `torn-body-refusal-families-beyond-the-six-doors` goes back to `open`: no lane holds its residue since PR 4048 merged.
 - Nothing new on PR 3970.
+
+## 10:30 check-in (2026-10-05)
+
+- PR 4054 (sync) merged at `589daf99`.
+- **PR 4053 review: fix first.** The re-make is sound: the labelling matches, the shell order holds, and no input the reviewer built broke it. But the PR's one new skip condition is untested: mutations M4 (drop the ring-free filter) and M6 (never admit the skip) stay green.
+  - NITs: the `None` doc overstates; two policies in `may_skip_roundtrip_at` (Kev answers, Movefac panics); the `sense = true` assumption is unstated; "retains" reads as keeps.
+  - Style: seqgen now copies `movefac`'s labelling (a fourth consumer for the walks row); a stale fuzz sample.
+  - Fix lane `session_01RRXbYXC7cR1PXifta7fcwW` dispatched for all of it except Q7 (door threading: taste, declined). Reviewer (about $2.1) and implementer (about $3.4) archived.
+- **The contain lane opened PR 4055** (+254/-69, 11 files). It measured first: none of the routed arms is reachable on a gated operand, and the batteries move 0 lines.
+  - `esc` (mid-op) routes `Curved` → `Containment`, and the others → the new `PointInFaceRefused`.
+  - The extent scan (at rest) keeps `EmptyLoop` as an invariant, premised on tier 2.
+  - `Containment`'s `Display` loses "the solids do not cross", which was already false at two raisers.
+  - It conflicted with main on its own row's status line; I merged main in and kept `closed` (`700d0ed3`).
+  - Subscribed. Reviewer `session_01N4kLf3CaQuwaYs326CpQWW` dispatched (FULL). It checks the at-rest premise of the extent scan's inputs, and whether a ratified clause states the old `Display` meaning.
+- **Dispatched** `boundary-on-the-new-chart-has-two-homes-in-the-attach-doors` (P3, M; `attach.rs`; no overlap) → `session_01LKocsNRnizpgjZhDr8YckW`. `kef`/`kfmrh` are excluded (PR 3970's question). The lane stops and asks on a ratified clause or a real fork.
+- Torn-reads lane: no PR yet. Nothing new on PR 3970.
+
+## 10:55 (2026-10-05)
+
+- **PR 4053 merged** at `e63e549b` (head `8d3f2d76`). The review fixes:
+  - rows (a), ring on the first face (a different `f2`, Done), and (b), every face ringed (skip admitted, form unchanged), plus the c=3 not-last row; M1/M4/M6 are all red;
+  - the `None` doc matches the code;
+  - one policy in `may_skip_roundtrip_at` (Kev's);
+  - `GENERATOR_SENSE`, checked once in `kfmrh_then_plug`;
+  - the walks row lists seqgen's labelling as a fourth API need (`review_m1_pr4`'s vertex-glued walk is a different relation);
+  - the fuzz sample was re-taken.
+  - Fix lane archived (about $1.7).
+- **PR 4055:** CI lint failed at my merge head `700d0ed3`. `payload-rung-sweep.py --check` flagged the new `PointInFaceCause` as an undispositioned rung. That is the PR's own miss: the lane ran `scripts/gates/*.sh` but not this second step. I filed it under `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error` (the row that holds `BooleanError`'s rungs), with an evidence paragraph, and pushed `15c8ed5a`. The reviewer is still running.
+
+## 11:34 check-in (2026-10-05)
+
+- **PR 4055 review: merge, no BLOCKING.**
+  - The measurement is confirmed by tracing every `Err` path. `Curved` carries only `CorruptFace` or `Loop(CorruptLoop)`.
+  - The premises hold: `esc` keeps only `StaleFace` (a key-liveness premise); the extent scan reads only gated operands or rigid re-charts.
+  - No ratified text states the old `Display`. Batteries: 15 shards + 47 tests, 0 moved, 0 panics.
+  - MINORs:
+    - the operand fix has no witness (M4/M5 green on the whole ci profile);
+    - `Containment(CorruptFace)` now tells a user their face is broken for a kernel arena miss;
+    - an open REACH row's symptom text no longer reproduces.
+  - Style (sure): "a loop could not be walked" comes out of `esc` as two variants by chart, and `PointInFaceCause` re-spells `ContainError`.
+  - Folded in before merge via fix lane `session_0139BWEAKtKxCKt4Ucv5M6yn`:
+    - one variant carrying `ContainError` whole (the census precedent), unless the lane shows why not;
+    - an operand witness;
+    - row evidence;
+    - the word-budget guard;
+    - the `RayExhausted` text check;
+    - the `Containment` doc stating a meaning instead of listing raisers.
+  - Reviewer (about $4.1) and implementer (about $8.8) archived.
+- **The torn-reads lane opened PR 4056** (+516/-114, 8 files).
+  - `rest.rs`, `classify.rs` and `chord_join.rs` `null_site` are converted, plus sweep hits in the same files. Mid-op panics rest on link resolution (operators leave written links resolving); caller keys stay typed. `null_site` → `Result<_, VertexKey>`.
+  - 5 witnesses, each red under a mutation. Batteries: all 84 shards + 47 tests, 0 moved.
+  - Filed `torn-hops-read-as-absent-across-the-boolean` (about 45 hits) and `torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`.
+  - Subscribed. Reviewer `session_012s3TpxmuWke9NCG4HawBji` dispatched (FULL): it attacks the link-resolution premise at each mid-op site, `has_edge`'s new desync, and `site_of`'s `ClassificationInvariant`. Implementer archived (about $9.0).
+- PR 4057 (`[ev]` pinch at rest) is JOIN's, not ours. Nothing new on PR 3970. Moved-boundary lane: no PR yet.
+
+## 12:37 check-in (2026-10-05)
+
+- PR 4058 (sync) merged at `6d737709`.
+- **PR 4055:** the fix lane pushed `e7a0adc4` (CI green), but there is no "fixes pushed" comment yet. Waiting.
+- **PR 4056 review: merge, no BLOCKING.**
+  - The link-resolution premise held at every mid-op site: orphan-only removals; `split_edge` keeps its key; per-op-postcondition passes over topo+sweep.
+  - Batteries: 12 shards + 47 tests, zero diff.
+  - MINORs:
+    - `realize_seam`'s premise misses `undo_struts`: a nested strut's segment end can be dead, so a former `Ok(None)` becomes `JoinDesync` (a pre-existing defect);
+    - O1–O4 mutations are green (`interior_edges`, `edge_clears`, `gate_face_reach`, `null_site` orbit);
+    - `review_d18`'s read sweep was not extended.
+  - Style:
+    - one "site vertex no longer resolves" fact is raised as two error kinds;
+    - `null_site` re-walks `edges_of_vertex_linked`;
+    - the premise is restated six times.
+  - As with PRs 4052/4053, the green mutations are folded in before merge: fix lane `session_017AAeHCUDuoFUsqY5BvR5MT`, covering everything plus a row for the `undo_struts` end remap. Reviewer (about $5.1) archived.
+- **The moved-boundary lane opened PR 4060** (+641/-343, 11 files).
+  - `Body::unvouched` is the one home: keys, then plane residuals where a band is held.
+  - Decisions: curved moves no key vouches are refused by both doors; lone vertices and scaffolds are asked by neither; the placeholder plug is refused.
+  - `description_surfaces` is folded into `Named::keys`. Batteries: 84 shards + 47 tests, 0 moved.
+  - Ten fixtures now lift `RechartUnvouched` (a curved move onto a copy of its own surface has no recourse). Filed `a-listed-spec-cannot-name-a-fresh-chart-a-neighbour-keeps-the-old-key-of`, whose first option, "an equal payload vouches", is a design choice the lane left alone. No question for Ev.
+  - Subscribed. Reviewer `session_016iMYYHNDx5q1U7i2GuvkaF` dispatched (FULL): no production regression across all crates; whether "the describing door certifies later" always happens before rest; the fold's key sets. Implementer archived (about $7.8).
+- Nothing new on PR 3970. PR 4061 is JOIN's.
+
+## 13:40 check-in (2026-10-05)
+
+- **PR 4055 merged** at `843b1e2b` (head `e7a0adc4`). The fixes:
+  - one variant, `PointInFaceRefused { operand, face, refusal: ContainError }`, carrying the face door's refusal whole; `PointInFaceCause` and its rung row retired, since `ContainError` is an error type and not a rung;
+  - operand witnesses at `vertex_on_face` and the extent scan, red under M4/M5. The four reduction-only callers are disclosed as unreachable by fixture, and the hone row says "witnessed at two";
+  - families and REACH evidence;
+  - the word budget;
+  - the `RayExhausted` text corrected at both doors (the point is off the boundary; every ray grazed);
+  - the `Containment` doc states a meaning.
+  - Batteries: 13 shards + 47 tests, 0 moved. Fix lane archived (about $4.4).
+- **PR 4060** conflicted with main on its own row's status line; I merged main in keeping `closed` (`6d963a69`, `cargo check` ok). The reviewer is still running.
+- PR 4056: fix lane pushed `1401b17e`, CI running, no "fixes pushed" comment yet.
+- **Dispatched** `the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op` (P3, M; `pcurves.rs`/`plan_site_rows`) → `session_01BMu89ppKGExnAuicB4891Y`. A cached window or winding must equal the re-read at every consult, with an assert guard and a mutation; the lane stops on a ratified-clause touch.
+- Nothing new on PR 3970.
+
+## 14:44 check-in (2026-10-05)
+
+- **PR 4056 merged** at `72b4c9cf` (head `1401b17e`). The fixes:
+  - O1–O4 witnesses are red;
+  - `review_d18` drives `face_carrier`/`carrier_pair_*` (READ_DOORS 14 → 17; `flush_pair_relation` waits on `reduce.rs` `face_plane`);
+  - `realize_seam`'s premise names `undo_struts`, with row `segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo` filed and a two-span witness;
+  - one `StaleSite` → `ClassificationInvariant` for the site-vertex fact;
+  - `null_site` calls `edges_of_vertex_linked`;
+  - `mint_chord`'s face reads agree;
+  - the payload was dropped (naming the vertex would need a new public variant);
+  - `live::OPERATORS_KEEP_LINKS` is the one home for the mid-op premise.
+  - Batteries: 84 shards + 48 tests, 0 moved. Fix lane archived (about $6.1).
+- **PR 4063 (site-mint delta) stopped at the design question, as briefed.**
+  - Any delta design keeps state across operators on `Body` (D1's plain value): (A) a persistent summary; (B) a scope-only summary. (C) keeps the re-read.
+  - The window enters verdicts and cannot shrink by delta.
+  - Callgrind: about 53% of instructions are the per-door tier-1 sweep, so a producer outside a scope stays quadratic anyway.
+  - The PR ships only an `#[ignore]`d harness and analysis, and files `split-edge-re-reads-the-faces-window-on-every-split`.
+  - **Adjudicated (C) for now.** No producer grows one face by many operators, so the cost reaches no user. The A/B fork goes to the designers when such a producer is built or planned. I wrote this on the row (pushed `3a5e2c72`) and will merge once CI is green. Lane archived (about $4.1).
+- **Dispatched** `torn-hops-read-as-absent-across-the-boolean` (P3, M) → `session_01MW56vvW7ikU3yEER8eFc6m`. Declared-pair and coincidence sites are skipped under the HOLD and listed; the lane may split by file group.
+- PR 4060: reviewer still running. Nothing new on PR 3970.
+
+## 15:48 check-in (2026-10-05)
+
+- PR 4063 merged at `0c0d7ff4` (harness + the (C) adjudication).
+- **PR 4060 review: merge, no BLOCKING.**
+  - Whole workspace run green; probes of offsetting every curved group of 15 fixtures and of 57 step imports: 0 diffs base→head.
+  - Euler doors behaviour-identical; the fold's key sets are identical. All mutations red (8 run).
+  - MINOR-1: the "no production caller moves onto a curved chart" sentence is false. The offset doors do, and their restate arm can, in principle, now refuse a neighbour-chart spec it used to take. No fixture reaches it.
+  - MINOR-2: a dead arm with false text in `RechartDoor::stranded`.
+  - NITs: a misplaced doc; stale `description_surfaces` citations in perf docs.
+  - Style: the repoint-or-kept decision is made in three places, and the listed-repoint reading has one witness.
+  - Fix lane `session_01AndK9JVPUUMJpCgdzZrX3C`. Reviewer archived (about $4.0).
+- **Dispatched** `segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo` (P3, M; `rest.rs`) → `session_01KMJUBZvcozeoq7D8PdbVHd`. A nested-strut witness comes first; a panic only on a proven premise.
+- `kef-minting-clears-…` stays open: its "describing door for kills across keys" shape is PR 3970's question.
+- Torn-hops boolean lane: no PR yet. Nothing new on PR 3970.

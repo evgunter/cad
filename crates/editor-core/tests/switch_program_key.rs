@@ -172,7 +172,7 @@ fn resolved_values_feed_the_key() {
             .apply(
                 &DocEdit::DeclareVar {
                     name: VarName::from_static("r"),
-                    def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+                    def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -226,7 +226,7 @@ fn a_carrier_centre_respelled_keys_identically() {
         .apply(
             &DocEdit::DeclareVar {
                 name: VarName::from_static("cx"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -292,7 +292,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
     .apply(
         &DocEdit::DeclareVar {
             name: VarName::from_static("r"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

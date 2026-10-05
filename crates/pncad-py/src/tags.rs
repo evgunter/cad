@@ -593,6 +593,12 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::AnonymousVarUnread { .. } => "anonymous_var_unread",
         EditError::DeleteAnonymousVar { .. } => "delete_anonymous_var",
         EditError::VarKindFixed { .. } => "var_kind_fixed",
+        EditError::NotAFreeVar { .. } => "not_a_free_var",
+        EditError::DefinitionCycle { .. } => "definition_cycle",
+        EditError::DefinitionTooLarge { .. } => "definition_too_large",
+        EditError::DefinitionUnknownVarName { .. } => "definition_unknown_var_name",
+        EditError::DefinitionUnresolvedVar { .. } => "definition_unresolved_var",
+        EditError::DefinitionVarKind { .. } => "definition_var_kind",
         EditError::VarValueKindMismatch { .. } => "var_value_kind_mismatch",
         EditError::VarCountHasNoUnit { .. } => "var_count_has_no_unit",
         EditError::VarCountHasNoDistribution { .. } => "var_count_has_no_distribution",
@@ -1293,6 +1299,12 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::AnonymousVarUnread { .. } => None,
         EditError::DeleteAnonymousVar { .. } => None,
         EditError::VarKindFixed { .. } => None,
+        EditError::NotAFreeVar { .. } => None,
+        EditError::DefinitionCycle { .. } => None,
+        EditError::DefinitionTooLarge { .. } => None,
+        EditError::DefinitionUnknownVarName { .. } => None,
+        EditError::DefinitionUnresolvedVar { .. } => None,
+        EditError::DefinitionVarKind { .. } => None,
         EditError::VarValueKindMismatch { .. } => None,
         EditError::VarCountHasNoUnit { .. } => None,
         EditError::VarCountHasNoDistribution { .. } => None,
@@ -1592,6 +1604,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
+        BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
@@ -1817,6 +1830,7 @@ pub fn seed_error_tag(err: &SeedError) -> &'static str {
     match err {
         SeedError::UnknownVar { .. } => "unknown_param",
         SeedError::CountVar { .. } => "count_param",
+        SeedError::SeedOnDefinedVar { .. } => "seed_on_defined_var",
         SeedError::TangentUnrepresentable { .. } => "tangent_unrepresentable",
     }
 }
@@ -1992,6 +2006,11 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
         SnapshotError::PayloadVarKind { .. } => "payload_var_kind",
         SnapshotError::AnonymousVarUnread { .. } => "anonymous_var_unread",
+        SnapshotError::NamedReaderInDefinition { .. } => "named_reader_in_definition",
+        SnapshotError::DefinitionReadsUnmintedVar { .. } => "definition_reads_unminted_var",
+        SnapshotError::DefinitionVarKind { .. } => "definition_var_kind",
+        SnapshotError::DefinitionCycle { .. } => "definition_cycle",
+        SnapshotError::DefinitionTooLarge { .. } => "definition_too_large",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // The product-root list's own invariant vocabulary, carried
         // through: a root fault is the same fact here as at the edit
@@ -2310,6 +2329,7 @@ pub fn eval_error_tag(err: &EvalError) -> &'static str {
     match err {
         EvalError::UnresolvedVar { .. } => "unresolved_var",
         EvalError::VarKindMismatch { .. } => "var_kind_mismatch",
+        EvalError::DefinitionRefused { .. } => "definition_refused",
         EvalError::UnloweredName { .. } => "unlowered_name",
         EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
         EvalError::ContinuousExprInCountEval { .. } => "continuous_expr_in_count_eval",

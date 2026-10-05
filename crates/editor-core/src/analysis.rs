@@ -606,6 +606,13 @@ pub enum SeedError {
         /// The structural variable.
         var: SpokenVar,
     },
+    /// The seed names a defined variable. Its derivative is the
+    /// pushforward of its inputs' (VR3), so it has no axis of its own:
+    /// seed a free variable it reads.
+    SeedOnDefinedVar {
+        /// The defined variable.
+        var: SpokenVar,
+    },
     /// The evaluation scalar carries no tangent channel — a seeded
     /// `f64` (or `Interval`) evaluation would be a sensitivity question
     /// with the seed silently dropped, so it refuses instead.
@@ -626,6 +633,12 @@ impl core::fmt::Display for SeedError {
                 f,
                 "the seed names {var}, a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis"
+            ),
+            Self::SeedOnDefinedVar { var } => write!(
+                f,
+                "the seed names {var}, a defined variable, whose derivative is its \
+                 inputs' pushforward rather than an axis of its own; seed a free variable \
+                 it reads"
             ),
             Self::TangentUnrepresentable { var } => write!(
                 f,
@@ -658,12 +671,15 @@ impl core::fmt::Display for SeedError {
 /// [`SeedError`], checked against the DOCUMENT first so an unknown or
 /// structural name refuses identically at every scalar, and the
 /// per-scalar capability refusal comes only after the name is real.
-pub fn seed_env<T: SeedScalar, P>(
+pub fn seed_env<T: SeedScalar + geom_core::predicate::Decide, P>(
     doc: &Doc<P>,
     mut env: crate::expr::VarEnv<T>,
     seed: VarId,
 ) -> Result<crate::expr::VarEnv<T>, SeedError> {
     let spoken = doc.spoken_var(seed);
+    if doc.var(seed).is_some_and(|v| v.def().defined().is_some()) {
+        return Err(SeedError::SeedOnDefinedVar { var: spoken });
+    }
     match doc.free(seed) {
         None => Err(SeedError::UnknownVar { var: spoken }),
         Some(FreeVar::Count { .. }) => Err(SeedError::CountVar { var: spoken }),
@@ -679,6 +695,9 @@ pub fn seed_env<T: SeedScalar, P>(
                 return Err(SeedError::UnknownVar { var: spoken });
             };
             *value = T::seed(*value).ok_or(SeedError::TangentUnrepresentable { var: spoken })?;
+            // The defined variables re-bind over the seeded input, so
+            // each carries its derivative: the pushforward.
+            doc.bind_definitions(&mut env);
             Ok(env)
         }
     }
@@ -790,8 +809,8 @@ impl core::fmt::Display for ParamBoxError {
         match self {
             Self::UnknownParam { param } => write!(
                 f,
-                "the parameter box names {param}, which is not a continuous variable of this \
-                 document"
+                "the parameter box names {param}, which is not a free continuous variable of \
+                 this document"
             ),
             Self::AxisUnrepresentable { param, lo, hi } => write!(
                 f,
@@ -1007,7 +1026,7 @@ impl ParamBox {
 /// [`ParamBoxError::UnknownParam`] when the box names a parameter the
 /// document does not have; [`ParamBoxError::AxisUnrepresentable`] when
 /// `T` cannot carry a widened axis.
-pub fn var_env_over<T: AxisScalar, P>(
+pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
     doc: &Doc<P>,
     box_: &ParamBox,
 ) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
@@ -1044,7 +1063,14 @@ pub fn var_env_over<T: AxisScalar, P>(
         };
         bindings.insert(id, v);
     }
-    Ok(crate::expr::VarEnv { bindings })
+    let mut env = crate::expr::VarEnv {
+        bindings,
+        refused: BTreeMap::new(),
+    };
+    // A defined variable is no axis: it binds its definition over the
+    // widened inputs, so it carries their enclosure.
+    doc.bind_definitions(&mut env);
+    Ok(env)
 }
 
 /// Why a mass could not be computed.

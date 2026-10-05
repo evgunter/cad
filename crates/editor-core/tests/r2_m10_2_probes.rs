@@ -1420,7 +1420,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         &d0,
         &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -1488,7 +1488,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &d0,
         &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),

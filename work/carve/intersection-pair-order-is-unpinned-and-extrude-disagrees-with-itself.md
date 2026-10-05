@@ -50,7 +50,8 @@ consumer accepts either arrangement:
 - `crates/topo/src/validate.rs`'s `DescriptionNotAdjacent` is
   `(s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)`;
 - `crates/topo/src/boolean/ops.rs`'s staleness test is the same shape;
-- `Body::description_surfaces` is consumed only by a `contains`, a
+- `Named::keys` (`attach.rs`, the reading orphan hygiene and the
+  validator take) is consumed only by an `any`, a
   refcount and a `for`.
 
 So neither builder violates a ratified rule, because there is no rule —

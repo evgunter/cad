@@ -93,6 +93,18 @@ impl Live {
 pub(crate) const NAMES_ONLY_LIVE: &str = "every public door keeps the body tier-1-valid, \
      and a tier-1-valid record names only live records";
 
+/// The premise a link that does not resolve breaks on a body
+/// mid-operation, where tier 1 is not yet asked: every link-miss panic
+/// names it beside [`NAMES_ONLY_LIVE`], and the reads that panic on a
+/// link mid-operation cite it rather than restate it. Every removal of
+/// a surface or a curve is orphan-only
+/// ([`Body::remove_surface_if_orphaned`],
+/// [`Body::remove_curve_if_orphaned`], and `splitting/finish.rs`'
+/// sweep, which collects the live ones from faces and curves first).
+pub(crate) const OPERATORS_KEEP_LINKS: &str = "mid-operation, every Euler operator leaves each \
+     link it writes resolving and each walk it writes closed, and removes a record only once no \
+     record names it";
+
 /// Where a key a plan phase resolves came from, and so what its miss
 /// is: [`Arg`]'s is the caller's typed refusal, so a lookup through it
 /// answers `Result`; [`Link`]'s is a kernel bug that panics, so a
@@ -218,7 +230,10 @@ pub(crate) fn dangling_link(
     link: &str,
     key: impl core::fmt::Display,
 ) -> ! {
-    unreachable!("{holder}'s {link} names {key}, which does not resolve: {NAMES_ONLY_LIVE}")
+    unreachable!(
+        "{holder}'s {link} names {key}, which does not resolve: {NAMES_ONLY_LIVE}; \
+         {OPERATORS_KEEP_LINKS}"
+    )
 }
 
 /// [`Link`]: `holder`'s field `link`.

@@ -58,7 +58,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("x"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: NOMINAL,
                 display_unit: UnitSym::canonical_for(Dimension::Length),

@@ -26,7 +26,7 @@ subdivision certifies.
 
 ## Measured
 
-`ellipse_roots::fuzz_rows`, the pinned seed (600 millimetre ellipses,
+`conic_quadric::ellipse_rows::fuzz_rows`, the pinned seed (600 millimetre ellipses,
 eccentricity to 25), at ε = 1e-6: 422 certified, 65 `Uncertain`, 113
 escalated. With the ladder's `τ` scaled at the semi-major axis instead
 of the semi-minor (a change that moves only the ladder): 500 certified,
@@ -35,10 +35,10 @@ against the true distance. At ε = 1e-9: 7 escalations against 0.
 
 ## The shape of a fix
 
-Retire the ladder from the three doors and give the subdivision the
+Retire the ladder from the doors and give the subdivision the
 escalation posture the first-harmonic door has: a piece called down to
 the band (a double root) decides the residual at its midpoint, `Zero`
 answering `Uncertain` and the band's gap escalating as the door's
 decision. Rows that pin a ladder escalation by predicate name
-(`circle_cylinder`'s in-band rim row among them) move to the
+(`conic_quadric::circle_wall_rows`' in-band rim row among them) move to the
 subdivision's rows.

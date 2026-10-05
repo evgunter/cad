@@ -776,5 +776,87 @@ the analysis branch.
 
 PR 4051's island `kef` landed as an interim step and is undone under
 the recommendation.
+## 2026-10-05 — PR 4050: a six-crossing vertex pair nests its pairing in B
+
+At six or more crossings, B's link pairs nested rather than adjacent.
+- `insert::b_runs` reads B's runs as intervals, each holding whole pairs,
+  and refuses only a pairing that crosses.
+- Nested runs are minted outer before inner, at the copy of their
+  innermost fan holder. The held chain (depth, fan holder, held directly
+  by a strut) is carried in the plan.
+- A nested plan at a shared vertex refuses `SharedVertexCrossings`.
+
+Measured, main vs head:
+- On every battery, the only lines that moved were `PairingMismatch` →
+  SOUND (e.g. r2's n ≥ 8 grid: 13 614, 0 `ClassificationInvariant`).
+- pierce, both reflex batteries and all 84 `rc_wide` shards are
+  byte-identical.
+- The reviewers found 1 187 near-tangent `PairingMismatch` → BAD, all
+  census-escalated with exact volume, so on the near-tangent P0, and
+  no definite refusal→BAD.
+
+**Review tier: DUAL, H / TRICKY (DR-84).** R1 APPROVE-WITH-FIXES 0/3/4,
+R2 0/5/2; tally 0.
+- Both found that a strut held by a strut held by a fan minted at the
+  original vertex (`ClassificationInvariant`). It is fixed and pinned by
+  an eight-crossing row.
+- The innermost holder is now pinned, and the matching model is
+  committed as a unit test to n = 10.
+- R1's pinch-operand "In end / Out end" refusal is pre-existing (149
+  non-nested runs on main) and is filed as
+  `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.
+
+The six-crossing row is closed.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4059: the shared-vertex In/Out refusal waits on the pinch ruling
+
+The lane dispatched to give a vertex pair one run rule stopped at its
+first step, because the row's candidate cause was false. In all 217
+refusals, the run the reconcile turns belongs to the plan with more than
+two survivors. That plan pairs from A's kept side, and the reconcile
+turns the one run that holds the other plan's cut. That splits its sides
+at the shared vertex.
+
+Re-pairing from the other start builds a different subset: 45 runs
+fixed, and 414 SOUND lines broken into the pinch crossing and the
+finish. The fix options are:
+1. re-pair the plan whole;
+2. one vertex per cone, so no vertex is shared;
+3. refuse typed at the plan.
+
+Option 2 is the final state in front of Ev on PR 4057. The row now
+records `blocked_on: [a-pinch-no-kept-face-can-cross-refuses]`.
+
+**Review tier: orchestrator read.** The PR is measurement only: an
+ignored battery and the row's `## Measured` section. The same lane
+carries the consolidation row
+(`a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times`),
+which must leave behaviour unchanged, as a separate PR.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4061: one position order and one run rule round a vertex
+
+`insert.rs` is refactored, with no behaviour change:
+- `walks_before(sectors, origin, …)` is now the one position order. `walk_order`, `precedes` and `held_cut` each name their origin.
+- `walk_run` is now the one run rule, read by both A and B.
+- `edge_bound_entry` serves both walks to a physical sector's edge bound.
+- `is_strut` replaces eight spellings.
+
+Main vs head, every battery is byte-identical: pierce, both reflex batteries, all 84 `rc_wide` shards, `pinch_runs_battery`, and the reviewer's `corner_pairs_battery`, now committed but ignored.
+
+**Review tier: single FULL.** The unit is a refactor whose batteries are byte-identical. The review came back APPROVE-WITH-FIXES, MAJOR 0, MINOR 1.
+- The MINOR: no committed row reached `held_cut`'s fan branch with a cut in an end entry, so a mutant there survived. That is now pinned by `a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry`.
+- All nine mutants go red.
+- The style items were taken. `holds_whole` stays apart: it reads ties as inside, where `held_cut` asks `tied_held`, and a comment now names the difference.
+
+**Filed from the review's notes:**
+- `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses` (P1). On one pose the oracle wants 5.09, while the kernel's 4.318 agrees with Monte Carlo's 4.329.
+- `a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts` (P0, parked on D10). Its 287 tier-3′ failures are all definite and all at exact edge-in-plane coincidences.
+- `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` (P3). It carries the fixed-origin ask, `b_runs`' interval and `vtxfac.rs`.
+
+The consolidation row is closed.
 
 Signed (JOIN orchestrator).

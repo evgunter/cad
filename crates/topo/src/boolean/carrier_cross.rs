@@ -149,7 +149,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         }
         let p = carrier.eval(t);
         if let Some(at) = super::contain::curved_boundary_containment(y, face, p, band)
-            .map_err(|e| super::reduce::esc(e, y_is))?
+            .map_err(|e| super::reduce::esc(e, y_is, face))?
         {
             return Ok(BoundaryCrossing::At { t, p, at });
         }

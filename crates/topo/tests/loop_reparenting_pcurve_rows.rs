@@ -433,7 +433,10 @@ fn on_a_key_of_its_own(
 ) -> Result<topo::SurfaceKey, topo::EulerOpError> {
     let charts = vec![topo::Rechart::new(surface, face, sense)];
     let specs = body.carried_redescriptions(&charts)?;
-    let keys = body.set_face_surfaces_describing(charts, &specs, tol())?;
+    // Lifts RechartUnvouched: the edge between the panels names the lower panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
+    let keys = body.lifting_rechart_refusals_for_tests(|body| {
+        body.set_face_surfaces_describing(charts, &specs, tol())
+    })?;
     Ok(keys[0])
 }
 
@@ -1923,8 +1926,11 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
 
         let charts = vec![topo::Rechart::shared(second, s.low, true)];
         let specs = s.body.carried_redescriptions(&charts).unwrap();
+        // Lifts RechartUnvouched: the edge between the panels names the upper panel's key, on a curved chart whose residuals no door reads; the rows across the chart change are the row.
         s.body
-            .set_face_surfaces_describing(charts, &specs, tol())
+            .lifting_rechart_refusals_for_tests(|b| {
+                b.set_face_surfaces_describing(charts, &specs, tol())
+            })
             .unwrap();
         assert_eq!(rows_of(&s.body, s.low), (0, 4), "stamped: {stamped}");
 
@@ -2341,12 +2347,15 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
     let mut failures = Vec::new();
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
+        // Lifts RechartUnvouched: on the deep copies `up`'s edges name the key it leaves, on a curved chart whose residuals no door reads; the demotion onto `low`'s key is the row's setup.
         s.body
-            .set_face_surfaces_describing(
-                vec![topo::Rechart::shared(keys[0], s.up, true)],
-                &[],
-                tol(),
-            )
+            .lifting_rechart_refusals_for_tests(|b| {
+                b.set_face_surfaces_describing(
+                    vec![topo::Rechart::shared(keys[0], s.up, true)],
+                    &[],
+                    tol(),
+                )
+            })
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
@@ -2362,12 +2371,15 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
         }
 
         let ArcSheet { mut s, keys } = arc_sheet(tied);
+        // Lifts RechartUnvouched: on the deep copies `up`'s edges name the key it leaves, on a curved chart whose residuals no door reads; the demotion onto `low`'s key is the row's setup.
         s.body
-            .set_face_surfaces_describing(
-                vec![topo::Rechart::shared(keys[0], s.up, true)],
-                &[],
-                tol(),
-            )
+            .lifting_rechart_refusals_for_tests(|b| {
+                b.set_face_surfaces_describing(
+                    vec![topo::Rechart::shared(keys[0], s.up, true)],
+                    &[],
+                    tol(),
+                )
+            })
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);

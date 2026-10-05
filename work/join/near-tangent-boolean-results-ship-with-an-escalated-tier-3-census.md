@@ -157,3 +157,22 @@ None is definite.
   margin ±3.54e-9. Main ships 42 identical bodies of this pose family.
   r2 also counts 21 such runs on `valley4` (roof ∪ roof), which only
   head builds.
+
+## More poses (PR 4050's dual review)
+
+PR 4050 builds six-crossing vertex pairs that refused `PairingMismatch`
+on main. Its review r2 bisected each change of the crossing count along
+ψ to a tangency and posed either side of it, at ±1e-3, ±1e-5, ±1e-7
+and ±1e-9 rad (57 048 runs).
+- 1 187 runs at ±1e-7 and ±1e-9 go `PairingMismatch` → BAD.
+- They span notch343, mirrored notch343, notch300, notch5, reflex315
+  and a 359° wedge, on a cube's edge and corner.
+- Every one fails tier 3′ only, with `CensusEscalated` (`pm_census_*`,
+  margins about 1.4e-9, inside the band). The volume is exact, and t2,
+  the certificate and the legal-operand check pass. Checked without the
+  census, each body is right.
+- Main ships 2 such bodies in the same set.
+
+Repro: `mnotch343 corner i=13 j=3 k=72 d=+1e-7 ab U`, with
+`SX_SWEEP=near`, in `crates/sweep/tests/review_sixx_r2_probes.rs` on
+branch `join/six-crossing-pairing-review-r2`.

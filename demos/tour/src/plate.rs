@@ -103,7 +103,7 @@ fn declare(
         doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static(n),
-            def: pncad::document::VarDef::Free(FreeVar::continuous_with(
+            def: pncad::document::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Length,
                 value,
                 distribution,

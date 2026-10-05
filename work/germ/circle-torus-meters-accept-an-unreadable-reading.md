@@ -15,8 +15,8 @@ posture.
 
 | site | on `Err` |
 |---|---|
-| `circle_sphere::circle_sphere_roots`, `bool_circle_sphere_noise` | refuses (`Uncertain`) — fixed in PR 3659 |
-| `circle_sphere::circle_sphere_roots`, `bool_circle_sphere_root_slack` | refuses — fixed in PR 3659 |
+| `conic_quadric::conic_quadric_roots` (a circle against a sphere), `bool_conic_quadric_first_noise` | refuses (`Uncertain`) — fixed in PR 3659 |
+| `conic_quadric::conic_quadric_roots` (a circle against a sphere), `bool_conic_quadric_first_root_slack` | refuses — fixed in PR 3659 |
 | `circle_torus::parallel_axes_roots`, `bool_circle_torus_root_slack` | refuses ("a NaN slack … is `Err` and refuses too") |
 | `circle_torus::half_angle_roots`, `rows.noise` | **accepts** (`Ok(Zero \| Negative) \| Err(_) => {}`) |
 | `circle_torus::half_angle_roots`, `rows.root_slack` | **accepts** |
@@ -38,7 +38,7 @@ its measurement, alongside the 1e-12 crowding in
 
 ## Evidence (2026-10-01, TANG's circle × cylinder cell): what refusing costs, measured
 
-The circle × cylinder cell (`topo::boolean::circle_cylinder`) calls
+The circle × cylinder cell (`topo::boolean::conic_quadric`) calls
 `half_angle_roots` for a circle tilted to the wall, so this posture now
 covers a second surface. TANG tried the sphere door's posture in the
 shared door (`Ok(Zero | Negative) => {}`, `Ok(Positive) | Err(_) =>

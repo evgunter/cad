@@ -62,7 +62,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
         .apply(
             &DocEdit::DeclareVar {
                 name: p(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

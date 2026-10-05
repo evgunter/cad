@@ -207,7 +207,7 @@ REGISTER=(
   # a disposition it has not earned would be the register's own
   # failure mode — and because the duplication is the open question,
   # filed as work/walks/shell-glue-relation-has-three-implementations.md.
-  "crates/topo/src/seqgen.rs|shell_components||1|unaudited"
+  "crates/topo/src/seqgen.rs|shell_component_faces||1|unaudited"
   "crates/topo/src/shell.rs|duplicate_in_loop||1|unaudited"
   "crates/topo/src/shell.rs|loop_points||1|unaudited"
   "crates/topo/src/shell.rs|loop_rekeyed||1|unaudited"
