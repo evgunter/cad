@@ -286,8 +286,11 @@ fn on_a_key_of_its_own(
 ) -> topo::SurfaceKey {
     let charts = vec![Rechart::new(surface, face, true)];
     let specs = body.carried_redescriptions(&charts).unwrap();
+    // Lifts RechartUnvouched: the generators between sectors name the key the neighbours keep, on a curved chart whose residuals no door reads; the sectors on keys of their own are the row.
     let [key] = body
-        .set_face_surfaces_describing(charts, &specs, Tol::witness())
+        .lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(charts, &specs, Tol::witness())
+        })
         .unwrap()[..]
     else {
         panic!("one chart, one key")
