@@ -25,7 +25,13 @@ component* — is written out three times in `crates/topo/src`:
    not reachable from outside the validator.
 3. **`seqgen.rs`'s `shell_components`**, added by `S69` (PR 2014) so the
    `movefac` catalog row can offer the two-component shells and so
-   `fusion_remake_shell` can refuse a multi-component side.
+   `fusion_remake_shell` can refuse a multi-component side. Since PR
+   4053 the walk is `shell_component_faces` and copies `movefac`'s
+   LABELLING too, not only its count: `movefac_remake_sites` reads
+   which component stays in the shell and which moves to `movefac`'s
+   `k`-th minted shell from it, and `roundtrip`'s `Movefac` arm
+   asserts each site landed where the copy said, so a drift between
+   the two is loud there rather than silent.
 
 Three copies of one definition is the ordinary duplication complaint.
 The reason it is worth a row is the DIRECTION of the risk: (3) is test
