@@ -44,7 +44,14 @@ fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
             let lp = body.get_half_edge(*he).unwrap().parent_loop;
             mine.contains(&body.get_loop(lp).unwrap().face)
         })
-        .map(|(he, c)| format!("he {he:?} params {:?} pcurve {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "he {he:?} params {:?} pcurve {:?} joint {:?}",
+                c.params(),
+                c.pcurve(),
+                body.joint(he)
+            )
+        })
         .collect()
 }
 

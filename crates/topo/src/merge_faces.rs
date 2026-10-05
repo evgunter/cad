@@ -1366,6 +1366,7 @@ impl OpPlacement {
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
+            | E::KillTurnEscalated { .. }
             | E::PcurveSplit { .. }
             | E::PcurveMint { .. }
             | E::CrossSolid { .. }

@@ -145,7 +145,7 @@ pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, MAX_BRANCH_PERIODS,
     NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
     PcurveKind, SpiricImage, UncoveredClass, chart_pcurve, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, whole_periods,
+    chart_stretch_sup_v, whole_period_count, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

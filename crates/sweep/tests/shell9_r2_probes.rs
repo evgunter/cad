@@ -231,7 +231,14 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
     let good_rows: Vec<String> = good
         .body
         .pcurves()
-        .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "{he:?} {:?} {:?} {:?}",
+                c.params(),
+                c.pcurve(),
+                good.body.joint(he)
+            )
+        })
         .collect();
 
     let mut maimed = v.clone();
@@ -258,7 +265,14 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
     let rows: Vec<String> = s
         .body
         .pcurves()
-        .map(|(he, c)| format!("{he:?} {:?} {:?}", c.params(), c.pcurve()))
+        .map(|(he, c)| {
+            format!(
+                "{he:?} {:?} {:?} {:?}",
+                c.params(),
+                c.pcurve(),
+                s.body.joint(he)
+            )
+        })
         .collect();
     assert_eq!(
         rows, good_rows,
@@ -266,22 +280,33 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
     );
 }
 
-/// **Claim 7, sharper — a WRONG row, not a missing one.** One face's
-/// certified row attached to another face's half-edge: the operand is
-/// tier-3 invalid with a stale row, exactly the defect the pcurve pass
-/// exists to catch. What does the verb do?
+/// **Claim 7, sharper — a WRONG row, not a missing one.** One joint's
+/// element moved a whole period off the one its two images decide: the
+/// operand is tier-3 invalid with a stale row, exactly the defect the
+/// pcurve pass exists to catch. What does the verb do?
 #[test]
 fn r2_the_closing_mint_launders_a_stale_row() {
     let v = vessel(1.0, 2.0);
-    let rows: Vec<_> = v.pcurves().map(|(he, c)| (he, c.clone())).collect();
-    assert!(rows.len() >= 2, "the vessel carries rows");
+    let (he, element) = v
+        .joints()
+        .find_map(|(he, e)| match e {
+            topo::JointElement::Shift(deck) => Some((he, deck)),
+            topo::JointElement::Reset(_) => None,
+        })
+        .expect("the vessel carries rows");
     let mut maimed = v.clone();
-    maimed.attach_pcurve(rows[0].0, rows[1].1.clone());
+    maimed.attach_joint(
+        he,
+        topo::JointElement::Shift(topo::Deck {
+            u: element.u + 1,
+            ..element
+        }),
+    );
     let findings = pcurve_findings(&maimed);
     assert_eq!(
         findings.len(),
-        2,
-        "the wrong row breaks two loop walks: {findings:?}"
+        1,
+        "the wrong element breaks its joint: {findings:?}"
     );
     assert!(
         findings.iter().all(|f| f.contains("LoopDiscontinuity")),
