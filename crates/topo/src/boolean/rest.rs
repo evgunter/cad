@@ -44,10 +44,10 @@
 //!    (`kev`, reverse mint order) from clones of the annotated operands
 //!    — the sweep's edge splits and the pierce-ring vertices remain
 //!    (both are load-bearing: they make the seam vertex sets congruent
-//!    across the mate). The segments' end vertices are read before the
-//!    undo and are not remapped across it: a segment end is a strut's
-//!    `at_vertex`, and a nested strut's is its holder's copy, which the
-//!    undo kills, so such an end no longer resolves in step 4.
+//!    across the mate). A segment end is a strut's `at_vertex`, read
+//!    before the undo, and a nested strut's is its holder's copy, which
+//!    the undo kills: each end is read through the undo's fusions to
+//!    the vertex they leave standing.
 //! 4. **Seam realization** (splitting machinery reused): per segment
 //!    and per solid, a segment whose cell is an edge already IS that
 //!    edge (reused as the seam, minted nowhere), and one whose cell is
@@ -94,7 +94,7 @@ use super::ops::{
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
-use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
+use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, survivor_checked, zip_seam};
 use super::{
     BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp, BooleanReduction,
     BooleanResult, BooleanResultKind, Locus, Operand, OperandKeys,
@@ -114,8 +114,9 @@ use geom_core::Tol;
 /// the lane carries across its own surgery that no longer resolves, or
 /// bookkeeping that disagrees with the body. The lane kills edges,
 /// vertices and faces mid-operation, so no premise proves those keys
-/// live, and they answer typed. A hop past a record the lane just
-/// resolved is a link, and its miss panics ([`loop_boundary`]).
+/// live, and they answer typed. Two exceptions panic: a hop past a
+/// record the lane just resolved is a link ([`loop_boundary`]), and a
+/// segment end has a premise ([`SEGMENT_ENDS_SURVIVE`]).
 fn desync(what: &'static str) -> BooleanError {
     BooleanError::JoinDesync { what }
 }
@@ -144,9 +145,9 @@ fn unsupported(what: RestZipFrontier) -> BooleanError {
 }
 
 /// One seam segment: the two end sites, as vertex keys per operand
-/// (the pre-insertion site vertices — they survive the scaffolding
-/// undo), and the cell it lies in on each operand: an edge the segment
-/// already is, or the face it crosses.
+/// (each the vertex its site's strut copies fuse into across the
+/// scaffolding undo), and the cell it lies in on each operand: an edge
+/// the segment already is, or the face it crosses.
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     a_u: VertexKey,
@@ -204,28 +205,29 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // the mating plane) has a v-v record but no crossing at its site,
     // so no null pair and no segment names it — and the glue still
     // fuses it when the interior curve network zips. Never geometric
-    // point matching.
+    // point matching. The patches pair and glue one-to-one, so a
+    // vertex meeting two of the other solid's, which lie at its one
+    // point (a pinch apex), refuses here in either order, before any
+    // chord is minted.
     let mut vcorr: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
-    let mut correspond = |a: VertexKey, b: VertexKey| -> Option<()> {
-        match vcorr.get(a) {
-            Some(&prev) if prev != b => None, // mis-paired: not ours
-            _ => {
-                vcorr.insert(a, b);
-                Some(())
-            }
+    let mut a_of: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
+    let mut correspond = |a: VertexKey, b: VertexKey| -> Result<(), BooleanError> {
+        let other_b = vcorr.get(a).is_some_and(|&prev| prev != b);
+        let other_a = a_of.get(b).is_some_and(|&prev| prev != a);
+        if other_b || other_a {
+            return Err(unsupported(RestZipFrontier::PinchApex));
         }
+        vcorr.insert(a, b);
+        a_of.insert(b, a);
+        Ok(())
     };
     for s in &segments {
         for (a, b) in [(s.a_u, s.b_u), (s.a_v, s.b_v)] {
-            if correspond(a, b).is_none() {
-                return Ok(None);
-            }
+            correspond(a, b)?;
         }
     }
     for c in &red.contacts.vv {
-        if correspond(c.a, c.b).is_none() {
-            return Ok(None);
-        }
+        correspond(c.a, c.b)?;
     }
 
     // Pierce-ring vertices: ring vertex → host face, per operand.
@@ -289,8 +291,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let Some(b_patch) = patch_faces(&red.b, &b_seam, &b_rest)? else {
         return Ok(None);
     };
-    let b_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (a, b)).collect();
-    let a_of: SecondaryMap<VertexKey, VertexKey> = vcorr.iter().map(|(a, &b)| (b, a)).collect();
     let a_interior = interior_edges(&red.a, &a_patch, &a_seam)?;
     let b_interior = interior_edges(&red.b, &b_patch, &b_seam)?;
     let Some(a_patch) = mirror_edges(
@@ -310,7 +310,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut red.b,
         &red.a,
         &a_interior,
-        &b_of,
+        &vcorr,
         &b_patch,
         &b_rings,
         &mut b_fragments,
@@ -504,8 +504,9 @@ fn patch_discards<T: Decide>(
 /// The seam segments, read from the join's one enumeration
 /// ([`super::join::section_segments`]) while the germ records still
 /// stand; the null-edge scaffolding is then undone (step 3), so the
-/// segments' edges and host faces are the operands' own. `None`: the
-/// matching left germs loose, so the join's refusal stands.
+/// segments' edges and host faces are the operands' own, and each end
+/// is read through the undo's fusions. `None`: the matching left germs
+/// loose, so the join's refusal stands.
 fn read_segments<T: Decide + crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     band: Band,
@@ -526,22 +527,22 @@ fn read_segments<T: Decide + crate::props::AtRestPolicy>(
     for p in &red.null_pairs {
         sites.push((at(Operand::A, p.a_edge)?, at(Operand::B, p.b_edge)?));
     }
+    let fused = undo_struts(red, tol)?;
     let segments = matched
         .iter()
         .map(|m| {
             let [(u, _), (v, _)] = m.ends;
             let ((a_u, b_u), (a_v, b_v)) = (sites[u], sites[v]);
-            Segment {
-                a_u,
-                a_v,
-                b_u,
-                b_v,
+            Ok(Segment {
+                a_u: fused.end(Operand::A, a_u)?,
+                a_v: fused.end(Operand::A, a_v)?,
+                b_u: fused.end(Operand::B, b_u)?,
+                b_v: fused.end(Operand::B, b_v)?,
                 a_cell: m.germ.a_locus,
                 b_cell: m.germ.b_locus,
-            }
+            })
         })
-        .collect();
-    undo_struts(red, tol)?;
+        .collect::<Result<_, BooleanError>>()?;
     Ok(Some(segments))
 }
 
@@ -889,46 +890,91 @@ fn rest_surfaces<T: Decide>(
 // 3. Scaffolding undo.
 // ---------------------------------------------------------------
 
+/// Per operand, the fusions `(copy, site)` of [`undo_struts`]' kills,
+/// in kill order.
+#[derive(Default)]
+struct Fused {
+    a: Vec<(VertexKey, VertexKey)>,
+    b: Vec<(VertexKey, VertexKey)>,
+}
+
+impl Fused {
+    /// The vertex `w` of `operand` stands as once the undo is done
+    /// ([`survivor_checked`]): a nested strut's site is its holder's
+    /// copy, which fuses into the holder's own site.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] on a log that is not well-ordered,
+    /// in every build: it would fold `w` onto a dead key.
+    fn end(&self, operand: Operand, w: VertexKey) -> Result<VertexKey, BooleanError> {
+        survivor_checked(
+            match operand {
+                Operand::A => &self.a,
+                Operand::B => &self.b,
+            },
+            w,
+        )
+    }
+}
+
 /// Removes every classification-minted null-edge strut (the band
 /// `kev`, `kev_describing`, so a loop a strut's kill releases is minted
-/// whole; reverse mint order), fusing the site copies back into the
-/// original vertices. Sweep splits and pierce-ring vertices remain.
+/// whole; reverse mint order), fusing each copy into the strut's site
+/// vertex (`at_vertex`), and answers those fusions. Sweep splits and
+/// pierce-ring vertices remain.
 fn undo_struts<T: Decide + crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     tol: Tol,
-) -> Result<(), BooleanError> {
+) -> Result<Fused, BooleanError> {
+    let mut fused = Fused::default();
     for r in red.null_edges.iter().rev() {
-        let body = match r.operand {
-            Operand::A => &mut red.a,
-            Operand::B => &mut red.b,
+        let (body, fused) = match r.operand {
+            Operand::A => (&mut red.a, &mut fused.a),
+            Operand::B => (&mut red.b, &mut fused.b),
         };
-        let copy = if r.attr.below_end == r.at_vertex {
-            r.attr.above_end
-        } else if r.attr.above_end == r.at_vertex {
-            r.attr.below_end
-        } else {
-            return Err(desync("REST lane: strut without its site vertex as an end"));
-        };
+        let copy = r
+            .attr
+            .copy_at(r.at_vertex)
+            .ok_or_else(|| desync("REST lane: strut without its site vertex as an end"))?;
         let edge = body
             .get_edge(r.edge)
             .ok_or_else(|| desync("REST lane: strut edge no longer resolves"))?
             .clone();
-        let he = if body.half_edge_end(edge.he_plus) == Some(copy) {
-            edge.he_plus
+        let (he, field) = if body.half_edge_end(edge.he_plus) == Some(copy) {
+            (edge.he_plus, "he_plus")
         } else if body.half_edge_end(edge.he_minus) == Some(copy) {
-            edge.he_minus
+            (edge.he_minus, "he_minus")
         } else {
             return Err(desync("REST lane: strut halves do not reach the copy"));
         };
+        // `kev(he)` kills `he`'s end, the copy, and keeps its start.
+        let start = linked(
+            &body.half_edges,
+            he,
+            EntityId::HalfEdge,
+            EntityId::Edge(r.edge),
+            field,
+        );
+        if start.start != r.at_vertex {
+            return Err(desync("REST lane: strut does not join its site vertex"));
+        }
         body.kev_describing(he, &[], tol)
             .map_err(|_| desync("REST lane: strut undo kev refused"))?;
+        fused.push((copy, r.at_vertex));
     }
-    Ok(())
+    Ok(fused)
 }
 
 // ---------------------------------------------------------------
 // 4. Seam realization.
 // ---------------------------------------------------------------
+
+/// Why every segment end resolves where [`realize_seam`] looks it up
+/// ([`read_segments`], [`undo_struts`]; the chords are `mef`/`mekr`).
+const SEGMENT_ENDS_SURVIVE: &str = "each segment end is its strut site read through the strut \
+     undo's fusions, the undo checks every site live at its kill and logs every vertex it kills, \
+     and the lane kills none between the undo and the seam's chords, which kill none";
 
 /// One solid's realized seam.
 struct SeamSet {
@@ -965,14 +1011,10 @@ struct Span {
 /// `Ok(None)`: a segment does not resolve structurally — not this lane's
 /// frontier (pre-identification phase).
 ///
-/// A segment's ends are keys the lane carries, read before
-/// [`undo_struts`] and across its kills and the chords' `mef`/`mekr`
-/// here, so they are no links. `mef` and `mekr` kill no vertex, but the
-/// undo does: a segment end from a nested strut pair is the outer
-/// strut's copy (the inner record's `at_vertex`), which the undo fuses
-/// away, and no step remaps it to the vertex that survives. Every open
-/// segment's ends are read before each take, so such an end refuses as
-/// a desync before any segment is taken, rather than reading unjoined.
+/// # Panics
+///
+/// Where a segment's end does not resolve, before any segment is
+/// taken: [`SEGMENT_ENDS_SURVIVE`].
 fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     other: &Body<T>,
@@ -984,17 +1026,21 @@ fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
     let mut per_segment: Vec<Option<EdgeKey>> = vec![None; spans.len()];
     loop {
         let unjoined_end = |w: VertexKey| {
-            body.get_vertex(w)
-                .map(|d| usize::from(d.emanating.is_none()))
-                .ok_or_else(|| desync("REST lane: a segment's end no longer resolves"))
+            let end = body.get_vertex(w).unwrap_or_else(|| {
+                unreachable!(
+                    "REST lane: segment end {} does not resolve: {SEGMENT_ENDS_SURVIVE}",
+                    EntityId::Vertex(w)
+                )
+            });
+            usize::from(end.emanating.is_none())
         };
         let open = || (0..spans.len()).filter(|&i| per_segment[i].is_none());
-        let unjoined = open()
+        let unjoined: Vec<(usize, usize)> = open()
             .map(|i| {
                 let (u, v) = spans[i].ends;
-                Ok((i, unjoined_end(u)? + unjoined_end(v)?))
+                (i, unjoined_end(u) + unjoined_end(v))
             })
-            .collect::<Result<Vec<_>, BooleanError>>()?;
+            .collect();
         let taking = |n: usize| unjoined.iter().find(|&&(_, k)| k == n).map(|&(i, _)| i);
         let next = taking(1).or_else(|| taking(0));
         let Some(i) = next else {
@@ -2163,55 +2209,18 @@ mod tests {
         });
     }
 
-    /// **A segment's end the lane carried that no longer resolves
-    /// refuses as a desync**, rather than reading unjoined: read
-    /// unjoined, the segment is taken first and refuses at its edge as
-    /// not joining its ends, a different fault.
-    #[test]
-    fn a_segment_end_that_no_longer_resolves_refuses_as_a_desync() {
-        let prism = crate::fixtures::raw_prism(3, Tol::witness());
-        let mut body = prism.body;
-        let edge = prism.et[0];
-        let (u, _) = body.edge_vertices(edge).unwrap();
-        let data = body.get_vertex(u).unwrap().clone();
-        let stale = body.vertices.insert(data);
-        body.vertices.remove(stale);
-        let other = body.clone();
-        let spans = [Span {
-            ends: (stale, u),
-            cell: Locus::OnEdge(edge),
-            theirs: (u, u),
-            twin: None,
-        }];
-        let got = realize_seam(
-            &mut body,
-            &other,
-            &spans,
-            &SecondaryMap::new(),
-            &mut Vec::new(),
-            Tol::witness(),
-        );
-        let got = got.map(|seam| seam.map(|s| s.per_segment));
-        assert!(
-            matches!(
-                got,
-                Err(BooleanError::JoinDesync {
-                    what: "REST lane: a segment's end no longer resolves"
-                })
-            ),
-            "{got:?}"
-        );
-    }
-
-    /// **Every open segment's ends are read before any is taken.** The
+    /// **Every open segment's ends are read before any is taken, and an
+    /// end that does not resolve panics naming the undo's premise.** The
     /// first segment taken (both ends joined) lies in a face holding
     /// neither end, so alone it answers `Ok(None)`, the fallback to the
-    /// join's own refusal; beside it, a segment whose ends no longer
-    /// resolve, which would be taken after it, turns that answer into
-    /// the desync. A lane that read a stale end only once its segment
-    /// was taken, or read it unjoined, would answer `Ok(None)`.
+    /// join's own refusal; beside it, a segment whose ends do not
+    /// resolve, which would be taken after it, panics with the body
+    /// unchanged. A lane that read an end only once its segment was
+    /// taken would answer `Ok(None)`, and one that read a miss as
+    /// unjoined would refuse at the edge as not joining its ends.
     #[test]
-    fn a_stale_end_refuses_before_the_first_segment_is_taken() {
+    fn a_stale_end_panics_before_the_first_segment_is_taken() {
+        use crate::review_d18::assert_torn_op_panics;
         let prism = crate::fixtures::raw_prism(3, Tol::witness());
         let mut body = prism.body;
         let data = body.get_vertex(prism.u[0]).unwrap().clone();
@@ -2224,15 +2233,15 @@ mod tests {
             theirs: (prism.u[0], prism.u[1]),
             twin: None,
         };
-        let stale_ends = Span {
-            ends: (stale, stale),
+        let stale_ends = || Span {
+            ends: (stale, prism.u[0]),
             cell: Locus::OnEdge(prism.et[0]),
-            theirs: (stale, stale),
+            theirs: (stale, prism.u[0]),
             twin: None,
         };
-        let mut realize = |spans: Vec<Span>| {
+        let realize = |body: &mut Body<f64>, spans: Vec<Span>| {
             realize_seam(
-                &mut body,
+                body,
                 &other,
                 &spans,
                 &SecondaryMap::new(),
@@ -2241,20 +2250,265 @@ mod tests {
             )
             .map(|seam| seam.map(|s| s.per_segment))
         };
-        let alone = realize(vec![taken_first()]);
+        let alone = realize(&mut body, vec![taken_first()]);
         assert!(
             matches!(alone, Ok(None)),
             "the first segment alone: {alone:?}"
         );
-        let both = realize(vec![taken_first(), stale_ends]);
-        assert!(
-            matches!(
-                both,
-                Err(BooleanError::JoinDesync {
-                    what: "REST lane: a segment's end no longer resolves"
+        let named = format!("segment end {} does not resolve", EntityId::Vertex(stale));
+        for (label, spans) in [
+            ("a stale segment alone", vec![stale_ends()]),
+            ("beside a stale segment", vec![taken_first(), stale_ends()]),
+        ] {
+            assert_torn_op_panics(label, &mut body, &[&named, SEGMENT_ENDS_SURVIVE], |b| {
+                realize(b, spans)
+            });
+        }
+    }
+
+    /// The body of `red`'s `operand`.
+    fn body_of(red: &mut BooleanReduction<f64>, operand: Operand) -> &mut Body<f64> {
+        match operand {
+            Operand::A => &mut red.a,
+            Operand::B => &mut red.b,
+        }
+    }
+
+    /// The reduction of a prism whose corner rests on the apex of a
+    /// notched block holding a wedge in its notch (the two touching
+    /// along the apex line), the prism `nest` (A or B): in the prism's
+    /// corner the wedge pair's strut hangs at the tip of the notch
+    /// pair's. With the notch strut's record and the wedge strut's.
+    fn nested(
+        nest: Operand,
+        tol: Tol,
+    ) -> (
+        BooleanReduction<f64>,
+        crate::boolean::BoolNullEdgeRecord<f64>,
+        crate::boolean::BoolNullEdgeRecord<f64>,
+    ) {
+        use crate::test_support::{finished, flush_declarations, prism_z};
+        let at = |deg: f64, r: f64| (r * deg.to_radians().cos(), r * deg.to_radians().sin());
+        let mx = 1.5 / 60f64.to_radians().tan();
+        let piece = |what, profile: &[(f64, f64)], z: (f64, f64)| {
+            finished(what, prism_z::<f64>(profile, z.0, z.1, tol).body, tol)
+        };
+        let block = piece(
+            "the notched block",
+            &[
+                (-1.0, -1.0),
+                (1.0, -1.0),
+                (1.0, 1.5),
+                (mx, 1.5),
+                (0.0, 0.0),
+                (-mx, 1.5),
+                (-1.0, 1.5),
+            ],
+            (0.0, 1.0),
+        );
+        let wedge = piece(
+            "the wedge",
+            &[(0.0, 0.0), at(75.0, 1.6), at(105.0, 1.6)],
+            (0.0, 1.0),
+        );
+        let decls = flush_declarations(&block, &wedge, tol);
+        let Ok(BooleanResult::Body(pinch)) = crate::union_with(&block, &wedge, &decls, tol) else {
+            panic!("the wedge folds into the notch");
+        };
+        let top = piece(
+            "the prism",
+            &[(0.0, 0.0), (1.0, 1.4), (-1.0, 1.4)],
+            (1.0, 2.0),
+        );
+        let carried = pinch
+            .contacts
+            .vv
+            .iter()
+            .map(|&pair| crate::CarriedVv {
+                pair,
+                class: crate::contact::ContactClass::Rest,
+            })
+            .collect();
+        let pinch = pinch.body;
+        let (a, b) = match nest {
+            Operand::A => (&top, &pinch),
+            Operand::B => (&pinch, &top),
+        };
+        let mut decls = flush_declarations(a, b, tol);
+        match nest {
+            Operand::A => decls.carried_b.vv = carried,
+            Operand::B => decls.carried_a.vv = carried,
+        }
+        let red = crate::boolean_reduce_declared(BooleanOp::Union, a, b, &decls, tol).unwrap();
+
+        let copy =
+            |r: &crate::boolean::BoolNullEdgeRecord<f64>| r.attr.copy_at(r.at_vertex).unwrap();
+        let (outer, inner) = red
+            .null_edges
+            .iter()
+            .find_map(|o| {
+                let i = red
+                    .null_edges
+                    .iter()
+                    .find(|i| i.operand == o.operand && i.at_vertex == copy(o))?;
+                Some((*o, *i))
+            })
+            .expect("the prism's corner nests the wedge pair's strut in the notch pair's");
+        assert_eq!(outer.operand, nest, "the nest is the prism's");
+        (red, outer, inner)
+    }
+
+    /// [`nested`]'s reduction, a third strut hung by hand at the wedge
+    /// strut's tip, its record naming `site(c1, c2)` as its site; the
+    /// notch strut's site; and the three copies, outermost first.
+    fn hung_three_deep(
+        nest: Operand,
+        site: fn(VertexKey, VertexKey) -> VertexKey,
+        tol: Tol,
+    ) -> (BooleanReduction<f64>, VertexKey, [VertexKey; 3]) {
+        let (mut red, outer, inner) = nested(nest, tol);
+        let copy =
+            |r: &crate::boolean::BoolNullEdgeRecord<f64>| r.attr.copy_at(r.at_vertex).unwrap();
+        let (c1, c2) = (copy(&outer), copy(&inner));
+        let body = body_of(&mut red, nest);
+        let emanating = body.get_vertex(c2).unwrap().emanating.unwrap();
+        let hand = body
+            .mev_null(
+                crate::euler::MevSite::Fan {
+                    he1: emanating,
+                    he2: emanating,
+                },
+                crate::null::NewVertexSide::Above,
+            )
+            .unwrap();
+        let mut deeper = inner;
+        deeper.edge = hand.edge;
+        deeper.at_vertex = site(c1, c2);
+        deeper.attr = crate::null::NullEdge {
+            below_end: deeper.at_vertex,
+            above_end: hand.vertex,
+        };
+        red.null_edges.push(deeper);
+        (red, outer.at_vertex, [c1, c2, hand.vertex])
+    }
+
+    /// **Every strut site reads, through the undo's fusions, as a
+    /// vertex the undo left standing, to two hops, in either operand.**
+    /// [`nested`]'s reduction, with the prism as A and as B, and a third
+    /// strut hung by hand at the inner one's tip, as a deeper nest would
+    /// be. After the undo, which kills all three copies, each record's
+    /// site reads as a live vertex, and the hand strut's site, two
+    /// fusions deep, as the notch strut's own site. Red if a site is
+    /// read through one fusion only, or not at all, or if either
+    /// operand's kills go unlogged. A record naming a site its strut
+    /// does not start at is a desync, before any kill: the fusions
+    /// would log a site that is not the kill's survivor.
+    #[test]
+    fn every_strut_site_reads_through_the_undo_to_a_standing_vertex() {
+        let tol = Tol::witness();
+        for nest in [Operand::A, Operand::B] {
+            let (mut red, site, [c1, c2, c3]) = hung_three_deep(nest, |_, c2| c2, tol);
+            let fused = undo_struts(&mut red, tol).unwrap();
+            let body = body_of(&mut red, nest);
+            assert!(
+                [c1, c2, c3].iter().all(|&c| body.get_vertex(c).is_none()),
+                "{nest:?}: the undo kills the three copies"
+            );
+            for r in &red.null_edges {
+                let body = match r.operand {
+                    Operand::A => &red.a,
+                    Operand::B => &red.b,
+                };
+                let end = fused.end(r.operand, r.at_vertex).unwrap();
+                assert!(
+                    body.get_vertex(end).is_some(),
+                    "{nest:?}: {:?}'s site {:?} reads as {end:?}, which the undo killed",
+                    r.edge,
+                    r.at_vertex
+                );
+            }
+            assert_eq!(
+                (fused.end(nest, c1).unwrap(), fused.end(nest, c2).unwrap()),
+                (site, site),
+                "{nest:?}: one and two fusions deep, a nested site reads as the notch strut's site"
+            );
+
+            let (mut red, ..) = hung_three_deep(nest, |c1, _| c1, tol);
+            let before = body_of(&mut red, nest).vertices.len();
+            let got = undo_struts(&mut red, tol).map(|_| ());
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::JoinDesync {
+                        what: "REST lane: strut does not join its site vertex"
+                    })
+                ),
+                "{nest:?}: a misplaced site: {got:?}"
+            );
+            assert_eq!(
+                body_of(&mut red, nest).vertices.len(),
+                before,
+                "{nest:?}: a misplaced site kills nothing"
+            );
+        }
+    }
+
+    /// **The segments' ends are the vertices the undo leaves standing.**
+    /// [`nested`]'s reduction, the prism as A and as B: the wedge
+    /// strut's site is the notch strut's copy, and a segment ends there.
+    /// Every end [`read_segments`] answers is live, and the nested one
+    /// reads as the notch strut's site. Red if the ends are taken as
+    /// the raw sites. A fusion log that is not well-ordered refuses
+    /// typed in every build, where an unchecked fold would land on a
+    /// dead key.
+    #[test]
+    fn the_segment_ends_read_through_the_undo_to_standing_vertices() {
+        let tol = Tol::witness();
+        for nest in [Operand::A, Operand::B] {
+            let (mut red, outer, inner) = nested(nest, tol);
+            let copy = outer.attr.copy_at(outer.at_vertex).unwrap();
+            assert!(
+                red.null_pairs.iter().any(|p| match nest {
+                    Operand::A => p.a_edge == inner.edge,
+                    Operand::B => p.b_edge == inner.edge,
+                }),
+                "{nest:?}: the wedge strut is a pair's, so a segment ends at its site"
+            );
+            let segments = read_segments(&mut red, Band::linear(tol).unwrap(), tol)
+                .unwrap()
+                .unwrap();
+            let ends: Vec<(Operand, VertexKey)> = segments
+                .iter()
+                .flat_map(|s| {
+                    [
+                        (Operand::A, s.a_u),
+                        (Operand::A, s.a_v),
+                        (Operand::B, s.b_u),
+                        (Operand::B, s.b_v),
+                    ]
                 })
-            ),
-            "beside a stale segment: {both:?}"
+                .collect();
+            for &(operand, w) in &ends {
+                assert!(
+                    body_of(&mut red, operand).get_vertex(w).is_some(),
+                    "{nest:?}: segment end {w:?} of {operand:?} does not stand after the undo"
+                );
+            }
+            assert!(
+                ends.contains(&(nest, outer.at_vertex)) && !ends.contains(&(nest, copy)),
+                "{nest:?}: the nested end reads as the notch strut's site {:?}: {ends:?}",
+                outer.at_vertex
+            );
+        }
+
+        let unordered = Fused {
+            a: Vec::new(),
+            b: vec![(VertexKey::default(), VertexKey::default())],
+        };
+        let got = unordered.end(Operand::B, VertexKey::default());
+        assert!(
+            matches!(got, Err(BooleanError::JoinDesync { .. })),
+            "a fusion into itself: {got:?}"
         );
     }
 

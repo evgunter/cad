@@ -266,7 +266,7 @@ fn row4_metadata_edit_moves_pin() {
         path: vec![],
     };
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     let (annotated, _) = step(
         doc,
         DocEdit::SetAppearanceMeta {

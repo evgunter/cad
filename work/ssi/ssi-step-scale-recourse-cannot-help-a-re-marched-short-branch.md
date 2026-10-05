@@ -2,7 +2,10 @@
 id: ssi-step-scale-recourse-cannot-help-a-re-marched-short-branch
 kind: issue
 title: ssi: a re-marched short branch whose step collapses into the band ends with STEP_SCALE's 'name a feature extent near the feature' advice, which cannot lengthen its step
-status: open
+status: closed
+pr: 4034
+branch: ssi/neighbour-cap
+closed: 2026-10-04
 opened: 2026-10-01
 priority: P3
 cost: E
@@ -76,3 +79,26 @@ whose slab is itself in question (`ssi-r3-slab-is-not-geometry`).
 `STEP_SCALE`'s lever no longer names it: "bring the operands within the
 model's size range, and name a domain near the size of the feature
 traced". The question under *Open* stands.
+
+## Closed by PR 4034 (ssi/neighbour-cap, 2026-10-04)
+
+The ℝ³ short-branch re-march is retired: a trace with fewer samples
+than the cubic needs is halved to them (`fit_minimum`), and one too
+short to halve, half a gap falling in the band, refuses sized in its
+length (`ShortBranchUncertified`, no Hermite), whose ending names a
+domain holding more of the intersection. The only cap left on the ℝ³
+march is the domain's diagonal, which `STEP_SCALE`'s lever names.
+Re-measured on the same fixture (cube of side `L`, extent 0.2 m and
+`L`):
+
+| ε | L | extent 0.2 | extent L |
+|---|---|---|---|
+| 1e-6 | 30 µm | `ShortBranchUncertified`, half a gap 7.5e-6 in the band | `TubeLadderEmpty` |
+| 1e-6 | 300 nm, 3 nm, 3 pm | `StepCollapsed`, step `√3·L` (the diagonal) | escalates `TransversalityArm` |
+| 1e-9 | 30 nm | `ShortBranchUncertified`, 7.5e-9 | `TubeLadderEmpty` |
+| 1e-12 | 30 pm | `ShortBranchUncertified`, 7.5e-12 | `TubeLadderEmpty` |
+
+Every ending now names a lever that moves the step or the length: the
+domain for the diagonal's collapse and the sized refusal, the extent
+for the empty ladder. The open question, whether `StepCollapsed`
+should name the cap that set its step, has one cap left to name.
