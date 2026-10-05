@@ -44,3 +44,11 @@ face, whose ring then passes the point twice. So the island poses that
 "never reached" `Joint::Hole` do reach that shape now, by the other
 route. Witness: `join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds`.
 This row's question is unchanged for the weld direction.
+
+## Ruling (Ev, PR 4057, 2026-10-05)
+
+A pinch is one vertex per cone: several vertices on one point key, and
+no face crosses between cones. See
+`work/join/a-pinch-no-kept-face-can-cross-refuses.md`, "The shape to
+give". This row is settled by that unit.
+Under the ruling, no loop is split and re-roled by its winding. The welds retire, so the question dissolves. The row closes when the pinch unit lands.
