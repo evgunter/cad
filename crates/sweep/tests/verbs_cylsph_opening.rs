@@ -154,8 +154,8 @@ fn both_poses_take_the_same_door() {
 
 /// **The non-coaxial transversal pose crosses, passes the germ frame
 /// and reaches the join's lane.** The crossing that used to keep the
-/// pierce door is certified now by the circle × cylinder root lane
-/// (`topo::boolean::circle_cylinder`), its pierce's sector side
+/// pierce door is certified now by the conic × quadric root door
+/// (`topo::boolean::conic_quadric`), its pierce's sector side
 /// certifies, and the cylinder × sphere germ pair it mints has the
 /// transverse frame (one loop, `R < r + d`), so the matcher pairs it; no
 /// chord lane takes its quartic section
@@ -309,8 +309,8 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
 /// through the cylinder's end caps at `(0, 0, ±2)`), and that
 /// circle×torus crossing has a root lane (`topo::boolean::circle_torus`),
 /// as the OTHER direction's does — a circle of the torus against the
-/// cylinder's wall, the circle × cylinder lane
-/// (`topo::boolean::circle_cylinder`). Their pierces' sector sides
+/// cylinder's wall, the conic × quadric root door
+/// (`topo::boolean::conic_quadric`). Their pierces' sector sides
 /// certify, and what refuses is the cylinder × torus germ pair, which
 /// has no frame — never a body.
 ///

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The high-precision oracle for the ellipse x torus root lane.
 
-Reads the JSON lines `topo`'s `ellipse_roots::torus_rows::dump_for_the_mpmath_oracle`
+Reads the JSON lines `topo`'s `ellipse_torus::torus_rows::dump_for_the_mpmath_oracle`
 writes (one pose per line: the stored ellipse and torus, the arc, the band and
 the door's answer) and re-solves every pose at 40 significant digits from the
 STORED values, never from the kernel's arithmetic:

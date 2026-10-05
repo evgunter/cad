@@ -557,22 +557,22 @@ pub(crate) fn curved_face_placement<T: Decide>(
         return Ok(CurvedPlacement::Trim(Some(v)));
     }
     let face_data = proven(&body.faces, face, EntityId::Face);
-    if !face_data.rings.is_empty() {
+    let surface = body.face_surface_linked(face, face_data);
+    // The sphere's region reading takes rings in its stride; the chart
+    // trims below do not model them.
+    if !face_data.rings.is_empty() && !matches!(surface, geom::Surface::Sphere { .. }) {
         return Ok(CurvedPlacement::Trim(None));
     }
-    let (origin, axis, radius, u_ref) = match body.face_surface_linked(face, face_data) {
+    let (origin, axis, radius, u_ref) = match surface {
         &geom::Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
         } => (origin, axis, radius, u_ref),
-        &geom::Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => return sphere_face_containment(body, face, center, radius, axis, u_ref, q, band),
+        &geom::Surface::Sphere { center, radius, .. } => {
+            return sphere_face_containment(body, face, center, radius, q, band);
+        }
         &geom::Surface::Torus {
             center,
             axis,
@@ -695,36 +695,25 @@ pub(crate) fn curved_face_placement<T: Decide>(
     }
 }
 
-/// The SPHERE chart's arm of [`curved_face_containment`], reached after
-/// the shared boundary walk and the ring test.
+/// The SPHERE arm of [`curved_face_containment`], reached after the
+/// shared boundary walk.
 ///
-/// Same three steps as the cylinder arm, in the same order and for the
-/// same reasons: the CARRIER first (a face is a subset of its surface,
-/// so a point definitely off the sphere is definitely outside the
-/// face — and the trim below is parameter-domain work that premises an
-/// on-chart point), then the chart rectangle, then membership in it.
+/// The CARRIER first, as on every chart (a face is a subset of its
+/// surface, so a point definitely off the sphere is definitely outside
+/// the face), then the face's region, read from its boundary arcs by the
+/// one reading the ray lane takes too ([`super::sphere_region`]). A face
+/// closed on its own surface is handed to this door as a trimmed one and
+/// read the same way: every edge of it is a seam, so its region is the
+/// whole sphere.
 ///
-/// The class test and the rectangle are one call
-/// ([`super::solid_contain::sphere_chart_trim`]) rather than the
-/// cylinder's two: on a sphere the two questions are the same question.
-/// Whether every boundary edge is a rim or a meridian is exactly
-/// whether the `[azimuth] × [latitude]` window describes the face, and
-/// the invariant that keeps it exact — no pole strictly inside a
-/// meridian edge, where latitude stops being monotone — is checked
-/// while those edges are being classified. `None` is the honest
-/// remainder throughout.
-///
-/// A FULL-PERIOD azimuth window (a cap, or a latitude band) is served
-/// as the ray lane serves it: every azimuth is in the face, so the
-/// latitude window alone decides.
-#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
+/// `None` is the honest remainder: a boundary edge that is not a circle
+/// arc, a point on the region's boundary that the walk above did not
+/// place, or a reading no target's walk decides at this ε.
 fn sphere_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     center: Point3<T>,
     radius: T,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
@@ -737,20 +726,19 @@ fn sphere_face_containment<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
-    let trim = match super::solid_contain::sphere_chart_trim(body, face, center, radius, axis, band)
-    {
-        Ok(Some(t)) => t,
-        // A face the rectangle cannot express is the honest
-        // remainder, not corruption of the caller's query.
+    let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
+        Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    match super::solid_contain::point_on_sphere_in_face(
-        face, center, radius, axis, u_ref, &trim, q, band,
-    ) {
+    match region.contains(face, q, band) {
         Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
         Ok(None) => Ok(CurvedPlacement::Trim(None)),
+        Err(super::solid_contain::PointInSolidError::Escalated { diag, .. }) => {
+            Err(ContainError::Escalated(diag))
+        }
+        Err(e) if e.inconclusive() => Ok(CurvedPlacement::Trim(None)),
         Err(e) => Err(solid_err(e)),
     }
 }

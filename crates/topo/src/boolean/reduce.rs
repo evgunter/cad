@@ -1785,15 +1785,15 @@ pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
 /// chart door declines to express.
 ///
 /// **A CIRCLE against a SPHERE, a CYLINDER or a TORUS takes the same
-/// arms as a line.** Against a sphere its residual is a first harmonic
-/// with closed-form roots ([`super::circle_sphere`]); against a torus
-/// or a cylinder wall it is a degree-2 trigonometric polynomial, a
-/// quartic in the tangent half-angle ([`super::circle_torus`],
-/// [`super::circle_cylinder`]; a circle square to the wall's axis is a
-/// first harmonic again, and takes the square arm, the first-harmonic door).
-/// An ELLIPSE against a sphere or a cylinder wall is a degree-2
-/// trigonometric polynomial in its eccentric anomaly too, and against a
-/// torus one of degree four ([`super::ellipse_roots`]). Every such door's
+/// arms as a line.** A circle or an ellipse against a sphere or a
+/// cylinder wall has a degree-2 trigonometric polynomial for its
+/// residual, in its eccentric anomaly, which one door decides
+/// ([`super::conic_quadric`]): a first harmonic, with closed-form roots,
+/// wherever its second harmonic is in the zero band (a circle against a
+/// sphere, a circle square to a wall's axis), a quartic in the tangent
+/// half-angle otherwise. Against a torus a circle's residual is of
+/// degree two ([`super::circle_torus`]) and an ellipse's of degree four
+/// ([`super::ellipse_torus`]). Every such door's
 /// answer is the certified subdivision's, decided on the residual itself
 /// ([`super::circle_roots`]). A conic reaches those arms only from the
 /// conic rung, after the enclosures failed to clear the arc, and never
@@ -2137,9 +2137,8 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 // lanes.** An arc the enclosures could not clear against
                 // one of those kinds takes the same endpoint-sign arms as
                 // a line below, and the certified roots of
-                // [`super::circle_sphere`] / [`super::circle_cylinder`] /
-                // [`super::circle_torus`] decide every one of them
-                // through [`wall_crossing`].
+                // [`super::conic_quadric`] / [`super::circle_torus`]
+                // decide every one of them through [`wall_crossing`].
                 // Those arms never read convexity for a circle (the
                 // same-side pairs go to the roots, as a torus's do), so
                 // nothing they conclude rests on the carrier being
@@ -3107,29 +3106,20 @@ fn wall_crossing<T: Decide>(
                 Err(verdict) => return Ok(verdict),
             }
         }
-        // The circle root doors ([`super::circle_roots`]), one per kind,
-        // one answer shape. A circle against any other kind has no root
-        // lane here.
-        geom::Curve3::Circle { .. } => match surface {
-            geom::Surface::Sphere { .. } => {
-                super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)?
+        // The conic root doors ([`super::circle_roots`]), one answer
+        // shape: one door for a circle or an ellipse against a sphere or a
+        // wall, whose residual is of degree two
+        // ([`super::conic_quadric`]), and one per conic against a torus.
+        // A conic against any other kind has no root lane here.
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => match (carrier, surface) {
+            (_, geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. }) => {
+                super::conic_quadric::conic_quadric_roots(carrier, t0, t1, surface, band)?
             }
-            geom::Surface::Cylinder { .. } => {
-                super::circle_cylinder::circle_cylinder_roots(carrier, t0, t1, surface, band)?
-            }
-            geom::Surface::Torus { .. } => {
+            (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => {
                 super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
             }
-            _ => return Ok(SpanVerdict::Unsettled),
-        },
-        // The ellipse door ([`super::ellipse_roots`]): its residual is a
-        // trigonometric polynomial of degree two against a sphere or a
-        // wall and of degree four against a torus.
-        geom::Curve3::Ellipse { .. } => match surface {
-            geom::Surface::Sphere { .. }
-            | geom::Surface::Cylinder { .. }
-            | geom::Surface::Torus { .. } => {
-                super::ellipse_roots::ellipse_roots(carrier, t0, t1, surface, band)?
+            (_, geom::Surface::Torus { .. }) => {
+                super::ellipse_torus::ellipse_torus_roots(carrier, t0, t1, surface, band)?
             }
             _ => return Ok(SpanVerdict::Unsettled),
         },

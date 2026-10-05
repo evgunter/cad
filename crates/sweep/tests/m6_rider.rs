@@ -94,7 +94,7 @@ fn in_band_clearance_escalates_through_the_funnel() {
         BooleanError::Escalated { diag, .. } => {
             assert_eq!(
                 diag.predicate,
-                Some("bool_circle_sphere_extreme"),
+                Some("bool_conic_quadric_first_extreme"),
                 "the escalation names the roots' predicate: {diag:?}"
             );
         }

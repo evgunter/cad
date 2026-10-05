@@ -17,7 +17,7 @@ measured at that PR's head `f6f69915e4`.
 
 - **At ε 1e-12 the door's liveness is pinned by no row.** The crossing
   row `torus_crossings_match_the_true_distance`
-  (`crates/topo/src/boolean/ellipse_roots.rs`) asks for certificates
+  (`crates/topo/src/boolean/ellipse_torus.rs`) asks for certificates
   only where the band resolves them. At ε 1e-12 every one of its poses
   has `100·noise/slope` ≈ 4.6e-10 m, wider than the band, so it accepts
   `Uncertain` on every pose there. The verifier found that a door that
@@ -27,7 +27,7 @@ measured at that PR's head `f6f69915e4`.
   pose the 1e-12 band does resolve (a steeper crossing, or a smaller
   torus), with the row asking for its certificate.
 - **The fuzz pose builds ellipses with minor > major**
-  (`ellipse_roots.rs:1282`). The fuzz `pose` swaps the semi-axes half
+  (`ellipse_torus.rs`, `torus_rows::pose`). The fuzz `pose` swaps the semi-axes half
   the time and builds `Curve3::Ellipse` literals that
   `Curve3::ellipse` would reject as `AxesSwapped`. Reviewer r1 raised
   it as a style point and the fix pass left it. No lane claim covers
