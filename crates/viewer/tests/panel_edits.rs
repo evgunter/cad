@@ -1500,7 +1500,7 @@ fn a_rename_keeps_the_parameter_row_and_its_selection_and_is_one_undo_step() {
         &doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("mid"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );

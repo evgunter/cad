@@ -240,11 +240,11 @@ fn plate_spaced(
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, R0, radius)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, R0, radius)),
     });
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.1, depth)),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.1, depth)),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -308,7 +308,7 @@ fn square(nominal: f64, dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("a"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
     let a = || MeasureExpr::value(param("a", Dimension::Scalar));
     let m = r.insert(
@@ -331,7 +331,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("t"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, Some(dist))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(dist))),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -388,7 +388,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 1.0, Some(uniform(half)))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(uniform(half)))),
     });
     // One frame, named by every profile below: two sketches meant to
     // share a plane bind the same id.
@@ -1438,7 +1438,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("r"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
     });
     // One frame, named by the bore and the pin alike: they are drawn
     // on the same plane, so they bind the same id.
@@ -1563,7 +1563,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(Dimension::Length, 2.0, Some(uniform(half)))),
+        def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, Some(uniform(half)))),
     });
     // A frame per section height: the sections are drawn on DIFFERENT
     // planes, so they are different nodes.

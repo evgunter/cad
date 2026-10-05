@@ -136,7 +136,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
         .apply(
             &DocEdit::DeclareVar {
                 name: p(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, lift)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, lift)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -476,7 +476,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         .apply(
             &DocEdit::DeclareVar {
                 name: span(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -596,7 +596,7 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
         .apply(
             &DocEdit::DeclareVar {
                 name: span(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

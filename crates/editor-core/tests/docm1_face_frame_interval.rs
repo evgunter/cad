@@ -142,7 +142,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("lift"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -255,7 +255,7 @@ fn an_interval_extrude_of_a_widened_height() {
         let mut r = Recorder::new();
         r.push(DocEdit::DeclareVar {
             name: VarName::from_static("hh"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -323,7 +323,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("h"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 1.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),

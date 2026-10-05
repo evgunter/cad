@@ -207,7 +207,7 @@ pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<Pr
         &doc,
         DocEdit::DeclareVar {
             name: name.clone(),
-            def: pncad::document::VarDef::Free(value),
+            def: pncad::document::VarDecl::Free(value),
         },
         tol,
     )

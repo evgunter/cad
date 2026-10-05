@@ -1042,7 +1042,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
             &doc,
             &DocEdit::DeclareVar {
                 name: name.clone(),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1056,7 +1056,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 
         let edit = DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(value),
+            def: editor_core::VarDecl::Free(value),
         };
         match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
@@ -1099,7 +1099,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Count, 3.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Count, 3.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1116,7 +1116,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
         doc,
         DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 3.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 3.0)),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -1214,7 +1214,7 @@ fn saved_with_width() -> (ProfileDoc, String) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("width"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1275,7 +1275,7 @@ fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
     let (doc, _) = saved_with_width();
     let log = vec![DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0)),
     }];
     let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");

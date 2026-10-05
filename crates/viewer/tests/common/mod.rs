@@ -164,7 +164,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         &doc,
         DocEdit::DeclareVar {
             name: thickness_param(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.008)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );

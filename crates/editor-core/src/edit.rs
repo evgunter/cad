@@ -27,7 +27,7 @@ use crate::node::{
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::{Var, VarDef, VarId, VarKind, VarRef};
+use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -262,7 +262,7 @@ pub enum DocEdit<P> {
         /// The name, unique within the document.
         name: VarName,
         /// The definition; its kind is the variable's, for good.
-        def: VarDef,
+        def: VarDecl,
     },
     /// **Replace a variable's definition**, keeping its identity, its
     /// name and its kind (VR3: a new kind is a new variable).
@@ -275,7 +275,7 @@ pub enum DocEdit<P> {
         /// The variable.
         var: VarRef,
         /// The new definition.
-        def: VarDef,
+        def: VarDecl,
     },
     /// Write a NEW VALUE into a free variable, keeping its definition:
     /// its kind, its notation and its optional distribution ride
@@ -693,12 +693,13 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
                 .flat_map(crate::placement::Placement::rows_mut)
                 .map(|(_, e)| e)
                 .collect(),
+            Self::DeclareVar { def, .. } | Self::DefineVar { def, .. } => {
+                def.defined_mut().into_iter().collect()
+            }
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
             | Self::SetDeclare { .. }
             | Self::SetExtrudeSide { .. }
-            | Self::DeclareVar { .. }
-            | Self::DefineVar { .. }
             | Self::SetVarValue { .. }
             | Self::SetVarUnit { .. }
             | Self::SetVarDistribution { .. }
@@ -884,6 +885,13 @@ impl core::fmt::Display for CarryForwardDoor {
 /// a declare mints a new variable, which nothing addressed by the old
 /// id reads.
 pub const UNKNOWN_VAR_RECOURSE: &str = "pick a variable the document holds";
+
+/// **The most expression nodes a variable's expansion may hold**: a
+/// coincidence token writes a defined variable's definition expanded
+/// through every definition it reads, so a diamond of definitions would
+/// grow it exponentially without a bound. The doors that write a
+/// definition refuse past it ([`EditError::DefinitionTooLarge`]).
+pub const DEFINITION_NODE_BOUND: usize = 4096;
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
@@ -1314,6 +1322,63 @@ pub enum EditError {
         kind: VarKind,
         /// The kind the definition holds.
         offered: VarKind,
+    },
+    /// A carry-forward door ([`DocEdit::SetVarValue`],
+    /// [`DocEdit::SetVarUnit`], [`DocEdit::SetVarDistribution`]) named
+    /// a defined variable. A defined variable holds no value, notation
+    /// or distribution of its own: they are its inputs' (VR3).
+    NotAFreeVar {
+        /// The variable.
+        var: SpokenVar,
+        /// Which edit was refused.
+        door: CarryForwardDoor,
+    },
+    /// A definition ([`DocEdit::DeclareVar`], [`DocEdit::DefineVar`])
+    /// reads, directly or through other definitions, the variable it
+    /// defines (VR3).
+    DefinitionCycle {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The cycle, from `var` on: each variable's definition reads
+        /// the next, and the last one's reads `var`.
+        through: Vec<SpokenVar>,
+    },
+    /// A definition whose expansion through the definitions it reads
+    /// would exceed [`DEFINITION_NODE_BOUND`] expression nodes: a
+    /// coincidence token writes that expansion, so a diamond of
+    /// definitions would grow it exponentially.
+    DefinitionTooLarge {
+        /// The variable whose expansion is too large.
+        var: SpokenVar,
+        /// Its expansion's node count, saturating at one past the
+        /// bound.
+        nodes: usize,
+    },
+    /// A definition reads a name the document does not hold at the
+    /// kind it is read at.
+    DefinitionUnknownVarName {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The name read.
+        name: VarName,
+    },
+    /// A definition reads a variable this document does not hold.
+    DefinitionUnresolvedVar {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The variable read.
+        read: SpokenVar,
+    },
+    /// A definition reads a variable at a kind other than its own.
+    DefinitionVarKind {
+        /// The variable defined.
+        var: SpokenVar,
+        /// The variable read.
+        read: SpokenVar,
+        /// The read variable's dimension.
+        declared: Dimension,
+        /// The dimension the definition reads it at.
+        referenced: Dimension,
     },
     /// A notation edit ([`DocEdit::SetVarUnit`]) named a `Count`
     /// variable. A count is an exact integer, not a quantity: it names
@@ -2177,8 +2242,27 @@ impl EditError {
                 offered: _,
             }
             | Self::NonFiniteVar { var, field: _ }
-            | Self::InvalidDistribution { var, fault: _ } => {
+            | Self::InvalidDistribution { var, fault: _ }
+            | Self::NotAFreeVar { var, door: _ }
+            | Self::DefinitionTooLarge { var, nodes: _ }
+            | Self::DefinitionUnknownVarName { var, name: _ } => {
                 *var = var.respoken(doc);
+            }
+            Self::DefinitionUnresolvedVar { var, read }
+            | Self::DefinitionVarKind {
+                var,
+                read,
+                declared: _,
+                referenced: _,
+            } => {
+                *var = var.respoken(doc);
+                *read = read.respoken(doc);
+            }
+            Self::DefinitionCycle { var, through } => {
+                *var = var.respoken(doc);
+                for held in through.iter_mut() {
+                    *held = held.respoken(doc);
+                }
             }
             Self::WouldCycle { at } => {
                 *at = at.respoken(doc);
@@ -2632,6 +2716,75 @@ impl EditError {
                      act on"
                 )?;
                 tail.recourse(f, format_args!("{UNKNOWN_VAR_RECOURSE}"))
+            }
+            Self::NotAFreeVar { var, door } => {
+                write!(
+                    f,
+                    "{var} is defined by an expression, so {door} has no value, notation or \
+                     distribution of its own to write"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "edit a free variable its definition reads, or redefine {var} as a \
+                         free variable"
+                    ),
+                )
+            }
+            Self::DefinitionCycle { var, through } => {
+                write!(f, "the definition of {var} reads {var} back, through ")?;
+                for (i, held) in through.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(" → ")?;
+                    }
+                    write!(f, "{held}")?;
+                }
+                write!(f, " → {var}")?;
+                tail.recourse(
+                    f,
+                    format_args!("define {var} without reading any variable on that cycle"),
+                )
+            }
+            Self::DefinitionTooLarge { var, nodes } => {
+                write!(
+                    f,
+                    "{var} expands, through the definitions it reads, to {nodes} expression \
+                     nodes, past the bound of {DEFINITION_NODE_BOUND}"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "define {var} over fewer nested definitions, or make one of them free"
+                    ),
+                )
+            }
+            Self::DefinitionUnknownVarName { var, name } => {
+                write!(
+                    f,
+                    "no variable is named {name} (read by the definition of {var})"
+                )?;
+                tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
+            }
+            Self::DefinitionUnresolvedVar { var, read } => {
+                write!(
+                    f,
+                    "{read} is not a variable of this document (read by the definition of \
+                     {var})"
+                )?;
+                tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
+            }
+            Self::DefinitionVarKind {
+                var,
+                read,
+                declared,
+                referenced,
+            } => {
+                write!(
+                    f,
+                    "{read} is declared {declared} but the definition of {var} reads it as \
+                     {referenced}"
+                )?;
+                tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
             Self::VarNameTaken { name, holder } => {
                 write!(
@@ -3882,7 +4035,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// # Errors
     ///
     /// As [`Self::apply`]'s.
-    pub fn declare(&mut self, name: VarName, def: VarDef) -> Result<VarId, EditError> {
+    pub fn declare(&mut self, name: VarName, def: VarDecl) -> Result<VarId, EditError> {
         self.open()?;
         let edit = DocEdit::DeclareVar { name, def };
         let applied = apply(self.doc(), &edit, self.tol, self.reach).map_err(|e| self.end(e))?;
@@ -4047,7 +4200,11 @@ fn distribution_fault_error(var: &SpokenVar, fault: DistributionFault) -> EditEr
 /// definitions; only this door can name the structural/continuous
 /// divide as the reason.
 fn check_var_def(var: &SpokenVar, def: &VarDef) -> Result<(), EditError> {
-    let VarDef::Free(value) = def;
+    // A definition's floats are its expression's literals, finite by
+    // construction; what it reads is `check_definition`'s.
+    let VarDef::Free(value) = def else {
+        return Ok(());
+    };
     // Ruled door 1 (non-finite policy): recipe data never carries
     // NaN/inf — the nominal and the distribution offsets alike, by the
     // ONE predicate the load door's float walk asks
@@ -4105,6 +4262,7 @@ fn write_free<P>(
     check_var_def(var, &def)?;
     let structural = def.kind() == VarKind::Count;
     new.vars.insert(id, Var::new(def));
+    new.definition_order = crate::doc::DefinitionOrderMemo::default();
     Ok(EditRecord {
         minted: None,
         minted_var: None,
@@ -4112,17 +4270,16 @@ fn write_free<P>(
     })
 }
 
-/// The live variable an edit of a standing variable addresses, or that
-/// door's refusal.
+/// The live FREE variable an edit of a standing variable addresses, or
+/// that door's refusal: a variable the document does not hold, or a
+/// defined one, which holds no value, notation or distribution of its
+/// own.
 fn standing_var<P>(
     doc: &Doc<P>,
     var: &VarRef,
     door: CarryForwardDoor,
 ) -> Result<(VarId, SpokenVar, FreeVar), EditError> {
-    // `resolve_var` answers live ids only, and every definition this
-    // build holds is free (one arm, R1), so the one miss is a variable
-    // the document does not hold — which is what `UnknownVar` says.
-    let Some((id, VarDef::Free(free))) = doc
+    let Some((id, def)) = doc
         .resolve_var(var)
         .and_then(|id| Some((id, doc.var(id)?.def())))
     else {
@@ -4131,7 +4288,66 @@ fn standing_var<P>(
             door,
         });
     };
-    Ok((id, doc.spoken_var(id), free.clone()))
+    match def {
+        VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
+        VarDef::Defined(_) => Err(EditError::NotAFreeVar {
+            var: doc.spoken_var(id),
+            door,
+        }),
+    }
+}
+
+/// **The checks a written definition answers to**, against the
+/// document it was written into: every variable it reads is one the
+/// document holds, at its kind; it does not read itself back (VR3);
+/// and no variable's expansion outgrows [`DEFINITION_NODE_BOUND`].
+/// A free definition reads nothing and passes.
+fn check_definition<P>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
+    let Some(expr) = new.var(id).and_then(|v| v.def().defined()) else {
+        return Ok(());
+    };
+    let var = new.spoken_var(id);
+    if let Some(fault) = new.var_read_faults(expr).into_iter().next() {
+        return Err(match fault {
+            VarReadFault::Name { name } => EditError::DefinitionUnknownVarName { var, name },
+            VarReadFault::Unminted { var: read } | VarReadFault::Dead { var: read } => {
+                EditError::DefinitionUnresolvedVar {
+                    var,
+                    read: new.spoken_var(read),
+                }
+            }
+            VarReadFault::Kind {
+                var: read,
+                declared,
+                referenced,
+            } => EditError::DefinitionVarKind {
+                var,
+                read: new.spoken_var(read),
+                declared,
+                referenced,
+            },
+        });
+    }
+    if let Some(cycle) = new.definition_cycle(id) {
+        return Err(EditError::DefinitionCycle {
+            var,
+            through: cycle.into_iter().map(|v| new.spoken_var(v)).collect(),
+        });
+    }
+    // A redefinition grows every expansion that reads it, so every
+    // variable is asked, in the order definitions evaluate.
+    let sizes = new.expansion_nodes();
+    if let Some(&over) = new
+        .definition_order()
+        .iter()
+        .find(|v| sizes.get(v).is_some_and(|&n| n > DEFINITION_NODE_BOUND))
+    {
+        return Err(EditError::DefinitionTooLarge {
+            var: new.spoken_var(over),
+            nodes: sizes[&over],
+        });
+    }
+    Ok(())
 }
 
 /// Validate every slot of a node payload against slot dimensions and
@@ -4645,14 +4861,13 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // VR7, on EVERY arm: an anonymous variable is read by something, so
     // the edit that detached its last reader removes it. The mint log
     // keeps its id.
-    for var in new.unread_vars() {
-        if !new.var_names.contains_key(&var) {
-            new.vars.remove(&var);
-            new.var_order.retain(|&held| held != var);
-            reported.push(Maintenance::AnonymousVarRemoved {
-                var: doc.spoken_var(var),
-            });
-        }
+    for var in new.unread_anonymous_vars() {
+        new.vars.remove(&var);
+        new.definition_order = crate::doc::DefinitionOrderMemo::default();
+        new.var_order.retain(|&held| held != var);
+        reported.push(Maintenance::AnonymousVarRemoved {
+            var: doc.spoken_var(var),
+        });
     }
     // The D-2 backstop, on EVERY arm: the maintenance rules make the
     // invariant-violating states unreachable, and this is what says so
@@ -5129,19 +5344,22 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
+            let def = def.stored();
             // The definition is checked BEFORE anything is minted: a
             // definition fault outranks a collision, and a refused
             // declare speaks the id it would have minted.
             let would = new.mint.would_declare(def.kind());
-            check_var_def(&SpokenVar::new(would, Some(name.clone())), def)?;
+            check_var_def(&SpokenVar::new(would, Some(name.clone())), &def)?;
             let mut mint = new.mint.clone();
             let id = mint
                 .declare(def.kind())
                 .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
+            new.definition_order = crate::doc::DefinitionOrderMemo::default();
             new.var_names.insert(id, name.clone());
             new.var_order.push(id);
+            check_definition(new, id)?;
             EditRecord {
                 minted: None,
                 minted_var: Some(id),
@@ -5149,7 +5367,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::DefineVar { var, def } => {
-            let (id, spoken, _) = standing_var(doc, var, CarryForwardDoor::Definition)?;
+            let Some(id) = doc.resolve_var(var) else {
+                return Err(EditError::UnknownVar {
+                    var: var.clone(),
+                    door: CarryForwardDoor::Definition,
+                });
+            };
+            let spoken = doc.spoken_var(id);
+            let def = def.stored();
             let kind = doc.var(id).map_or(def.kind(), Var::kind);
             if def.kind() != kind {
                 return Err(EditError::VarKindFixed {
@@ -5158,8 +5383,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     offered: def.kind(),
                 });
             }
-            let VarDef::Free(value) = def;
-            write_free(new, id, &spoken, value.clone())?
+            match def {
+                VarDef::Free(value) => write_free(new, id, &spoken, value)?,
+                VarDef::Defined(_) => {
+                    check_var_def(&spoken, &def)?;
+                    new.vars.insert(id, Var::new(def));
+                    new.definition_order = crate::doc::DefinitionOrderMemo::default();
+                    check_definition(new, id)?;
+                    EditRecord {
+                        minted: None,
+                        minted_var: None,
+                        structural: kind == VarKind::Count,
+                    }
+                }
+            }
         }
         DocEdit::SetVarValue { var, value } => {
             let (id, spoken, declared) = standing_var(doc, var, CarryForwardDoor::Value)?;
@@ -5232,12 +5469,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     new.var_names.insert(id, name.clone());
                 }
                 None => {
-                    if doc.var_readers(id).is_empty() {
+                    new.var_names.remove(&id);
+                    if new.unread_anonymous_vars().contains(&id) {
                         return Err(EditError::AnonymousVarUnread {
                             var: doc.spoken_var(id),
                         });
                     }
-                    new.var_names.remove(&id);
                 }
             }
             // A reader holds the id: nothing evaluated moves.
@@ -5260,6 +5497,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             new.vars.remove(&id);
+            new.definition_order = crate::doc::DefinitionOrderMemo::default();
             new.var_names.remove(&id);
             new.var_order.retain(|&held| held != id);
             // The readers stay, unresolved: each now refuses at

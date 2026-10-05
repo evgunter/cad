@@ -1969,7 +1969,7 @@ impl DocSession {
     fn declare_var(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
         self.commit(DocEdit::DeclareVar {
             name,
-            def: pncad::document::VarDef::Free(value),
+            def: pncad::document::VarDecl::Free(value),
         })
     }
 

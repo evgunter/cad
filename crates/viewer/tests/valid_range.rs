@@ -558,7 +558,7 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         pncad::document::DocEdit::DeclareVar {
             name: common::thickness_param(),
-            def: pncad::document::VarDef::Free(pncad::document::FreeVar::written_length(
+            def: pncad::document::VarDecl::Free(pncad::document::FreeVar::written_length(
                 WrittenLength::in_unit(8.0, MM),
             )),
         },

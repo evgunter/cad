@@ -379,7 +379,7 @@ fn prism_part(
             &mut doc,
             &DocEdit::DeclareVar {
                 name: name.clone(),
-                def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+                def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
             },
             tol,
             &RefusingReach,
@@ -643,7 +643,7 @@ fn stand_doc(
         &mut doc,
         &DocEdit::DeclareVar {
             name: swing(),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
         tol,
         &RefusingReach,

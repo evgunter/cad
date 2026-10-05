@@ -89,7 +89,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static(HOLE_R),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.2,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -738,7 +738,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -798,7 +798,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),

@@ -109,6 +109,7 @@ use verbs::{FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 use crate::eval::KeyHasher;
 use crate::expr::{Dimension, Expr, ExprKind};
 use crate::ident::{DocRef, DocumentId};
+use crate::var::VarId;
 
 // The tag alphabet. Fixed arity per tag is what makes the prefix
 // encoding injective: a reader knows how many operands to expect from
@@ -187,7 +188,19 @@ fn dim_code(dim: Dimension) -> u8 {
     }
 }
 
-fn encode(expr: &Expr, out: &mut Vec<u8>) {
+/// **A document's definitions, as the encoding reads them**: the
+/// defining expression of a defined variable, `None` for a free one or
+/// one the table does not hold.
+pub(crate) type Definitions<'r, 'e> = &'r dyn Fn(VarId) -> Option<&'e Expr>;
+
+/// The definitions of `doc`'s variable table.
+pub(crate) fn definitions_of<'a, P>(
+    doc: &'a crate::doc::Doc<P>,
+) -> impl Fn(VarId) -> Option<&'a Expr> + 'a {
+    |var| doc.var(var).and_then(|v| v.def().defined())
+}
+
+fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     // EXHAUSTIVE over the AST vocabulary with no wildcard arm (D3): a
     // new expression node cannot reach the kernel as an unlabelled
     // token, it breaks this match first.
@@ -201,7 +214,11 @@ fn encode(expr: &Expr, out: &mut Vec<u8>) {
             out.push(T_COUNT_LITERAL);
             out.extend_from_slice(&n.to_be_bytes());
         }
-        // The variable's identity alone: its kind is fixed (VR3), so
+        // A defined variable is its definition, expanded (VR8): a
+        // reader of `h := 2·w` and a slot spelling `2·w` lower equal.
+        // The doors bound the expansion (`DEFINITION_NODE_BOUND`).
+        ExprKind::Var(var) if let Some(definition) = defs(*var) => encode(definition, defs, out),
+        // A free variable's identity alone: its kind is fixed (VR3), so
         // the reader's cached dimension says nothing the id does not,
         // and a name is not identity (VR8: a rename moves no token).
         ExprKind::Var(var) => {
@@ -212,30 +229,30 @@ fn encode(expr: &Expr, out: &mut Vec<u8>) {
             "the name {name} reached a coincidence token: the edit door lowers every name \
              leaf, and the load door refuses a snapshot holding one"
         ),
-        ExprKind::Add(a, b) => binary(T_ADD, a, b, out),
-        ExprKind::Sub(a, b) => binary(T_SUB, a, b, out),
-        ExprKind::Mul(a, b) => binary(T_MUL, a, b, out),
-        ExprKind::Div(a, b) => binary(T_DIV, a, b, out),
-        ExprKind::Atan2(a, b) => binary(T_ATAN2, a, b, out),
-        ExprKind::Min(a, b) => binary(T_MIN, a, b, out),
-        ExprKind::Max(a, b) => binary(T_MAX, a, b, out),
-        ExprKind::Neg(a) => unary(T_NEG, a, out),
-        ExprKind::Sin(a) => unary(T_SIN, a, out),
-        ExprKind::Cos(a) => unary(T_COS, a, out),
-        ExprKind::Tan(a) => unary(T_TAN, a, out),
-        ExprKind::CountToScalar(a) => unary(T_COUNT_TO_SCALAR, a, out),
+        ExprKind::Add(a, b) => binary(T_ADD, a, b, defs, out),
+        ExprKind::Sub(a, b) => binary(T_SUB, a, b, defs, out),
+        ExprKind::Mul(a, b) => binary(T_MUL, a, b, defs, out),
+        ExprKind::Div(a, b) => binary(T_DIV, a, b, defs, out),
+        ExprKind::Atan2(a, b) => binary(T_ATAN2, a, b, defs, out),
+        ExprKind::Min(a, b) => binary(T_MIN, a, b, defs, out),
+        ExprKind::Max(a, b) => binary(T_MAX, a, b, defs, out),
+        ExprKind::Neg(a) => unary(T_NEG, a, defs, out),
+        ExprKind::Sin(a) => unary(T_SIN, a, defs, out),
+        ExprKind::Cos(a) => unary(T_COS, a, defs, out),
+        ExprKind::Tan(a) => unary(T_TAN, a, defs, out),
+        ExprKind::CountToScalar(a) => unary(T_COUNT_TO_SCALAR, a, defs, out),
     }
 }
 
-fn binary(tag: u8, a: &Expr, b: &Expr, out: &mut Vec<u8>) {
+fn binary(tag: u8, a: &Expr, b: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     out.push(tag);
-    encode(a, out);
-    encode(b, out);
+    encode(a, defs, out);
+    encode(b, defs, out);
 }
 
-fn unary(tag: u8, a: &Expr, out: &mut Vec<u8>) {
+fn unary(tag: u8, a: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     out.push(tag);
-    encode(a, out);
+    encode(a, defs, out);
 }
 
 /// **The lowered identity of one slot expression under one table.**
@@ -245,10 +262,10 @@ fn unary(tag: u8, a: &Expr, out: &mut Vec<u8>) {
 /// offset by the same declared `t`" equal by construction (both are
 /// `r − t`) while `r` and `r − t` differ. Two documents' slots never
 /// do, whatever they spell: the scope prefix differs.
-pub(crate) fn lower(scope: ParamScope, expr: &Expr) -> ParamSource {
+pub(crate) fn lower(scope: ParamScope, defs: Definitions<'_, '_>, expr: &Expr) -> ParamSource {
     let mut bytes = Vec::new();
     scope.encode(&mut bytes);
-    encode(expr, &mut bytes);
+    encode(expr, defs, &mut bytes);
     ParamSource::from_lowered(&bytes)
 }
 
@@ -256,9 +273,9 @@ pub(crate) fn lower(scope: ParamScope, expr: &Expr) -> ParamSource {
 /// key.** Scope-free on purpose: the key is compared against a prior
 /// evaluation of the same document, so the table is a constant of the
 /// comparison and the expression is the input that can move.
-pub(crate) fn feed_content_key(h: &mut KeyHasher, expr: &Expr) {
+pub(crate) fn feed_content_key(h: &mut KeyHasher, defs: Definitions<'_, '_>, expr: &Expr) {
     let mut bytes = Vec::new();
-    encode(expr, &mut bytes);
+    encode(expr, defs, &mut bytes);
     h.write_bytes(&bytes);
 }
 
@@ -333,11 +350,12 @@ pub fn invert<P: crate::ProfilePayload>(
     token: &ParamSource,
 ) -> Option<crate::expr::ExprPath> {
     let scope = ParamScope::Root(doc.id());
+    let defs = definitions_of(doc);
     for &node in doc.order() {
         let Some(n) = doc.node(node) else { continue };
         for slot in n.slots() {
             let Some(expr) = n.expr(slot) else { continue };
-            if lower(scope, expr) == *token {
+            if lower(scope, &defs, expr) == *token {
                 return Some(crate::expr::ExprPath {
                     node,
                     slot,
@@ -559,6 +577,7 @@ pub(crate) fn attach_shell<T: Real>(
 pub(crate) fn profile_radius_tokens<T: Real>(
     profile: &crate::eval::ProfileValue<T>,
     scope: ParamScope,
+    defs: Definitions<'_, '_>,
 ) -> Vec<Vec<Option<ParamSource>>> {
     profile
         .edge_radii
@@ -566,7 +585,7 @@ pub(crate) fn profile_radius_tokens<T: Real>(
         .map(|loop_| {
             loop_
                 .iter()
-                .map(|expr| expr.as_ref().map(|e| lower(scope, e)))
+                .map(|expr| expr.as_ref().map(|e| lower(scope, defs, e)))
                 .collect()
         })
         .collect()
@@ -691,7 +710,11 @@ mod tests {
 
     use super::*;
     use crate::test_support::len;
-    use crate::var::VarId;
+
+    /// A table of free variables only: every reader lowers as its id.
+    fn free(_: VarId) -> Option<&'static Expr> {
+        None
+    }
 
     /// A reader of the length variable `id`.
     fn p(id: u64) -> Expr {
@@ -804,7 +827,7 @@ mod tests {
     fn parses_whole(scope: ParamScope, expr: &Expr) -> bool {
         let mut bytes = Vec::new();
         scope.encode(&mut bytes);
-        encode(expr, &mut bytes);
+        encode(expr, &free, &mut bytes);
         let after_scope = parse_node(&bytes, 0);
         after_scope.and_then(|at| parse_node(&bytes, at)) == Some(bytes.len())
     }
@@ -887,7 +910,7 @@ mod tests {
     #[test]
     fn token_equality_is_expression_equality() {
         let family = family();
-        let tokens: Vec<ParamSource> = family.iter().map(|e| lower(root(), e)).collect();
+        let tokens: Vec<ParamSource> = family.iter().map(|e| lower(root(), &free, e)).collect();
         for (i, x) in family.iter().enumerate() {
             for (j, y) in family.iter().enumerate().skip(i) {
                 assert_eq!(
@@ -907,7 +930,7 @@ mod tests {
         let a = Expr::literal_with_unit(0.125, Dimension::Length, mm).unwrap();
         let b = Expr::literal_with_unit(0.125, Dimension::Length, cm).unwrap();
         assert!(a.bit_eq(&b));
-        assert_eq!(lower(root(), &a), lower(root(), &b));
+        assert_eq!(lower(root(), &free, &a), lower(root(), &free, &b));
     }
 
     /// **Two scopes are two tokens for one expression**, and the part
@@ -920,22 +943,22 @@ mod tests {
         let pin2 = crate::ident::ContentPin::of_bytes(b"two");
         let r = p(1);
         assert_ne!(
-            lower(ParamScope::Root(a), &r),
-            lower(ParamScope::Root(b), &r)
+            lower(ParamScope::Root(a), &free, &r),
+            lower(ParamScope::Root(b), &free, &r)
         );
         assert_ne!(
-            lower(ParamScope::Root(a), &r),
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
+            lower(ParamScope::Root(a), &free, &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
             "a document opened standalone and the same document instantiated are two tables"
         );
         assert_ne!(
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
-            lower(ParamScope::Part(DocRef { id: a, pin: pin2 }), &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin2 }), &free, &r),
             "two pins of one document are two versions of one table"
         );
         assert_eq!(
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
         );
     }
 

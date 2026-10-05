@@ -63,7 +63,7 @@ fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -184,7 +184,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
         &doc,
         &DocEdit::DefineVar {
             var: name.clone().into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 1.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

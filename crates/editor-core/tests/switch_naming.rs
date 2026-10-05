@@ -36,7 +36,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         .apply(
             &DocEdit::DeclareVar {
                 name: VarName::from_static("x0"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, x0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, x0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

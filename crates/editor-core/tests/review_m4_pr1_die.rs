@@ -138,7 +138,7 @@ struct Authored {
 fn depth_param() -> TEdit {
     TEdit::DeclareVar {
         name: VarName::from_static("pip_depth"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
     }
 }
 

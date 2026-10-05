@@ -3897,7 +3897,7 @@ impl DocEdit {
         Self {
             inner: d::DocEdit::DeclareVar {
                 name: name.0.clone(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                def: pncad::document::VarDecl::Free(value.0.clone()),
             },
         }
     }
@@ -3920,7 +3920,7 @@ impl DocEdit {
         Self {
             inner: d::DocEdit::DefineVar {
                 var: var.var_ref(),
-                def: pncad::document::VarDef::Free(value.0.clone()),
+                def: pncad::document::VarDecl::Free(value.0.clone()),
             },
         }
     }

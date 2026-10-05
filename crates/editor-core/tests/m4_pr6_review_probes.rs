@@ -40,7 +40,7 @@ fn small() -> (ProfileDoc, String) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -275,7 +275,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("d"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.5)),
         },
     );
     // 2 InsertNode xN — the two quads sit at different x offsets, so

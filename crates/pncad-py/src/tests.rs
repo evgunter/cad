@@ -1879,7 +1879,7 @@ fn expression_evaluation_tags_are_stable() {
             &doc,
             &DocEdit::DeclareVar {
                 name: name.clone(),
-                def: pncad::document::VarDef::Free(param),
+                def: pncad::document::VarDecl::Free(param),
             },
             tol,
             &pncad::document::RefusingReach,

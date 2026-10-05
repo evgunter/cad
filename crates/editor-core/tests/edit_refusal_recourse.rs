@@ -48,7 +48,7 @@ fn a_count_refuses_a_unit_and_a_distribution_and_names_the_variable_that_gets_th
         &doc,
         DocEdit::DeclareVar {
             name: p("n"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 4 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
         },
     )
     .unwrap();
@@ -83,7 +83,7 @@ fn a_count_refuses_a_unit_and_a_distribution_and_names_the_variable_that_gets_th
         &doc,
         DocEdit::DeclareVar {
             name: p("w"),
-            def: editor_core::VarDef::Free(length(4.0)),
+            def: editor_core::VarDecl::Free(length(4.0)),
         },
     )
     .expect("the declare door mints a continuous variable beside the count");
@@ -118,7 +118,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         doc,
         DocEdit::DeclareVar {
             name: p("n"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
     );
     let (doc, _pattern) = insert(
@@ -136,7 +136,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         &doc,
         DocEdit::DefineVar {
             var: p("n").into(),
-            def: editor_core::VarDef::Free(length(4.0)),
+            def: editor_core::VarDecl::Free(length(4.0)),
         },
     )
     .expect_err("n is a count for good");
@@ -163,7 +163,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         &doc,
         DocEdit::DefineVar {
             var: p("n").into(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 5 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 5 }),
         },
     )
     .expect("a count definition lands on the count");
@@ -172,7 +172,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         &doc,
         DocEdit::DeclareVar {
             name: p("w"),
-            def: editor_core::VarDef::Free(length(4.0)),
+            def: editor_core::VarDecl::Free(length(4.0)),
         },
     )
     .expect("a length variable declares beside the count");
