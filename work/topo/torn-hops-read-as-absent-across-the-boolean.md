@@ -2,7 +2,7 @@
 id: torn-hops-read-as-absent-across-the-boolean
 kind: issue
 title: Record hops past a resolved face, half-edge or edge read a torn link as absent across boolean/
-status: dispatched
+status: open
 opened: 2026-10-05
 priority: P3
 cost: M
