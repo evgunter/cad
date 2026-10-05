@@ -6913,3 +6913,13 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - The reviewer re-ran `rc_wide` x84 plus 57 sweep `#[ignore]`d batteries: identical output.
   - Fix lane `session_01DdLA3weCnKkq4Toaap1nGK` dispatched. Reviewer (about $3.7) and implementer (about $18) archived.
   - Null-release lane: no PR yet. Nothing new on PR 3970.
+- 07:49 check-in.
+  - PR 4048: green on `56d33e9c`, but no "fixes pushed" comment yet from fix lane `session_01DdLA3weCnKkq4Toaap1nGK`; waiting.
+  - **The null-release lane opened PR 4052** (+684/-125, 12 files):
+    - adds `kemr_minting`;
+    - the twins mint released gaps; keys-only `kev`/`kef`/`kemr` refuse `KeysOnly` where they would release a gap (a behaviour change);
+    - `cut_core` and `undo_struts` switch to the twins.
+  - Re-measured after R: **147** releasing kills in sweep ci (the row said 1), all `cut_core`'s `kemr`; 0 after. Of the 147 faces, 60 end cleared and none half-minted.
+  - 129 battery jobs: identical line sets, no panics.
+  - Subscribed. Reviewer `session_01P…` dispatched; it checks the new refusal's reach across every keys-only kill caller in every crate.
+  - Nothing new on PR 3970.
