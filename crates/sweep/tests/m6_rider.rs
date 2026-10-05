@@ -59,7 +59,7 @@ fn far_disjoint_balls_union_under_both_strategies() {
 /// no one-sided verdict exists, and the circle × sphere roots find the
 /// crossings. The pair's centre line runs along X, across both charts'
 /// polar axis (Y), so the section the join hands each side is tilted
-/// against both charts; the run-side arc rule takes it and the union
+/// against both charts; each chord takes the germs' arc and the union
 /// meets the two-cap closed form.
 #[test]
 fn overlapping_balls_union_through_their_tilted_section() {

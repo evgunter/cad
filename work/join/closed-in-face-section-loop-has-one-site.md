@@ -2,11 +2,12 @@
 id: closed-in-face-section-loop-has-one-site
 kind: issue
 title: A closed operand conic lying in the partner's face makes a single-site closed section loop, which nothing in the join or the REST lane represents
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

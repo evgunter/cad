@@ -42,3 +42,18 @@ the linear part alone (`let at = |t| (p0.x + pl.x * t, …)`), dropping
 whatever trigonometric part `bool_torus_chart_affine` classified Zero
 in band. The span box encloses that residue; the unification above
 should read it rather than carry a third spelling.
+
+## Evidence (PR 3985, 2026-10-03)
+
+`chord_join::run_azimuth_window` is gone: PR 3985 (`reach/arc-from-pairing`)
+retired the chord's window selection, so no chord reads a window. The
+split/join copy of the walk survives in `crates/topo/src/chord_join.rs`
+as `face_azimuth_window` / `face_azimuth_images` with its pole rule
+(`split_sphere_window_pole`) and the apex case (`ApexUnlifted`), and its
+readers are now `boolean/solid_contain.rs` (containment), the pcurve
+mint and the ring lane — none of them a chord. Both reviewers of that
+PR flagged the hosting (about 500–770 lines of window walk in a module
+whose chords no longer read it). The unification this item asks for is
+now also a move: one home beside `torus_chart_windows`, out of
+`chord_join.rs`.
+

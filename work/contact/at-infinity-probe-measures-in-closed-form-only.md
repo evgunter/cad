@@ -114,3 +114,20 @@ body that battery builds refuses to unite with a far brick,
 steep ellipses along the conic. The rod and the plate alone unite with
 the brick. Probed at θ = 30° and 70°, plate ∩ rod.
 
+
+## Another witness (JOIN, the parallel cylinder arm)
+
+Once the join splits two parallel cylinder walls along their rulings
+(`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`), the
+row's rods across the tilted drum cut's rim reach this probe. The
+drum's lower part (radius 0.5, cut through `(0, 0, 0.5)` at 0.3 rad)
+against a rod of radius 0.2 about `(0.5, 0)`, `z ∈ [0.2, 0.45]`; of
+radius 0.1 about `(−0.45, 0)`, `z ∈ [0.5, 0.8]`; and of radius 0.1
+about `(0, 0.48)`, `z ∈ [0.3, 0.7]`: ∪, ∩ and both differences, in
+both operand orders (18 runs), refuse `Containment(VolumeUncertified)`.
+The same rods against an uncut drum build sound at their closed-form
+volumes, so the cut wall's ellipse trim is what the probe cannot
+measure. The closed-form volumes are written down in
+`crates/sweep/tests/parallel_cylinder_join.rs` (`rim_poses`), and the
+poses are pinned at this door by
+`the_rim_crossing_rods_stop_at_the_volume_probe`.

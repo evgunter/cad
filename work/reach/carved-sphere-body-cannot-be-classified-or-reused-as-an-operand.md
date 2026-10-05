@@ -48,3 +48,14 @@ its plane), or a spherical point-in-loop on the loop's arcs — and the
 pierce arm's reading of the same faces. The rows: the four queries and
 the three nested/disjoint balls above, under every op, against their
 closed forms.
+
+## Evidence (2026-10-03, `reach/arc-from-pairing`)
+
+The pole-strut pose (`ball_poled_y(0.5)` against the box
+`[−1, 0.25] × [−1, 1] × [−1, 0]`) now builds under every op in either
+order, tier 3 clean, to its closed form; a result carrying the sphere
+face the tilted circle `x = 0.25` bounds refuses as the next boolean's
+operand with `Containment(PartialSphereFace)`
+(`crates/sweep/tests/join1_r1_rows.rs`,
+`a_pole_struts_halves_face_their_own_meridians`, which accepts that
+refusal).
