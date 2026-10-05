@@ -369,7 +369,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         doc,
         DocEdit::DeclareVar {
             name: turn.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let placement = Placement::literal(&Frame::translation([5.0, 0.0, 0.0])).compose(
@@ -456,7 +456,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         doc,
         DocEdit::DeclareVar {
             name: turn.clone(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
     let chain = |late: Step| {

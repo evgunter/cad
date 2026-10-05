@@ -239,6 +239,14 @@ fn driver_of(
     Ok((row.driver, row.value.ok()))
 }
 
+/// Whether `expr` reads any variable, by id or by name.
+fn reads_a_variable(expr: &pncad::document::Expr) -> bool {
+    let (mut ids, mut names) = (Vec::new(), Vec::new());
+    expr.var_reads(&mut ids);
+    expr.named_reads(&mut names);
+    !ids.is_empty() || !names.is_empty()
+}
+
 /// Refuse a numeric edit to a driven slot, with the affordance.
 fn guard_driven(
     doc: &Doc<ProfileProgram>,
@@ -1890,7 +1898,8 @@ impl DocSession {
     }
 
     /// The text door: a number, and the notation to write it in, from
-    /// one piece of typed text.
+    /// one piece of typed text — or an expression, which DEFINES the
+    /// variable (`DocEdit::DefineVar`), keeping its identity.
     ///
     /// **One parser.** `parse_expr` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
@@ -1924,37 +1933,79 @@ impl DocSession {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
-        // A literal is the whole of what a parameter can hold. Every
-        // other kind of expression — a reference, an operator, a count
-        // — is refused by name rather than flattened to a number,
-        // because flattening would store a value the text does not
-        // say.
-        let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
-            return OpOutcome::refused(Refusal::ParamNotANumber {
-                var: self.committed_doc().spoken_var(var),
+        // Text that reads a variable defines this one by it.
+        if reads_a_variable(&expr) {
+            return self.commit(DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::defined(expr),
             });
+        }
+        // Constant text is a value, folded as a written quantity is, so
+        // `50 mm + 1 mm` writes 51 mm and keeps the variable's identity
+        // and distribution. Only a literal carries a notation to write.
+        let env = pncad::document::VarEnv::<f64>::default();
+        let folded = if expr.dim() == Dimension::Count {
+            pncad::document::eval_count(&expr, &env).map(SlotValue::Count)
+        } else {
+            pncad::document::eval(&expr, &env).map(SlotValue::Continuous)
         };
-        let declared = self.committed_doc().free(var).map(FreeVar::dim);
-        let notation = props::param_unit_edit(var, unit);
-        let written = props::param_edit(var, SlotValue::Continuous(value));
-        match declared {
+        let value = match folded {
+            Ok(value) => value,
+            Err(source) => {
+                return OpOutcome::refused(Refusal::ConstantRefused {
+                    var: self.committed_doc().spoken_var(var),
+                    source,
+                });
+            }
+        };
+        let doc = self.committed_doc();
+        let Some(held) = doc.var(var) else {
             // An undeclared variable takes the commit path so the typed
             // refusal comes from the door rather than from here, the
             // way [`Self::set_param`]'s does.
-            None => return self.commit(written),
-            // **A `Count` gets the VALUE edit and only that.** A count
-            // names no notation at all, so the notation half of this
-            // door has nothing to say about one, and submitting it
-            // anyway answers what the user did — typing a value — in
-            // the words of a change nobody asked for ("it has no
-            // display unit to change"). The value edit is the act, and
-            // refusing it names the right half: a count declared where
-            // a continuous value was typed.
-            Some(Dimension::Count) => return self.commit(written),
-            Some(Dimension::Length | Dimension::Angle | Dimension::Scalar) => {}
+            return self.commit(props::param_edit(var, value));
+        };
+        let kind = held.kind();
+        let defined = held.def().defined().is_some();
+        let notation = match (value, expr.display_unit()) {
+            (SlotValue::Continuous(_), Some(unit)) => Some(props::param_unit_edit(var, unit)),
+            _ => None,
+        };
+        let written = props::param_edit(var, value);
+        // A value typed over a definition frees the variable first, at
+        // its own kind and in its kind's canonical notation, and then
+        // writes the value through the same doors a free variable's
+        // field does — one action, so a value of another kind refuses
+        // in the value door's words and leaves the definition standing.
+        if defined {
+            let freed = match kind {
+                pncad::document::VarKind::Count => FreeVar::Count { value: 0 },
+                _ => FreeVar::continuous(kind.dimension(), 0.0),
+            };
+            let free_again = DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::Free(freed),
+            };
+            return self.commit_action(
+                std::iter::once(free_again)
+                    .chain(notation)
+                    .chain([written])
+                    .collect(),
+            );
         }
-        let edits: Vec<DocEdit<ProfileProgram>> = [notation, written]
+        // **A `Count` gets the VALUE edit and only that.** A count names
+        // no notation at all, so the notation half of this door has
+        // nothing to say about one, and submitting it anyway answers
+        // what the user did — typing a value — in the words of a change
+        // nobody asked for ("it has no display unit to change"). The
+        // value edit is the act, and refusing it names the right half:
+        // a count declared where a continuous value was typed.
+        if kind == pncad::document::VarKind::Count {
+            return self.commit(written);
+        }
+        let edits: Vec<DocEdit<ProfileProgram>> = notation
             .into_iter()
+            .chain([written])
             .filter(|edit| !self.writes_nothing(edit))
             .collect();
         if edits.is_empty() {
@@ -1969,7 +2020,7 @@ impl DocSession {
     fn declare_var(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
         self.commit(DocEdit::DeclareVar {
             name,
-            def: pncad::document::VarDef::Free(value),
+            def: pncad::document::VarDecl::Free(value),
         })
     }
 
@@ -1990,12 +2041,15 @@ impl DocSession {
         })
     }
 
-    /// The parameter door: a drag over a declared parameter's value.
+    /// The parameter door: a drag over a declared parameter's value. A
+    /// defined one opens too, at its kind, and its first preview is
+    /// refused by the value door in its own words
+    /// ([`pncad::document::EditError::NotAFreeVar`]).
     fn begin_param_gesture(&mut self, var: VarId) -> OpOutcome {
         self.start(move |doc| {
             let dimension = doc
-                .free(var)
-                .map(FreeVar::dim)
+                .var(var)
+                .map(|held| held.kind().dimension())
                 .ok_or(Refusal::NoSuchParam(var))?;
             Ok(GestureTarget::Param { var, dimension })
         })

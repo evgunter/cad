@@ -81,7 +81,7 @@ fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(axis),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),

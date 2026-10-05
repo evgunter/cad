@@ -25,7 +25,7 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

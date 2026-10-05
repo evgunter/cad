@@ -76,7 +76,7 @@ fn main() {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: pncad::document::VarDef::Free(value.clone()),
+                def: pncad::document::VarDecl::Free(value.clone()),
             },
             tol,
             &pncad::document::RefusingReach,

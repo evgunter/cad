@@ -1422,6 +1422,26 @@ impl<T> ParamValue<T> {
 pub struct VarEnv<T> {
     /// The bindings, by variable.
     pub bindings: std::collections::BTreeMap<VarId, ParamValue<T>>,
+    /// The defined variables whose definition refused, by variable: a
+    /// reader of one refuses [`EvalError::DefinitionRefused`] with
+    /// this refusal as its source.
+    pub refused: std::collections::BTreeMap<VarId, EvalError>,
+}
+
+impl<T> VarEnv<T> {
+    /// The binding of `var`, or why it has none.
+    pub(crate) fn binding(&self, var: VarId) -> Result<&ParamValue<T>, EvalError> {
+        match self.bindings.get(&var) {
+            Some(bound) => Ok(bound),
+            None => Err(match self.refused.get(&var) {
+                Some(source) => EvalError::DefinitionRefused {
+                    var,
+                    source: Box::new(source.clone()),
+                },
+                None => EvalError::UnresolvedVar { var },
+            }),
+        }
+    }
 }
 
 // Manual impl: the derive would demand `T: Default`, which certified
@@ -1430,6 +1450,7 @@ impl<T> Default for VarEnv<T> {
     fn default() -> Self {
         Self {
             bindings: std::collections::BTreeMap::new(),
+            refused: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -1446,6 +1467,15 @@ pub enum EvalError {
     UnresolvedVar {
         /// The variable read.
         var: VarId,
+    },
+    /// A reader of a defined variable whose definition refused: the
+    /// definition's own refusal is `source`. The reader's address is
+    /// the wrapper's, as for [`Self::VarKindMismatch`].
+    DefinitionRefused {
+        /// The defined variable read.
+        var: VarId,
+        /// Why its definition refused.
+        source: Box<EvalError>,
     },
     /// A reader whose cached kind disagrees with the dimension the
     /// environment bound the variable at.
@@ -1519,6 +1549,9 @@ impl core::fmt::Display for EvalError {
                 "variable {var} has no binding in the evaluation environment — it was \
                  deleted, or never declared here; point the reader at a live variable"
             ),
+            Self::DefinitionRefused { var, source } => {
+                write!(f, "the definition of variable {var} refused: {source}")
+            }
             Self::VarKindMismatch { var, bound, read } => {
                 write!(f, "variable {var} is read as {read} but bound as {bound}")
             }
@@ -1630,12 +1663,11 @@ fn eval_inner<T: Real>(root: &Expr, params: &VarEnv<T>) -> Result<T, EvalError> 
                 // LIB-SWITCH §4g).
                 K::Literal(lit) => Visit::Value(T::from_f64(lit.value)),
                 K::CountLiteral(_) => return Err(EvalError::CountExprInContinuousEval),
-                K::Var(var) => match params.bindings.get(var) {
-                    None => return Err(EvalError::UnresolvedVar { var: *var }),
-                    Some(ParamValue::Continuous { dim, value }) if *dim == expr.dim => {
+                K::Var(var) => match params.binding(*var)? {
+                    ParamValue::Continuous { dim, value } if *dim == expr.dim => {
                         Visit::Value(*value)
                     }
-                    Some(bound) => {
+                    bound => {
                         return Err(EvalError::VarKindMismatch {
                             var: *var,
                             bound: bound.dim(),
@@ -1693,10 +1725,9 @@ pub fn eval_count<T>(root: &Expr, params: &VarEnv<T>) -> Result<i64, EvalError> 
             }
             Ok(match &expr.kind {
                 K::CountLiteral(n) => Visit::Value(*n),
-                K::Var(var) => match params.bindings.get(var) {
-                    None => return Err(EvalError::UnresolvedVar { var: *var }),
-                    Some(ParamValue::Count(n)) => Visit::Value(*n),
-                    Some(bound) => {
+                K::Var(var) => match params.binding(*var)? {
+                    ParamValue::Count(n) => Visit::Value(*n),
+                    bound => {
                         return Err(EvalError::VarKindMismatch {
                             var: *var,
                             bound: bound.dim(),

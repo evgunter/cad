@@ -4424,6 +4424,7 @@ where
 
     let content_key = content_key(
         node,
+        &crate::param_source::definitions_of(doc),
         &slot_values,
         &nominal_values,
         payload_values.as_deref(),
@@ -5175,6 +5176,7 @@ fn feed_placement_shape(h: &mut KeyHasher, placement: &crate::placement::Placeme
 #[allow(clippy::too_many_arguments)]
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
+    defs: crate::param_source::Definitions<'_, '_>,
     slot_values: &slots::SlotValues<T>,
     nominal_values: &slots::SlotValues<f64>,
     payload_values: Option<&[T]>,
@@ -5488,7 +5490,7 @@ where
                         // Opened by its word in the profile-payload
                         // vocabulary (`tag::program`).
                         h.write_tag(tag::program::CARRIER_RADIUS);
-                        crate::param_source::feed_content_key(&mut h, expr);
+                        crate::param_source::feed_content_key(&mut h, defs, expr);
                     }
                 }
             }
@@ -5627,14 +5629,26 @@ where
             radius: _,
             selection,
         } => {
-            feed_scalar_join(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
+            feed_scalar_join(
+                &mut h,
+                node,
+                defs,
+                selection,
+                crate::verbs::blend::FILLET_SLOTS,
+            );
         }
         Node::Chamfer {
             target: _,
             distance: _,
             selection,
         } => {
-            feed_scalar_join(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
+            feed_scalar_join(
+                &mut h,
+                node,
+                defs,
+                selection,
+                crate::verbs::blend::CHAMFER_SLOTS,
+            );
         }
         // The open list feeds IN ORDER, because the order is meaning:
         // the first designated face of a chart carries the rim, so two
@@ -5651,7 +5665,7 @@ where
             thickness: _,
             open,
         } => {
-            feed_scalar_join(&mut h, node, open, crate::verbs::shell::SHELL_SLOTS);
+            feed_scalar_join(&mut h, node, defs, open, crate::verbs::shell::SHELL_SLOTS);
         }
         // A measure's REFERENCES and its measured EXPRESSION are both
         // recipe payload rather than slots: two measures with the same
@@ -6375,6 +6389,7 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
 fn feed_scalar_join(
     h: &mut KeyHasher,
     node: &crate::node::Node<ProfileProgram>,
+    defs: crate::param_source::Definitions<'_, '_>,
     names: &[StableName],
     join: crate::verbs::SlotJoin,
 ) {
@@ -6386,7 +6401,7 @@ fn feed_scalar_join(
         && let Some(expr) = node.expr(join.size_slot)
     {
         h.write_tag(tag::scalar_join::FLOW_EXPR);
-        crate::param_source::feed_content_key(h, expr);
+        crate::param_source::feed_content_key(h, defs, expr);
     }
 }
 

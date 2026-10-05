@@ -71,7 +71,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             value: nominal,

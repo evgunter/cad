@@ -2556,7 +2556,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("hole_r"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2914,7 +2914,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.75)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3097,7 +3097,7 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     let (origin, _) = ws_doc("ws-logged");
     let edit = DocEdit::DeclareVar {
         name: VarName::from_static("depth"),
-        def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+        def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
@@ -3219,7 +3219,7 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -4606,7 +4606,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ParamValue`,
 ///   `BifurcationKind`,
-///   `MetaValue`, `MetaError`, `from_value`,
+///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
 ///   behind one.
 ///
@@ -4642,9 +4642,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   stored metadata value breaks the D7 producer convention, and the
 ///   type that word is minted from has to be nameable to mint it.
 ///   `crate::document` carries it now. Its neighbourhood does not
-///   come with it — `MetaValue` and `MetaError` are the value tree
-///   and the producer boundary's own refusal, and no curated carrier
-///   answers in either.
+///   come with it — `MetaValue` and `MetaInt` are the value tree
+///   and `MetaError` the producer boundary's own refusal, and no
+///   curated carrier answers in any of them.
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
@@ -4761,7 +4761,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 93] = [
+const NOT_CARRIED: [&str; 94] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4793,6 +4793,7 @@ const NOT_CARRIED: [&str; 93] = [
     "MeshPatchKey",
     "MeshPick",
     "MetaError",
+    "MetaInt",
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",
@@ -6187,7 +6188,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
             doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: pncad::document::VarDef::Free(value),
+                def: pncad::document::VarDecl::Free(value),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,

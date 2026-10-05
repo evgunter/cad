@@ -101,13 +101,13 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
     vec![
         DocEdit::DeclareVar {
             name: p("wall"),
-            def: editor_core::VarDef::Free(FreeVar::written_length(WrittenLength::in_unit(
+            def: editor_core::VarDecl::Free(FreeVar::written_length(WrittenLength::in_unit(
                 3.0, MM,
             ))),
         },
         DocEdit::DeclareVar {
             name: p("bore"),
-            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Length,
                 0.01,
                 sigma(),
@@ -115,7 +115,7 @@ fn declaring_log() -> Vec<DocEdit<editor_core::ProfileProgram>> {
         },
         DocEdit::DeclareVar {
             name: p("ribs"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 4 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
         },
     ]
 }

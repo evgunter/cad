@@ -1879,7 +1879,7 @@ fn expression_evaluation_tags_are_stable() {
             &doc,
             &DocEdit::DeclareVar {
                 name: name.clone(),
-                def: pncad::document::VarDef::Free(param),
+                def: pncad::document::VarDecl::Free(param),
             },
             tol,
             &pncad::document::RefusingReach,
@@ -4941,6 +4941,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "declared_name_not_upstream",
             "declared_site_not_an_operand",
+            "definition_cycle",
+            "definition_too_large",
+            "definition_unknown_var_name",
+            "definition_unresolved_var",
+            "definition_var_kind",
             "delete_anonymous_var",
             "delete_would_dangle",
             "dimension",
@@ -4972,6 +4977,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_placement",
             "non_finite_var",
             "non_rigid_placement",
+            "not_a_free_var",
             "not_a_gauge",
             "not_structural_slot",
             "offset_on_non_instance",
@@ -5069,6 +5075,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "count_expr_in_continuous_eval",
             "count_overflow",
             "count_to_scalar_out_of_range",
+            "definition_refused",
             "non_finite_result",
             "unlowered_name",
             "unresolved_var",
@@ -5821,7 +5828,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "seed_error_tag",
-        values: &["count_param", "tangent_unrepresentable", "unknown_param"],
+        values: &[
+            "count_param",
+            "seed_on_defined_var",
+            "tangent_unrepresentable",
+            "unknown_param",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5948,6 +5960,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dangling_input",
             "declared_name_not_upstream",
             "declared_site_not_an_operand",
+            "definition_cycle",
+            "definition_reads_unminted_var",
+            "definition_too_large",
+            "definition_var_kind",
             "duplicate_input",
             "epsilon_invalid",
             "forward_input",
@@ -5960,6 +5976,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mint_log_order",
             "name_on_missing_var",
             "name_step_not_minted",
+            "named_reader_in_definition",
             "named_reader_in_snapshot",
             "node_not_minted",
             "not_a_gauge",
@@ -6359,6 +6376,16 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // edit doors and by the load door.
     ("declared_name_not_upstream", 2),
     ("declared_site_not_an_operand", 2),
+    // One fact (VR3) at the edit and load doors: a definition that
+    // reads its own variable back.
+    ("definition_cycle", 2),
+    // One fact at the edit and load doors: an expansion past
+    // `DEFINITION_NODE_BOUND`.
+    ("definition_too_large", 2),
+    // One fact at the edit and load doors, by one predicate
+    // (`Doc::var_read_faults`): a definition reading a variable at
+    // another kind.
+    ("definition_var_kind", 2),
     // Overlapping, not one fact: at rest the word is the ring half's
     // decided refusal alone (a nonpositive tube is
     // `unrepresentable_surface_datum` there); at the Boolean's pierce

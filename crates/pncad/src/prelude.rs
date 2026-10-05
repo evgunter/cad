@@ -719,8 +719,9 @@ pub use stl::{
 // `GeomPred::DatumDistance` selection is written against, and
 // `select_where` takes a `VarEnv`, so both are needed to write a
 // position filter at all.
-// `VarName`, `FreeVar` and `VarDef` ride here because they are what
-// `DocEdit::DeclareVar` and `Expr::named` take, so a prelude user
+// `VarName`, `FreeVar` and `VarDecl` ride here because they are what
+// `DocEdit::DeclareVar` and `Expr::named` take, and `VarDef` because it
+// is what a document's variable reads back as, so a prelude user
 // could otherwise hold the variable doors and not open them — the
 // parametric flagship (`plate_param`, guide §3.2) imports them.
 // `RecordedNotation` rides beside `LoopProgram` because it is the other
@@ -736,8 +737,8 @@ pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
     FaceName, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError, PatternKind,
     ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDef,
-    VarEnv, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
+    RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDecl,
+    VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 

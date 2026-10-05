@@ -53,7 +53,7 @@ fn round_trip(value: f64) -> ProfileDoc {
         &doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("p"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     );
     // **The profile has no raw-float channel any more.** v4's was the
@@ -188,7 +188,7 @@ fn epsilon_round_trips_bit_exactly() {
 fn metadata_floats_round_trip_bit_exactly() {
     for v in [-0.0f64, f64::from_bits(1), 0.1, f64::MAX] {
         let mut m = std::collections::BTreeMap::new();
-        m.insert("v".to_owned(), MetaValue::Int(1));
+        m.insert("v".to_owned(), MetaValue::Int(1.into()));
         m.insert("x".to_owned(), MetaValue::Float(v));
         let value = MetaValue::map(m).expect("a shallow value");
         // Bit-eq PartialEq (D7): equality on the canonical tree IS

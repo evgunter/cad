@@ -53,7 +53,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetTolerance { eps: ambient });
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("h"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
     });
     // The VALUE door, on the variable the declare above just minted:
     // it carries the definition forward, so `h` keeps its kind (and
@@ -86,13 +86,13 @@ pub fn document() -> CorpusDoc {
     });
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("n"),
-        def: editor_core::VarDef::Free(FreeVar::Count { value: 2 }),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 2 }),
     });
     // The DEFINITION door: `n` keeps its identity, its name and its
     // kind while its definition is replaced whole.
     r.push(DocEdit::DefineVar {
         var: VarName::from_static("n").into(),
-        def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),
@@ -297,7 +297,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetAppearanceMeta {
         name: body.clone(),
         key: "tool.example/scratch".into(),
-        value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1))]))
+        value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1.into()))]))
             .expect("a shallow value"),
     });
     r.push(DocEdit::ClearAppearanceMeta {
@@ -350,7 +350,7 @@ pub fn document() -> CorpusDoc {
 /// `-0.0` is DATA.
 pub fn meta_tree() -> MetaValue {
     let mut m = BTreeMap::new();
-    m.insert("v".into(), MetaValue::Int(1));
+    m.insert("v".into(), MetaValue::Int(1.into()));
     m.insert("flag".into(), MetaValue::Bool(true));
     m.insert("nothing".into(), MetaValue::Null);
     m.insert("neg_zero".into(), MetaValue::Float(-0.0));
@@ -359,7 +359,8 @@ pub fn meta_tree() -> MetaValue {
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad, 0x00]));
     m.insert(
         "list".into(),
-        MetaValue::list(vec![MetaValue::Int(-7), MetaValue::Float(0.1)]).expect("a shallow value"),
+        MetaValue::list(vec![MetaValue::Int((-7).into()), MetaValue::Float(0.1)])
+            .expect("a shallow value"),
     );
     MetaValue::map(m).expect("a shallow value")
 }

@@ -1604,6 +1604,12 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::VarNameTaken { .. }
             | EditError::VarIdCollides { .. }
             | EditError::VarKindFixed { .. }
+            | EditError::NotAFreeVar { .. }
+            | EditError::DefinitionCycle { .. }
+            | EditError::DefinitionTooLarge { .. }
+            | EditError::DefinitionUnknownVarName { .. }
+            | EditError::DefinitionUnresolvedVar { .. }
+            | EditError::DefinitionVarKind { .. }
             | EditError::VarCountHasNoUnit { .. }
             | EditError::VarCountHasNoDistribution { .. }
             | EditError::VarUnitMismatch { .. }
@@ -2240,12 +2246,30 @@ fn remap_node(
 /// addresses count too: a measured bound reading a variable is exactly
 /// as much a reason to carry that variable into a split part as an
 /// extrude's distance is.
-fn node_var_reads(node: &Node<ProfileProgram>) -> BTreeSet<VarId> {
+fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<VarId> {
     let mut reads = Vec::new();
     for expr in node.exprs() {
         expr.var_reads(&mut reads);
     }
-    reads.into_iter().map(|(var, _)| var).collect()
+    // A reader of a defined variable reads what its definition reads.
+    let mut through: BTreeSet<VarId> = BTreeSet::new();
+    let mut frontier: Vec<VarId> = reads.into_iter().map(|(var, _)| var).collect();
+    while let Some(var) = frontier.pop() {
+        if through.insert(var) {
+            frontier.extend(doc.definition_reads(var));
+        }
+    }
+    through
+}
+
+/// `var`'s definition re-authored for another document, its readers
+/// re-pointed through `map`.
+fn carried_decl(var: &crate::var::Var, map: &BTreeMap<VarId, VarId>) -> crate::var::VarDecl {
+    let mut decl = crate::var::VarDecl::from(var.def().clone());
+    if let Some(expr) = decl.defined_mut() {
+        expr.remap_vars(map);
+    }
+    decl
 }
 
 /// Every reader in `node` re-pointed through `map`.
@@ -2661,7 +2685,7 @@ pub fn split(
         } else {
             &mut kept_refs
         };
-        for var in node_var_reads(node) {
+        for var in node_var_reads(doc, node) {
             into.entry(var).or_insert(id);
         }
     }
@@ -2783,14 +2807,14 @@ pub fn split(
             node: doc.spoken(node),
         });
     }
-    // Declared in the PARENT's declaration order, so the part lists its
+    // Declared in the PARENT's definition order — its declaration
+    // order, a definition after what it reads — so the part lists its
     // variables as the parent's author did. Each carried reader is
     // re-pointed at the part's own minted id.
     let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
     for id in doc
-        .var_order()
-        .iter()
-        .copied()
+        .definition_order()
+        .into_iter()
         .filter(|id| cut_refs.contains_key(id))
     {
         let Some(var) = doc.var(id) else {
@@ -2803,7 +2827,7 @@ pub fn split(
             });
         };
         let minted = part
-            .declare(name.clone(), var.def().clone())
+            .declare(name.clone(), carried_decl(var, &var_map))
             .map_err(part_refused)?;
         var_map.insert(id, minted);
     }
@@ -3428,7 +3452,7 @@ pub fn inline(
     // nothing to be re-pointed at, and refuses here, at this door.
     for &id in part.order() {
         let Some(node) = part.node(id) else { continue };
-        if let Some(var) = node_var_reads(node)
+        if let Some(var) = node_var_reads(&part, node)
             .into_iter()
             .find(|&var| part.var(var).is_none())
         {
@@ -3439,19 +3463,24 @@ pub fn inline(
         }
     }
     let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
-    for &id in part.var_order() {
+    for id in part.definition_order() {
         let Some(var) = part.var(id) else { continue };
         let Some(name) = part.var_name(id) else {
             return Err(InlineError::AnonymousVarCrossesCut {
                 var: part.spoken_var(id),
             });
         };
+        let decl = carried_decl(var, &var_map);
         let held = match doc.var_named(name.as_str()) {
-            Some(held) if doc.var(held).is_some_and(|existing| existing.bit_eq(var)) => held,
+            Some(held)
+                if doc.var(held).is_some_and(|existing| {
+                    existing.bit_eq(&crate::var::Var::new(decl.stored()))
+                }) =>
+            {
+                held
+            }
             Some(_) => return Err(InlineError::VarNameConflict { name: name.clone() }),
-            None => current
-                .declare(name.clone(), var.def().clone())
-                .map_err(refused)?,
+            None => current.declare(name.clone(), decl).map_err(refused)?,
         };
         var_map.insert(id, held);
     }

@@ -81,7 +81,7 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("q"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -112,7 +112,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("q"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -425,7 +425,7 @@ fn evidence_only_e2e_consumer_walk() {
         let mut r = Recorder::new();
         r.push(DocEdit::DeclareVar {
             name: name("hole_r"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.25,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -437,7 +437,7 @@ fn evidence_only_e2e_consumer_walk() {
         });
         r.push(DocEdit::DeclareVar {
             name: name("depth"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.5,
                 display_unit: UnitSym::canonical_for(Dimension::Length),

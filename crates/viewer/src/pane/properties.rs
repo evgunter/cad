@@ -123,6 +123,27 @@ impl ViewerBehavior<'_> {
                         self.param_unit_ui(ui, &row);
                     });
                     self.param_bounds_ui(ui, &row);
+                } else if let Some(row) = crate::props::defined_rows(self.session.doc())
+                    .into_iter()
+                    .find(|row| row.var == var)
+                {
+                    // A defined variable's field shows its formula and
+                    // takes text as a free one's does: a formula
+                    // redefines it, a value makes it free again. It
+                    // holds no value of its own, so a drag is the value
+                    // door's to refuse.
+                    crate::widgets::message(
+                        ui,
+                        format!("parameter {} ({})", row.label, row.dimension),
+                    );
+                    value_field_ops(
+                        ui,
+                        defined_showing(&row, *self.notation),
+                        value_gesture(ValueGestureName::Param(var)),
+                        param_doors(var),
+                        self.ops,
+                        self.notices,
+                    );
                 }
                 // No row is an undeclared parameter, and nothing is
                 // drawn for it here: the header above has said so
@@ -139,6 +160,13 @@ impl ViewerBehavior<'_> {
         for row in crate::props::param_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
             if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
+                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
+            }
+        }
+        for row in crate::props::defined_rows(self.session.doc()) {
+            if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
+                .clicked()
+            {
                 self.ops.push(SessionOp::Select(Selection::Param(row.var)));
             }
         }
@@ -1100,9 +1128,9 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
     }
 }
 
-/// **A document parameter's value field**: its number, in the unit
-/// it was DECLARED in. A parameter is never driven, so there is no
-/// text to show over it and no source to seed its edit with.
+/// **A free parameter's value field**: its number, in the unit it was
+/// DECLARED in, with no text over it and no source to seed its edit
+/// with. A defined one's is [`defined_showing`].
 pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
     FieldShowing {
@@ -1111,6 +1139,22 @@ pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing 
         number: props::shown_value(writing.unit, row.value.as_f64()),
         text: None,
         source: None,
+    }
+}
+
+/// **A defined parameter's value field**: its formula over the number
+/// it evaluates to, and the formula again as the text an edit starts
+/// from, as a driven slot's field shows its expression. A definition
+/// that refuses holds a zero under its text, which no edit writes: a
+/// drag is refused by the value door.
+pub(crate) fn defined_showing(row: &props::DefinedRow, notation: Notation) -> FieldShowing {
+    let writing = FieldWriting::of(row.dimension, None, notation);
+    FieldShowing {
+        writing,
+        dimension: row.dimension,
+        number: props::shown_value(writing.unit, row.value.map_or(0.0, SlotValue::as_f64)),
+        text: Some(row.formula.clone()),
+        source: Some(row.formula.clone()),
     }
 }
 

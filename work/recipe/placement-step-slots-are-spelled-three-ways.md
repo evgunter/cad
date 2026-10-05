@@ -2,10 +2,11 @@
 id: placement-step-slots-are-spelled-three-ways
 kind: issue
 title: A placement step's slot is addressed three ways: step 0's own slots, PlacementStep, and MateFrameStep
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
