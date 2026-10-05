@@ -91,3 +91,10 @@ Its third fix pass adds `SphereQuestion` (under
 `Corruption` and `BooleanError::CorruptOperand` are gone: a tier-1
 operand at the gate, and a traversal that fails at a vertex, panic
 naming the record (D2 row 4), so neither is a rung to place.
+
+TOPO's PR 4055 adds `PointInFaceCause`, carried by
+`BooleanError::PointInFaceRefused { cause, .. }` (the containment
+reads' lone-vertex loop, unreadable loop and exhausted ray schedule,
+which the boolean answered as `ClassificationInvariant` before). It is
+one more payload rung of `BooleanError` itself, and its disposition is
+this row.
