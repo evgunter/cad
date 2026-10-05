@@ -286,12 +286,27 @@
 //! for the first time, and re-mints the same way over each face as
 //! the kill leaves it.
 //!
+//! **A kill that takes the last null edge off a loop releases it**, and
+//! the rows the loop missed while it was held open are owed there
+//! ([`releases_a_gap`]). The kills answer at two doors,
+//! as the loop-re-parenting doors do: [`crate::Body::kev`],
+//! [`crate::Body::kef`] and [`crate::Body::kemr`] take no band and
+//! refuse [`SiteRowRefusal::KeysOnly`] before they mutate, and their
+//! band twins — [`crate::Body::kev_describing`],
+//! [`crate::Body::kef_minting`] and [`crate::Body::kemr_minting`] — run
+//! the site mint over the loops they release, planned before they mutate
+//! ([`crate::Body::plan_released_rows`]), so the face leaves complete, or
+//! storing nothing where the closed-form lane cannot mint it. A face the
+//! site mint does not select, or one on a spline chart, is left as found
+//! at either door.
+//!
 //! **Neither clears nor re-mints** — the Euler operators that add no
 //! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
 //! (whose scaffolding has no carrier to derive a row from), and the
-//! kill ops other than [`crate::Body::kev_describing`] (above). These
-//! are primitives: they keep every image they find, and on each joint
-//! they make they write its element keys-only and exactly. A kill sums
+//! kill ops other than [`crate::Body::kev_describing`] and the band
+//! twins (above). These are primitives: they keep every image they
+//! find, and on each joint they make they write its element keys-only
+//! and exactly. A kill sums
 //! the elements of the joints it bridges ([`crate::Body::kev`],
 //! [`crate::Body::kef`], [`crate::Body::kemr`]; [`JointElement::then`]):
 //! an edge's two halves share one image, so where one ends the other
@@ -300,12 +315,7 @@
 //! edge is a point with no image: its halves carry the identity, and
 //! the joint out of one keeps the element read across the point, so a
 //! kill of it sums the same way. So on a face whose rows are the pass's,
-//! a kill leaves the pass's rows, byte for byte. A kill that takes the
-//! last null edge off a loop leaves the rows that loop missed while it
-//! was held open missing: `kemr`, `kev` and `kef` take no `Tol` to mint
-//! with, and [`crate::Body::kef_minting`] runs its site mint only over a
-//! remnant whose rows do not stand
-//! (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`).
+//! a kill leaves the pass's rows, byte for byte.
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
@@ -505,10 +515,9 @@ pub enum PcurveMintError {
     ///   door that releases the loop — an operator rewiring it out from
     ///   under the edge, as the pipelines' joins do, or the edge's first
     ///   description ([`crate::Body::set_edge_curve`], or a
-    ///   [`crate::Body::kev_describing`] that lists it) — mints it whole,
-    ///   except on a spline chart. A kill that releases it otherwise
-    ///   leaves those rows missing
-    ///   (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`);
+    ///   [`crate::Body::kev_describing`] that lists it), or the band kill
+    ///   of the edge ([`crate::Body::plan_released_rows`]) — mints it
+    ///   whole, except on a spline chart;
     /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]);
     /// - a caller's own [`crate::Body::detach_pcurve`];
     ///
@@ -1973,10 +1982,11 @@ impl<T: Real> StoredRows<T> {
     /// **The door that takes a face's last null edge off it re-mints
     /// it whatever it misses**, as the minting pass would once the
     /// scaffolding is gone: a null edge's first description, which
-    /// walks every loop of its faces, and an operator that rewires a
-    /// loop out from under the edge, as the pipelines' joins do. An
-    /// operator walks only the loops it rewires, so a gap on a loop it
-    /// keeps stays. **Any other gap is not the site mint's to fill**: a door
+    /// walks every loop of its faces, an operator that rewires a loop
+    /// out from under the edge, as the pipelines' joins do, and the band
+    /// kill of the edge ([`crate::Body::plan_released_rows`]). An
+    /// operator or a kill walks only the loops it rewires, so a gap on a
+    /// loop it keeps stays. **Any other gap is not the site mint's to fill**: a door
     /// left the face half-minted ([`PcurveMintError::MissingCache`]
     /// lists them) and the site mint leaves it as found, for the
     /// producer's final pass.
@@ -2979,12 +2989,15 @@ pub enum SiteRowRefusal {
     /// derive.** The door moves a loop or run onto a face whose rows
     /// are complete on an analytic chart, and the moved rows do not
     /// stand there — stated in another chart, or missing — so the face
-    /// would leave half-minted. The keys-only kills and moves
-    /// (`kef`, `kfmrh`, `ring_move`, `mfkrh`) take no band and refuse
-    /// here, before mutating; their `_minting` siblings take one and
-    /// re-mint the face ([`site_rows_owed`]). `kev` refuses here where
-    /// its unsplice would bridge a joint through a killed half's turn,
-    /// which only a band decides (`kev_describing`).
+    /// would leave half-minted. Or a null edge's kill releases a loop,
+    /// which would leave missing the rows it missed while the edge held
+    /// it open ([`releases_a_gap`]). The keys-only kills and moves
+    /// (`kef`, `kemr`, `kev`, `kfmrh`, `ring_move`, `mfkrh`) take no
+    /// band and refuse here, before mutating; their band siblings
+    /// (`_minting`, or `kev_describing`) take one and re-mint the face
+    /// ([`site_rows_owed`]). `kev` refuses here too where its unsplice
+    /// would bridge a joint through a killed half's turn, which only a
+    /// band decides.
     KeysOnly,
 }
 
@@ -2999,11 +3012,12 @@ impl core::fmt::Display for SiteRowRefusal {
             ),
             Self::KeysOnly => write!(
                 f,
-                "the door would leave a face whose pcurve rows are complete half-minted: \
-                 the rows it moves do not stand there, or the joint it bridges needs an \
-                 element only a band decides; this door takes no band. Recourse: call the \
-                 door's band-taking sibling (`_minting`, or `kev_describing`) with the run's \
-                 tolerance, or edit the loop before the face is minted"
+                "the door would leave a face half-minted: the rows it moves do not stand \
+                 on a complete face, the joint it bridges needs an element only a band \
+                 decides, or the loop it releases from its last null edge misses rows; this \
+                 door takes no band. Recourse: call the door's band-taking sibling \
+                 (`_minting`, or `kev_describing`) with the run's tolerance, or edit the \
+                 loop before the face is minted"
             ),
         }
     }
@@ -3024,8 +3038,8 @@ pub(crate) enum SiteLoop {
 
 /// A face a site mint re-mints — one an Euler operator's new
 /// half-edges land on, one a null edge's halves are on at its
-/// description, or one a door moves a loop or run onto — described as
-/// its door leaves it.
+/// description, one a door moves a loop or run onto, or one a null
+/// edge's kill releases a loop of — described as its door leaves it.
 pub(crate) struct SiteFace<T: Real> {
     /// The face whose rows decide whether this one is minted: the face
     /// itself, or — for a face a door makes (`mef`'s new face,
@@ -3197,12 +3211,59 @@ pub(crate) fn site_rows_owed<T: Decide>(
     Ok(!site_walks(body, chart, face, from)?.is_empty())
 }
 
+/// **Whether a null-edge kill leaves a loop it releases with a gap**:
+/// a loop of `face`, as the kill leaves it, that runs through no null
+/// edge and has a half-edge with no image, or with no element on the
+/// joint into it from a predecessor that stores one — the gaps
+/// [`StoredRows::gaps`] reads, taken on the loop the kill leaves.
+/// `killed` are the killed edge's halves: a null edge's halves carry
+/// the identity, so the element the kill writes onto a joint it makes
+/// by bridging them is the survivor's own, and is missing where that
+/// or a killed half's is. Band-free; the band kills' site mint runs
+/// only where this holds ([`crate::Body::plan_released_rows`]).
+///
+/// # Panics
+///
+/// Where a half of `face`'s rewired loops, each one the kill read out
+/// of the body's records, does not resolve.
+#[track_caller]
+pub(crate) fn releases_a_gap<T: Decide>(
+    body: &Body<T>,
+    face: &SiteFace<T>,
+    killed: [HalfEdgeKey; 2],
+) -> bool {
+    let bridged = killed.iter().all(|&he| body.joint(he).is_some());
+    face.loops.iter().any(|lp| {
+        let SiteLoop::Rewired(halves) = lp else {
+            return false;
+        };
+        let cycle: Vec<HalfEdgeKey> = halves
+            .iter()
+            .filter_map(|&at| match at {
+                SiteHalf::Existing(he) => Some(he),
+                SiteHalf::NewPlus | SiteHalf::NewMinus | SiteHalf::Described(_) => None,
+            })
+            .collect();
+        if held_open(body, cycle.iter().copied()) {
+            return false;
+        }
+        let n = cycle.len();
+        (0..n).any(|i| {
+            let (before, he) = (cycle[(i + n - 1) % n], cycle[i]);
+            let element =
+                body.joint(he).is_some() && (bridged || half_edge_record(body, he).prev == before);
+            body.pcurve(he).is_none() || (body.pcurve(before).is_some() && !element)
+        })
+    })
+}
+
 /// **The rows a site mint writes onto one face**, derived before its
 /// door mutates: a face an Euler operator adds half-edges to, one a
 /// null edge's halves are on at its first description
-/// ([`crate::Body::set_edge_curve`]), or one a door moves a loop or
-/// run onto whose rows do not stand there ([`crate::Body::drop_rows`]
-/// names the doors). `from` is the face as found, on a face
+/// ([`crate::Body::set_edge_curve`]), one a door moves a loop or run
+/// onto whose rows do not stand there ([`crate::Body::drop_rows`] names
+/// the doors), or one a band kill releases a loop of with a gap
+/// ([`crate::Body::plan_released_rows`]). `from` is the face as found, on a face
 /// [`site_rows_from`] read further; every other face is left as found, and never reaches
 /// here. The face is re-minted where [`StoredRows::remints`] selects
 /// it, `released` being whether the door takes the last null edge off
@@ -4782,22 +4843,31 @@ pub(crate) mod staleness_posture {
              successor's, read across the edge's point. \
              The door that releases the loop mints it whole, except on a spline chart: an \
              operator rewiring it out from under the edge (the boolean's and the \
-             splitting lane's joins) or the edge's first description \
-             (`set_edge_curve`, or a `kev_describing` that lists it); a kill that releases \
-             it otherwise does not \
-             (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`); \
+             splitting lane's joins), the edge's first description (`set_edge_curve`, or \
+             a `kev_describing` that lists it), or the edge's band kill \
+             (`kev_describing`, `kef_minting`, `kemr_minting`); its keys-only kill \
+             refuses `KeysOnly` where the loop would miss a row; \
              tier 2 refuses a null edge at rest",
             ),
             (
                 "kemr",
                 Neither,
                 "Euler operator: each side's closing joint takes the sum of the two elements \
-             it bridges",
+             it bridges; where it kills a null edge and the loop it releases would miss a \
+             row, it refuses `KeysOnly` before mutating",
+            ),
+            (
+                "kemr_minting",
+                Maintains,
+                "`kemr` with a band: where `kemr` refuses `KeysOnly`, the two sides it leaves \
+             are walked and what they miss is minted (`Body::plan_released_rows`)",
             ),
             (
                 "kev",
                 Neither,
-                "kill op: the joint it makes takes the sum of the elements it bridges",
+                "kill op: the joint it makes takes the sum of the elements it bridges; where \
+             it kills a null edge and the loop it releases would miss a row, it refuses \
+             `KeysOnly` before mutating",
             ),
             (
                 "kev_describing",
@@ -4806,7 +4876,9 @@ pub(crate) mod staleness_posture {
              certified member keeps its rows, and a listed NULL member's description is its \
              first, re-minted through the same planner over the faces its halves are on as \
              the kill leaves them (the killed halves gone), every listed member's halves \
-             under the curve the kill installs",
+             under the curve the kill installs; and `kev` with a band, minting what a loop \
+             a killed null edge releases misses on every other face it is on \
+             (`Body::plan_released_rows`)",
             ),
             ("kvfs", Neither, "kill op"),
             // ---- Maintains: the half-edge-minting Euler operators,
@@ -4918,14 +4990,18 @@ pub(crate) mod staleness_posture {
              loses them where it is not (`Body::drop_rows`); where they do not stand and the \
              surviving face's rows were complete on an analytic chart it refuses `KeysOnly` \
              before mutating, and a spline chart keeps the drop; where they stand, each \
-             joint it makes takes the sum of the two elements it bridges; the two killed \
-             halves' rows outlive their keys as every kill op's do",
+             joint it makes takes the sum of the two elements it bridges, and where it \
+             kills a null edge and the loop it releases would miss a row it refuses \
+             `KeysOnly` too; the two killed halves' rows outlive their keys as every kill \
+             op's do",
             ),
             (
                 "kef_minting",
                 Transfers,
                 "`kef` with a band: where `kef` refuses `KeysOnly`, the surviving loop is \
-             re-minted in the surviving face's chart (`Body::plan_moved_rows`)",
+             re-minted in the surviving face's chart (`Body::plan_moved_rows`), or, where \
+             the remnant's rows stand, what the loop a killed null edge releases misses is \
+             minted (`Body::plan_released_rows`)",
             ),
             (
                 "movefac",
