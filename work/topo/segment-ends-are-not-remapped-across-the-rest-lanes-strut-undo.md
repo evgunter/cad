@@ -6,7 +6,10 @@ status: dispatched
 opened: 2026-10-05
 priority: P3
 cost: M
-refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate]
+refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, the-rest-lane-zips-no-pinch-apex, the-rest-lanes-glue-reads-its-correspondence-unfused, completed-null-faces-are-carried-unremapped-across-later-cuts]
+pr: 4067
+branch: topo/rest-segment-end-remap
+closed: 2026-10-05
 ---
 
 ## What
@@ -47,3 +50,16 @@ vertex), so a segment end is live by `realize_seam`; then a stale end
 there is a kernel bug, and the desync can become a panic on a proven
 key. Build a nested-strut REST union that reaches it first, to show the
 remap is load-bearing.
+
+## Closed
+
+PR 4067. `undo_struts` logs each kill's `(copy, site)` (checking the
+site is the strut's start), `read_segments` reads every end through
+that log (`zip::survivor`), and `realize_seam` panics on an end that
+does not resolve, naming the premise (`SEGMENT_ENDS_SURVIVE`). Witness:
+`crates/sweep/tests/rest_nested_strut.rs`, a pinch apex under a resting
+prism, which the lane gave back to the join before and now realizes on
+both operands; it then refuses at the glue, filed as
+`work/zip/the-rest-lane-zips-no-pinch-apex.md`. Residues filed:
+`work/zip/the-rest-lanes-glue-reads-its-correspondence-unfused.md`,
+`work/join/completed-null-faces-are-carried-unremapped-across-later-cuts.md`.
