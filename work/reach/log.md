@@ -806,3 +806,8 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Verification.** An independent verifier session found the pass VERIFIED. Mutants MA, MC and MD go red on the rows stated. The workspace runs 11651/11651 at 1e-9, 1e-6 and 1e-12. Main's new door callers refuse nothing main built.
 - **Its notes.** The nightly dev-probe k-lint count is 104 on both trees against the current base, not 100; `k-lint-reads-the-boolean-doors-tier-3-at-probe` is updated.
 — (REACH orchestrator)
+
+## 2026-10-04 — four items PR 3985 answered are closed
+
+PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's ruling arm now carries the datum too). Its state sync closed only the unit item. Four items it answered stayed at `review`, and they close now: the planar side's arc cue, the run-side rule (retired), TANG's tilted pierce ring and TANG's collar wedge (all 48 poses build). Wave 2 is three units: the carved-sphere body, the trimmed-sphere escape and the conic × quadric door. None touches what the D10 hold covers.
+— (REACH orchestrator)
