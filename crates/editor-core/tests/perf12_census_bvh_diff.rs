@@ -42,8 +42,8 @@ use editor_core::ExtrudeSide;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    Datum, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram,
-    TubeWindow, apply, product_recorded,
+    Datum, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
+    VarName, apply, product_recorded,
 };
 use fixture::{Recorder, band, frame, len, scl, xy_frame};
 use geom_core::Tol;
@@ -330,9 +330,9 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         .expect("the corpus carries the heat sink");
     apply(
         &entry.doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("fins"),
-            value: DocParam::Count { value: fins },
+        &DocEdit::DefineVar {
+            var: VarName::from_static("fins").into(),
+            def: editor_core::VarDef::Free(FreeVar::Count { value: fins }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

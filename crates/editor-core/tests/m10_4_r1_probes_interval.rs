@@ -23,21 +23,21 @@ use editor_core::stackup::{
     sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ParamValue, ProfileDoc,
-    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    SitedRef, UnitSym, ValuePayload, evaluate, seed_env,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, UnitSym,
+    ValuePayload, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::param(name(n), dim)
+    Expr::named(name(n), dim)
 }
 
 fn eps() -> f64 {
@@ -51,8 +51,8 @@ fn uniform(half: f64) -> Distribution {
     }
 }
 
-fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> DocParam {
-    DocParam::Continuous {
+fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
+    FreeVar::Continuous {
         dim,
         value,
         display_unit: UnitSym::canonical_for(dim),
@@ -77,9 +77,9 @@ fn eval_f64(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn opts(seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(name),
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId(0))),
         profile_lift: lift,
         ..EvalOptions::default()
     }
@@ -126,13 +126,13 @@ fn stepped_shaft_sized(
 
     let (o, i) = (size, 0.5 * size);
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("h1"),
-        value: continuous(Dimension::Length, h1, d1),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, h1, d1)),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("h2"),
-        value: continuous(Dimension::Length, h2, d2),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, h2, d2)),
     });
     // One frame, named by both profiles: two sketches meant to share
     // a plane bind the same id, which is how sharing is said now.
@@ -192,9 +192,9 @@ fn scalar_measure(
     build: impl Fn(&dyn Fn() -> MeasureExpr) -> MeasureExpr,
 ) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("a"),
-        value: continuous(Dimension::Scalar, nominal, Some(dist)),
+        def: editor_core::VarDef::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
     let a = || MeasureExpr::value(param("a", Dimension::Scalar));
     let m = r.insert(Node::measure(build(&a), Vec::new()).expect("no references to address"));
@@ -209,9 +209,9 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     use fixture::{fname, wall};
 
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("w"),
-        value: continuous(Dimension::Length, w, None),
+        def: editor_core::VarDef::Free(continuous(Dimension::Length, w, None)),
     });
     // A chain: (0,0) -> (w,0) [line, seg 0] -> (w,1) [line, seg 1] ->
     // arc through (w/2, 1.25) to (0,1) [seg 2] -> close [seg 3]. Both
@@ -291,7 +291,7 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
                 &doc,
                 None,
                 &CancelToken::new(),
-                &opts(None, ProfileLift::Pinned),
+                &opts(&doc, None, ProfileLift::Pinned),
                 Tol::witness(),
             );
             assert_eq!(d.order, e.order, "{}", stringify!($t));
@@ -347,7 +347,7 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
                     &doc,
                     None,
                     &CancelToken::new(),
-                    &opts(Some(p), lift),
+                    &opts(&doc, Some(p), lift),
                     Tol::witness(),
                 ),
                 m,
@@ -361,8 +361,8 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
         }
     }
     // Schedule independence at the driver, on this document.
-    let seq = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("ok");
-    let par = sensitivities(&doc, m, None, None, true, Tol::witness()).expect("ok");
+    let seq = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
+    let par = sensitivities(&doc, m, None, None, true, None, Tol::witness()).expect("ok");
     assert_eq!(seq, par);
     assert_eq!(seq.len(), 2);
 }
@@ -382,21 +382,21 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
         &doc,
         None,
         &CancelToken::new(),
-        &opts(Some("h1"), ProfileLift::Guided),
+        &opts(&doc, Some("h1"), ProfileLift::Guided),
         Tol::witness(),
     );
     let on_h2_fresh: Evaluation<Dual64> = evaluate(
         &doc,
         None,
         &CancelToken::new(),
-        &opts(Some("h2"), ProfileLift::Guided),
+        &opts(&doc, Some("h2"), ProfileLift::Guided),
         Tol::witness(),
     );
     let on_h2_threaded: Evaluation<Dual64> = evaluate(
         &doc,
         Some(&on_h1),
         &CancelToken::new(),
-        &opts(Some("h2"), ProfileLift::Guided),
+        &opts(&doc, Some("h2"), ProfileLift::Guided),
         Tol::witness(),
     );
     let (fresh, threaded) = (measured(&on_h2_fresh, m), measured(&on_h2_threaded, m));
@@ -491,6 +491,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         Some(&handed),
         Some(&verdict),
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -507,6 +508,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         &verdict,
         Some(&handed),
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -522,11 +524,11 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     // drives anything), which is the proof that the certified chamber
     // is not this document's — read without a chamber, where it is
     // honestly `LocalOnly`.
-    let entries = sensitivities(&edited, m, Some(&handed), None, false, Tol::witness())
+    let entries = sensitivities(&edited, m, Some(&handed), None, false, None, Tol::witness())
         .expect("the pairing hook is satisfied by a fresh anchor");
     match entries
         .iter()
-        .find(|s| s.param == name("h2"))
+        .find(|s| s.param == edited.var_named("h2").expect("declared"))
         .map(|s| &s.outcome)
     {
         Some(SensitivityOutcome::Derivative { value, .. }) => {
@@ -573,6 +575,7 @@ fn r1_another_documents_verdict_certifies_this_one() {
         &a_verdict,
         None,
         false,
+        None,
         Tol::witness(),
     );
     assert!(
@@ -584,7 +587,15 @@ fn r1_another_documents_verdict_certifies_this_one() {
         ),
         "A's verdict must not price B: {report:?}"
     );
-    let entries = sensitivities(&b_doc, b_m, None, Some(&a_verdict), false, Tol::witness());
+    let entries = sensitivities(
+        &b_doc,
+        b_m,
+        None,
+        Some(&a_verdict),
+        false,
+        None,
+        Tol::witness(),
+    );
     assert!(
         matches!(
             entries,
@@ -610,7 +621,8 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
         MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
             .expect("Scalar lattice max")
     });
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
+    let entries =
+        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
         SensitivityOutcome::Derivative { value, .. } => {
             assert!(
@@ -635,7 +647,8 @@ fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
         MeasureExpr::div(a(), a()).expect("Scalar / Scalar")
     });
-    let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
+    let entries =
+        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     println!(
         "EVIDENCE-ONLY r1 0/0-value outcome: {:?}",
         entries[0].outcome
@@ -665,8 +678,17 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
-        .expect("a certified arithmetic box");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("a certified arithmetic box");
     assert!(
         (report
             .nominal
@@ -732,7 +754,7 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
 /// Band: refuses.
 #[test]
 fn r1_std_deviation_matches_an_independent_quadrature() {
-    let p = name("p");
+    let p = editor_core::SpokenVar::new(editor_core::VarId(0), Some(name("p")));
     // Uniform.
     let u = std_deviation(&p, &Distribution::Uniform { lo: -3.0, hi: 1.0 }).expect("uniform");
     assert!((u - 4.0 / f64::sqrt(12.0)).abs() < 1e-14, "uniform σ {u}");
@@ -789,7 +811,17 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), Some(uniform(2.0 * half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     let s1 = (2.0 * half) / f64::sqrt(12.0);
     let s2 = (4.0 * half) / f64::sqrt(12.0);
     let want = (s1 * s1 + s2 * s2).sqrt();
@@ -814,13 +846,25 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     match &report.rss {
         Rss::UnavailableBecause { blockers } => {
             assert_eq!(blockers.len(), 1, "{blockers:?}");
             assert_eq!(
                 blockers[0],
-                Unavailable::BandHasNoMeasure { param: name("h2") }
+                Unavailable::BandHasNoMeasure {
+                    var: doc.spoken_var(doc.var_named("h2").expect("declared"))
+                }
             );
         }
         other => panic!("{other:?}"),
@@ -833,7 +877,17 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), None);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
+    let report = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    )
+    .expect("ok");
     match report.rss {
         Rss::Advisory { sigma } => assert!(
             (sigma - s1).abs() <= 1e-9 * s1,
@@ -858,7 +912,7 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
             &doc,
             None,
             &CancelToken::new(),
-            &opts(Some("w"), ProfileLift::Guided),
+            &opts(&doc, Some("w"), ProfileLift::Guided),
             Tol::witness(),
         ),
         m,
@@ -873,7 +927,7 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
             &doc,
             None,
             &CancelToken::new(),
-            &opts(Some("w"), ProfileLift::Pinned),
+            &opts(&doc, Some("w"), ProfileLift::Pinned),
             Tol::witness(),
         ),
         m,
@@ -914,9 +968,19 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
         verdict.certified().len(),
         verdict.refused().len()
     );
-    let entries = sensitivities(&doc, m, None, Some(&verdict), false, Tol::witness()).expect("ok");
+    let entries =
+        sensitivities(&doc, m, None, Some(&verdict), false, None, Tol::witness()).expect("ok");
     println!("EVIDENCE-ONLY r1 ±0.1 sensitivities: {entries:?}");
-    let got = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness());
+    let got = stackup(
+        &doc,
+        m,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        None,
+        Tol::witness(),
+    );
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
         Ok(report) => {
@@ -929,7 +993,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
             };
             for name in ["h1", "h2"] {
                 let (lo, hi) = leaf
-                    .get(&ParamName::from_static(name))
+                    .get(doc.var_named(name).expect("declared"))
                     .expect("the axis")
                     .span();
                 assert!(
@@ -951,11 +1015,12 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
 fn r1_seed_env_refuses_a_foreign_name() {
     let (a, _) = stepped_shaft(1.0, 0.5, None, None);
     assert!(
-        seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), &name("nope")).is_err(),
+        seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId(0)).is_err(),
         "an unknown name refuses"
     );
     // And the bindings it does produce carry exactly one unit tangent.
-    let env = seed_env::<Dual64, _>(&a, a.param_env::<Dual64>(), &name("h1")).expect("h1");
+    let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
+        .expect("h1");
     let mut ones = 0_usize;
     let mut zeros = 0_usize;
     for v in env.bindings.values() {

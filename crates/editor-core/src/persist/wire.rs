@@ -57,7 +57,7 @@
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::doc::ParamName;
+use crate::doc::VarName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
@@ -86,11 +86,20 @@ pub(crate) enum WireExpr {
     },
     /// An exact integer Count literal.
     Count(i64),
-    /// A parameter reference with its declared dimension.
-    Param {
-        /// The referenced document parameter.
-        name: ParamName,
-        /// The dimension declared at construction.
+    /// A reader of a variable, by id, with the kind it caches.
+    Var {
+        /// The variable read.
+        var: crate::var::VarId,
+        /// The dimension the reader reads at.
+        dim: Dimension,
+    },
+    /// An authored name leaf, with the dimension it is read at. An edit
+    /// log carries edits as authored, so it can hold one; a snapshot
+    /// cannot (the load door refuses it).
+    Name {
+        /// The name.
+        name: VarName,
+        /// The dimension it is read at.
         dim: Dimension,
     },
     /// Same-dimension addition.
@@ -129,7 +138,11 @@ impl From<&Expr> for WireExpr {
                 unit: lit.unit_def().symbol().to_string(),
             },
             ExprKind::CountLiteral(v) => WireExpr::Count(*v),
-            ExprKind::Param(name) => WireExpr::Param {
+            ExprKind::Var(var) => WireExpr::Var {
+                var: *var,
+                dim: e.dim(),
+            },
+            ExprKind::Name(name) => WireExpr::Name {
                 name: name.clone(),
                 dim: e.dim(),
             },
@@ -166,7 +179,8 @@ impl WireExpr {
                 Some(u) => Expr::literal_with_unit(*value, *dim, u),
             },
             WireExpr::Count(v) => Ok(Expr::count(*v)),
-            WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),
+            WireExpr::Var { var, dim } => Ok(Expr::var(*var, *dim)),
+            WireExpr::Name { name, dim } => Ok(Expr::named(name.clone(), *dim)),
             WireExpr::Add(x, y) => Expr::add(b(x)?, b(y)?),
             WireExpr::Sub(x, y) => Expr::sub(b(x)?, b(y)?),
             WireExpr::Neg(x) => Expr::neg(b(x)?),

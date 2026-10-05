@@ -312,7 +312,8 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// **A new line is the arrival this row exists to detect.** Adding one
 /// is a deliberate act and the message below says which acts are
 /// honest.
-const IMPL_FILES_TODAY: [&str; 27] = [
+const IMPL_FILES_TODAY: [&str; 29] = [
+    "crates/editor-core/src/analysis.rs",
     "crates/editor-core/src/clearance.rs",
     "crates/editor-core/src/expr.rs",
     "crates/editor-core/src/mate/coset.rs",
@@ -324,6 +325,7 @@ const IMPL_FILES_TODAY: [&str; 27] = [
     "crates/editor-core/src/names/table.rs",
     "crates/editor-core/src/program.rs",
     "crates/editor-core/src/refusal.rs",
+    "crates/editor-core/src/report.rs",
     "crates/editor-core/src/resolve/pick.rs",
     "crates/geom-core/src/spline/hull.rs",
     "crates/geom-core/src/spline/knots.rs",

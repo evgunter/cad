@@ -164,6 +164,25 @@ fn a_plain_cavity_through_the_void_door_decides_nothing() {
     assert_eq!(topo::validate_geometric(&dst, Tol::witness()), Ok(()));
 }
 
+/// The M7-8 cube finished: its NURBS wall's pcurves minted
+/// (`topo::mint_pcurves`, the fixture's own closing step), then through
+/// the at-rest gate. Unminted, the gate refuses the wall's
+/// `Pcurve(Unminted)`, so no boolean row here can reach a door without
+/// this; it costs a debug-build validation of the NURBS wall.
+fn finished_m7_8_cube(tol: Tol) -> topo::AtRestBody<f64> {
+    let mut cube = m7_8_cube::<f64>();
+    let unminted = topo::AtRestBody::validate(cube.clone(), tol)
+        .expect_err("the unminted M7-8 cube is not a finished body");
+    assert!(
+        unminted
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::Pcurve { .. })),
+        "the unminted wall refuses on its pcurves alone: {unminted:?}"
+    );
+    topo::mint_pcurves(&mut cube, tol).expect("the wall's pcurves mint");
+    common::finished("the minted M7-8 cube", cube, tol)
+}
+
 /// The boolean subtract of an enclosed M7-8 cube refuses typed BEFORE
 /// its fallback reaches the void door: the revert roster has no
 /// plane × NURBS pair. The row goes red the day the roster admits the
@@ -171,8 +190,13 @@ fn a_plain_cavity_through_the_void_door_decides_nothing() {
 /// reachable from the boolean.
 #[test]
 fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
-    let cube = m7_8_cube::<f64>();
-    let brick = common::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
+    let tol = Tol::witness();
+    let cube = finished_m7_8_cube(tol);
+    let brick = common::finished(
+        "the enclosing brick",
+        common::brick::<f64>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol),
+        tol,
+    );
     match topo::subtract(&brick, &cube, Tol::witness()) {
         Err(topo::BooleanError::CurvedPairUnsupported {
             operand: topo::Operand::B,
@@ -196,8 +220,13 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
 /// reachable from the boolean.
 #[test]
 fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
-    let cube = m7_8_cube::<f64>();
-    let brick = common::brick::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), Tol::witness());
+    let tol = Tol::witness();
+    let cube = finished_m7_8_cube(tol);
+    let brick = common::finished(
+        "the far brick",
+        common::brick::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), tol),
+        tol,
+    );
     match topo::union(&brick, &cube, Tol::witness()) {
         Err(topo::BooleanError::CurvedEdgeUnsupported {
             operand: topo::Operand::B,

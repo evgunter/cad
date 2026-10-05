@@ -81,7 +81,7 @@ downstream door: `Node.pattern` says the unfused family and
 says the same family fused into one.
 """
 
-from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
+from typing import Any, Final, Generic, Literal, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
@@ -177,6 +177,7 @@ class EditError(PncadError):
     offered: Optional[float | int]
     determinant: Optional[float]
     index: Optional[int]
+    side: Optional[str]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
@@ -585,7 +586,7 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`, `vertex_without_point`,
+    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -789,12 +790,8 @@ class ReadbackError(PncadError):
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
     under its OWN tags rather than a wrapper tag (`dangling_entity`,
-    `dangling_geometry`, `no_canonical_frame`, `no_carrier`).
-
-    The two dangling tags stay apart because they are different facts
-    about the model: `dangling_entity` is a stale or foreign handle,
-    `dangling_geometry` is a live entity naming geometry the body
-    itself no longer has.
+    `no_canonical_frame`, `no_carrier`). `dangling_entity` is a stale
+    or foreign handle.
 
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
@@ -2309,7 +2306,7 @@ class Node:
         `DocEdit.set_param(node, "distance", expr)` moves the depth,
         and makes it a named, editable number: a literal is a new
         document per value, a parameter reference is one
-        `set_doc_param_value` per value."""
+        `set_var_value` per value."""
 
     @staticmethod
     def revolve(profile: NodeId, axis: NodeId, angle: Expr) -> Node:
@@ -2848,7 +2845,7 @@ class Expr:
         promotion the expression language refuses."""
     @property
     def params(self) -> list[ParamName]:
-        """The document parameters this references, sorted and without
+        """The variable names this reads, sorted and without
         repeats."""
     def __eq__(self, other: object) -> bool: ...
 
@@ -2866,6 +2863,19 @@ class ParamName:
     def __init__(self, name: str) -> None: ...
     @property
     def name(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Var:
+    """A document variable's identity: the id the document minted it,
+    which every expression reading it holds. A rename moves the name
+    and keeps this handle; a delete leaves it naming nothing the
+    document holds, and the id is never minted again. Read one off
+    `Doc.var` or `Doc.vars`."""
+
+    @property
+    def hex(self) -> str:
+        """The id with every bit shown: sixteen lowercase hex digits."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -3186,10 +3196,10 @@ def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
 
 class DocParam:
     """A named parameter's declared dimension and exact stored value
-    (guide §3.2): what `DocEdit.set_doc_param` writes. Continuous
+    (guide §3.2): what `DocEdit.declare_var` writes. Continuous
     values arrive as typed quantities, so the dimension rides the
     constructor. A non-finite value is refused typed at `Doc.apply`
-    (`non_finite_doc_param`), not pre-checked here.
+    (`non_finite_var`), not pre-checked here.
 
     The three continuous constructors take an optional `distribution`
     (ERROR-DESIGN E1/E2) whose offsets must be in the dimension the
@@ -3213,7 +3223,7 @@ class DocParam:
 
         No `distribution=`: the kernel's own notation door carries no
         annotation, so neither does this. Annotate a parameter declared
-        here with `DocEdit.set_doc_param_distribution`, which carries
+        here with `DocEdit.set_var_distribution`, which carries
         the notation forward; `length` takes both at once and records
         the canonical metre row."""
 
@@ -3244,12 +3254,12 @@ class DocParam:
     def __hash__(self) -> int: ...
 
     # Equality mirrors Rust's `PartialEq` — the IEEE comparison of the
-    # stored value, NOT `DocParam::bit_eq`'s. So the two spellings of
+    # stored value, NOT `FreeVar::bit_eq`'s. So the two spellings of
     # zero are the same parameter, and the hash folds `-0.0` to match.
 
 class DocParamValue:
     """The VALUE half of a document parameter: what
-    `DocEdit.set_doc_param_value` writes into an ALREADY-DECLARED one.
+    `DocEdit.set_var_value` writes into an ALREADY-DECLARED one.
 
     The safe "just change the number" spelling. It carries no
     declaration, so it cannot replace one — the parameter keeps its
@@ -3339,86 +3349,93 @@ class DocEdit:
 
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
         the node lacks, `slot_dimension_mismatch` carrying the
-        required and offered dimensions, and `slot_unknown_doc_param` /
-        `slot_doc_param_dimension` for a parameter reference the
+        required and offered dimensions, and `slot_unknown_var_name` /
+        `slot_var_kind` for a parameter reference the
         document does not answer."""
 
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
-    def set_doc_param(name: ParamName, value: DocParam) -> DocEdit:
-        """Create or REPLACE a document-level named parameter.
+    def declare_var(name: ParamName, value: DocParam) -> DocEdit:
+        """Declare a variable: mint its id and hold `name` beside it.
 
-        The whole declaration is replaced, so a `DocParam` rebuilt from
-        a dimension and a number declares one with no distribution and
-        the annotation the old parameter carried is gone. `Doc.params`
-        reads a declaration back and
-        `DocParam.length(value, distribution)` restates it, so that is
-        no longer a trap Python cannot see — but moving a NUMBER is
-        still `set_doc_param_value`'s job, because that door cannot drop
-        what it never takes.
-
-        Refuses typed on a broken annotation: `invalid_distribution`
-        for an E2 invariant, `non_finite_doc_param` for a NaN or
-        infinite nominal or offset."""
+        Refuses typed on a name the document already holds
+        (`var_name_taken`), and on a broken annotation:
+        `invalid_distribution` for an E2 invariant,
+        `non_finite_var` for a NaN or infinite nominal or
+        offset."""
     @staticmethod
-    def set_doc_param_value(name: ParamName, value: DocParamValue) -> DocEdit:
-        """Write a new VALUE into an already-declared parameter, keeping
-        its declaration — dimension and distribution alike.
+    def define_var(var: Var | ParamName, value: DocParam) -> DocEdit:
+        """Replace a variable's definition, keeping its identity, its
+        name and its kind.
 
-        Prefer this over `set_doc_param` whenever the parameter already
-        exists: that one is create-or-replace, so rebuilding a
-        `DocParam` to move a number DELETES any distribution the
-        parameter carried, with no refusal. Refuses typed on an
-        undeclared name (`doc_param_not_declared`) and on a kind
-        mismatch (`doc_param_value_kind_mismatch`)."""
+        The whole definition is replaced, so a `DocParam` rebuilt from
+        a dimension and a number has no distribution and the annotation
+        the old one carried is gone. `Doc.params` reads a definition
+        back and `DocParam.length(value, distribution)` restates it —
+        but moving a NUMBER is `set_var_value`'s job, because that door
+        cannot drop what it never takes.
+
+        Refuses typed on a name the document does not hold
+        (`unknown_var`), on a definition of another kind
+        (`var_kind_fixed` — a kind is fixed when a variable is
+        declared), and on `declare_var`'s annotation faults."""
     @staticmethod
-    def set_doc_param_unit(name: ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
-        """Write a new NOTATION onto an already-declared parameter,
-        keeping its declaration — dimension, exact value and
-        distribution alike.
+    def set_var_value(var: Var | ParamName, value: DocParamValue) -> DocEdit:
+        """Write a new VALUE into a declared variable, keeping its
+        definition — dimension and distribution alike.
 
-        `set_doc_param_value`'s mirror over the other field of the same
-        declaration, and preferable over `set_doc_param` for the same
-        reason. A notation change is not a redeclaration — the display
+        Prefer this over `define_var` to move a number: that one
+        replaces the whole definition, so rebuilding a `DocParam` to
+        move a number DELETES any distribution the variable carried,
+        with no refusal. Refuses typed on an undeclared name
+        (`unknown_var`) and on a kind mismatch
+        (`var_value_kind_mismatch`)."""
+    @staticmethod
+    def set_var_unit(var: Var | ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
+        """Write a new NOTATION onto a declared variable, keeping its
+        definition — dimension, exact value and distribution alike.
+
+        `set_var_value`'s mirror over the other field of the same
+        definition, and preferable over `define_var` for the same
+        reason. A notation change is not a redefinition — the display
         unit is presentation metadata, excluded from `DocParam.bit_eq`.
 
         The unit is one of the typed unit objects (`mm`, `deg`, ...),
         so an off-table notation is a `TypeError` here rather than a
-        kernel refusal; a `Scalar` parameter has only the dimensionless
+        kernel refusal; a `Scalar` variable has only the dimensionless
         row and needs no door. Refuses typed on an undeclared name
-        (`doc_param_not_declared`), on a `Count`
-        (`doc_param_count_has_no_unit`) and on a unit that does not
-        measure the declared dimension (`doc_param_unit_mismatch`)."""
+        (`unknown_var`), on a `Count`
+        (`var_count_has_no_unit`) and on a unit that does not
+        measure the declared dimension (`var_unit_mismatch`)."""
     @staticmethod
-    def set_doc_param_distribution(
-        name: ParamName, distribution: Distribution | None
+    def set_var_distribution(
+        var: Var | ParamName, distribution: Distribution | None
     ) -> DocEdit:
-        """Write an E1/E2 ANNOTATION onto an already-declared parameter,
-        keeping its declaration — dimension, exact value and notation
-        alike.
+        """Write an E1/E2 ANNOTATION onto a declared variable, keeping
+        its definition — dimension, exact value and notation alike.
 
         The third of the carry-forward doors, one per field of the
-        declaration, and preferable over `set_doc_param` for its
-        siblings' reason: the annotated authoring spelling writes the
-        CANONICAL notation, so annotating through create-or-replace
-        re-spells a parameter authored in millimetres.
+        definition, and preferable over `define_var` for its siblings'
+        reason: the annotated authoring spelling writes the CANONICAL
+        notation, so annotating through a whole definition re-spells a
+        variable authored in millimetres.
 
         `None` CLEARS the annotation, through this same door: the field
-        is optional and "no annotation" is a value of the declaration,
+        is optional and "no annotation" is a value of the definition,
         not a row removed from a map.
 
         The distribution's own dimension is not checked here: a kernel
         distribution is dimension-free offsets, so the `dim` this value
-        carries is dropped at the door, as `set_doc_param_value` drops
-        its quantity's (LIB's
+        carries is dropped at the door, as `set_var_value` drops its
+        quantity's (LIB's
         `doc-param-edit-doors-drop-the-python-dimension`).
 
-        Refuses typed on an undeclared name (`doc_param_not_declared`),
-        on a `Count` (`doc_param_count_has_no_distribution` — a count
-        takes no annotation, for the reason `DocParam.count` gives) and
-        on a broken E2 invariant (`invalid_distribution`,
-        `non_finite_doc_param`)."""
+        Refuses typed on an undeclared name (`unknown_var`), on a
+        `Count` (`var_count_has_no_distribution` — a count takes
+        no annotation, for the reason `DocParam.count` gives) and on a
+        broken E2 invariant (`invalid_distribution`,
+        `non_finite_var`)."""
     @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.
@@ -3545,7 +3562,7 @@ class DocEdit:
         already holds; `not_minted`, an id the log lacks, is the load
         door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
-        refuses of a profile: `slot_unknown_doc_param` and its
+        refuses of a profile: `slot_unknown_var_name` and its
         siblings over every argument, `profile_program_refused` for a
         program that does not close, replay or validate."""
 
@@ -3578,9 +3595,29 @@ class DocEdit:
         not document state, and repairing one is re-selecting."""
 
     @staticmethod
+    def rename_var(var: Var | ParamName, name: ParamName | None) -> DocEdit:
+        """Name, rename or unname a variable: writes the name and
+        nothing else, so nothing recomputes and a `Var` handle keeps
+        naming the same variable. `None` clears the name.
+
+        Refuses typed on a variable the document does not hold
+        (`unknown_var`), a name another variable holds
+        (`var_name_taken`), the name it already has
+        (`var_name_unchanged`), and clearing the name of a variable
+        nothing reads (`anonymous_var_unread`)."""
+    @staticmethod
+    def delete_var(var: Var | ParamName) -> DocEdit:
+        """Delete a named variable. Its readers stay, unresolved:
+        evaluation refuses at each (`unresolved_var`), and the id is
+        never minted again.
+
+        Refuses typed on a variable the document does not hold
+        (`unknown_var`) and on an anonymous one, whose lifecycle is its
+        readers' (`delete_anonymous_var`)."""
+    @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
         """Bind `node`'s STRUCTURAL count slot to the document
-        parameter `name`, so one `set_doc_param` re-counts the
+        parameter `name`, so one `set_var_value` re-counts the
         placements and recomputes exactly what is downstream.
 
         Deliberately narrow: the slot is named by the door and the
@@ -3875,10 +3912,24 @@ class Doc:
     def params(self) -> dict[ParamName, DocParam]:
         """The document's named parameters, by name.
 
-        The read side of `DocEdit.set_doc_param`, and the only door
+        The read side of `DocEdit.declare_var`, and the only door
         that answers a whole parameter back: `Doc.eval` answers a
         parameter reference's number with the dimension and the
         authored notation both erased. A snapshot, not a view."""
+    @property
+    def vars(self) -> dict[Var, DocParam]:
+        """The document's variables, by identity, in declaration
+        order — the named ones and the anonymous ones. A snapshot, not
+        a view."""
+    def var(self, name: ParamName) -> Var | None:
+        """The variable this document names `name`, or None."""
+    def var_name(self, var: Var) -> ParamName | None:
+        """The name this document holds for `var`, or None — for an
+        anonymous variable, or one the document no longer holds."""
+    def unparse(self, expr: Expr) -> str:
+        """The text of `expr`, each variable it reads written by the
+        name this document holds for it; one with no name here writes
+        its full id, `#<16 hex>`."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...
@@ -3925,8 +3976,10 @@ class Doc:
         A `count` expression does not evaluate here — counts are exact
         and promotion is explicit or nothing — so it raises EvalError
         (`count_expr_in_continuous_eval`) and `eval_count` is the
-        door. Other refusals: `unknown_param`,
-        `param_dimension_mismatch`, `non_finite_result`."""
+        door. The names are read against this document. Other
+        refusals: `unlowered_name` (a name no variable holds at the
+        dimension it is read at), `var_kind_mismatch` (one held at
+        another), `unresolved_var`, `non_finite_result`."""
 
     def eval_count(self, expr: Expr) -> int:
         """This count expression's exact value (`eval_count`).
@@ -5530,78 +5583,84 @@ def evaluate(
 # outside it is compared with it (`SolvedPoses.unplaced`).
 
 class MateFrame:
-    """One side's mate frame, in that instance's own part coordinates
-    — two arms.
+    """One side's mate frame: a base composed with an offset, a
+    `Placement` written in the base's frame.
 
-    AUTHORED: three vectors, `MateFrame(origin, axis, reference)`.
-    `axis` need not be unit and `reference` need not be perpendicular
-    to it — only the axis's direction and the reference's
-    perpendicular part are read. Both are plain numbers (a direction
-    carries no dimension); `origin` is three lengths.
+    PART BASE: `MateFrame.on_part(offset)`, the side's part frame.
+    Three authored vectors, `MateFrame(origin, axis, reference)`, are
+    the part base with one literal step: local +Z is `axis`, the local
+    origin `origin`, the roll fixed by `reference`. `axis` need not be
+    unit and `reference` need not be perpendicular to it — only the
+    axis's direction and the reference's perpendicular part are read.
+    Both are plain numbers (a direction carries no dimension); `origin`
+    is three lengths.
 
-    FROM A FACE: `MateFrame.from_face()`, which takes nothing: the
-    side's frame is its own HEAD's face, the face the mate's reference
-    on that side names, read in the mated part. The solve reads that
-    face's canonical pose off the part's own evaluation at every
-    evaluation and takes it as the frame: the
-    carrier's origin, its CHART axis (the face's orientation sense is
-    not folded in — the mate's `AxisSense` says which way the sides
-    point) and the carrier's own in-frame reference direction as the
-    roll. So a face frame's roll is the carrier's: a side that needs a
-    roll of its own takes authored vectors. Nothing is stored twice:
-    edit the part so the face moves, or rebind the head, and the mate
-    follows; split and inline carry it with its head. A face with
-    no canonical frame (a NURBS carrier) refuses at the solve and keeps
-    taking authored vectors.
+    FACE BASE: `MateFrame.from_face()`, or `MateFrame.on_face(offset)`.
+    No name: the side's frame is its own HEAD's face, the face the
+    mate's reference on that side names, read in the mated part. The
+    solve reads that face's canonical pose off the part's own
+    evaluation at every evaluation: the carrier's origin, its CHART
+    axis as local +Z (the face's orientation sense is not folded in —
+    the mate's `AxisSense` says which way the sides point) and the
+    carrier's own in-frame reference direction as local +Y (the
+    `point_at` convention: local +X is the reference crossed with the
+    axis). The offset is
+    written in that frame, so it slides along the face, turns about its
+    normal, or sets back from it. Nothing is stored twice: edit the
+    part so the face moves, or rebind the head, and the side follows,
+    offset and all; split and inline carry it with its head. A face
+    with no canonical frame (a NURBS carrier) refuses at the solve.
 
-    A face frame resolves at the NOMINAL value only. Under an analysis
-    lane — `stackup.sensitivities`' dual passes, a certified
-    `clearance`'s interval leaf — the part's product pins no single
-    number, so the side refuses `mate_face_unresolved` / `unpinned`
-    rather than drop the pose's own sensitivity: those doors refuse an
-    assembly that holds a face frame, where the same mate authored as
-    vectors still solves."""
+    The offset is any rigid motion; the mate's contact class says which
+    offsets are legal — a `Rest` side set back from its face declares a
+    contact that is not there, and the at-rest gate refutes it. A rigid
+    step's expressions may read a document parameter, so a parameter
+    can drive where a side sits.
+
+    A face base resolves on every lane: a seed run reads the pose with
+    its tangent, a box run an enclosure of it, and so does a parameter
+    an offset step reads."""
 
     def __init__(
         self,
         origin: tuple[Length, Length, Length],
         axis: tuple[float, float, float],
         reference: tuple[float, float, float],
-    ) -> None: ...
+    ) -> None:
+        """Three authored vectors: the part base with the one literal
+        step they denote. Raises FrameError when the axis has no
+        definite direction or the reference no definite perpendicular,
+        or a length is not a finite number. Decided at the session's
+        tolerance, the one every edit door decides at (a document
+        recording another epsilon is refused before its geometry is
+        read); the stored literal is judged again by the placement
+        frame rule where it lands."""
+    @staticmethod
+    def on_part(offset: Placement) -> MateFrame:
+        """The part base composed with `offset`, in the part's own
+        coordinates."""
     @staticmethod
     def from_face() -> MateFrame:
-        """A frame resolved from the side's own head face (see the
-        class docs); it takes nothing, and it resolves on the nominal
-        lane only."""
+        """The side's own head face with no offset: the face's pose
+        itself (see the class docs), resolved on every lane at the
+        evaluation's own scalar."""
+    @staticmethod
+    def on_face(offset: Placement) -> MateFrame:
+        """The side's own head face composed with `offset`, written in
+        the face's frame: origin on the face, +Z along its chart axis,
+        +Y along its reference direction."""
 
     @property
-    def variant(self) -> str:
-        """`"authored"` or `"from_face"`."""
+    def base(self) -> Literal["part", "face"]:
+        """What the offset is written in: `"part"` or `"face"`."""
 
     @property
-    def origin(self) -> Optional[tuple[Length, Length, Length]]:
-        """The authored origin; `None` on a `from_face` frame, whose
-        origin is the face's and is read at the solve."""
+    def offset(self) -> Placement:
+        """The offset, in the base's frame."""
 
-    @property
-    def axis(self) -> Optional[tuple[float, float, float]]:
-        """The authored axis; `None` on a `from_face` frame."""
-
-    @property
-    def reference(self) -> Optional[tuple[float, float, float]]:
-        """The authored clocking reference; `None` on a `from_face`
-        frame, whose roll is the carrier's own."""
-
-    def placement(self) -> Frame:
-        """The rigid placement an AUTHORED frame denotes: local +Z is
-        `axis`, roll fixed by `reference`. Raises FrameError when the
-        axis has no definite direction or the reference no definite
-        perpendicular — the refusal the solve would meet, reachable
-        BEFORE authoring the mate that carries it. Raises TypeError on
-        a `from_face` frame, which denotes no placement until the
-        solve resolves it against the part: ask the solved document."""
-
-    def __eq__(self, other: object) -> bool: ...
+    def __eq__(self, other: object) -> bool:
+        """BIT-exact: the same base, and offsets equal by
+        `Placement.__eq__`'s rule."""
 
 class AxisSense:
     """Which way the two sides' axes point at each other. `Opposed` is
@@ -5683,19 +5742,6 @@ class Alignment:
     def sense(self) -> AxisSense: ...
     @property
     def clocking(self) -> Optional[Angle]: ...
-    @property
-    def lever_arm(self) -> Optional[Length]:
-        """The datum's own contribution to the lever this mate's angular
-        decisions turn on: both mate frames' distances from their parts'
-        origins plus every length the primitive authors, summed. `None`
-        when a side is a `from_face` frame, whose origin is the face's
-        and is read at the solve, where the term is formed.
-
-        The lever itself adds the two mated parts' own extent (an upper
-        bound from each evaluated body), which only the solve has in
-        hand — so this is the part an alignment can answer alone, never
-        the whole. Zero for a datum authored at both origins with no
-        length, the ordinary spelling of an axis-to-axis mate."""
     def __eq__(self, other: object) -> bool: ...
 
 class ClassAdmission:
@@ -5883,10 +5929,10 @@ class MateFault:
         refusal's (`part_unresolved`, `face_unbounded`,
         `malformed_body`, `no_extent`, `no_finite_bound`,
         `not_an_instance`, with the instance it is about as `instance`,
-        or `out_of_range`, about the pair's lever rather than one part,
-        with no `instance`), or the face refusal's on
+        or `out_of_range` and `below_zero_band`, about the pair's lever
+        rather than one part, with no `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
-        `ambiguous`, `not_a_face`, `readback`, `unpinned`,
+        `ambiguous`, `not_a_face`, `readback`,
         `not_an_instance`, `no_part_face`, with the
         instance as `instance` and the face as `face`). `None` on an
         arm whose payload is a struct rather than an enum — an
@@ -6128,28 +6174,35 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
 class RefusedRef:
     """Why a mate reference named no product face.
 
-    The gate asks two tables in order: the product's, then — when it
-    is silent — the operand's own. `ref_vanished` is a name neither
-    spells; `ref_read_below_a_root` is a name the operand spells at a
-    node the product does not list as a root. A head's KIND is not
-    among the questions: a mate head is a face by its type, refused
-    where the name is made (`mate_head_not_a_face`)."""
+    The gate reads the name in the table of the operand the mate reads
+    it at, and carries it up the operand's consumers to the product.
+    `ref_vanished` is a name the operand does not spell, or one a
+    consumer merges, cuts or drops on its way up (`by`);
+    `ref_moved_above` is a face a node above the operand places again
+    before the product holds it (`at`, `by`); `ref_ambiguous` is more
+    than one product face. A head's KIND is not among the questions: a
+    mate head is a face by its type, refused where the name is made
+    (`mate_head_not_a_face`)."""
 
     @property
     def variant(self) -> str:
-        """`ref_vanished`, `ref_read_below_a_root`, or
-        `ref_ambiguous`."""
+        """`ref_vanished`, `ref_moved_above`, or `ref_ambiguous`."""
 
     @property
     def at(self) -> Optional[NodeId]:
         """The operand the reference is read at, for
-        `ref_read_below_a_root`: its own table spells the name, and
-        it is not a root of the product."""
+        `ref_moved_above`."""
+
+    @property
+    def by(self) -> Optional[NodeId]:
+        """The node above the operand that places the face again
+        (`ref_moved_above`), or that consumed it on its way to the
+        product (`ref_vanished`, when the operand spells the name)."""
 
     @property
     def width(self) -> Optional[int]:
-        """How many entities a tie holds. A mate declaration must name
-        ONE face, and a tie is never broken by picking."""
+        """How many faces answer. A mate declaration must name ONE
+        face, and a tie is never broken by picking."""
 
 class MintedDeclaration:
     """One declaration the gate minted from a solved mate.

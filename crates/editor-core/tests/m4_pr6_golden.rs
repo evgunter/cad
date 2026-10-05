@@ -27,10 +27,10 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
-    LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
-    evaluate, load, save,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Expr, FreeVar,
+    LoopProgram, MetaValue, Node, NodeResult, PersistError, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, VarName, WitnessDatum,
+    apply, evaluate, load, save,
 };
 use fixture::{ang, desc, len, len2, scl};
 use geom_core::Tol;
@@ -67,9 +67,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // populated `distribution` key rather than only its absence.
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -78,16 +78,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     lo: -0.005,
                     hi: 0.004,
                 }),
-            },
+            }),
         },
     );
     // A second parameter with NO distribution, so the same bytes also
     // pin the degenerate carry: an unannotated param writes no key.
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("clearance"),
-            value: DocParam::continuous(Dimension::Length, 0.001),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("clearance"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
     );
     // Every sketch in this fixture is drawn on the world xy plane, so
@@ -127,7 +127,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: arc_profile,
-                distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -303,8 +303,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Box::new(
                 Node::measure(
                     editor_core::MeasureExpr::sub(
-                        editor_core::MeasureExpr::value(Expr::param(
-                            ParamName::from_static("depth"),
+                        editor_core::MeasureExpr::value(Expr::named(
+                            VarName::from_static("depth"),
                             Dimension::Length,
                         )),
                         editor_core::MeasureExpr::value(len(0.25)),

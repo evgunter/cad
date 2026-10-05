@@ -1,5 +1,5 @@
 //! **A rim circle crossing a cylinder wall**, end to end: the poses the
-//! circle × cylinder root lane (`topo::boolean::circle_cylinder`)
+//! conic × quadric root door (`topo::boolean::conic_quadric`)
 //! settles, and the door each one reaches next.
 //!
 //! - **A crossing of the CARRIER outside the wall's trim builds.** A
@@ -7,9 +7,9 @@
 //!   the cylinder's rim circles cross the prism's wall carrier on the
 //!   side the wall face does not cover, and the certified roots place
 //!   both crossings outside its trim — no event, where the crossing
-//!   layer used to keep its pierce door. Square to the axes (the lane's
-//!   square arm) and with the prism tilted (its half-angle
-//!   arm), every boolean builds and meters at the closed form.
+//!   layer used to keep its pierce door. Square to the axes (the door's
+//!   first-harmonic arm) and with the prism tilted (its half-angle
+//!   ladder), every boolean builds and meters at the closed form.
 //! - **A genuine pierce reaches the cylinder pair's join.** Two
 //!   parallel equal-radius cylinders staggered in height: each rim
 //!   circle pierces the other wall, the lane certifies where, the
@@ -27,6 +27,7 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError, BooleanOp, SweepStrategy};
 
@@ -85,6 +86,10 @@ fn segment(a: f64) -> f64 {
 
 fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, BooleanError> {
     let tol = Tol::witness();
+    let (a, b) = (
+        &finished("operand A", a.clone(), tol),
+        &finished("operand B", b.clone(), tol),
+    );
     let out = match op {
         BooleanOp::Union => topo::union(a, b, tol),
         BooleanOp::Intersect => topo::intersect(a, b, tol),
@@ -94,7 +99,8 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, Boolean
         .body()
         .unwrap_or_else(|| panic!("{op:?} came back empty"))
         .body
-        .clone())
+        .clone()
+        .into_body())
 }
 
 /// The datum a refusal past the crossing layer does not carry: how many
@@ -159,7 +165,7 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
 /// `A`'s rim circles cross the prism's wall CARRIER at `x < d`, beside
 /// the flat, which the wall face does not cover: the root lane places
 /// both crossings outside its trim. Square to the axes that is the
-/// lane's square arm, tilted its half-angle quartic.
+/// door's first-harmonic arm, tilted its half-angle quartic.
 #[test]
 fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
@@ -188,18 +194,18 @@ fn a_d_prism_beside_a_cylinder_builds_under_every_boolean() {
     }
 }
 
-/// **Two parallel equal-radius cylinders that pierce reach the
-/// cylinder pair's join.** Staggered in height, each rim circle crosses
-/// the other wall inside its trim: a pierce, certified by the root lane,
-/// whose sector side certifies, at every offset from deep overlap to a
-/// thin lens. The section's germ pair is then two WALLS, which the join
-/// has no chord lane for (`CurvedBooleanUnsupported`, naming a
-/// cylinder; `work/tang/cylinder-pair-germ-has-no-join-arm.md`). The
-/// refusal names no edge, so the sweep's trace is asked which events it
-/// took: each operand's rim circles on the other's wall.
+/// **Two parallel equal-radius cylinders that pierce build at the closed
+/// form.** Staggered in height, each rim circle crosses the other wall
+/// inside its trim: a pierce, certified by the root lane, whose sector
+/// side certifies, at every offset from deep overlap to a thin lens. The
+/// section's germ pair is then two walls, which the join splits along
+/// their rulings. The trace is asked which events the sweep took: each
+/// operand's rim circles on the other's wall. The solids share the lens
+/// of two unit discs `d` apart over 1.5 of height.
 #[test]
-fn parallel_cylinders_that_pierce_reach_the_cylinder_pair_join() {
+fn parallel_cylinders_that_pierce_build_at_the_closed_form() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let (va, vb) = (2.0 * PI, 2.0 * PI);
     for d in [0.3, 0.8, 1.2, 1.6, 1.9] {
         let b = cyl(d, 0.0, 1.0, 0.5, 2.5);
         let (ab, ba) = circle_wall_events(&a, &b);
@@ -207,18 +213,16 @@ fn parallel_cylinders_that_pierce_reach_the_cylinder_pair_join() {
             ab > 0 && ba > 0,
             "d {d}: each rim circle meets the other wall: {ab} + {ba}"
         );
-        for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-            let err = run(op, &a, &b).expect_err("no join arm for a wall pair");
-            assert!(
-                matches!(
-                    err,
-                    BooleanError::CurvedBooleanUnsupported {
-                        kind: geom::SurfaceKind::Cylinder,
-                        ..
-                    }
-                ),
-                "d {d}, {op:?}: expected the cylinder pair's join door, got {err:?}"
-            );
+        let common = 2.0 * segment(d / 2.0) * 1.5;
+        for (op, x, y, expected) in [
+            (BooleanOp::Union, &a, &b, va + vb - common),
+            (BooleanOp::Subtract, &a, &b, va - common),
+            (BooleanOp::Subtract, &b, &a, vb - common),
+            (BooleanOp::Intersect, &a, &b, common),
+        ] {
+            let label = format!("d {d}, {op:?}");
+            let body = run(op, x, y).unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+            assert_body(&label, &body, expected);
         }
     }
 }
@@ -266,7 +270,7 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
 /// it by less than the zero band, keeps the pierce door.** Two parallel
 /// unit cylinders `2 + δ` apart, staggered, `|δ|` at most half the zero
 /// band: each rim circle's extreme residual against the other wall is
-/// `δ`. The square arm decides on that exact extreme, puts it in the
+/// `δ`. The first-harmonic arm decides on that exact extreme, puts it in the
 /// zero band and escalates to `Uncertain`, and the crossing layer keeps
 /// its door, naming a rim circle. The half-angle ladder does not decide
 /// on the residual's range and can certify an in-band configuration as a

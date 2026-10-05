@@ -28,10 +28,10 @@ use std::time::Instant;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet,
-    UnitSym, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
+    select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
@@ -51,7 +51,7 @@ const BORE_R: f64 = 0.3e-3;
 const BULGE: f64 = 2.0;
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// **R1's circular-segment boss**, as a function of the SCALE of its
@@ -76,14 +76,14 @@ fn plen(n: &'static str) -> Expr {
 pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::from_static(n),
-            value: DocParam::Continuous {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -149,7 +149,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
@@ -217,8 +217,9 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     v.receipt(),
                     v.decisions()
                 );
-                let stack =
-                    editor_core::stackup::stackup(&doc, measure, &analyzed, &v, None, false, tol);
+                let stack = editor_core::stackup::stackup(
+                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                );
                 match &stack {
                     Ok(rep) => println!(
                         "   stackup: worst case {:?} over {} leaves, nominal {:?}",
@@ -314,13 +315,12 @@ fn r1_the_segment_bosss_per_predicate_split_at_the_nominal() {
 fn halve(b: &ParamBox) -> Option<(ParamBox, ParamBox)> {
     let (name, lo, hi) = b
         .varying()
-        .max_by(|a, c| (a.2 - a.1).partial_cmp(&(c.2 - c.1)).unwrap())
-        .map(|(n, lo, hi)| (n.clone(), lo, hi))?;
+        .max_by(|a, c| (a.2 - a.1).partial_cmp(&(c.2 - c.1)).unwrap())?;
     let mid = 0.5 * (lo + hi);
     let mut left = b.axes().clone();
     let mut right = b.axes().clone();
     left.insert(
-        name.clone(),
+        name,
         editor_core::analysis::BoxAxis::Varying { lo, hi: mid },
     );
     right.insert(

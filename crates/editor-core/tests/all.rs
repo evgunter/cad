@@ -280,6 +280,12 @@ mod maintenance_net;
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]
 mod msolve11_mate_log;
+#[path = "msolve12_honest_translation.rs"]
+mod msolve12_honest_translation;
+#[path = "msolve13_read_at_operand.rs"]
+mod msolve13_read_at_operand;
+#[path = "msolve14_run_scalar.rs"]
+mod msolve14_run_scalar;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
@@ -288,8 +294,8 @@ mod msolve2_member_chain;
 mod msolve3_placer_refused;
 #[path = "msolve4_mate_memo.rs"]
 mod msolve4_mate_memo;
-#[path = "msolve5_read_below_a_root.rs"]
-mod msolve5_read_below_a_root;
+#[path = "msolve5_operand_refusals.rs"]
+mod msolve5_operand_refusals;
 #[path = "msolve6_part_extent.rs"]
 mod msolve6_part_extent;
 #[path = "msolve7_member_residue.rs"]
@@ -505,6 +511,8 @@ mod pierce_ring_engraving;
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
+#[path = "place_mate_frame_offset.rs"]
+mod place_mate_frame_offset;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
@@ -717,5 +725,9 @@ mod emit_union_borders;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "intent_vars_2_table.rs"]
+mod intent_vars_2_table;
+#[path = "intent_vars_3_readers.rs"]
+mod intent_vars_3_readers;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;

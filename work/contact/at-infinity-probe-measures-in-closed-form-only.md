@@ -81,3 +81,67 @@ offset in the face's frame ((0, 0), (0.3, 0.2), (−0.2, −0.3)).
   `VolumeUncertified`.
 - Arc-bearing glyphs on the section face stop earlier, at the curved
   pierce arm (`work/reach/non-circle-conic-edge-refuses-against-every-curved-face.md`).
+
+## More consumers (JOIN-3's dual review)
+
+JOIN-3 builds blind and through D pockets whose profiles are tilted
+against the block, so the block's caps cut ellipse arcs; every one of
+those builds is sound (tiers 2, 3′, the certificate, the closed form)
+and is not a legal operand: the far-brick union refuses
+`Containment(VolumeUncertified)`, this probe's refusal. Measured
+release, main against JOIN-3's fix-pass head (the batteries are
+`#[ignore]`d in `crates/sweep/tests/`):
+
+| battery | non-operands, main / head |
+|---|---|
+| `join3_r2_probes::j3r2_tilted_battery` (D, stadium, lens… tilted 0.15 / 0.3 rad) | 576 / 2153 |
+| `join3_review_r1::j3r1_tilted_through` (random bulge profiles tilted 0.05–0.45 rad) | 460 / 526 |
+| `join3_review_r1::j3r1_d_family` (the D tilted 0.2 and 0.6) | 0 / 144 |
+
+Main already fails the gate the same way on its own tilted builds, and
+on a tilted ROUND pocket (`j3r2_tilted_rod_operand`); the tilted cutters
+themselves are legal operands (`j3r2_tilted_operands`, 89 of 90). No
+other non-operand kind appears.
+
+## Another witness (JOIN, PR 4008's fix pass)
+
+`crates/sweep/tests/pocket_ring_steep_ellipse.rs`
+`steep_plate_rod_battery`: a thin plate pierced by a rod tilted θ from
+`z`, so every rod piece the plate leaves has elliptic planar caps. Every
+body that battery builds refuses to unite with a far brick,
+`Containment(VolumeUncertified)` (the differential `outcome`'s
+`operand=false`): 1 151 runs on main, 1 817 once the join pairs the
+steep ellipses along the conic. The rod and the plate alone unite with
+the brick. Probed at θ = 30° and 70°, plate ∩ rod.
+
+
+## Another witness (JOIN, the parallel cylinder arm)
+
+Once the join splits two parallel cylinder walls along their rulings
+(`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`), the
+row's rods across the tilted drum cut's rim reach this probe. The
+drum's lower part (radius 0.5, cut through `(0, 0, 0.5)` at 0.3 rad)
+against a rod of radius 0.2 about `(0.5, 0)`, `z ∈ [0.2, 0.45]`; of
+radius 0.1 about `(−0.45, 0)`, `z ∈ [0.5, 0.8]`; and of radius 0.1
+about `(0, 0.48)`, `z ∈ [0.3, 0.7]`: ∪, ∩ and both differences, in
+both operand orders (18 runs), refuse `Containment(VolumeUncertified)`.
+The same rods against an uncut drum build sound at their closed-form
+volumes, so the cut wall's ellipse trim is what the probe cannot
+measure. The closed-form volumes are written down in
+`crates/sweep/tests/parallel_cylinder_join.rs` (`rim_poses`), and the
+poses are pinned at this door by
+`the_rim_crossing_rods_stop_at_the_volume_probe`.
+
+## Another witness (JOIN, PR 4038's pinch crossing)
+
+PR 4038's review r1 (`r1b_pinch_probes cyl` on
+`join/pierce-pinch-families-review-r1`, a prism corner on a cylinder of
+axis y, r = 5): 24 intersections that main refused `JoinDesync`
+("derived ring role order") now build at the exact volume (to 1e-9),
+with tiers 2, 3′ and 3 and the certificate passing. Only the
+legal-operand check fails: the union with a far brick refuses
+`Containment(VolumeUncertified)`. Both orders of each pose: Lbot
+`phi40 th120`; Ltop `phi230 th285`, `phi230 th300`, `phi300 th105`;
+notch327 `phi230 th210`, `th225`, `th315`, `th330`, `phi300 th135`,
+`th150`, `th30`, `th45`. Main already ships 294 such intersection
+lines in that battery.

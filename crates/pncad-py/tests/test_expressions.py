@@ -55,9 +55,9 @@ def plate(width=0.1 * m, margin=3 * mm, holes=4):
     make every row depend on the evaluator that is NOT this one.
     """
     doc = Doc("expression-rows")
-    doc.apply(DocEdit.set_doc_param(ParamName("width"), DocParam.length(width)))
-    doc.apply(DocEdit.set_doc_param(ParamName("margin"), DocParam.length(margin)))
-    doc.apply(DocEdit.set_doc_param(ParamName("holes"), DocParam.count(holes)))
+    doc.apply(DocEdit.declare_var(ParamName("width"), DocParam.length(width)))
+    doc.apply(DocEdit.declare_var(ParamName("margin"), DocParam.length(margin)))
+    doc.apply(DocEdit.declare_var(ParamName("holes"), DocParam.count(holes)))
     return doc
 
 
@@ -296,7 +296,7 @@ class TestTheEvaluatorAnswersValues(unittest.TestCase):
         expr = self.doc.parse_expr("width / 2.0")
         self.assertEqual(self.doc.eval(expr).in_unit(m), 0.05)
         self.doc.apply(
-            DocEdit.set_doc_param_value(
+            DocEdit.set_var_value(
                 ParamName("width"), DocParamValue.length(0.2 * m)
             )
         )
@@ -336,18 +336,18 @@ class TestTheEvaluatorRefusesTyped(unittest.TestCase):
         expr = self.doc.parse_expr("width / 2.0")
         with self.assertRaises(EvalError) as caught:
             Doc("empty").eval(expr)
-        self.assertEqual(caught.exception.variant, "unknown_param")
+        self.assertEqual(caught.exception.variant, "unlowered_name")
         self.assertEqual(caught.exception.name, "width")
 
     def test_a_redeclared_parameter_says_both_dimensions(self):
-        """The expression's reference recorded a length; this document
-        declares the same name as a count."""
+        """The expression reads `width` as a length; this document holds
+        the same name as a count."""
         expr = self.doc.parse_expr("width")
         counts = Doc("counts")
-        counts.apply(DocEdit.set_doc_param(ParamName("width"), DocParam.count(3)))
+        counts.apply(DocEdit.declare_var(ParamName("width"), DocParam.count(3)))
         with self.assertRaises(EvalError) as caught:
             counts.eval(expr)
-        self.assertEqual(caught.exception.variant, "param_dimension_mismatch")
+        self.assertEqual(caught.exception.variant, "var_kind_mismatch")
         self.assertEqual(caught.exception.name, "width")
         self.assertEqual(caught.exception.expected, "length")
         self.assertEqual(caught.exception.found, "count")

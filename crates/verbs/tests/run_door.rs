@@ -21,8 +21,8 @@ use geom_core::{Affine3, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::{Extrusion, Revolution};
 use topo::{
-    Body, BooleanDeclarations, BooleanOp, BooleanResult, SplitPart, SweepStrategy, boolean_op_with,
-    split,
+    AtRestBody, Body, BooleanDeclarations, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
+    boolean_op_with, split,
 };
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
@@ -48,11 +48,7 @@ fn dump(body: &Body<f64>) -> String {
         body.edges().count(),
         body.faces().count()
     );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|v| body.get_point(v.point))
-            .unwrap();
+    for (k, p) in body.vertex_points() {
         let _ = writeln!(
             s,
             "{k:?} {:016x} {:016x} {:016x}",
@@ -137,16 +133,27 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(door.to_string(), carried.to_string());
 }
 
-/// A unit cube translated by `d` — the boolean rows' second operand.
-fn shifted_cube(d: Vec3<f64>) -> Body<f64> {
+/// The unit cube, finished — the boolean rows' first operand.
+fn unit_cube() -> AtRestBody<f64> {
+    sweep::test_support::finished(
+        "the unit cube",
+        sweep::test_support::cube(1.0, tol()),
+        tol(),
+    )
+}
+
+/// A unit cube translated by `d`, finished — the boolean rows' second
+/// operand.
+fn shifted_cube(d: Vec3<f64>) -> AtRestBody<f64> {
     let cube = sweep::test_support::cube(1.0, tol());
     let map = Affine3::translation(d);
-    topo::transform_rigid(&cube, &map, tol()).expect("a translation is rigid")
+    let moved = topo::transform_rigid(&cube, &map, tol()).expect("a translation is rigid");
+    sweep::test_support::finished("the shifted cube", moved, tol())
 }
 
 #[test]
 fn the_boolean_dispatch_is_the_boolean_door() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     // A proper crossing: overlap in every axis, no face-on-face rest.
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
 
@@ -198,7 +205,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
 /// not an error) — disjoint operands intersected.
 #[test]
 fn an_empty_boolean_result_crosses_as_the_typed_empty() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(3.0, 0.0, 0.0));
 
     let door = boolean_op_with(
@@ -229,7 +236,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 /// coincidence refusal, reached identically both ways.
 #[test]
 fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(1.0, 0.0, 0.0));
 
     let door = boolean_op_with(
@@ -305,8 +312,8 @@ fn sample(kind: VerbKind) -> Verb<f64> {
 /// below read it, one for the refusals and one for the census.
 fn every_door(
     verb: &Verb<f64>,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     disc: &profile::ValidatedProfile<f64>,
 ) -> Vec<(Arity, Option<VerbError<f64>>)> {
     vec![
@@ -331,7 +338,7 @@ fn every_door(
 /// without a row cannot be written (the matrix keys on the enum).
 #[test]
 fn every_arity_row_has_a_door_and_every_door_a_row() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
     let disc = disc(0.5);
     let doors: std::collections::BTreeSet<Arity> =
@@ -368,7 +375,7 @@ fn every_arity_row_has_a_door_and_every_door_a_row() {
 /// that agrees.
 #[test]
 fn each_door_refuses_the_undeclared_arity() {
-    let a = sweep::test_support::cube(1.0, tol());
+    let a = unit_cube();
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
     let disc = disc(0.5);
 
@@ -546,9 +553,9 @@ fn the_split_dispatch_is_the_split_door() {
 /// Bitwise vertex lookup: how many vertices of `body` sit exactly at
 /// `(x, y, z)`.
 fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
-    body.vertices()
-        .filter(|(_, v)| {
-            let p = *body.get_point(v.point).unwrap();
+    body.vertex_points()
+        .filter(|(_, p)| {
+            let p = *p;
             p.x == x && p.y == y && p.z == z
         })
         .count()

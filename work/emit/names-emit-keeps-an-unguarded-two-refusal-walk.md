@@ -45,7 +45,7 @@ own walk.
 
 The repair is a guard that names both refusals — the shape of
 `topo`'s `splitting::join::tests::he_face_names_the_key_that_went_stale`
-and `body::tests::the_walk_consumers_keep_their_own_refusal`.
+and `body::tests::the_walk_consumers_panic_naming_the_torn_link`.
 
 **A third refusal in the same file has never been censused.**
 `face_half_edges` (~:799) raises `bug("face walk: dangling loop")`. It

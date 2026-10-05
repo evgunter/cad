@@ -2,11 +2,14 @@
 id: carved-sphere-body-cannot-be-classified-or-reused-as-an-operand
 kind: issue
 title: A body carrying a sphere face bounded by a tilted circle refuses point classification (PartialSphereFace) and a ball nested in it (CurvedPierceUnsupported)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
-refs: [tilted-sphere-pair-section-refuses-at-the-polar-gate]
+refs: [tilted-sphere-pair-section-refuses-at-the-polar-gate, torus-face-bounded-by-an-oblique-circle-refuses-point-classification]
+pr: 4046
+branch: reach/carved-sphere-classify
+closed: 2026-10-05
 ---
 
 
@@ -48,3 +51,27 @@ its plane), or a spherical point-in-loop on the loop's arcs — and the
 pierce arm's reading of the same faces. The rows: the four queries and
 the three nested/disjoint balls above, under every op, against their
 closed forms.
+
+## Evidence (2026-10-03, `reach/arc-from-pairing`)
+
+The pole-strut pose (`ball_poled_y(0.5)` against the box
+`[−1, 0.25] × [−1, 1] × [−1, 0]`) now builds under every op in either
+order, tier 3 clean, to its closed form; a result carrying the sphere
+face the tilted circle `x = 0.25` bounds refuses as the next boolean's
+operand with `Containment(PartialSphereFace)`
+(`crates/sweep/tests/join1_r1_rows.rs`,
+`a_pole_struts_halves_face_their_own_meridians`, which accepts that
+refusal).
+
+## Closed (2026-10-05)
+
+Merged by PR 4046. `topo::boolean::sphere_region` is the one reading of
+a trimmed sphere face: a geodesic closest-crossing rule over the face's
+boundary arcs, cast both ways, read by `point_in_solid`'s sphere arm and
+by the pierce arm's face door. The item's four queries, the nested,
+disjoint and lens-centre balls, the pole-strut results and a tilted
+plane × sphere cut all classify and build to their closed forms under
+every op. `PartialSphereFace` now means only a sphere face with a
+non-circle boundary edge. An independent verifier
+(`analysis/reach-verify/4046`) found 0 wrong answers in 52,500 random
+queries on five carved bodies at three ε, plus both reviewers' probes.

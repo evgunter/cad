@@ -20,7 +20,7 @@ use crate::common::bores::{
 };
 use crate::common::cavity::{brick, cut, prism, rod};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use sweep::test_support::bored_cylinder;
+use sweep::test_support::{bored_cylinder, finished};
 use topo::splitting::{SplitError, SplitPlane, split};
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{Body, mass_properties};
@@ -277,8 +277,16 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
 #[test]
 fn a_hole_in_an_island_in_a_hole_goes_to_the_island() {
     let block = brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 4.0));
-    let grooved = cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0));
-    let island = rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5);
+    let grooved = finished(
+        "the grooved block",
+        cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0)),
+        tol(),
+    );
+    let island = finished(
+        "the island",
+        rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5),
+        tol(),
+    );
     let islanded = match topo::union(&grooved, &island, tol()) {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the island unites: {:?}", other.err()),
@@ -746,8 +754,16 @@ fn plane_section_of_a_bored_body_is_one_region_with_the_bore_its_hole() {
 #[test]
 fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
     let block = brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 4.0));
-    let grooved = cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0));
-    let island = rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5);
+    let grooved = finished(
+        "the grooved block",
+        cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0)),
+        tol(),
+    );
+    let island = finished(
+        "the island",
+        rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5),
+        tol(),
+    );
     let islanded = match topo::union(&grooved, &island, tol()) {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the island unites: {:?}", other.err()),

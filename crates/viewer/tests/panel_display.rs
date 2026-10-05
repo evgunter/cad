@@ -30,7 +30,7 @@ use crate::common;
 use pncad::document::ExtrudeSide;
 
 use pncad::document::{
-    Axis3, Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, SlotId,
+    Axis3, Datum, Dimension, Doc, DocEdit, Expr, FreeVar, Node, ProfileProgram, SlotId, VarName,
     VectorSlot,
 };
 use pncad::geom_core::Tol;
@@ -691,12 +691,14 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
 fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-unit", tol);
-    let name = ParamName::from_static("base_r");
+    let name = VarName::from_static("base_r");
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            def: pncad::document::VarDef::Free(FreeVar::written_length(WrittenLength::in_unit(
+                50.0, MM,
+            ))),
         },
         tol,
     );
@@ -704,7 +706,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let row = |session: &DocSession| {
         props::param_rows(session.doc())
             .into_iter()
-            .find(|row| row.name == name)
+            .find(|row| row.label.name() == Some(&name))
             .expect("the parameter row")
     };
 
@@ -725,7 +727,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     // A value edit through the panel's own door: the number moves, the
     // notation beside it does not.
     let outcome = session.perform(SessionOp::SetParam {
-        name: name.clone(),
+        var: common::var_of(session.committed_doc(), name.as_str()),
         value: SlotValue::of(before.dimension, from_written(60.0, unit))
             .expect("a finite angle is a value"),
     });
@@ -745,18 +747,18 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
 fn a_count_parameter_has_no_written_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-count", tol);
-    let name = ParamName::from_static("holes");
+    let name = VarName::from_static("holes");
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::Count { value: 6 },
+            def: pncad::document::VarDef::Free(FreeVar::Count { value: 6 }),
         },
         tol,
     );
     let row = props::param_rows(&doc)
         .into_iter()
-        .find(|row| row.name == name)
+        .find(|row| row.label.name() == Some(&name))
         .expect("the parameter row");
     assert_eq!(row.unit, None);
     assert_eq!(
@@ -780,15 +782,15 @@ fn a_count_parameter_has_no_written_unit() {
 /// notation they were DECLARED in.
 #[test]
 fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
-    let reading = |value: DocParam| {
+    let reading = |value: FreeVar| {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
-        let name = ParamName::from_static("thickness");
+        let name = VarName::from_static("thickness");
         let (doc, _) = common::edited(
             &doc,
-            DocEdit::SetDocParam {
+            DocEdit::DeclareVar {
                 name: name.clone(),
-                value,
+                def: pncad::document::VarDef::Free(value),
             },
             tol,
         );
@@ -797,7 +799,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
             &doc,
             Node::Extrude {
                 profile,
-                distance: Expr::param(name.clone(), Dimension::Length),
+                distance: Expr::named(name.clone(), Dimension::Length),
                 side: ExtrudeSide::Along,
             },
             tol,
@@ -805,7 +807,9 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let outcome = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Param { name },
+            target: BoundsTarget::Param {
+                var: common::var_of(session.committed_doc(), name.as_str()),
+            },
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         let reading = session.bounds().expect("a probe landed").clone();
@@ -814,7 +818,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
 
     // Declared in millimetres: the search stepped by one millimetre and
     // the sentence says millimetres.
-    let (unit, mm) = reading(DocParam::written_length(WrittenLength::in_unit(8.0, MM)));
+    let (unit, mm) = reading(FreeVar::written_length(WrittenLength::in_unit(8.0, MM)));
     assert_eq!(unit, Some("mm"), "the search ran in the declared unit");
     assert!(mm.contains(" mm"), "{mm}");
     assert!(!mm.contains(" m,") && !mm.contains(" m "), "{mm}");
@@ -822,7 +826,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
     // The same parameter declared canonically: same document, same
     // search, a different sentence — so the reading follows the
     // DECLARATION and not the dimension.
-    let (unit, m) = reading(DocParam::continuous(Dimension::Length, 0.008));
+    let (unit, m) = reading(FreeVar::continuous(Dimension::Length, 0.008));
     assert_eq!(unit, Some("m"));
     assert!(m.contains(" m"), "{m}");
     assert!(!m.contains(" mm"), "{m}");
@@ -862,17 +866,19 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-field", tol);
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("thickness"),
-            value: DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("thickness"),
+            def: pncad::document::VarDef::Free(FreeVar::written_length(WrittenLength::in_unit(
+                8.0, MM,
+            ))),
         },
         tol,
     );
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("in_metres"),
-            value: DocParam::continuous(Dimension::Length, 0.008),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("in_metres"),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );
@@ -880,7 +886,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let writing = |name: &'static str| {
         let row = rows
             .iter()
-            .find(|row| row.name == ParamName::from_static(name))
+            .find(|row| row.label.name() == Some(&VarName::from_static(name)))
             .expect("the parameter row");
         FieldWriting::of(row.dimension, row.unit, Notation::DEFAULT)
     };
@@ -1071,11 +1077,11 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     );
     assert_eq!(
         minted,
-        DocParam::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
+        FreeVar::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
     );
     let row = props::param_rows(&common::declared(
         "mint-mm",
-        &ParamName::from_static("base_r"),
+        &VarName::from_static("base_r"),
         minted,
         Tol::witness(),
     ))
@@ -1095,7 +1101,7 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     assert_eq!(
         props::param_rows(&common::declared(
             "mint-deg",
-            &ParamName::from_static("sweep"),
+            &VarName::from_static("sweep"),
             angle,
             Tol::witness()
         ))
@@ -1106,10 +1112,10 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     );
     assert_eq!(
         props::doc_param(Dimension::Scalar, SlotValue::Continuous(2.0), None),
-        DocParam::continuous(Dimension::Scalar, 2.0)
+        FreeVar::continuous(Dimension::Scalar, 2.0)
     );
     assert_eq!(
         props::doc_param(Dimension::Count, SlotValue::Count(6), None),
-        DocParam::Count { value: 6 }
+        FreeVar::Count { value: 6 }
     );
 }

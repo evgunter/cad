@@ -191,7 +191,12 @@ fn contain_errors() -> Vec<ContainError> {
     vec![
         ContainError::Escalated(diag()),
         ContainError::RayExhausted,
-        ContainError::Corrupt,
+        ContainError::StaleFace(crate::entity::FaceKey::default()),
+        ContainError::EmptyLoop(LoopKey::default()),
+        ContainError::LoopUnreadable(LoopKey::default()),
+        ContainError::Curved(crate::boolean::PointInSolidError::PartialConeFace {
+            face: crate::entity::FaceKey::default(),
+        }),
         ContainError::Uncrossable(crate::splitting::Uncrossable {
             r#loop: LoopKey::default(),
             edge: crate::entity::EdgeKey::default(),
@@ -397,7 +402,12 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
     let half_edge = HalfEdgeKey::default();
     let r#loop = LoopKey::default();
     let mut v = vec![
-        PcurveMintError::Corrupt,
+        PcurveMintError::Stale {
+            role: "half_edge",
+            key: EntityId::HalfEdge(half_edge),
+        },
+        PcurveMintError::NoCarrier { half_edge },
+        PcurveMintError::EmptyOuter { face },
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
         PcurveMintError::SingularChartJoint {
@@ -1044,6 +1054,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     s.push((
         "SolidOuterShells".to_owned(),
         ValidationError::SolidOuterShells { solid, outer: 2 },
+    ));
+    s.push((
+        "VolumeSignUnresolved".to_owned(),
+        ValidationError::VolumeSignUnresolved { solid },
+    ));
+    s.push((
+        "ShellRoleUndecided".to_owned(),
+        ValidationError::ShellRoleUndecided {
+            solid,
+            error: crate::ShellClassifyError::Straddles {
+                shell: ShellKey::default(),
+            },
+        },
     ));
 
     // Tier 3′: the census.

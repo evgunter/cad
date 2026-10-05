@@ -47,7 +47,7 @@
 use geom_core::{Band, Decide, Tol};
 
 use crate::eval::Evaluation;
-use crate::expr::ParamEnv;
+use crate::expr::VarEnv;
 use crate::node::RecipeNodeId;
 
 use super::geompred::{self, GeomPred, SelectRefusal};
@@ -874,7 +874,7 @@ pub fn select<T: Decide>(
 ///
 /// [`GeomPred::DatumDistance`] states its value as an [`Expr`](crate::Expr), which
 /// cannot be evaluated without the document's parameter bindings
-/// (`Doc::param_env`). The design's signature omits this argument; it
+/// (`Doc::var_env`). The design's signature omits this argument; it
 /// is added here rather than degrading the value to a bare float,
 /// because a selection rule written against a named parameter is the
 /// whole point of `Expr` being the value type (SELECT-DESIGN §5).
@@ -895,7 +895,7 @@ pub fn select_where<T: Decide>(
     node: RecipeNodeId,
     sel: &Selector,
     geom: &[GeomPred],
-    params: &ParamEnv<T>,
+    params: &VarEnv<T>,
     tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal> {
     // No value, no names: `select`'s doc.

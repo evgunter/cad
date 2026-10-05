@@ -15,10 +15,10 @@ use editor_core::drive::{DriveConfig, RefusalReason, SymbolicDials, assertion_at
 use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
-    evaluate, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Expr, FreeVar, GeomPred,
+    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
+    ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate,
+    select_where,
 };
 use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
@@ -27,7 +27,7 @@ use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
@@ -279,7 +279,15 @@ fn r1_max_leaves_zero_with_the_tier_on() {
 #[test]
 fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
     use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
-    let frame = |origin: [f64; 3]| MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let frame = |origin: [f64; 3]| {
+        MateFrame::authored(
+            origin,
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame")
+    };
     let at = |o: f64| Alignment {
         a: frame([o, 0.0, 0.0]),
         b: frame([0.0, 0.0, 0.0]),
@@ -340,9 +348,9 @@ fn bracket_with(
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("w"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("w"),
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -350,7 +358,7 @@ fn bracket_with(
                 lo: -half_width,
                 hi: half_width,
             }),
-        },
+        }),
     });
     let w = || param("w");
     let div = |a: Expr, k: f64| Expr::div(a, scl(k)).unwrap();
@@ -421,7 +429,7 @@ fn bracket_with(
             &EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
@@ -495,14 +503,14 @@ fn r1_e2e_bracket_study() {
                     .or_insert(0usize) += 1;
             }
             println!("   refusals: {classes:?}");
-            println!("{}", MassBudget::of(v.accounting(), &analyzed).render());
+            println!("{}", MassBudget::of(v.accounting(), &analyzed).render(&doc));
             if dials.enabled {
                 let fails = failures(&doc, ParamBox::of(&analyzed), dials, tol);
                 for f in fails.iter().take(3) {
                     println!("   whole-box replay: {f}");
                 }
             }
-            match stackup(&doc, measure, &analyzed, &v, None, true, tol) {
+            match stackup(&doc, measure, &analyzed, &v, None, true, None, tol) {
                 Ok(report) => println!("{}", report.render(&doc, &analyzed)),
                 Err(e) => println!("   stackup refused: {e}"),
             }

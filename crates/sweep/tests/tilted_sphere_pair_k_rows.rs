@@ -3,7 +3,7 @@
 //! splits its meridian edges at the section, and each fragment then
 //! ENDS on the other ball. The fragment's residual against that ball is
 //! exactly zero at that end, so its true one-sidedness margin is at most
-//! zero: the circle clearance (`bool_circle_curved_clearance`) cannot
+//! zero: the conic clearance (`bool_conic_curved_clearance`) cannot
 //! read it definitely clear, and every other answer falls through to the
 //! endpoint arms. Asking it decided nothing. What it recorded was the
 //! sampled enclosure's chord-dip charge, read as `−charge` about that
@@ -63,7 +63,8 @@ fn a_carved_balls_meridian_fragments_record_no_clearance_charge() {
         (1.0, Vec3::new(1.2, 0.6, 0.0)),
         (0.6, Vec3::new(0.9, 0.0, 0.0)),
     ] {
-        let (a, b) = (ball(1.0, base), ball(r, base + offset));
+        let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
+        let (a, b) = (fin("a", ball(1.0, base)), fin("b", ball(r, base + offset)));
         for (name, op) in [
             ("union", topo::boolean::union::<Probe> as fn(_, _, _) -> _),
             ("intersect", topo::boolean::intersect::<Probe>),
@@ -78,7 +79,7 @@ fn a_carved_balls_meridian_fragments_record_no_clearance_charge() {
             );
             for s in samples
                 .iter()
-                .filter(|s| s.predicate == "bool_circle_curved_clearance")
+                .filter(|s| s.predicate == "bool_conic_curved_clearance")
             {
                 asked += 1;
                 assert!(

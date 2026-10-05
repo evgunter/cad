@@ -27,12 +27,12 @@ use crate::fixture;
 use crate::wire::doctored;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame, Maintenance, MateFault,
-    MateFrame, MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind,
-    ParamName, PartResolver, PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach,
-    SitedFace, SitedRef, StableName, Step, Unplaced, ValuePayload, apply, apply_replayed, evaluate,
-    groups, load, product, regauge_then_mate, root_of, save,
+    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
+    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateFrame,
+    MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, PartResolver,
+    PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef,
+    StableName, Step, Unplaced, ValuePayload, VarName, apply, apply_replayed, evaluate, groups,
+    load, product, regauge_then_mate, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
@@ -114,7 +114,8 @@ impl Parts {
 }
 
 pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// **"Mate the top to the base"**: the top block's bottom cap (the
@@ -145,8 +146,8 @@ pub(crate) fn seat_on(
     }
 }
 
-pub(crate) fn lift() -> ParamName {
-    ParamName::from_static("lift")
+pub(crate) fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
 /// A gauge on `parent` at `[0, 0, lift]`, turned `angle` about z — a
@@ -158,7 +159,7 @@ pub(crate) fn lifting_gauge(
     Node::gauge(
         parent,
         Step::Rigid {
-            translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+            translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
             axis: [0.0, 0.0, 1.0].map(scl),
             angle: ang(angle),
         },
@@ -172,9 +173,9 @@ pub(crate) fn literal(t: [f64; 3]) -> Placement {
 pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: lift(),
-            value: DocParamValue::Continuous(value),
+        DocEdit::SetVarValue {
+            var: lift().into(),
+            value: FreeValue::Continuous(value),
         },
     )
     .0
@@ -183,9 +184,9 @@ pub(crate) fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
 pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: lift(),
-            value: DocParam::continuous(Dimension::Length, value),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0
@@ -1220,7 +1221,7 @@ fn a_declaring_mate_crossing_a_cut_fills_the_interface_record() {
     );
 }
 
-/// **A `FromFace` side crosses the seam with its head**: a kept
+/// **A face-based side crosses the seam with its head**: a kept
 /// declaring mate whose side reading the cut is framed on its head
 /// face crosses split exactly as its authored twin does — the head
 /// re-anchors through the instance qualifier, and the face it names
@@ -1245,7 +1246,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     else {
         panic!("a mate");
     };
-    alignment.a = MateFrame::FromFace;
+    alignment.a = MateFrame::from_face();
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (faced, mate) = fixture::step_with(
         doc,
@@ -1283,7 +1284,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     else {
         panic!("the kept mate");
     };
-    assert_eq!(crossed_alignment.a, MateFrame::FromFace);
+    assert_eq!(crossed_alignment.a, MateFrame::from_face());
     assert_eq!(
         crossed.name.node, out.instance,
         "the head re-anchors through the instance"
@@ -1308,7 +1309,7 @@ fn a_from_face_side_crosses_split_and_inline_with_its_head() {
     else {
         panic!("the host mate");
     };
-    assert_eq!(back_alignment.a, MateFrame::FromFace);
+    assert_eq!(back_alignment.a, MateFrame::from_face());
     let ev = run(&back.doc, &o);
     assert!(
         ev.node_error(mate).is_none(),

@@ -598,7 +598,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     ));
 
     // The two entity sums, matched by bare prelude name — the rung
-    // `DanglingRef`'s arms and three `BlendError` arms sit on.
+    // `ReadbackError::Dangling` and three `BlendError` arms sit on.
     assert_eq!(
         entity_and_geometry_sites_are_matchable(
             EntityId::Loop(LoopKey::default()),
@@ -1460,7 +1460,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             .expect("the slab rectangle authors");
         let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
-        extrude(
+        let body = extrude(
             &profile,
             Extrusion::Distance {
                 depth: real(z.1 - z.0),
@@ -1469,7 +1469,8 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             Tol::witness(),
         )
         .expect("slab extrude")
-        .body
+        .body;
+        AtRestBody::validate(body, Tol::witness()).expect("the slab is a finished body")
     };
 
     // The post is strictly interior in x and y and pokes out of the
@@ -2221,7 +2222,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     // Replaying the LIFTED program reproduces the AUTHORED loop bit
     // for bit — the lift re-spells the verbs, it does not re-lower.
     let steps = lifted
-        .resolve(&ParamEnv::<f64>::default(), 0)
+        .resolve(&VarEnv::<f64>::default(), 0)
         .expect("literal arguments resolve");
     let replayed = pncad::profile::replay(&steps, Tol::witness())
         .expect("the lifted program replays")
@@ -2540,22 +2541,22 @@ fn expr_literal_refusals_are_matchable_through_the_facade() {
 /// mirrored constant for constant from
 /// `crates/editor-core/tests/corpus/plate_param.rs` — through
 /// `pncad::document` alone. Before R1-PARAMS this function could not
-/// compile: `ParamName` and `DocParam` were not curated, which guide
+/// compile: `VarName` and `FreeVar` were not curated, which guide
 /// §3.2 pinned with a `compile_fail` doctest (now flipped to the same
 /// authoring as a passing one).
 fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{BooleanOp, DocParam, ParamName};
+    use pncad::document::{BooleanOp, FreeVar, VarName};
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
         centre: [len(cx), len(cy)],
-        radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
+        radius: Expr::named(VarName::from_static("hole_r"), Dimension::Length),
     };
 
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("hole_r"),
-            value: DocParam::continuous(Dimension::Length, 0.25),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("hole_r"),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2657,7 +2658,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             &[pncad::select::GeomPred::SurfaceKind(
                 pncad::select::SurfaceKindSet::just(pncad::prelude::SurfaceKind::Cylinder),
             )],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("the surface-kind atom is exact");
@@ -2706,7 +2707,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 /// corpus scene's analytic oracle, and its saved text is pinned as
 /// `tests/plate_param.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
-/// `set_doc_param` edit from Python. Python cannot yet author this
+/// `define_var` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
 /// the document crosses to Python through the persistence door, and
 /// THIS pin keeps that crossing honest: if the scene's constants or
@@ -2903,7 +2904,7 @@ fn workspace_duplicate_id_refuses_naming_both_paths() {
 /// accept-updated-version recourse.
 #[test]
 fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
-    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
     let dir = WsDir::new("pin");
     let (doc, text) = ws_doc("ws-pin");
     let stale_pin = pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes");
@@ -2911,9 +2912,9 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     // The referenced document moves on: a recorded semantic edit.
     let edited = pncad::document::apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.75),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.75)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3091,12 +3092,12 @@ fn random_document_ids_are_distinct() {
 /// of `loaded.doc` fails this row in both directions.
 #[test]
 fn workspace_resolve_pins_replayed_state_not_snapshot() {
-    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
     let dir = WsDir::new("log");
     let (origin, _) = ws_doc("ws-logged");
-    let edit = DocEdit::SetDocParam {
-        name: ParamName::from_static("depth"),
-        value: DocParam::continuous(Dimension::Length, 0.9),
+    let edit = DocEdit::DeclareVar {
+        name: VarName::from_static("depth"),
+        def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
@@ -3207,7 +3208,7 @@ fn workspace_save_at_refuses_a_second_file_for_one_identity() {
 /// name, the identity does not move and the content does.
 #[test]
 fn workspace_save_at_the_scanned_path_is_a_resave() {
-    use pncad::document::{Dimension, DocEdit, DocParam, ParamName};
+    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
     let dir = WsDir::new("save-resave");
     let (doc, text) = ws_doc("ws-save-resave");
     let original = dir.write("part.pncad", &text);
@@ -3216,9 +3217,9 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
 
     let edited = pncad::document::apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.9)),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3467,8 +3468,8 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => b
-            .vertices()
-            .filter_map(|(_, v)| b.get_point(v.point))
+            .vertex_points()
+            .map(|(_, p)| p)
             .map(|p| p.x)
             .fold(f64::INFINITY, f64::min),
         other => panic!("an instance's value is a body, got {other:?}"),
@@ -3674,7 +3675,10 @@ fn asm_r2a_mated_assembly(
             .into(),
         }],
     };
-    let axis = |origin: [f64; 3]| MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let axis = |origin: [f64; 3]| {
+        MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], Tol::witness())
+            .expect("a definite frame")
+    };
     // A mate head is a `SitedFace`: the fixture's claim that the name
     // it just built is a face is made where the name is built.
     let face_head = |name: pncad::prelude::StableName| {
@@ -3996,10 +4000,8 @@ fn asm2b_outer(
 /// this pins WHICH SOLID CAME FIRST, not merely the aggregate volume.
 fn asm2b_signature(body: &pncad::topo::Body<f64>) -> String {
     let mut s = String::new();
-    for (_, v) in body.vertices() {
-        if let Some(p) = body.get_point(v.point) {
-            s.push_str(&format!("{};", p.x.to_bits()));
-        }
+    for (_, p) in body.vertex_points() {
+        s.push_str(&format!("{};", p.x.to_bits()));
     }
     s
 }
@@ -4041,11 +4043,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
-            let mut v: Vec<f64> = b
-                .vertices()
-                .filter_map(|(_, e)| b.get_point(e.point))
-                .map(|p| p.x)
-                .collect();
+            let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
             (v[0], v[v.len() - 1])
         }
@@ -4602,7 +4600,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer "what does this slot say right now" for a slot driven by
 ///   a parameter or by arithmetic. `Expr::literal_value` answers only
 ///   for a bare literal, so without them a consumer holding the
-///   curated `Expr` + `ParamEnv` pair had no door from an expression
+///   curated `Expr` + `VarEnv` pair had no door from an expression
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
@@ -4717,7 +4715,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   carry a curated `HitTestError`, a prelude-curated
 ///   `TessellateError`, a `RecipeNodeId` and a `u32`.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
-///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
 ///   `seed_env`, `std_deviation`, `sensitivities`,
@@ -4846,7 +4844,7 @@ const NOT_CARRIED: [&str; 93] = [
     "enrich_appearance_loss_with_prior",
     "entity_name",
     "from_value",
-    "param_env_over",
+    "var_env_over",
     "rebind_suggestions",
     "remap_name",
     "Unmapped",
@@ -6181,15 +6179,15 @@ fn the_north_star_audits_tallies_are_derived_from_its_rows() {
 fn distributions_author_save_reload_and_analyze_through_the_facade() {
     use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
     use pncad::document::{
-        Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
+        Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, VarName, apply, load, save,
     };
 
-    let declare = |doc: &ProfileDoc, name: &'static str, value: DocParam| {
+    let declare = |doc: &ProfileDoc, name: &'static str, value: FreeVar| {
         apply(
             doc,
-            &DocEdit::SetDocParam {
-                name: ParamName::from_static(name),
-                value,
+            &DocEdit::DeclareVar {
+                name: VarName::from_static(name),
+                def: pncad::document::VarDef::Free(value),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,
@@ -6201,7 +6199,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let doc = declare(
         &doc,
         "bore_r",
-        DocParam::continuous_with(
+        FreeVar::continuous_with(
             Dimension::Length,
             0.004,
             Distribution::Normal { sigma: 5e-6 },
@@ -6210,7 +6208,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let doc = declare(
         &doc,
         "plate_t",
-        DocParam::continuous_with(
+        FreeVar::continuous_with(
             Dimension::Length,
             0.012,
             Distribution::Band {
@@ -6227,10 +6225,10 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     let policy = AnalysisPolicy::default();
     let boxed = analyzed_box(&back, &policy);
     let bore = boxed
-        .get(&ParamName::from_static("bore_r"))
+        .get(back.var_named("bore_r").expect("declared"))
         .expect("the annotated parameter is an axis");
     let plate = boxed
-        .get(&ParamName::from_static("plate_t"))
+        .get(back.var_named("plate_t").expect("declared"))
         .expect("so is the banded one");
 
     // The normal's box is the ±3σ quantile box; the band's IS its
@@ -6251,7 +6249,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     // The tail column: the normal leaves a little outside its box, the
     // band leaves nothing outside its own support.
     let bore_tail = tail_mass(
-        &ParamName::from_static("bore_r"),
+        &boxed.spoken(back.var_named("bore_r").expect("declared")),
         &bore.distribution.expect("annotated"),
         &bore.offsets,
     )
@@ -6262,7 +6260,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
     );
     assert_eq!(
         tail_mass(
-            &ParamName::from_static("plate_t"),
+            &boxed.spoken(back.var_named("plate_t").expect("declared")),
             &plate.distribution.expect("annotated"),
             &plate.offsets
         ),
@@ -6271,19 +6269,19 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 
     // Pricing a sub-box: the normal answers, the band refuses BY NAME.
     let half = box_mass(
-        &ParamName::from_static("bore_r"),
+        &boxed.spoken(back.var_named("bore_r").expect("declared")),
         &bore.distribution.expect("annotated"),
         (0.0, bore.offsets.hi),
     )
     .expect("a normal prices a leaf");
     assert!((half - 0.5 * (1.0 - bore_tail)).abs() < 1e-9, "{half}");
     match box_mass(
-        &ParamName::from_static("plate_t"),
+        &boxed.spoken(back.var_named("plate_t").expect("declared")),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            assert_eq!(param, ParamName::from_static("plate_t"));
+            assert_eq!(param.name(), Some(&VarName::from_static("plate_t")));
         }
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
     }

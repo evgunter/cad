@@ -20,13 +20,13 @@ test_utils::gated_to![
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DimensionError, Expr, ParamEnv, ParamName, ParseError, eval, eval_count, parse_expr,
+    Dimension, DimensionError, Expr, ParseError, VarEnv, VarName, eval, eval_count, parse_expr,
     unparse,
 };
 use proptest::prelude::*;
 use test_utils::fuzz;
 
-fn no_params() -> BTreeMap<ParamName, Dimension> {
+fn no_params() -> BTreeMap<VarName, Dimension> {
     BTreeMap::new()
 }
 
@@ -45,7 +45,7 @@ fn bits(e: &Expr) -> Vec<u64> {
 }
 
 fn ev(e: &Expr) -> f64 {
-    eval::<f64>(e, &ParamEnv::default()).expect("finite eval")
+    eval::<f64>(e, &VarEnv::default()).expect("finite eval")
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn unit_suffixed_literals_land_in_canonical_units() {
 fn bare_integers_are_counts_and_bare_reals_are_scalars() {
     let five = p("5");
     assert_eq!(five.dim(), Dimension::Count);
-    assert_eq!(eval_count(&five, &ParamEnv::<f64>::default()), Ok(5));
+    assert_eq!(eval_count(&five, &VarEnv::<f64>::default()), Ok(5));
     for src in ["5.0", "5.", "1e3", "2.5e-3", "0.5"] {
         assert_eq!(p(src).dim(), Dimension::Scalar, "{src}");
     }
@@ -160,16 +160,16 @@ fn precedence_and_child_order_match_the_ast_descend_indices() {
 #[test]
 fn params_resolve_against_the_callers_table() {
     let mut params = no_params();
-    params.insert(ParamName::from_static("width"), Dimension::Length);
-    params.insert(ParamName::from_static("n"), Dimension::Count);
-    params.insert(ParamName::from_static("mm"), Dimension::Scalar);
+    params.insert(VarName::from_static("width"), Dimension::Length);
+    params.insert(VarName::from_static("n"), Dimension::Count);
+    params.insert(VarName::from_static("mm"), Dimension::Scalar);
     let e = parse_expr("width + 25 mm", &params).unwrap();
     assert_eq!(e.dim(), Dimension::Length);
     let mut refs = Vec::new();
-    e.param_refs(&mut refs);
+    e.named_reads(&mut refs);
     assert_eq!(
         refs,
-        vec![(ParamName::from_static("width"), Dimension::Length)]
+        vec![(VarName::from_static("width"), Dimension::Length)]
     );
     assert_eq!(parse_expr("n", &params).unwrap().dim(), Dimension::Count);
     // A param may share a unit's name: position disambiguates (an
@@ -390,7 +390,7 @@ proptest! {
         let text = text.unwrap();
         let e = parse_expr(&text, &no_params()).expect(&text);
         prop_assert_eq!(e.dim(), dim, "{}", &text);
-        let back = eval::<f64>(&e, &ParamEnv::default()).expect(&text);
+        let back = eval::<f64>(&e, &VarEnv::default()).expect(&text);
         prop_assert_eq!(back.to_bits(), value.to_bits(), "{}", &text);
     }
 }
@@ -489,8 +489,8 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3).prop_map(move |src| (dim, src))),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::from_static("S"), Dimension::Scalar);
-        params.insert(ParamName::from_static("N"), Dimension::Count);
+        params.insert(VarName::from_static("S"), Dimension::Scalar);
+        params.insert(VarName::from_static("N"), Dimension::Count);
         let e = parse_expr(&src, &params).expect(&src);
         prop_assert_eq!(e.dim(), dim, "{}", &src);
     }
@@ -498,12 +498,12 @@ proptest! {
 
 // --- The door OUTWARD (issue #1103): `unparse` -----------------
 //
-// The pin is the ROUND TRIP, structurally: `parse_expr(unparse(e))`
+// The pin is the ROUND TRIP, structurally: `parse_expr(unparse(e, names))`
 // is `bit_eq` to `e`. `bit_eq` is display-unit-blind by design, so the
 // units get their own assertions rather than riding along.
 
 /// The declared parameters the unparse suites resolve names against.
-fn rt_params() -> BTreeMap<ParamName, Dimension> {
+fn rt_params() -> BTreeMap<VarName, Dimension> {
     [
         ("w", Dimension::Length),
         ("a", Dimension::Angle),
@@ -511,7 +511,7 @@ fn rt_params() -> BTreeMap<ParamName, Dimension> {
         ("n", Dimension::Count),
     ]
     .into_iter()
-    .map(|(name, dim)| (ParamName::from_static(name), dim))
+    .map(|(name, dim)| (VarName::from_static(name), dim))
     .collect()
 }
 
@@ -521,7 +521,7 @@ fn rp(src: &str) -> Expr {
 
 /// `e`'s source text, checked to read back as `e` itself.
 fn round_trip(e: &Expr) -> String {
-    let text = unparse(e);
+    let text = unparse(e, &|_| None);
     let back = parse_expr(&text, &rt_params()).expect(&text);
     assert!(
         back.bit_eq(e),
@@ -621,7 +621,7 @@ fn unparse_parenthesises_exactly_where_the_grammar_needs_it() {
         ("-(w * 2.0)", "-(w * 2.0)", "-w * 2.0"),
     ] {
         let e = rp(src);
-        assert_eq!(unparse(&e), expected);
+        assert_eq!(unparse(&e, &|_| None), expected);
         assert!(
             !rp(naive).bit_eq(&e),
             "{naive:?} is not actually a wrong reading of {src:?}"
@@ -638,7 +638,7 @@ fn unparse_parenthesises_exactly_where_the_grammar_needs_it() {
         "w * -2.0",
         "sin(a) * 2.0",
     ] {
-        assert_eq!(unparse(&rp(src)), src);
+        assert_eq!(unparse(&rp(src), &|_| None), src);
     }
 }
 
@@ -767,10 +767,10 @@ fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Expr {
         quantity::unit_by_symbol(symbols[rng.below(symbols.len())]).expect("a table symbol")
     };
     match (dim, rng.below(6)) {
-        (Dimension::Length, 0) => Expr::param(ParamName::from_static("w"), dim),
-        (Dimension::Angle, 0) => Expr::param(ParamName::from_static("a"), dim),
-        (Dimension::Scalar, 0) => Expr::param(ParamName::from_static("s"), dim),
-        (Dimension::Count, 0) => Expr::param(ParamName::from_static("n"), dim),
+        (Dimension::Length, 0) => Expr::named(VarName::from_static("w"), dim),
+        (Dimension::Angle, 0) => Expr::named(VarName::from_static("a"), dim),
+        (Dimension::Scalar, 0) => Expr::named(VarName::from_static("s"), dim),
+        (Dimension::Count, 0) => Expr::named(VarName::from_static("n"), dim),
         (Dimension::Length, _) => {
             Expr::literal_with_unit(value, dim, unit(&["m", "mm", "cm", "in"], rng))
                 .expect("a finite length")
@@ -858,7 +858,7 @@ fn random_tree(rng: &mut fuzz::Rng, dim: Dimension, levels: usize) -> Expr {
 
 /// **Every tree the constructors admit reads back through its own
 /// text**, up to the nesting bound and on the smallest stack a door runs
-/// on: `parse_expr(unparse(e))` is `e` node for node (so it nests as
+/// on: `parse_expr(unparse(e, names))` is `e` node for node (so it nests as
 /// deep) and bit for bit, and writes the same text again (so each
 /// literal remembers its unit). The trees draw literals of either sign
 /// and both zeros, at the bottom of the deepest chain and beside it.
@@ -875,7 +875,7 @@ fn every_tree_to_the_bound_reads_back_through_its_text() {
                 1 + rng.below(BOUND)
             };
             let e = random_tree(&mut rng, dim, levels);
-            let text = unparse(&e);
+            let text = unparse(&e, &|_| None);
             let back = parse_expr(&text, &rt_params())
                 .unwrap_or_else(|err| panic!("trial {trial}: {err}\n{text}\n{}", fuzz::replay()));
             assert!(
@@ -884,7 +884,7 @@ fn every_tree_to_the_bound_reads_back_through_its_text() {
                 fuzz::replay()
             );
             assert_eq!(
-                unparse(&back),
+                unparse(&back, &|_| None),
                 text,
                 "trial {trial}: the reading writes other text — {}",
                 fuzz::replay()
@@ -904,10 +904,10 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3)),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::from_static("S"), Dimension::Scalar);
-        params.insert(ParamName::from_static("N"), Dimension::Count);
+        params.insert(VarName::from_static("S"), Dimension::Scalar);
+        params.insert(VarName::from_static("N"), Dimension::Count);
         let e = parse_expr(&src, &params).expect(&src);
-        let text = unparse(&e);
+        let text = unparse(&e, &|_| None);
         let back = parse_expr(&text, &params).expect(&text);
         prop_assert!(back.bit_eq(&e), "{} -> {}", &src, &text);
     }

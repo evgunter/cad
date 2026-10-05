@@ -12,7 +12,6 @@ use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand, TubeScale};
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Point3, Vec3};
-use test_utils::vacuity;
 
 /// PR 7's inflected wall, verbatim from the acceptance suite.
 fn nurbs_wall() -> NurbsSurface<f64> {
@@ -56,12 +55,11 @@ fn wall_domain() -> SsiDomain {
 /// `e` is the **generator's** step tolerance, not the run's: this door
 /// returns no certificate, which is the whole reason it takes one at
 /// all. It is the only door in the module that does.
-fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> Option<(f64, f64)> {
+fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> (f64, f64) {
     let p = cutting_plane();
     let (carrier, _pa, pb) =
         match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain(), e, band()) {
             Ok(t) => t,
-            Err(SsiError::FitSampleBudget { .. }) => return None,
             Err(err) => panic!("trace: {err}"),
         };
     let (t0, t1) = carrier.domain();
@@ -76,7 +74,7 @@ fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> Option<(f64, 
             arg = t;
         }
     }
-    Some((max, pb.eval(arg).x))
+    (max, pb.eval(arg).x)
 }
 
 /// The u where the wall's section curvature crosses zero, by scanning
@@ -128,54 +126,43 @@ fn section_curvature_zero() -> f64 {
 
 #[test]
 fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
-    // Reproduce the reported ~3.8e-9 m fit-pair deviation with NO ring
-    // code in the loop: two independently fitted objects (carrier,
-    // pcurve∘surface) evaluated directly, 200k samples. If the number
-    // were an artifact of the composite or the certificate, this scan
-    // could not see it.
+    // Reproduce the fit-pair deviation with NO ring code in the loop:
+    // two independently fitted objects (carrier, pcurve∘surface)
+    // evaluated directly, 200k samples. If the number were an artifact
+    // of the composite or the certificate, this scan could not see it.
     //
-    // This row is about the MARCH ε, which it hands to `trace_deviation`
-    // explicitly (1e-9 below) — the ambient band is not an input to it.
-    // It used to carry an `at_default_eps()` guard on the theory that
-    // the `[3.0e-9, 4.5e-9]` window was a default-band magnitude, and
-    // that guard suppressed the whole measurement on two of three rows.
-    //
-    // MEASURED (2026-08-13 audit) rather than assumed: the deviation is
-    // 3.805e-9 m at u = 0.4873 on ALL THREE ambient bands, bit for bit,
-    // in under a second each — and 3.805e-9 is also what `deviation2b`
-    // reports for the same wall at the same march ε. The ambient band
-    // never reached this march at all, so the guard was pure loss. It is
-    // gone; the row now asserts on every ε row.
-    //
-    // The budget refusal is handled where it can actually happen rather
-    // than pre-empted by a guard: if a future ambient band ever does
-    // starve this fit, the row says so BY NAME instead of returning
-    // green in silence.
+    // The march runs at ε = 1e-9, handed to `trace_deviation`
+    // explicitly. The door then refines the trace where the certificate,
+    // at the ambient band, refuses it, as the certifying door does. On a
+    // band whose zero is above the march's own deviation nothing is
+    // refined, and the scan reproduces it: measured 4.503e-9 m at
+    // u = 0.4868, and the window is ±7% of it. On a finer band the gap at
+    // the inflection is halved until limb 2 is answered, and the scan
+    // reads below the march's deviation; what is left peaks wherever
+    // refinement stopped, not necessarily at the inflection.
     let w = nurbs_wall();
-    let Some((max, u_at_max)) = trace_deviation(&w, 1e-9, 200_000) else {
-        vacuity::stood_down(
-            &format!("inflected-wall deviation reproduction, eps = {:e}", eps()),
-            "the 1e-9 march exceeded the fit budget on this band, so THIS RUN ASSERTS \
-             NEITHER that the reported deviation reproduces NOR that it sits at the \
-             section's curvature zero. Measured 2026-08-13: this does not happen at \
-             1e-6, 1e-9 or 1e-12 — if you are reading this line, the fit budget's \
-             ambient coupling has changed and that is the finding.",
-        );
-        return;
-    };
+    let (max, u_at_max) = trace_deviation(&w, 1e-9, 200_000);
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
-    assert!(
-        (3.0e-9..=4.5e-9).contains(&max),
-        "reported ~3.8e-9 m not reproduced: {max:e}"
-    );
-    // And it sits at the section's curvature-zero crossing, where the
-    // step rule's h_fit ∝ (ε/κ³)^¼ rung unbinds.
-    let u_kzero = section_curvature_zero();
-    eprintln!("[review] section curvature zero at u = {u_kzero:.4}");
-    assert!(
-        (u_at_max - u_kzero).abs() < 0.15,
-        "deviation peak (u = {u_at_max:.4}) is not at the inflection (u = {u_kzero:.4})"
-    );
+    if band().zero() > 4.8e-9 {
+        assert!(
+            (4.2e-9..=4.8e-9).contains(&max),
+            "reported ~4.5e-9 m not reproduced: {max:e}"
+        );
+        // And it sits at the section's curvature-zero crossing, where
+        // the step rule's h_fit ∝ (ε/κ³)^¼ rung unbinds.
+        let u_kzero = section_curvature_zero();
+        eprintln!("[review] section curvature zero at u = {u_kzero:.4}");
+        assert!(
+            (u_at_max - u_kzero).abs() < 0.15,
+            "deviation peak (u = {u_at_max:.4}) is not at the inflection (u = {u_kzero:.4})"
+        );
+    } else {
+        assert!(
+            max < 4.2e-9,
+            "the march's deviation is not refined at ε {:e}: {max:e}",
+            band().zero()
+        );
+    }
 }
 
 #[test]
@@ -214,7 +201,6 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         band(),
     ) {
         Ok(t) => t,
-        Err(SsiError::FitSampleBudget { .. }) => return,
         Err(err) => panic!("trace: {err}"),
     };
     let knots: Vec<f64> = pb.knots().knots().iter().map(|k| k * 2.0).collect();
@@ -262,6 +248,10 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
         control.push(Point3::new(x, y, 0.8));
     }
     let w = NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap();
+    // Refined where limb 2 refuses, the wall certifies at each ε the
+    // suite runs (measured 37, 162 and 827 samples at 1e-6, 1e-9 and
+    // 1e-12); elsewhere a refusal must still be the typed kind.
+    let certifies_here = [1.0e-6, 1.0e-9, 1.0e-12].contains(&eps());
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Ok(out) => {
             let sup = out.branches[0].certificate.hull_sup;
@@ -269,7 +259,11 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
             assert!(sup <= eps());
         }
         Err(e) => {
-            eprintln!("[review] multi-cell wall refused: {e}");
+            assert!(
+                !certifies_here,
+                "the multicell wall certifies once refined at ε {:e}: {e}",
+                eps()
+            );
             // A refusal must be the loud, typed kind — never a panic
             // (reaching here at all proves that much); pin that it is
             // the hull limb or an in-band escalation, i.e. the bound
@@ -278,7 +272,7 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
                 SsiError::CertificateLimb { .. }
                 | SsiError::Escalated { .. }
                 | SsiError::CertificateEscalated { .. }
-                | SsiError::FitSampleBudget { .. }
+                | SsiError::RefinementExhausted { .. }
                 | SsiError::ExhaustivenessInconclusive(_) => {}
                 other => panic!("unexpected refusal shape: {other}"),
             }

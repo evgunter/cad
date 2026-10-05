@@ -14,7 +14,7 @@ test_utils::gated_to![
 
 use crate::common;
 
-use common::{brick, holed_block, prism_z};
+use common::{brick, finished, holed_block, prism_z};
 use geom_core::{Band, Decide, Interval, Point3, Tol};
 use topo::{Body, BooleanOp, SolidContainment, point_in_solid};
 
@@ -46,7 +46,10 @@ fn l_prism<T: Decide + topo::AtRestPolicy>() -> Body<T> {
 
 /// Reads every probe; returns (probe, reading) for the ones that broke
 /// `Want`, and counts the refusals among the definite ones.
-fn read<T: Decide>(body: &Body<T>, probes: &[((f64, f64, f64), Want)]) -> (Vec<String>, usize) {
+fn read<T: Decide + topo::AtRestPolicy>(
+    body: &Body<T>,
+    probes: &[((f64, f64, f64), Want)],
+) -> (Vec<String>, usize) {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let mut wrong = Vec::new();
@@ -208,14 +211,15 @@ type Case = (&'static str, Body<f64>, [Option<f64>; 3]);
 /// Booleans of the L-prism with a brick whose faces sit in band of
 /// the L's far carriers (and whose carriers pass in band of the L's
 /// vertices): nested, poking through the top, and disjoint. An answer
-/// must carry the right volume; refusals are printed.
+/// must carry the right volume, and the refusals are exactly the ring
+/// escalations below.
 #[test]
 fn booleans_beside_a_far_carrier_never_answer_wrong() {
     let tol = Tol::witness();
     let eps = tol.get().eps;
-    let l = l_prism::<f64>();
+    let l = finished("the L-prism", l_prism::<f64>(), tol);
     let mut wrong = Vec::new();
-    let mut refused = Vec::new();
+    let mut refused: Vec<(String, bool)> = Vec::new();
     for k in [2.0, 5.0, 9.0] {
         let d = k * eps;
         let cases: [Case; 3] = [
@@ -244,6 +248,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
             ),
         ];
         for (name, c, want) in cases {
+            let c = finished(name, c, tol);
             for (op, want) in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect]
                 .into_iter()
                 .zip(want)
@@ -268,7 +273,16 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
                     }
                     Err(e) => {
                         eprintln!("k={k} {name} {op:?}: REFUSED {e:?}");
-                        refused.push(format!("k={k} {name} {op:?}"));
+                        let ring_contact = matches!(
+                            &e,
+                            topo::BooleanError::ResultInvalid { errors }
+                                if !errors.is_empty()
+                                    && errors.iter().all(|f| matches!(
+                                        f,
+                                        topo::ValidationError::RingContactEscalated { .. }
+                                    ))
+                        );
+                        refused.push((format!("k={k} {name} {op:?}"), ring_contact));
                     }
                 }
             }
@@ -276,6 +290,16 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
     }
     eprintln!("refused: {refused:?}");
     assert!(wrong.is_empty(), "wrong answers:\n{}", wrong.join("\n"));
+    // The brick through the top leaves a ring on the L's top face `kε`
+    // from its far carrier, inside the escalate band, and the door's
+    // tier-3 result gate cannot certify the ring's containment: ∪ and ∖
+    // refuse it there, at every k and every ε, and nothing else refuses
+    // (`work/reach/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`).
+    let want: Vec<(String, bool)> = [2.0, 5.0, 9.0]
+        .iter()
+        .flat_map(|k| ["Union", "Subtract"].map(|op| (format!("k={k} through the top {op}"), true)))
+        .collect();
+    assert_eq!(refused, want, "the refusals, each the ring's escalation");
 }
 
 // ---- Fuzz against a closed-form oracle -------------------------------

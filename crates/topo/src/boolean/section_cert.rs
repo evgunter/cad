@@ -76,8 +76,34 @@
 //!   clears.
 //! - **R-tan**: a classification margin `Zero` or undecided — a
 //!   tangency, where components pinch and the count is not certified.
+//!   A margin decided `Zero` where the carriers touch at one point is a
+//!   touch instead (below), and refuses R-tan only when it is not
+//!   certified out of either face.
 //! - **R-loop** and **R-undec**: the no-event decision, above.
 //! - **Lone-vertex loops** refuse per pair (below).
+//!
+//! # A touch
+//!
+//! Sphere × plane, sphere × sphere (outside or inside one another),
+//! sphere × cylinder at its nearest ruling, and skew cylinders outside
+//! one another touch at one point `at` when their reach margin decides
+//! `Zero`. The arm does not count the section there. In the exact pose
+//! the carriers share `at` alone. In a pose the decided margin admits
+//! where they cross, they share one small loop `γ` about `at`, inside
+//! which they stand within the margin of each other. On a pair with no
+//! event, the touch clears when `at` places `Out` of either face. With
+//! no event, `γ ∩ F ∩ G` is empty or `γ ⊂ int F ∩ int G` (L1). In the
+//! second case, a path on `F`'s carrier from `γ` inward to `at` leaves
+//! `F`, or leaves what lies over `G`, at some first point. That point
+//! is on an edge of one face, over the other face, within the margin of
+//! the other carrier: an edge × face contact the sweep records or
+//! refuses (S), so the pair would carry an event. Where the loop is
+//! smaller than `at`'s rounding, the path runs outside it by no more
+//! than that rounding, where the carriers still stand within the band.
+//!
+//! A pair with an event refuses R-tan at a touch, since the argument
+//! needs the pair's own silence. Any other tangency is a pinch — the
+//! components meet, or one becomes two — and refuses R-tan.
 //!
 //! # Premises, each at its site
 //!
@@ -238,8 +264,26 @@ pub(crate) enum Section<T: Real> {
     /// A classification margin is `Zero` or undecided: R-tan, naming the
     /// predicate.
     Tangent(&'static str),
+    /// A classification margin decided `Zero` where the carriers touch
+    /// at one point: the section, if the carriers meet at all, lies in
+    /// the touch's ball.
+    Touch(Touch<T>),
     /// No arm for the kind pair or the pose: R-reach.
     Intractable,
+}
+
+/// **A touch of two carriers**: a margin decided `Zero` on an arm whose
+/// tangent pose meets in one point. The carriers share that point in
+/// the exact pose and, in a pose the decided margin admits where they
+/// cross, one small loop about it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Touch<T: Real> {
+    /// The margin decided `Zero`.
+    pub name: &'static str,
+    /// The touch: inside the loop of a crossing pose, where the carriers
+    /// stand deepest in each other, and on both carriers within the
+    /// margin. Each arm says which point it reads.
+    pub at: Point3<T>,
 }
 
 /// Why a component was cleared.
@@ -253,6 +297,9 @@ pub(crate) enum Cleared {
     Out(Side),
     /// W4.
     LoneEvented,
+    /// A touch on a pair with no event, its centre placed `Out` of the
+    /// named face.
+    TouchOut(Side),
 }
 
 /// Why a pair refused.
@@ -314,18 +361,49 @@ fn sign<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign>
     decide(name, m, band).ok()
 }
 
+/// A margin [`signs`] could not read as a side: decided `Zero`, or
+/// undecided.
+#[derive(Clone, Copy, Debug)]
+struct Pinch {
+    name: &'static str,
+    zero: bool,
+}
+
+impl<T: Real> From<Pinch> for Section<T> {
+    fn from(p: Pinch) -> Self {
+        Section::Tangent(p.name)
+    }
+}
+
+impl Pinch {
+    /// A [`Touch`] at `at()` when the pinch is one of `names` decided
+    /// `Zero`, the one reading under which the carriers share at most a
+    /// small loop about it; R-tan otherwise.
+    fn touch<T: Real>(self, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
+        if self.zero && names.contains(&self.name) {
+            Section::Touch(Touch {
+                name: self.name,
+                at: at(),
+            })
+        } else {
+            self.into()
+        }
+    }
+}
+
 /// Decides every margin in `ms`; the first `Zero` or undecided one is
 /// the pair's tangency.
 fn signs<T: Decide, const N: usize>(
     ms: [(&'static str, T); N],
     band: Band,
-) -> Result<[bool; N], Section<T>> {
+) -> Result<[bool; N], Pinch> {
     let mut out = [false; N];
     for (slot, (name, m)) in out.iter_mut().zip(ms) {
         match sign(name, Margin::of(m), band) {
             Some(Sign::Positive) => *slot = true,
             Some(Sign::Negative) => {}
-            Some(Sign::Zero) | None => return Err(Section::Tangent(name)),
+            Some(Sign::Zero) => return Err(Pinch { name, zero: true }),
+            None => return Err(Pinch { name, zero: false }),
         }
     }
     Ok(out)
@@ -544,7 +622,7 @@ fn torus_pair<T: Decide>(
                 ) {
                     Ok([true]) => essential_pair(true, true),
                     Ok([false]) => none(),
-                    Err(tan) => tan,
+                    Err(tan) => tan.into(),
                 }
             }
             Pose::Parallel { e, toward } => {
@@ -575,7 +653,7 @@ fn torus_pair<T: Decide>(
                     ) {
                         Ok([true, true]) => essential_pair(true, true),
                         Ok(_) => none(),
-                        Err(tan) => tan,
+                        Err(tan) => tan.into(),
                     }
                 }
                 Pose::Parallel { .. } | Pose::Other => Section::Intractable,
@@ -654,7 +732,7 @@ fn torus_plane<T: Decide>(
         band,
     ) {
         Ok(x) => x,
-        Err(tan) => return tan,
+        Err(tan) => return tan.into(),
     };
     match (near, far) {
         (true, true) => essential_pair(true, false),
@@ -667,7 +745,7 @@ fn torus_plane<T: Decide>(
             ) {
                 Ok([true]) => essential_pair(true, false),
                 Ok([false]) => none(),
-                Err(tan) => tan,
+                Err(tan) => tan.into(),
             }
         }
         (true, false) | (false, true) => {
@@ -710,7 +788,7 @@ fn torus_sphere<T: Decide>(
         band,
     ) {
         Ok(x) => x,
-        Err(tan) => return tan,
+        Err(tan) => return tan.into(),
     };
     match (near, far) {
         (true, true) => essential_pair(true, false),
@@ -723,7 +801,7 @@ fn torus_sphere<T: Decide>(
         ) {
             Ok([true]) => essential_pair(true, false),
             Ok([false]) => none(),
-            Err(tan) => tan,
+            Err(tan) => tan.into(),
         },
         (true, false) | (false, true) => {
             let sigma = if near { T::one() } else { -T::one() };
@@ -768,7 +846,7 @@ fn torus_parallel_cylinder<T: Decide>(
         band,
     ) {
         Ok(x) => x,
-        Err(tan) => return tan,
+        Err(tan) => return tan.into(),
     };
     let height = |rho: T| {
         let dr = rho - big_r;
@@ -839,15 +917,29 @@ fn cylinder_cylinder<T: Decide>(
     }
     let m = cross / sin;
     let delta = (o2 - o1).dot(m);
+    const REACH: &str = "section_cylinder_pair_reach";
     let [reach, nest] = match signs(
         [
-            ("section_cylinder_pair_reach", r1 + r2 - delta.abs()),
+            (REACH, r1 + r2 - delta.abs()),
             ("section_cylinder_pair_nest", delta.abs() - (r1 - r2).abs()),
         ],
         band,
     ) {
         Ok(x) => x,
-        Err(tan) => return tan,
+        // Touching outside, on the common perpendicular from axis 1's
+        // foot, `r₁ / (r₁ + r₂)` of the way to axis 2: the walls' deepest
+        // point when they cross, which the half-turn about that line (it
+        // maps each wall to itself) fixes inside the loop. Touching
+        // inside (the nest margin) is a pinch: the thinner wall leaves
+        // the fatter one on both sides of the touch.
+        Err(tan) => {
+            return tan.touch(&[REACH], || {
+                let w = o1 - o2;
+                let b = d1.dot(d2);
+                let foot = o1 + d1 * ((b * d2.dot(w) - d1.dot(w)) / sin.powi(2));
+                foot + m * (delta * r1 / (r1 + r2))
+            });
+        }
     };
     match (reach, nest) {
         (false, _) => none(),
@@ -855,7 +947,7 @@ fn cylinder_cylinder<T: Decide>(
         (true, false) => match signs([("section_cylinder_pair_thin", r1 - r2)], band) {
             Ok([true]) => essential_pair(false, true),
             Ok([false]) => essential_pair(true, false),
-            Err(tan) => tan,
+            Err(tan) => tan.into(),
         },
         // The single null saddle loop, witnessed on the arc's middle
         // ruling of cylinder 2: the one on cylinder 1's side of it,
@@ -866,7 +958,7 @@ fn cylinder_cylinder<T: Decide>(
             let q = match signs([("section_cylinder_pair_side", delta)], band) {
                 Ok([true]) => o2 - m * r2,
                 Ok([false]) => o2 + m * r2,
-                Err(tan) => return tan,
+                Err(tan) => return tan.into(),
             };
             let (av, bv) = (d2.cross(d1), (q - o1).cross(d1));
             let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
@@ -900,27 +992,25 @@ fn sphere_plane<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let d = (cs - p0).dot(n);
-    match signs([("section_sphere_plane_reach", rho - d.abs())], band) {
+    const REACH: &str = "section_sphere_plane_reach";
+    match signs([(REACH, rho - d.abs())], band) {
         Ok([true]) => {
             let rad = ((rho - d.abs()) * (rho + d.abs())).sqrt();
             let (b1, _) = n.orthonormal_basis();
             lone(cs - n * d + b1 * rad)
         }
         Ok([false]) => none(),
-        Err(tan) => tan,
+        // The foot of the centre: the circle's centre.
+        Err(tan) => tan.touch(&[REACH], || cs - n * d),
     }
 }
 
 /// **Sphere × sphere**: one circle.
 fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Band) -> Section<T> {
     let dd = (c2 - c1).norm();
-    match signs(
-        [
-            ("section_sphere_pair_reach", r1 + r2 - dd),
-            ("section_sphere_pair_nest", dd - (r1 - r2).abs()),
-        ],
-        band,
-    ) {
+    const REACH: &str = "section_sphere_pair_reach";
+    const NEST: &str = "section_sphere_pair_nest";
+    match signs([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
         Ok([true, true]) => {
             let k = (c2 - c1) / dd;
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
@@ -929,7 +1019,12 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
             lone(c1 + k * x + b1 * rad)
         }
         Ok(_) => none(),
-        Err(tan) => tan,
+        // Touching outside or inside, the circle's centre on the line of
+        // centres.
+        Err(tan) => tan.touch(&[REACH, NEST], || {
+            let k = (c2 - c1) / dd;
+            c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
+        }),
     }
 }
 
@@ -947,15 +1042,22 @@ fn sphere_cylinder<T: Decide>(
     let perp = cs - foot;
     let e = perp.norm();
     let q_min = (e - rc).abs();
+    const REACH: &str = "section_sphere_cylinder_reach";
     let [reach, girdle] = match signs(
         [
-            ("section_sphere_cylinder_reach", rho - q_min),
+            (REACH, rho - q_min),
             ("section_sphere_cylinder_girdle", e + rc - rho),
         ],
         band,
     ) {
         Ok(x) => x,
-        Err(tan) => return tan,
+        // The touch is on the nearest ruling, at the foot's height: the
+        // loop's centre, which the reflections through the plane of the
+        // axis and the centre and across the foot fix. A girdle pinch is
+        // not a touch.
+        Err(tan) => {
+            return tan.touch(&[REACH], || foot + perp / e * rc);
+        }
     };
     match (reach, girdle) {
         (false, _) => none(),
@@ -988,6 +1090,16 @@ pub(crate) fn certify<T: Decide>(
     let (parts, single) = match section {
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
+        Section::Touch(t) if !evented => {
+            let placed = place(t.at);
+            return [Side::F, Side::G]
+                .into_iter()
+                .zip(placed)
+                .find(|&(_, at)| at == Some(FaceContainment::Out))
+                .map(|(side, _)| vec![Cleared::TouchOut(side)])
+                .ok_or(Refusal::Tangent(t.name));
+        }
+        Section::Touch(t) => return Err(Refusal::Tangent(t.name)),
         Section::Intractable => return Err(Refusal::Reach),
     };
     let mut out = Vec::with_capacity(parts.len());

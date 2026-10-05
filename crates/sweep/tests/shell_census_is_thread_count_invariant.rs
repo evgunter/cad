@@ -13,6 +13,7 @@
 use crate::common::cavity::{brick, rod};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol};
+use sweep::test_support::finished;
 use topo::{Body, BooleanResult, BooleanResultKind};
 
 /// **A brick with a rod-shaped cavity strictly inside it**: one solid,
@@ -25,14 +26,22 @@ use topo::{Body, BooleanResult, BooleanResultKind};
 /// an extruded bulge's is too, and the boolean engine refuses a lofted
 /// operand outright (`CurvedEdgeUnsupported`).
 fn voided_rod() -> Body<f64> {
-    let a = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0));
-    let b = rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0);
+    let a = finished(
+        "the brick",
+        brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0)),
+        Tol::witness(),
+    );
+    let b = finished(
+        "the rod",
+        rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0),
+        Tol::witness(),
+    );
     let BooleanResult::Body(bb) = topo::subtract(&a, &b, Tol::witness()).expect("the cut runs")
     else {
         panic!("a rod strictly inside the brick leaves a voided body")
     };
     assert_eq!(bb.kind, BooleanResultKind::Voided);
-    bb.body
+    bb.body.into_body()
 }
 
 /// **`voided_rod`'s verdicts as a SORTED multiset.** A digest that
@@ -52,6 +61,11 @@ fn voided_rod() -> Body<f64> {
 /// junctions (`props_loop_closed`), and each wall's loops wind the
 /// cylinder zero times (`props_chart_loops_closed`) — per-junction and
 /// per-face facts, whichever edge a walk starts at.
+///
+/// Each shell is read twice, so every `props_*` count is even: once at
+/// `f64` (`chk_shell_volume_sign`), and once re-derived at the interval
+/// scalar, where the role the first reading decided is certified
+/// (`chk_shell_volume_sign_enclosure`).
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
@@ -70,15 +84,17 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
     let want: Vec<(String, usize)> = [
         ("chk_shell_volume_sign Negative", 1),
         ("chk_shell_volume_sign Positive", 1),
-        ("props_chart_loops_closed Zero", 2),
-        ("props_circle_axis_class Positive", 4),
-        ("props_face_extent Positive", 2),
-        ("props_loop_closed Zero", 8),
-        ("props_meridian_axial Zero", 4),
-        ("props_meridian_on_surface Zero", 4),
-        ("props_rim_axis_parallel Zero", 4),
-        ("props_rim_center_on_axis Zero", 4),
-        ("props_rim_fit Zero", 4),
+        ("chk_shell_volume_sign_enclosure Negative", 1),
+        ("chk_shell_volume_sign_enclosure Positive", 1),
+        ("props_chart_loops_closed Zero", 4),
+        ("props_circle_axis_class Positive", 8),
+        ("props_face_extent Positive", 4),
+        ("props_loop_closed Zero", 16),
+        ("props_meridian_axial Zero", 8),
+        ("props_meridian_on_surface Zero", 8),
+        ("props_rim_axis_parallel Zero", 8),
+        ("props_rim_center_on_axis Zero", 8),
+        ("props_rim_fit Zero", 8),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

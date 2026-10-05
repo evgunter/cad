@@ -1615,6 +1615,244 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
     }
 }
 
+/// **How a consumer carries an entity of one of its inputs** up to its
+/// own value — one step of the lift the at-rest gate composes from the
+/// node a mate reads its face at up to the product
+/// (`assembly::resolve_face`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Lift {
+    /// The consumer carries the entity under this name, if it carries
+    /// it at all: whether it came through whole is the consumer's
+    /// evaluated table's to say. A face the consumer merged or cut is
+    /// absent from that table under this name.
+    Spelled(StableName),
+    /// The consumer places the geometry again: what it holds under the
+    /// carried name is not where the input held it.
+    Moved,
+    /// The consumer reads the input in a seat whose value holds no
+    /// entity of it: a datum, a measure, an axis, a path, a split's
+    /// tool.
+    Dropped,
+}
+
+/// **How `node` (the consumer, minted as `consumer`) carries `name`, an
+/// entity of its input `input`**: one [`Lift`] per seat `input` fills,
+/// empty when `input` is not one of `node`'s inputs.
+///
+/// The match is exhaustive with no wildcard, and every arm names its
+/// variant's fields (as [`crate::node::Node::inputs`] does), so a new
+/// node kind or a new field does not compile until it is classified
+/// here — a seat or not. Every answer is read off the node's kind and
+/// seat alone; no slot is evaluated.
+///
+/// - **Spelled verbatim**: a `Part` (its table is the selected body's
+///   rows, verbatim) and a `Split`'s target (its intact entities keep
+///   their names; a face it cuts is a fragment, absent under the
+///   name).
+/// - **Spelled under the consumer**: a `Union` member's entity as
+///   [`super::member_name`]; a pair `Boolean`'s as `FromA` / `FromB`;
+///   a `Fillet`'s, `Chamfer`'s or `Shell`'s target's survivor as
+///   `FromTarget`.
+/// - **Moved**: a `Transform`, a `Pattern` and a `PlacedUnion` place
+///   their input again.
+/// - **Dropped**: every other seat — the datum, profile, path, axis
+///   and measure seats — holds nothing of a body's entity.
+pub(crate) fn lift<P>(
+    consumer: RecipeNodeId,
+    node: &crate::node::Node<P>,
+    input: RecipeNodeId,
+    name: &StableName,
+) -> Vec<Lift> {
+    use crate::node::{Datum, Node, PatternKind};
+    let under = |seg: fn(NameRef) -> RoleSeg| {
+        Lift::Spelled(StableName {
+            kind: name.kind,
+            node: consumer,
+            path: vec![seg(NameRef::new(name.clone()))],
+        })
+    };
+    let seat = |at: RecipeNodeId, how: Lift| (at == input).then_some(how);
+    let placer_axis = |kind: &PatternKind| match kind {
+        PatternKind::Circular { axis, step: _ } => seat(*axis, Lift::Dropped),
+        PatternKind::Linear {
+            direction: _,
+            spacing: _,
+        }
+        | PatternKind::Explicit(_) => None,
+    };
+    match node {
+        Node::Part { of, select: _ } => seat(*of, Lift::Spelled(name.clone()))
+            .into_iter()
+            .collect(),
+        Node::Split { target, tool } => [
+            seat(*target, Lift::Spelled(name.clone())),
+            seat(*tool, Lift::Dropped),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        Node::Union {
+            members,
+            declare: _,
+        } => members
+            .iter()
+            .filter(|&&m| m == input)
+            .map(|&m| Lift::Spelled(super::member_name(consumer, m, name)))
+            .collect(),
+        Node::Boolean {
+            op: _,
+            a,
+            b,
+            declare: _,
+        } => [
+            seat(*a, under(RoleSeg::FromA)),
+            seat(*b, under(RoleSeg::FromB)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        Node::Fillet {
+            target,
+            radius: _,
+            selection: _,
+        }
+        | Node::Chamfer {
+            target,
+            distance: _,
+            selection: _,
+        }
+        | Node::Shell {
+            target,
+            thickness: _,
+            open: _,
+        } => seat(*target, under(RoleSeg::FromTarget))
+            .into_iter()
+            .collect(),
+        Node::Transform {
+            input: placed,
+            placement: _,
+        } => seat(*placed, Lift::Moved).into_iter().collect(),
+        Node::Pattern {
+            input: placed,
+            count: _,
+            kind,
+        }
+        | Node::PlacedUnion {
+            input: placed,
+            count: _,
+            kind,
+        } => [seat(*placed, Lift::Moved), placer_axis(kind)]
+            .into_iter()
+            .flatten()
+            .collect(),
+        Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => {
+            seat(*at, Lift::Dropped).into_iter().collect()
+        }
+        Node::Datum(Datum::AxisInPlane {
+            plane,
+            origin: _,
+            direction: _,
+        }) => seat(*plane, Lift::Dropped).into_iter().collect(),
+        Node::Measure { expr: _, refs } => refs
+            .iter()
+            .any(|r| r.at == input)
+            .then_some(Lift::Dropped)
+            .into_iter()
+            .collect(),
+        Node::Assertion {
+            measure,
+            bound: _,
+            dir: _,
+        } => seat(*measure, Lift::Dropped).into_iter().collect(),
+        Node::Extrude {
+            profile,
+            distance: _,
+            side: _,
+        } => seat(*profile, Lift::Dropped).into_iter().collect(),
+        Node::Revolve {
+            profile,
+            axis,
+            angle: _,
+        } => {
+            [seat(*profile, Lift::Dropped), seat(*axis, Lift::Dropped)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        Node::Tube {
+            spine,
+            u_ref: _,
+            major_radius: _,
+            window: _,
+            minor_radius: _,
+        }
+        | Node::HollowTube {
+            spine,
+            u_ref: _,
+            major_radius: _,
+            window: _,
+            minor_radius: _,
+            wall: _,
+        } => seat(*spine, Lift::Dropped).into_iter().collect(),
+        Node::Loft {
+            profiles,
+            v_degree: _,
+        } => profiles
+            .contains(&input)
+            .then_some(Lift::Dropped)
+            .into_iter()
+            .collect(),
+        Node::Sweep {
+            profile,
+            path,
+            stations: _,
+            v_degree: _,
+        } => {
+            [seat(*profile, Lift::Dropped), seat(*path, Lift::Dropped)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        // The one input a profile reads is the frame it is drawn on,
+        // through its payload, and a frame holds no face.
+        Node::Profile(_)
+        // Leaves: their references are names or document seams, not
+        // inputs.
+        | Node::Datum(
+            Datum::Plane {
+                origin: _,
+                normal: _,
+            }
+            | Datum::Axis {
+                origin: _,
+                direction: _,
+            }
+            | Datum::Point { position: _ }
+            | Datum::Frame {
+                origin: _,
+                u: _,
+                v: _,
+            },
+        )
+        | Node::InstantiatePart {
+            doc_ref: _,
+            interface: _,
+            gauge: _,
+            offset: _,
+        }
+        | Node::Gauge {
+            parent: _,
+            placement: _,
+        }
+        | Node::Mate {
+            a: _,
+            b: _,
+            class: _,
+            alignment: _,
+        } => Vec::new(),
+    }
+}
+
 /// The [`RoleSeg`] variants that embed no [`StableName`], as a
 /// PATTERN rather than a predicate.
 ///

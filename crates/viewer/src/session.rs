@@ -58,9 +58,9 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr,
-    Label, LoopProgram, Maintenance, Node, ParamName, PartReach, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, apply,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, FreeValue, FreeVar,
+    Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError, ProfileProgram,
+    RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName, apply,
     assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
@@ -125,16 +125,13 @@ enum GestureTarget {
     /// **No unit, and it is not the slot arm's omission.** A slot's
     /// edit rebuilds the literal, so the notation has to be carried
     /// into it or the drag rewrites it; a parameter's edit is the
-    /// value door (`DocEdit::SetDocParamValue`), which writes a number
+    /// value door (`DocEdit::SetVarValue`), which writes a number
     /// into the standing declaration and leaves the authored unit
     /// beside it untouched. There is nothing here for a captured unit
     /// to protect. The panel still SHOWS the drag in the parameter's
     /// written unit — it converts before the value crosses into this
     /// layer, which is canonical throughout.
-    Param {
-        name: ParamName,
-        dimension: Dimension,
-    },
+    Param { var: VarId, dimension: Dimension },
 }
 
 impl GestureTarget {
@@ -176,7 +173,7 @@ impl GestureTarget {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param { name, .. } => ValueGestureName::Param(name.clone()),
+            Self::Param { var, .. } => ValueGestureName::Param(*var),
         }
     }
 
@@ -188,7 +185,7 @@ impl GestureTarget {
     fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
             Self::Slot { node, slot, unit } => props::slot_edit(*node, *slot, value, *unit),
-            Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
+            Self::Param { var, .. } => Ok(props::param_edit(*var, value)),
         }
     }
 }
@@ -903,9 +900,9 @@ impl DocSession {
                 node: *node,
                 present: self.doc().node(*node).is_some(),
             },
-            Selection::Param(name) => Standing::Param {
-                name: name.clone(),
-                present: self.doc().params().contains_key(name),
+            Selection::Param(var) => Standing::Param {
+                var: self.doc().spoken_var(*var),
+                present: self.doc().var(*var).is_some(),
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
@@ -1408,23 +1405,28 @@ impl DocSession {
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
-            SessionOp::SetParam { name, value } => self.set_param(&name, value),
-            SessionOp::SetParamUnit { name, unit } => self.set_param_unit(name, unit),
-            SessionOp::SetParamText { name, text } => self.set_param_text(name, &text),
-            SessionOp::CreateParam { name, value } => self.create_param(name, value),
+            SessionOp::SetParam { var, value } => self.set_param(var, value),
+            SessionOp::SetParamUnit { var, unit } => self.set_param_unit(var, unit),
+            SessionOp::SetParamText { var, text } => self.set_param_text(var, &text),
+            SessionOp::DeclareVar { name, value } => self.declare_var(name, value),
+            SessionOp::RenameVar { var, name } => self.commit(DocEdit::RenameVar {
+                var: var.into(),
+                name,
+            }),
+            SessionOp::DeleteVar { var } => self.commit(DocEdit::DeleteVar { var: var.into() }),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
-            SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
+            SessionOp::BeginParamGesture { var } => self.begin_param_gesture(var),
             SessionOp::PreviewGesture { node, slot, value } => {
                 self.preview_gesture(&ValueGestureName::Slot { node, slot }, value)
             }
             SessionOp::CommitGesture { node, slot } => {
                 self.commit_gesture(&ValueGestureName::Slot { node, slot })
             }
-            SessionOp::PreviewParamGesture { name, value } => {
-                self.preview_gesture(&ValueGestureName::Param(name), value)
+            SessionOp::PreviewParamGesture { var, value } => {
+                self.preview_gesture(&ValueGestureName::Param(var), value)
             }
-            SessionOp::CommitParamGesture { name } => {
-                self.commit_gesture(&ValueGestureName::Param(name))
+            SessionOp::CommitParamGesture { var } => {
+                self.commit_gesture(&ValueGestureName::Param(var))
             }
             SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
                 // Only a drag that actually put a scratch document on
@@ -1839,23 +1841,8 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
-    /// **The declared dimensions `parse_expr` reads text against** —
-    /// every text door's first argument, and one function because
-    /// both of them wanted it.
-    ///
-    /// The parser needs them so a parameter reference records the
-    /// dimension `apply` will re-check it against; a door that built
-    /// the map itself would be free to build a different one.
-    fn param_dims(&self) -> std::collections::BTreeMap<ParamName, Dimension> {
-        self.committed_doc()
-            .params()
-            .iter()
-            .map(|(name, param)| (name.clone(), param.dim()))
-            .collect()
-    }
-
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.param_dims()) {
+        let expr = match parse_expr(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1882,25 +1869,24 @@ impl DocSession {
 
     /// The value door: write a declared parameter's value.
     ///
-    /// A name the document does not declare takes the commit path so
+    /// A variable the document does not hold takes the commit path so
     /// the typed refusal comes from the door rather than from here —
-    /// `DocEdit::SetDocParamValue` carries an existing declaration
-    /// forward and refuses `EditError::DocParamNotDeclared` when there
-    /// is none.
-    fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
-        self.commit_written(props::param_edit(name.clone(), value))
+    /// `DocEdit::SetVarValue` carries an existing definition forward
+    /// and refuses `EditError::UnknownVar` when there is none.
+    fn set_param(&mut self, var: VarId, value: SlotValue) -> OpOutcome {
+        self.commit_written(props::param_edit(var, value))
     }
 
     /// The notation door: rewrite a declared parameter's display unit,
     /// its value untouched.
     ///
     /// No pre-check, for [`Self::set_param`]'s reason: every way this
-    /// can refuse — an undeclared name, a `Count`, a unit that does
-    /// not measure the declared dimension — is refused by
-    /// `DocEdit::SetDocParamUnit` in the door's own words, and a
+    /// can refuse — a variable the document does not hold, a `Count`,
+    /// a unit that does not measure the declared dimension — is refused by
+    /// `DocEdit::SetVarUnit` in the door's own words, and a
     /// second opinion here could only agree or disagree.
-    fn set_param_unit(&mut self, name: ParamName, unit: UnitDef) -> OpOutcome {
-        self.commit_written(props::param_unit_edit(name, unit))
+    fn set_param_unit(&mut self, var: VarId, unit: UnitDef) -> OpOutcome {
+        self.commit_written(props::param_unit_edit(var, unit))
     }
 
     /// The text door: a number, and the notation to write it in, from
@@ -1933,8 +1919,8 @@ impl DocSession {
     /// one fact, and a number that reads back as the one standing
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
-    fn set_param_text(&mut self, name: ParamName, text: &str) -> OpOutcome {
-        let expr = match parse_expr(text, &self.param_dims()) {
+    fn set_param_text(&mut self, var: VarId, text: &str) -> OpOutcome {
+        let expr = match parse_expr(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1944,13 +1930,15 @@ impl DocSession {
         // because flattening would store a value the text does not
         // say.
         let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
-            return OpOutcome::refused(Refusal::ParamNotANumber { name });
+            return OpOutcome::refused(Refusal::ParamNotANumber {
+                var: self.committed_doc().spoken_var(var),
+            });
         };
-        let declared = self.committed_doc().params().get(&name).map(DocParam::dim);
-        let notation = props::param_unit_edit(name.clone(), unit);
-        let written = props::param_edit(name.clone(), SlotValue::Continuous(value));
+        let declared = self.committed_doc().free(var).map(FreeVar::dim);
+        let notation = props::param_unit_edit(var, unit);
+        let written = props::param_edit(var, SlotValue::Continuous(value));
         match declared {
-            // An undeclared name takes the commit path so the typed
+            // An undeclared variable takes the commit path so the typed
             // refusal comes from the door rather than from here, the
             // way [`Self::set_param`]'s does.
             None => return self.commit(written),
@@ -1975,17 +1963,14 @@ impl DocSession {
         self.commit_action(edits)
     }
 
-    /// The create door: refuse an already-declared name typed, commit
-    /// the edit for a new one. See [`SessionOp::CreateParam`] for why
-    /// this door narrows the edit's create-or-replace semantics.
-    fn create_param(&mut self, name: ParamName, value: DocParam) -> OpOutcome {
-        if let Some(existing) = self.committed_doc().params().get(&name) {
-            return OpOutcome::refused(Refusal::ParamExists {
-                dimension: existing.dim(),
-                name,
-            });
-        }
-        self.commit(DocEdit::SetDocParam { name, value })
+    /// The create door: one `DeclareVar`. A taken name is the
+    /// declare's to refuse (`EditError::VarNameTaken`), and reaches the
+    /// caller through [`Refusal::Edit`] in the door's own words.
+    fn declare_var(&mut self, name: VarName, value: FreeVar) -> OpOutcome {
+        self.commit(DocEdit::DeclareVar {
+            name,
+            def: pncad::document::VarDef::Free(value),
+        })
     }
 
     /// The slot door: a drag over a literal slot's number.
@@ -2006,15 +1991,13 @@ impl DocSession {
     }
 
     /// The parameter door: a drag over a declared parameter's value.
-    fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
-        let name = name.clone();
+    fn begin_param_gesture(&mut self, var: VarId) -> OpOutcome {
         self.start(move |doc| {
             let dimension = doc
-                .params()
-                .get(&name)
-                .map(|param| param.dim())
-                .ok_or_else(|| Refusal::NoSuchParam(name.clone()))?;
-            Ok(GestureTarget::Param { name, dimension })
+                .free(var)
+                .map(FreeVar::dim)
+                .ok_or(Refusal::NoSuchParam(var))?;
+            Ok(GestureTarget::Param { var, dimension })
         })
     }
 
@@ -2103,7 +2086,7 @@ impl DocSession {
                 // check can hold; the other half is that
                 // [`GestureTarget::edit`] can produce nothing but
                 // `SetParam`, `SetStructuralParam` and
-                // `SetDocParamValue`, none of which removes a node
+                // `SetVarValue`, none of which removes a node
                 // either.
                 assert!(
                     applied.record.minted.is_none(),
@@ -2794,29 +2777,34 @@ impl DocSession {
     fn writes_nothing(&self, edit: &DocEdit<ProfileProgram>) -> bool {
         let doc = self.committed_doc();
         match edit {
-            // A slot's literal, against the expression the node
-            // stands at — the same comparison for a structural slot,
-            // which differs only in which edit carries it.
+            // A slot's expression, against the one the node stands at
+            // — the same comparison for a structural slot, which
+            // differs only in which edit carries it. The offered one is
+            // compared as the door would store it: its name leaves
+            // lowered to the variables they name, since a stored
+            // expression reads ids.
             DocEdit::SetParam { node, slot, expr }
             | DocEdit::SetStructuralParam { node, slot, expr } => {
-                doc.node(*node).and_then(|node| node.expr(*slot)) == Some(expr)
+                doc.node(*node).and_then(|node| node.expr(*slot)) == Some(&doc.lowered(expr))
             }
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:
             // the edit is a redeclaration and the door refuses it.
-            DocEdit::SetDocParamValue { name, value } => match (doc.params().get(name), value) {
-                (
-                    Some(DocParam::Continuous { value: stood, .. }),
-                    DocParamValue::Continuous(offered),
-                ) => stood == offered,
-                (Some(DocParam::Count { value: stood }), DocParamValue::Count(offered)) => {
-                    stood == offered
+            DocEdit::SetVarValue { var, value } => {
+                match (doc.resolve_var(var).and_then(|id| doc.free(id)), value) {
+                    (
+                        Some(FreeVar::Continuous { value: stood, .. }),
+                        FreeValue::Continuous(offered),
+                    ) => stood == offered,
+                    (Some(FreeVar::Count { value: stood }), FreeValue::Count(offered)) => {
+                        stood == offered
+                    }
+                    _ => false,
                 }
-                _ => false,
-            },
-            DocEdit::SetDocParamUnit { name, unit } => matches!(
-                doc.params().get(name),
-                Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
+            }
+            DocEdit::SetVarUnit { var, unit } => matches!(
+                doc.resolve_var(var).and_then(|id| doc.free(id)),
+                Some(FreeVar::Continuous { display_unit, .. }) if display_unit == unit
             ),
             // The rename field's text, against the label the node has.
             DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
@@ -2846,14 +2834,18 @@ impl DocSession {
             | DocEdit::SetGauge { .. }
             | DocEdit::Promote { .. }
             | DocEdit::Fold { .. }
-            // The declaration doors that are not the value or the
-            // notation half. `SetDocParam` is create-or-replace: a
-            // redeclaration is an act — it is how a parameter's
-            // DIMENSION changes — and the door refuses or performs it
-            // on its own terms. A distribution is an annotation no
-            // panel field shows.
-            | DocEdit::SetDocParam { .. }
-            | DocEdit::SetDocParamDistribution { .. }
+            // The variable doors that are not the value or the
+            // notation half. A declare mints a variable and a
+            // definition replaces one whole: each is an act the door
+            // refuses or performs on its own terms. A distribution is
+            // an annotation no panel field shows. A rename's unchanged
+            // name is the door's own refusal (`VarNameUnchanged`), and
+            // a delete has no standing value to equal.
+            | DocEdit::DeclareVar { .. }
+            | DocEdit::DefineVar { .. }
+            | DocEdit::SetVarDistribution { .. }
+            | DocEdit::RenameVar { .. }
+            | DocEdit::DeleteVar { .. }
             // A subtree rewrite at an `ExprPath`, which no panel door
             // emits: the comparison it would want is against the
             // REBUILT ancestor rather than against the payload, and

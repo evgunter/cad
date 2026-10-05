@@ -30,10 +30,11 @@
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
 //!   (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`);
-//! - a blind D pocket in a block builds from the bottom face (its floor's
-//!   chord has the D's arc between its ends) and refuses `JoinDesync`
-//!   from the top
-//!   (`work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`).
+//! - a blind D pocket in a block builds from either face: from the
+//!   bottom its floor's chord has the D's arc between its ends; from the
+//!   top the D's arc side closes the ring-lane run the flat side's
+//!   copies open, so role resolution winds that run by the arc the join
+//!   mints, not by a straight chord.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -42,9 +43,9 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError, SplitJoinError};
+use topo::{AtRestBody, Body, BooleanError, SplitJoinError};
 
 const R: f64 = 0.5;
 const LEN: f64 = 4.0;
@@ -72,30 +73,35 @@ fn polygon(pts: &[(f64, f64)]) -> profile::ProfileLoop<f64> {
 }
 
 /// The rod: an extruded circle.
-fn rod() -> Body<f64> {
+fn rod() -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, 0.0), R, tol()).unwrap();
-    extruded(SketchPlane::xy(), disc.into(), LEN)
+    finished(
+        "the rod",
+        extruded(SketchPlane::xy(), disc.into(), LEN),
+        tol(),
+    )
 }
 
 /// The rod's all-planar twin: a square turned 45°, its corners where
 /// the rod's semicircles meet, so its side edges `x = ±0.5, y = 0` are
 /// the rod's rulings.
-fn diamond() -> Body<f64> {
-    extruded(
-        SketchPlane::xy(),
-        polygon(&[(R, 0.0), (0.0, R), (-R, 0.0), (0.0, -R)]),
-        LEN,
+fn diamond() -> AtRestBody<f64> {
+    let square = polygon(&[(R, 0.0), (0.0, R), (-R, 0.0), (0.0, -R)]);
+    finished(
+        "the diamond",
+        extruded(SketchPlane::xy(), square, LEN),
+        tol(),
     )
 }
 
 fn cut(
-    a: &Body<f64>,
+    a: &AtRestBody<f64>,
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> Result<Body<f64>, BooleanError> {
-    topo::subtract(a, &brick(x, y, z, tol()), tol())
-        .map(|r| r.body().expect("a body remains").body.clone())
+) -> Result<AtRestBody<f64>, BooleanError> {
+    let cutter = finished("the cutter", brick(x, y, z, tol()), tol());
+    topo::subtract(a, &cutter, tol()).map(|r| r.body().expect("a body remains").body.clone())
 }
 
 /// The lap: the cutter starts inside the rod at `z = 3` and runs past
@@ -135,7 +141,7 @@ fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
 fn an_axis_lap_builds_every_op_as_its_planar_twin_does() {
     let (rod_v, diamond_v, cutter_v) = (PI * R * R * LEN, 2.0 * R * R * LEN, 2.0 * 1.5);
     for y in [(0.0, 1.0), (-1.0, 0.0)] {
-        let cutter = brick(ACROSS, y, LAP, tol());
+        let cutter = finished("the lap cutter", brick(ACROSS, y, LAP, tol()), tol());
         for (name, body, v, held) in [
             ("rod", rod(), rod_v, PI * R * R / 2.0),
             ("diamond", diamond(), diamond_v, R * R),
@@ -238,7 +244,11 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
         };
         kept
     };
-    let capped = part(&part(&rod(), 3.5, false), 0.5, true);
+    let capped = finished(
+        "the oblique-capped rod",
+        part(&part(&rod(), 3.5, false), 0.5, true),
+        tol(),
+    );
     // Between two parallel planes 3 apart along z, over the disc.
     assert_sound(&capped, 3.0 * PI * R * R, "the oblique-capped rod");
     let err = cut(&capped, ACROSS, (0.2, 1.0), FLAT).expect_err("the flat refuses");
@@ -276,6 +286,7 @@ fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
             ]),
             6.0,
         );
+        let cutter = finished("the half-space cutter", cutter, tol());
         let r = topo::subtract(&rod(), &cutter, tol())
             .unwrap_or_else(|e| panic!("bulge {bulge}: {e:?}"));
         let body = &r.body().expect("a half rod remains").body;
@@ -285,12 +296,13 @@ fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
 
 /// The block `[−1, 1]² × [0, 1]` minus a D-profile rod (chord `x = 0.3`,
 /// major arc `r = 0.5` about the origin) extruded `1.0` from `z = z0`.
-fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
+fn d_pocket(z0: f64) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let block = extruded(
         SketchPlane::xy(),
         polygon(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
         1.0,
     );
+    let block = finished("the block", block, tol());
     let c = sweep::test_support::rod_chord_at(0.3);
     let d = extruded(
         SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0))),
@@ -300,37 +312,33 @@ fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
         ]),
         1.0,
     );
-    topo::subtract(&block, &d, tol()).map(|r| r.body().expect("a body remains").body.clone())
+    let d = finished("the D rod", d, tol());
+    topo::subtract(&block, &d, tol())
 }
 
 /// **A blind D pocket, from either face.** Entering through the BOTTOM
 /// face, the block's floor meets the D's flat wall along a chord whose
 /// ends are adjacent on the floor's new ring with the major arc between
-/// them — the plane×plane arm's conic question — and the pocket builds:
-/// it certifies at rest and its volume is the block less the D's area
-/// over the pocket's depth `0.5`. Entering through the TOP face it
-/// refuses `JoinDesync` in the join's internal words (the ring-run
-/// winding decides `Zero`), which
-/// `work/join/blind-d-pocket-subtract-refuses-with-join-internal-words`
-/// carries.
+/// them — the plane×plane arm's conic question. Entering through the
+/// TOP face, the flat side joins first and the arc side's match is
+/// handed a ring run of the flat side's two copies: closed by the
+/// straight chord it encloses nothing in either role order, and closed
+/// by the arc the join mints it is the D, counterclockwise in exactly
+/// one. Both build at the block less the D's area over the pocket's
+/// depth `0.5`, hold tiers 2 and 3′ and the at-rest certificate, and
+/// are legal operands.
 #[test]
-fn a_blind_d_pocket_builds_from_below_and_refuses_from_above() {
-    let bottom = d_pocket(-0.5).expect("the bottom-entry pocket builds");
-    assert_sound(
-        &bottom,
-        4.0 - (PI * R * R - segment(0.3)) * 0.5,
-        "the bottom-entry D pocket",
-    );
-    let err = d_pocket(0.5).expect_err("the top-entry pocket refuses");
-    assert!(
-        matches!(
-            err,
-            BooleanError::JoinDesync {
-                what: "ring-run winding is degenerate (zero enclosed area)"
-            }
-        ),
-        "{err:?}"
-    );
+fn a_blind_d_pocket_builds_from_either_face() {
+    for (face, z0) in [("bottom", -0.5), ("top", 0.5)] {
+        let what = format!("the {face}-entry D pocket");
+        let r = d_pocket(z0).unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
+        let bb = r.body().expect("a body remains");
+        topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
+        assert_sound(&bb.body, 4.0 - (PI * R * R - segment(0.3)) * 0.5, &what);
+        sweep::test_support::assert_legal_operand(&what, &bb.body, tol());
+    }
 }
 
 /// **A split whose section is too nearly a circle to name reads as the
@@ -379,4 +387,94 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         test_utils::refusal::subjectless_escalations(&text).is_empty(),
         "{text}"
     );
+}
+
+/// A C — the annular sector about `(−0.5, 0)` between radii `ro` and
+/// `ri`, sweeping `sweep` and open about `+x`, its sides one arc each —
+/// on the plane `z = z0`, extruded `h`, with its area.
+fn annular_sector(ro: f64, ri: f64, sweep: f64, z0: f64, h: f64) -> (AtRestBody<f64>, f64) {
+    let (cx, g) = (-0.5, PI - sweep / 2.0);
+    let at = |r: f64, a: f64| Point2::new(cx + r * a.cos(), r * a.sin());
+    let b = (sweep / 4.0).tan();
+    let lp = bulge_loop(vec![
+        (at(ro, g), b),
+        (at(ro, -g), 0.0),
+        (at(ri, -g), -b),
+        (at(ri, g), 0.0),
+    ]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    (
+        finished("the C", extruded(plane, lp, h), tol()),
+        sweep / 2.0 * (ro * ro - ri * ri),
+    )
+}
+
+/// **An engraved C builds at every sweep.** A blind annular-sector
+/// pocket whose sides are one arc each: each arc meets two lines at
+/// sharp corners, and on the cap's ring its match closes a run whose
+/// straight chord, past a sweep near 130°, winds the other way than the
+/// arc the join mints. Sunk `0.05` into the top and bottom caps of the
+/// cylinder `r = 1`, `z ∈ [0, 2.5]` and into a box's top face, cut
+/// through the cylinder, and stood `0.05` proud as a boss, each at
+/// sweeps 135°, 180° and 270° and radii `0.25 / 0.15` and `0.4 / 0.1`,
+/// builds at its closed form through tiers 2 and 3′ and the at-rest
+/// certificate.
+#[test]
+fn an_engraved_one_arc_c_builds_at_every_sweep() {
+    let cyl = finished(
+        "the cylinder",
+        extruded(
+            SketchPlane::xy(),
+            profile::circle(Point2::new(0.0, 0.0), 1.0, tol())
+                .unwrap()
+                .into(),
+            2.5,
+        ),
+        tol(),
+    );
+    let (vc, vbox) = (PI * 2.5, 2.0 * 2.0 * 1.0);
+    let block = finished(
+        "the box",
+        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    for (ro, ri) in [(0.25, 0.15), (0.4, 0.1)] {
+        for deg in [135.0_f64, 180.0, 270.0] {
+            let sweep = deg.to_radians();
+            let c = |z0, h| annular_sector(ro, ri, sweep, z0, h);
+            let (top, a) = c(2.45, 0.1);
+            let poses = [
+                (
+                    "the top cap",
+                    topo::subtract(&cyl, &top, tol()),
+                    vc - a * 0.05,
+                ),
+                (
+                    "the bottom cap",
+                    topo::subtract(&cyl, &c(-0.05, 0.1).0, tol()),
+                    vc - a * 0.05,
+                ),
+                (
+                    "a box's top face",
+                    topo::subtract(&block, &c(0.95, 0.1).0, tol()),
+                    vbox - a * 0.05,
+                ),
+                (
+                    "a through cut",
+                    topo::subtract(&cyl, &c(-1.0, 4.5).0, tol()),
+                    vc - a * 2.5,
+                ),
+                ("a boss", topo::union(&cyl, &top, tol()), vc + a * 0.05),
+            ];
+            for (pose, r, want) in poses {
+                let what = format!("{pose}, {deg}°, radii {ro} / {ri}");
+                let r = r.unwrap_or_else(|e| panic!("{what}: builds: {e:?}"));
+                let bb = r.body().unwrap_or_else(|| panic!("{what}: a body"));
+                topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                    .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
+                assert_sound(&bb.body, want, &what);
+            }
+        }
+    }
 }

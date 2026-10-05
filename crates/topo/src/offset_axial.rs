@@ -216,9 +216,10 @@ use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, T
 
 use crate::attach::Rechart;
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::geometry::SurfaceKey;
-use crate::offset_together::ChartMove;
+use crate::live::{linked, proven};
+use crate::offset_together::{ChartMove, unmoved_in_scope, unplaced_in_scope};
 use crate::replace_face::ReplaceFaceError;
 
 /// The revolution axis every accepted surface shares, with the scope's
@@ -453,11 +454,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         // sheet whose own normal IS the mint's stored field, so the
         // turn is the identity and a corner walk would answer a
         // question the surface already settles.
-        let key = body
-            .get_face(*m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .surface;
-        let d = match body.get_surface(key).ok_or(ReplaceFaceError::Corrupt)? {
+        let first = *m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?;
+        let first_data = proven(&body.faces, first, EntityId::Face);
+        let d = match body.face_surface_linked(first, first_data) {
             Surface::Cone { .. } => {
                 crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance)
             }
@@ -467,10 +466,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             let data = body
                 .get_face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let old = body
-                .get_surface(data.surface)
-                .ok_or(ReplaceFaceError::Corrupt)?
-                .clone();
+            let old = body.face_surface_linked(face, data).clone();
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &old, &new, &frame, band)?;
@@ -501,16 +497,13 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         let mut at: Vec<&MovedChart<T>> = Vec::new();
-        for face in crate::offset_together::faces_at_vertex(body, vertex)? {
-            let c = chart_of(face).ok_or(ReplaceFaceError::Corrupt)?;
+        for face in body.faces_of_vertex_linked(vertex) {
+            let c = chart_of(face).unwrap_or_else(|| unmoved_in_scope(face));
             if !at.iter().any(|q| q.old_key == c.old_key) {
                 at.push(c);
             }
         }
-        let here = body
-            .get_vertex(vertex)
-            .and_then(|v| body.get_point(v.point).copied())
-            .ok_or(ReplaceFaceError::Corrupt)?;
+        let here = body.point_of(vertex, proven(&body.vertices, vertex, EntityId::Vertex));
         at_vertex.push((vertex, here, at));
     }
     let mut position: Vec<(VertexKey, Point3<T>)> = Vec::new();
@@ -523,7 +516,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
-    for group in crate::replace_face::group_by_point(body, asked)? {
+    for group in crate::replace_face::group_by_point(body, asked) {
         let mut at: Vec<&MovedChart<T>> = Vec::new();
         let mut arms: Vec<T> = Vec::new();
         let mut here = None;
@@ -536,7 +529,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             arms.extend(corner_arms(body, *vertex)?);
             here.get_or_insert(*at_here);
         }
-        let here = here.ok_or(ReplaceFaceError::Corrupt)?;
+        let here = here.unwrap_or_else(|| {
+            unreachable!("a group `group_by_point` answers holds the vertex it was asked about")
+        });
         let point = solve_corner(group[0], here, &at, &arms, &frame, band)?;
         position.extend(group.iter().map(|&v| (v, point)));
         moved.push((group, point));
@@ -549,34 +544,33 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         if !scope.holds_edge(edge) {
             continue;
         }
-        let (fa, fb) = crate::readback::edge_sides(body, edge)
-            .map_err(|_| ReplaceFaceError::Corrupt)?
-            .faces();
+        let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
         let (ca, cb) = (
-            chart_of(fa).ok_or(ReplaceFaceError::Corrupt)?,
-            chart_of(fb).ok_or(ReplaceFaceError::Corrupt)?,
+            chart_of(fa).unwrap_or_else(|| unmoved_in_scope(fa)),
+            chart_of(fb).unwrap_or_else(|| unmoved_in_scope(fb)),
         );
-        let start = body
-            .get_half_edge(edge_data.he_plus)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .start;
-        let end = body
-            .half_edge_end(edge_data.he_plus)
-            .ok_or(ReplaceFaceError::Corrupt)?;
+        let start = linked(
+            &body.half_edges,
+            edge_data.he_plus,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            "he_plus",
+        )
+        .start;
+        let end = body.proven_half_edge_end(edge_data.he_plus);
         let (p_start, p_end) = (
-            point_at(start).ok_or(ReplaceFaceError::Corrupt)?,
-            point_at(end).ok_or(ReplaceFaceError::Corrupt)?,
+            point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
+            point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),
         );
-        let old_point = |v: VertexKey| {
-            body.get_vertex(v)
-                .and_then(|d| body.get_point(d.point).copied())
-                .ok_or(ReplaceFaceError::Corrupt)
+        let old_point =
+            |v: VertexKey| body.point_of(v, proven(&body.vertices, v, EntityId::Vertex));
+        let (q_start, q_end) = (old_point(start), old_point(end));
+        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a null edge, which carries no curve to transport",
+            });
         };
-        let (q_start, q_end) = (old_point(start)?, old_point(end)?);
-        let curve = body
-            .get_curve_geom(edge_data.curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .ok_or(ReplaceFaceError::Corrupt)?;
         let old_carrier = curve.carrier().clone();
         let (t0_old, t1_old) = curve.params();
         let description = curve.description().clone();
@@ -643,7 +637,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         let Some(&first) = m.faces.first() else {
             return Err(ReplaceFaceError::EmptyGroup);
         };
-        let c = chart_of(first).ok_or(ReplaceFaceError::Corrupt)?;
+        let c = chart_of(first).unwrap_or_else(|| unmoved_in_scope(first));
         // **A chart asked to move nothing keeps its chart.** Re-minting
         // it would put a fresh key in the arena describing the same
         // surface — which is not a no-op to anything reading keys, and
@@ -667,8 +661,11 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     // runs over the scope's faces alone: an out-of-scope row belongs to
     // an edge this door did not touch and stays exactly as it was found.
     let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
-        .map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
+        ReplaceFaceError::Pcurve {
+            source: source.for_driver(),
+        }
+    })?;
     // Tier 2 over the WHOLE clone, deliberately, and one of the four
     // reads that stay linear in the body (`Scope`'s docs carry the
     // account and the reason for each).
@@ -720,8 +717,14 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
 /// anywhere, and goes red the day one appears. The escalating arm is
 /// therefore written for correctness rather than pinned by a fixture,
 /// which is stated here rather than left to be discovered as a gap.
+///
+/// # Panics
+///
+/// On a torn body — a face's surface or a vertex's point that does not
+/// resolve, a shell or loop walk that does not close — naming the
+/// record (D2 row 4): only a kernel bug reaches one.
 pub fn is_axial<T: Decide>(body: &Body<T>, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    let scope = crate::offset_together::Scope::whole(body).ok_or(ReplaceFaceError::Corrupt)?;
+    let scope = crate::offset_together::Scope::whole(body);
     is_axial_in(body, &scope, band)
 }
 
@@ -735,16 +738,19 @@ pub(crate) fn is_axial_in<T: Decide>(
     scope: &crate::offset_together::Scope,
     band: Band,
 ) -> Result<bool, ReplaceFaceError<T>> {
-    let Ok(frame) = axial_frame(body, scope) else {
-        return Ok(false);
+    let frame = match axial_frame(body, scope) {
+        Ok(frame) => frame,
+        // No curved chart, or no face at all: nothing revolves.
+        Err(ReplaceFaceError::TogetherAxialUnsupported { .. } | ReplaceFaceError::EmptyGroup) => {
+            return Ok(false);
+        }
+        Err(source) => return Err(source),
     };
     for (face, f) in body.faces() {
         if !scope.holds_face(face) {
             continue;
         }
-        let Some(surface) = body.get_surface(f.surface) else {
-            return Ok(false);
-        };
+        let surface = body.face_surface_linked(face, f);
         match classify(face, surface, surface, &frame, band) {
             Ok(_) => {}
             // The gate's own definite verdicts: this body is not
@@ -759,7 +765,9 @@ pub(crate) fn is_axial_in<T: Decide>(
 
 /// The revolution axis of the solids `scope` names, and their radial
 /// extent, read off the first curved chart in scope. An all-planar
-/// scope has no axis and is not this door's.
+/// scope has no axis and is not this door's; a scope holding no face
+/// (an empty move set, a faceless body) names nothing to revolve and
+/// answers [`ReplaceFaceError::EmptyGroup`].
 fn axial_frame<T: Real>(
     body: &Body<T>,
     scope: &crate::offset_together::Scope,
@@ -768,16 +776,13 @@ fn axial_frame<T: Real>(
         .faces()
         .find(|(k, _)| scope.holds_face(*k))
         .map(|(k, _)| k)
-        .ok_or(ReplaceFaceError::Corrupt)?;
+        .ok_or(ReplaceFaceError::EmptyGroup)?;
     let mut seed: Option<(Point3<T>, Vec3<T>)> = None;
     for (face, f) in body.faces() {
         if !scope.holds_face(face) {
             continue;
         }
-        let Some(surface) = body.get_surface(f.surface) else {
-            continue;
-        };
-        let found = match surface {
+        let found = match body.face_surface_linked(face, f) {
             Surface::Cylinder { origin, axis, .. } => Some((*origin, axis.normalize())),
             Surface::Cone { apex, axis, .. } => Some((*apex, axis.normalize())),
             Surface::Sphere { center, axis, .. } => Some((*center, axis.normalize())),
@@ -834,13 +839,8 @@ fn axial_frame<T: Real>(
     // The same posture the axis gate's third outcome is documented
     // under: written for correctness rather than pinned by a fixture.
     let mut extent = T::zero();
-    for (vertex, v) in body.vertices() {
-        if !scope.holds_vertex(vertex) {
-            continue;
-        }
-        if let Some(p) = body.get_point(v.point) {
-            extent = extent.max((*p - origin).norm());
-        }
+    for (key, vertex) in body.vertices().filter(|&(k, _)| scope.holds_vertex(k)) {
+        extent = extent.max((body.point_of(key, vertex) - origin).norm());
     }
     Ok(Frame {
         origin,
@@ -1003,29 +1003,22 @@ fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Vec<T>, ReplaceFaceError<T>> {
-    let Some(emanating) = body
-        .get_vertex(vertex)
-        .ok_or(ReplaceFaceError::Corrupt)?
-        .emanating
-    else {
-        return Ok(Vec::new());
-    };
-    let orbit = body
-        .vertex_orbit(emanating)
-        .ok_or(ReplaceFaceError::Corrupt)?;
     let mut out = Vec::new();
-    for he in orbit {
-        let edge = body
-            .get_edge(
-                body.get_half_edge(he)
-                    .ok_or(ReplaceFaceError::Corrupt)?
-                    .edge,
-            )
-            .ok_or(ReplaceFaceError::Corrupt)?;
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .ok_or(ReplaceFaceError::Corrupt)?;
+    for he in body.vertex_orbit_linked(vertex) {
+        let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+        let edge = linked(
+            &body.edges,
+            key,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let Some(curve) = body.edge_curve_linked(key, edge).certified() else {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                edge: key,
+                what: "a null edge, which carries no curve to transport",
+            });
+        };
         let (t0, t1) = curve.params();
         out.push(match curve.carrier() {
             // A line's parameter IS arc length; a circle's is an angle
@@ -1548,10 +1541,9 @@ fn cap_pair_corner<T: Decide>(
         // The caps still hold the axis: the pole arm's territory.
         Ok(Sign::Zero) => return Ok(None),
         Ok(Sign::Positive) => {}
-        // `rho_line` is a norm; a Negative verdict is not a geometric
-        // posture but the margin machinery itself breaking — a kernel
-        // bug, surfaced rather than solved on.
-        Ok(Sign::Negative) => return Err(ReplaceFaceError::Corrupt),
+        Ok(Sign::Negative) => {
+            unreachable!("{vertex:?}: `rho_line` is a norm, which no margin decides negative")
+        }
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
     let e = (e1 * alpha + e2 * beta) / rho_line;
@@ -1562,7 +1554,8 @@ fn cap_pair_corner<T: Decide>(
         n: (T::one(), T::zero()),
         c: rho_line,
     };
-    let det = transversality(&wall, circle).ok_or(ReplaceFaceError::Corrupt)?;
+    let det = transversality(&wall, circle)
+        .unwrap_or_else(|| unreachable!("a line and a circle always have a transversality"));
     for &arm in arms {
         match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
             Ok(Sign::Positive) => {}
@@ -1690,7 +1683,12 @@ fn nearest<T: Decide>(
     band: Band,
 ) -> Result<(T, T), ReplaceFaceError<T>> {
     let far = |r: (T, T)| Vec3::new(r.0 - rho, r.1 - h, T::zero()).norm();
-    let mut best = *roots.first().ok_or(ReplaceFaceError::Corrupt)?;
+    // Both callers hand over a line pair's one root or a line–circle
+    // pair's two, whose transversality they certified first.
+    let Some(&first) = roots.first() else {
+        unreachable!("{vertex:?}: a certified-transversal profile pair has a root")
+    };
+    let mut best = first;
     for &r in &roots[1..] {
         match decide("offset_axial_branch", Margin::of(far(r) - far(best)), band) {
             Ok(Sign::Negative) => best = r,
@@ -1762,7 +1760,9 @@ fn mint_carrier<T: Decide>(
             // A plane's and a cone's offsets are rigid translations, so
             // their seams translate with them.
             (Surface::Plane { .. } | Surface::Cone { .. }, _) => {
-                translate(ca.rigid.ok_or(ReplaceFaceError::Corrupt)?)
+                translate(ca.rigid.unwrap_or_else(|| {
+                    unreachable!("a plane's or a cone's offset is a translation of its own kind")
+                }))
             }
             // A cylinder's seam is a generator LINE, and the radius
             // change moves it perpendicular to itself, radially — a
@@ -1893,7 +1893,7 @@ fn mint_carrier<T: Decide>(
             Surface::Sphere { radius: old_r, .. },
         ) = (&wall.new, &wall.old)
         else {
-            return Err(ReplaceFaceError::Corrupt);
+            unreachable!("a `Ball` constraint is classified off a sphere, whose offset is one")
         };
         // The carrier is centred on the sphere's own centre — one
         // length covers the operand's posture and the mint's
@@ -2010,7 +2010,7 @@ fn mint_carrier<T: Decide>(
             },
         ) = (&wall.new, &wall.old)
         else {
-            return Err(ReplaceFaceError::Corrupt);
+            unreachable!("a `Torus` constraint is classified off a torus, whose offset is one")
         };
         // The old rim is centred on the tube-centre circle `(ρ, h) =
         // (R, h_c)` — one length in the meridian half-plane, the seam
@@ -2356,7 +2356,7 @@ fn param_on<T: Decide>(
             let v_q = h.atan2(rho - *major_radius);
             carrier
                 .param_near(p, v_q)
-                .ok_or(ReplaceFaceError::Corrupt)?
+                .unwrap_or_else(|| unreachable!("a spiric parameterizes every point"))
         }
         _ => {
             return Err(ReplaceFaceError::TogetherAxialEdge {
@@ -2707,4 +2707,95 @@ fn side_of<T: Decide>(
 /// separation meter has already certified.
 fn clamp_unit<T: Real>(x: T) -> T {
     x.max(-T::one()).min(T::one())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::test_support_fixtures::geometric_cube;
+
+    /// The unit cube re-charted as a quarter-revolve wedge about `z`:
+    /// `x = 0` and `y = 0` contain the axis, the caps are normal to it,
+    /// and the `x = 1` and `y = 1` walls sit on one coaxial cylinder.
+    fn quarter_wedge() -> Body<f64> {
+        let cube = geometric_cube::<f64>(Tol::witness());
+        let mut body = cube.body;
+        let wall = body.add_surface(Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        for side in [cube.mefs[2].face, cube.mefs[3].face] {
+            body.get_face_mut(side).expect("a cube wall").surface = wall;
+        }
+        body
+    }
+
+    /// A torn record is not a verdict: a dangling point or surface on a
+    /// face in scope panics naming the record, rather than reading as a
+    /// silent `false` that would pick `shell`'s per-chart branch.
+    #[test]
+    fn is_axial_panics_on_a_torn_record_rather_than_answering_not_axial() {
+        use crate::entity::GeomRef;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let wedge = quarter_wedge();
+        assert!(
+            matches!(is_axial(&wedge, band), Ok(true)),
+            "the untorn wedge is axial"
+        );
+
+        let mut body = wedge.clone();
+        let (vertex, _) = body.vertices().next().expect("a vertex");
+        let dead = body.add_point(Point3::new(0.0, 0.0, 0.0));
+        body.points.remove(dead);
+        body.get_vertex_mut(vertex).unwrap().point = dead;
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = is_axial(&body, band);
+        }));
+        let premise = format!(
+            "{}'s point names {}, which does not resolve",
+            EntityId::Vertex(vertex),
+            GeomRef::Point(dead)
+        );
+        assert!(report.contains(&premise), "a torn point: {report}");
+
+        // The first curved chart is the seed, so tearing it is the case
+        // a skip would answer from the next chart or as all-planar.
+        let mut body = wedge;
+        let (face, f) = body
+            .faces()
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+            .map(|(k, f)| (k, f.surface))
+            .expect("a wall on the cylinder");
+        let dead = body.add_surface(Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        body.surfaces.remove(dead);
+        body.get_face_mut(face).unwrap().surface = dead;
+        assert_ne!(f, dead);
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = is_axial(&body, band);
+        }));
+        let premise = format!(
+            "{}'s surface names {}, which does not resolve",
+            EntityId::Face(face),
+            GeomRef::Surface(dead)
+        );
+        assert!(
+            report.contains(&premise) && report.contains(crate::live::NAMES_ONLY_LIVE),
+            "a torn surface: {report}"
+        );
+    }
+
+    /// A body with no face names nothing that revolves: a definite
+    /// `false`, not a refusal.
+    #[test]
+    fn is_axial_answers_false_on_a_faceless_body() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        assert!(matches!(is_axial(&Body::<f64>::new(), band), Ok(false)));
+    }
 }

@@ -142,13 +142,13 @@ use pncad::prelude::*;
 use pncad::topo::BooleanError;
 let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1

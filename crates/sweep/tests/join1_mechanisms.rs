@@ -8,7 +8,7 @@
 //!   [`matching_reads_the_germs_loci`] red, and nothing else here.
 //! - **the structural skip** — on the boolean lanes a chord is not
 //!   minted when the edge between the two halves IS the segment's
-//!   locus edge (`SegmentEdge::Is`). Never skipping turns
+//!   locus edge (`chord_join::Chords::Segment`). Never skipping turns
 //!   [`the_skip_takes_the_locus_edge_for_the_segment`] red, and it
 //!   stays green under the other two mutations.
 //! - **the fold direction** — an on-bound joins the In run unless both
@@ -31,6 +31,7 @@
 
 use crate::mate2_common::{collar_at, peg_at, volume, wall_decls};
 use geom_core::Tol;
+use sweep::test_support::finished;
 use topo::{BooleanError, BooleanResult};
 
 fn tol() -> Tol {
@@ -66,7 +67,8 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
 /// is handed no pair. The row asserts the join's answer.
 #[test]
 fn matching_reads_the_germs_loci() {
-    let (c, p) = (collar_at(0.0), peg_at(0.0, 1.0, 1.5));
+    let c = finished("the collar", collar_at(0.0), tol());
+    let p = finished("the peg", peg_at(0.0, 1.0, 1.5), tol());
     let want = volume(&c) + volume(&p);
     let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
@@ -99,7 +101,8 @@ fn matching_reads_the_germs_loci() {
 /// IS the segment's locus edge.
 #[test]
 fn the_skip_takes_the_locus_edge_for_the_segment() {
-    let (c, p) = (collar_at(0.0), peg_at(0.0, 1.0, 1.0));
+    let c = finished("the collar", collar_at(0.0), tol());
+    let p = finished("the flush peg", peg_at(0.0, 1.0, 1.0), tol());
     let want = volume(&c) + volume(&p);
     assert_sound(
         "flush peg ∪ collar",
@@ -116,56 +119,17 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
 /// than the null half facing it. The check used to read only that half's
 /// two ends and refused `JoinDesync { "an OnEdge germ's edge is not
 /// incident to its site" }` under every op; it reads the site the null
-/// edges tie together now. The poses then stop where they stopped
-/// before JOIN-1, in the reflex corner's own refusals
-/// (`work/join/reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap`):
-/// `JoinDesync { "every chord arc separates a loose scaffolding pair" }`
-/// under every op, as on main. The row pins that outcome exactly.
+/// edges tie together now. Past it, each solid reads its own walk
+/// order round the corner's four germs, and every op builds at the
+/// closed form, `SOUND` by `outcome`.
 #[test]
 fn the_incidence_check_reads_the_whole_site() {
-    use topo::test_support::{
-        FaceGeometry, describe_as_intersections, flush_declarations, prism_ops, prism_z,
-    };
-    // The 315° reflex prism (CCW): material everywhere but the 45°
-    // wedge between +x and (1, 1).
-    let a_prof = [
-        (0.0, 0.0),
-        (2.0, 2.0),
-        (-2.0, 2.0),
-        (-2.0, -2.0),
-        (2.0, -2.0),
-        (2.0, 0.0),
-    ];
-    let a = prism_z::<f64>(&a_prof, 0.0, 1.0, tol()).body;
-    let prof = [(0.0, -0.5), (1.0, -0.5), (1.0, 0.5), (0.0, 0.5)];
+    use crate::common::differential::{REFLEX_OPS, outcome, reflex_pose, reflex_run};
     for sx in [-0.5, -0.25] {
-        let mut b = topo::Body::<f64>::new();
-        prism_ops(
-            &mut b,
-            &prof,
-            (1.0, 3.0),
-            |x, y, z| geom_core::Point3::new(x, y, z + sx * x),
-            FaceGeometry::Certified,
-            tol(),
-        );
-        describe_as_intersections(&mut b, tol());
-        let d = flush_declarations(&a, &b, tol());
-        for (op, r) in [
-            ("∩", topo::intersect_with(&a, &b, &d, tol())),
-            ("∪", topo::union_with(&a, &b, &d, tol())),
-            ("∖", topo::subtract_with(&a, &b, &d, tol())),
-        ] {
-            // Exactly where main stopped these poses: the reflex corner's
-            // own refusal, measured, not this unit's incidence check.
-            assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::JoinDesync {
-                        what: "every chord arc separates a loose scaffolding pair"
-                    })
-                ),
-                "sx = {sx} {op}: {r:?}"
-            );
+        let p = reflex_pose("eLeft", 0.0, sx, 0.0, tol());
+        for (op, want) in REFLEX_OPS.into_iter().zip(p.want) {
+            let line = outcome(reflex_run(&p, op, tol()), want, tol());
+            assert!(line.starts_with("OK SOUND"), "sx = {sx} {op}: {line}");
         }
     }
 }
@@ -181,18 +145,21 @@ fn the_incidence_check_reads_the_whole_site() {
 fn the_declared_crosslap_glues() {
     use sweep::test_support::brick;
     use topo::flush::{declare_all, find_flush_candidates};
-    let sub = |a: &topo::Body<f64>, b: &topo::Body<f64>| match topo::subtract(a, b, tol()).unwrap()
-    {
-        BooleanResult::Body(bb) => bb.body,
-        BooleanResult::Empty => panic!("a notched beam"),
+    let sub = |beam: topo::Body<f64>, notch: topo::Body<f64>| {
+        let beam = finished("the beam", beam, tol());
+        let notch = finished("the notch", notch, tol());
+        match topo::subtract(&beam, &notch, tol()).unwrap() {
+            BooleanResult::Body(bb) => bb.body,
+            BooleanResult::Empty => panic!("a notched beam"),
+        }
     };
     let a = sub(
-        &brick((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol()),
-        &brick((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), tol()),
+        brick((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol()),
+        brick((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), tol()),
     );
     let b = sub(
-        &brick((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol()),
-        &brick((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol()),
+        brick((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol()),
+        brick((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol()),
     );
     let found = find_flush_candidates(&a, &b, tol()).unwrap();
     let mate: Vec<_> = found

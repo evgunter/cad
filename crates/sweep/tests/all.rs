@@ -89,6 +89,12 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "carved_sphere_operand.rs"]
+mod carved_sphere_operand;
+#[path = "cylinder_sphere_frame.rs"]
+mod cylinder_sphere_frame;
+#[path = "four_crossings_on_one_section_circle.rs"]
+mod four_crossings_on_one_section_circle;
 #[path = "general_circle_octant_dual.rs"]
 mod general_circle_octant_dual;
 #[path = "lane1_r2_probes.rs"]
@@ -103,6 +109,8 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
+#[path = "parallel_cylinder_join.rs"]
+mod parallel_cylinder_join;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
 #[path = "pieces_oblique_bore.rs"]
@@ -115,6 +123,10 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "pocket_ring_steep_ellipse.rs"]
+mod pocket_ring_steep_ellipse;
+#[path = "pocket_wall_crossing_a_side_face.rs"]
+mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
 #[path = "pole_slit_window.rs"]
@@ -232,6 +244,8 @@ mod contained_flush_cylinder;
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "copied_carriers_at_interval.rs"]
 mod copied_carriers_at_interval;
+#[path = "ellipse_torus.rs"]
+mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "euler_site_row_frontiers.rs"]
@@ -354,6 +368,10 @@ mod reach_cone_split;
 mod reach_continuation;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
+#[path = "reach_split_gate_pose.rs"]
+mod reach_split_gate_pose;
+#[path = "reach_split_gate_window.rs"]
+mod reach_split_gate_window;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
@@ -584,6 +602,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "extent_scan_off_face_tangency.rs"]
+mod extent_scan_off_face_tangency;
 #[path = "full_turn_wall.rs"]
 mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
@@ -614,8 +634,24 @@ mod join1_mechanisms;
 mod join1_r1_probes;
 #[path = "join1_r1_rows.rs"]
 mod join1_r1_rows;
+#[path = "join2_r1_probes.rs"]
+mod join2_r1_probes;
+#[path = "join2_r2_probes.rs"]
+mod join2_r2_probes;
+#[path = "join3_r2_probes.rs"]
+mod join3_r2_probes;
+#[path = "join3_r2_r1copy.rs"]
+mod join3_r2_r1copy;
+#[path = "join3_review_r1.rs"]
+mod join3_review_r1;
+#[path = "join_pierce_runs_sweep.rs"]
+mod join_pierce_runs_sweep;
+#[path = "join_pierce_strut_facing.rs"]
+mod join_pierce_strut_facing;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
+#[path = "join_reflex_wedge_probes.rs"]
+mod join_reflex_wedge_probes;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]
@@ -863,8 +899,16 @@ mod review_ring2_r1_e2e;
 
 #[path = "full_turn_bore_mate.rs"]
 mod full_turn_bore_mate;
+
+#[path = "wedge_through_a_full_turn_collar.rs"]
+mod wedge_through_a_full_turn_collar;
+
+#[path = "rest_mate_every_op.rs"]
+mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
+#[path = "far_thin_disc_sign.rs"]
+mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;

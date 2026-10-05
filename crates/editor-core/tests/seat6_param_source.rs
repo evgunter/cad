@@ -35,8 +35,8 @@ use editor_core::ExtrudeSide;
 use corpus::{body_of, eval, failures};
 use editor_core::param_source;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr, Node,
-    ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, FreeVar, Node,
+    ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{
@@ -53,7 +53,7 @@ const R: f64 = 0.125;
 const T: f64 = 0.03125;
 
 fn param(name: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(name), Dimension::Length)
+    Expr::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A cube of side 1 at `cx`, with every edge blended by `radius`.
@@ -91,16 +91,16 @@ fn document(radii: &[Expr]) -> (ProfileDoc, Vec<editor_core::RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-param-source"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, R),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     );
     let (mut doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("t"),
-            value: DocParam::continuous(Dimension::Length, T),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("t"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, T)),
         },
     );
     let mut blends = Vec::new();
@@ -312,9 +312,9 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-chamfer"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, R),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     );
     let (doc, profile) = on_frame(
@@ -507,9 +507,9 @@ fn a_closed_chain_fillet_declares_its_torus_minor_radius() {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-band"), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, 0.05),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.05)),
         },
     );
     let (doc, a) = filleted_lantern(doc, 0.0, param("r"));
@@ -563,9 +563,9 @@ fn own_document(label: &str, value: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, value),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     );
     filleted_cube(doc, 0.0, param("r"))
@@ -725,9 +725,9 @@ fn the_memo_never_serves_a_stale_token() {
     // a token that claims r.
     let (doc3, _) = step(
         doc2,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, 2.0 * R),
+        DocEdit::DefineVar {
+            var: VarName::from_static("r").into(),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
         },
     );
     let ev3 = memo_eval(&doc3, Some(&ev2));

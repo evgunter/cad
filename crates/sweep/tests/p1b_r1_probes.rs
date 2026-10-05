@@ -29,7 +29,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
 use sweep::test_support::{
-    PRISM_V_DEGREE, PRISM_Z, arcs_at, loft_prism_sections, stacked_at, tube_frame,
+    PRISM_V_DEGREE, PRISM_Z, arcs_at, finished, loft_prism_sections, stacked_at, tube_frame,
 };
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
@@ -322,6 +322,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         ])],
         1.0,
     );
+    let plate = finished("the plate", plate, Tol::witness());
     let disc = extruded(vec![circle_loop(0.0, 0.0, 0.6)], 1.0);
     let tall_disc = topo::transform_rigid(
         &disc,
@@ -338,6 +339,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         Tol::witness(),
     )
     .unwrap();
+    let tall = finished("the tall disc", tall, Tol::witness());
     drop(tall_disc);
     let holed = boolean_op_with(
         BooleanOp::Subtract,
@@ -361,6 +363,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         Tol::witness(),
     )
     .unwrap();
+    let boss = finished("the boss", boss, Tol::witness());
     let united = boolean_op_with(
         BooleanOp::Union,
         &plate,

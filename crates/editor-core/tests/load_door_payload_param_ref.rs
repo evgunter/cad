@@ -1,15 +1,14 @@
-//! **A PAYLOAD expression names a declared document parameter, and
-//! reads it at the dimension the declaration carries, at EVERY door**
-//! (spec D6, `Doc::param_ref_fault`).
+//! **A PAYLOAD expression reads a minted variable, and a live one at
+//! its kind, at EVERY door** (spec D6, `Doc::var_read_faults`).
 //!
 //! The expressions no slot addresses — a `Node::Measure`'s
 //! `MeasureExpr` value leaves and a `Node::Assertion`'s bound
 //! (`node::payload_exprs`) — ask the same one predicate the slot
 //! expressions ask. The two doors only name its answer: the edit door
-//! as `EditError::PayloadUnknownDocParam` and
-//! `EditError::PayloadDocParamDimension`, the load door as
-//! `SnapshotError::PayloadUnknownDocParam` and
-//! `SnapshotError::PayloadDocParamDimension`. So a file cannot carry a
+//! as `EditError::PayloadUnknownVarName` (a name it cannot lower) and
+//! `EditError::PayloadVarKind`, the load door as
+//! `SnapshotError::ReaderOfUnmintedVar` and
+//! `SnapshotError::PayloadVarKind`. So a file cannot carry a
 //! payload expression an edit door would have refused.
 //!
 //! **One row per FACT, naming both doors' refusals for it**: a
@@ -30,8 +29,8 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, DocParam, EditError, Expr, MeasureExpr, Node, ParamName, PersistError,
-    ProfileDoc, RecipeNodeId, SlotId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Expr, FreeVar, MeasureExpr, Node, PersistError, ProfileDoc,
+    RecipeNodeId, SlotId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
@@ -40,8 +39,8 @@ use geom_core::Tol;
 /// `depth` — the ground every row below builds its payload node on,
 /// with the EXTRUDE's id, which only the rows that need a SLOT to
 /// break read.
-fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::from_static("depth");
+fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
+    let name = VarName::from_static("depth");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("payload-param-ref"),
@@ -62,9 +61,9 @@ fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: DocParam::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -77,7 +76,7 @@ fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
 /// The same ground for the rows whose fault is in a PAYLOAD and needs
 /// no slot address — the one place the extrude's id is dropped, so no
 /// row below writes `_` for a value it was handed.
-fn with_depth() -> (ProfileDoc, ParamName) {
+fn with_depth() -> (ProfileDoc, VarName) {
     let (doc, name, _) = with_depth_and_extrude();
     (doc, name)
 }
@@ -92,10 +91,10 @@ fn with_depth() -> (ProfileDoc, ParamName) {
 /// zero on the way out, passes on every other value and fails on this
 /// one. `MeasureExpr::add` keeps both leaves at `Length`, so the F1
 /// checker admits it and the value the measure reports is unchanged.
-fn measuring_depth() -> (ProfileDoc, ParamName, RecipeNodeId) {
+fn measuring_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, name) = with_depth();
     let expr = MeasureExpr::add(
-        MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
+        MeasureExpr::value(Expr::named(name.clone(), Dimension::Length)),
         MeasureExpr::value(len(-0.0)),
     )
     .expect("two length leaves add");
@@ -109,33 +108,25 @@ fn measuring_depth() -> (ProfileDoc, ParamName, RecipeNodeId) {
     (doc, name, measure)
 }
 
-/// The declaration removed from the wire, out from under whatever reads
-/// it.
-fn undeclare(text: &str, name: &ParamName) -> String {
+/// The variable removed from the wire and from its mint log, out from
+/// under whatever reads it.
+fn unmint(text: &str, name: &VarName) -> String {
     doctored(text, |wire| {
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(
-            params.remove(name.as_str()).is_some(),
-            "the surgery is aimed at the declaration the payload reads"
-        );
+        crate::wire::wire_unmint(wire, name.as_str());
     })
+}
+
+/// The id `name` holds in `doc`.
+fn id_of(doc: &ProfileDoc, name: &VarName) -> editor_core::VarId {
+    doc.var_named(name.as_str()).expect("a declared variable")
 }
 
 /// The declaration RETYPED on the wire, its display unit moved with it
 /// so the document is broken in exactly one way: the pairing between a
 /// declaration and the dimension an expression reads it at.
-fn retype_to_angle(text: &str, name: &ParamName) -> String {
+fn retype_to_angle(text: &str, name: &VarName) -> String {
     doctored(text, |wire| {
-        let decl = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"];
-        assert_eq!(
-            decl["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at the declared dimension"
-        );
-        decl["dim"] = serde_json::json!("Angle");
-        decl["display_unit"] = serde_json::json!("rad");
+        crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");
     })
 }
 
@@ -153,75 +144,70 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     let (doc, name, measure) = measuring_depth();
 
     // The edit door, over the node as written.
-    let missing = ParamName::from_static("nowhere");
+    let missing = VarName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Measure {
-                expr: MeasureExpr::value(Expr::param(missing.clone(), Dimension::Length)),
+                expr: MeasureExpr::value(Expr::named(missing.clone(), Dimension::Length)),
                 refs: Vec::new(),
             }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
+        Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared payload param, got {other:?}"),
     }
 
-    // The load door, over the file whose declaration was removed.
+    // The load door, over the file whose variable was never minted.
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    match load(&undeclare(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
-            assert_eq!((node.id(), n), (measure, name));
+    match load(&unmint(&text, &name), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (measure, id_of(&doc, &name)));
         }
-        other => panic!("the load door must refuse an undeclared payload param, got {other:?}"),
+        other => panic!("the load door must refuse an unminted payload reader, got {other:?}"),
     }
 }
 
 /// **A measured expression reading a parameter at another dimension
-/// than it is declared with — both doors.** The edit door re-asks the
-/// rule of every node when a declaration lands, so the redeclaration
-/// is what it refuses; the load door reads the same broken pairing off
-/// a file whose declaration was retyped after the fact.
+/// than it is declared with — both doors.** The edit door cannot write
+/// the pairing at all: a variable's kind is fixed, so the retyping is
+/// what it refuses; the load door reads the broken pairing off a file
+/// whose declaration was retyped after the fact.
 #[test]
 fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_load() {
     let (doc, name, measure) = measuring_depth();
 
     match apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: name.clone(),
-            value: DocParam::continuous(Dimension::Angle, 1.0),
+        &DocEdit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 1.0)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadDocParamDimension {
-            name: n,
-            node,
-            declared,
-            referenced,
-        }) => {
-            assert_eq!((n, node.id()), (name.clone(), measure));
+        Err(EditError::VarKindFixed { var, kind, offered }) => {
+            assert_eq!(var.name(), Some(&name));
             assert_eq!(
-                (declared, referenced),
-                (Dimension::Angle, Dimension::Length)
+                (kind, offered),
+                (editor_core::VarKind::Length, editor_core::VarKind::Angle)
             );
         }
-        other => panic!("the edit door must refuse the redeclaration, got {other:?}"),
+        other => panic!("the edit door must refuse the retyping, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     match load(&retype_to_angle(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadDocParamDimension {
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
             node,
-            name: n,
+            var,
             declared,
             referenced,
         })) => {
-            assert_eq!((node.id(), n), (measure, name));
+            assert_eq!((node.id(), var.id()), (measure, id_of(&doc, &name)));
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)
@@ -244,14 +230,14 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
             refs: Vec::new(),
         },
     );
-    let bound = |n: &ParamName| Node::Assertion {
+    let bound = |n: &VarName| Node::Assertion {
         measure,
-        bound: Expr::param(n.clone(), Dimension::Length),
+        bound: Expr::named(n.clone(), Dimension::Length),
         dir: editor_core::AssertionDir::AtLeast,
     };
     let (doc, assertion) = insert(doc, bound(&name));
 
-    let missing = ParamName::from_static("nowhere");
+    let missing = VarName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -260,17 +246,17 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
+        Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared bound param, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    match load(&undeclare(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
-            assert_eq!((node.id(), n), (assertion, name));
+    match load(&unmint(&text, &name), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (assertion, id_of(&doc, &name)));
         }
-        other => panic!("the load door must refuse an undeclared bound param, got {other:?}"),
+        other => panic!("the load door must refuse an unminted bound reader, got {other:?}"),
     }
 }
 
@@ -319,7 +305,7 @@ fn signed_zero_leaf(doc: &editor_core::ProfileDoc, measure: RecipeNodeId) -> boo
 
 /// **The walk ORDER, pinned**: a document broken in a SLOT expression
 /// and in a PAYLOAD expression at once reads the SLOT refusal, because
-/// the slot param-ref walk runs first (`persist::check::Walk::ORDER`).
+/// the slot read walk runs first (`persist::check::Walk::ORDER`).
 ///
 /// Moving the payload walk ahead of the slot walk changes the
 /// diagnosis of every file broken both ways, and this row is what says
@@ -332,7 +318,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: Expr::param(name.clone(), Dimension::Length),
+            expr: Expr::named(name.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -342,18 +328,19 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
     let (doc, _) = insert(
         doc,
         Node::Measure {
-            expr: MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
+            expr: MeasureExpr::value(Expr::named(name.clone(), Dimension::Length)),
             refs: Vec::new(),
         },
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    match load(&undeclare(&text, &name), Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotUnknownDocParam {
-            node,
-            slot,
-            name: n,
-        })) => assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name)),
+    match load(&retype_to_angle(&text, &name), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
+            node, slot, var, ..
+        })) => assert_eq!(
+            (node.id(), slot, var.id()),
+            (extrude, SlotId::Distance, id_of(&doc, &name))
+        ),
         other => panic!(
             "a file broken in a slot AND in a payload must read the slot walk's refusal — the \
              walk order `validate_document` documents. Got {other:?}"
@@ -391,7 +378,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         doc,
         Node::Assertion {
             measure,
-            bound: Expr::param(name.clone(), Dimension::Length),
+            bound: Expr::named(name.clone(), Dimension::Length),
             dir: editor_core::AssertionDir::AtLeast,
         },
     );
@@ -402,7 +389,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
                 measure: extrude,
-                bound: Expr::param(name.clone(), Dimension::Length),
+                bound: Expr::named(name.clone(), Dimension::Length),
                 dir: editor_core::AssertionDir::AtLeast,
             }),
         },
@@ -422,22 +409,16 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
             "the surgery is aimed at the assertion's target"
         );
         *field = serde_json::json!(extrude.0);
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(
-            params.remove(name.as_str()).is_some(),
-            "the surgery also removes the declaration the bound reads"
-        );
+        crate::wire::wire_unmint(wire, name.as_str());
     });
 
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
-            assert_eq!((node.id(), n), (assertion, name));
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (assertion, id_of(&doc, &name)));
         }
         other => panic!(
             "a node broken in a payload AND structurally must read the PAYLOAD walk's refusal — \
-             both param-ref walks run before `Walk::Snapshot`. Got {other:?}"
+             both read walks run before `Walk::Snapshot`. Got {other:?}"
         ),
     }
 }

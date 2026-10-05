@@ -45,11 +45,14 @@ of three.
   tests opt into: `TestBenchStand`'s `reading_edges` and
   `last_maintenance` rows read the world-standing stand's exact edge
   set and records, and the gauge adds reading edges).
-- Author the crate on its nested gauge and its declaring mate.
+- Author the crate resting on the shelf's top face: a placing mate
+  through `Doc.regauge_then_mate`, its shelf side
+  `MateFrame.on_face(...)` slid along the shelf (the tour's `bench`,
+  since PLACE's mate-frame-offset unit; the nested gauge is gone).
 - A Python row executing the three swings, asserting what the tour
   asserts: the re-keyed node set, every placed vertex against the
   chain composed by hand, the volume at every swing, and a certified
   gate at each pose.
 - Extend `test_assembly_eval.py`'s `TestTheSceneIsTheToursOwn` to the
-  new constants (`CRATE_*`, `PIVOT`, `SHELF_TOP`, `SWINGS`).
+  new constants (`CRATE_*`, `CRATE_SLIDE`, `PIVOT`, `SWINGS`).
 - Flip rows 43, 51 and 52 and re-derive the page's tallies.

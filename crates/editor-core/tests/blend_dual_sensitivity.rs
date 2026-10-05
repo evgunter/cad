@@ -20,9 +20,9 @@ use editor_core::ExtrudeSide;
 
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Evaluation, Expr, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId,
-    SitedRef, UnitSym, ValuePayload, evaluate,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    MeasureExpr, MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -46,12 +46,12 @@ const FD_TOL: f64 = 1e-7;
 /// closed form's arithmetic up to rounding.
 const CF_TOL: f64 = 1e-12;
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn length(value: f64) -> DocParam {
-    DocParam::Continuous {
+fn length(value: f64) -> FreeVar {
+    FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -92,13 +92,13 @@ fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> SitedRef
 /// `radius`, measured foot to opposite foot.
 fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("radius"),
-        value: length(R0),
+        def: editor_core::VarDef::Free(length(R0)),
     });
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: length(D0),
+        def: editor_core::VarDef::Free(length(D0)),
     });
     let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -111,12 +111,12 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
     }));
     let cube = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(name("depth"), Dimension::Length),
+        distance: Expr::named(name("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let blank = r.insert(Node::fillet(
         cube,
-        Expr::param(name("radius"), Dimension::Length),
+        Expr::named(name("radius"), Dimension::Length),
         prism_edges(&r.doc, cube, 4),
     ));
     let ev = eval(&r.doc);
@@ -138,9 +138,9 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
 fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value: f64) -> f64 {
     let edited = editor_core::apply(
         doc,
-        &DocEdit::SetDocParam {
-            name: name(param),
-            value: length(value),
+        &DocEdit::DefineVar {
+            var: name(param).into(),
+            def: editor_core::VarDef::Free(length(value)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -156,8 +156,8 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
 #[test]
 fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
     let (doc, measure) = filleted_cube();
-    let entries =
-        sensitivities(&doc, measure, None, None, false, Tol::witness()).expect("the driver runs");
+    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness())
+        .expect("the driver runs");
     let m0 = (2.0 * (1.0 - 2.0 * R0).powi(2) + D0 * D0).sqrt();
     assert_eq!(
         measured(&doc, measure, "radius", R0),
@@ -170,8 +170,12 @@ fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
     ];
     assert_eq!(entries.len(), closed.len(), "one entry per parameter");
     let mut misses = Vec::new();
-    for (entry, &(param, nominal, want)) in entries.iter().zip(&closed) {
-        assert_eq!(entry.param, name(param), "entries come in name order");
+    for &(param, nominal, want) in &closed {
+        let var = doc.var_named(param).expect("the fixture declares it");
+        let entry = entries
+            .iter()
+            .find(|e| e.param == var)
+            .unwrap_or_else(|| panic!("an entry for {param}"));
         let SensitivityOutcome::Derivative {
             value,
             chamber: Chamber::LocalOnly,

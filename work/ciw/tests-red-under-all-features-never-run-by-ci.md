@@ -65,3 +65,14 @@ What let them land and stay, which this row's premise did not name:
 Owed: run the probe suites of the crates a diff touches at the PR gate
 (or say why not), and make the plain loop run every suite and fail at
 the end with the list of red ones.
+
+## A fourth instance (CLEAVE, 2026-10-03)
+
+sweep `a_carved_balls_meridian_fragments_record_no_clearance_charge`
+(`crates/sweep/tests/tilted_sphere_pair_k_rows.rs`) went red on main
+when #3805 renamed the K predicate it filters on
+(`bool_circle_curved_clearance` → `bool_conic_curved_clearance`): a
+cross-PR semantic conflict that only a probe-suite execution can see,
+and the PR gate runs none. Fixed in
+`work/cleave/a-sweep-row-fails-under-all-features-on-main.md`'s PR; the
+gap it went through is this row's first bullet above.

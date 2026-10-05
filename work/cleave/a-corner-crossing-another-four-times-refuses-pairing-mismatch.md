@@ -1,11 +1,12 @@
 ---
 id: a-corner-crossing-another-four-times-refuses-pairing-mismatch
 kind: issue
-title: "A corner whose boundary crosses another corner's four times refuses PairingMismatch: the B-adjacency guard orders two germs in one B sector by their A sector"
-status: open
+title: A corner whose boundary crosses another corner's four times refuses PairingMismatch: the B-adjacency guard orders two germs in one B sector by their A sector
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+closed: 2026-10-05
 ---
 
 ## What
@@ -57,3 +58,22 @@ the guard should re-probe it.
 Order germs within one B sector round the sector, then flip the pin
 to a build in every op at volumes checked outside the kernel, and
 re-probe the shared-vertex fan arm.
+
+## Built (JOIN, branch `join/reflex-corner-vertex-vertex`)
+
+The cause above was right in both halves. Each solid now orders its
+survivors round its own orbit (`insert::walk_order`: by entry, and
+round one entry by `walks_after`), and the pairing and the guard both
+read those orders. The pin is flipped to
+`a_corner_crossing_the_cubes_four_times_builds_every_op`: every op in
+both orders builds at `clipped_volume`'s volume, with tier 2, 3′ and
+the certificate. Two more wrong states sat behind the guard here, and
+that branch fixes them too: the union and difference needed the op-aware
+pairing start; the PR body has the detail.
+
+The shared-vertex fan arm is re-probed:
+`three_corners_alternating_round_the_cube_refuse_three_ops` now reaches
+it, and its three refusing ops refuse `SharedVertexCrossings`
+(evidence on `three-corners-alternating-round-a-corner-refuse-at-the-join`
+and FUSE's `shared-vertex-crossings-that-tie-or-interleave-are-unprobed`).
+Nothing is owed here once that branch lands.

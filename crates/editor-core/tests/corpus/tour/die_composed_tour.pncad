@@ -9,7 +9,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
     "nodes": {},
     "order": [],
     "roots": [],
-    "params": {},
+    "vars": {},
     "epsilon": 1e-9,
     "witnesses": {},
     "metadata": {},

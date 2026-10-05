@@ -10,7 +10,7 @@
 
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
-use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, RecipeNodeId, SlotId};
+use editor_core::{Dimension, Doc, DocEdit, Expr, FreeVar, Node, RecipeNodeId, SlotId, VarName};
 use geom_core::Tol;
 
 /// Opaque profile payload (spec D1/D3): tests never look inside.
@@ -21,7 +21,7 @@ struct FakeProfile(&'static str);
 impl editor_core::ProfilePayload for FakeProfile {
     fn drawn_pieces(
         &self,
-        _env: &editor_core::ParamEnv<f64>,
+        _env: &editor_core::VarEnv<f64>,
         _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {
@@ -102,9 +102,9 @@ fn author_die() -> Die {
     let (doc, _) = step(
         doc,
         &mut log,
-        TEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+        TEdit::DeclareVar {
+            name: VarName::from_static("pip_depth"),
+            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
     );
     // Cube: profile wrap + extrude.
@@ -140,7 +140,7 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -233,16 +233,16 @@ fn die_authors_replays_and_diffs() {
         d.nodes,
         vec![editor_core::NodeChange::Changed(die.pip_extrude)]
     );
-    assert!(d.params.is_empty() && !d.order_changed && !d.epsilon_changed);
+    assert!(d.vars.is_empty() && !d.order_changed && !d.epsilon_changed);
 
     // Variant 2: pip depth changed through the DOC PARAM the pip
     // extrude references — node payloads identical, param diff only.
     let variant2 = die
         .doc
         .apply(
-            &TEdit::SetDocParam {
-                name: ParamName::from_static("pip_depth"),
-                value: DocParam::continuous(Dimension::Length, 0.003),
+            &TEdit::SetVarValue {
+                var: VarName::from_static("pip_depth").into(),
+                value: editor_core::FreeValue::Continuous(0.003),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -250,7 +250,10 @@ fn die_authors_replays_and_diffs() {
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());
-    assert_eq!(d2.params, vec![ParamName::from_static("pip_depth")]);
+    assert_eq!(
+        d2.vars,
+        vec![die.doc.var_named("pip_depth").expect("the die declares it")]
+    );
 
     // The original document is untouched by all of the above (D2:
     // apply is pure).

@@ -27,8 +27,8 @@ use crate::fixture;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Axis3, CancelToken, Datum, Dimension, DocEdit, DocParam, EvalOptions, Expr, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
+    Axis3, CancelToken, Datum, Dimension, DocEdit, EvalOptions, Expr, FreeVar, Node, NodeErrorKind,
+    NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -42,8 +42,13 @@ fn profile(doc: &ProfileDoc) -> RecipeNodeId {
     doc.order()[1]
 }
 
-fn p() -> ParamName {
-    ParamName::from_static("p")
+fn p() -> VarName {
+    VarName::from_static("p")
+}
+
+/// The probe's one variable in `doc`.
+fn var(doc: &ProfileDoc) -> editor_core::VarId {
+    doc.var_named("p").expect("the probe declares p")
 }
 
 /// The probe's document: `p` a scalar parameter at `nominal`, a frame
@@ -55,9 +60,9 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("eval9_nominal_in_the_key", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p(),
-                value: DocParam::continuous(Dimension::Scalar, nominal),
+                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -71,7 +76,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
                     origin: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
                     u: [
                         fixture::scl(1.0),
-                        u_y_of(Expr::param(p(), Dimension::Scalar)),
+                        u_y_of(Expr::named(p(), Dimension::Scalar)),
                         fixture::scl(0.0),
                     ],
                     v: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
@@ -102,9 +107,9 @@ fn doc_at(nominal: f64) -> ProfileDoc {
 }
 
 /// A one-axis box: `p ∈ nominal + [lo, hi]`.
-fn box_of(lo: f64, hi: f64) -> Arc<ParamBox> {
+fn box_of(doc: &ProfileDoc, lo: f64, hi: f64) -> Arc<ParamBox> {
     let mut axes = BTreeMap::new();
-    axes.insert(p(), BoxAxis::Varying { lo, hi });
+    axes.insert(var(doc), BoxAxis::Varying { lo, hi });
     Arc::new(ParamBox::from_axes(axes))
 }
 
@@ -124,20 +129,19 @@ mod over_a_param_box {
 
     use editor_core::analysis::ParamBox;
     use editor_core::{
-        CancelToken, ContentKey, DocEdit, DocParamValue, Evaluation, ProfileDoc, ValuePayload,
-        evaluate,
+        CancelToken, ContentKey, DocEdit, Evaluation, FreeValue, ProfileDoc, ValuePayload, evaluate,
     };
     use geom_core::{Bounds, Interval, Tol};
 
     /// The same document with `p`'s value re-applied — the edit under
-    /// test. `SetDocParamValue` is a value-only edit, so applying the
+    /// test. `SetVarValue` is a value-only edit, so applying the
     /// value the document already carries is a real edit that moves no
     /// nominal.
     fn set_p(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
         doc.apply(
-            &DocEdit::SetDocParamValue {
-                name: p(),
-                value: DocParamValue::Continuous(value),
+            &DocEdit::SetVarValue {
+                var: p().into(),
+                value: FreeValue::Continuous(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -204,10 +208,10 @@ mod over_a_param_box {
     #[test]
     fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
         let first = doc_at(0.0);
-        let prior = run(&first, None, &box_of(-0.25, 0.25));
+        let prior = run(&first, None, &box_of(&first, -0.25, 0.25));
 
         let edited = set_p(&first, 0.5);
-        let narrow = box_of(-0.75, -0.25);
+        let narrow = box_of(&first, -0.75, -0.25);
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
@@ -240,17 +244,17 @@ mod over_a_param_box {
     }
 
     /// **The box is a real input, and the nominal did not swallow it.**
-    /// The document is EDITED in both halves — `SetDocParamValue` applying
+    /// The document is EDITED in both halves — `SetVarValue` applying
     /// the value it already carries — so each half is a prior served (or
     /// refused) across a real edit rather than a re-run of one document.
     #[test]
     fn the_box_still_decides_a_hit_at_one_nominal() {
         let doc = doc_at(0.25);
-        let narrow = box_of(-0.1, 0.1);
+        let narrow = box_of(&doc, -0.1, 0.1);
         let prior = run(&doc, None, &narrow);
         let edited = set_p(&doc, 0.25);
 
-        let widened = run(&edited, Some(&prior), &box_of(-0.2, 0.2));
+        let widened = run(&edited, Some(&prior), &box_of(&doc, -0.2, 0.2));
         assert_ne!(
             keys(&doc, &prior),
             keys(&doc, &widened),
@@ -287,7 +291,7 @@ fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
         &doc,
         None,
         &CancelToken::new(),
-        &boxed(&box_of(2.0, 2.0)),
+        &boxed(&box_of(&doc, 2.0, 2.0)),
         Tol::witness(),
     );
     match ev.nodes.get(&frame(&doc)) {
@@ -316,15 +320,13 @@ fn the_probe_document_carries_the_parameter_only_in_the_frame() {
         panic!("a frame first");
     };
     for e in u {
-        e.param_refs(&mut refs);
+        e.var_reads(&mut refs);
     }
-    assert_eq!(refs, vec![(p(), Dimension::Scalar)]);
+    let var = doc.var_named(p().as_str()).expect("the frame's variable");
+    assert_eq!(refs, vec![(var, Dimension::Scalar)]);
     let Some(Node::Profile(program)) = doc.node(profile(&doc)) else {
         panic!("a profile second");
     };
     assert_eq!(program.plane, frame(&doc));
-    assert!(
-        !program.references(&p()),
-        "the program must hold no parameter"
-    );
+    assert!(!program.reads(var), "the program must hold no parameter");
 }

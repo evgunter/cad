@@ -333,7 +333,8 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// **A mate's carried level inside a part is labelled with that part.**

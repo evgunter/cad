@@ -211,6 +211,7 @@ fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
         curves,
         surfaces,
         pcurves,
+        joints,
         null_faces,
         solid_provenance,
         shell_provenance,
@@ -241,6 +242,7 @@ fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
     walk_arena(&mut lines, keys, "curve", curves);
     walk_arena(&mut lines, keys, "surface", surfaces);
     walk(&mut lines, "pcurve", pcurves.iter());
+    walk(&mut lines, "joint", joints.iter());
     walk(&mut lines, "null-face", null_faces.iter());
     walk(&mut lines, "solid-provenance", solid_provenance.iter());
     walk(&mut lines, "shell-provenance", shell_provenance.iter());
@@ -441,118 +443,6 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
         }
     }
     faults
-}
-
-/// Runs `door` — one call of an operator named in `doors` — on a body a
-/// test has made tier-1-invalid on purpose, inside a surgery scope the
-/// caller drops unswept: `Ok` with what the operator returned, or `Err`
-/// with the panic message of its own tier-1 postcondition.
-///
-/// The `Err` arm is the `per-op-postcondition` scalpel's: it sweeps
-/// after every operator inside a scope too, so an operator that runs to
-/// its end on a torn body fires on the input's corruption after its
-/// last write and before its `Ok`. Without the scalpel the arm is
-/// unreachable. A caught sweep prints nothing; any other panic, an
-/// operator's postcondition named outside `doors` included, prints as
-/// it would have and propagates.
-pub(crate) fn through_the_scalpel<R>(
-    doors: &[&str],
-    door: impl FnOnce() -> R,
-) -> Result<R, String> {
-    use std::cell::RefCell;
-    use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind, set_hook, take_hook};
-    thread_local! {
-        /// `Some` while this thread is inside the helper: where the
-        /// hook leaves a panic's report instead of printing it.
-        static HELD: RefCell<Option<String>> = const { RefCell::new(None) };
-    }
-    static HOOK: std::sync::Once = std::sync::Once::new();
-    if !cfg!(feature = "per-op-postcondition") {
-        return Ok(door());
-    }
-    HOOK.call_once(|| {
-        let previous = take_hook();
-        set_hook(Box::new(move |info| {
-            let held = HELD.with(|held| match held.borrow_mut().as_mut() {
-                Some(report) => {
-                    *report = info.to_string();
-                    true
-                }
-                None => false,
-            });
-            if !held {
-                previous(info);
-            }
-        }));
-    });
-    HELD.with(|held| *held.borrow_mut() = Some(String::new()));
-    let caught = catch_unwind(AssertUnwindSafe(door));
-    let report = HELD
-        .with(|held| held.borrow_mut().take())
-        .unwrap_or_default();
-    let payload = match caught {
-        Ok(got) => return Ok(got),
-        Err(payload) => payload,
-    };
-    if doors
-        .iter()
-        .any(|op| report.contains(&format!(": {op} postcondition: result is not tier-1 valid")))
-    {
-        Err(report)
-    } else {
-        eprintln!("{report}");
-        resume_unwind(payload)
-    }
-}
-
-/// Asserts that `kill` refuses exactly `expected` and leaves `body`
-/// deep-unchanged. The kill runs inside a surgery scope: a debug build's
-/// tier-1 postcondition would otherwise answer an `Ok` on a torn body
-/// first, whatever the kill wrote. An `Ok` fails naming the anchor
-/// faults the kill wrote, those [`kill_anchor_faults`] reads after it and
-/// not before.
-pub(crate) fn assert_kill_refuses<R>(
-    body: &mut Body<f64>,
-    expected: &crate::euler::EulerOpError,
-    kill: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
-) {
-    assert_torn_op_refuses(body, expected, "kill", kill);
-}
-
-/// [`assert_kill_refuses`] for a make operator, which a torn input can
-/// carry to the same anchor faults.
-pub(crate) fn assert_make_refuses<R>(
-    body: &mut Body<f64>,
-    expected: &crate::euler::EulerOpError,
-    make: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
-) {
-    assert_torn_op_refuses(body, expected, "make", make);
-}
-
-fn assert_torn_op_refuses<R>(
-    body: &mut Body<f64>,
-    expected: &crate::euler::EulerOpError,
-    what: &str,
-    op: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
-) {
-    let before = deep_snapshot(body);
-    let faults_before = kill_anchor_faults(body);
-    let mut scope = body.begin_surgery();
-    let got = op(&mut scope).map(|_| ());
-    drop(scope);
-    match got {
-        Ok(()) => {
-            let written: Vec<_> = kill_anchor_faults(body)
-                .into_iter()
-                .filter(|fault| !faults_before.contains(fault))
-                .collect();
-            panic!("expected {expected:?}; the {what} returned Ok, writing {written:?}");
-        }
-        Err(err) => {
-            assert_eq!(&err, expected);
-            assert_eq!(deep_snapshot(body), before, "body changed on Err");
-        }
-    }
 }
 
 /// A distinct-per-index placeholder coordinate (`u32` round trip keeps
@@ -1625,6 +1515,40 @@ pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
     (body, created.face)
 }
 
+/// The declined cube torn by two `next` writes, by position in its
+/// half-edge arena, with the arena's keys and the vertex `v` whose
+/// emanating walk the tear closes through two half-edges of another
+/// vertex `u`. The walk is stepped here by hand, reading no start,
+/// so the fixture proves the tear lands without the walk under test.
+pub(crate) fn torn_cube_closing_through_another_vertex() -> (Body<f64>, Vec<HalfEdgeKey>, VertexKey)
+{
+    let mut body = declined_cube::<f64>(Tol::witness()).body;
+    let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+    body.get_half_edge_mut(halves[19]).unwrap().next = halves[6];
+    body.get_half_edge_mut(halves[4]).unwrap().next = halves[11];
+    let start = |h: HalfEdgeKey| body.get_half_edge(h).unwrap().start;
+    let v = start(halves[11]);
+    let first = body.get_vertex(v).unwrap().emanating.unwrap();
+    let mut walk = vec![first];
+    loop {
+        let mate = body.mate(*walk.last().unwrap()).unwrap();
+        let next = body.get_half_edge(mate).unwrap().next;
+        if next == first {
+            break;
+        }
+        assert!(walk.len() < 24, "the hand walk closes");
+        walk.push(next);
+    }
+    let u = start(halves[5]);
+    assert_ne!(u, v);
+    assert_eq!(
+        walk.iter().map(|&h| start(h)).collect::<Vec<_>>(),
+        vec![v, v, v, u, u],
+        "the walk from v's emanating closes through two of u's half-edges"
+    );
+    (body, halves, v)
+}
+
 mod tests {
     use super::*;
 
@@ -1829,12 +1753,19 @@ mod tests {
         };
         let before = deep_snapshot(&s.body);
         type Insert<'a> = Box<dyn Fn(&mut Body<f64>) + 'a>;
-        let rows: [(&str, Insert); 7] = [
+        let rows: [(&str, Insert); 8] = [
             (
                 "pcurves",
                 Box::new(|b| {
                     let k = fresh(|k| b.pcurves.contains_key(k));
                     b.pcurves.insert(k, cache.clone());
+                }),
+            ),
+            (
+                "joints",
+                Box::new(|b| {
+                    let k = fresh(|k| b.joints.contains_key(k));
+                    b.joints.insert(k, crate::JointElement::IDENTITY);
                 }),
             ),
             (

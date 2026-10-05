@@ -55,7 +55,7 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::{ConicPlaneMeet, conic_plane_crossing_roots};
+pub(crate) use classify::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
 pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
@@ -82,7 +82,7 @@ use crate::null::NullEdge;
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
-pub use crate::chord_join::{ArcSideCase, ArcWindowCase, ConicCrossingsCase, SplitJoinError};
+pub use crate::chord_join::{ConicCrossingsCase, SplitJoinError};
 pub use containment::{
     LoopContainment, OffPlane, OffPlaneCause, PointInLoopError, Uncrossable, UncrossableCarrier,
     point_in_loop,
@@ -220,9 +220,9 @@ pub enum SplitReduceError {
     /// The plane may meet a face whose `(kind × plane)` arm of the C5
     /// dispatch table the split pipeline does not execute (`Plane`,
     /// `Cylinder` and `Cone` are; C12.1). "May meet": the face's padded
-    /// reach box, axis-aligned in world coordinates, is not certainly
-    /// on one side of the plane; a face behind a box that clears does
-    /// not refuse.
+    /// reach box, read in the plane's own frame so that it turns with
+    /// the body, is not certainly on one side of the plane; a face
+    /// behind a box that clears does not refuse.
     CurvedBooleanUnsupported {
         /// The offending face.
         face: FaceKey,
@@ -324,10 +324,30 @@ pub enum SplitReduceError {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,
     },
-    /// A traversal failed (broken orbit/loop or a lone vertex): the
-    /// operand is not a well-formed closed solid at this vertex.
-    CorruptOperand {
-        /// The vertex whose neighborhood could not be walked.
+    /// The vertex [`classify_neighborhood`] was asked about does not
+    /// resolve in the body.
+    StaleVertex {
+        /// The caller's vertex.
+        vertex: VertexKey,
+    },
+    /// The vertex is a lone vertex: no edge leaves it, so it has no
+    /// neighborhood to classify.
+    LoneVertex {
+        /// The lone vertex.
+        vertex: VertexKey,
+    },
+    /// The side map [`classify_neighborhood`] was handed holds no
+    /// verdict for a vertex its neighborhood reaches.
+    UnrecordedSide {
+        /// The vertex with no verdict.
+        vertex: VertexKey,
+    },
+    /// A face whose outer loop is a lone vertex: it has no outer
+    /// boundary, so no finite lever arm meters a predicate across it.
+    UnboundedFace {
+        /// The face.
+        face: FaceKey,
+        /// Its outer loop's lone vertex.
         vertex: VertexKey,
     },
     /// `split_edge` refused while inserting the crossing vertex on an
@@ -357,7 +377,7 @@ impl From<BandError> for SplitReduceError {
 
 impl From<EulerOpError> for SplitReduceError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 
@@ -444,10 +464,22 @@ impl core::fmt::Display for SplitReduceError {
                 "consecutive on-plane sectors survived at vertex {vertex:?}, which the \
                  coplanar gate rules out (kernel bug)"
             ),
-            Self::CorruptOperand { vertex } => write!(
+            Self::StaleVertex { vertex } => {
+                write!(f, "vertex {vertex:?} does not resolve in this body")
+            }
+            Self::LoneVertex { vertex } => write!(
                 f,
-                "the neighborhood of vertex {vertex:?} could not be walked (broken orbit \
-                 or lone vertex)"
+                "vertex {vertex:?} is a lone vertex, with no neighborhood to classify"
+            ),
+            Self::UnrecordedSide { vertex } => write!(
+                f,
+                "the side map holds no verdict for vertex {vertex:?}, which the neighborhood \
+                 reaches"
+            ),
+            Self::UnboundedFace { face, vertex } => write!(
+                f,
+                "face {face:?}'s outer loop is the lone vertex {vertex:?}, so the face has no \
+                 extent to meter a predicate across"
             ),
             Self::CrossingInsertion {
                 edge,
@@ -745,7 +777,7 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let operand = if operand.solids().nth(1).is_some() {
         let mut body = operand.clone();
         body.merge_all_solids()
-            .map_err(|e| SplitError::Finish(finish::SplitFinishError::Euler(e)))?;
+            .map_err(|e| SplitError::Finish(finish::SplitFinishError::from(e)))?;
         flat = body;
         &flat
     } else {

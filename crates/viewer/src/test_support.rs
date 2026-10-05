@@ -22,10 +22,9 @@
 
 use editor_core::ExtrudeSide;
 use pncad::document::{
-    BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocParam, DocRef,
-    DocumentId, EditError, EvalOptions, Evaluation, Expr, LoopProgram, Node, NodeErrorKind,
-    ParamName, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, apply,
-    evaluate,
+    BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef, DocumentId,
+    EditError, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram, Node, NodeErrorKind, PartFault,
+    ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -200,15 +199,15 @@ pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
 ///
 /// `label` is the document's derived name, so two fixtures in one
 /// binary cannot share an identity. No oracle: it is the spelling of
-/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// `Doc::empty_derived` plus one `DeclareVar`, and what each row
 /// asserts is about the `value` it handed in.
-pub fn declared(label: &str, name: &ParamName, value: DocParam, tol: Tol) -> Doc<ProfileProgram> {
+pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
     edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name.clone(),
-            value,
+            def: pncad::document::VarDef::Free(value),
         },
         tol,
     )

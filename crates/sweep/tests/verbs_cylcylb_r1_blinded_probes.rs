@@ -15,7 +15,7 @@
 use geom_core::{Affine3, Point2, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -76,10 +76,14 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
 fn past_the_pinned_radius_the_door_refuses_or_meters_exactly() {
     let tol = Tol::witness();
     for r in [6.5_f64, 7.0, 8.0, 9.5] {
-        let plate = rounded_plate(80.0, 40.0, r, 8.0);
+        let plate = finished("the plate", rounded_plate(80.0, 40.0, r, 8.0), tol);
         // `bracket.py`'s pocket, in millimetres — the other half of
         // the corpus `rounded_plate` above carries.
-        let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
+        let pocket = finished(
+            "the pocket",
+            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            tol,
+        );
         match topo::subtract(&plate, &pocket, tol) {
             Err(e) => {
                 // A typed refusal is honest; record which door.
@@ -106,10 +110,14 @@ fn past_the_pinned_radius_the_door_refuses_or_meters_exactly() {
 #[test]
 fn the_tangential_radius_ten_refuses_or_meters_exactly() {
     let tol = Tol::witness();
-    let plate = rounded_plate(80.0, 40.0, 10.0, 8.0);
+    let plate = finished("the plate", rounded_plate(80.0, 40.0, 10.0, 8.0), tol);
     // `bracket.py`'s pocket, in millimetres — the other half of
     // the corpus `rounded_plate` above carries.
-    let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
+    let pocket = finished(
+        "the pocket",
+        brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        tol,
+    );
     match topo::subtract(&plate, &pocket, tol) {
         Err(e) => eprintln!("r = 10: refused at {e:?}"),
         Ok(topo::BooleanResult::Body(bb)) => {

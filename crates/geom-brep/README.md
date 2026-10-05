@@ -24,7 +24,7 @@ escalated typed refusal, never a raw comparison.
 | Decisions | Lives in |
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
-| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system}.rs` |
+| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
@@ -75,16 +75,26 @@ and `compose::tensor` encloses
 cancellation that is the whole content of the claim survives into the
 bound. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
-by a mean-value argument each slice holds at most one solution and the
-solution set in the chain is one arc. For plane×NURBS the chain is the
+by a mean-value argument each slice holds at most one solution, and each
+connected piece of the solution set in a box ends on the box's boundary
+at two points. The solution set in the chain is one arc. Where limb 3
+runs that proof, each box, cut to the region its search covers (the
+wall's knot rectangle, the ℝ³ slab), holds exactly two simple solutions
+on its boundary, so one piece, and consecutive boxes share it (chart
+edges walked in runs of one sign or monotone, ℝ³ faces by Krawczyk). A
+rung whose chain is a graph but not one arc gives way to a narrower one.
+With none certified, the narrowest rung probed speaks: its band verdict
+where it straddled, `SsiError::TubeNotOneArc` with what it found where
+it was a graph but not one arc. For
+plane×NURBS the chain is the
 wall pcurve's per-span windows, padded along each chart axis by the
 radius over that axis's chart speed (minted once over the wall's domain,
 refusing a zero or non-finite axis by name), and the enclosure is the
 chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
-The tube says nothing about a disjoint component at other `e`-levels;
-that is C3's exhaustiveness obligation, a separate theorem. Refusal
+A component outside the chain is C3's exhaustiveness obligation, a
+separate theorem. Refusal
 is typed, never a retry loop: an enclosure that does not clear the
 band at any rung escalates (`ssi_tube_transversality`,
 `SsiError::TubeStraddles`). Two branches passing within the band of
@@ -128,30 +138,105 @@ stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
-(`StepCollapsed`) refuses naming the speed. The longest step is
-`SSI_STEP_MAX` of the caller's feature extent, and `march_both`, the
-one place a whole branch is known, marches once more any trace that
-has length but too few samples for the cubic fit: its steps are then
-capped at the trace's own polyline length over the fewest odd count
-that gives the fit its samples (five). The count is odd so that a seed
-near the branch's middle does not walk a state onto each end; that
-lowers the odds of a state landing in band of the boundary and
-guarantees nothing
-(`work/ssi/ssi-final-chord-far-shorter-than-the-step-fails-the-certificate.md`).
-A trace with no length to cut, or one the re-march leaves still too
-short, refuses as the march's limit (`SsiError::TraceUnresolved`): the
-surfaces touch at a point, the branch is shorter than the boundary
-search resolves at the step, it runs within the band of the domain's
-boundary (a plane flush with a face's edge, whose states are never
-decided inside), or no crossing settles at either end
-(`work/ssi/ssi-a-plane-through-a-faces-vertex-is-a-point-contact-not-a-refusal.md`).
-The fit therefore only sees a trace with the samples it needs or a
-non-finite sample, which it refuses by name. The extent keeps its other
-roles: the lever arm's clamp, the seeding floor and the tube ladder.
+(`StepCollapsed`) refuses naming the speed. The step is the
+curvature's against ε, and no extent caps it. The certificate decides
+how many samples a carrier gets: where limb 1 or 2 refuses the fitted
+carrier, definitely or in band, on a margin that is not poisoned, it
+names the spans it refused, every gap between samples that a refused
+span meets is halved with one gap on each side of it, the new sample
+settled onto the locus, and the carrier is refitted and certified again
+(`ssi/refine.rs`). A gap is halved only while half of it clears the
+band, and no round gives the branch more steps (gaps between samples)
+than the march may take (`SSI_MAX_STEPS`, one wall per branch on its
+steps, whether marched or split by refinement: a named resource wall
+like the cell budget, not a derivation); where refinement can go no
+further, the certificate's refusal stands, naming where refinement
+stopped and the limb and margin each earlier round refused
+(`SsiError::RefinementExhausted`). At the wall, a margin that stopped
+falling over the last two rounds ends in the tolerance as the
+arithmetic's floor; one still falling ends as the curvature-held
+march's does.
+A straight branch so takes the fewest samples its fit needs, and a
+curved one more only where its certificate refused. Before any march, the
+plane × NURBS lane decides its own domain boundary, the wall's knot
+rectangle, against the plane, one side at a time
+(`geom_brep::boundary_section`: plane × one boundary curve of the
+wall, the same door the boolean's NURBS crossing layer reads). A side
+either lies within the band of the plane, or meets it at isolated
+crossings, each found to the sweep floor and decided transversal along
+the side, or refused as a graze, the locus tangent to the side, naming
+the side (`SsiError::BoundaryGraze`). A side within the band is
+decided over a strip beside it where the wall's slope across it is
+one-signed: nothing where the strip is clear of the plane, a `Side`
+region where the locus is coincident with the side (below); where that
+slope does not clear the band the surfaces may be tangent along the
+side, and it refuses toward C7 (`SsiError::BoundaryTangent`); where no
+strip has it one-signed, or none holds the locus's certified zero set
+inside it, the side's own crossings decide it. A corner within the band
+on no side decided over a strip is classified by the plane distance's
+two inward partials over a corner cell: a branch starts at it where
+they are of opposite inward sign; where they are of one sign the locus
+leaves the domain there, and the corner is a `Corner` region where the
+locus is coincident with it, nothing where the corner's distance has
+that sign too, and otherwise no region, its roots ordinary crossings.
+In the band the
+pass does not pick a side: a region asserts no topology. A `Corner`
+region certifies that its cell's solution set is at most one arc lying
+within `reach` of the corner, a `Side` region that its strip's solution
+set lies within `reach` of the side. A region is reported exactly where
+the locus is coincident with its corner or side: its certified zero set
+stays inside its cell, so an arc in it ends on the domain's sides, and
+is certified to lie within ε of the corner or side, its `reach` that
+certified distance plus ε. Otherwise no region is reported, and the
+roots decide, the arc traced between them as any branch is. A side
+whose strip holds the locus's certified zero set but not within ε of it
+keeps its interior roots, each decided along it, and leaves a root at
+one of its corners to the other side through that corner; a corner
+both of whose sides are such is classified as a corner on no decided
+side, and their roots there are its. On a wall narrower than the
+widest strip every side within the band whose slope across it clears
+the band is such a side, its strip the whole domain. A reported
+region's cell holds no zero beyond its certified zero set, so a root in
+the cell is the region's, and every other root is kept. Whether a
+vertex lies on a face stays the
+consumer's decision, and the exact empty answer stands outside the
+domain. Every root is settled onto both surfaces, or refuses
+`SsiError::EndNotOnLocus`. The crossings are the only ends a branch has
+on this lane, and between them the simplest candidate is tried first:
+from a crossing, the Hermite cubic to the nearest crossing not yet
+used, through their tangents, one span exact at both ends, its two
+states taking the march's transversality decision. Where anything
+refuses it (that decision at either end, the march tolerance, or the
+certificate), a march runs from the crossing to the unused
+crossing on the side it leaves, the one nearest where its last step
+meets that side, its step capped at a fifth of the distance to the
+nearest crossing not yet used, so at most a fifth of the branch's; a
+march that leaves where no crossing matches refuses as the march's
+limit (`SsiError::CrossingUnmatched`). The plane's window must hold the
+wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
+march ends only at the knot rectangle. The ℝ³ lane still ends an open
+branch at the caller's slab by its boundary search
+(`ssi_branch_open_end`), and the slab is not
+geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Neither candidate
+is trusted, its pairing of crossings included: the certificate decides
+each on the chart lane, so limb 3 proves its tube one arc in the knot
+rectangle, and a cubic to another branch's crossing either leaves the
+locus, which limbs 1 and 2 refuse, or holds more than one arc in its
+tube, which limb 3 refuses. The Hermite is one span, not a polyline of
+samples, so refinement has nothing to halve in it: a refused Hermite is
+marched, and the march's carrier is refined as any is. Where neither
+certifies, the march's refusal stands, except on a branch too short for
+a fifth of it to clear the band whose march refused for want of step,
+which is a sized refusal in the branch's length
+(`SsiError::ShortBranchUncertified`). The extent sizes no realized
+step; it is the lever arm's clamp, the seeding floor and the tube
+ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
-zero by enclosure), *accounted* (contained in a found branch's tube), or
-refined to the named floor, where the op refuses
+zero by enclosure, the boundary pass's mean-value enclosure of a strip
+or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
+or in a boundary contact's certified region), or refined to the named
+floor, where the op refuses
 `SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
 the domain it bisects (`SweepFloor`), and a floor that domain cannot
 resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
@@ -171,8 +256,15 @@ The op does not return until every branch is found or it refuses; the
 subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
-configurations (the transversality band along the trace) refuse toward
-C7; Hoffmann §6.5's tracing through singular points is deliberately not
+configurations refuse toward C7, each candidate by what it reads: a
+marched branch by the transversality decision at every state, `sin θ`
+levered by the smaller of the operands' lever arm (on a wall, its
+chart's) and the extent; a Hermite branch by that decision at its two
+ends, and between them by limb 3's tube, whose clearance is levered by
+the extent alone. The levers differ where a wall's chart bends and its
+surface does not
+(`work/ssi/ssi-transversality-at-a-point-is-spelled-three-ways.md`).
+Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
 
@@ -181,9 +273,15 @@ tubes; the C10 tree is not wired in.
 **C4 — Pcurves are per-half-edge certified caches, certified in metres
 through the map.** A *pcurve* is an edge's image in a face's `(u,v)`
 chart. Its home is the half-edge (`Body::pcurves`, a
-`SecondaryMap<HalfEdgeKey, PcurveCache>`): a seam edge has both
-half-edges on one surface with two chart images (`u = α` and
-`u = α + 2π`), so no coarser key works. Its parameter *is* the carrier's
+`SecondaryMap<HalfEdgeKey, PcurveCache>`): a row is the edge's image,
+a function of the edge and the chart alone, plus the half-edge's
+**joint element**, the integer (whole periods, a torus's second period,
+a sphere's twin bit) that carries its image onto the end of the
+half-edge before it in its loop, or a reset marker at a pole or apex.
+A loop's lift is derived by summing elements from its `first`, so no
+stored byte depends on which half-edge is `first`. A seam edge has both
+half-edges on one surface with one image and two joint elements, so no
+coarser key works. Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
 statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole

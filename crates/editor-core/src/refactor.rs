@@ -128,7 +128,8 @@ use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
 use crate::sentence::{Recourse, Staged};
-use crate::spoken::{SpokenName, SpokenNode};
+use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
+use crate::var::VarId;
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -587,22 +588,41 @@ pub enum SplitError {
         /// ([`DocEdit::Promote`]) moves that offset into a kept gauge.
         promote: Option<Box<SpokenNode>>,
     },
-    /// A cut node references a document parameter that a kept node
-    /// also references. The parameter can move or stay, but it cannot
-    /// silently become two parameters with one name (D-2's "no silent
-    /// sharing") — refused naming one referencing node on each side.
-    UncutParamReference {
-        /// The shared parameter.
-        param: crate::doc::ParamName,
+    /// A cut node reads a variable that a kept node also reads. The
+    /// variable can move or stay, but it cannot silently become two
+    /// variables (D-2's "no silent sharing") — refused naming one
+    /// reading node on each side.
+    UncutVarReference {
+        /// The shared variable.
+        var: SpokenVar,
         /// A cut node referencing it.
         cut_node: SpokenNode,
         /// A kept node referencing it.
         kept_node: SpokenNode,
         /// Whether `cut_node` is a cut root whose offset reads the
-        /// parameter and that a promote ([`DocEdit::Promote`]) admits:
+        /// variable and that a promote ([`DocEdit::Promote`]) admits:
         /// promoting it moves that offset into a kept gauge, so the
         /// parameter stays in this document.
         promote: bool,
+    },
+    /// A cut node reads an anonymous variable. The part document would
+    /// have to hold it under a name the kernel minted, and the kernel
+    /// mints no name (VR2).
+    AnonymousVarCrossesCut {
+        /// The variable.
+        var: SpokenVar,
+        /// A cut node reading it.
+        node: SpokenNode,
+    },
+    /// A cut node reads a variable this document no longer holds (a
+    /// deleted one: VR7 leaves its readers unresolved, which is legal
+    /// document state). The part could not hold the reader either way:
+    /// it declares the variables the cut reads, and there is none.
+    UnresolvedVarCrossesCut {
+        /// The variable, by its id: this document holds no name for it.
+        var: SpokenVar,
+        /// A cut node reading it.
+        node: SpokenNode,
     },
     /// A name inside a CUT node's payload derives from a node that is
     /// not itself cut — the part document could not express the
@@ -850,27 +870,42 @@ impl core::fmt::Display for SplitError {
                     Recourse(&format!("add {kept} to the cut, or leave {cut} out of it"))
                 )
             }
-            Self::UncutParamReference {
-                param,
+            Self::UncutVarReference {
+                var,
                 cut_node,
                 kept_node,
                 promote,
             } => write!(
                 f,
-                "split: parameter {param} is referenced by {cut_node}, which is cut, and by \
-                 {kept_node}, which is kept, and one parameter cannot become two documents'. {}",
+                "split: {var} is read by {cut_node}, which is cut, and by {kept_node}, which \
+                 is kept, and one variable cannot become two documents'. {}",
                 Recourse(&if *promote {
                     format!(
                         "promote {cut_node} (Promote), so its offset stays in this document; or \
                          put {cut_node} and {kept_node} on one side of the cut, or give one of \
-                         them a parameter of its own (SetDocParam, SetParam)"
+                         them a variable of its own (DeclareVar, SetParam)"
                     )
                 } else {
                     format!(
                         "put {cut_node} and {kept_node} on one side of the cut, or give one of \
-                         them a parameter of its own (SetDocParam, SetParam)"
+                         them a variable of its own (DeclareVar, SetParam)"
                     )
                 })
+            ),
+            Self::AnonymousVarCrossesCut { var, node } => write!(
+                f,
+                "split: {node}, which is cut, reads {var}, which has no name, and the part \
+                 would have to hold it under a name nobody gave it. {}",
+                Recourse("name it (RenameVar), then split")
+            ),
+            Self::UnresolvedVarCrossesCut { var, node } => write!(
+                f,
+                "split: {node}, which is cut, reads {var}, which this document no longer \
+                 holds, so the part has no variable to read. {}",
+                Recourse(&format!(
+                    "repoint {node}'s reader at a variable this document holds, or remove the \
+                     reader, then split"
+                ))
             ),
             Self::PartNameReachesRemainder {
                 node,
@@ -950,18 +985,19 @@ impl core::error::Error for SplitError {}
 
 /// **A4's frame rule, the one predicate split and inline both ask**,
 /// over the member a side reads and three conditions on it:
-/// (a) it is read at its own instance, no pattern copy and no placer
-/// between; (b) that instance lies, in the part, in a placed group of
+/// (a) no placing node between — no pattern copy and no transform on
+/// its chain; (b) that instance lies, in the part, in a placed group of
 /// `groups` (the part's groups, each with its root and why it is
 /// unplaced), not in a group's own space; (c) it is its group's root
 /// at the empty chain on the part's world (`root_at_empty`). Each door
 /// answers `groups` and `root_at_empty` from the part it holds or
 /// builds.
 ///
-/// An authored side is held to all three: its vectors are coordinates
-/// of the instance it reads, and only there do they not change. A
-/// `FromFace` side is held to (b) alone: its frame is its head's face
-/// in the member's part, the head crosses with it, and the face moves
+/// A part-based side is held to all three: its frame is in coordinates
+/// of the instance it reads, and only there does it not change. A
+/// face-based side is held to (b) alone: its frame is its head's face
+/// in the member's part, the head crosses with it, its offset rides
+/// the face, and the face moves
 /// only if the member's place in the world does. A copy or a placer
 /// between is admitted on purpose: the head names the copy's face
 /// through the placer, and it crosses as it is.
@@ -974,13 +1010,10 @@ fn frame_survives<M: AsRef<[RecipeNodeId]>>(
     let placed = groups
         .iter()
         .any(|(members, _, cause)| cause.is_none() && members.as_ref().contains(&read.instance));
-    match frame {
-        crate::mate::MateFrame::FromFace => placed,
-        crate::mate::MateFrame::Authored(_) => {
-            read.copy.is_empty()
-                && read.at == read.instance
-                && placed
-                && root_at_empty(read.instance)
+    match frame.base {
+        crate::mate::FrameBase::Face => placed,
+        crate::mate::FrameBase::Part => {
+            read.chain.is_empty() && placed && root_at_empty(read.instance)
         }
     }
 }
@@ -1065,12 +1098,28 @@ pub enum InlineError {
         /// The first metadata key, in map order.
         key: String,
     },
-    /// The referenced document declares a parameter the host also
-    /// declares, with a different value — inlining would silently pick
-    /// one meaning for the shared name.
-    ParamConflict {
-        /// The conflicting parameter.
-        param: crate::doc::ParamName,
+    /// The referenced document holds a variable under a name the host
+    /// also holds, with a different definition — inlining would
+    /// silently pick one meaning for the shared name.
+    VarNameConflict {
+        /// The name.
+        name: crate::doc::VarName,
+    },
+    /// The referenced document holds an anonymous variable its spliced
+    /// recipe reads: the host would have to hold it under a name the
+    /// kernel minted, and the kernel mints no name (VR2).
+    AnonymousVarCrossesCut {
+        /// The variable, spoken from the referenced document.
+        var: SpokenVar,
+    },
+    /// The referenced document's spliced recipe reads a variable that
+    /// document no longer holds (a deleted one, legal there by VR7):
+    /// the host has no variable to point the reader at.
+    UnresolvedVarCrossesCut {
+        /// The variable, by its id, spoken from the referenced document.
+        var: SpokenVar,
+        /// A node of the referenced document reading it.
+        node: SpokenNode,
     },
     /// The instance sits off the world's origin — on a gauge, or at
     /// an offset — and the referenced document has a root that is not
@@ -1244,13 +1293,29 @@ impl core::fmt::Display for InlineError {
                      that version (UpdateReference), then inline"
                 ))
             ),
-            Self::ParamConflict { param } => write!(
+            Self::VarNameConflict { name } => write!(
                 f,
-                "inline: parameter {param} is declared by both documents with different \
-                 values. {}",
+                "inline: both documents hold a variable named {name}, with different \
+                 definitions. {}",
                 Recourse(&format!(
-                    "set this document's {param} to the referenced document's (SetDocParam), \
+                    "define this document's {name} as the referenced document's (DefineVar), \
                      then inline"
+                ))
+            ),
+            Self::AnonymousVarCrossesCut { var } => write!(
+                f,
+                "inline: the referenced document reads {var}, which has no name, and this \
+                 document would have to hold it under a name nobody gave it. {}",
+                Recourse("name it in the referenced document (RenameVar), then inline")
+            ),
+            Self::UnresolvedVarCrossesCut { var, node } => write!(
+                f,
+                "inline: {node} in the referenced document reads {var}, which that document \
+                 no longer holds, so this document has no variable to point the reader at. {}",
+                Recourse(&format!(
+                    "in the referenced document, repoint {node}'s reader at a variable it holds \
+                     or remove the reader, point this instance at that version \
+                     (UpdateReference), then inline"
                 ))
             ),
             Self::UnplaceableFrame { root } => write!(
@@ -1521,24 +1586,33 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SlotDimensionMismatch { .. }
             | EditError::StructuralSlotNeedsStructuralEdit { .. }
             | EditError::NotStructuralSlot { .. }
-            | EditError::SlotUnknownDocParam { .. }
-            | EditError::SlotDocParamDimension { .. }
-            | EditError::PayloadUnknownDocParam { .. }
-            | EditError::PayloadDocParamDimension { .. }
+            | EditError::SlotUnknownVarName { .. }
+            | EditError::SlotVarKind { .. }
+            | EditError::PayloadUnknownVarName { .. }
+            | EditError::PayloadVarKind { .. }
+            | EditError::SlotUnresolvedVar { .. }
+            | EditError::PayloadUnresolvedVar { .. }
+            | EditError::NameLeafWritten { .. }
+            | EditError::VarNameUnchanged { .. }
+            | EditError::AnonymousVarUnread { .. }
+            | EditError::DeleteAnonymousVar { .. }
             | EditError::MeasureMalformed { .. }
             | EditError::AssertionTarget { .. }
             | EditError::AssertionDimension { .. }
-            | EditError::ContinuousParamCannotBeCount { .. }
-            | EditError::DocParamNotDeclared { .. }
-            | EditError::DocParamCountHasNoUnit { .. }
-            | EditError::DocParamCountHasNoDistribution { .. }
-            | EditError::DocParamUnitMismatch { .. }
-            | EditError::DocParamValueKindMismatch { .. }
+            | EditError::ContinuousVarCannotBeCount { .. }
+            | EditError::UnknownVar { .. }
+            | EditError::VarNameTaken { .. }
+            | EditError::VarIdCollides { .. }
+            | EditError::VarKindFixed { .. }
+            | EditError::VarCountHasNoUnit { .. }
+            | EditError::VarCountHasNoDistribution { .. }
+            | EditError::VarUnitMismatch { .. }
+            | EditError::VarValueKindMismatch { .. }
             | EditError::PathOffTree { .. }
             | EditError::Dimension(_)
             | EditError::NameStepNeverMinted { .. }
             | EditError::ReadSiteMissingNode { .. }
-            | EditError::NonFiniteDocParam { .. }
+            | EditError::NonFiniteVar { .. }
             | EditError::InvalidDistribution { .. }
             | EditError::RebindTargetMissingNode { .. }
             | EditError::RebindUnknownName { .. }
@@ -2124,9 +2198,11 @@ fn remap_node(
                 name: face(&b.name)?,
             },
             class: *class,
-            // The datum crosses verbatim: its vectors are numbers, and
-            // a `FromFace` side holds nothing, its face being the
-            // head's, remapped above.
+            // The datum crosses verbatim: its frames are a base word
+            // and a placement of numbers and expressions over document
+            // parameters, which split and inline carry beside it, and
+            // a face base holds no name, its face being the head's,
+            // remapped above.
             alignment: alignment.clone(),
         },
         // A measure's references are BOTH names and edges, so they
@@ -2160,21 +2236,23 @@ fn remap_node(
     })
 }
 
-/// The document parameters a node's expressions reference, by name.
-fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamName> {
-    let mut refs = Vec::new();
-    for slot in node.slots() {
-        if let Some(expr) = node.expr(slot) {
-            expr.param_refs(&mut refs);
-        }
+/// The variables a node's expressions read. The expressions no slot
+/// addresses count too: a measured bound reading a variable is exactly
+/// as much a reason to carry that variable into a split part as an
+/// extrude's distance is.
+fn node_var_reads(node: &Node<ProfileProgram>) -> BTreeSet<VarId> {
+    let mut reads = Vec::new();
+    for expr in node.exprs() {
+        expr.var_reads(&mut reads);
     }
-    // The expressions no slot addresses count too: a measured bound
-    // referencing a parameter is exactly as much a reason to copy that
-    // parameter into a split part as an extrude's distance is.
-    for expr in crate::node::payload_exprs(node).into_iter().flatten() {
-        expr.param_refs(&mut refs);
+    reads.into_iter().map(|(var, _)| var).collect()
+}
+
+/// Every reader in `node` re-pointed through `map`.
+fn remap_node_vars(node: &mut Node<ProfileProgram>, map: &BTreeMap<VarId, VarId>) {
+    for expr in node.exprs_mut() {
+        expr.remap_vars(map);
     }
-    refs.into_iter().map(|(name, _)| name).collect()
 }
 
 // ---- Split ----
@@ -2500,7 +2578,7 @@ pub fn split(
     // no instance, would start); and its cut side's coordinates must
     // not change, which is the frame rule (`frame_survives`): an
     // authored side's instance must be, in the part, its group's root
-    // at the empty chain on the part's world; a `FromFace` side's
+    // at the empty chain on the part's world; a face-based side's
     // member must be placed in the part's world, and its head carries
     // its face across.
     //
@@ -2570,13 +2648,12 @@ pub fn split(
             }
         }
     }
-    // Parameters: referenced by cut nodes → copied into the part;
-    // referenced by BOTH sides → refused (no silent sharing). The
-    // remainder keeps its table either way — the edit vocabulary has
-    // no parameter-removal arm, and an unreferenced parameter is legal
+    // Variables: read by cut nodes → declared in the part; read by BOTH
+    // sides → refused (no silent sharing). The remainder keeps its
+    // table either way: a named variable nothing reads is legal
     // document state.
-    let mut cut_refs: BTreeMap<crate::doc::ParamName, RecipeNodeId> = BTreeMap::new();
-    let mut kept_refs: BTreeMap<crate::doc::ParamName, RecipeNodeId> = BTreeMap::new();
+    let mut cut_refs: BTreeMap<VarId, RecipeNodeId> = BTreeMap::new();
+    let mut kept_refs: BTreeMap<VarId, RecipeNodeId> = BTreeMap::new();
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
         let into = if cut.contains(&id) {
@@ -2584,27 +2661,21 @@ pub fn split(
         } else {
             &mut kept_refs
         };
-        for name in node_param_refs(node) {
-            into.entry(name).or_insert(id);
+        for var in node_var_reads(node) {
+            into.entry(var).or_insert(id);
         }
     }
-    for (param, &cut_node) in &cut_refs {
-        if let Some(&kept_node) = kept_refs.get(param) {
+    for (&var, &cut_node) in &cut_refs {
+        if let Some(&kept_node) = kept_refs.get(&var) {
             let offset_reads = match doc.node(cut_node) {
                 Some(Node::InstantiatePart {
                     offset: Some(offset),
                     ..
-                }) => {
-                    let mut refs = Vec::new();
-                    for (_, expr) in offset.rows() {
-                        expr.param_refs(&mut refs);
-                    }
-                    refs.iter().any(|(name, _)| name == param)
-                }
+                }) => offset.rows().into_iter().any(|(_, expr)| expr.reads(var)),
                 _ => false,
             };
-            return Err(SplitError::UncutParamReference {
-                param: param.clone(),
+            return Err(SplitError::UncutVarReference {
+                var: doc.spoken_var(var),
                 cut_node: doc.spoken(cut_node),
                 kept_node: doc.spoken(kept_node),
                 promote: offset_reads && promotable(cut_node),
@@ -2704,18 +2775,37 @@ pub fn split(
     if doc.epsilon().to_bits() != part.doc().epsilon().to_bits() {
         part_apply(&mut part, DocEdit::SetTolerance { eps: doc.epsilon() })?;
     }
-    for param in cut_refs.keys() {
-        // The reference was validated against this table, so the
-        // declaration exists; a miss would refuse at the insert below.
-        if let Some(value) = doc.params().get(param) {
-            part_apply(
-                &mut part,
-                DocEdit::SetDocParam {
-                    name: param.clone(),
-                    value: value.clone(),
-                },
-            )?;
-        }
+    // A cut reader of a variable the parent no longer holds has
+    // nothing to be re-pointed at, and refuses here, at this door.
+    if let Some((&id, &node)) = cut_refs.iter().find(|(id, _)| doc.var(**id).is_none()) {
+        return Err(SplitError::UnresolvedVarCrossesCut {
+            var: doc.spoken_var(id),
+            node: doc.spoken(node),
+        });
+    }
+    // Declared in the PARENT's declaration order, so the part lists its
+    // variables as the parent's author did. Each carried reader is
+    // re-pointed at the part's own minted id.
+    let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
+    for id in doc
+        .var_order()
+        .iter()
+        .copied()
+        .filter(|id| cut_refs.contains_key(id))
+    {
+        let Some(var) = doc.var(id) else {
+            unreachable!("a cut reader of a variable the parent does not hold refused above")
+        };
+        let Some(name) = doc.var_name(id) else {
+            return Err(SplitError::AnonymousVarCrossesCut {
+                var: doc.spoken_var(id),
+                node: doc.spoken(cut_refs[&id]),
+            });
+        };
+        let minted = part
+            .declare(name.clone(), var.def().clone())
+            .map_err(part_refused)?;
+        var_map.insert(id, minted);
     }
     // The cut nodes in document order, each under the id the part's
     // insert door mints for it (D9 — two runs agree byte for byte).
@@ -2729,7 +2819,7 @@ pub fn split(
             // gauge's image.
             None,
             |g: RecipeNodeId| cut.contains(&g),
-            |_: RecipeNodeId, _: &mut Node<ProfileProgram>| {},
+            |_: RecipeNodeId, node: &mut Node<ProfileProgram>| remap_node_vars(node, &var_map),
         ),
         part_refused,
         |old, miss| match miss {
@@ -3242,7 +3332,7 @@ pub fn inline(
     // that reads the instance — its name wrapped at it, which the
     // rebind below re-anchors onto the inner name. The inner instance
     // must be its part group's root at the empty chain on the part's
-    // world, so the frame means what it meant — or, for a `FromFace`
+    // world, so the frame means what it meant — or, for a face-based
     // side, its inner member must be placed in the part's world, its
     // head carrying its face across (`frame_survives`); and the placing
     // mates of one pair must still read one pair.
@@ -3329,24 +3419,41 @@ pub fn inline(
     let step = |current: &mut Recording<'_, ProfileProgram>,
                 edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> { current.apply(edit).map(|_| ()).map_err(refused) };
-    // Parameters merge only when they already agree bit for bit; a
-    // disagreeing shared name refuses (no silent pick).
-    for (name, value) in part.params() {
-        match doc.params().get(name) {
-            Some(existing) if existing.bit_eq(value) => {}
-            Some(_) => {
-                return Err(InlineError::ParamConflict {
-                    param: name.clone(),
-                });
-            }
-            None => step(
-                &mut current,
-                DocEdit::SetDocParam {
-                    name: name.clone(),
-                    value: value.clone(),
-                },
-            )?,
+    // Variables merge by name only when they already agree bit for
+    // bit; a disagreeing shared name refuses (no silent pick). In the
+    // PART's declaration order, so the host lists the part's variables
+    // as the part's author declared them. Each carried reader is
+    // re-pointed at the host's id for its variable.
+    // A spliced reader of a variable the part no longer holds has
+    // nothing to be re-pointed at, and refuses here, at this door.
+    for &id in part.order() {
+        let Some(node) = part.node(id) else { continue };
+        if let Some(var) = node_var_reads(node)
+            .into_iter()
+            .find(|&var| part.var(var).is_none())
+        {
+            return Err(InlineError::UnresolvedVarCrossesCut {
+                var: part.spoken_var(var),
+                node: part.spoken(id),
+            });
         }
+    }
+    let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
+    for &id in part.var_order() {
+        let Some(var) = part.var(id) else { continue };
+        let Some(name) = part.var_name(id) else {
+            return Err(InlineError::AnonymousVarCrossesCut {
+                var: part.spoken_var(id),
+            });
+        };
+        let held = match doc.var_named(name.as_str()) {
+            Some(held) if doc.var(held).is_some_and(|existing| existing.bit_eq(var)) => held,
+            Some(_) => return Err(InlineError::VarNameConflict { name: name.clone() }),
+            None => current
+                .declare(name.clone(), var.def().clone())
+                .map_err(refused)?,
+        };
+        var_map.insert(id, held);
     }
     // The promoted gauge, under the instance's gauge holding its
     // offset, takes the instance's label: it stands in for the instance,
@@ -3383,6 +3490,7 @@ pub fn inline(
             |_: RecipeNodeId| true,
             // The part's root takes the instance's place.
             |old: RecipeNodeId, node: &mut Node<ProfileProgram>| {
+                remap_node_vars(node, &var_map);
                 if let (Landing::Root { root, offset }, Node::InstantiatePart { offset: held, .. }) =
                     (&landing, node)
                     && *root == old

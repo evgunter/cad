@@ -28,9 +28,9 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
+    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
 };
 use geom_core::Tol;
@@ -38,7 +38,7 @@ use geom_core::Tol;
 use crate::fixture::{Recorder, len, scl, xy_frame};
 
 fn plen(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -60,14 +60,14 @@ const BORE_B_X: f64 = 2.2e-3;
 pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::from_static(n),
-            value: DocParam::Continuous {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDef::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     // The arm is a uniform tolerance; the fillet radius is a uniform
@@ -161,7 +161,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
@@ -255,9 +255,9 @@ fn r2_end_to_end_bracket_study() {
                         v.receipt(),
                         v.decisions()
                     );
-                    println!("{}", v.render(&analyzed));
+                    println!("{}", v.render(&doc, &analyzed));
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, tol,
+                        &doc, measure, &analyzed, &v, None, false, None, tol,
                     );
                     println!("   stackup: {stack:?}");
                     let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), dials, tol);
@@ -429,8 +429,9 @@ fn r2_what_a_real_study_gets_today() {
                 for l in v.refused().iter().take(4) {
                     println!("   refused: {:?}", l.reason);
                 }
-                let s =
-                    editor_core::stackup::stackup(&doc, measure, &analyzed, &v, None, false, tol);
+                let s = editor_core::stackup::stackup(
+                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                );
                 println!("   stackup: {s:?}");
                 println!(
                     "   assertion: {:?}",
@@ -444,7 +445,7 @@ fn r2_what_a_real_study_gets_today() {
         ParamBox::of(&analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     );
     let _ = Arc::new(nominal);
@@ -458,9 +459,9 @@ fn r2_what_a_real_study_gets_today() {
 #[cfg(feature = "probe")]
 fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("w"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("w"),
+        def: editor_core::VarDef::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -468,14 +469,14 @@ fn collinear_walls() -> ProfileDoc {
                 lo: -1.0e-5,
                 hi: 1.0e-5,
             }),
-        },
+        }),
     });
     let plane = r.insert(xy_frame());
     // The middle vertex of the bottom edge splits ONE straight edge in
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::param(ParamName::from_static("w"), Dimension::Length);
+    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
@@ -524,7 +525,7 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
             ParamBox::of(&analyzed)
                 .axes()
                 .keys()
-                .map(|n| (n.clone(), BoxAxis::Fixed))
+                .map(|n| (*n, BoxAxis::Fixed))
                 .collect(),
         );
         let opts = editor_core::EvalOptions {

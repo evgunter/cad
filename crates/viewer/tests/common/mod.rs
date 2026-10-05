@@ -105,8 +105,8 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 // produce.
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId,
+    Dimension, Doc, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileProgram, RecipeNodeId,
+    VarName,
 };
 use pncad::geom_core::Tol;
 use viewer::props::Notation;
@@ -138,8 +138,20 @@ pub fn shape(template: &ProfileShape) -> LoopProgram {
 }
 
 /// The name of the parametric fixture's driving parameter.
-pub fn thickness_param() -> ParamName {
-    ParamName::from_static("thickness")
+pub fn thickness_param() -> VarName {
+    VarName::from_static("thickness")
+}
+
+/// The variable `doc` names `name` — the id every variable-keyed op
+/// and row addresses it by.
+pub fn var_of(doc: &Doc<ProfileProgram>, name: &str) -> pncad::document::VarId {
+    doc.var_named(name)
+        .unwrap_or_else(|| panic!("the document names a variable {name}"))
+}
+
+/// The parametric fixture's driving parameter, by its id in `doc`.
+pub fn thickness_var(doc: &Doc<ProfileProgram>) -> pncad::document::VarId {
+    var_of(doc, thickness_param().as_str())
 }
 
 /// A document whose extrude distance is DRIVEN by a document
@@ -150,9 +162,9 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-parametric", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: thickness_param(),
-            value: DocParam::continuous(Dimension::Length, 0.008),
+            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );
@@ -164,7 +176,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
             // `thickness / 2` — a composed expression over a
             // parameter, which is the shape the refusal affordance
             // exists for.
-            distance: Expr::div(Expr::param(thickness_param(), Dimension::Length), scl(2.0))
+            distance: Expr::div(Expr::named(thickness_param(), Dimension::Length), scl(2.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },

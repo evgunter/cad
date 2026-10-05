@@ -220,7 +220,7 @@ pub enum SplitFinishError {
     /// solid to begin with: the operand is never validated, and the
     /// one tier-2 finding the reduction refuses is an empty OUTER loop
     /// on a face rule (a) measures at an ON vertex
-    /// ([`super::SplitReduceError::CorruptOperand`], via
+    /// ([`super::SplitReduceError::UnboundedFace`], via
     /// `rules::face_extent`). Only the direct run's refusal
     /// is ever surfaced (a mirrored run's is replaced by it), so
     /// `side` is in the caller's orientation.
@@ -234,7 +234,7 @@ pub enum SplitFinishError {
 
 impl From<EulerOpError> for SplitFinishError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 
@@ -926,7 +926,6 @@ fn section_sense<T: Decide>(
     band: geom_core::Band,
 ) -> Result<bool, SplitFinishError> {
     section_loops::loop_sense(body, l, normal, band).map_err(|fault| match fault {
-        section_loops::SenseFault::Torn => SplitFinishError::Corrupt,
         section_loops::SenseFault::Undecided(diag) => {
             SplitFinishError::SectionWindingUndecided { face, diag }
         }

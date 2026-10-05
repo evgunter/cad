@@ -101,8 +101,20 @@ fn mate(a: StableName, b: StableName) -> Node<ProfileProgram> {
         b: fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
@@ -383,7 +395,8 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
-            | Maintenance::LabelDropped { .. } => None,
+            | Maintenance::LabelDropped { .. }
+            | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect();
     assert_eq!(

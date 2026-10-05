@@ -42,6 +42,7 @@
 //! - **The conventional fields** here are `dir`, `axis` and `u_ref`
 //!   (unit; `u_ref ⊥ axis`), unchecked per the crate docs' rule.
 
+pub(crate) mod banded;
 pub mod boxes;
 pub mod compose;
 pub mod fit;
@@ -52,7 +53,7 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use fit::{FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
+pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -814,6 +815,63 @@ impl<T: Decide> Curve3<T> {
 }
 
 impl<T: Real> Curve3<T> {
+    /// **The same locus run back**: the carrier whose point at `t` is
+    /// this one's at `−t`, so the interval `[t0, t1]` read forward here
+    /// is `[−t1, −t0]` there. The one statement of the reversal: a line
+    /// flips its direction; a circle and an ellipse flip their axis (θ ↦
+    /// −θ about the flipped axis, `v_ref = axis × u_ref` flipping with
+    /// it); a spiric flips its axis, its `u_ref` and its offset, the
+    /// two spellings its docs name as one oval in opposite senses.
+    /// `None` for a NURBS, whose knot vector a reversal would mirror.
+    #[must_use]
+    pub fn reversed(&self) -> Option<Self> {
+        Some(match self.clone() {
+            Curve3::Line { origin, dir } => Curve3::Line { origin, dir: -dir },
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Curve3::Circle {
+                center,
+                axis: -axis,
+                radius,
+                u_ref,
+            },
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => Curve3::Ellipse {
+                center,
+                axis: -axis,
+                major,
+                minor,
+                u_ref,
+            },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                center,
+                axis: -axis,
+                u_ref: -u_ref,
+                major_radius,
+                minor_radius,
+                offset: T::zero() - offset,
+            },
+            Curve3::Nurbs(_) => return None,
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
     /// **A circle carrier's point at parameter `t`**, as
     /// [`Curve3::eval`] builds it — `(s, c) = t.sin_cos()`,
     /// `radial = u_ref·c + v_ref·s` with `v_ref = axis × u_ref`, result
@@ -1353,6 +1411,48 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **A reversed carrier is the same locus run back**: its point at
+    /// `t` is the original's at `−t`, on every kind it reverses — a
+    /// carrier that flipped the wrong vector would meet the original at
+    /// most at isolated parameters.
+    #[test]
+    fn a_reversed_carrier_runs_the_same_locus_back() {
+        let n = Vec3::new(2.0, 2.0, 1.0) / 3.0;
+        let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let c = Point3::new(0.5, -1.0, 2.0);
+        let curves = [
+            Curve3::Line { origin: c, dir: u },
+            Curve3::Circle {
+                center: c,
+                axis: n,
+                radius: 0.7,
+                u_ref: u,
+            },
+            Curve3::Ellipse {
+                center: c,
+                axis: n,
+                major: 0.9,
+                minor: 0.4,
+                u_ref: u,
+            },
+            Curve3::Spiric {
+                center: c,
+                axis: n,
+                u_ref: u,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                offset: 0.3,
+            },
+        ];
+        for curve in curves {
+            let back = curve.reversed().expect("a closed-form carrier reverses");
+            for t in [-2.5, -0.3, 0.0, 0.7, 1.9, 4.0] {
+                let d = (back.eval(t) - curve.eval(-t)).norm();
+                assert!(d < 1e-14, "{curve:?} at {t}: {d}");
+            }
+        }
+    }
 
     /// A unit-ish circle fixture in a tilted frame: axis +z rotated is
     /// avoided on purpose — the frame is exactly representable so the

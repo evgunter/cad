@@ -487,23 +487,24 @@ impl MeasureExpr {
         }
     }
 
-    /// The document parameters this expression references, with their
-    /// recorded dimensions — the `Expr::param_refs` contract lifted to
-    /// this language, so `apply`'s re-check reaches measure nodes too.
-    pub fn param_refs(&self, out: &mut Vec<(crate::doc::ParamName, Dimension)>) {
-        match &self.kind {
-            MeasureKind::Primitive(_) => {}
-            MeasureKind::Value(e) => e.param_refs(out),
-            MeasureKind::Neg(a) => a.param_refs(out),
-            MeasureKind::Add(a, b)
-            | MeasureKind::Sub(a, b)
-            | MeasureKind::Mul(a, b)
-            | MeasureKind::Div(a, b)
-            | MeasureKind::Min(a, b)
-            | MeasureKind::Max(a, b) => {
-                a.param_refs(out);
-                b.param_refs(out);
-            }
+    /// The variables this expression's value leaves read, with the
+    /// dimension each reader reads at ([`Expr::var_reads`] lifted to
+    /// this language).
+    pub fn var_reads(&self, out: &mut Vec<(crate::var::VarId, Dimension)>) {
+        let mut leaves = Vec::new();
+        self.value_leaves(&mut leaves);
+        for leaf in leaves {
+            leaf.var_reads(out);
+        }
+    }
+
+    /// The names this expression's value leaves read
+    /// ([`Expr::named_reads`] lifted to this language).
+    pub fn named_reads(&self, out: &mut Vec<(crate::doc::VarName, Dimension)>) {
+        let mut leaves = Vec::new();
+        self.value_leaves(&mut leaves);
+        for leaf in leaves {
+            leaf.named_reads(out);
         }
     }
 

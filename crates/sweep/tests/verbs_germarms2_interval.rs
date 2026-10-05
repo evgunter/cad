@@ -42,6 +42,7 @@ use sweep::ExtrudeSide;
 use crate::common::interval::{iv, p2, p3, v3};
 use geom_core::{Affine3, Interval, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -96,7 +97,12 @@ fn repose(b: &Body<Interval>) -> Body<Interval> {
 }
 
 fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    topo::union(&a, &b, tol).expect_err("this family has no join arm")
 }
 
 /// **The re-posed twin's obligation at the CERTIFIED scalar**, which is
