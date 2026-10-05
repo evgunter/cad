@@ -94,7 +94,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopK
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
-use crate::live::proven;
+use crate::live::{linked, proven};
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
@@ -1091,7 +1091,9 @@ fn chord_spec<T: Decide>(
     })?;
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = face_data.surface;
-    if let Some(geom::Surface::Plane { .. }) = body.get_surface(wall_key) {
+    // The surface is a link of the face the join divides, mid-operation
+    // ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one is not curved.
+    if let geom::Surface::Plane { .. } = body.face_surface_linked(face, face_data) {
         // The boolean's planar-side chord of a curved germ pair
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
@@ -1292,6 +1294,17 @@ pub(crate) struct WallSection<T: Real> {
     pub(crate) case: SectionCase<T>,
 }
 
+/// The azimuth window of `face`'s outer loop on `surface`'s chart: the
+/// hull of [`face_azimuth_images`]. `None` for a loop that is not a
+/// cycle, or a walk with no charted edge.
+///
+/// # Errors
+///
+/// As [`face_azimuth_images`].
+///
+/// # Panics
+///
+/// As [`face_azimuth_images`].
 pub(crate) fn face_azimuth_window<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
@@ -1599,6 +1612,10 @@ fn skip_adjacent_chord<T: Decide>(
 /// is a belly arc, whose chord MUST be minted or the section face
 /// inherits an off-plane boundary edge. A boolean match reads the
 /// segment's locus instead ([`Chords::Segment`]).
+///
+/// Past `he`, the split's join's key, its edge and curve are links,
+/// mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]): a miss panics,
+/// and a torn curve is not null scaffolding.
 fn between_edge_is_section<T: Decide>(
     body: &Body<T>,
     ctx: &SectionCtx<T>,
@@ -1606,10 +1623,14 @@ fn between_edge_is_section<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, SplitJoinError> {
     let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-    let edge = body
-        .get_edge(he_data.edge)
-        .ok_or_else(|| corrupt_edge(he_data.edge))?;
-    let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+    let edge = linked(
+        &body.edges,
+        he_data.edge,
+        EntityId::Edge,
+        EntityId::HalfEdge(he),
+        "edge",
+    );
+    let CurveGeom::Certified(curve) = body.edge_curve_linked(he_data.edge, edge) else {
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
@@ -1701,6 +1722,8 @@ pub(crate) struct AzimuthImage<T: geom_core::Real> {
     pub(crate) v: (T, T),
     /// The carrier parameter at its start and end vertices.
     pub(crate) t: (T, T),
+    /// Its edge's certified carrier, as the walk read it.
+    pub(crate) carrier: geom::Curve3<T>,
     /// The half-edge's chart image when it is harmonic (a closed form,
     /// read by [`chart_v_du`] and evaluated directly); `None` for a
     /// fitted image.
@@ -1714,7 +1737,14 @@ pub(crate) struct AzimuthImage<T: geom_core::Real> {
 ///
 /// # Errors
 ///
-/// As [`face_azimuth_window`].
+/// [`SplitJoinError::Corrupt`] where `face`, the caller's key, does not
+/// resolve; otherwise the walk's geometric refusals: a run edge with no
+/// closed-form chart image, a fitted image, a vertex off the carrier, an
+/// apex junction ([`SplitJoinError::ApexUnlifted`]), or an escalation.
+///
+/// # Panics
+///
+/// On a torn hop past `face` ([`outer_cycle`], [`run_azimuth_images`]).
 pub(crate) fn face_azimuth_images<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
@@ -1729,21 +1759,29 @@ pub(crate) fn face_azimuth_images<T: Decide>(
 
 /// The half-edges of `face`'s outer loop in cycle order; `None` for a
 /// loop that is not a cycle.
+///
+/// `face` is the caller's key, and [`SplitJoinError::Corrupt`] where it
+/// does not resolve. Past it the outer loop is a link and its walk
+/// closes, on a body at rest by tier 1 and mid-operation by
+/// [`crate::live::OPERATORS_KEEP_LINKS`]: a miss panics, and the walk's
+/// members are proven for [`run_azimuth_images`].
 fn outer_cycle<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Option<Vec<HalfEdgeKey>>, SplitJoinError> {
     let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
-    let crate::entity::LoopBoundary::Cycle { first } = body
-        .get_loop(outer)
-        .ok_or_else(|| corrupt_loop(outer))?
-        .boundary
+    let LoopBoundary::Cycle { first } = linked(
+        &body.loops,
+        outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    )
+    .boundary
     else {
         return Ok(None);
     };
-    body.loop_cycle(first)
-        .ok_or_else(|| corrupt_he(first))
-        .map(Some)
+    Ok(Some(body.loop_walk(first).closed("loop", first)))
 }
 
 /// **Is a walk's chart polygon its own bounding box?** Every image is a
@@ -1858,7 +1896,7 @@ pub(crate) fn cone_apex_closure<T: Decide>(
     let mut reach = T::zero();
     let mut nappes = [false; 2];
     for (i, &he) in halves.iter().enumerate() {
-        let v = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
+        let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
         let q = vertex_point(body, v) - apex;
         let d = q.norm();
         reach = reach.max(d);
@@ -1903,6 +1941,11 @@ pub(crate) fn cone_apex_closure<T: Decide>(
 /// The walk behind [`face_azimuth_images`] and [`cone_apex_closure`]:
 /// each charted half-edge's image, its branch pinned to the previous
 /// edge's exit.
+///
+/// `halves` are members of a loop walk the caller closed, so each is
+/// proven, and its edge and that edge's curve are links: a miss panics
+/// (tier 1 at rest, [`crate::live::OPERATORS_KEEP_LINKS`]
+/// mid-operation), and only null scaffolding is skipped.
 fn run_azimuth_images<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
@@ -1914,11 +1957,15 @@ fn run_azimuth_images<T: Decide>(
     let mut images = Vec::new();
     let mut prev_exit: Option<T> = None;
     for &he in halves {
-        let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or_else(|| corrupt_edge(he_data.edge))?;
-        let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+        let he_data = proven(&body.half_edges, he, EntityId::HalfEdge);
+        let edge = linked(
+            &body.edges,
+            he_data.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let CurveGeom::Certified(curve) = body.edge_curve_linked(he_data.edge, edge) else {
             continue; // null scaffolding: zero-length, no azimuth extent
         };
         let (t0, t1) = curve.params();
@@ -2062,6 +2109,7 @@ fn run_azimuth_images<T: Decide>(
             range: (lo, hi),
             v: (pcurve.eval(entry_t).y, pcurve.eval(exit_t).y),
             t: (entry_t, exit_t),
+            carrier: curve.carrier().clone(),
             harmonic: matches!(pcurve, Pcurve::Harmonic { .. }).then(|| pcurve.clone()),
         });
         prev_exit = Some(exit);
@@ -2303,6 +2351,12 @@ pub(crate) fn chart_island_winding<T: Decide>(
 /// other lane: there a segment along an edge of ONE solid lies in a
 /// face of the other, whose lane computes the section the chord takes
 /// (the rod's ruling, a lens rim on a wall).
+///
+/// `segment` is a key the boolean carries from its contact records, so
+/// one that no longer resolves refuses typed. Past it, its curve and
+/// halves are links, mid-operation
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]): a miss panics, and a torn
+/// curve is not an uncertified one.
 fn along_edge_spec<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
@@ -2324,17 +2378,17 @@ fn along_edge_spec<T: Decide>(
             })
     };
     let (p1, p2) = (point(u1)?, point(u2)?);
-    let curve = match body
+    let e = body
         .get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-    {
-        Some(CurveGeom::Certified(c)) => c,
-        _ => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "the segment's edge carries no certified curve",
-            });
-        }
+        .ok_or(SplitJoinError::SectionInvariant {
+            face,
+            what: "the segment's edge no longer resolves",
+        })?;
+    let CurveGeom::Certified(curve) = body.edge_curve_linked(edge, e) else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "the segment's edge carries no certified curve",
+        });
     };
     let (t0, t1) = curve.params();
     match *curve.carrier() {
@@ -2343,14 +2397,15 @@ fn along_edge_spec<T: Decide>(
             // The chord starts at the copy of whichever end of the edge
             // null edges tie `u1` to; the curve runs from its `he_plus`
             // start.
-            let e = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-            let e_start = body
-                .get_half_edge(e.he_plus)
-                .ok_or_else(|| corrupt_he(e.he_plus))?
-                .start;
-            let e_end = body
-                .half_edge_end(e.he_plus)
-                .ok_or_else(|| corrupt_he(e.he_plus))?;
+            let e_start = linked(
+                &body.half_edges,
+                e.he_plus,
+                EntityId::HalfEdge,
+                EntityId::Edge(edge),
+                "he_plus",
+            )
+            .start;
+            let e_end = body.proven_half_edge_end(e.he_plus);
             let tied =
                 null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
                     face,

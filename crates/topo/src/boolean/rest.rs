@@ -614,9 +614,9 @@ pub enum PairUnread {
     /// description to compare.
     OutsideInventory,
     /// The face's consumed extent cannot be read ([`pair_extent`]): its
-    /// box has no claim to make (a NURBS placeholder, a boundary it
-    /// cannot read), or its boundary cannot be walked for the points
-    /// on it.
+    /// box has no claim to make (a NURBS placeholder, a boundary edge
+    /// with no sound box), or its boundary cannot be walked for the
+    /// points on it.
     Extent(PairFace),
 }
 

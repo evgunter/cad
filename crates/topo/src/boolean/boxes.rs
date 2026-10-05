@@ -2104,7 +2104,7 @@ pub(crate) fn arc_extent<X: Real>(
 /// The start point of `edge`'s half `he`, which `edge`'s field `field`
 /// names: every hop is a link.
 #[track_caller]
-fn edge_end_point<T: Real>(
+pub(crate) fn edge_end_point<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
     he: HalfEdgeKey,

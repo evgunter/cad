@@ -238,6 +238,14 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
 /// # Errors
 ///
 /// [`line_pairs`]' and [`conic_pairs`]', each naming the face.
+///
+/// # Panics
+///
+/// Where a face's surface does not resolve: the reduction's body is
+/// mid-operation, where a face's surface is a link
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]), and a torn one is not
+/// curved. It is read before the face's crossings, whose leaving
+/// directions read it again ([`split_leave`]).
 fn fixed_partners<T: Decide>(
     red: &SplitReduction<T>,
     above_set: &SecondaryMap<VertexKey, ()>,
@@ -269,6 +277,11 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
+        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+        let plane_normal = match *body.face_surface_linked(face, face_data) {
+            geom::Surface::Plane { normal, .. } => Some(normal),
+            _ => None,
+        };
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -281,15 +294,9 @@ fn fixed_partners<T: Decide>(
                 leave: split_leave(body, red.plane.normal, above_set, h)?,
             });
         }
-        let surface = body
-            .get_face(face)
-            .ok_or_else(|| corrupt_face(face))?
-            .surface;
-        let pairs = match body.get_surface(surface) {
-            Some(&geom::Surface::Plane { normal, .. }) => {
-                line_pairs(red, face, normal, &crossings, band)?
-            }
-            _ => conic_pairs(red, face, &crossings, band)?,
+        let pairs = match plane_normal {
+            Some(normal) => line_pairs(red, face, normal, &crossings, band)?,
+            None => conic_pairs(red, face, &crossings, band)?,
         };
         for (a, b) in pairs {
             partner.insert(a, b);
@@ -312,6 +319,9 @@ fn fixed_partners<T: Decide>(
 /// face's crossings and the chord a join mints between two of them
 /// ([`crate::chord_join::Leave`]), so the chord takes the arc the
 /// pairing walked.
+///
+/// The face's surface is a link, mid-operation
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]), and its miss panics.
 fn split_leave<T: Decide>(
     body: &Body<T>,
     plane_normal: geom_core::UnitVec3<T>,
@@ -320,9 +330,7 @@ fn split_leave<T: Decide>(
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let face = he_face(body, half)?;
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall = body
-        .get_surface(face_data.surface)
-        .ok_or_else(|| corrupt_face(face))?;
+    let wall = body.face_surface_linked(face, face_data);
     let start = body
         .get_half_edge(half)
         .ok_or_else(|| corrupt_he(half))?
@@ -720,6 +728,11 @@ impl<T: Decide> Sweep<T> {
     /// perimeter contribution is raised from the chord to the
     /// conservative arc-length bound `s_a·|Δt|` (a larger perimeter
     /// only shrinks the mean-width margin — refuses more, never less).
+    ///
+    /// The join's body is mid-operation, and an edge's curve is a link
+    /// there ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one panics,
+    /// where null scaffolding is skipped. [`Self::refuse_section_spur`]
+    /// reads the kinds this walk read.
     fn certify_section_area(
         &self,
         body: &Body<T>,
@@ -752,12 +765,19 @@ impl<T: Decide> Sweep<T> {
                        instead of a cycle",
             });
         };
-        for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
+        let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+        let mut straight = Vec::with_capacity(hes.len());
+        for &he in &hes {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
             let edge = body
                 .get_edge(he_data.edge)
                 .ok_or_else(|| corrupt_edge(he_data.edge))?;
-            let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+            let entry = body.edge_curve_linked(he_data.edge, edge);
+            straight.push(matches!(
+                entry,
+                CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
+            ));
+            let CurveGeom::Certified(curve) = entry else {
                 continue;
             };
             let Some(crate::loop_winding::ConicFrame {
@@ -798,7 +818,7 @@ impl<T: Decide> Sweep<T> {
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             // A positive NET area can still carry a zero-area spur.
-            Ok(Sign::Positive) => self.refuse_section_spur(body, face, first),
+            Ok(Sign::Positive) => self.refuse_section_spur(body, face, &hes, &straight),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),
             Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
         }
@@ -837,27 +857,20 @@ impl<T: Decide> Sweep<T> {
     /// not make. That gap is filed as
     /// `work/hone/split-section-spur-guard-skips-curved-spurs.md`.
     ///
-    /// `first` is a half-edge of the below loop's cycle, as
-    /// [`Self::certify_section_area`] resolved it.
+    /// `hes` is the below loop's cycle, and `straight` whether each
+    /// member's curve is a line, as [`Self::certify_section_area`] read
+    /// them.
     fn refuse_section_spur(
         &self,
         body: &Body<T>,
         face: FaceKey,
-        first: HalfEdgeKey,
+        hes: &[HalfEdgeKey],
+        straight: &[bool],
     ) -> Result<(), SplitJoinError> {
-        let hes: Vec<HalfEdgeKey> = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
         let n = hes.len();
         if n < 3 {
             return Ok(());
         }
-        let straight = |he: HalfEdgeKey| -> Result<bool, SplitJoinError> {
-            let e = he_edge(body, he)?;
-            let edge = body.get_edge(e).ok_or_else(|| corrupt_edge(e))?;
-            Ok(matches!(
-                body.get_curve_geom(edge.curve),
-                Some(CurveGeom::Certified(c)) if matches!(c.carrier(), geom::Curve3::Line { .. })
-            ))
-        };
         let start = |he: HalfEdgeKey| -> Result<Point3<T>, SplitJoinError> {
             Ok(vertex_point(
                 body,
@@ -865,11 +878,11 @@ impl<T: Decide> Sweep<T> {
             ))
         };
         for i in 0..n {
-            let (inbound, outbound) = (hes[(i + n - 1) % n], hes[i]);
-            if !(straight(inbound)? && straight(outbound)?) {
+            let inbound = (i + n - 1) % n;
+            if !(straight[inbound] && straight[i]) {
                 continue;
             }
-            let (before, after) = (start(inbound)?, start(hes[(i + 1) % n])?);
+            let (before, after) = (start(hes[inbound])?, start(hes[(i + 1) % n])?);
             match decide(
                 "split_section_spur",
                 Margin::norm3(after - before),

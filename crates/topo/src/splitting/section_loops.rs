@@ -255,6 +255,11 @@ struct Conic<T: Real> {
     b: Vec3<T>,
 }
 
+/// Loop `l`'s edges in walk order, as [`outlines_disjoint`] reads them.
+/// [`Torn`] where a record on the walk does not resolve, except an
+/// edge's curve: the section's body is mid-operation, where that is a
+/// link ([`crate::live::OPERATORS_KEEP_LINKS`]), so a torn curve panics
+/// where null scaffolding reads [`OutlineEdge::Undecided`].
 fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T>>, Torn> {
     let corrupt = || Torn;
     // A lone-vertex loop bounds nothing a contact reading could clear.
@@ -266,10 +271,7 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let h = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
             out.push(OutlineEdge::Undecided);
             continue;
         };

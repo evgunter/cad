@@ -678,6 +678,12 @@ fn section_plane_restatements<T: Decide>(
 /// opposed is a wedge end nothing declared and refuses
 /// ([`SplitFinishError::SectionCusp`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
+///
+/// The body is mid-operation, past the carve; each edge is read after
+/// the writes to the edges before it. Its curve is a link
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]; a rewritten edge's old curve
+/// goes only once orphaned, [`Body::remove_curve_if_orphaned`]), so a
+/// torn one panics where it used to read as no description.
 fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -722,8 +728,8 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 return Err(corrupt());
             };
             let existing = body
-                .get_curve_geom(edge_data.curve)
-                .and_then(crate::null::CurveGeom::certified)
+                .edge_curve_linked(edge, &edge_data)
+                .certified()
                 .cloned();
             let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
             let (witness, arm) = (draft.witness, draft.extent);

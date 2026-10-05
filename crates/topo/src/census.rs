@@ -275,6 +275,7 @@ use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
 };
 use crate::geometry::PointKey;
+use crate::live::{linked, proven};
 use crate::null::CurveGeom;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
@@ -2478,13 +2479,10 @@ fn sweep_conformal_patches<T: Decide>(
 /// `f64`. Neither takes a bound the other cannot, and no bound is
 /// derived twice.
 ///
-/// What this lane still owns is its ARENA WALK — [`boundary_reach`]
-/// reads `body.loops`/`body.half_edges` directly rather than through
-/// the accessors the `Bounds`-allowlisted lane uses — and its answer
-/// for a description with no claim in it: `None`, versus the poison
-/// box there. Neither is arithmetic, and
-/// `the_two_box_lanes_agree_face_for_face` in `boolean::boxes` pins
-/// that what is left cannot drift.
+/// What this lane still owns is its answer for a description with no
+/// claim in it: `None`, versus the poison box there. That is not
+/// arithmetic, and `the_two_box_lanes_agree_face_for_face` in
+/// `boolean::boxes` pins that what is left cannot drift.
 ///
 /// A NURBS placeholder has a poison control net: `face_box` folding
 /// it to a poison box is correct there, because poison never prunes.
@@ -2502,19 +2500,27 @@ pub(crate) fn face_reach<T: Decide>(
 /// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
 /// every point and direction the rule reads enters through the frame,
 /// and every extent is the same one.
+///
+/// # Panics
+///
+/// Where `f`, which every caller read out of `body`, or a record on the
+/// walk from it does not resolve, or a loop walk does not close (D2
+/// row 4): a torn boundary is not one with no claim. The bodies are at
+/// rest (the census, the split's gate), or mid-operation (the REST
+/// lane, the split's crossing insertion), where the links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn face_reach_in<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
     band: Band,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let surface = body
-        .get_face(f)
-        .and_then(|d| body.surfaces.get(d.surface))?;
+    let face = proven(&body.faces, f, EntityId::Face);
+    let surface = body.face_surface_linked(f, face);
     // A cylinder whose axis has no decided length is a broken carrier,
     // and a description with no claim in it answers `None`.
     match crate::boolean::boxes::face_box_rule(surface, band).ok()? {
-        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, frame),
+        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f, face, frame),
         crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
             if patch.is_placeholder() {
                 // The mvfs placeholder's control net is poison
@@ -2599,7 +2605,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // coordinate is linear along the surface, so the face's
             // axial extremes lie ON the boundary, but not
             // necessarily at a boundary VERTEX.
-            let h = boundary_axial(body, f, origin, axis.get())?;
+            let h = boundary_axial(body, f, face, origin, axis.get())?;
             let slab = span_pts(crate::boolean::boxes::slab_extent(
                 &crate::boolean::boxes::SpanBox::point(frame.point(origin)),
                 &frame.unit(axis),
@@ -2616,7 +2622,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // reaches. Coordinate 2 is left unclipped only because the
             // boolean lane leaves it so, and the two lanes must clip
             // alike or `the_two_box_lanes_agree_face_for_face` reds.
-            Some(match boundary_reach(body, f, frame) {
+            Some(match boundary_reach(body, f, face, frame) {
                 Some((blo, bhi)) => (
                     Point3::new(slab.0.x.max(blo.x), slab.0.y.max(blo.y), slab.0.z),
                     Point3::new(slab.1.x.min(bhi.x), slab.1.y.min(bhi.y), slab.1.z),
@@ -2629,7 +2635,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             axis,
             half_angle,
         } => {
-            let h = boundary_axial(body, f, apex, axis)?;
+            let h = boundary_axial(body, f, face, apex, axis)?;
             let apex = crate::boolean::boxes::SpanBox::point(frame.point(apex));
             let axis = crate::boolean::boxes::SpanBox::vector(frame.vector(axis));
             Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
@@ -2670,40 +2676,41 @@ pub(crate) fn torus_chart_window<T: Decide>(
 /// than the corners of a box around it
 /// ([`crate::boolean::boxes::edge_axial_span`], which carries why the
 /// difference is not cosmetic at a tilted axis). `None` for a face
-/// with no boundary, or one whose boundary this lane cannot walk.
+/// with no boundary. `face` is `f`'s record, resolved by
+/// [`face_reach_in`]; every hop past it is a link and panics as there.
 fn boundary_axial<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
+    face: &Face,
     origin: Point3<T>,
     axis: Vec3<T>,
 ) -> Option<crate::boolean::boxes::Span<T>> {
-    use crate::boolean::boxes::{AxialCarrier, EdgeBoxRule, SpanBox, edge_axial_span};
-    let face = body.get_face(f)?;
+    use crate::boolean::boxes::{
+        AxialCarrier, EdgeBoxRule, SpanBox, edge_axial_span, edge_end_point,
+    };
     let (o, ax) = (SpanBox::point(origin), SpanBox::vector(axis));
     let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
-    for lk in face_loops(face) {
-        let l = body.loops.get(lk)?;
+    for (lk, l) in body.face_loops_linked(f, face) {
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
-                let v = body.vertices.get(vertex)?;
-                let p = SpanBox::point(*body.points.get(v.point)?);
+                let p =
+                    SpanBox::point(body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex"));
                 let sp = edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p));
                 acc = Some(acc.map_or(sp, |a| a.hull(sp)));
             }
             LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first)? {
-                    let ek = body.half_edges.get(he)?.edge;
-                    let e = body.edges.get(ek)?;
-                    let end = |h| -> Option<SpanBox<T>> {
-                        let hd = body.half_edges.get(h)?;
-                        let v = body.vertices.get(hd.start)?;
-                        Some(SpanBox::point(*body.points.get(v.point)?))
-                    };
-                    let carrier = body
-                        .curves
-                        .get(e.curve)
-                        .and_then(CurveGeom::certified)
-                        .map(geom_brep::EdgeCurve::carrier);
+                for he in body.loop_walk(first).closed("loop", first) {
+                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+                    let e = linked(
+                        &body.edges,
+                        ek,
+                        EntityId::Edge,
+                        EntityId::HalfEdge(he),
+                        "edge",
+                    );
+                    let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
+                    let certified = body.edge_curve_linked(ek, e).certified();
+                    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
                     let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
                         // No axial-span closed form is written for the
                         // spiric (the boolean lane's own reading).
@@ -2721,15 +2728,11 @@ fn boundary_axial<T: Decide>(
                             v_ref: SpanBox::vector(c_axis.cross(u_ref)),
                             semi_u,
                             semi_v,
-                            params: body
-                                .curves
-                                .get(e.curve)
-                                .and_then(CurveGeom::certified)
-                                .map(geom_brep::EdgeCurve::params),
+                            params: certified.map(geom_brep::EdgeCurve::params),
                         },
                     };
-                    let sp =
-                        edge_axial_span(&o, &ax, &axial, (&end(e.he_plus)?, &end(e.he_minus)?));
+                    let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
+                    let sp = edge_axial_span(&o, &ax, &axial, (&a, &b));
                     acc = Some(acc.map_or(sp, |a| a.hull(sp)));
                 }
             }
@@ -2741,12 +2744,14 @@ fn boundary_axial<T: Decide>(
 /// Every boundary edge's reach, hulled with the isolated-vertex loops
 /// (which have no edge to speak for them). `None` as soon as one
 /// boundary curve has no sound box — [`face_reach`]'s boundary walk.
+/// `face` is `f`'s record, resolved by [`face_reach_in`]; every hop
+/// past it is a link and panics as there.
 fn boundary_reach<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
+    face: &Face,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let face = body.get_face(f)?;
     let mut acc: Option<(Point3<T>, Point3<T>)> = None;
     let mut grow = |(lo, hi): (Point3<T>, Point3<T>)| {
         acc = Some(match acc {
@@ -2757,18 +2762,23 @@ fn boundary_reach<T: Decide>(
             ),
         });
     };
-    for lk in face_loops(face) {
-        let l = body.loops.get(lk)?;
+    for (lk, l) in body.face_loops_linked(f, face) {
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
-                let v = body.vertices.get(vertex)?;
-                let p = frame.point(*body.points.get(v.point)?);
+                let p = frame.point(body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex"));
                 grow((p, p));
             }
             LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first)? {
-                    let ek = body.half_edges.get(he)?.edge;
-                    grow(edge_reach_in(body, ek, frame)?);
+                for he in body.loop_walk(first).closed("loop", first) {
+                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+                    let e = linked(
+                        &body.edges,
+                        ek,
+                        EntityId::Edge,
+                        EntityId::HalfEdge(he),
+                        "edge",
+                    );
+                    grow(edge_reach_of(body, ek, e, frame)?);
                 }
             }
         }
@@ -2778,27 +2788,40 @@ fn boundary_reach<T: Decide>(
 
 /// One edge's reach — [`crate::boolean::boxes::EdgeBoxRule`] at this
 /// lane's scalar, read in `frame` as [`face_reach_in`] reads a face.
+/// `None` where the edge's carrier has no sound box, null scaffolding
+/// included.
+///
+/// # Panics
+///
+/// Where `ek`, which every caller read out of `body`, or a record past
+/// it does not resolve, as [`face_reach_in`]: a torn curve is not null
+/// scaffolding.
 pub(crate) fn edge_reach_in<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let e = body.edges.get(ek)?;
-    let end = |he| -> Option<Point3<T>> {
-        let hd = body.half_edges.get(he)?;
-        let v = body.vertices.get(hd.start)?;
-        body.points.get(v.point).map(|p| frame.point(*p))
-    };
-    let (a, b) = (end(e.he_plus)?, end(e.he_minus)?);
+    edge_reach_of(body, ek, proven(&body.edges, ek, EntityId::Edge), frame)
+}
+
+/// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
+fn edge_reach_of<T: Decide>(
+    body: &Body<T>,
+    ek: crate::entity::EdgeKey,
+    e: &crate::entity::Edge,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    use crate::boolean::boxes::edge_end_point;
+    let (a, b) = (
+        frame.point(edge_end_point(body, ek, e.he_plus, "he_plus")),
+        frame.point(edge_end_point(body, ek, e.he_minus, "he_minus")),
+    );
     let chord = (
         Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
         Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
     );
-    let carrier = body
-        .curves
-        .get(e.curve)
-        .and_then(CurveGeom::certified)
-        .map(geom_brep::EdgeCurve::carrier);
+    let certified = body.edge_curve_linked(ek, e).certified();
+    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
     match crate::boolean::boxes::edge_box_rule(carrier) {
         crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
         crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
@@ -2860,11 +2883,7 @@ pub(crate) fn edge_reach_in<T: Decide>(
             // drift (`the_two_box_lanes_agree_face_for_face` is what
             // says so). A carrier with no certified parameters has no
             // arc to scope and keeps the full-turn amplitude.
-            let params = body
-                .curves
-                .get(e.curve)
-                .and_then(CurveGeom::certified)
-                .map(geom_brep::EdgeCurve::params);
+            let params = certified.map(geom_brep::EdgeCurve::params);
             let (flo, fhi) = span_pts(match params {
                 Some((t0, t1)) => crate::boolean::boxes::arc_extent(
                     &crate::boolean::boxes::SpanBox::point(center),
