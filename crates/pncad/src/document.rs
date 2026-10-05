@@ -163,7 +163,8 @@ pub use editor_core::{
 // a node an edit carries is an `AuthoredNode`. `NameFault` is the
 // lowering's refusal, for a caller that lowers a formula itself
 // (`Doc::lowered`), and `Unlowered` says why; `Slot` is the bound a
-// reader generic over the two node forms states.
+// reader generic over the two node forms states, and `ExprTree` over
+// `LeafSet` (`StoredLeaf`, `AuthoredLeaf`) the tree both forms share.
 // `VarEnv` joins them because `select_where` takes one, so a
 // caller who cannot spell the type cannot call the door.
 // `DimensionError` is the refusal `Formula`'s constructor doors return
@@ -176,8 +177,8 @@ pub use editor_core::{
 // `DocEdit::SetExpression` takes, so without it a consumer cannot spell
 // which expression the edit replaces.
 pub use editor_core::{
-    AuthoredNode, Dimension, DimensionError, Expr, ExprPath, Formula, NameFault, ParseError, Slot,
-    Unlowered, VarEnv, parse_formula, unparse,
+    AuthoredLeaf, AuthoredNode, Dimension, DimensionError, Expr, ExprPath, ExprTree, Formula,
+    LeafSet, NameFault, ParseError, Slot, StoredLeaf, Unlowered, VarEnv, parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a

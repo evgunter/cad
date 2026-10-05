@@ -2277,6 +2277,12 @@ NOT_BOUND = {
     # `why` (`Unlowered`) rides `EvalError.variant` rather than a class.
     "Slot": SHAPE,
     "Unlowered": SHAPE,
+    # The one tree both forms share, and its leaf sets: Rust's generic
+    # spelling of what Python holds as two classes, `Formula` and `Expr`.
+    "AuthoredLeaf": SHAPE,
+    "ExprTree": SHAPE,
+    "LeafSet": SHAPE,
+    "StoredLeaf": SHAPE,
     # How a sentence names a node. Python reads a node's sentence inside
     # the error a door raises, already spoken; its machine spelling is
     # `NodeId`'s and `StepId`'s repr, which prints the full id

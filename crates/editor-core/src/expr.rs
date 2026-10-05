@@ -322,10 +322,11 @@ pub type Expr = ExprTree<StoredLeaf>;
 
 impl<L: LeafSet> core::fmt::Debug for ExprTree<L> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { dim, nesting, kind } = self;
         f.debug_struct(L::FORM)
-            .field("dim", &self.dim)
-            .field("nesting", &self.nesting)
-            .field("kind", &self.kind)
+            .field("dim", dim)
+            .field("nesting", nesting)
+            .field("kind", kind)
             .finish()
     }
 }
