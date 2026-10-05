@@ -809,8 +809,8 @@ impl core::fmt::Display for ParamBoxError {
         match self {
             Self::UnknownParam { param } => write!(
                 f,
-                "the parameter box names {param}, which is not a continuous variable of this \
-                 document"
+                "the parameter box names {param}, which is not a free continuous variable of \
+                 this document"
             ),
             Self::AxisUnrepresentable { param, lo, hi } => write!(
                 f,
