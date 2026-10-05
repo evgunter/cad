@@ -13,8 +13,8 @@
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, FreeValue, FreeVar, GaugeRefFault, NameCarrier,
-    VarName, VarReadFault, WitnessSiteFault,
+    DisplayUnitRefusal, DistributionRefusal, Doc, ExpansionFault, FreeValue, FreeVar,
+    GaugeRefFault, NameCarrier, VarName, VarReadFault, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
@@ -892,6 +892,66 @@ pub const UNKNOWN_VAR_RECOURSE: &str = "pick a variable the document holds";
 /// grow it exponentially without a bound. The doors that write a
 /// definition refuse past it ([`EditError::DefinitionTooLarge`]).
 pub const DEFINITION_NODE_BOUND: usize = 4096;
+
+/// **The sentence of a definition cycle**, rendered once for the edit
+/// door ([`EditError::DefinitionCycle`]) and the load walk
+/// ([`crate::persist::SnapshotError::DefinitionCycle`]): one fact at
+/// two doors.
+pub(crate) struct DefinitionCycleSentence<'a> {
+    pub(crate) var: &'a SpokenVar,
+    pub(crate) through: &'a [SpokenVar],
+}
+
+impl core::fmt::Display for DefinitionCycleSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let var = self.var;
+        write!(f, "the definition of {var} reads {var} back, through ")?;
+        for (i, held) in self.through.iter().enumerate() {
+            if i > 0 {
+                f.write_str(" → ")?;
+            }
+            write!(f, "{held}")?;
+        }
+        write!(f, " → {var}")
+    }
+}
+
+/// **The sentence of an expansion past [`DEFINITION_NODE_BOUND`]**,
+/// rendered once for both doors, as [`DefinitionCycleSentence`].
+pub(crate) struct DefinitionTooLargeSentence<'a> {
+    pub(crate) var: &'a SpokenVar,
+    pub(crate) nodes: usize,
+}
+
+impl core::fmt::Display for DefinitionTooLargeSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} expands, through the definitions it reads, to {} expression nodes, past the \
+             bound of {DEFINITION_NODE_BOUND}",
+            self.var, self.nodes
+        )
+    }
+}
+
+/// **The sentence of a definition reading a variable at another
+/// kind**, rendered once for both doors, as [`DefinitionCycleSentence`].
+pub(crate) struct DefinitionVarKindSentence<'a> {
+    pub(crate) var: &'a SpokenVar,
+    pub(crate) read: &'a SpokenVar,
+    pub(crate) declared: Dimension,
+    pub(crate) referenced: Dimension,
+}
+
+impl core::fmt::Display for DefinitionVarKindSentence<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} is declared {} but the definition of {} reads it as {}",
+            self.read, self.declared, self.var, self.referenced
+        )
+    }
+}
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
@@ -2732,25 +2792,14 @@ impl EditError {
                 )
             }
             Self::DefinitionCycle { var, through } => {
-                write!(f, "the definition of {var} reads {var} back, through ")?;
-                for (i, held) in through.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(" → ")?;
-                    }
-                    write!(f, "{held}")?;
-                }
-                write!(f, " → {var}")?;
+                write!(f, "{}", DefinitionCycleSentence { var, through })?;
                 tail.recourse(
                     f,
                     format_args!("define {var} without reading any variable on that cycle"),
                 )
             }
             Self::DefinitionTooLarge { var, nodes } => {
-                write!(
-                    f,
-                    "{var} expands, through the definitions it reads, to {nodes} expression \
-                     nodes, past the bound of {DEFINITION_NODE_BOUND}"
-                )?;
+                write!(f, "{}", DefinitionTooLargeSentence { var, nodes: *nodes })?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -2781,8 +2830,13 @@ impl EditError {
             } => {
                 write!(
                     f,
-                    "{read} is declared {declared} but the definition of {var} reads it as \
-                     {referenced}"
+                    "{}",
+                    DefinitionVarKindSentence {
+                        var,
+                        read,
+                        declared: *declared,
+                        referenced: *referenced,
+                    }
                 )?;
                 tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
@@ -4262,7 +4316,6 @@ fn write_free<P>(
     check_var_def(var, &def)?;
     let structural = def.kind() == VarKind::Count;
     new.vars.insert(id, Var::new(def));
-    new.definition_order = crate::doc::DefinitionOrderMemo::default();
     Ok(EditRecord {
         minted: None,
         minted_var: None,
@@ -4328,26 +4381,20 @@ fn check_definition<P>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
             },
         });
     }
-    if let Some(cycle) = new.definition_cycle(id) {
-        return Err(EditError::DefinitionCycle {
-            var,
-            through: cycle.into_iter().map(|v| new.spoken_var(v)).collect(),
-        });
+    // A redefinition can close a cycle or grow every expansion that
+    // reads it, so the whole document is asked, by the search the load
+    // walk asks too.
+    match new.expansion_fault() {
+        None => Ok(()),
+        Some(ExpansionFault::Cycle { var, through }) => Err(EditError::DefinitionCycle {
+            var: new.spoken_var(var),
+            through: through.into_iter().map(|v| new.spoken_var(v)).collect(),
+        }),
+        Some(ExpansionFault::TooLarge { var, nodes }) => Err(EditError::DefinitionTooLarge {
+            var: new.spoken_var(var),
+            nodes,
+        }),
     }
-    // A redefinition grows every expansion that reads it, so every
-    // variable is asked, in the order definitions evaluate.
-    let sizes = new.expansion_nodes();
-    if let Some(&over) = new
-        .definition_order()
-        .iter()
-        .find(|v| sizes.get(v).is_some_and(|&n| n > DEFINITION_NODE_BOUND))
-    {
-        return Err(EditError::DefinitionTooLarge {
-            var: new.spoken_var(over),
-            nodes: sizes[&over],
-        });
-    }
-    Ok(())
 }
 
 /// Validate every slot of a node payload against slot dimensions and
@@ -4863,7 +4910,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // keeps its id.
     for var in new.unread_anonymous_vars() {
         new.vars.remove(&var);
-        new.definition_order = crate::doc::DefinitionOrderMemo::default();
         new.var_order.retain(|&held| held != var);
         reported.push(Maintenance::AnonymousVarRemoved {
             var: doc.spoken_var(var),
@@ -5356,7 +5402,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
-            new.definition_order = crate::doc::DefinitionOrderMemo::default();
             new.var_names.insert(id, name.clone());
             new.var_order.push(id);
             check_definition(new, id)?;
@@ -5388,7 +5433,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 VarDef::Defined(_) => {
                     check_var_def(&spoken, &def)?;
                     new.vars.insert(id, Var::new(def));
-                    new.definition_order = crate::doc::DefinitionOrderMemo::default();
                     check_definition(new, id)?;
                     EditRecord {
                         minted: None,
@@ -5497,7 +5541,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             new.vars.remove(&id);
-            new.definition_order = crate::doc::DefinitionOrderMemo::default();
             new.var_names.remove(&id);
             new.var_order.retain(|&held| held != id);
             // The readers stay, unresolved: each now refuses at

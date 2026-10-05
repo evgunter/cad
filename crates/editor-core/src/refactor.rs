@@ -2814,8 +2814,7 @@ pub fn split(
     let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
     for id in doc
         .definition_order()
-        .iter()
-        .copied()
+        .into_iter()
         .filter(|id| cut_refs.contains_key(id))
     {
         let Some(var) = doc.var(id) else {
@@ -3464,7 +3463,7 @@ pub fn inline(
         }
     }
     let mut var_map: BTreeMap<VarId, VarId> = BTreeMap::new();
-    for &id in part.definition_order() {
+    for id in part.definition_order() {
         let Some(var) = part.var(id) else { continue };
         let Some(name) = part.var_name(id) else {
             return Err(InlineError::AnonymousVarCrossesCut {

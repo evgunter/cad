@@ -107,12 +107,15 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
         // Closed over definitions: a defined variable whose definition
         // reads a moved variable, directly or through others, moved
         // with it, so a reader of `h := 2·w` is dirty when `w` moves.
-        for doc in [other, self] {
-            for &id in doc.definition_order() {
-                if !vars.contains(&id) && doc.definition_reads(id).iter().any(|r| vars.contains(r))
-                {
-                    vars.push(id);
-                }
+        // Over `other` alone: a definition `self` holds that `other`
+        // does not hold bit-equal moved itself, and one it does hold is
+        // met here.
+        let mut moved: std::collections::BTreeSet<VarId> = vars.iter().copied().collect();
+        for id in other.definition_order() {
+            if !moved.contains(&id) && other.definition_reads(id).iter().any(|r| moved.contains(r))
+            {
+                moved.insert(id);
+                vars.push(id);
             }
         }
         let witness_moved = |id: &RecipeNodeId| self.witnesses.get(id) != other.witnesses.get(id);

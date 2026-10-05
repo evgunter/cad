@@ -881,28 +881,6 @@ pub struct Doc<P> {
         with = "crate::persist::strict::labels"
     )]
     pub(crate) labels: BTreeMap<RecipeNodeId, crate::Label>,
-    /// [`Self::definition_order`]'s memo: never on the wire, and a
-    /// clone starts it empty, so the copy an edit writes into
-    /// recomputes it.
-    #[serde(skip)]
-    pub(crate) definition_order: DefinitionOrderMemo,
-}
-
-/// The memo of [`Doc::definition_order`]. Not part of the document:
-/// every document compares equal on it, and a clone holds none.
-#[derive(Debug, Default)]
-pub(crate) struct DefinitionOrderMemo(std::sync::OnceLock<Box<[VarId]>>);
-
-impl Clone for DefinitionOrderMemo {
-    fn clone(&self) -> Self {
-        Self::default()
-    }
-}
-
-impl PartialEq for DefinitionOrderMemo {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
 }
 
 /// **Which of the document's own fields hold a [`StableName`]** — one
@@ -1011,7 +989,6 @@ impl<P> Doc<P> {
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
             labels: BTreeMap::new(),
-            definition_order: DefinitionOrderMemo::default(),
         }
     }
 
@@ -1188,26 +1165,28 @@ impl<P> Doc<P> {
     /// **The variables whose definition reads `var`**, directly, in
     /// declaration order.
     pub fn var_definers(&self, var: VarId) -> Vec<VarId> {
-        self.var_order
-            .iter()
-            .copied()
-            .filter(|id| {
-                self.vars
-                    .get(id)
-                    .and_then(|v| v.def().defined())
-                    .is_some_and(|expr| expr.reads(var))
+        let edges = self.definition_edges();
+        edges
+            .position
+            .get(&var)
+            .map(|&at| {
+                edges.definers[at]
+                    .iter()
+                    .map(|&d| self.var_order[d])
+                    .collect()
             })
-            .collect()
+            .unwrap_or_default()
     }
 
     /// `var` and every variable whose definition reads it, directly or
     /// through other definitions.
     fn reached_through_definitions(&self, var: VarId) -> BTreeSet<VarId> {
+        let edges = self.definition_edges();
         let mut reached = BTreeSet::from([var]);
-        let mut frontier = vec![var];
+        let mut frontier: Vec<usize> = edges.position.get(&var).copied().into_iter().collect();
         while let Some(at) = frontier.pop() {
-            for definer in self.var_definers(at) {
-                if reached.insert(definer) {
+            for &definer in &edges.definers[at] {
+                if reached.insert(self.var_order[definer]) {
                     frontier.push(definer);
                 }
             }
@@ -1223,6 +1202,50 @@ impl<P> Doc<P> {
             expr.var_reads(&mut reads);
         }
         reads.into_iter().map(|(read, _)| read).collect()
+    }
+
+    /// **The graph of definitions**, built in one pass over the
+    /// variables and indexed by declaration position: every walk over
+    /// definitions reads it, so each is linear in the variables and
+    /// their reads.
+    fn definition_edges(&self) -> DefinitionEdges {
+        let position: BTreeMap<VarId, usize> = self
+            .var_order
+            .iter()
+            .enumerate()
+            .map(|(at, &id)| (id, at))
+            .collect();
+        let mut reads = vec![Vec::new(); self.var_order.len()];
+        let mut definers = vec![Vec::new(); self.var_order.len()];
+        let mut any = false;
+        for (at, read_by) in reads.iter_mut().enumerate() {
+            let Some(expr) = self
+                .vars
+                .get(&self.var_order[at])
+                .and_then(|v| v.def().defined())
+            else {
+                continue;
+            };
+            let mut leaves = Vec::new();
+            expr.var_reads(&mut leaves);
+            let mut held: Vec<usize> = leaves
+                .into_iter()
+                .filter_map(|(read, _)| position.get(&read).copied())
+                .collect();
+            held.sort_unstable();
+            held.dedup();
+            for &read in &held {
+                definers[read].push(at);
+            }
+            any |= !held.is_empty();
+            *read_by = held;
+        }
+        DefinitionEdges {
+            position,
+            reads,
+            definers,
+            any,
+        }
     }
 
     /// **The anonymous variables nothing live reads** (VR7), in the
@@ -1244,54 +1267,80 @@ impl<P> Doc<P> {
                 node_read.extend(reads.into_iter().map(|(var, _)| var));
             }
         }
-        let mut standing: Vec<VarId> = self.var_order.clone();
+        let edges = self.definition_edges();
+        let unheld = |at: usize| {
+            let id = self.var_order[at];
+            !self.var_names.contains_key(&id) && !node_read.contains(&id)
+        };
+        // How many standing definitions read each variable: a round
+        // removes its variables' reads, and a variable whose count
+        // falls to none joins the next round.
+        let mut holders: Vec<usize> = edges.definers.iter().map(Vec::len).collect();
+        let mut round: Vec<usize> = (0..self.var_order.len())
+            .filter(|&at| holders[at] == 0 && unheld(at))
+            .collect();
         let mut removed = Vec::new();
-        loop {
-            let definition_read: BTreeSet<VarId> = standing
-                .iter()
-                .flat_map(|&id| self.definition_reads(id))
-                .collect();
-            let round: Vec<VarId> = standing
-                .iter()
-                .copied()
-                .filter(|id| {
-                    !self.var_names.contains_key(id)
-                        && !node_read.contains(id)
-                        && !definition_read.contains(id)
-                })
-                .collect();
-            if round.is_empty() {
-                return removed;
+        while !round.is_empty() {
+            let mut next = Vec::new();
+            for &at in &round {
+                for &read in &edges.reads[at] {
+                    holders[read] -= 1;
+                    if holders[read] == 0 && unheld(read) {
+                        next.push(read);
+                    }
+                }
             }
-            standing.retain(|id| !round.contains(id));
-            removed.extend(round);
+            next.sort_unstable();
+            removed.extend(round.iter().map(|&at| self.var_order[at]));
+            round = next;
         }
+        removed
     }
 
     /// **The order definitions evaluate in**: every variable, each
     /// after the variables its definition reads, ties broken by
     /// declaration order — so a document with no definition lists
-    /// [`Self::var_order`]. A variable on a definition cycle, which no
-    /// door admits, comes last, in declaration order. Memoized.
-    pub fn definition_order(&self) -> &[VarId] {
-        self.definition_order.0.get_or_init(|| {
-            let mut placed: BTreeSet<VarId> = BTreeSet::new();
-            let mut order: Vec<VarId> = Vec::with_capacity(self.var_order.len());
-            loop {
-                let next = self.var_order.iter().copied().find(|id| {
-                    !placed.contains(id)
-                        && self
-                            .definition_reads(*id)
-                            .iter()
-                            .all(|read| placed.contains(read) || !self.vars.contains_key(read))
-                });
-                let Some(next) = next else { break };
-                placed.insert(next);
-                order.push(next);
+    /// [`Self::var_order`]. A variable on a definition cycle, or
+    /// reading one, which no door admits, comes last, in declaration
+    /// order. Kahn's algorithm over [`Self::definition_edges`], the
+    /// earliest-declared ready variable first.
+    pub fn definition_order(&self) -> Vec<VarId> {
+        self.ordered().0
+    }
+
+    /// [`Self::definition_order`], and how many of its variables
+    /// Kahn's algorithm placed: the rest are on a cycle or read one.
+    fn ordered(&self) -> (Vec<VarId>, usize) {
+        let edges = self.definition_edges();
+        if !edges.any {
+            return (self.var_order.clone(), self.var_order.len());
+        }
+        let mut waiting: Vec<usize> = edges.reads.iter().map(Vec::len).collect();
+        let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<usize>> = (0..waiting.len())
+            .filter(|&at| waiting[at] == 0)
+            .map(std::cmp::Reverse)
+            .collect();
+        let mut placed = vec![false; waiting.len()];
+        let mut order = Vec::with_capacity(waiting.len());
+        while let Some(std::cmp::Reverse(at)) = ready.pop() {
+            order.push(self.var_order[at]);
+            placed[at] = true;
+            for &definer in &edges.definers[at] {
+                waiting[definer] -= 1;
+                if waiting[definer] == 0 {
+                    ready.push(std::cmp::Reverse(definer));
+                }
             }
-            order.extend(self.var_order.iter().filter(|id| !placed.contains(id)));
-            order.into_boxed_slice()
-        })
+        }
+        let ordered = order.len();
+        order.extend(
+            self.var_order
+                .iter()
+                .zip(&placed)
+                .filter(|(_, placed)| !**placed)
+                .map(|(&id, _)| id),
+        );
+        (order, ordered)
     }
 
     /// **The definition cycle through `var`**, if its definition reads
@@ -1328,14 +1377,15 @@ impl<P> Doc<P> {
         walk(self, var, var, &mut path, &mut seen).then_some(path)
     }
 
-    /// **Each variable's expansion size**: the expression nodes a
-    /// coincidence token writes for a reader of it, its definition
-    /// expanded through the definitions it reads. A free variable is
-    /// one leaf. Saturating at one past [`crate::edit::DEFINITION_NODE_BOUND`].
-    pub(crate) fn expansion_nodes(&self) -> BTreeMap<VarId, usize> {
+    /// **Each variable's expansion size**, over `order`, the document's
+    /// [`Self::definition_order`]: the expression nodes a coincidence
+    /// token writes for a reader of it, its definition expanded through
+    /// the definitions it reads. A free variable is one leaf.
+    /// Saturating at one past [`crate::edit::DEFINITION_NODE_BOUND`].
+    fn expansion_nodes(&self, order: &[VarId]) -> BTreeMap<VarId, usize> {
         let cap = crate::edit::DEFINITION_NODE_BOUND + 1;
         let mut sizes: BTreeMap<VarId, usize> = BTreeMap::new();
-        for &id in self.definition_order() {
+        for &id in order {
             let size = match self.vars.get(&id).and_then(|v| v.def().defined()) {
                 None => 1,
                 Some(expr) => expanded_size(expr, &sizes, cap),
@@ -1343,6 +1393,30 @@ impl<P> Doc<P> {
             sizes.insert(id, size);
         }
         sizes
+    }
+
+    /// **The first expansion fault, in declaration order**: a variable
+    /// on a definition cycle, else a variable whose expansion outgrows
+    /// [`crate::edit::DEFINITION_NODE_BOUND`]. The ONE search the edit
+    /// door and the load walk ask, so one document names one variable
+    /// at both.
+    pub(crate) fn expansion_fault(&self) -> Option<ExpansionFault> {
+        let (order, placed) = self.ordered();
+        // Kahn's remainder holds every variable on a cycle (and those
+        // reading one); the first of it, in declaration order, that
+        // reads itself back is the one named.
+        let cyclic = order[placed..]
+            .iter()
+            .find_map(|&id| Some((id, self.definition_cycle(id)?)));
+        if let Some((var, through)) = cyclic {
+            return Some(ExpansionFault::Cycle { var, through });
+        }
+        let sizes = self.expansion_nodes(&order);
+        self.var_order.iter().find_map(|id| {
+            let nodes = *sizes.get(id)?;
+            (nodes > crate::edit::DEFINITION_NODE_BOUND)
+                .then_some(ExpansionFault::TooLarge { var: *id, nodes })
+        })
     }
 
     /// **`expr` with every name leaf this document resolves lowered** to
@@ -1637,7 +1711,7 @@ impl<P> Doc<P> {
     /// refuses binds nothing and records its refusal, which each
     /// reader then refuses with ([`crate::EvalError::DefinitionRefused`]).
     pub fn bind_definitions<T: Decide>(&self, env: &mut VarEnv<T>) {
-        for &id in self.definition_order() {
+        for id in self.definition_order() {
             let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
                 continue;
             };
@@ -1669,13 +1743,9 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
     let mut total = 0usize;
     let mut stack = vec![expr];
     while let Some(at) = stack.pop() {
-        let mut reads = Vec::new();
-        if matches!(at.kind(), crate::expr::ExprKind::Var(_)) {
-            at.var_reads(&mut reads);
-        }
-        total = total.saturating_add(match reads.first() {
-            Some((var, _)) => sizes.get(var).copied().unwrap_or(1),
-            None => 1,
+        total = total.saturating_add(match at.kind() {
+            crate::expr::ExprKind::Var(var) => sizes.get(var).copied().unwrap_or(1),
+            _ => 1,
         });
         if total >= cap {
             return cap;
@@ -1683,6 +1753,28 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
         stack.extend((0..2).filter_map(|i| at.child(i)));
     }
     total
+}
+
+/// **The adjacency of a document's definitions** ([`Doc::definition_edges`]),
+/// by declaration position: each defined variable's live reads, and
+/// each variable's definers in declaration order.
+struct DefinitionEdges {
+    position: BTreeMap<VarId, usize>,
+    reads: Vec<Vec<usize>>,
+    definers: Vec<Vec<usize>>,
+    /// Whether any definition reads a live variable.
+    any: bool,
+}
+
+/// **A definition fault no door admits**, as [`Doc::expansion_fault`]
+/// finds it: the edit door and the load walk each speak it as their
+/// own refusal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ExpansionFault {
+    /// `var`'s definition reads it back, through `through` (from `var` on).
+    Cycle { var: VarId, through: Vec<VarId> },
+    /// `var`'s expansion holds `nodes` expression nodes, past the bound.
+    TooLarge { var: VarId, nodes: usize },
 }
 
 /// Whether any expression `node` carries reads `var`.
@@ -2083,7 +2175,7 @@ mod tests {
     fn a_cycle_orders_every_variable_and_binds_none() {
         use crate::expr::EvalError;
         let (doc, a, b) = cyclic();
-        assert_eq!(doc.definition_order(), &[a, b]);
+        assert_eq!(doc.definition_order(), vec![a, b]);
         assert_eq!(doc.definition_cycle(a), Some(vec![a, b]));
         let env = doc.var_env::<f64>();
         assert!(env.bindings.is_empty(), "{:?}", env.bindings);
@@ -2129,7 +2221,7 @@ mod tests {
             doc.var_order.push(id);
             prev = id;
         }
-        let sizes = doc.expansion_nodes();
+        let sizes = doc.expansion_nodes(&doc.definition_order());
         assert_eq!(sizes[&VarId(2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
     }

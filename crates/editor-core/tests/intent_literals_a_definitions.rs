@@ -654,7 +654,7 @@ fn definitions_bind_after_what_they_read() {
     .doc;
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
     assert_eq!(doc.var_order(), &[h, w]);
-    assert_eq!(doc.definition_order(), &[w, h]);
+    assert_eq!(doc.definition_order(), vec![w, h]);
     let env = doc.var_env::<f64>();
     assert_eq!(
         env.bindings.get(&h),
