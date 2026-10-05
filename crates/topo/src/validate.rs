@@ -2993,7 +2993,10 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
             "a point of it lies too close to a boundary to place at this tolerance".into(),
             OFF_BOUNDARY,
         ),
-        ContainError::StaleFace(face) => crate::boolean::driver_face_stale(*face),
+        ContainError::StaleFace(_) => (
+            "a face the check asked about does not resolve in the body".into(),
+            DEFECT,
+        ),
         ContainError::EmptyLoop(_) => (
             "a loop of its boundary is a lone vertex, which bounds no region".into(),
             DEFECT,
