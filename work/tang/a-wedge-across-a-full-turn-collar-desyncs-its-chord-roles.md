@@ -2,10 +2,11 @@
 id: a-wedge-across-a-full-turn-collar-desyncs-its-chord-roles
 kind: issue
 title: A partial-revolve wedge crossing a full-turn collar's cap refuses JoinDesync: every chord arc separates a loose scaffolding pair
-status: review
+status: closed
 opened: 2026-10-02
 pr: 3985
 branch: reach/arc-from-pairing
+closed: 2026-10-04
 ---
 
 
@@ -44,3 +45,8 @@ bore and outer wall are full-turn faces, whose window spans a period).
 On the branch, which reads no window, all 48 build under ∪, ∩,
 collar ∖ wedge and wedge ∖ collar, tiers 2 and 3 clean, to the
 annular-sector closed form (`crates/sweep/tests/wedge_through_a_full_turn_collar.rs`).
+
+## Closed (2026-10-04)
+
+PR 3985 merged (`31eeed1268`); its answer above is on main, verified twice
+(`analysis/reach-verify/3985`, `analysis/reach-verify2/3985`).
