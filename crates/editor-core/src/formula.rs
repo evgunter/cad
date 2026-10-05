@@ -46,6 +46,79 @@ impl core::fmt::Display for NameFault {
 
 impl core::error::Error for NameFault {}
 
+/// **A fresh-table read the lowering did not resolve**, the first in
+/// pre-order: the index, the dimension the leaf reads it at, and the
+/// dimension the entry holds, `None` where the table holds no entry
+/// `index`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FreshFault {
+    /// The table index the leaf reads.
+    pub index: u16,
+    /// The dimension the leaf reads it at.
+    pub dim: Dimension,
+    /// The dimension the entry holds, if the table holds it.
+    pub held: Option<Dimension>,
+}
+
+impl core::fmt::Display for FreshFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { index, dim, held } = self;
+        match held {
+            None => write!(f, "the edit's fresh table holds no entry {index}"),
+            Some(held) => write!(
+                f,
+                "fresh entry {index} is {} {held}, read here as {} {dim}",
+                held.article(),
+                dim.article()
+            ),
+        }
+    }
+}
+
+/// **Why a formula did not lower**: a name, or a fresh-table read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LowerFault {
+    /// A name leaf the scope does not resolve.
+    Name(NameFault),
+    /// A fresh leaf the edit's table does not resolve.
+    Fresh(FreshFault),
+}
+
+impl core::fmt::Display for LowerFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Name(fault) => fault.fmt(f),
+            Self::Fresh(fault) => fault.fmt(f),
+        }
+    }
+}
+
+impl core::error::Error for LowerFault {}
+
+impl From<NameFault> for LowerFault {
+    fn from(fault: NameFault) -> Self {
+        Self::Name(fault)
+    }
+}
+
+/// **What a formula is at a slot's root** (VARIABLES-DESIGN VR4, VR6):
+/// what the edit door stores for it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum SlotRoot<'a> {
+    /// A lone variable, by id: the slot reads it.
+    Var(VarId),
+    /// A lone variable, by name, read at `dim`.
+    Name(&'a VarName, Dimension),
+    /// A lone fresh-table entry, read at `dim`.
+    Fresh(u16, Dimension),
+    /// A lone written value: the slot reads a fresh anonymous free
+    /// variable holding it.
+    Value(crate::doc::FreeVar),
+    /// Anything else: the slot reads a fresh anonymous defined
+    /// variable.
+    Formula,
+}
+
 // The constructors share names with the std ops traits on purpose, as
 // `Expr`'s do.
 #[allow(clippy::should_implement_trait)]
@@ -163,14 +236,39 @@ impl Formula {
         Self::own_leaf(AuthoredLeaf::Name(name), dim)
     }
 
+    /// Entry `index` of the edit's fresh table, read at `dim`: lowered
+    /// to a reader of the variable the edit mints for that entry.
+    pub fn fresh(index: u16, dim: Dimension) -> Self {
+        Self::own_leaf(AuthoredLeaf::Fresh(index), dim)
+    }
+
+    /// What this formula is at a slot's root: what the door stores.
+    pub(crate) fn slot_root(&self) -> SlotRoot<'_> {
+        use crate::expr::ExprKind as K;
+        match self.kind() {
+            K::Var(var) => SlotRoot::Var(*var),
+            K::Leaf(AuthoredLeaf::Name(name)) => SlotRoot::Name(name, self.dim()),
+            K::Leaf(AuthoredLeaf::Fresh(index)) => SlotRoot::Fresh(*index, self.dim()),
+            K::Literal(lit) => SlotRoot::Value(crate::doc::FreeVar::Continuous {
+                dim: self.dim(),
+                value: lit.value,
+                display_unit: lit.display_unit,
+                distribution: None,
+            }),
+            K::CountLiteral(value) => SlotRoot::Value(crate::doc::FreeVar::Count { value: *value }),
+            _ => SlotRoot::Formula,
+        }
+    }
+
     /// The names this formula reads, with the dimension each is read
     /// at, in pre-order.
     pub fn named_reads(&self, out: &mut Vec<(VarName, Dimension)>) {
         // The lowering rule's own walk, asked of a scope that holds
         // nothing: every name leaf is reported, none rewritten.
         let _ = self.try_map_leaves(&mut |leaf, dim| {
-            let AuthoredLeaf::Name(name) = leaf;
-            out.push((name.clone(), dim));
+            if let AuthoredLeaf::Name(name) = leaf {
+                out.push((name.clone(), dim));
+            }
             Ok::<_, core::convert::Infallible>(Expr::var(VarId(0), dim))
         });
     }
@@ -178,31 +276,52 @@ impl Formula {
     /// **The stored expression this formula lowers to** in `scope`: every
     /// name leaf a reader of the variable `scope` resolves it to, where
     /// that variable's kind is the dimension the leaf reads it at — the
-    /// one lowering rule. Nothing is minted.
+    /// one lowering rule. Nothing is minted, and a fresh-table read
+    /// does not lower ([`Self::lower_with`]).
     ///
     /// # Errors
     ///
-    /// The first name leaf, in pre-order, that `scope` does not hold or
-    /// holds at another kind ([`NameFault`]).
+    /// The first leaf, in pre-order, that does not lower.
     pub fn lower(
         &self,
         scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
-    ) -> Result<Expr, NameFault> {
-        self.try_map_leaves(&mut |leaf, dim| {
-            let AuthoredLeaf::Name(name) = leaf;
-            match scope(name) {
+    ) -> Result<Expr, LowerFault> {
+        self.lower_with(scope, &[])
+    }
+
+    /// [`Self::lower`], each fresh leaf `i` a reader of `fresh[i]`, the
+    /// variable the edit minted for entry `i`, with its dimension.
+    ///
+    /// # Errors
+    ///
+    /// The first leaf, in pre-order, that does not lower.
+    pub(crate) fn lower_with(
+        &self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+        fresh: &[(VarId, Dimension)],
+    ) -> Result<Expr, LowerFault> {
+        self.try_map_leaves(&mut |leaf, dim| match leaf {
+            AuthoredLeaf::Name(name) => match scope(name) {
                 Some((var, declared)) if declared == dim => Ok(Expr::var(var, dim)),
-                Some((var, declared)) => Err(NameFault {
+                Some((var, declared)) => Err(LowerFault::Name(NameFault {
                     name: name.clone(),
                     dim,
                     why: Unlowered::Kind { var, declared },
-                }),
-                None => Err(NameFault {
+                })),
+                None => Err(LowerFault::Name(NameFault {
                     name: name.clone(),
                     dim,
                     why: Unlowered::Unheld,
-                }),
-            }
+                })),
+            },
+            &AuthoredLeaf::Fresh(index) => match fresh.get(usize::from(index)) {
+                Some(&(var, held)) if held == dim => Ok(Expr::var(var, dim)),
+                held => Err(LowerFault::Fresh(FreshFault {
+                    index,
+                    dim,
+                    held: held.map(|&(_, held)| held),
+                })),
+            },
         })
     }
 }
@@ -246,15 +365,15 @@ impl PartialEq<Expr> for Formula {
 /// A formula with no name leaf is already stored: the lowering in a
 /// scope that holds no name.
 impl TryFrom<&Formula> for Expr {
-    type Error = NameFault;
-    fn try_from(formula: &Formula) -> Result<Self, NameFault> {
+    type Error = LowerFault;
+    fn try_from(formula: &Formula) -> Result<Self, LowerFault> {
         formula.lower(&|_| None)
     }
 }
 
 impl TryFrom<Formula> for Expr {
-    type Error = NameFault;
-    fn try_from(formula: Formula) -> Result<Self, NameFault> {
+    type Error = LowerFault;
+    fn try_from(formula: Formula) -> Result<Self, LowerFault> {
         Self::try_from(&formula)
     }
 }

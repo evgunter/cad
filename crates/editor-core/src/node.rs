@@ -4,8 +4,11 @@
 
 use core::num::NonZeroUsize;
 
-use crate::expr::{Dimension, Expr, Slot};
+use std::collections::BTreeMap;
+
+use crate::expr::{Dimension, Slot};
 use crate::names::SplitHalf;
+use crate::var::VarId;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
@@ -677,7 +680,10 @@ impl SlotId {
     /// the document already holds, and `edit`'s `set_slot` of an
     /// expression the node does not hold YET, which is why the subject
     /// is a `(slot, expr)` pair rather than a node.
-    pub(crate) fn dimension_fault(self, expr: &impl Slot) -> Option<SlotDimensionFault> {
+    pub(crate) fn dimension_fault<L: crate::expr::LeafSet>(
+        self,
+        expr: &crate::expr::ExprTree<L>,
+    ) -> Option<SlotDimensionFault> {
         (expr.dim() != self.dimension()).then(|| SlotDimensionFault {
             slot: self,
             expected: self.dimension(),
@@ -847,7 +853,7 @@ impl SlotId {
 /// evaluation, never here.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum Datum<S = Expr> {
+pub enum Datum<S = crate::VarId> {
     /// A plane through `origin` with normal `normal` (unnormalized;
     /// PR 2 normalizes or refuses degenerate loudly).
     Plane {
@@ -1146,7 +1152,7 @@ impl InterfaceRecord {
 /// window's angle pair, and the paragraph above is why it must not.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum TubeWindow<S = Expr> {
+pub enum TubeWindow<S = crate::VarId> {
     /// The full ring — the donut.
     Full,
     /// The arc from `t0` to `t1`, radians about the spine axis from the
@@ -1215,7 +1221,7 @@ pub(crate) fn find_row<K: PartialEq, E>(rows: Vec<(K, E)>, key: K) -> Option<E> 
 /// the count lives on [`Node::Pattern`] as the structural slot).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum PatternKind<S = Expr> {
+pub enum PatternKind<S = crate::VarId> {
     /// Instances stepped along a direction.
     Linear {
         /// Step direction components, Scalar ([`SlotId::Direction`]).
@@ -1258,7 +1264,7 @@ pub enum PatternKind<S = Expr> {
 /// well-typed: a half against a split, an index against a pattern's
 /// instances, and any other pairing refuses at evaluation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum PartSelect<S = Expr> {
+pub enum PartSelect<S = crate::VarId> {
     /// The named half of a [`Node::Split`] value.
     SplitHalf(SplitHalf),
     /// The `i`-th instance of a [`Node::Pattern`] value — a
@@ -1998,7 +2004,7 @@ impl<S> PatternKind<S> {
     serialize = "P: serde::Serialize, crate::measure::MeasureExpr<S>: serde::Serialize",
     deserialize = "P: serde::Deserialize<'de>, crate::measure::MeasureExpr<S>: serde::Deserialize<'de>"
 ))]
-pub enum Node<P, S: Slot = Expr> {
+pub enum Node<P, S: Slot = crate::VarId> {
     /// A datum construction.
     Datum(Datum<S>),
     /// A programmatic sketch, carried opaquely (F4; never re-modeled).
@@ -3308,26 +3314,6 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
             .map(|(_, e)| e)
             .collect())
     }
-
-    /// [`Node::exprs`], exclusive: the same expressions in the same
-    /// order.
-    pub(crate) fn exprs_mut(&mut self) -> Vec<&mut S> {
-        expr_table!(self, value_leaves_mut, core::convert::identity, rest => rest
-            .rows_mut()
-            .into_iter()
-            .map(|(_, e)| e)
-            .collect())
-    }
-
-    /// Reads every literal's display unit as its dimension's canonical
-    /// one, in the slots and in the expressions no slot addresses
-    /// ([`payload_exprs`]): what [`Node::bit_eq`] sees, as a value that
-    /// serializes (D6: the display unit is never identity).
-    pub(crate) fn erase_display_units(&mut self) {
-        for expr in self.exprs_mut() {
-            expr.erase_display_units();
-        }
-    }
 }
 
 /// **THE slot table of a placement**: every rigid step's components at
@@ -3574,7 +3560,9 @@ impl<P> Node<P> {
         let Node::Assertion { measure, bound, .. } = self else {
             return None;
         };
-        let (measure, bound) = (*measure, bound.dim());
+        // The bound's dimension is its variable's kind; a bound reading
+        // a variable `doc` does not hold is the read walks'.
+        let (measure, bound) = (*measure, doc.vars.get(bound)?.kind().dimension());
         match doc.nodes.get(&measure) {
             Some(Node::Measure { expr, .. }) => {
                 AssertionBoundFault::against(measure, expr.dim(), bound)
@@ -3988,10 +3976,37 @@ impl<P> Node<P> {
     /// make a violation reachable: a hand-built node and a corrupt
     /// file can both state one, and neither may reach a document the
     /// edit doors could not have produced.
-    pub(crate) fn slot_dimension_fault(&self) -> Option<SlotDimensionFault>
+    ///
+    /// A stored slot holds a variable, whose dimension is its kind: the
+    /// rule asks the kind of each live slot variable `doc` holds (VR4).
+    /// A slot reading a variable `doc` does not hold is the read
+    /// walks', not this rule's.
+    pub(crate) fn slot_dimension_fault(&self, doc: &crate::Doc<P>) -> Option<SlotDimensionFault>
     where
         P: crate::ProfilePayload,
     {
+        self.rows().into_iter().find_map(|(slot, var)| {
+            let found = doc.vars.get(var)?.kind().dimension();
+            (found != slot.dimension()).then_some(SlotDimensionFault {
+                slot,
+                expected: slot.dimension(),
+                found,
+            })
+        })
+    }
+}
+
+impl<P, L> Node<P, crate::expr::ExprTree<L>>
+where
+    P: crate::program::SlotPayload<crate::expr::ExprTree<L>>,
+    L: crate::expr::LeafSet,
+    crate::expr::ExprTree<L>: Slot,
+{
+    /// **The slot-dimension rule, asked of an authored node**: every
+    /// formula the slot table pairs with a slot carries the dimension
+    /// [`SlotId::dimension`] fixes for that address — the edit doors'
+    /// question before they lower the node.
+    pub(crate) fn formula_dimension_fault(&self) -> Option<SlotDimensionFault> {
         self.rows()
             .into_iter()
             .find_map(|(slot, expr)| slot.dimension_fault(expr))
@@ -4344,18 +4359,97 @@ pub type AuthoredNode<P = crate::ProfileProgram> =
     Node<<P as crate::ProfilePayload>::Authored, crate::Formula>;
 
 impl<P: crate::ProfilePayload> Node<P> {
-    /// **This node re-authored**: every slot a formula reading what it
-    /// read, by id ([`crate::Formula::from`]), its profile's payload
-    /// re-authored ([`crate::ProfilePayload::authored`]). The edit door
-    /// lowers it back to this node, bit for bit.
+    /// **This node re-authored**: every slot a formula reading its
+    /// variable by id ([`crate::Formula::var`]), at the dimension the
+    /// slot's address reads it at, its profile's payload re-authored
+    /// ([`crate::ProfilePayload::authored`]). The edit door lowers it
+    /// back to this node, bit for bit: a lone variable lowers to
+    /// itself, so every unchanged argument keeps its variable and
+    /// that variable's distribution.
+    ///
+    /// `doc` answers what no address fixes: an assertion's bound is
+    /// read at its measure's dimension.
     #[must_use]
-    pub fn authored(&self) -> Node<P::Authored, crate::Formula> {
+    pub fn authored(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
+        self.authored_with(doc, &mut crate::Formula::var)
+    }
+
+    /// [`Self::authored`], each slot's variable written by `reader`
+    /// (handed the variable and the dimension the slot reads it at).
+    /// A profile's arguments are written by the same `reader`.
+    pub(crate) fn authored_with(
+        &self,
+        doc: &crate::Doc<P>,
+        reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
+    ) -> Node<P::Authored, crate::Formula> {
+        let mut dims: BTreeMap<VarId, Dimension> = self
+            .rows()
+            .into_iter()
+            .map(|(slot, &var)| (var, slot.dimension()))
+            .collect();
+        match self {
+            Node::Measure { expr, .. } => {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                dims.extend(reads);
+            }
+            Node::Assertion { .. } => dims.extend(self.payload_reads(doc).into_iter().flatten()),
+            _ => {}
+        }
+        let mut payload = None;
+        if let Node::Profile(p) = self {
+            payload = Some(p.authored_with(reader));
+        }
+        let mut read = |var: &VarId| {
+            let Some(&dim) = dims.get(var) else {
+                unreachable!(
+                    "every slot of a stored node has an address, a measured leaf or an \
+                     assertion's measure to read {var:?} at"
+                )
+            };
+            Ok::<_, core::convert::Infallible>(reader(*var, dim))
+        };
         let reauthored = self.try_map_slots(
-            |p, _| Ok::<_, core::convert::Infallible>(p.authored()),
-            &mut |e| Ok(crate::Formula::from(e)),
+            |_, _| {
+                Ok(payload
+                    .take()
+                    .unwrap_or_else(|| unreachable!("a profile's payload is re-authored once")))
+            },
+            &mut read,
         );
         let Ok(authored) = reauthored;
         authored
+    }
+}
+
+impl<P: crate::ProfilePayload> Node<P> {
+    /// **The variables the expressions no slot addresses read**, each
+    /// with the dimension it is read at ([`payload_exprs`]'s order): a
+    /// measured expression's value leaves at their leaves' dimensions,
+    /// an assertion's bound at its variable's kind — or, where `doc`
+    /// no longer holds the variable, at its measure's dimension. `None`
+    /// for a slot-only node.
+    pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<Vec<(VarId, Dimension)>> {
+        match self {
+            Node::Measure { expr, .. } => {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                Some(reads)
+            }
+            Node::Assertion { measure, bound, .. } => {
+                let dim = doc
+                    .vars
+                    .get(bound)
+                    .map(|v| v.kind().dimension())
+                    .or_else(|| match doc.nodes.get(measure) {
+                        Some(Node::Measure { expr, .. }) => Some(expr.dim()),
+                        _ => None,
+                    })
+                    .unwrap_or(Dimension::Scalar);
+                Some(vec![(*bound, dim)])
+            }
+            _ => None,
+        }
     }
 }
 
@@ -4845,12 +4939,11 @@ impl<P, S: Slot> Node<P, S> {
     }
 }
 
-impl<P, L> Node<P, crate::expr::ExprTree<L>>
+impl<P, S> Node<P, S>
 where
-    P: PartialEq + crate::program::SlotPayload<crate::expr::ExprTree<L>>,
-    L: crate::expr::LeafSet,
-    crate::expr::ExprTree<L>: Slot,
-    crate::measure::MeasureExpr<crate::expr::ExprTree<L>>: PartialEq,
+    P: PartialEq + crate::program::SlotPayload<S>,
+    S: Slot,
+    crate::measure::MeasureExpr<S>: PartialEq,
 {
     /// Bit-semantic payload equality (spec D7's comparison substrate):
     /// `PartialEq` for structure plus BIT comparison of every slot

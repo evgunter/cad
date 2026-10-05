@@ -192,7 +192,7 @@ impl FrameBase {
 /// <Placement>}`, closed over its two keys.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MateFrame<S = crate::Expr> {
+pub struct MateFrame<S = crate::VarId> {
     /// What the offset is written in.
     pub base: FrameBase,
     /// The offset, in the base's frame; the empty chain by default.
@@ -257,7 +257,7 @@ impl<S: Clone> MateFrame<S> {
     }
 }
 
-impl<L: crate::expr::LeafSet> MateFrame<crate::expr::ExprTree<L>> {
+impl<S: crate::Slot> MateFrame<S> {
     /// Bit-semantic equality (D7): the same base, and offsets equal by
     /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
     #[must_use]
@@ -360,7 +360,7 @@ impl MatePrimitive {
 /// the clocking rider.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Alignment<S = crate::Expr> {
+pub struct Alignment<S = crate::VarId> {
     /// The `a` side's mate frame, in `a`'s part coordinates.
     pub a: MateFrame<S>,
     /// The `b` side's mate frame, in `b`'s part coordinates.
@@ -485,13 +485,21 @@ impl Alignment {
     /// reading what they read ([`Placement::authored`]).
     #[must_use]
     pub fn authored(&self) -> Alignment<crate::Formula> {
-        let Ok(authored) = self
-            .try_map_slots(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
-        authored
+        let frame = |side: &MateFrame| MateFrame {
+            base: side.base,
+            offset: side.offset.authored(),
+        };
+        Alignment {
+            a: frame(&self.a),
+            b: frame(&self.b),
+            primitive: self.primitive,
+            sense: self.sense,
+            clocking: self.clocking,
+        }
     }
 }
 
-impl<L: crate::expr::LeafSet> Alignment<crate::expr::ExprTree<L>> {
+impl<S: crate::Slot> Alignment<S> {
     /// **Bit-semantic equality** (D7), the one comparator every reader
     /// of an alignment's equality asks: both frames by
     /// [`MateFrame::bit_eq`], the primitive's lengths and the rider by

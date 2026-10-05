@@ -307,7 +307,9 @@ where
         Node::Transform { input, placement } => {
             wire_transform(id, *input, placement, results, vals, tol)
         }
-        Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
+        Node::Pattern { input, kind, .. } => {
+            wire_pattern(id, *input, kind, &written(doc, id), results, vals, tol)
+        }
         // No `id`: the projection mints no description and no name, so
         // nothing it produces is stamped or keyed by this node.
         Node::Part { of, select } => wire_part(*of, select, results, vals),
@@ -315,6 +317,7 @@ where
             id,
             *input,
             kind,
+            &written(doc, id),
             node.placement_rule_fault(tol),
             results,
             vals,
@@ -336,9 +339,13 @@ where
                 Some(Node::Measure { expr, .. }) => expr.certified(),
                 _ => crate::measure::Certified::Enclosure,
             };
+            let bound_dim = node
+                .payload_reads(doc)
+                .and_then(|reads| reads.first().map(|&(_, dim)| dim))
+                .unwrap_or_else(|| unreachable!("an assertion reads its bound, {bound}"));
             wire_assertion(
                 *measure,
-                bound,
+                bound_dim,
                 *dir,
                 certified,
                 payload_values,
@@ -1636,7 +1643,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 /// document can reach one and no caller can repair it. It is a kernel
 /// bug observed in a branch — `unreachable!`'s job (D9's D2 addendum),
 /// as in `ProfileProgram::profile_edges_of`.
-fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::expr::Expr>>> {
+fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::var::VarId>>> {
     pre.naming
         .loops
         .iter()
@@ -1668,7 +1675,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                     by_program_segment
                         .iter()
                         .find(|(e, _)| *e == want)
-                        .map(|(_, expr)| (*expr).clone())
+                        .map(|(_, var)| **var)
                 })
                 .collect()
         })
@@ -2074,7 +2081,11 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
+            &crate::param_source::lower_var(
+                scope,
+                &crate::param_source::definitions_of(doc),
+                *expr,
+            ),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
@@ -2141,7 +2152,11 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             &mut body,
             flow,
             verb.slots.size_param,
-            &crate::param_source::lower(scope, &crate::param_source::definitions_of(doc), expr),
+            &crate::param_source::lower_var(
+                scope,
+                &crate::param_source::definitions_of(doc),
+                *expr,
+            ),
             &rec,
         )
         .map_err(NodeErrorKind::ParamSourceAttach)?;
@@ -2602,7 +2617,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
 /// touches the measure's value or the document.
 fn wire_assertion<T: Decide>(
     measure: RecipeNodeId,
-    bound_expr: &crate::expr::Expr,
+    bound_dim: crate::expr::Dimension,
     dir: crate::measure::AssertionDir,
     certified: crate::measure::Certified,
     payload_values: Option<&[T]>,
@@ -2628,10 +2643,10 @@ fn wire_assertion<T: Decide>(
     // The bound's DECLARED dimension must agree (units erase at the
     // evaluation boundary), through the same rule the document doors
     // ask via `Node::assertion_bound_fault`.
-    if crate::node::AssertionBoundFault::against(measure, *dim, bound_expr.dim()).is_some() {
+    if crate::node::AssertionBoundFault::against(measure, *dim, bound_dim).is_some() {
         return Err(NodeErrorKind::AssertionDimension {
             measured: *dim,
-            bound: bound_expr.dim(),
+            bound: bound_dim,
         });
     }
     // A miss means `payload_exprs` and this arm disagree: a kernel bug.
@@ -4224,6 +4239,20 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
 
+/// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),
+/// for a refusal that proposes a re-spelling of one: a slot the node
+/// does not carry reads as nothing a proposal could build on.
+pub(crate) fn written<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    node: RecipeNodeId,
+) -> impl Fn(SlotId) -> crate::expr::Expr + '_ {
+    move |slot| {
+        doc.slot_expansion(node, slot).unwrap_or_else(|| {
+            unreachable!("a refusal proposes a re-spelling of {slot:?}, a slot {node} carries")
+        })
+    }
+}
+
 mod stepped;
 pub(crate) use stepped::{
     PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN, SteppedOperands, stepped_rule_map,
@@ -4257,6 +4286,7 @@ fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -
 /// refuses as `listed`, the mismatch it is on the caller's node.
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
+    written: &dyn Fn(SlotId) -> crate::expr::Expr,
     listed: crate::node::CountMismatch,
     i: i64,
     results: &Results<T>,
@@ -4271,13 +4301,13 @@ fn stepped_map<T: Decide>(
             ));
         }
         _ if i == 0 => return Ok(Affine3::identity()),
-        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
+        PatternKind::Linear { .. } => SteppedOperands::linear(
             need_vec3(vals, SlotId::Direction)?,
             need_scalar(vals, SlotId::Spacing)?,
-            direction,
+            &crate::node::Axis3::ALL.map(|axis| written(SlotId::Direction(axis))),
             band(tol)?,
         )?,
-        PatternKind::Circular { axis, step } => {
+        PatternKind::Circular { axis, .. } => {
             let (origin, dir) = operand(results, *axis, super::phrase::DATUM_AXIS, |v| {
                 match &v.payload {
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => Some((origin, dir)),
@@ -4288,7 +4318,7 @@ fn stepped_map<T: Decide>(
                 *origin,
                 *dir,
                 need_scalar(vals, SlotId::Step)?,
-                step,
+                &written(SlotId::Step),
                 band(tol)?,
             )?
         }
@@ -4309,6 +4339,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
+    written: &dyn Fn(SlotId) -> crate::expr::Expr,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -4336,6 +4367,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     for j in 1..n {
         let map = stepped_map(
             kind,
+            written,
             crate::node::CountMismatch::ListedOnPattern,
             j,
             results,
@@ -4373,6 +4405,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
+    written: &dyn Fn(SlotId) -> crate::expr::Expr,
     fault: Option<crate::node::PlacementRuleFault>,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4399,6 +4432,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .map(|i| {
                     stepped_map(
                         kind,
+                        written,
                         crate::node::CountMismatch::ListedWithCount,
                         i,
                         results,

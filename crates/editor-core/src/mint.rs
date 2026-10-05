@@ -11,11 +11,11 @@
 //! An edit that mints nothing leaves the chain alone. So an id is a
 //! function of the minting edits that led to it: one sequence mints one
 //! set of ids (D9), and two sequences that part from one value mint
-//! different ids from there on. A `DeclareVar` extends the chain by its
-//! definition, display units erased, and then once for the variable it
-//! mints; the variable's name is not in the preimage (VR2), so two
-//! declares of one definition mint two ids only because the chain
-//! moved between them.
+//! different ids from there on. A `DeclareVar`, and each anonymous
+//! variable an edit's lowering mints, extends the chain by the
+//! variable's kind and then once for the variable it mints; neither the
+//! name (VR2) nor the value is in the preimage, so two declares of one
+//! kind mint two ids only because the chain moved between them.
 //!
 //! The log holds every id the document has minted, deleted nodes' and
 //! dropped steps' included, each tagged with what it names ([`Minted`]),
@@ -27,10 +27,11 @@
 //!
 //! The preimage is not [`crate::persist::canonical_bytes`]: that is a
 //! whole document's serde form, display units included, and answers
-//! "which version"; this is one edit's statement with display units
-//! erased (D6), and answers "which node" or "which step". An insert's
-//! statement is its node as authored, which holds its inputs' and its
-//! names' ids but never its own.
+//! "which version"; this is one edit's statement, and answers "which
+//! node" or "which step". An insert's statement is its node as the door
+//! stores it, which holds its inputs', its names' and its slot
+//! variables' ids but never its own, and so no float and no display
+//! unit (D6).
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
@@ -107,17 +108,14 @@ pub(crate) struct VarIdCollides {
 }
 
 /// **A minting edit**, as the mint reads it: the node an `InsertNode`
-/// inserts, as authored; or what a `SetProgram` states about the steps
-/// it authors — its node, the new loops and, per step, the id it keeps
-/// or `None` for one to mint.
+/// inserts, as stored; what a `SetProgram` states about the steps it
+/// authors — its node, the new loops and, per step, the id it keeps or
+/// `None` for one to mint; or the kind a variable is minted at.
 ///
-/// Its canonical bytes are the serde form of that statement with every
-/// literal's display unit read as its dimension's canonical one: the
-/// display unit is never part of an expression's identity (DESIGN.md
-/// D6), so two edits `bit_eq` cannot tell apart mint the same ids.
+/// Its canonical bytes are the serde form of that statement.
 #[derive(Serialize)]
 #[serde(bound(serialize = "P: Serialize, Node<P, S>: Serialize"))]
-pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::Expr> {
+pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
     /// A node inserted, as the edit states it.
     InsertNode {
         /// The node.
@@ -149,26 +147,26 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::Expr> {
 impl<'a, P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>
     MintingEdit<'a, P, S>
 {
-    /// The insert of `node`, display units erased.
+    /// The insert of `node`.
     fn insert(node: &Node<P, S>) -> Self {
-        let mut node = Box::new(node.clone());
-        node.erase_display_units();
-        Self::InsertNode { node }
+        Self::InsertNode {
+            node: Box::new(node.clone()),
+        }
     }
 }
 
 impl<'a> MintingEdit<'a, crate::program::ProfileProgram> {
-    /// The `SetProgram` of `loops` on `node`, display units erased.
+    /// The `SetProgram` of `loops` on `node`.
     fn set_program(
         node: RecipeNodeId,
         loops: &[LoopProgram],
         ids: &'a [Vec<Option<StepId>>],
     ) -> Self {
-        let mut loops = loops.to_vec();
-        for expr in loops.iter_mut().flat_map(LoopProgram::exprs_mut) {
-            expr.erase_display_units();
+        Self::SetProgram {
+            node,
+            loops: loops.to_vec(),
+            ids,
         }
-        Self::SetProgram { node, loops, ids }
     }
 }
 

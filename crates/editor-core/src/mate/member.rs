@@ -504,8 +504,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
         error: NodeRefusal::from(kind),
         placer_row,
     };
-    let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId, row| {
-        crate::expr::eval_count(expr, env)
+    let count_of = |node: RecipeNodeId, var: &crate::VarId, slot: SlotId, row| {
+        crate::expr::eval_var_count(*var, env)
             .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }, row))
     };
     // The copy exists: the name's index against the evaluated count.
@@ -799,14 +799,15 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
     }
     let vals = node_slots(pattern, env).map_err(here)?;
     let ops = match kind {
-        PatternKind::Linear { direction, .. } => SteppedOperands::linear(
+        PatternKind::Linear { .. } => SteppedOperands::linear(
             need_vec3(&vals, SlotId::Direction).map_err(here)?,
             need_scalar(&vals, SlotId::Spacing).map_err(here)?,
-            direction,
+            &crate::node::Axis3::ALL
+                .map(|axis| crate::eval::written(doc, node)(SlotId::Direction(axis))),
             band,
         )
         .map_err(here)?,
-        PatternKind::Circular { axis, step } => {
+        PatternKind::Circular { axis, .. } => {
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
@@ -822,7 +823,7 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
                 )
                 .map_err(at_datum)?,
                 need_scalar(&vals, SlotId::Step).map_err(here)?,
-                step,
+                &crate::eval::written(doc, node)(SlotId::Step),
                 band,
             )
             .map_err(here)?

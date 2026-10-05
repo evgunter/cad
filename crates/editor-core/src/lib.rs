@@ -148,9 +148,10 @@ pub use spoken::{
 pub use eval::entity_door::Found;
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
-    ParamValue, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count, unparse,
+    ParamValue, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count, eval_var,
+    eval_var_count, unparse,
 };
-pub use formula::{Formula, NameFault};
+pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{

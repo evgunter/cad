@@ -611,10 +611,11 @@ fn first_definition_cycle(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     })
 }
 
-/// The first node whose slots break spec D6's rule, by the ONE
-/// predicate the edit doors ask ([`Node::slot_dimension_fault`]) — so
-/// a file can carry no slot expression an edit door would have
-/// refused, whatever the node kind.
+/// The first node whose slots break spec D6's rule (VR4: a live slot
+/// variable's kind is the dimension its address fixes, the
+/// structural/continuous divide included), by
+/// [`Node::slot_dimension_fault`] — so a file can carry no slot an edit
+/// door would have refused, whatever the node kind.
 ///
 /// EVERY node kind, which is the whole point: a walk that asked only
 /// profile programs admitted a retyped extrude distance, a fillet
@@ -623,7 +624,7 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
     snapshot
         .nodes
         .iter()
-        .find_map(|(&id, node)| Some((id, node.slot_dimension_fault()?)))
+        .find_map(|(&id, node)| Some((id, node.slot_dimension_fault(snapshot)?)))
 }
 
 /// The first slot expression with a reader this door refuses, by the
@@ -637,9 +638,10 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
 /// the document itself.
 fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.rows()
-            .into_iter()
-            .find_map(|(slot, expr)| Some((id, slot, refused_read(snapshot, expr)?)))
+        node.rows().into_iter().find_map(|(slot, &var)| {
+            let reader = Expr::var(var, slot.dimension());
+            Some((id, slot, refused_read(snapshot, &reader)?))
+        })
     })
 }
 
@@ -666,10 +668,10 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// is the row that pins that.
 fn first_payload_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        crate::node::payload_exprs(node)
+        node.payload_reads(snapshot)
             .into_iter()
             .flatten()
-            .find_map(|expr| Some((id, refused_read(snapshot, expr)?)))
+            .find_map(|(var, dim)| Some((id, refused_read(snapshot, &Expr::var(var, dim))?)))
     })
 }
 
@@ -776,6 +778,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         DocEdit::DefineVar {
             var,
             def: crate::var::VarDecl::Free(value),
+            ..
         } => param_site(var.clone(), value),
         // The value door carries no distribution of its own — the
         // declaration it writes into supplies that — but its

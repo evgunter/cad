@@ -419,7 +419,10 @@ impl ProductError {
                         format!("the below half of {placed}")
                     }
                     Some(crate::node::PartSelect::Instance(i)) => {
-                        format!("instance `{}` of {placed}", by.formula(i))
+                        format!(
+                            "instance `{}` of {placed}",
+                            by.slot_var(*i, crate::expr::Dimension::Count)
+                        )
                     }
                 };
                 let recourse = match twice {

@@ -344,11 +344,13 @@ pub trait LeafSet: Clone + core::fmt::Debug + PartialEq + sealed::Sealed {
     fn write(&self, out: &mut String);
 }
 
-/// **What a node's slot holds**, in either form: the stored [`Expr`],
-/// or the authored [`crate::Formula`] an edit carries. Sealed, as
-/// [`LeafSet`] is; the node, the program and the measure are generic
-/// over it, so one declaration serves the form a door is handed and the
-/// form the document stores.
+/// **What a node's slot holds**, in either form: the stored
+/// [`VarId`] (VARIABLES-DESIGN VR4), or the authored [`crate::Formula`]
+/// an edit carries. Sealed, as [`LeafSet`] is; the node, the program
+/// and the measure are generic over it, so one declaration serves the
+/// form a door is handed and the form the document stores. A stored
+/// slot carries no dimension of its own: its address fixes the one it
+/// is read at, and its variable's kind the one it holds.
 pub trait Slot:
     Clone
     + core::fmt::Debug
@@ -357,19 +359,14 @@ pub trait Slot:
     + for<'de> serde::Deserialize<'de>
     + sealed::Sealed
 {
-    /// The slot value's dimension.
-    fn dim(&self) -> Dimension;
-    /// How many levels the value nests, itself included.
+    /// The variables it reads by id, in pre-order.
+    fn var_ids(&self, out: &mut Vec<VarId>);
+    /// How many levels the value nests, itself included: a stored
+    /// slot is one leaf.
     fn nesting(&self) -> usize;
-    /// Its continuous literals' bits, in pre-order.
-    fn literal_bits(&self, out: &mut Vec<u64>);
-    /// The variables it reads by id, with the dimension each is read
-    /// at, in pre-order.
-    fn var_reads(&self, out: &mut Vec<(VarId, Dimension)>);
-    /// Reads every literal's display unit as its dimension's canonical
-    /// one (D6: the display unit is never identity).
-    #[doc(hidden)]
-    fn erase_display_units(&mut self);
+    /// Bit-semantic equality (D7): `PartialEq`, with every float the
+    /// value holds compared by its bits.
+    fn bit_eq(&self, other: &Self) -> bool;
 }
 
 impl<L: LeafSet> sealed::Sealed for ExprTree<L> {}
@@ -378,20 +375,30 @@ impl<L: LeafSet> Slot for ExprTree<L>
 where
     Self: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    fn dim(&self) -> Dimension {
-        self.dim
+    fn var_ids(&self, out: &mut Vec<VarId>) {
+        let mut reads = Vec::new();
+        ExprTree::var_reads(self, &mut reads);
+        out.extend(reads.into_iter().map(|(var, _)| var));
     }
     fn nesting(&self) -> usize {
         usize::from(self.nesting)
     }
-    fn literal_bits(&self, out: &mut Vec<u64>) {
-        ExprTree::literal_bits(self, out);
+    fn bit_eq(&self, other: &Self) -> bool {
+        ExprTree::bit_eq(self, other)
     }
-    fn var_reads(&self, out: &mut Vec<(VarId, Dimension)>) {
-        ExprTree::var_reads(self, out);
+}
+
+impl sealed::Sealed for VarId {}
+
+impl Slot for VarId {
+    fn var_ids(&self, out: &mut Vec<VarId>) {
+        out.push(*self);
     }
-    fn erase_display_units(&mut self) {
-        ExprTree::erase_display_units(self);
+    fn nesting(&self) -> usize {
+        1
+    }
+    fn bit_eq(&self, other: &Self) -> bool {
+        self == other
     }
 }
 
@@ -416,6 +423,9 @@ pub enum AuthoredLeaf {
     /// A variable by NAME, which the edit door lowers to a reader of
     /// the variable the document names so.
     Name(VarName),
+    /// Entry `i` of the edit's fresh table: a variable the edit mints,
+    /// which the door lowers to a reader of the id it minted.
+    Fresh(u16),
 }
 
 impl sealed::Sealed for AuthoredLeaf {}
@@ -425,6 +435,10 @@ impl LeafSet for AuthoredLeaf {
     fn write(&self, out: &mut String) {
         match self {
             Self::Name(name) => out.push_str(name.as_str()),
+            Self::Fresh(index) => {
+                use core::fmt::Write as _;
+                let _ = write!(out, "fresh[{index}]");
+            }
         }
     }
 }
@@ -957,6 +971,14 @@ impl<L: LeafSet> ExprTree<L> {
         }
     }
 
+    /// The variable this tree is, where it is one lone reader.
+    pub fn as_var(&self) -> Option<VarId> {
+        match self.kind {
+            ExprKind::Var(var) => Some(var),
+            _ => None,
+        }
+    }
+
     /// A literal's exact canonical-units value (`None` for non-literal
     /// kinds) — with [`Expr::display_unit`], the display formatter's
     /// complete read surface.
@@ -1256,23 +1278,6 @@ impl<L: LeafSet> ExprTree<L> {
         }
     }
 
-    /// Sets every literal's display unit to its dimension's canonical
-    /// one, leaving every value: the expression `PartialEq` and
-    /// [`Expr::bit_eq`] see, as a value that serializes (D6: the display
-    /// unit is never identity).
-    pub(crate) fn erase_display_units(&mut self) {
-        let dim = self.dim;
-        match &mut self.kind {
-            ExprKind::Literal(lit) => lit.display_unit = UnitSym::canonical_for(dim),
-            ExprKind::CountLiteral(_) | ExprKind::Var(_) | ExprKind::Leaf(_) => {}
-            unary_kind!(a) => a.erase_display_units(),
-            binary_kind!(a, b) => {
-                a.erase_display_units();
-                b.erase_display_units();
-            }
-        }
-    }
-
     /// Bit-semantic equality (M4 PR 1 review non-blocker): structural
     /// equality with float literals compared by BITS — `0.0` and
     /// `-0.0` are DIFFERENT expressions here, unlike `PartialEq`
@@ -1335,6 +1340,50 @@ impl<L: LeafSet> ExprTree<L> {
             (binary_kind!(_, _) | unary_kind!(_) | leaf_kind!(), _) => return None,
         };
         Some(res)
+    }
+}
+
+impl<L: LeafSet> ExprTree<L> {
+    /// **This tree with readers replaced**: every reader of a variable
+    /// `f` answers for replaced by the answer, each operator above one
+    /// rebuilt through its checking constructor.
+    ///
+    /// # Errors
+    ///
+    /// The constructors' first refusal, which is
+    /// [`DimensionError::NestedTooDeep`] where a replacement deepens the
+    /// tree past [`MAX_NESTING`]; or `f`'s answer at another dimension
+    /// than the reader's.
+    pub fn substitute_vars(
+        &self,
+        f: &mut impl FnMut(VarId) -> Option<Self>,
+    ) -> Result<Self, DimensionError> {
+        use ExprKind as K;
+        let mut go = |e: &Self| e.substitute_vars(f);
+        match &self.kind {
+            K::Var(var) => match f(*var) {
+                Some(by) if by.dim == self.dim => Ok(by),
+                Some(by) => Err(DimensionError::Mismatch {
+                    op: "substitute",
+                    left: self.dim,
+                    right: by.dim,
+                }),
+                None => Ok(self.clone()),
+            },
+            K::Literal(_) | K::CountLiteral(_) | K::Leaf(_) => Ok(self.clone()),
+            K::Add(a, b) => Self::add(go(a)?, go(b)?),
+            K::Sub(a, b) => Self::sub(go(a)?, go(b)?),
+            K::Mul(a, b) => Self::mul(go(a)?, go(b)?),
+            K::Div(a, b) => Self::div(go(a)?, go(b)?),
+            K::Atan2(a, b) => Self::atan2(go(a)?, go(b)?),
+            K::Min(a, b) => Self::min(go(a)?, go(b)?),
+            K::Max(a, b) => Self::max(go(a)?, go(b)?),
+            K::Neg(a) => Self::neg(go(a)?),
+            K::Sin(a) => Self::sin(go(a)?),
+            K::Cos(a) => Self::cos(go(a)?),
+            K::Tan(a) => Self::tan(go(a)?),
+            K::CountToScalar(a) => Self::count_to_scalar(go(a)?),
+        }
     }
 }
 
@@ -1613,6 +1662,27 @@ impl core::error::Error for EvalError {}
 /// evaluation itself needs only `Real` (see `eval_inner`).
 pub fn eval<T: Decide>(expr: &Expr, params: &VarEnv<T>) -> Result<T, EvalError> {
     refuse_non_finite(eval_inner(expr, params)?)
+}
+
+/// **A slot's variable evaluated** (VARIABLES-DESIGN VR4): its binding
+/// in `params`, read at `dim`, the dimension the slot's address reads
+/// it at — exactly [`eval`] of a lone reader of `var`.
+///
+/// # Errors
+///
+/// [`eval`]'s, of that reader.
+pub fn eval_var<T: Decide>(var: VarId, dim: Dimension, params: &VarEnv<T>) -> Result<T, EvalError> {
+    eval(&Expr::var(var, dim), params)
+}
+
+/// **A structural slot's variable evaluated**: [`eval_count`] of a lone
+/// `Count` reader of `var`.
+///
+/// # Errors
+///
+/// [`eval_count`]'s, of that reader.
+pub fn eval_var_count<T>(var: VarId, params: &VarEnv<T>) -> Result<i64, EvalError> {
+    eval_count(&Expr::var(var, Dimension::Count), params)
 }
 
 /// **Door 2, as a shared door.** The ruled non-finite check on a

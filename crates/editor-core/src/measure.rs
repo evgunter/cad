@@ -168,7 +168,7 @@ impl MeasurePrimitive {
 /// [`DimensionError::NestedTooDeep`], so a flat chain of more than 128
 /// terms refuses.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MeasureExpr<S: Slot = Expr> {
+pub struct MeasureExpr<S: Slot = crate::VarId> {
     dim: Dimension,
     /// How many levels the tree nests, a value leaf counting as the
     /// expression it holds; never above [`MAX_NESTING`], the bound it
@@ -306,6 +306,18 @@ impl<S: Slot> MeasureExpr<S> {
         self.dim
     }
 
+    /// Bit-semantic equality (D7): structural equality, with each value
+    /// leaf compared by [`Slot::bit_eq`].
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        if self != other {
+            return false;
+        }
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        self.value_leaves(&mut a);
+        other.value_leaves(&mut b);
+        a.iter().zip(&b).all(|(x, y)| x.bit_eq(y))
+    }
+
     /// The AST node (the persistence and key layers read it).
     pub(crate) fn kind(&self) -> &MeasureKind<S> {
         &self.kind
@@ -320,18 +332,18 @@ impl<S: Slot> MeasureExpr<S> {
         }
     }
 
-    /// An ordinary document expression as a leaf — a literal bound, a
-    /// parameter, a whole arithmetic subtree of them.
-    pub fn value(e: S) -> Self {
+    /// A value leaf read at `dim`: the stored form's leaf, a bare
+    /// variable, carries no dimension of its own.
+    pub(crate) fn value_at(e: S, dim: Dimension) -> Self {
         let Ok(nesting) = u8::try_from(e.nesting()) else {
             unreachable!(
-                "an expression nests {} levels, past the bound of {MAX_NESTING} its every \
+                "a value nests {} levels, past the bound of {MAX_NESTING} its every \
                  constructor holds it to",
                 e.nesting()
             )
         };
         Self {
-            dim: e.dim(),
+            dim,
             nesting,
             kind: MeasureKind::Value(e),
         }
@@ -468,23 +480,70 @@ impl<S: Slot> MeasureExpr<S> {
         }
     }
 
-    /// [`Self::value_leaves`], exclusive: the same leaves in the same
-    /// order.
-    pub(crate) fn value_leaves_mut<'e>(&'e mut self, out: &mut Vec<&'e mut S>) {
-        match &mut self.kind {
-            MeasureKind::Primitive(_) => {}
-            MeasureKind::Value(e) => out.push(e),
-            MeasureKind::Neg(a) => a.value_leaves_mut(out),
-            MeasureKind::Add(a, b)
-            | MeasureKind::Sub(a, b)
-            | MeasureKind::Mul(a, b)
-            | MeasureKind::Div(a, b)
-            | MeasureKind::Min(a, b)
-            | MeasureKind::Max(a, b) => {
-                a.value_leaves_mut(out);
-                b.value_leaves_mut(out);
-            }
-        }
+    /// **This measure in another slot form**: every value leaf rewritten
+    /// by `f`, in [`Self::value_leaves`] order, every primitive and
+    /// operator kept with its dimension, the nesting recounted over the
+    /// new leaves. The first refusal is the answer.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_values<S2: Slot, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<MeasureExpr<S2>, E> {
+        self.try_map_values_at(&mut |leaf, _| f(leaf))
+    }
+
+    /// [`Self::try_map_values`], `f` handed each value leaf's dimension
+    /// too: the dimension a stored leaf, a bare variable id, is read at.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_values_at<S2: Slot, E>(
+        &self,
+        f: &mut impl FnMut(&S, Dimension) -> Result<S2, E>,
+    ) -> Result<MeasureExpr<S2>, E> {
+        let mut map = |e: &Self| e.try_map_values_at(f).map(Box::new);
+        let kind = match &self.kind {
+            MeasureKind::Primitive(p) => MeasureKind::Primitive(*p),
+            MeasureKind::Value(v) => MeasureKind::Value(f(v, self.dim)?),
+            MeasureKind::Add(a, b) => MeasureKind::Add(map(a)?, map(b)?),
+            MeasureKind::Sub(a, b) => MeasureKind::Sub(map(a)?, map(b)?),
+            MeasureKind::Mul(a, b) => MeasureKind::Mul(map(a)?, map(b)?),
+            MeasureKind::Div(a, b) => MeasureKind::Div(map(a)?, map(b)?),
+            MeasureKind::Min(a, b) => MeasureKind::Min(map(a)?, map(b)?),
+            MeasureKind::Max(a, b) => MeasureKind::Max(map(a)?, map(b)?),
+            MeasureKind::Neg(a) => MeasureKind::Neg(map(a)?),
+        };
+        let nesting = match &kind {
+            MeasureKind::Value(v) => u8::try_from(v.nesting()).unwrap_or(u8::MAX),
+            MeasureKind::Primitive(_) => 1,
+            operator => crate::expr::nesting_over(operator.below()).unwrap_or(u8::MAX),
+        };
+        assert!(
+            usize::from(nesting) <= MAX_NESTING,
+            "a form change never deepens a measure past {MAX_NESTING}: each leaf it writes \
+             nests no deeper than the leaf it replaced, or is one variable"
+        );
+        Ok(MeasureExpr {
+            dim: self.dim,
+            nesting,
+            kind,
+        })
+    }
+}
+
+impl<L: crate::expr::LeafSet> MeasureExpr<crate::expr::ExprTree<L>>
+where
+    crate::expr::ExprTree<L>: Slot,
+{
+    /// An ordinary document expression as a leaf — a literal bound, a
+    /// parameter, a whole arithmetic subtree of them.
+    pub fn value(e: crate::expr::ExprTree<L>) -> Self {
+        let dim = e.dim();
+        Self::value_at(e, dim)
     }
 
     /// The variables this expression's value leaves read, with the
@@ -517,66 +576,25 @@ impl<S: Slot> MeasureExpr<S> {
             }
         }
     }
-
-    /// Bit-semantic equality (D7): structural equality with float
-    /// literals compared by BITS, exactly as [`Expr::bit_eq`].
-    pub fn bit_eq(&self, other: &Self) -> bool {
-        if self != other {
-            return false;
-        }
-        let (mut a, mut b) = (Vec::new(), Vec::new());
-        self.literal_bits(&mut a);
-        other.literal_bits(&mut b);
-        a == b
-    }
-
-    /// **This measure in another slot form**: every value leaf rewritten
-    /// by `f`, in [`Self::value_leaves`] order, every primitive and
-    /// operator kept with its dimension and nesting. The first refusal
-    /// is the answer.
-    ///
-    /// # Panics
-    ///
-    /// Where `f` answers a value of another dimension or nesting than
-    /// the leaf it rewrote: a form change keeps both.
-    pub fn try_map_values<S2: Slot, E>(
-        &self,
-        f: &mut impl FnMut(&S) -> Result<S2, E>,
-    ) -> Result<MeasureExpr<S2>, E> {
-        let mut map = |e: &Self| e.try_map_values(f).map(Box::new);
-        let kind = match &self.kind {
-            MeasureKind::Primitive(p) => MeasureKind::Primitive(*p),
-            MeasureKind::Value(v) => {
-                let mapped = f(v)?;
-                assert!(
-                    mapped.dim() == v.dim() && mapped.nesting() == v.nesting(),
-                    "a value leaf keeps its dimension and nesting across a form change"
-                );
-                MeasureKind::Value(mapped)
-            }
-            MeasureKind::Add(a, b) => MeasureKind::Add(map(a)?, map(b)?),
-            MeasureKind::Sub(a, b) => MeasureKind::Sub(map(a)?, map(b)?),
-            MeasureKind::Mul(a, b) => MeasureKind::Mul(map(a)?, map(b)?),
-            MeasureKind::Div(a, b) => MeasureKind::Div(map(a)?, map(b)?),
-            MeasureKind::Min(a, b) => MeasureKind::Min(map(a)?, map(b)?),
-            MeasureKind::Max(a, b) => MeasureKind::Max(map(a)?, map(b)?),
-            MeasureKind::Neg(a) => MeasureKind::Neg(map(a)?),
-        };
-        Ok(MeasureExpr {
-            dim: self.dim,
-            nesting: self.nesting,
-            kind,
-        })
-    }
 }
 
 impl MeasureExpr {
+    /// The variables this expression's value leaves read, with the
+    /// dimension each leaf reads at.
+    pub fn var_reads(&self, out: &mut Vec<(crate::var::VarId, Dimension)>) {
+        let _ = self.try_map_values_at(&mut |&var, dim| {
+            out.push((var, dim));
+            Ok::<_, core::convert::Infallible>(var)
+        });
+    }
+
     /// **This measure re-authored**: every value leaf a formula reading
-    /// what it read ([`crate::Formula::from`]).
+    /// its variable, at the dimension the leaf is read at.
     #[must_use]
     pub fn authored(&self) -> MeasureExpr<crate::Formula> {
-        let Ok(authored) = self
-            .try_map_values(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
+        let Ok(authored) = self.try_map_values_at(&mut |&var, dim| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::var(var, dim))
+        });
         authored
     }
 }

@@ -416,11 +416,20 @@ trait HoldsNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
+    /// A reader of `id` at `dim` as written ([`Doc::written`]), where
+    /// the document holds what `id` holds.
+    fn written(&self, _id: crate::var::VarId, _dim: crate::expr::Dimension) -> Option<crate::Expr> {
+        None
+    }
 }
 
 impl<P> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
+    }
+
+    fn written(&self, id: crate::var::VarId, dim: crate::expr::Dimension) -> Option<crate::Expr> {
+        Some(Doc::written(self, &crate::Expr::var(id, dim)))
     }
 
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
@@ -594,6 +603,18 @@ impl<'a> Speaker<'a> {
                 .find(|(held, _)| *held == id)
                 .map(|(_, name)| name)
         })
+    }
+
+    /// **A slot's variable, said as written**: what an anonymous one
+    /// holds, its readers said ([`Self::formula`]); a named one by its
+    /// name; `#<16 hex>` where the speaker's document does not hold it.
+    #[must_use]
+    pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> String {
+        let written = self
+            .doc
+            .and_then(|doc| doc.written(var, dim))
+            .unwrap_or_else(|| crate::Expr::var(var, dim));
+        self.formula(&written)
     }
 
     /// The name `name`, its minting node said: `face name minted by
