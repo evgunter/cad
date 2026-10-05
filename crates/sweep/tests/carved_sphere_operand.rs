@@ -211,6 +211,14 @@ fn the_lens_union_is_an_operand() {
     }
 }
 
+/// A second operand: what it is, its radius, its centre, and whether it
+/// lies wholly inside the cut body.
+type Operand = (&'static str, f64, Vec3<f64>, bool);
+
+/// A cut: its name, the box's `x` range, the cut body's volume, and the
+/// operands it meets.
+type Cut = (&'static str, (f64, f64), f64, [Operand; 3]);
+
 /// **A ball cut by planes tilted against its chart is an operand.** The
 /// `y`-poled unit ball, whose seam meridians lie in `z = 0`, less two
 /// boxes, each against the ball's and the box's own point tests and then
@@ -230,7 +238,7 @@ fn the_lens_union_is_an_operand() {
 fn a_tilted_cut_of_a_ball_is_an_operand() {
     let o = Vec3::new(0.0, 0.0, 0.0);
     let half_slab = (ball_volume(1.0) - 2.0 * cap_volume(1.0, 0.8)) / 2.0;
-    let poses: [(&str, (f64, f64), f64, [(&str, f64, Vec3<f64>, bool); 3]); 2] = [
+    let poses: [Cut; 2] = [
         (
             "the box beyond x = 0.5",
             (0.5, 3.0),
