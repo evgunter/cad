@@ -816,3 +816,27 @@ carries the consolidation row
 which must leave behaviour unchanged, as a separate PR.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4061: one position order and one run rule round a vertex
+
+`insert.rs` is refactored, with no behaviour change:
+- `walks_before(sectors, origin, …)` is now the one position order. `walk_order`, `precedes` and `held_cut` each name their origin.
+- `walk_run` is now the one run rule, read by both A and B.
+- `edge_bound_entry` serves both walks to a physical sector's edge bound.
+- `is_strut` replaces eight spellings.
+
+Main vs head, every battery is byte-identical: pierce, both reflex batteries, all 84 `rc_wide` shards, `pinch_runs_battery`, and the reviewer's `corner_pairs_battery`, now committed but ignored.
+
+**Review tier: single FULL.** The unit is a refactor whose batteries are byte-identical. The review came back APPROVE-WITH-FIXES, MAJOR 0, MINOR 1.
+- The MINOR: no committed row reached `held_cut`'s fan branch with a cut in an end entry, so a mutant there survived. That is now pinned by `a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry`.
+- All nine mutants go red.
+- The style items were taken. `holds_whole` stays apart: it reads ties as inside, where `held_cut` asks `tied_held`, and a comment now names the difference.
+
+**Filed from the review's notes:**
+- `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses` (P1). On one pose the oracle wants 5.09, while the kernel's 4.318 agrees with Monte Carlo's 4.329.
+- `a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts` (P0, parked on D10). Its 287 tier-3′ failures are all definite and all at exact edge-in-plane coincidences.
+- `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` (P3). It carries the fixed-origin ask, `b_runs`' interval and `vtxfac.rs`.
+
+The consolidation row is closed.
+
+Signed (JOIN orchestrator).
