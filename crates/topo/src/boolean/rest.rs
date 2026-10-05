@@ -1143,7 +1143,9 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
 /// zero numerics). An isolated ring vertex has an empty orbit.
 fn joined<T: Decide>(body: &Body<T>, u: VertexKey, v: VertexKey) -> Result<bool, BooleanError> {
     if body.get_vertex(u).is_none() {
-        return Err(desync("REST lane: a mirrored edge's end no longer resolves"));
+        return Err(desync(
+            "REST lane: a mirrored edge's end no longer resolves",
+        ));
     }
     Ok(body
         .vertex_orbit_linked(u)
@@ -2234,7 +2236,10 @@ mod tests {
             .map(|seam| seam.map(|s| s.per_segment))
         };
         let alone = realize(vec![taken_first()]);
-        assert!(matches!(alone, Ok(None)), "the first segment alone: {alone:?}");
+        assert!(
+            matches!(alone, Ok(None)),
+            "the first segment alone: {alone:?}"
+        );
         let both = realize(vec![taken_first(), stale_ends]);
         assert!(
             matches!(

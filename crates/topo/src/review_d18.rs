@@ -3584,7 +3584,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     let sound = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
     let sound_face = sound.faces().next().map(|(k, _)| k).unwrap();
     for (face, data) in body.faces() {
-        use crate::boolean::{PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier};
+        use crate::boolean::{
+            PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+        };
         let outside = || match body.get_surface(data.surface) {
             Some(_) => Ok(false),
             None => Err(format!(
@@ -3597,12 +3599,15 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             Some(PairUnread::OutsideInventory) => outside(),
             Some(PairUnread::Extent(_)) => Ok(false),
         };
-        judge_read(capture, &mut census, "face_carrier", || {
-            match face_carrier(body, face) {
+        judge_read(
+            capture,
+            &mut census,
+            "face_carrier",
+            || match face_carrier(body, face) {
                 Some(_) => Ok(true),
                 None => outside(),
-            }
-        });
+            },
+        );
         judge_read(capture, &mut census, "carrier_pair_relation", || {
             pair(carrier_pair_relation(body, face, &sound, sound_face, false, band).err())
         });

@@ -2351,12 +2351,11 @@ fn along_edge_spec<T: Decide>(
             let e_end = body
                 .half_edge_end(e.he_plus)
                 .ok_or_else(|| corrupt_he(e.he_plus))?;
-            let tied = null_site(body, &[u1]).map_err(|StaleSite| {
-                SplitJoinError::SectionInvariant {
+            let tied =
+                null_site(body, &[u1]).map_err(|StaleSite| SplitJoinError::SectionInvariant {
                     face,
                     what: StaleSite::WHAT,
-                }
-            })?;
+                })?;
             let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
                 (true, false) => true,
                 (false, true) => false,
