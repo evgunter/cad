@@ -3406,7 +3406,10 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 14] = [
+const READ_DOORS: [&str; 17] = [
+    "face_carrier",
+    "carrier_pair_relation",
+    "carrier_pair_verdict",
     "mint_pcurves",
     "mint_pcurves_of",
     "face_pose",
@@ -3424,11 +3427,17 @@ const READ_DOORS: [&str; 14] = [
 ];
 
 /// The doors the read sweep floors on a premise panic: the split, which
-/// reads every face, edge and vertex before it builds, and the
-/// containment and neighborhood doors, whose walks a torn loop or orbit
-/// reaches.
+/// reads every face, edge and vertex before it builds, the containment
+/// and neighborhood doors, whose walks a torn loop or orbit reaches,
+/// and the carrier doors, which a dropped surface reaches.
 #[cfg(not(debug_assertions))]
-const PREMISE_DOORS: [&str; 3] = ["split_reduce", "contfp", "classify_neighborhood"];
+const PREMISE_DOORS: [&str; 5] = [
+    "split_reduce",
+    "contfp",
+    "classify_neighborhood",
+    "face_carrier",
+    "carrier_pair_verdict",
+];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
 /// geometry, and three that carry it — planar faces for the face doors,
@@ -3569,6 +3578,43 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         body.vertex_points().for_each(drop);
         Ok(true)
     });
+    // The carrier doors, each face against a sound cube's. A face whose
+    // surface does not resolve, read as outside the ladder's inventory,
+    // is a record's miss answered as the kind's.
+    let sound = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+    let sound_face = sound.faces().next().map(|(k, _)| k).unwrap();
+    for (face, data) in body.faces() {
+        use crate::boolean::{
+            PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+        };
+        let outside = || match body.get_surface(data.surface) {
+            Some(_) => Ok(false),
+            None => Err(format!(
+                "{} reads as outside the inventory over a surface that does not resolve",
+                crate::entity::EntityId::Face(face)
+            )),
+        };
+        let pair = |unread: Option<PairUnread>| match unread {
+            None => Ok(true),
+            Some(PairUnread::OutsideInventory) => outside(),
+            Some(PairUnread::Extent(_)) => Ok(false),
+        };
+        judge_read(
+            capture,
+            &mut census,
+            "face_carrier",
+            || match face_carrier(body, face) {
+                Some(_) => Ok(true),
+                None => outside(),
+            },
+        );
+        judge_read(capture, &mut census, "carrier_pair_relation", || {
+            pair(carrier_pair_relation(body, face, &sound, sound_face, false, band).err())
+        });
+        judge_read(capture, &mut census, "carrier_pair_verdict", || {
+            pair(carrier_pair_verdict(body, face, &sound, sound_face, false, band).err())
+        });
+    }
     // The mints write their body, so each runs on a clone, and a
     // premise panic must leave that clone as it found it — rows
     // included, which is why the sweep mints its fixtures before
