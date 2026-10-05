@@ -30,8 +30,9 @@ and keeps the old mechanism, confined to it by type:
 - `ssi/march.rs`'s `SlabExit` decides `ssi_branch_open_end` on the
   signed distance to the caller's slab and bisects the crossing with
   `push_boundary` (`SSI_SLAB_BISECTIONS`, a fixed 32);
-- `march_both` (ℝ³ only, `LocalSystem<2, 3>`) re-marches a short trace
-  and refuses `SsiError::TraceUnresolved`;
+- `march_both` (ℝ³ only, `LocalSystem<2, 3>`) refuses
+  `SsiError::TraceUnresolved` for a short trace with no length (a
+  short trace with a length is halved to the fit's samples, PR 4034);
 - `BranchEnd::Slab` / `BranchEnd::SlabInBand` label the ends.
 
 The slab is the caller's box, not geometry. A slab face flush with the
