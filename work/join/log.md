@@ -755,3 +755,26 @@ turns refusals into gated SOUND bodies, and it is reversible. The `[ev]`
 PR follows.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — the pinch residue goes to Ev
+
+Two designers weighed `a-pinch-no-kept-face-can-cross-refuses`'s residue
+concurrently, under protocol `26db1af89e`. The label byte is recorded on
+the analysis branch.
+- Both first reports recommend the same final state: one vertex per cone
+  on one point key, with no face crossing between cones. The crossing
+  pre-pass, the pinch welds and `PinchUncrossed` retire under it.
+- They differ only in construction route, so there was no reconciliation
+  round.
+- Both checked provenance. "Copies stay apart only where no face meets
+  both" is join-lane text (`76d91366fd`), not a ruling. D1's
+  representability sentence (`e16309aa7a`) was approved in bulk.
+- Off the question, both read `finish::weld_pinches`'s `Joint::Chord`
+  as able to build a crossed vertex that passes tier 1. This is
+  unmeasured and is held for the ruling, since the welds retire under
+  the recommendation.
+
+PR 4051's island `kef` landed as an interim step and is undone under
+the recommendation.
+
+Signed (JOIN orchestrator).
