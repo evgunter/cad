@@ -144,6 +144,7 @@ REGISTER=(
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
+  "crates/topo/src/boolean/carrier_cross.rs|boundary_crossing||1|audited: the discarded variant is answered by name — a lone-vertex loop has no boundary pre-pass, so the crossing is Unread and the caller keeps its frontier door (the module docs state it)"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/finish.rs|pinch_site||1|audited: the arm above it answers an Empty loop holding either pierce vertex (refused); a lone vertex that is neither holds no half-edge leaving u or w, so stepping over it loses nothing"
