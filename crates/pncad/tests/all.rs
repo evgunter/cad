@@ -2039,19 +2039,19 @@ fn lib_doors_vocabulary_is_nameable() {
 // `crates/pncad/tests/all.rs` fails on any drift, so edit both copies together.
 // BEGIN box-document fixture twin
 /// A length literal, in canonical metres, through the façade.
-fn len(metres: f64) -> pncad::document::Expr {
-    use pncad::document::{Dimension, Expr};
+fn len(metres: f64) -> pncad::document::Formula {
+    use pncad::document::{Dimension, Formula};
     Formula::literal(metres, Dimension::Length).expect("a finite length")
 }
 
 /// A dimensionless literal — a direction component — as [`len`].
-fn scl(value: f64) -> pncad::document::Expr {
-    use pncad::document::{Dimension, Expr};
+fn scl(value: f64) -> pncad::document::Formula {
+    use pncad::document::{Dimension, Formula};
     Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
 }
 
 /// The world xy frame — the plane the box document sketches on.
-fn xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
+fn xy_frame() -> pncad::document::AuthoredNode {
     use pncad::document::{Datum, Node};
     Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
@@ -2064,7 +2064,7 @@ fn xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
 fn square(
     plane: pncad::document::RecipeNodeId,
     s: f64,
-) -> pncad::document::Node<pncad::document::ProfileProgram> {
+) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         plane,
@@ -2082,7 +2082,7 @@ fn square(
 /// Insert a node, returning the (document, minted id) pair.
 fn insert(
     doc: pncad::document::ProfileDoc,
-    node: pncad::document::Node<pncad::document::ProfileProgram>,
+    node: pncad::document::AuthoredNode,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
@@ -2222,6 +2222,8 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     // Replaying the LIFTED program reproduces the AUTHORED loop bit
     // for bit — the lift re-spells the verbs, it does not re-lower.
     let steps = lifted
+        .try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula))
+        .expect("a lifted recording reads no name")
         .resolve(&VarEnv::<f64>::default(), 0)
         .expect("literal arguments resolve");
     let replayed = pncad::profile::replay(&steps, Tol::witness())
@@ -2361,7 +2363,7 @@ fn square_at(
     plane: pncad::document::RecipeNodeId,
     s: f64,
     x: f64,
-) -> pncad::document::Node<pncad::document::ProfileProgram> {
+) -> pncad::document::AuthoredNode {
     use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         plane,
@@ -2522,7 +2524,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
 
 #[test]
 fn expr_literal_refusals_are_matchable_through_the_facade() {
-    use pncad::document::{Dimension, DimensionError, Expr};
+    use pncad::document::{Dimension, DimensionError, Formula};
     assert!(matches!(
         Formula::literal(f64::NAN, Dimension::Length),
         Err(DimensionError::NonFiniteLiteral)
