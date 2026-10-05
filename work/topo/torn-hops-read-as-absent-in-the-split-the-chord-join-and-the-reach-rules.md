@@ -2,7 +2,7 @@
 id: torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules
 kind: issue
 title: The split, the chord join and census's reach rules read a torn link as absent or as scaffolding
-status: open
+status: dispatched
 opened: 2026-10-05
 priority: P3
 cost: M
