@@ -2910,6 +2910,42 @@ mod ending_tests {
         }
     }
 
+    /// **A short branch's lever is its bound's, whatever candidate it
+    /// carries.** The wall's lever where the wall bounds the branch, a
+    /// closed loop's or the uncertified door's with no Hermite among
+    /// them, and the slab's where the caller's slab does.
+    #[test]
+    fn a_short_branchs_lever_is_its_bounds() {
+        use super::{BranchBound, SHORT_BRANCH, SHORT_TRACE};
+        use crate::ssi::BandVerdict;
+        let verdict = || BandVerdict::Undecided(cause(MarginDiag::value(6e-9)));
+        let hermite = || {
+            Some(Box::new(SsiError::CertificateLimb {
+                limb: SsiLimb::OnLocus,
+                value: 3e-9,
+            }))
+        };
+        for (bounded_by, limb, lever) in [
+            (BranchBound::Wall, None, SHORT_BRANCH.lever),
+            (BranchBound::Wall, hermite(), SHORT_BRANCH.lever),
+            (BranchBound::Slab, None, SHORT_TRACE.lever),
+            (BranchBound::Slab, hermite(), SHORT_TRACE.lever),
+        ] {
+            let carried = limb.is_some();
+            let e = SsiError::ShortBranchUncertified {
+                length: 3e-8,
+                limb,
+                verdict: verdict(),
+                bounded_by,
+            };
+            let shown = e.ending(Reading::Build);
+            assert!(
+                shown.contains(lever),
+                "{bounded_by:?}, Hermite carried {carried}: {shown}"
+            );
+        }
+    }
+
     /// The transversality decision's one lever, read at every door.
     const CROSS: &str = "Recourse: move the geometry so the surfaces cross at a clearer angle";
 
