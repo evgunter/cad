@@ -114,3 +114,7 @@ path = "tests/all.rs"
 [[test]]
 name = "sixx"
 path = "tests/sixx.rs"
+
+[[test]]
+name = "r2probe"
+path = "tests/r2probe.rs"
