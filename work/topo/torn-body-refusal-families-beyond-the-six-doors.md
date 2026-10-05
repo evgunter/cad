@@ -30,18 +30,16 @@ answer a torn record typed. Counts are `::Variant` occurrences in
 
 | Variant | Home | Count | Door argument? | Shape of the fix |
 |---|---|---|---|---|
-| `PointInSolidError::CorruptFace` | `boolean/solid_contain.rs` | 67 | yes: `point_in_solid_of`'s solid, `SolidFaces::of` | split: stale solid typed, record misses panic; it is also used for non-corruption cases mapped to `Trim(None)`, which need their own variant first |
+| `PointInSolidError::CorruptFace` | `boolean/solid_contain.rs` | 67 | yes: `point_in_solid_of`'s solid, `SolidFaces::of` | split: stale solid typed, record misses panic; it is also used for non-corruption cases mapped to `Trim(None)`, which need their own variant first. `contfp`'s curved doors carry it whole as `ContainError::Curved` |
 | `ChartRegionError::Corrupt` | `chart_region.rs` | 42 | yes: `chart_region_overlap`'s faces | split |
 | `StepExportError::Corrupt` | `step-export/src/{lib,writer,volume}.rs` | 26 | no (whole body) | panic; the "shell carries no faces" arm is a schema fact and may stay |
-| `ContainError::Corrupt` | `boolean/contain.rs` | 24 | yes: `contfp`'s face | three things in one variant: the caller's face, torn reads, and every `PointInSolidError` arm but `Escalated`, which `contain::solid_err` folds in — `CorruptFace` (a torn read) and the reachable refusals `WallOutlineUnsupported`, `RayExhausted`, `KindUnsupported`, `PartialSphereFace`, `PartialConeFace`, `PartialTorusFace`, `EdgeCarrierUnsupported`, `VolumeUncertified`, `ZeroVolumeBody`, `Loop` and `NoSuchSolid`; split those out first |
 | `SplitFinishError::Corrupt`, `::TornComponent` | `splitting/finish.rs` | 22 | no (driver) | panic |
-| `PointInLoopError::CorruptLoop` | `splitting/containment.rs` | 16 | yes: `point_in_loop`'s loop | split; a whole-turn scaffold circle is a legal state and stays typed |
+| `PointInLoopError::CorruptLoop` | `splitting/containment.rs` | 16 | yes: `point_in_loop`'s loop | split; a whole-turn scaffold circle is a legal state and stays typed. `contfp` carries it as `ContainError::LoopUnreadable`. `cycle_steps`' and `loop_hull`'s eight record hops past a resolved loop are links now, and panic (PR 4048) |
 | `MassPropsError::Corrupt`, `LoopEdgesError::Corrupt` | `props.rs` (and `mesh/src/curved.rs`) | 17 | no (whole body) | an empty loop is legal tier-1 scaffolding and stays typed under its own name; key misses panic |
-| `SplitReduceError::CorruptOperand` | `splitting/{mod,classify}.rs` | 12 | no (operand records) | panic |
 | `RevertError::Corrupt` | `revert.rs` | 12 | no (whole body) | panic; reachable typed today through `VoidInsertError::Revert` on a torn cavity |
 | `TouchVerdict::Corrupt`, `Undecided::CorruptInstance` | `census.rs` | 13 | no (the census runs on bodies tier 1 admits) | panic |
 | `SplitError::TornGroup` | `splitting/mod.rs` | 11 | no | panic |
-| `SplitJoinError::Corrupt` | `chord_join.rs` | 9 | no (driver); `chord_join::vertex_point` still answers a missing vertex `corrupt_vertex` | panic |
+| `SplitJoinError::Corrupt` | `chord_join.rs` | 9 | no (driver) | panic |
 | `SectionError::Corrupt`, `NestFault::Torn` | `splitting/{section,section_loops}.rs` | 11 | no (scratch body) | panic; `SenseFault` is left with one variant |
 | `Unexaminable::Corrupt` | `coherence.rs` | 8 | check the door's loop argument | split or panic |
 | `TransformError::Corrupt` | `transform.rs` | 8 | no (whole body) | panic |
@@ -49,10 +47,16 @@ answer a torn record typed. Counts are `::Variant` occurrences in
 
 Beside the named variants, the same shape under other names:
 
-- about 30 `BooleanError::ClassificationInvariant` raises over torn
-  lookups in `boolean/{reduce,recl,rest,join,sectors,vtxfac,shell_witness,solid_contain}.rs`,
+- about 20 `BooleanError::ClassificationInvariant` raises over torn
+  lookups in `boolean/{reduce,recl,join,vtxfac,shell_witness,solid_contain}.rs`,
   and `JoinDesync` torn reads in `boolean/finish.rs` (a completed null
-  face, its shell, the operand solid) and `ops.rs` `apply_recuts`;
+  face, its shell, the operand solid) and `ops.rs` `apply_recuts`.
+  These run on the reduction's body mid-operation, and `vtxfac` kills
+  an edge (`kemr`), so each needs its own proven premise before it
+  panics; one without stays typed. `sectors.rs`' and `rest.rs`' torn
+  reads are converted: `rest.rs` keeps typed every key it carries
+  across its own kills, and panics only on a hop past a record it just
+  resolved;
 - `describe_edges`' `EdgeDescribeFailure::NotWalkable`, shared by the
   boolean and `merge_faces`;
 - `boolean/ops.rs` `remap_contacts` / `remap_carried`: a fusion list
