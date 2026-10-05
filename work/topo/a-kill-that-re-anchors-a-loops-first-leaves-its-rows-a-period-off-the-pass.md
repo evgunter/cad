@@ -229,11 +229,14 @@ PR #4037 and its follow-up (the site mint), building R.
 - **`revert` inverts the elements and moves no anchor.**
 - **The site mint mints only what a door creates.**
 
-**Measured on the build's head** (this row's probe, re-run over sweep's
-`ci` profile): every complete periodic face after `kef` (21),
-`kef_minting` (8,102), `kev` (592) and `kemr` (73) is byte-equal to the
-pass, images and elements, and tier-3 clean. The witnesses in
-`euler_site_pcurve_rows` run un-ignored.
+**Measured on the build's head** (a probe at the outermost kill door,
+over sweep's `ci` profile, on the periodic faces the killed edge's halves
+are on): every face a kill leaves complete is byte-equal to the pass,
+images and elements, and tier-3 clean. That is `kef` 21, `kef_minting`
+8,355, `kev` 140 and `kemr` 89; the merge base's mixed `kef` (8) and
+`kef_minting` (1,649 loud, 168 clean) faces are among them. The
+witnesses in `euler_site_pcurve_rows` run un-ignored, and the sums are
+pinned at `kef`, `kev` (strut and mirror) and `kemr`.
 
 **Spline charts closed in u.** The iso lane was already gauge-free:
 `nurbs_iso_derive` reads the edge and the chart, never a half-edge's
@@ -242,4 +245,7 @@ carry the knot-domain period. The drop on a chart change stays; it is a
 derivation in another chart, not a gauge.
 
 **Residue, filed rather than disclosed here:**
-`work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`.
+- `work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`;
+- `work/topo/kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`:
+  404 faces `kef_minting` leaves wholly unminted, none half-minted, as
+  the merge base does.
