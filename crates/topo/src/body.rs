@@ -1995,7 +1995,7 @@ impl<T: Real> Body<T> {
     pub(crate) fn write_joint(&mut self, half_edge: HalfEdgeKey, element: Option<JointElement>) {
         match element {
             Some(element) => {
-                self.joints.insert(half_edge, element);
+                self.joints.insert(half_edge, element.canonical());
             }
             None => {
                 self.joints.remove(half_edge);
@@ -2006,13 +2006,15 @@ impl<T: Real> Body<T> {
     /// Attaches the element of the joint into `half_edge`, returning the
     /// one it replaced — [`Body::attach_pcurve`]'s companion, under the
     /// same trust posture: the tier-3 pcurve pass re-decides every joint
-    /// ([`crate::pcurves::validate_pcurves`]).
+    /// ([`crate::pcurves::validate_pcurves`]). The element is stored in
+    /// its canonical form ([`JointElement::canonical`]: a reset's
+    /// azimuth periods dropped).
     pub fn attach_joint(
         &mut self,
         half_edge: HalfEdgeKey,
         element: JointElement,
     ) -> Option<JointElement> {
-        self.joints.insert(half_edge, element)
+        self.joints.insert(half_edge, element.canonical())
     }
 
     /// Attaches a **certified** pcurve cache to `half_edge`, returning

@@ -130,14 +130,18 @@ impl Deck {
     /// periods. A spline chart's first-channel period is its knot
     /// domain's length (an element with `u ≠ 0` is decided only on a
     /// chart closed in `u`); every analytic chart's is `τ`.
+    ///
+    /// `None` where the element does not apply to the image: a twin off
+    /// a sphere chart, or on an image the twin has no form for
+    /// ([`crate::pcurves::sphere_twin`]). No door decides such an
+    /// element; one planted by hand is a gap in the lift, never a
+    /// silently unmoved curve.
     #[must_use]
-    pub fn apply<T: Decide>(self, image: &Pcurve<T>, surface: &Surface<T>) -> Pcurve<T> {
-        // A twin is decided only on a sphere chart, for an image the
-        // twin covers; one planted anywhere else moves nothing here, and
-        // the tier-3 pass reports the joint it fails to meet.
-        let mut out = match self.twin {
-            true => crate::pcurves::sphere_twin(surface, image).unwrap_or_else(|| image.clone()),
-            false => image.clone(),
+    pub fn apply<T: Decide>(self, image: &Pcurve<T>, surface: &Surface<T>) -> Option<Pcurve<T>> {
+        let mut out = if self.twin {
+            crate::pcurves::sphere_twin(surface, image)?
+        } else {
+            image.clone()
         };
         if self.v != 0 {
             out =
@@ -146,7 +150,7 @@ impl Deck {
         if self.u != 0 {
             out = out.shift_branch(T::from_f64(f64::from(self.u)), u_period(surface));
         }
-        out
+        Some(out)
     }
 }
 
@@ -187,6 +191,18 @@ impl JointElement {
     pub fn deck(self) -> Deck {
         match self {
             Self::Shift(deck) | Self::Reset(deck) => deck,
+        }
+    }
+
+    /// The form the body stores: a reset with its azimuth periods
+    /// dropped, which it does not carry (module docs), and an ordinary
+    /// joint as it is. So [`JointElement::inverse`] is an involution on
+    /// every stored element.
+    #[must_use]
+    pub fn canonical(self) -> Self {
+        match self {
+            Self::Shift(_) => self,
+            Self::Reset(deck) => Self::Reset(deck.without_u()),
         }
     }
 
@@ -271,8 +287,9 @@ impl Winding {
     pub fn closes(self) -> bool {
         let Deck { u, v, twin } = self.deck;
         if twin {
-            // `u + ½` is the invariant azimuth advance: a closure through
-            // the twin advances by `±π` or `±π ∓ τ`.
+            // `u + ½` periods is the invariant azimuth advance, so `u` in
+            // `−2..=1` admits an advance of `±π` or `±3π`: the twin's own
+            // half turn, plus at most one period either way.
             self.reset || (-2..=1).contains(&u)
         } else {
             (self.reset || (-1..=1).contains(&u)) && (-1..=1).contains(&v)
@@ -399,5 +416,63 @@ mod tests {
         );
         assert_eq!(a.inverse().inverse(), a);
         assert_eq!(r.inverse().inverse(), r);
+    }
+
+    /// A reset carries no azimuth periods: its inverse, the form a loop
+    /// reversal writes, drops the `T_u` that inverting a twin produces,
+    /// so `inverse` is an involution on every stored reset; and the
+    /// canonical form the body stores drops a planted one.
+    #[test]
+    fn a_reset_never_carries_azimuth_periods() {
+        for deck in all() {
+            let reset = JointElement::Reset(deck.without_u());
+            assert_eq!(reset.inverse().deck().u, 0, "inverse of {reset:?}");
+            assert_eq!(reset.inverse().inverse(), reset, "{reset:?}");
+            assert_eq!(
+                JointElement::Reset(deck).canonical(),
+                reset,
+                "canonical {deck:?}"
+            );
+            assert_eq!(
+                JointElement::Shift(deck).canonical(),
+                JointElement::Shift(deck)
+            );
+        }
+    }
+
+    /// **Which windings close**, by value: a loop advances its azimuth at
+    /// most one period (none counted across a reset), its second
+    /// channel at most one period, and through the twin by its half
+    /// turn plus at most one period either way.
+    #[test]
+    fn the_closure_admits_one_period_either_way_and_no_more() {
+        let winding = |u, v, twin, reset| {
+            Winding {
+                deck: Deck { u, v, twin },
+                reset,
+            }
+            .closes()
+        };
+        for u in -2..=1 {
+            assert!(winding(u, 0, true, false), "twin u = {u} closes");
+        }
+        for u in [-3, 2] {
+            assert!(!winding(u, 0, true, false), "twin u = {u} does not close");
+        }
+        for u in -1..=1 {
+            assert!(winding(u, 0, false, false), "u = {u} closes");
+        }
+        for u in [-2, 2] {
+            assert!(!winding(u, 0, false, false), "u = {u} does not close");
+            assert!(winding(u, 0, false, true), "across a reset u = {u} closes");
+        }
+        for v in [-2, 2] {
+            assert!(!winding(0, v, false, false), "v = {v} does not close");
+            assert!(
+                !winding(0, v, false, true),
+                "a reset with v = {v} does not close"
+            );
+        }
+        assert!(winding(0, 1, false, true), "a reset with v = 1 closes");
     }
 }

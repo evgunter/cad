@@ -426,7 +426,14 @@ fn caches_replay_bit_identically() {
     let (a2, _) = tilted_cut();
     let dump = |b: &Body<f64>| -> Vec<String> {
         b.pcurves()
-            .map(|(k, c)| format!("{k:?}|{:?}|{:?}", c.pcurve(), c.certificate()))
+            .map(|(k, c)| {
+                format!(
+                    "{k:?}|{:?}|{:?}|{:?}",
+                    c.pcurve(),
+                    c.certificate(),
+                    b.joint(k)
+                )
+            })
             .collect()
     };
     assert_eq!(dump(&a1), dump(&a2));

@@ -1059,10 +1059,11 @@ mod tests {
             .pcurves()
             .map(|(he, c)| {
                 format!(
-                    "{he:?} {:?} {:?} {:?}",
+                    "{he:?} {:?} {:?} {:?} {:?}",
                     c.params(),
                     c.pcurve(),
-                    c.certificate()
+                    c.certificate(),
+                    body.joint(he)
                 )
             })
             .collect();
@@ -1272,10 +1273,11 @@ mod tests {
             .filter_map(|he| {
                 let c = body.pcurve(he)?;
                 Some(format!(
-                    "{he:?} {:?} {:?} {:?}",
+                    "{he:?} {:?} {:?} {:?} {:?}",
                     c.params(),
                     c.pcurve(),
-                    c.certificate()
+                    c.certificate(),
+                    body.joint(he)
                 ))
             })
             .collect();

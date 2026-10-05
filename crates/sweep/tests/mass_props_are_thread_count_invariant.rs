@@ -391,6 +391,23 @@ fn digest() -> String {
 /// quadrature faces are measured once more, eight more decisions
 /// (`num` 654 → 662, `decisions` 692 → 700). Every verdict, pad and other row,
 /// `sym_arc_loft`'s included, is unchanged.
+///
+/// **Re-cut at all three ε when a pcurve row became an image plus a
+/// joint element** (`topo::joint`, the re-anchor ruling, PR 4024). Only
+/// the two `validate_geometric` rows move, the same at every ε but
+/// `frozen`. Tier 3 decides the closure joint as every other joint and
+/// reads the winding off the elements: the closure margins go
+/// (`pcurve_loop_closure` 4, `pcurve_loop_closure_height` 4), the
+/// closure joint's two continuity margins come in (8), and the lever is
+/// read at all 16 joints (`pcurve_loop_pole_joint`, all definite) — 16
+/// more numeric decisions on each body (`sym_arc_loft` 692 → 708, `num`
+/// 636 → 652). The window a row certifies against is now the hull of
+/// the face's images, so on `sym_thin_strip` an image's escape against
+/// the window end it sets cancels: 16 `pcurve_trim_containment` and 6
+/// `pcurve_iso_boundary` decisions become theorems (`sz` 38 → 64,
+/// `num` 662 → 652, `decisions` 700 → 716) and the early walk freezes
+/// 46 fewer nodes (`frozen` 719 → 673 at 1e-9). Every verdict, pad and
+/// f64 row is unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

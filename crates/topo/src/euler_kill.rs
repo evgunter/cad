@@ -859,6 +859,13 @@ impl<T: Decide> Body<T> {
     /// edge the merge moves one end of
     /// ([`EulerOpError::RebasedNullEdge`]); last, no member is certified
     /// ([`EulerOpError::MergeRebasesCarriers`], naming all of them).
+    /// Before the merged fan, where the unsplice crosses each killed half
+    /// whole and the killed edge is not a null edge, no side stores the
+    /// two elements its bridged joint would sum through the half's turn
+    /// ([`EulerOpError::PcurveMint`] with
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`]: this door takes no
+    /// band to decide the turn by, so it refuses rather than leave the
+    /// face half-minted; [`Body::kev_describing`] decides it).
     ///
     /// # Errors
     ///
@@ -953,9 +960,15 @@ impl<T: Decide> Body<T> {
     /// re-basing gate in orbit order ([`EulerOpError::RebasedNullEdge`]
     /// / [`EulerOpError::RebasedCarrier`] naming the first that fails).
     /// So an empty merged fan with an empty list asks nothing past the
-    /// structural list, and the two doors agree there. Last, where a
-    /// listed member is a null edge, its first description's site mint
-    /// is planned ([`EulerOpError::PcurveMint`], as
+    /// structural list, and the two doors agree there. Then, where the
+    /// unsplice is general and the killed edge is not a null edge (each
+    /// killed half is crossed whole), `tol` builds a band
+    /// ([`EulerOpError::Certification`] with
+    /// [`geom_brep::CertifyError::Band`]) and each killed half's turn is
+    /// decided at it ([`EulerOpError::KillTurnEscalated`] naming the
+    /// first half, `he` before its mate, whose turn escalates). Last,
+    /// where a listed member is a null edge, its first description's
+    /// site mint is planned ([`EulerOpError::PcurveMint`], as
     /// [`Body::set_edge_curve`]'s).
     ///
     /// # Errors
@@ -987,8 +1000,15 @@ impl<T: Decide> Body<T> {
             let band = geom_core::Band::linear(tol).map_err(|e| EulerOpError::Certification {
                 error: geom_brep::CertifyError::Band(e),
             })?;
-            plan.turns =
-                [plan.he, plan.m].map(|half| crate::pcurves::turn_element(self, half, band));
+            for (slot, half) in [plan.he, plan.m].into_iter().enumerate() {
+                plan.turns[slot] =
+                    crate::pcurves::turn_element(self, half, band).map_err(|diag| {
+                        EulerOpError::KillTurnEscalated {
+                            half_edge: half,
+                            diag,
+                        }
+                    })?;
+            }
         }
         let curves: Vec<(EdgeKey, &EdgeCurve<T>)> = described
             .iter()
@@ -1240,6 +1260,7 @@ impl<T: Decide> Body<T> {
     /// [`Body::kev`]'s ε-free gate over the merged fan (its docs): the
     /// re-basing gate's null arm, and every certified member named.
     fn kev_keys_only_gate(&self, plan: &KevPlan) -> Result<(), EulerOpError> {
+        self.kev_turns_owed(plan)?;
         if !self.kev_merge_moves(plan) {
             return Ok(());
         }
@@ -1254,6 +1275,33 @@ impl<T: Decide> Body<T> {
         } else {
             Err(EulerOpError::MergeRebasesCarriers { edges: stranded })
         }
+    }
+
+    /// The keys-only refusal of a general unsplice that would leave a
+    /// face half-minted: where each killed half is crossed whole and
+    /// its turn is unknown (a certified carrier; only
+    /// [`Body::kev_describing`] takes the band that decides one), a side
+    /// whose two adjacent elements are stored would have its bridged
+    /// element written `None` ([`KevUnsplice::elements`]).
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] naming that side's
+    /// face, `he`'s before its mate's.
+    fn kev_turns_owed(&self, plan: &KevPlan) -> Result<(), EulerOpError> {
+        if plan.unsplice != KevUnsplice::General || plan.turns != [None; 2] {
+            return Ok(());
+        }
+        let [_, b, _, d] = plan.links;
+        for (half, after) in [(plan.he, b.key()), (plan.m, d.key())] {
+            if self.pcurve(half).is_some()
+                && self.joint(half).is_some()
+                && self.joint(after).is_some()
+            {
+                return Err(EulerOpError::PcurveMint {
+                    face: crate::pcurves::half_edge_face(self, half).0,
+                    refusal: crate::pcurves::SiteRowRefusal::KeysOnly,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// The loops the kill rewires, as it leaves them: each loop it
