@@ -57,24 +57,29 @@ nesting too: an interval of the walk, read from one origin.
   an origin entry, then uses `walks_after` within one entry. Each former
   spelling now reads it, and differs only in the origin it names:
   - `walk_order` reads from the orbit's first entry;
-  - `precedes` reads from its physical sector's first entry;
-  - `held_cut` reads from the run's first entry (its strut and fan
-    branches now share one between-test).
+  - `held_cut` reads from the run's first entry, strut or fan, through
+    one between-test;
+  - `precedes` reads from its physical sector's first entry, which
+    `edge_bound_entry` finds, the same walk as `next_edge_bound`'s.
 
   The hold predicates (`nests`, `holds_whole`, `nested`, `run_ends`,
-  `strut_anchor`) read it through `precedes`.
+  `strut_anchor`) read it through `precedes`. `holds_whole` keeps its
+  own between-test, and a comment says why: a tie counts inside there,
+  and reading from `lo` would wrap.
 - **One run rule, `insert::walk_run`.** A and B read it alike, for every
   survivor count. Adjacent germs run the way that holds no third
   (`run_order`). For two survivors either way is a run, and
   `run_degenerates` breaks that tie. Other pairs run as an interval of the
-  walk.
+  walk. Strut-ness is one helper, `is_strut`.
 - **What stays, and why:**
   - `run_degenerates` in `reconcile_pass` asks whether a way round can
     mint at all, not which way to run.
   - `walk_faces_first` orders two germs in one entry by `strut_order`
-    from the arrival edge, which its comment covers.
-  - There is still no single position struct: `Cut` carries the entry
-    and direction, and survivors' walk positions are integers.
+    from the arrival edge; a unit row checks that it agrees with
+    `walks_after`.
+- **Not done:** one fixed origin, and `b_runs`' nesting read as an
+  interval of the same walk. Both are filed as
+  `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin`.
 - **Behaviour:** byte-identical between main and head on
-  `pierce_runs_battery`, both reflex batteries, all 84 `rc_wide` shards
-  and `pinch_runs_battery`.
+  `pierce_runs_battery`, both reflex batteries, all 84 `rc_wide` shards,
+  `pinch_runs_battery` and `corner_pairs_battery`.
