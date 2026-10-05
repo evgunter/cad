@@ -7195,3 +7195,15 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - the HOLD criterion;
   - the `solid_contain` chord-join folds and the shadowed M12.
 - Running: one lane. Nothing new on PR 3970.
+
+## 23:55 check-in (2026-10-05)
+
+- PR 4073 (sync) merged at `cbbdde23`.
+- The split/chord/reach lane has no PR yet.
+- **Dispatched**, two easy rows in disjoint files:
+  - `the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left` (`offset_together.rs`; PR 4060's rule, reusing its helpers) → `session_01M8ASp4h5pM4kVQpPC8QC46`;
+  - `tier-three-renders-every-carried-curved-containment-refusal-as-not-yet` (`validate.rs`) → `session_01WWtvupYMGR48Caws34bcx1`.
+- **Not dispatched:**
+  - `a-moving-door-carries-minted-rows-onto-an-unminted-face-and-half-mints-it` and `a-moving-door-leaves-a-complete-spline-destination-half-minted` are open design forks over `kef`/`kfmrh`/`ring_move`, which neighbour PR 3970's question.
+  - `minting-doors-take-…` and `kev-describing-…` wait for the next slot.
+- Nothing new on PR 3970.

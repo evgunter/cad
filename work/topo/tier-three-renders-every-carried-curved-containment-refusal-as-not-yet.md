@@ -2,7 +2,7 @@
 id: tier-three-renders-every-carried-curved-containment-refusal-as-not-yet
 kind: issue
 title: Tier 3's classify_contain renders every carried Curved refusal as NOT_YET, a CorruptFace included
-status: open
+status: dispatched
 priority: P3
 cost: E
 refs: [torn-body-refusal-families-beyond-the-six-doors, contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant]
