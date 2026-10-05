@@ -319,15 +319,19 @@ pub(super) fn plan_null_pairs<T: Decide>(
     } else {
         ((0..n).collect(), (0..n).collect())
     };
-    let mut b_pos = vec![0; n];
-    for (p, &i) in b_order.iter().enumerate() {
-        b_pos[i] = p;
-    }
     // Pair consecutively in A's walk order, from the start
     // [`pairing_start_turns`] picks.
     if n > 2 && pairing_start_turns(survivors[a_order[0]].sa.0, op) {
         a_order.rotate_left(1);
     }
+    let positions = |order: &[usize]| {
+        let mut pos = vec![0; n];
+        for (p, &i) in order.iter().enumerate() {
+            pos[i] = p;
+        }
+        pos
+    };
+    let (a_pos, b_pos) = (positions(&a_order), positions(&b_order));
     // F12 guard 1: the pairs do not cross in B's walk order either
     // ([`b_runs`]), checked for every pair before the first mint.
     let pairs: Vec<(usize, usize)> = a_order.chunks(2).map(|c| (c[0], c[1])).collect();
@@ -335,23 +339,22 @@ pub(super) fn plan_null_pairs<T: Decide>(
         a_vertex: contact.a,
         b_vertex: contact.b,
     })?;
-    // A's pairs are consecutive in its own walk order, so each runs
-    // forward, but for two survivors, which run either way.
-    let a_run = (n > 2).then_some(false);
     let shared = pairs.len() > 1;
     for (&(i0, i1), &(b_run, _)) in pairs.iter().zip(&b_runs) {
+        // A's pairs are consecutive in its own walk order, so each runs
+        // forward, but for two survivors, which run either way.
+        let a_run = walk_run(n, a_pos[i0], a_pos[i1]);
         let (r0, r1) = (survivors[i0], survivors[i1]);
         let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
         let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
-        // Which way round each solid runs is its own walk order's: in A
-        // from the germ the other follows, so the run holds no third
-        // germ; in B as [`b_runs`] reads it, so a nested pair's run holds
-        // other pairs' runs whole. Two survivors follow each other both
-        // ways, and the run that
-        // swallows the entire orbit — impossible for the true wedge,
-        // whose far side the complementary germ bounds — is the
-        // reverse of the one minted. The run-side agreement guard runs
-        // against whichever direction is chosen.
+        // Which way round each solid runs is its own walk order's
+        // ([`walk_run`]): in A the run that holds no third germ, in B a
+        // nested pair's run holds other pairs' runs whole. Two survivors
+        // follow each other both ways, and the run that swallows the
+        // entire orbit — impossible for the true wedge, whose far side
+        // the complementary germ bounds — is the reverse of the one
+        // minted. The run-side agreement guard runs against whichever
+        // direction is chosen.
         let side = |sectors: &[BoolSector<T>],
                     body: &Body<T>,
                     order: Option<bool>,
@@ -389,7 +392,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let strut = plan
         .runs
         .iter()
-        .map(|r| Ok(run_fan(b_sectors, r[1].from.0, r[1].to.0)?.is_empty()))
+        .map(|r| is_strut(b_sectors, r[1].from.0, r[1].to.0))
         .collect::<Result<Vec<bool>, BooleanError>>()?;
     for k in 0..plan.runs.len() {
         let chain: Vec<usize> = std::iter::successors(holders[k], |&h| holders[h]).collect();
@@ -431,6 +434,16 @@ fn run_order(n: usize, p0: usize, p1: usize) -> Option<Option<bool>> {
     }
 }
 
+/// **Which way round a solid runs the pair at its walk positions `p0`
+/// and `p1` of `n`**, for both solids and every survivor count: as
+/// [`run_order`] says where the two are adjacent, so the run holds no
+/// third germ, `None` where either way does (two survivors); else
+/// forward from the earlier position to the later, so the run is an
+/// interval of the walk read from its first entry ([`b_runs`]).
+fn walk_run(n: usize, p0: usize, p1: usize) -> Option<bool> {
+    run_order(n, p0, p1).unwrap_or(Some(p1 < p0))
+}
+
 /// **B's run for each of A's `pairs`, and the pair whose run holds it.**
 /// `b_pos` is each survivor's position in B's walk order. Each pair
 /// joins the ends of one of A's runs, and A's runs on one side of B's
@@ -438,10 +451,9 @@ fn run_order(n: usize, p0: usize, p1: usize) -> Option<Option<bool>> {
 /// the sphere round the vertex, so the pairs cannot cross in B's walk
 /// order. At four crossings that makes each pair adjacent in B too; at
 /// six or more a pair may hold others between its two germs either way
-/// round (a nested matching). A pair adjacent in B runs as
-/// [`run_order`] says; any other runs forward from its earlier position
-/// to its later, so the runs are intervals of B's walk read from its
-/// first entry: disjoint or nested. A pair whose run holds another's
+/// round (a nested matching). Each runs as [`walk_run`] says, so the
+/// runs are intervals of B's walk read from its first entry: disjoint
+/// or nested. A pair whose run holds another's
 /// mints first, and the one it holds mints at its copy ([`mint_plans`]).
 /// `None`: two pairs cross, and the walks are not two simple links'.
 fn b_runs(
@@ -462,10 +474,7 @@ fn b_runs(
     }
     let runs: Vec<Option<bool>> = pairs
         .iter()
-        .map(|&(i0, i1)| {
-            let (p0, p1) = (b_pos[i0], b_pos[i1]);
-            run_order(n, p0, p1).unwrap_or(Some(p1 < p0))
-        })
+        .map(|&(i0, i1)| walk_run(n, b_pos[i0], b_pos[i1]))
         .collect();
     // A run's interval: positions it walks past, from its from-germ.
     let interval = |k: usize| {
@@ -496,10 +505,10 @@ fn b_runs(
     )
 }
 
-/// The survivors' walk order round one solid's orbit: by their sector
-/// `entries`, and within one entry round the sector ([`walks_after`], on
-/// their directions `dirs`). Nothing orders two germs along one direction
-/// in one entry, so they refuse.
+/// The survivors' walk order round one solid's orbit, read from its
+/// first entry ([`walks_before`]) at their sector `entries` and
+/// directions `dirs`. Nothing orders two germs along one direction in
+/// one entry, so they refuse.
 fn walk_order<T: Decide>(
     sectors: &[BoolSector<T>],
     entries: &[usize],
@@ -510,18 +519,17 @@ fn walk_order<T: Decide>(
     for i in 0..entries.len() {
         let mut at = order.len();
         for (p, &j) in order.iter().enumerate() {
-            let before = match entries[i].cmp(&entries[j]) {
-                std::cmp::Ordering::Less => true,
-                std::cmp::Ordering::Greater => false,
-                std::cmp::Ordering::Equal => {
-                    walks_after(&sectors[entries[i]], dirs[i], dirs[j], band)?.ok_or(
-                        BooleanError::ClassificationInvariant {
-                            what: "two crossing germs of a vertex pair lie along one direction \
-                                   in one sector entry",
-                        },
-                    )?
-                }
-            };
+            let before = walks_before(
+                sectors,
+                0,
+                (entries[i], dirs[i]),
+                (entries[j], dirs[j]),
+                band,
+            )?
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "two crossing germs of a vertex pair lie along one direction in one \
+                           sector entry",
+            })?;
             if before {
                 at = p;
                 break;
@@ -579,9 +587,7 @@ pub(super) fn mint_plans<T: Decide>(
         [orbits[i].0, orbits[i].1]
             .into_iter()
             .zip(r)
-            .any(|(secs, r)| {
-                r.shared && run_fan(secs, r.from.0, r.to.0).is_ok_and(|f| f.is_empty())
-            })
+            .any(|(secs, r)| r.shared && is_strut(secs, r.from.0, r.to.0).is_ok_and(|s| s))
     };
     let mut order: Vec<usize> = (0..plans.len()).collect();
     order.sort_by_key(|&i| !(0..plans[i].runs.len()).any(|k| hangs(i, k)));
@@ -603,7 +609,7 @@ pub(super) fn mint_plans<T: Decide>(
         let run = |(i, k): (usize, usize)| plans[i].runs[k][slot];
         let shared_strut = |at: (usize, usize)| -> Result<bool, BooleanError> {
             let r = run(at);
-            Ok(r.shared && run_fan(orbit(at.0), r.from.0, r.to.0)?.is_empty())
+            Ok(r.shared && is_strut(orbit(at.0), r.from.0, r.to.0)?)
         };
         let mut keyed = Vec::with_capacity(runs.len());
         for (n, &at) in runs.iter().enumerate() {
@@ -715,7 +721,7 @@ fn nests<T: Decide>(
     inner: SideRun<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let strut = |r: SideRun<T>| run_fan(secs, r.from.0, r.to.0).map(|f| f.is_empty());
+    let strut = |r: SideRun<T>| is_strut(secs, r.from.0, r.to.0);
     Ok(strut(outer)?
         && strut(inner)?
         && holds_whole(
@@ -750,6 +756,10 @@ fn holds_whole<T: Decide>(
         precedes(secs, lo, ilo, band)?,
         precedes(secs, ihi, hi, band)?,
     );
+    // Not [`held_cut`]'s between-test: an end along one direction counts
+    // inside here, where `held_cut` asks [`tied_held`], and the reading
+    // starts at the physical sector's first entry, since from `lo`'s an
+    // inner segment straddling `lo` would wrap round to look held.
     let inside = |o: Option<bool>| o != Some(false);
     Ok(inside(at_lo) && inside(at_hi) && (at_lo, at_hi) != (None, None))
 }
@@ -873,7 +883,7 @@ fn reconcile_pass<T: Decide>(
             for &j in &others {
                 for r in &plans[j].runs {
                     let (lo, hi) = run_ends(secs, r[slot], band)?;
-                    let strut = run_fan(secs, r[slot].from.0, r[slot].to.0)?.is_empty();
+                    let strut = is_strut(secs, r[slot].from.0, r[slot].to.0)?;
                     cuts.push(OtherCut {
                         at: lo,
                         mate: hi,
@@ -895,6 +905,8 @@ fn reconcile_pass<T: Decide>(
                 let mut blocker = None;
                 let mut chosen = None;
                 for run in [current, current.reversed()] {
+                    // Not the run rule ([`walk_run`]): whether this way
+                    // round can mint at all.
                     if run_degenerates(body, secs, run.from.0, run.to.0)? {
                         continue;
                     }
@@ -951,7 +963,7 @@ fn run_ends<T: Decide>(
     band: Band,
 ) -> Result<(Cut<T>, Cut<T>), BooleanError> {
     let (from, to) = ((run.from.0, run.from.3), (run.to.0, run.to.3));
-    if !run_fan(secs, from.0, to.0)?.is_empty() {
+    if !is_strut(secs, from.0, to.0)? {
         return Ok((from, to));
     }
     match precedes(secs, from, to, band)? {
@@ -976,41 +988,24 @@ fn held_cut<T: Decide>(
     cuts: &[OtherCut<T>],
     band: Band,
 ) -> Result<Option<usize>, BooleanError> {
-    let n = secs.len();
     let (lo, hi) = run_ends(secs, run, band)?;
-    let strut = run_fan(secs, lo.0, hi.0)?.is_empty();
-    let rel = |k: usize| (k + n - lo.0) % n;
+    let strut = is_strut(secs, lo.0, hi.0)?;
+    // Round the orbit from the run's first entry ([`walks_before`]): a
+    // strut's cuts there are those of its one physical sector.
+    let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, lo.0, p, q, band);
     for &cut in cuts {
-        let (j, d) = cut.at;
-        let held = if strut {
-            if secs[j].he != secs[lo.0].he || nested(secs, (lo, hi), cut, band)? {
+        let at = cut.at;
+        let held =
+            if strut && (secs[at.0].he != secs[lo.0].he || nested(secs, (lo, hi), cut, band)?) {
                 false
             } else {
-                match (
-                    precedes(secs, lo, (j, d), band)?,
-                    precedes(secs, (j, d), hi, band)?,
-                ) {
+                match (before(lo, at)?, before(at, hi)?) {
                     (Some(false), _) | (_, Some(false)) => false,
                     (None, _) => tied_held(secs, (lo, true), hi, cut, band)?,
                     (_, None) => tied_held(secs, (hi, false), lo, cut, band)?,
                     (Some(true), Some(true)) => true,
                 }
-            }
-        } else if rel(j) == 0 {
-            match walks_after(&secs[lo.0], lo.1, d, band)? {
-                Some(after) => after,
-                None => tied_held(secs, (lo, true), hi, cut, band)?,
-            }
-        } else if rel(j) < rel(hi.0) {
-            true
-        } else if rel(j) == rel(hi.0) {
-            match walks_after(&secs[hi.0], d, hi.1, band)? {
-                Some(before) => before,
-                None => tied_held(secs, (hi, false), lo, cut, band)?,
-            }
-        } else {
-            false
-        };
+            };
         if held {
             return Ok(Some(cut.owner));
         }
@@ -1065,6 +1060,29 @@ fn tied_held<T: Decide>(
         return Ok(false);
     }
     Ok(cut.mate.0 == far.0 && walks_after(&secs[far.0], far.1, cut.mate.1, band)?.is_none())
+}
+
+/// **A vertex orbit's one position order**: whether cut `p` comes before
+/// cut `q` walking the orbit forward from entry `origin`, by their
+/// entries counted from `origin` and within one entry round the sector
+/// ([`walks_after`]). `None`: one entry, along one direction. The walk
+/// order reads it from the orbit's first entry ([`walk_order`]), the
+/// cuts a run holds, strut or fan, from the run's first entry
+/// ([`held_cut`]), and two cuts of one physical sector from that
+/// sector's first ([`precedes`]).
+fn walks_before<T: Decide>(
+    sectors: &[BoolSector<T>],
+    origin: usize,
+    p: Cut<T>,
+    q: Cut<T>,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    if p.0 == q.0 {
+        return walks_after(&sectors[p.0], p.1, q.1, band);
+    }
+    let n = sectors.len();
+    let rel = |e: usize| (e + n - origin) % n;
+    Ok(Some(rel(p.0) < rel(q.0)))
 }
 
 /// Whether `y` lies after `x` walking the convex sector `s` forward,
@@ -1143,7 +1161,7 @@ fn mint_directed<T: Decide>(
     // ([`strut_faces_first`]). Senses follow the facing by the sense
     // theorem, so only the splice order moves. Run direction is
     // untouched (a strut's reverse run spans the whole orbit).
-    let empty = run_fan(sectors, gf.0, gt.0)?.is_empty();
+    let empty = is_strut(sectors, gf.0, gt.0)?;
     // A strut at a shared vertex: its germs in walk order, and the
     // innermost strut hung earlier whose segment holds its own.
     let walk = if empty && run.shared {
@@ -1355,12 +1373,27 @@ struct SharedStrut<T: geom_core::Real> {
 /// The entry past `k` whose end bound is a real edge: the one holding
 /// the half-edge that bounds `k`'s physical sector at its start.
 fn next_edge_bound<T: geom_core::Real>(sectors: &[BoolSector<T>], k: usize) -> usize {
+    edge_bound_entry(sectors, (k + 1) % sectors.len(), true).unwrap_or(k)
+}
+
+/// The first entry whose end bound is a real edge, walking the orbit
+/// from `k` (inclusive) forward or back: a physical sector's first
+/// entry. `None`: no entry's is.
+fn edge_bound_entry<T: geom_core::Real>(
+    sectors: &[BoolSector<T>],
+    k: usize,
+    forward: bool,
+) -> Option<usize> {
     let n = sectors.len();
-    let mut j = (k + 1) % n;
-    while !sectors[j].end_edge() && j != k {
-        j = (j + 1) % n;
-    }
-    j
+    (0..n)
+        .map(|i| {
+            if forward {
+                (k + i) % n
+            } else {
+                (k + n - i) % n
+            }
+        })
+        .find(|&j| sectors[j].end_edge())
 }
 
 /// The half at `vertex` that bounds a corner where a sector's half `he`
@@ -1452,9 +1485,9 @@ fn strut_anchor<T: Decide>(
 }
 
 /// Whether cut `p` comes before cut `q` walking forward through their
-/// one physical sector (`None`: the two lie along one direction). Two
-/// cuts in one entry are ordered by [`walks_after`], which agrees with
-/// the strut order there ([`walk_faces_first`]).
+/// one physical sector, read from its first entry ([`walks_before`];
+/// `None`: the two lie along one direction). Within one entry this
+/// agrees with the strut order ([`walk_faces_first`]).
 fn precedes<T: Decide>(
     sectors: &[BoolSector<T>],
     p: Cut<T>,
@@ -1462,20 +1495,13 @@ fn precedes<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     if p.0 == q.0 {
-        return walks_after(&sectors[p.0], p.1, q.1, band);
+        return walks_before(sectors, p.0, p, q, band);
     }
-    let n = sectors.len();
-    let mut first = p.0;
-    while !sectors[first].end_edge() {
-        first = (first + n - 1) % n;
-        if first == p.0 {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a vertex orbit whose sectors hold no edge bound",
-            });
-        }
-    }
-    let rel = |e: usize| (e + n - first) % n;
-    Ok(Some(rel(p.0) < rel(q.0)))
+    let first =
+        edge_bound_entry(sectors, p.0, false).ok_or(BooleanError::ClassificationInvariant {
+            what: "a vertex orbit whose sectors hold no edge bound",
+        })?;
+    walks_before(sectors, first, p, q, band)
 }
 
 /// The edge of `operand`'s own solid a germ runs along, if its locus
@@ -1601,8 +1627,9 @@ pub(super) fn strut_faces_first<T: Decide>(
 /// directions ([`strut_order`]). Inside one entry the two orderings
 /// agree, since `build_sectors` bisects every sector of a half-turn or
 /// more and both then read the sign of `(g0 × g1)·n` at the entry's
-/// arm; `precedes` keeps [`walks_after`] there for the shared-vertex
-/// cuts, which have no arrival edge to anchor on.
+/// arm (`the_strut_order_agrees_with_the_walk_within_an_entry`);
+/// `precedes` keeps [`walks_after`] there for the shared-vertex cuts,
+/// which have no arrival edge to anchor on.
 fn walk_faces_first<T: Decide>(
     body: &Body<T>,
     sectors: &[BoolSector<T>],
@@ -1821,6 +1848,16 @@ fn run_degenerates<T: Decide>(
             what: "run edge without a mate",
         })?;
     Ok(matches!(site, RunSite::WholeOrbit { .. }))
+}
+
+/// Whether the run between entries `from` and `to` crosses no edge
+/// bound ([`run_fan`]): a strut, dangling inside one physical sector.
+fn is_strut<T: Decide>(
+    sectors: &[BoolSector<T>],
+    from: usize,
+    to: usize,
+) -> Result<bool, BooleanError> {
+    Ok(run_fan(sectors, from, to)?.is_empty())
 }
 
 /// The real edge bounds crossed walking the entry chain forward from
@@ -2126,6 +2163,228 @@ mod tests {
         assert_eq!(run_order(4, 0, 3), Some(Some(true)), "backward, wrapping");
         assert_eq!(run_order(2, 0, 1), Some(None), "two survivors");
         assert_eq!(run_order(4, 0, 2), None, "interleaved");
+    }
+
+    /// **One run rule, both solids, every survivor count** ([`walk_run`]):
+    /// adjacent germs run the way that holds no third, either way for
+    /// two survivors, and a pair adjacent neither way runs from its
+    /// earlier position to its later, wrapping or not.
+    #[test]
+    fn walk_run_is_adjacency_then_the_interval() {
+        assert_eq!(walk_run(2, 0, 1), None, "two survivors");
+        assert_eq!(walk_run(2, 1, 0), None, "two survivors, swapped");
+        assert_eq!(walk_run(6, 2, 3), Some(false), "adjacent forward");
+        assert_eq!(walk_run(6, 3, 2), Some(true), "adjacent backward");
+        assert_eq!(walk_run(6, 5, 0), Some(false), "adjacent across the origin");
+        assert_eq!(
+            walk_run(6, 0, 5),
+            Some(true),
+            "adjacent across the origin, swapped"
+        );
+        assert_eq!(walk_run(6, 1, 4), Some(false), "nested, earlier first");
+        assert_eq!(walk_run(6, 4, 1), Some(true), "nested, later first");
+    }
+
+    /// **A's run, through the planner** ([`plan_null_pairs`]): with more
+    /// than two survivors A pairs consecutive germs of its walk order and
+    /// runs each pair forward from its first, from either pairing start;
+    /// two run the way [`run_degenerates`] leaves them. Synthetic sectors
+    /// on a cube vertex's orbit, every germ along `+y` in its own entry.
+    #[test]
+    fn as_runs_go_forward_between_consecutive_germs_and_two_as_the_orbit_allows() {
+        use SideCode::{In, Out};
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        // `laps` times round the orbit, and with `twin` a last entry
+        // bisecting the last physical sector.
+        let sectors_of = |body: &Body<f64>, normal, start, end, (laps, twin): (usize, bool)| {
+            let (vk, v) = body.vertices().next().unwrap();
+            let orbit = body.vertex_orbit(v.emanating.unwrap()).unwrap();
+            let mut secs: Vec<BoolSector<f64>> = std::iter::repeat_n(orbit, laps)
+                .flatten()
+                .map(|he| BoolSector {
+                    he,
+                    start,
+                    end,
+                    start_reach: crate::boolean::sectors::Reach::Extent(1.0),
+                    end_reach: crate::boolean::sectors::Reach::Extent(1.0),
+                    face: FaceKey::default(),
+                    normal,
+                    arm: 1.0,
+                })
+                .collect();
+            if twin {
+                let last = secs[secs.len() - 1].clone();
+                secs.push(BoolSector {
+                    end_reach: crate::boolean::sectors::Reach::Bisector(1.0),
+                    ..last
+                });
+            }
+            (vk, secs)
+        };
+        let v3 = geom_core::Vec3::new;
+        let z = geom_brep::OutwardNormal::from_chart(v3(0.0, 0.0, 1.0), true);
+        let x = geom_brep::OutwardNormal::from_chart(v3(1.0, 0.0, 0.0), true);
+        let rec = |e: usize, sa: (SideCode, SideCode)| PairRecord {
+            a: e,
+            b: e,
+            sa,
+            sb: sa,
+            intersect: true,
+        };
+        let plan = |laps: (usize, bool), recs: &[PairRecord], op| {
+            let (va, a_secs) = sectors_of(&abody, z, v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), laps);
+            let (vb, b_secs) = sectors_of(&bbody, x, v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0), laps);
+            let p = plan_null_pairs(
+                &abody,
+                &bbody,
+                VvContact { a: va, b: vb },
+                &a_secs,
+                &b_secs,
+                recs,
+                recs,
+                &crate::boolean::DeclaredPairs::default(),
+                &crate::boolean::ContactRecords::default(),
+                op,
+                band,
+            )
+            .unwrap();
+            (p, a_secs)
+        };
+        // Four survivors in entries 0, 1, 3, 4 of a doubled orbit, their
+        // forward codes alternating Out, In: ∪ keeps A's Out runs and
+        // pairs from the first germ, ∩ keeps the In runs and turns.
+        let four = [
+            rec(0, (Out, In)),
+            rec(1, (In, Out)),
+            rec(3, (Out, In)),
+            rec(4, (In, Out)),
+        ];
+        for (op, want) in [
+            (BooleanOp::Union, [(0, 1), (3, 4)]),
+            (BooleanOp::Intersect, [(1, 3), (4, 0)]),
+        ] {
+            let (p, _) = plan((2, false), &four, op);
+            let got: Vec<(usize, usize)> =
+                p.runs.iter().map(|r| (r[0].from.0, r[0].to.0)).collect();
+            assert_eq!(got, want, "{op:?}: A's runs");
+            assert!(
+                p.runs.iter().all(|r| !r[0].swapped),
+                "{op:?}: each runs forward from its pair's first germ"
+            );
+        }
+        // Two survivors, either record order: the run [`run_degenerates`]
+        // leaves. On the bisected orbit, the forward run from the twin
+        // entry 3 to entry 2 crosses every edge, so it runs from 2.
+        for (recs, degenerates) in [
+            ([rec(0, (Out, In)), rec(1, (In, Out))], false),
+            ([rec(1, (In, Out)), rec(0, (Out, In))], false),
+            ([rec(3, (Out, In)), rec(2, (In, Out))], true),
+            ([rec(2, (In, Out)), rec(3, (Out, In))], false),
+        ] {
+            let (p, secs) = plan((1, true), &recs, BooleanOp::Union);
+            let r = p.runs[0][0];
+            let degenerate = run_degenerates(&abody, &secs, recs[0].a, recs[1].a).unwrap();
+            assert_eq!(degenerate, degenerates, "{recs:?}: the fixture");
+            assert_eq!(r.swapped, degenerate, "{recs:?}");
+            assert_eq!(
+                (r.from.0, r.to.0),
+                if degenerate {
+                    (recs[1].a, recs[0].a)
+                } else {
+                    (recs[0].a, recs[1].a)
+                }
+            );
+        }
+    }
+
+    /// **One position order round a vertex** ([`walks_before`]), read
+    /// from the origin each caller names. Four entries, the second a
+    /// bisected twin of the first: across entries the order counts from
+    /// the origin, so [`precedes`] (from the physical sector's first
+    /// entry) and a run's reading from its own first entry disagree on
+    /// one pair; within an entry it is the turn about the sector's
+    /// normal, one direction refusing in [`walk_order`].
+    #[test]
+    fn walks_before_reads_one_order_from_each_origin() {
+        use super::super::sectors::Reach;
+        use geom_core::Vec3;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let sector = |end_reach| BoolSector {
+            he: HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Extent(1.0),
+            end_reach,
+            face: FaceKey::default(),
+            normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            arm: 1.0,
+        };
+        let secs = vec![
+            sector(Reach::Extent(1.0)),
+            sector(Reach::Bisector(1.0)),
+            sector(Reach::Extent(1.0)),
+            sector(Reach::Extent(1.0)),
+        ];
+        let at = |e: usize, d: Vec3<f64>| (e, d);
+        // Across entries: counted from the origin.
+        assert_eq!(
+            walks_before(&secs, 0, at(1, x), at(0, x), band).unwrap(),
+            Some(false)
+        );
+        assert_eq!(
+            walks_before(&secs, 1, at(1, x), at(0, x), band).unwrap(),
+            Some(true)
+        );
+        assert_eq!(
+            walks_before(&secs, 3, at(0, x), at(2, x), band).unwrap(),
+            Some(true)
+        );
+        assert_eq!(
+            walks_before(&secs, 3, at(3, x), at(0, x), band).unwrap(),
+            Some(true)
+        );
+        // The physical sector's first entry is 0, the twin's too.
+        assert_eq!(
+            precedes(&secs, at(1, x), at(0, x), band).unwrap(),
+            Some(false)
+        );
+        assert_eq!(
+            precedes(&secs, at(0, x), at(1, x), band).unwrap(),
+            Some(true)
+        );
+        // Read from the twin's first entry back, not from the next
+        // sector's forward.
+        assert_eq!(
+            precedes(&secs, at(1, x), at(2, x), band).unwrap(),
+            Some(true)
+        );
+        // Within an entry: y walks before x, and one direction is no order.
+        for origin in 0..4 {
+            assert_eq!(
+                walks_before(&secs, origin, at(2, y), at(2, x), band).unwrap(),
+                Some(true)
+            );
+            assert_eq!(
+                walks_before(&secs, origin, at(2, x), at(2, y), band).unwrap(),
+                Some(false)
+            );
+            assert_eq!(
+                walks_before(&secs, origin, at(2, x), at(2, x), band).unwrap(),
+                None
+            );
+        }
+        // The walk order reads it from entry 0.
+        assert_eq!(
+            walk_order(&secs, &[3, 0, 0], &[x, x, y], band).unwrap(),
+            vec![2, 1, 0]
+        );
+        assert!(matches!(
+            walk_order(&secs, &[2, 2], &[x, x], band),
+            Err(BooleanError::ClassificationInvariant { .. })
+        ));
     }
 
     /// **F12 guard 1 over six survivors.** Review r1's trace of the
@@ -2506,6 +2765,59 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "silently misordered: {wrong:?}");
+    }
+
+    /// **The strut order and the walk agree within an entry**
+    /// ([`walk_faces_first`] reads the one, [`precedes`] the other). A
+    /// physical sector of 60° to 350° from its arrival edge, bisected at
+    /// its middle where it is a half-turn or more as `build_sectors`
+    /// does: for every two germs on a 7° grid inside one entry,
+    /// [`strut_order`] (against the arrival edge) puts first the germ
+    /// [`walks_after`] (round the entry) puts first.
+    #[test]
+    fn the_strut_order_agrees_with_the_walk_within_an_entry() {
+        use super::super::sectors::Reach;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |deg: f64| {
+            let t = -deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), 0.0)
+        };
+        let entry = BoolSector {
+            he: HalfEdgeKey::default(),
+            start: at(1.0),
+            end: e,
+            start_reach: Reach::Extent(1.0),
+            end_reach: Reach::Extent(1.0),
+            face: FaceKey::default(),
+            normal: geom_brep::OutwardNormal::from_chart(n, true),
+            arm: 1.0,
+        };
+        let mut pairs = 0;
+        for alpha in [60.0, 179.0, 181.0, 270.0, 350.0] {
+            let entries: Vec<(f64, f64)> = if alpha >= 180.0 {
+                vec![(0.0, alpha / 2.0), (alpha / 2.0, alpha)]
+            } else {
+                vec![(0.0, alpha)]
+            };
+            for (lo, hi) in entries {
+                let grid: Vec<f64> = (1..)
+                    .map(|k| lo + 7.0 * f64::from(k) - 3.5)
+                    .take_while(|&d| d < hi)
+                    .filter(|&d| d > lo && (d - 180.0).abs() > 1.0)
+                    .collect();
+                for &d0 in &grid {
+                    for &d1 in grid.iter().filter(|&&d1| d1 != d0) {
+                        let walk = walks_after(&entry, at(d0), at(d1), band).unwrap();
+                        let strut = strut_order(e, n, (at(d0), at(d1)), 1.0, band).unwrap();
+                        assert_eq!(walk, Some(strut), "{alpha}°: {d0}° then {d1}°");
+                        assert_eq!(strut, d0 < d1, "{alpha}°: {d0}° then {d1}°");
+                        pairs += 1;
+                    }
+                }
+            }
+        }
+        assert!(pairs > 1000, "{pairs} pairs");
     }
 
     /// REVIEW (join/reflex-corner-review): an arrival edge along the
