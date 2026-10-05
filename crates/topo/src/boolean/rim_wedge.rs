@@ -502,6 +502,7 @@ fn contains<T: Decide>(
     };
     let lift = |e: super::contain::ContainError| match e {
         super::contain::ContainError::Escalated(diag) => diag,
+        super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
     let f = body.get_face(face).ok_or(unread)?;

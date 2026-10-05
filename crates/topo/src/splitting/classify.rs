@@ -858,13 +858,11 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 if !crossing {
                     continue;
                 }
-                let dist = |body: &Body<T>, vk: VertexKey| -> Option<T> {
-                    let p = *body.get_point(body.get_vertex(vk)?.point)?;
-                    Some((p - plane.origin).dot(plane.normal.get()))
+                let dist = |vk: VertexKey| {
+                    let p = body.resolve_vertex_point(vk, crate::live::Proven);
+                    (p - plane.origin).dot(plane.normal.get())
                 };
-                let (Some(d1), Some(d2)) = (dist(body, u), dist(body, v)) else {
-                    return Err(SplitReduceError::CorruptOperand { vertex: u });
-                };
+                let (d1, d2) = (dist(u), dist(v));
                 vec![t0 + (t1 - t0) * (d1 / (d1 - d2))]
             }
         };

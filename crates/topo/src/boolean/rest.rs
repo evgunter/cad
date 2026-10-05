@@ -97,20 +97,42 @@ use super::{
     BooleanResult, BooleanResultKind, Locus, Operand, OperandKeys,
 };
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::null::CurveGeom;
+use crate::live::{Proven, linked, proven};
 use crate::splitting::finish::single_solid;
 use geom_core::Tol;
 
-/// A kernel-bug-class desync inside the lane (after the frontier is
-/// positively identified) — same posture as the join's lockstep
-/// refusals.
+/// A desync inside the lane (after the frontier is positively
+/// identified) — same posture as the join's lockstep refusals: a key
+/// the lane carries across its own surgery that no longer resolves, or
+/// bookkeeping that disagrees with the body. The lane kills edges,
+/// vertices and faces mid-operation, so no premise proves those keys
+/// live, and they answer typed. A hop past a record the lane just
+/// resolved is a link, and its miss panics ([`loop_boundary`]).
 fn desync(what: &'static str) -> BooleanError {
     BooleanError::JoinDesync { what }
+}
+
+/// The boundary of loop `l`, which `holder`'s field `field` names: a
+/// link, so a miss panics, as does a walk of it ([`Body::loop_walk`]
+/// closed): the lane's Euler operators keep the body link-valid between
+/// them.
+fn loop_boundary<T: Decide>(
+    body: &Body<T>,
+    l: LoopKey,
+    holder: EntityId,
+    field: &'static str,
+) -> LoopBoundary {
+    linked(&body.loops, l, EntityId::Loop, holder, field).boundary
+}
+
+/// The closed loop walk from `first`, a loop's anchor this call read.
+fn cycle<T: Decide>(body: &Body<T>, first: HalfEdgeKey) -> Vec<HalfEdgeKey> {
+    body.loop_walk(first).closed("loop", first)
 }
 
 /// A named sub-frontier the lane declines (honest typed refusal,
@@ -1006,10 +1028,21 @@ fn interior_edges<T: Decide>(
         if seam.set.contains_key(key) || !in_patch(edge.he_plus) || !in_patch(edge.he_minus) {
             continue;
         }
-        let (u, v) = body
-            .edge_vertices(key)
-            .ok_or_else(|| desync("REST lane: interior edge half no longer resolves"))?;
-        out.push((key, u, v));
+        let ends = |he, slot| {
+            linked(
+                &body.half_edges,
+                he,
+                EntityId::HalfEdge,
+                EntityId::Edge(key),
+                slot,
+            )
+            .start
+        };
+        out.push((
+            key,
+            ends(edge.he_plus, "he_plus"),
+            ends(edge.he_minus, "he_minus"),
+        ));
     }
     Ok(out)
 }
@@ -1070,12 +1103,13 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
 /// Whether an edge of `body` joins `u` to `v` (structural fan walk —
 /// zero numerics). An isolated ring vertex has an empty orbit.
 fn joined<T: Decide>(body: &Body<T>, u: VertexKey, v: VertexKey) -> Result<bool, BooleanError> {
-    let orbit = body
-        .vertex_orbit_of(u)
-        .ok_or_else(|| desync("REST lane: site vertex orbit not walkable"))?;
-    Ok(orbit
+    if body.get_vertex(u).is_none() {
+        return Err(desync("REST lane: a site vertex no longer resolves"));
+    }
+    Ok(body
+        .vertex_orbit_linked(u)
         .into_iter()
-        .any(|he| body.half_edge_end(he) == Some(v)))
+        .any(|he| body.proven_half_edge_end(he) == v))
 }
 
 /// The other solid's edge between the vertices a chord joins, read for
@@ -1113,14 +1147,24 @@ impl<T: Decide> Twin<T> {
         let ed = other
             .get_edge(edge)
             .ok_or_else(|| desync("REST lane: twin edge no longer resolves"))?;
-        let start = match other.edge_vertices(edge) {
-            Some(ends) if ends == (ou, ov) => u,
-            Some(ends) if ends == (ov, ou) => v,
+        let ends = |he, slot| {
+            linked(
+                &other.half_edges,
+                he,
+                EntityId::HalfEdge,
+                EntityId::Edge(edge),
+                slot,
+            )
+            .start
+        };
+        let start = match (ends(ed.he_plus, "he_plus"), ends(ed.he_minus, "he_minus")) {
+            found if found == (ou, ov) => u,
+            found if found == (ov, ou) => v,
             _ => return Err(desync("REST lane: a chord's twin does not join its ends")),
         };
         let curve = other
-            .get_curve_geom(ed.curve)
-            .and_then(CurveGeom::certified)
+            .edge_curve_linked(edge, ed)
+            .certified()
             .ok_or_else(|| unsupported(RestZipFrontier::TwinCarrierUnsupported))?;
         let (t0, t1) = curve.params();
         match curve.carrier() {
@@ -1181,11 +1225,8 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
             )
         })
     };
-    let loop_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<LoopKey, BooleanError> {
-        Ok(body
-            .get_half_edge(he)
-            .ok_or_else(|| desync("REST lane: chord half no longer resolves"))?
-            .parent_loop)
+    let loop_of = |body: &Body<T>, he: HalfEdgeKey| {
+        proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop
     };
     // The new edge's curve from `from` to `to`, where the twin states
     // one; `None` takes the straight chord.
@@ -1204,7 +1245,7 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
     };
     let created = match (&hu[..], &hv[..]) {
         ([hu], [hv]) => {
-            let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
+            let (lu, lv) = (loop_of(body, *hu), loop_of(body, *hv));
             if lu == lv {
                 let created = mef(body, *hu, *hv, u)
                     .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
@@ -1251,13 +1292,16 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The faces incident to `u` ([`super::sectors::faces_at`]); a
-/// pierce-ring vertex joined to nothing contributes its host face.
+/// pierce-ring vertex joined to nothing contributes its host face. `u`
+/// is a key the lane carries across its own surgery, so one that no
+/// longer resolves is refused.
 fn incident_faces<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Vec<FaceKey>, BooleanError> {
-    let faces = super::sectors::faces_at(body, u)?;
+    let faces = super::sectors::faces_at(body, u)
+        .ok_or_else(|| desync("REST lane: a chord endpoint no longer resolves"))?;
     Ok(if faces.is_empty() {
         rings.get(u).copied().into_iter().collect()
     } else {
@@ -1276,23 +1320,12 @@ fn halves_at<T: Decide>(
         .ok_or_else(|| desync("REST lane: chord host face vanished"))?;
     let mut out = Vec::new();
     for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(l)
-            .ok_or_else(|| desync("REST lane: host loop no longer resolves"))?
-            .boundary
+        let LoopBoundary::Cycle { first } = loop_boundary(body, l, EntityId::Face(face), "loops")
         else {
             continue;
         };
-        for he in body
-            .loop_cycle(first)
-            .ok_or_else(|| desync("REST lane: host loop not walkable"))?
-        {
-            if body
-                .get_half_edge(he)
-                .ok_or_else(|| desync("REST lane: host half no longer resolves"))?
-                .start
-                == u
-            {
+        for he in cycle(body, first) {
+            if proven(&body.half_edges, he, EntityId::HalfEdge).start == u {
                 out.push(he);
             }
         }
@@ -1328,39 +1361,20 @@ fn patch_faces<T: Decide>(
         let mut queue = vec![root];
         let mut touches_seam = false;
         while let Some(f) = queue.pop() {
-            let fd = body
-                .get_face(f)
-                .ok_or_else(|| desync("REST lane: region face vanished"))?;
+            let fd = proven(&body.faces, f, EntityId::Face);
             for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-                let LoopBoundary::Cycle { first } = body
-                    .get_loop(l)
-                    .ok_or_else(|| desync("REST lane: region loop no longer resolves"))?
-                    .boundary
+                let LoopBoundary::Cycle { first } =
+                    loop_boundary(body, l, EntityId::Face(f), "loops")
                 else {
                     continue;
                 };
-                for he in body
-                    .loop_cycle(first)
-                    .ok_or_else(|| desync("REST lane: region loop not walkable"))?
-                {
-                    let hd = body
-                        .get_half_edge(he)
-                        .ok_or_else(|| desync("REST lane: region half no longer resolves"))?;
-                    if seam.set.contains_key(hd.edge) {
+                for he in cycle(body, first) {
+                    let mate = body.proven_mate(he, Proven);
+                    if seam.set.contains_key(mate.edge) {
                         touches_seam = true;
                         continue;
                     }
-                    let mate = body
-                        .mate(he)
-                        .ok_or_else(|| desync("REST lane: region half has no mate"))?;
-                    let nl = body
-                        .get_half_edge(mate)
-                        .ok_or_else(|| desync("REST lane: region mate no longer resolves"))?
-                        .parent_loop;
-                    let nf = body
-                        .get_loop(nl)
-                        .ok_or_else(|| desync("REST lane: region mate loop no longer resolves"))?
-                        .face;
+                    let nf = body.face_of_linked(mate.mate);
                     if !assigned.contains_key(nf) {
                         assigned.insert(nf, ());
                         region.push(nf);
@@ -1389,25 +1403,14 @@ fn cycle_starts<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<VertexKe
     let f = body
         .get_face(face)
         .ok_or_else(|| desync("REST lane: cycle face vanished"))?;
-    let LoopBoundary::Cycle { first } = body
-        .get_loop(f.outer)
-        .ok_or_else(|| desync("REST lane: cycle loop no longer resolves"))?
-        .boundary
+    let LoopBoundary::Cycle { first } = loop_boundary(body, f.outer, EntityId::Face(face), "outer")
     else {
         return Err(desync("REST lane: patch outer loop is empty"));
     };
-    let mut out = Vec::new();
-    for he in body
-        .loop_cycle(first)
-        .ok_or_else(|| desync("REST lane: cycle not walkable"))?
-    {
-        out.push(
-            body.get_half_edge(he)
-                .ok_or_else(|| desync("REST lane: cycle half no longer resolves"))?
-                .start,
-        );
-    }
-    Ok(out)
+    Ok(cycle(body, first)
+        .into_iter()
+        .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
+        .collect())
 }
 
 /// Pairs the patch faces across the mate by exact antiparallel vertex-
@@ -1490,34 +1493,17 @@ fn bfs_order<T: Decide>(
             let fd = body
                 .get_face(f)
                 .ok_or_else(|| desync("REST lane: BFS face vanished"))?;
-            let LoopBoundary::Cycle { first } = body
-                .get_loop(fd.outer)
-                .ok_or_else(|| desync("REST lane: BFS loop no longer resolves"))?
-                .boundary
+            let LoopBoundary::Cycle { first } =
+                loop_boundary(body, fd.outer, EntityId::Face(f), "outer")
             else {
                 continue;
             };
-            for he in body
-                .loop_cycle(first)
-                .ok_or_else(|| desync("REST lane: BFS loop not walkable"))?
-            {
-                let hd = body
-                    .get_half_edge(he)
-                    .ok_or_else(|| desync("REST lane: BFS half no longer resolves"))?;
-                if seam.set.contains_key(hd.edge) {
+            for he in cycle(body, first) {
+                let mate = body.proven_mate(he, Proven);
+                if seam.set.contains_key(mate.edge) {
                     continue;
                 }
-                let mate = body
-                    .mate(he)
-                    .ok_or_else(|| desync("REST lane: BFS half has no mate"))?;
-                let nf = body
-                    .get_loop(
-                        body.get_half_edge(mate)
-                            .ok_or_else(|| desync("REST lane: BFS mate no longer resolves"))?
-                            .parent_loop,
-                    )
-                    .ok_or_else(|| desync("REST lane: BFS mate loop no longer resolves"))?
-                    .face;
+                let nf = body.face_of_linked(mate.mate);
                 if in_patch.contains_key(nf) && !visited.contains_key(nf) {
                     visited.insert(nf, ());
                     queue.push_back(nf);
@@ -1543,23 +1529,15 @@ fn shared_run<T: Decide>(
         let fd = body
             .get_face(f)
             .ok_or_else(|| desync("REST lane: glue face vanished"))?;
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(fd.outer)
-            .ok_or_else(|| desync("REST lane: glue loop no longer resolves"))?
-            .boundary
+        let LoopBoundary::Cycle { first } =
+            loop_boundary(body, fd.outer, EntityId::Face(f), "outer")
         else {
             return Err(desync("REST lane: glue face outer loop is empty"));
         };
-        body.loop_cycle(first)
-            .ok_or_else(|| desync("REST lane: glue loop not walkable"))?
+        Ok(cycle(body, first)
             .into_iter()
-            .map(|he| {
-                Ok(body
-                    .get_half_edge(he)
-                    .ok_or_else(|| desync("REST lane: glue half no longer resolves"))?
-                    .edge)
-            })
-            .collect()
+            .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).edge)
+            .collect())
     };
     let ea = cycle_edges(fa)?;
     let eb = cycle_edges(fb)?;
@@ -1731,15 +1709,12 @@ fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
         if !fd.rings.is_empty() {
             return Err(unsupported(RestZipFrontier::SlitFaceHoles));
         }
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(fd.outer)
-            .ok_or_else(|| desync("REST lane: slit loop no longer resolves"))?
-            .boundary
+        let LoopBoundary::Cycle { first } =
+            loop_boundary(body, fd.outer, EntityId::Face(f), "outer")
         else {
             return Err(desync("REST lane: slit face outer loop is empty"));
         };
-        body.loop_cycle(first)
-            .ok_or_else(|| desync("REST lane: slit loop not walkable"))
+        Ok(cycle(body, first))
     };
     let oa = cycle_halves(body, fa)?;
     let ob = cycle_halves(body, fb)?;
@@ -1797,10 +1772,7 @@ fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
     let first_run_edge = edge_of(body, run[0])?;
     report.interior_edges.push(first_run_edge);
     let fb_half = {
-        let ed = body
-            .get_edge(first_run_edge)
-            .ok_or_else(|| desync("REST lane: run edge no longer resolves"))?
-            .clone();
+        let ed = proven(&body.edges, first_run_edge, EntityId::Edge);
         if ed.he_plus == run[0] {
             ed.he_minus
         } else {
@@ -1820,18 +1792,14 @@ fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
         let dead_end = hd.start;
         // The far vertex must hold ONLY this edge now (a T-junction
         // interior vertex is a sub-frontier, refused before surgery).
-        let orbit = body
-            .vertex_orbit_of(dead_end)
-            .ok_or_else(|| desync("REST lane: run vertex orbit not walkable"))?;
+        let orbit = body.vertex_orbit_linked(dead_end);
         if orbit.is_empty() {
             return Err(desync("REST lane: run vertex lost its fan"));
         }
         if orbit.len() != 1 {
             return Err(unsupported(RestZipFrontier::RunVertexBranches));
         }
-        let mate = body
-            .mate(he)
-            .ok_or_else(|| desync("REST lane: run half has no mate"))?;
+        let mate = body.proven_mate(he, Proven).mate;
         body.kev(mate)
             .map_err(|_| desync("REST lane: run kev refused"))?;
     }
@@ -1848,25 +1816,24 @@ fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
                 .ok_or_else(|| desync("REST lane: band run edge no longer resolves"))?
                 .clone();
             let (h, m) = (ed.he_plus, ed.he_minus);
-            let loop_of = |body: &Body<T>, half| -> Result<LoopKey, BooleanError> {
-                Ok(body
-                    .get_half_edge(half)
-                    .ok_or_else(|| desync("REST lane: band run half no longer resolves"))?
-                    .parent_loop)
+            let loop_of = |body: &Body<T>, half, slot| {
+                linked(
+                    &body.half_edges,
+                    half,
+                    EntityId::HalfEdge,
+                    EntityId::Edge(e),
+                    slot,
+                )
+                .parent_loop
             };
-            let (lh, lm) = (loop_of(body, h)?, loop_of(body, m)?);
+            let (lh, lm) = (loop_of(body, h, "he_plus"), loop_of(body, m, "he_minus"));
             if lh == lm {
                 // Dangling (a valence-1 end) → kev that half; doubled
                 // deeper in the cycle → kemr (the split-off side
                 // becomes a ring, disposed below).
                 let dangle_half = {
                     let valence = |body: &Body<T>, half| -> Result<usize, BooleanError> {
-                        let end = body
-                            .half_edge_end(half)
-                            .ok_or_else(|| desync("REST lane: band run half has no end"))?;
-                        let orbit = body
-                            .vertex_orbit_of(end)
-                            .ok_or_else(|| desync("REST lane: band run orbit not walkable"))?;
+                        let orbit = body.vertex_orbit_linked(body.proven_half_edge_end(half));
                         if orbit.is_empty() {
                             return Err(desync("REST lane: band run vertex lost its fan"));
                         }
@@ -1898,14 +1865,13 @@ fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
                 let fd = body
                     .get_face(fa)
                     .ok_or_else(|| desync("REST lane: folded face vanished"))?;
-                let ring_half = if fd.rings.contains(&lh) {
-                    h
+                let (ring_half, ring) = if fd.rings.contains(&lh) {
+                    (h, lh)
                 } else if fd.rings.contains(&lm) {
-                    m
+                    (m, lm)
                 } else {
                     return Err(unsupported(RestZipFrontier::BandRunOffLoops));
                 };
-                let ring = loop_of(body, ring_half)?;
                 body.mfkrh(ring, FaceSurface::Inherit)
                     .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
                 body.kef_minting(ring_half, tol)
@@ -1982,25 +1948,22 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         let fd = body
             .get_face(face)
             .ok_or_else(|| desync("REST lane: slit face vanished mid-zip"))?;
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(fd.outer)
-            .ok_or_else(|| desync("REST lane: slit loop vanished mid-zip"))?
-            .boundary
+        let LoopBoundary::Cycle { first } =
+            loop_boundary(body, fd.outer, EntityId::Face(face), "outer")
         else {
             return Err(desync("REST lane: slit loop emptied mid-zip"));
         };
-        let cycle = body
-            .loop_cycle(first)
-            .ok_or_else(|| desync("REST lane: slit loop not walkable mid-zip"))?;
-        if cycle.len() == 2 {
+        let walk = cycle(body, first);
+        let edge_in = |he| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+        if walk.len() == 2 {
             // The last coincident pair: kef the b copy from inside the
             // face (the face dies with it; the a copy survives as the
             // seam edge).
-            let (e0, e1) = (edge_of(body, cycle[0])?, edge_of(body, cycle[1])?);
+            let (e0, e1) = (edge_in(walk[0]), edge_in(walk[1]));
             let b_half = if b_edges.contains_key(e0) && a_edges.contains_key(e1) {
-                cycle[0]
+                walk[0]
             } else if b_edges.contains_key(e1) && a_edges.contains_key(e0) {
-                cycle[1]
+                walk[1]
             } else {
                 return Err(corr("slit-zip final pair is not one copy per side"));
             };
@@ -2013,10 +1976,10 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         }
         // Find the fold: an a-side half followed by a b-side half.
         let mut fold = None;
-        for (i, &he) in cycle.iter().enumerate() {
-            let e = edge_of(body, he)?;
-            let next = cycle[(i + 1) % cycle.len()];
-            let en = edge_of(body, next)?;
+        for (i, &he) in walk.iter().enumerate() {
+            let e = edge_in(he);
+            let next = walk[(i + 1) % walk.len()];
+            let en = edge_in(next);
             if a_edges.contains_key(e) && b_edges.contains_key(en) {
                 fold = Some((he, next));
                 break;
@@ -2025,27 +1988,16 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         let Some((ha, hb)) = fold else {
             return Err(corr("slit-zip fold not found"));
         };
-        let sa = body
-            .get_half_edge(ha)
-            .ok_or_else(|| desync("REST lane: fold half no longer resolves"))?
-            .start;
-        let eb = body
-            .half_edge_end(hb)
-            .ok_or_else(|| desync("REST lane: fold half has no end"))?;
+        let sa = proven(&body.half_edges, ha, EntityId::HalfEdge).start;
+        let eb = body.proven_half_edge_end(hb);
         if sa == eb {
             return Err(unsupported(RestZipFrontier::FoldVertexFused));
         }
         if vmap.get(sa).copied() != Some(eb) {
             return Err(corr("slit-zip vertex pair off the seam correspondence"));
         }
-        let p = *body
-            .get_vertex(sa)
-            .and_then(|vd| body.get_point(vd.point))
-            .ok_or_else(|| desync("REST lane: fold vertex has no point"))?;
-        let hb_next = body
-            .get_half_edge(hb)
-            .ok_or_else(|| desync("REST lane: fold half no longer resolves"))?
-            .next;
+        let p = body.linked_vertex_point(sa, EntityId::HalfEdge(ha), "start");
+        let hb_next = proven(&body.half_edges, hb, EntityId::HalfEdge).next;
         // Wall off the 3-edge sliver [ha, hb, scaffold], fuse the
         // vertex pair into the a copy, retire the b copy (its remnant a
         // copy lands in the b-side neighbor's loop — the fuse).
