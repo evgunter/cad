@@ -74,7 +74,7 @@ fn r1_replay_bit_identity_adversarial() {
     ];
     let mut log: Vec<Edit> = vec![Edit::DeclareVar {
         name: VarName::from_static("neg_zero"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, -0.0)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.0)),
     }];
     let mut doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&log[0], Tol::witness(), &editor_core::RefusingReach)
@@ -285,7 +285,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         .apply(
             &Edit::DeclareVar {
                 name: VarName::from_static("q"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -647,7 +647,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .apply(
             &Edit::DeclareVar {
                 name: name.clone(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.5)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -663,7 +663,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     let flip = doc.apply(
         &Edit::DefineVar {
             var: name.clone().into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -676,7 +676,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     let kind_flip = doc.apply(
         &Edit::DefineVar {
             var: name.clone().into(),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 2 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 2 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -687,7 +687,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .apply(
             &Edit::DefineVar {
                 var: name.into(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.75)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -700,7 +700,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .apply(
             &Edit::DeclareVar {
                 name: VarName::from_static("unused"),
-                def: editor_core::VarDef::Free(FreeVar::Count { value: 1 }),
+                def: editor_core::VarDecl::Free(FreeVar::Count { value: 1 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -808,7 +808,7 @@ fn r6_nonfinite_doors_closed() {
     );
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let empty = Doc::empty_derived("review_m4_pr1", Tol::witness());
-        let def = editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, poison));
+        let def = editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, poison));
         let spoken = empty.spoken_declare(&VarName::from_static("poison"), &def);
         let res = empty.apply(
             &Edit::DeclareVar {
@@ -893,7 +893,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .apply(
             &Edit::DeclareVar {
                 name: cnt_param.clone(),
-                def: editor_core::VarDef::Free(FreeVar::Count { value: 4 }),
+                def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -951,7 +951,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .apply(
             &Edit::DeclareVar {
                 name: VarName::from_static("other"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 9.0)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 9.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

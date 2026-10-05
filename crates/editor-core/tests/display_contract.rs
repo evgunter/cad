@@ -1050,6 +1050,11 @@ test_utils::f6_variants! {
         SlotVarKind,
         PayloadVarKind,
         AnonymousVarUnread,
+        NamedReaderInDefinition,
+        DefinitionReadsUnmintedVar,
+        DefinitionVarKind,
+        DefinitionCycle,
+        DefinitionTooLarge,
         EpsilonInvalid,
         Roots,
         NotAGauge,
@@ -1197,6 +1202,75 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "#0000000000070000 has no name and nothing reads it",
                 "one something reads",
+            ],
+        ),
+        (
+            SnapshotError::NamedReaderInDefinition {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("h")),
+                ),
+            },
+            vec!["the definition of h reads a variable by name", "by id"],
+        ),
+        (
+            SnapshotError::DefinitionReadsUnmintedVar {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("h")),
+                ),
+                read: editor_core::VarId(tagged(8)),
+            },
+            vec![
+                "the definition of h reads variable #0000000000080000",
+                "never minted",
+            ],
+        ),
+        (
+            SnapshotError::DefinitionVarKind {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("h")),
+                ),
+                read: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(8)),
+                    Some(VarName::from_static("w")),
+                ),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            vec!["w is declared angle but the definition of h reads it as length"],
+        ),
+        (
+            SnapshotError::DefinitionCycle {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("w")),
+                ),
+                through: vec![
+                    editor_core::SpokenVar::new(
+                        editor_core::VarId(tagged(7)),
+                        Some(VarName::from_static("w")),
+                    ),
+                    editor_core::SpokenVar::new(
+                        editor_core::VarId(tagged(8)),
+                        Some(VarName::from_static("h")),
+                    ),
+                ],
+            },
+            vec!["the definition of w reads w back, through w → h → w"],
+        ),
+        (
+            SnapshotError::DefinitionTooLarge {
+                var: editor_core::SpokenVar::new(
+                    editor_core::VarId(tagged(7)),
+                    Some(VarName::from_static("h")),
+                ),
+                nodes: 4097,
+            },
+            vec![
+                "h expands",
+                "to 4097 expression nodes, past the bound of 4096",
             ],
         ),
         (

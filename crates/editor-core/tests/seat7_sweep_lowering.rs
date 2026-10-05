@@ -90,7 +90,7 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("r"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, R)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     )
     .0
@@ -766,7 +766,7 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, Q)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     // Hole first, deliberately.
@@ -929,7 +929,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
         doc,
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1158,7 +1158,7 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("q"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, Q)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     let (doc, profile_node, chain) =

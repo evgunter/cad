@@ -446,7 +446,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         &entry.doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("fins"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: fins }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: fins }),
         },
         tol,
         &editor_core::RefusingReach,

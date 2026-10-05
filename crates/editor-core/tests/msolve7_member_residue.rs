@@ -234,7 +234,7 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], rule: Option<Rule>, co
             doc,
             DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
         )
         .0;

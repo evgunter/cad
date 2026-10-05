@@ -79,7 +79,7 @@ fn r2_measure_free_content_keys() {
         &d0,
         &DocEdit::DeclareVar {
             name: VarName::from_static("t"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
                 display_unit: UnitSym::canonical_for(Dimension::Length),

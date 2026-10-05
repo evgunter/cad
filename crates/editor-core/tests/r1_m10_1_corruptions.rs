@@ -21,7 +21,7 @@ fn annotated_doc(sigma: f64) -> ProfileDoc {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("s"),
-            def: editor_core::VarDef::Free(FreeVar::continuous_with(
+            def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                 Dimension::Length,
                 1.0,
                 Distribution::Normal { sigma },
@@ -79,7 +79,7 @@ fn a_planted_bounds_corruption_refuses_at_load() {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static("b"),
-                def: editor_core::VarDef::Free(FreeVar::continuous_with(
+                def: editor_core::VarDecl::Free(FreeVar::continuous_with(
                     Dimension::Length,
                     1.0,
                     Distribution::Uniform { lo: -0.25, hi: 0.5 },
@@ -114,7 +114,7 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
     let base = ProfileDoc::empty(DocumentId::derive("r1-corrupt-log"), Tol::witness());
     let edit = DocEdit::DeclareVar {
         name: VarName::from_static("s"),
-        def: editor_core::VarDef::Free(FreeVar::continuous_with(
+        def: editor_core::VarDecl::Free(FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Normal { sigma: 0.01 },
@@ -132,7 +132,7 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
                 EditError::InvalidDistribution {
                     var: base.spoken_declare(
                         &VarName::from_static("s"),
-                        &editor_core::VarDef::Free(FreeVar::continuous_with(
+                        &editor_core::VarDecl::Free(FreeVar::continuous_with(
                             Dimension::Length,
                             1.0,
                             Distribution::Normal { sigma: -2.0 },
@@ -173,7 +173,7 @@ fn unknown_forms_and_stray_fields_refuse_to_parse() {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static("n"),
-                def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+                def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

@@ -696,7 +696,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
         &doc,
         DocEdit::DeclareVar {
             name: name.clone(),
-            def: pncad::document::VarDef::Free(FreeVar::written_length(WrittenLength::in_unit(
+            def: pncad::document::VarDecl::Free(FreeVar::written_length(WrittenLength::in_unit(
                 50.0, MM,
             ))),
         },
@@ -752,7 +752,7 @@ fn a_count_parameter_has_no_written_unit() {
         &doc,
         DocEdit::DeclareVar {
             name: name.clone(),
-            def: pncad::document::VarDef::Free(FreeVar::Count { value: 6 }),
+            def: pncad::document::VarDecl::Free(FreeVar::Count { value: 6 }),
         },
         tol,
     );
@@ -790,7 +790,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
             &doc,
             DocEdit::DeclareVar {
                 name: name.clone(),
-                def: pncad::document::VarDef::Free(value),
+                def: pncad::document::VarDecl::Free(value),
             },
             tol,
         );
@@ -868,7 +868,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         &doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("thickness"),
-            def: pncad::document::VarDef::Free(FreeVar::written_length(WrittenLength::in_unit(
+            def: pncad::document::VarDecl::Free(FreeVar::written_length(WrittenLength::in_unit(
                 8.0, MM,
             ))),
         },
@@ -878,7 +878,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         &doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("in_metres"),
-            def: pncad::document::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.008)),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.008)),
         },
         tol,
     );

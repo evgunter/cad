@@ -25,8 +25,8 @@ use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalError, EvalOptions,
     Evaluation, Expr, ExtrudeSide, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
-    NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDef,
-    VarId, VarName, apply, evaluate, inline, load, save, split,
+    NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
+    VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
 };
 use geom_brep::RadiusEvidence;
 use geom_core::predicate::{Band, Margin, Sign};
@@ -60,7 +60,7 @@ fn declare(doc: &ProfileDoc, name: &'static str, value: f64) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: n(name),
-            def: VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .doc
@@ -442,7 +442,7 @@ fn the_door_lowers_names_before_it_mints() {
         &doc,
         DocEdit::DeclareVar {
             name: n("a"),
-            def: VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
         },
     )
     .doc;
@@ -475,7 +475,7 @@ fn the_door_lowers_names_before_it_mints() {
     // A log holding authored names replays to the same ids.
     let mut log = vec![DocEdit::DeclareVar {
         name: n("w"),
-        def: VarDef::Free(FreeVar::continuous(Dimension::Length, R)),
+        def: VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
     }];
     let mut recorded = ProfileDoc::empty(DocumentId::derive("intent-vars-3-log"), Tol::witness());
     recorded = step(&recorded, log[0].clone()).doc;
@@ -1121,7 +1121,7 @@ fn a_respoken_refusal_says_the_variables_new_name() {
         &doc,
         DocEdit::DeclareVar {
             name: n("ang_old"),
-            def: VarDef::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
         },
     )
     .doc;

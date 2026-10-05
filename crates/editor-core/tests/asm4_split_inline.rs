@@ -544,7 +544,7 @@ fn row3_uncut_param_reference_refuses() {
         doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("h"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(
+            def: editor_core::VarDecl::Free(FreeVar::continuous(
                 editor_core::Dimension::Length,
                 1.5,
             )),
@@ -1382,7 +1382,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         part_doc,
         DocEdit::DeclareVar {
             name: VarName::from_static("L"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(
+            def: editor_core::VarDecl::Free(FreeVar::continuous(
                 editor_core::Dimension::Length,
                 2.0,
             )),
@@ -1394,7 +1394,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         host,
         DocEdit::DeclareVar {
             name: VarName::from_static("L"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(
+            def: editor_core::VarDecl::Free(FreeVar::continuous(
                 editor_core::Dimension::Length,
                 1.0,
             )),

@@ -73,7 +73,7 @@ fn frame(r: &mut Recorder) -> RecipeNodeId {
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
     r.push(DocEdit::DeclareVar {
         name: name(n),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
     });
 }
 
@@ -171,7 +171,7 @@ fn two_param_slab() -> ProfileDoc {
     declare(&mut r, "depth", 1.0);
     r.push(DocEdit::DeclareVar {
         name: name("side"),
-        def: editor_core::VarDef::Free(FreeVar::continuous_with(
+        def: editor_core::VarDecl::Free(FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Uniform { lo: -0.1, hi: 0.1 },
@@ -959,7 +959,7 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::new(spelled.clone()).expect("an author can type it"),
-                def: editor_core::VarDef::Free(FreeVar::continuous(
+                def: editor_core::VarDecl::Free(FreeVar::continuous(
                     Dimension::Length,
                     3.0 + i as f64,
                 )),

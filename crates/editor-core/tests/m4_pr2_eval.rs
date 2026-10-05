@@ -124,7 +124,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .apply(
             &editor_core::DocEdit::DefineVar {
                 var: editor_core::VarName::from_static("pip_depth").into(),
-                def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                     editor_core::Dimension::Length,
                     0.0625,
                 )),
@@ -226,7 +226,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     let mut r = fixture::Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: h.clone(),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, -0.25)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.25)),
     });
     let profile = r.profile(
         [0.0; 3],
@@ -269,7 +269,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     for edit in [
         DocEdit::DefineVar {
             var: h.into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
         },
         DocEdit::SetExtrudeSide {
             node: block,

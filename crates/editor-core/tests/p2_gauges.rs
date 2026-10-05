@@ -186,7 +186,7 @@ pub(crate) fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         DocEdit::DeclareVar {
             name: lift(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0

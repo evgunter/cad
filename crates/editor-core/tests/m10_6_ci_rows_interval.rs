@@ -215,7 +215,7 @@ fn distributed_plate() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("half_spacing"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: SPACING / 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -228,7 +228,7 @@ fn distributed_plate() -> ProfileDoc {
     for n in ["hole_a_r", "hole_b_r"] {
         r.push(DocEdit::DeclareVar {
             name: name(n),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: RADIUS,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -385,7 +385,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("place"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),

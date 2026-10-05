@@ -17,6 +17,7 @@ from pncad import (
     EvaluationError,
     ParamName,
     Var,
+    VarDecl,
     evaluate,
     m,
 )
@@ -96,6 +97,81 @@ class TestAVarIsAnIdentity(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.delete_var(var))
         self.assertEqual(caught.exception.variant, "unknown_var")
+
+
+class TestADefinedVariable(unittest.TestCase):
+    """A variable defined by an expression over others: its value is the
+    expression's, and it moves when what it reads moves."""
+
+    def defined(self):
+        doc = Doc("variables-defined")
+        doc.apply(DocEdit.declare_var(ParamName("base"), DocParam.length(1 * m)))
+        doc.apply(
+            DocEdit.declare_var(ParamName("height"), doc.parse_expr("base * 2.0"))
+        )
+        box = blank(doc)
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_expr("height")))
+        return doc, box
+
+    def test_a_definition_reads_its_inputs(self):
+        doc, box = self.defined()
+        height = doc.var(ParamName("height"))
+        self.assertNotIn(height, doc.vars, "a defined variable is no free one")
+        self.assertEqual(doc.unparse(doc.definition(height)), "base * 2.0")
+        self.assertIsNone(doc.definition(doc.var(ParamName("base"))))
+        before = volume(doc, box)
+        doc.apply(DocEdit.set_var_value(ParamName("base"), DocParamValue.length(2 * m)))
+        self.assertAlmostEqual(volume(doc, box), before * 2.0)
+
+    def test_a_definition_is_spelled_by_a_var_decl_and_back(self):
+        doc, _ = self.defined()
+        height = doc.var(ParamName("height"))
+        decl = VarDecl.defined(doc.parse_expr("base + base"))
+        self.assertIsNotNone(decl.expr)
+        self.assertIsNone(decl.value)
+        doc.apply(DocEdit.define_var(height, decl))
+        self.assertEqual(doc.var(ParamName("height")), height, "the same identity")
+        doc.apply(DocEdit.define_var(height, VarDecl.free(DocParam.length(3 * m))))
+        self.assertIsNone(doc.definition(height))
+        self.assertIn(height, doc.vars)
+
+    def test_a_definition_refuses_typed(self):
+        doc, _ = self.defined()
+        with self.assertRaises(EditError) as caught:
+            doc.apply(
+                DocEdit.define_var(ParamName("base"), doc.parse_expr("height * 0.5"))
+            )
+        self.assertEqual(caught.exception.variant, "definition_cycle")
+        with self.assertRaises(EditError) as caught:
+            doc.apply(
+                DocEdit.set_var_value(ParamName("height"), DocParamValue.length(1 * m))
+            )
+        self.assertEqual(caught.exception.variant, "not_a_free_var")
+        # Read where `missing` is declared, written where it is not.
+        elsewhere = Doc("variables-elsewhere")
+        elsewhere.apply(
+            DocEdit.declare_var(ParamName("missing"), DocParam.length(1 * m))
+        )
+        with self.assertRaises(EditError) as caught:
+            doc.apply(
+                DocEdit.declare_var(
+                    ParamName("depth"), elsewhere.parse_expr("missing * 2.0")
+                )
+            )
+        self.assertEqual(caught.exception.variant, "definition_unknown_var_name")
+        self.assertEqual(
+            caught.exception.param,
+            "depth",
+            "a definition's faults name the variable defined",
+        )
+
+    def test_a_defined_variable_is_listed_by_name(self):
+        doc, _ = self.defined()
+        self.assertEqual(list(doc.params), [ParamName("base")])
+        self.assertEqual(list(doc.definitions), [ParamName("height")])
+        self.assertEqual(
+            doc.unparse(doc.definitions[ParamName("height")]), "base * 2.0"
+        )
 
 
 if __name__ == "__main__":

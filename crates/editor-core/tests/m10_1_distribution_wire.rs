@@ -28,7 +28,7 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static(name),
-                def: editor_core::VarDef::Free(value.clone()),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -172,7 +172,7 @@ fn the_same_document_refuses_at_save() {
 #[test]
 fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-1-log"), Tol::witness());
-    let def = editor_core::VarDef::Free(annotated(1.0, Distribution::Normal { sigma: -1.0 }));
+    let def = editor_core::VarDecl::Free(annotated(1.0, Distribution::Normal { sigma: -1.0 }));
     let spoken = doc.spoken_declare(&VarName::from_static("s"), &def);
     let bad = DocEdit::DeclareVar {
         name: VarName::from_static("s"),
@@ -200,7 +200,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
     let sv = |d: Distribution| {
         doc.spoken_declare(
             &VarName::from_static("p"),
-            &editor_core::VarDef::Free(annotated(1.0, d)),
+            &editor_core::VarDecl::Free(annotated(1.0, d)),
         )
     };
     let set = |d: Distribution| {
@@ -208,7 +208,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
             &doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static("p"),
-                def: editor_core::VarDef::Free(annotated(1.0, d)),
+                def: editor_core::VarDecl::Free(annotated(1.0, d)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -305,14 +305,14 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
             &doc,
             &DocEdit::DeclareVar {
                 name: name.clone(),
-                def: editor_core::VarDef::Free(broken.clone())
+                def: editor_core::VarDecl::Free(broken.clone())
             },
             Tol::witness(),
             &editor_core::RefusingReach
         )
         .map(|_| ()),
         Err(EditError::InvalidDistribution {
-            var: doc.spoken_declare(&name, &editor_core::VarDef::Free(broken.clone())),
+            var: doc.spoken_declare(&name, &editor_core::VarDecl::Free(broken.clone())),
             fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
         }),
         "the distribution walk runs before the structural check, as it does at load"
@@ -382,7 +382,7 @@ fn a_non_finite_offset_names_which_offset_it_was() {
     for (dist, expected) in cases {
         let edit = DocEdit::DeclareVar {
             name: VarName::from_static("p"),
-            def: editor_core::VarDef::Free(annotated(1.0, dist)),
+            def: editor_core::VarDecl::Free(annotated(1.0, dist)),
         };
         match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
@@ -405,7 +405,7 @@ fn a_non_finite_offset_names_which_offset_it_was() {
     // field names it rather than standing for it by absence.
     let edit = DocEdit::DeclareVar {
         name: VarName::from_static("p"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, f64::NAN)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, f64::NAN)),
     };
     match save(&doc, &[edit], Tol::witness()) {
         Err(PersistError::NonFinite {
