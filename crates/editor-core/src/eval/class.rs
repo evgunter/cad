@@ -855,15 +855,18 @@ mod tests {
             C::NegativeSpacing => K::NegativeSpacing {
                 spacing: geom_core::MarginDiag::value(-4.0),
                 reversed: [-1.0, 0.0, 0.0]
-                    .map(|v| crate::expr::Expr::literal(v, crate::expr::Dimension::Scalar).ok()),
+                    .map(|v| crate::Formula::literal(v, crate::expr::Dimension::Scalar).ok()),
             },
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: crate::expr::Expr::angle_in(400.0, quantity::DEG).expect("a literal angle"),
+                step: crate::expr::Expr::try_from(
+                    crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
+                )
+                .expect("a literal holds no name"),
                 evaluated: None,
                 turns: crate::StepTurns::Within(
-                    crate::expr::Expr::angle_in(40.0, quantity::DEG).expect("a literal angle"),
+                    crate::Formula::angle_in(40.0, quantity::DEG).expect("a literal angle"),
                 ),
             },
             C::PlacementsUncertified => K::PlacementsUncertified { i: 0, j: 1 },

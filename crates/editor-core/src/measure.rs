@@ -46,7 +46,7 @@
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite};
 use geom_core::{Decide, SizedPass};
 
-use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING};
+use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING, Slot};
 
 /// Which closed-form measurement a leaf computes, and over which of
 /// the node's references.
@@ -168,16 +168,16 @@ impl MeasurePrimitive {
 /// [`DimensionError::NestedTooDeep`], so a flat chain of more than 128
 /// terms refuses.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MeasureExpr {
+pub struct MeasureExpr<S: Slot = Expr> {
     dim: Dimension,
     /// How many levels the tree nests, a value leaf counting as the
     /// expression it holds; never above [`MAX_NESTING`], the bound it
     /// shares with [`Expr`].
     nesting: u8,
-    kind: MeasureKind,
+    kind: MeasureKind<S>,
 }
 
-impl Drop for MeasureExpr {
+impl<S: Slot> Drop for MeasureExpr<S> {
     /// Frees the tree from a heap stack, as [`Expr`]'s drop does.
     fn drop(&mut self) {
         if !matches!(self.kind, MeasureKind::Primitive(_) | MeasureKind::Value(_)) {
@@ -189,31 +189,31 @@ impl Drop for MeasureExpr {
 /// The measurement AST. Crate-private so trees are only built through
 /// the dimension-checking constructors.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum MeasureKind {
+pub(crate) enum MeasureKind<S: Slot> {
     /// A closed-form measurement of the node's referenced entities.
     Primitive(MeasurePrimitive),
     /// An ordinary document expression — literals, parameters, and the
     /// whole `Expr` arithmetic beneath them.
-    Value(Expr),
+    Value(S),
     /// Same-dimension addition.
-    Add(Box<MeasureExpr>, Box<MeasureExpr>),
+    Add(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Same-dimension subtraction.
-    Sub(Box<MeasureExpr>, Box<MeasureExpr>),
+    Sub(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Negation (any dimension).
-    Neg(Box<MeasureExpr>),
+    Neg(Box<MeasureExpr<S>>),
     /// Product; the F1 rule (≥1 `Scalar` operand).
-    Mul(Box<MeasureExpr>, Box<MeasureExpr>),
+    Mul(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Quotient; the divisor must be `Scalar`.
-    Div(Box<MeasureExpr>, Box<MeasureExpr>),
+    Div(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Same-dimension lattice minimum.
-    Min(Box<MeasureExpr>, Box<MeasureExpr>),
+    Min(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Same-dimension lattice maximum.
-    Max(Box<MeasureExpr>, Box<MeasureExpr>),
+    Max(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
 }
 
-impl MeasureKind {
+impl<S: Slot> MeasureKind<S> {
     /// Moves this node's children onto `out`, leaving a leaf behind.
-    fn detach_children(&mut self, out: &mut Vec<MeasureExpr>) {
+    fn detach_children(&mut self, out: &mut Vec<MeasureExpr<S>>) {
         let leaf = MeasureKind::Primitive(MeasurePrimitive::Distance { a: 0, b: 0 });
         match core::mem::replace(self, leaf) {
             MeasureKind::Add(a, b)
@@ -300,14 +300,14 @@ fn lattice(op: Binop, left: Dimension, right: Dimension) -> Result<Dimension, Di
 // (the F1 checker runs at construction) and associated functions, not
 // methods.
 #[allow(clippy::should_implement_trait)]
-impl MeasureExpr {
+impl<S: Slot> MeasureExpr<S> {
     /// This expression's dimension (cached; correct by construction).
     pub fn dim(&self) -> Dimension {
         self.dim
     }
 
     /// The AST node (the persistence and key layers read it).
-    pub(crate) fn kind(&self) -> &MeasureKind {
+    pub(crate) fn kind(&self) -> &MeasureKind<S> {
         &self.kind
     }
 
@@ -322,7 +322,7 @@ impl MeasureExpr {
 
     /// An ordinary document expression as a leaf — a literal bound, a
     /// parameter, a whole arithmetic subtree of them.
-    pub fn value(e: Expr) -> Self {
+    pub fn value(e: S) -> Self {
         let Ok(nesting) = u8::try_from(e.nesting()) else {
             unreachable!(
                 "an expression nests {} levels, past the bound of {MAX_NESTING} its every \
@@ -339,7 +339,7 @@ impl MeasureExpr {
 
     /// An operator node over the children `kind` holds, refused when it
     /// would nest past [`MAX_NESTING`].
-    fn over(dim: Dimension, kind: MeasureKind) -> Result<Self, DimensionError> {
+    fn over(dim: Dimension, kind: MeasureKind<S>) -> Result<Self, DimensionError> {
         Ok(Self {
             dim,
             nesting: crate::expr::nesting_over(kind.below())?,
@@ -349,21 +349,21 @@ impl MeasureExpr {
 
     fn binary(
         op: Binop,
-        a: MeasureExpr,
-        b: MeasureExpr,
-        make: fn(Box<MeasureExpr>, Box<MeasureExpr>) -> MeasureKind,
+        a: Self,
+        b: Self,
+        make: fn(Box<Self>, Box<Self>) -> MeasureKind<S>,
     ) -> Result<Self, DimensionError> {
         let dim = lattice(op, a.dim, b.dim)?;
         Self::over(dim, make(Box::new(a), Box::new(b)))
     }
 
     /// Same-dimension addition.
-    pub fn add(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn add(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Add, a, b, MeasureKind::Add)
     }
 
     /// Same-dimension subtraction.
-    pub fn sub(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn sub(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Sub, a, b, MeasureKind::Sub)
     }
 
@@ -372,27 +372,27 @@ impl MeasureExpr {
     /// # Errors
     ///
     /// [`DimensionError::NestedTooDeep`] alone, as [`Expr::neg`].
-    pub fn neg(a: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn neg(a: Self) -> Result<Self, DimensionError> {
         Self::over(a.dim, MeasureKind::Neg(Box::new(a)))
     }
 
     /// Product; at least one operand `Scalar` (F1).
-    pub fn mul(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn mul(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Mul, a, b, MeasureKind::Mul)
     }
 
     /// Quotient; the divisor must be `Scalar` (F1).
-    pub fn div(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn div(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Div, a, b, MeasureKind::Div)
     }
 
     /// Same-dimension lattice minimum.
-    pub fn min(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn min(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Min, a, b, MeasureKind::Min)
     }
 
     /// Same-dimension lattice maximum.
-    pub fn max(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn max(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Max, a, b, MeasureKind::Max)
     }
 
@@ -451,7 +451,7 @@ impl MeasureExpr {
     /// evaluated once, their bits feed the key, and the same vector
     /// feeds the arithmetic. Two walks would be two chances to
     /// disagree about which leaf is which.
-    pub fn value_leaves<'e>(&'e self, out: &mut Vec<&'e Expr>) {
+    pub fn value_leaves<'e>(&'e self, out: &mut Vec<&'e S>) {
         match &self.kind {
             MeasureKind::Primitive(_) => {}
             MeasureKind::Value(e) => out.push(e),
@@ -470,7 +470,7 @@ impl MeasureExpr {
 
     /// [`Self::value_leaves`], exclusive: the same leaves in the same
     /// order.
-    pub(crate) fn value_leaves_mut<'e>(&'e mut self, out: &mut Vec<&'e mut Expr>) {
+    pub(crate) fn value_leaves_mut<'e>(&'e mut self, out: &mut Vec<&'e mut S>) {
         match &mut self.kind {
             MeasureKind::Primitive(_) => {}
             MeasureKind::Value(e) => out.push(e),
@@ -498,16 +498,6 @@ impl MeasureExpr {
         }
     }
 
-    /// The names this expression's value leaves read
-    /// ([`Expr::named_reads`] lifted to this language).
-    pub fn named_reads(&self, out: &mut Vec<(crate::doc::VarName, Dimension)>) {
-        let mut leaves = Vec::new();
-        self.value_leaves(&mut leaves);
-        for leaf in leaves {
-            leaf.named_reads(out);
-        }
-    }
-
     /// Every embedded value leaf's float literal BITS, pre-order — the
     /// bit-semantic comparison substrate (D7), delegating each leaf to
     /// [`Expr::literal_bits`] rather than re-walking `Expr`.
@@ -530,7 +520,7 @@ impl MeasureExpr {
 
     /// Bit-semantic equality (D7): structural equality with float
     /// literals compared by BITS, exactly as [`Expr::bit_eq`].
-    pub fn bit_eq(&self, other: &MeasureExpr) -> bool {
+    pub fn bit_eq(&self, other: &Self) -> bool {
         if self != other {
             return false;
         }
@@ -539,8 +529,59 @@ impl MeasureExpr {
         other.literal_bits(&mut b);
         a == b
     }
+
+    /// **This measure in another slot form**: every value leaf rewritten
+    /// by `f`, in [`Self::value_leaves`] order, every primitive and
+    /// operator kept with its dimension and nesting. The first refusal
+    /// is the answer.
+    ///
+    /// # Panics
+    ///
+    /// Where `f` answers a value of another dimension or nesting than
+    /// the leaf it rewrote: a form change keeps both.
+    pub fn try_map_values<S2: Slot, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<MeasureExpr<S2>, E> {
+        let mut map = |e: &Self| e.try_map_values(f).map(Box::new);
+        let kind = match &self.kind {
+            MeasureKind::Primitive(p) => MeasureKind::Primitive(*p),
+            MeasureKind::Value(v) => {
+                let mapped = f(v)?;
+                assert!(
+                    mapped.dim() == v.dim() && mapped.nesting() == v.nesting(),
+                    "a value leaf keeps its dimension and nesting across a form change"
+                );
+                MeasureKind::Value(mapped)
+            }
+            MeasureKind::Add(a, b) => MeasureKind::Add(map(a)?, map(b)?),
+            MeasureKind::Sub(a, b) => MeasureKind::Sub(map(a)?, map(b)?),
+            MeasureKind::Mul(a, b) => MeasureKind::Mul(map(a)?, map(b)?),
+            MeasureKind::Div(a, b) => MeasureKind::Div(map(a)?, map(b)?),
+            MeasureKind::Min(a, b) => MeasureKind::Min(map(a)?, map(b)?),
+            MeasureKind::Max(a, b) => MeasureKind::Max(map(a)?, map(b)?),
+            MeasureKind::Neg(a) => MeasureKind::Neg(map(a)?),
+        };
+        Ok(MeasureExpr {
+            dim: self.dim,
+            nesting: self.nesting,
+            kind,
+        })
+    }
 }
 
+impl MeasureExpr<crate::Formula> {
+    /// The names this expression's value leaves read
+    /// ([`crate::Formula::named_reads`] lifted to this language).
+    pub fn named_reads(&self, out: &mut Vec<(crate::doc::VarName, Dimension)>) {
+        let mut leaves = Vec::new();
+        self.value_leaves(&mut leaves);
+        for leaf in leaves {
+            leaf.named_reads(out);
+        }
+    }
+
+}
 /// **Why a measure has no value at the scalar the build ran at**
 /// ([`crate::eval::ValuePayload::MeasureUnavailable`]).
 ///

@@ -225,10 +225,7 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
             out.push(T_VAR);
             out.extend_from_slice(&var.0.to_be_bytes());
         }
-        ExprKind::Name(name) => unreachable!(
-            "the name {name} reached a coincidence token: the edit door lowers every name \
-             leaf, and the load door refuses a snapshot holding one"
-        ),
+        ExprKind::Leaf(own) => match *own {},
         ExprKind::Add(a, b) => binary(T_ADD, a, b, defs, out),
         ExprKind::Sub(a, b) => binary(T_SUB, a, b, defs, out),
         ExprKind::Mul(a, b) => binary(T_MUL, a, b, defs, out),

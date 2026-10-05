@@ -116,7 +116,6 @@ use crate::drive::{
     DriveConfig, DriveRefusal, FlipEvidence, ParamBoxVerdict, RefusalReason, drive,
 };
 use crate::edit::{DocEdit, EditError, apply};
-use crate::expr::Expr;
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use crate::spoken::SpokenNode;
@@ -708,7 +707,7 @@ pub fn derive(
                 &DocEdit::SetParam {
                     node: *node,
                     slot: *slot,
-                    expr: Expr::var(var, dim),
+                    expr: crate::Formula::var(var, dim),
                 },
                 tol,
             )?;

@@ -349,7 +349,7 @@ impl core::fmt::Display for DocParamField {
 /// which is a deleted variable's unresolved reader (VR7).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum VarReadFault {
-    /// An authored name leaf no variable holds (the lowering rule's
+    /// An authored name no variable holds (the lowering rule's
     /// [`crate::expr::Unlowered::Unheld`]).
     Name {
         /// The name it reads.
@@ -365,7 +365,7 @@ pub(crate) enum VarReadFault {
         /// The id.
         var: VarId,
     },
-    /// A reader of a live variable, or a name leaf a live variable
+    /// A reader of a live variable, or an authored name a live variable
     /// holds ([`crate::expr::Unlowered::Kind`]), at another dimension
     /// than its kind.
     Kind {
@@ -1114,47 +1114,24 @@ impl<P> Doc<P> {
     }
 
     /// **Every faulty variable leaf of one expression**, in pre-order:
-    /// its name leaves, then its readers the table cannot answer
-    /// ([`VarReadFault`]). Both doors ask it, each of the slot and the
-    /// payload expressions it walks, and each decides which arms refuse.
+    /// its readers the table cannot answer ([`VarReadFault`]). Both
+    /// doors ask it, each of the slot and the payload expressions it
+    /// walks, and each decides which arms refuse.
     pub(crate) fn var_read_faults(&self, expr: &Expr) -> Vec<VarReadFault> {
-        // A name leaf faults as the lowering rule left it: unheld, or
-        // held at another kind ([`Expr::lower_names`]'s answer).
-        let mut names = Vec::new();
-        expr.named_reads(&mut names);
-        let unlowered = if names.is_empty() {
-            Vec::new()
-        } else {
-            expr.clone().lower_names(&|name| self.lowering_scope(name))
-        };
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
-        unlowered
+        reads
             .into_iter()
-            .map(|(name, referenced, why)| match why {
-                crate::expr::Unlowered::Unheld => VarReadFault::Name { name },
-                crate::expr::Unlowered::Kind { var, declared } => VarReadFault::Kind {
+            .filter_map(|(var, referenced)| match self.vars.get(&var) {
+                None if self.mint.has_var(var) => Some(VarReadFault::Dead { var }),
+                None => Some(VarReadFault::Unminted { var }),
+                Some(held) if held.kind().dimension() != referenced => Some(VarReadFault::Kind {
                     var,
-                    declared,
+                    declared: held.kind().dimension(),
                     referenced,
-                },
+                }),
+                Some(_) => None,
             })
-            .chain(
-                reads
-                    .into_iter()
-                    .filter_map(|(var, referenced)| match self.vars.get(&var) {
-                        None if self.mint.has_var(var) => Some(VarReadFault::Dead { var }),
-                        None => Some(VarReadFault::Unminted { var }),
-                        Some(held) if held.kind().dimension() != referenced => {
-                            Some(VarReadFault::Kind {
-                                var,
-                                declared: held.kind().dimension(),
-                                referenced,
-                            })
-                        }
-                        Some(_) => None,
-                    }),
-            )
             .collect()
     }
 
@@ -1345,18 +1322,17 @@ impl<P> Doc<P> {
         sizes
     }
 
-    /// **`expr` with every name leaf this document resolves lowered** to
-    /// a reader of the variable it names, at the kind the leaf reads it
-    /// at ([`Expr::lower_names`]) — what the edit door writes, for a
-    /// caller that evaluates an authored expression against this
-    /// document without storing it. A name the document does not hold
-    /// at that kind stays, and evaluation refuses it
-    /// ([`crate::EvalError::UnloweredName`]).
-    #[must_use]
-    pub fn lowered(&self, expr: &Expr) -> Expr {
-        let mut lowered = expr.clone();
-        lowered.lower_names(&|name| self.lowering_scope(name));
-        lowered
+    /// **The stored expression `formula` lowers to** against this
+    /// document's names ([`crate::Formula::lower`]) — what the edit door
+    /// writes, for a caller that evaluates an authored formula against
+    /// this document without storing it.
+    ///
+    /// # Errors
+    ///
+    /// The first name the document does not hold at the kind it is
+    /// read at ([`crate::NameFault`]).
+    pub fn lowered(&self, formula: &crate::Formula) -> Result<Expr, crate::NameFault> {
+        formula.lower(&|name| self.lowering_scope(name))
     }
 
     /// **The text of `expr`**, its readers written by the names this

@@ -1,7 +1,7 @@
-//! The expression TEXT door (LIB-U8a): `&str` → [`Expr`], checking.
+//! The expression TEXT door (LIB-U8a): `&str` → [`Formula`], checking.
 //!
 //! This is the wire.rs strict-door philosophy at the text door: every
-//! reduction goes through [`Expr`]'s fallible smart constructors, so
+//! reduction goes through [`Formula`]'s fallible smart constructors, so
 //! the parser can never mint a tree the constructors refuse — an
 //! ill-dimensioned SOURCE STRING is a typed [`ParseError`] carrying
 //! the [`DimensionError`] that caused it, never a mis-built tree.
@@ -57,7 +57,8 @@ use std::collections::BTreeMap;
 use quantity::{UnitDef, unit_by_symbol};
 
 use crate::doc::VarName;
-use crate::expr::{Dimension, DimensionError, Expr, UnitSym};
+use crate::expr::{Dimension, DimensionError, UnitSym};
+use crate::formula::Formula;
 
 /// Typed refusal from the text door. Positions are byte offsets into
 /// the source string.
@@ -277,7 +278,7 @@ impl Tok {
 
 /// Lex the whole source (byte positions retained per token). The one
 /// way it refuses is a character outside the alphabet, returned as
-/// the offset and the character: [`parse_expr`] words it as
+/// the offset and the character: [`parse_formula`] words it as
 /// [`ParseError::UnexpectedChar`] and [`param_name_reason`] as
 /// [`VarNameReason::OutsideAlphabet`], each in its own vocabulary
 /// over the same fact.
@@ -467,7 +468,7 @@ impl core::fmt::Display for VarNameReason {
 }
 
 /// **The one admissibility rule for a parameter name**, asked of the
-/// parser itself: `None` exactly when [`parse_expr`] over an empty
+/// parser itself: `None` exactly when [`parse_formula`] over an empty
 /// table reads the whole text as one unresolved reference to that
 /// same text, otherwise what the lexer finds wrong with it
 /// ([`param_name_reason`]).
@@ -479,7 +480,7 @@ impl core::fmt::Display for VarNameReason {
 /// No name is minted to ask: the table is empty, and the parser looks
 /// an identifier up by its lexed text.
 pub(crate) fn var_name_fault(text: &str) -> Option<VarNameReason> {
-    match parse_expr(text, &BTreeMap::new()) {
+    match parse_formula(text, &BTreeMap::new()) {
         Err(ParseError::UnknownParam { name, .. }) if name == text => None,
         _ => Some(param_name_reason(text)),
     }
@@ -515,7 +516,7 @@ fn param_name_reason(text: &str) -> VarNameReason {
     VarNameReason::Padded
 }
 
-/// Parse `src` into a dimension-checked [`Expr`] (module docs: the
+/// Parse `src` into a dimension-checked [`Formula`] (module docs: the
 /// grammar, the literal semantics, the checking discipline). `params`
 /// is the declared parameter table refs resolve against — a document's
 /// would be its params' names and dimensions.
@@ -534,7 +535,7 @@ fn param_name_reason(text: &str) -> VarNameReason {
 /// dimensional rather than syntactic, and
 /// [`DimensionError::NestedTooDeep`] for an expression nested past the
 /// bound.
-pub fn parse_expr(src: &str, params: &BTreeMap<VarName, Dimension>) -> Result<Expr, ParseError> {
+pub fn parse_formula(src: &str, params: &BTreeMap<VarName, Dimension>) -> Result<Formula, ParseError> {
     let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
     Parser {
         toks,
@@ -553,7 +554,7 @@ struct Parser<'a> {
 }
 
 /// A binary smart constructor, as the grammar's operators name them.
-type Make = fn(Expr, Expr) -> Result<Expr, DimensionError>;
+type Make = fn(Formula, Formula) -> Result<Formula, DimensionError>;
 
 /// What closes a bracket level.
 enum Close {
@@ -567,7 +568,7 @@ enum Close {
         pos: usize,
         canonical: &'static str,
         arity: usize,
-        args: Vec<Expr>,
+        args: Vec<Formula>,
     },
 }
 
@@ -579,9 +580,9 @@ struct Level {
     close: Close,
     /// The sum so far, with the `+`/`-` (and its offset) that waits for
     /// the next term.
-    sum: Option<(Expr, usize, Make)>,
+    sum: Option<(Formula, usize, Make)>,
     /// The term so far, with the `*`/`/` that waits for the next unary.
-    term: Option<(Expr, usize, Make)>,
+    term: Option<(Formula, usize, Make)>,
     /// The tokens of the minus signs before the operand in progress.
     signs: core::ops::Range<usize>,
 }
@@ -599,7 +600,7 @@ impl Level {
 
 /// Folds a pending operator's left side into `rhs`, refusing at the
 /// operator's offset.
-fn fold(pending: Option<(Expr, usize, Make)>, rhs: Expr) -> Result<Expr, ParseError> {
+fn fold(pending: Option<(Formula, usize, Make)>, rhs: Formula) -> Result<Formula, ParseError> {
     match pending {
         None => Ok(rhs),
         Some((lhs, pos, make)) => {
@@ -649,7 +650,7 @@ impl Parser<'_> {
     /// same offset. Minus signs apply innermost first, after their
     /// operand and before any `*` or `/` takes it; the innermost one is
     /// the literal's own sign when a number follows it.
-    fn expr(&mut self) -> Result<Expr, ParseError> {
+    fn expr(&mut self) -> Result<Formula, ParseError> {
         let mut levels = vec![Level::new(Close::End)];
         loop {
             let first = self.i;
@@ -676,13 +677,13 @@ impl Parser<'_> {
                 for at in level.signs.clone().rev() {
                     let pos = self.toks[at].0;
                     value =
-                        Expr::neg(value).map_err(|error| ParseError::Dimension { pos, error })?;
+                        Formula::neg(value).map_err(|error| ParseError::Dimension { pos, error })?;
                 }
                 level.signs = 0..0;
                 value = fold(level.term.take(), value)?;
                 let make: Option<Make> = match self.peek() {
-                    Some((_, Tok::Star)) => Some(Expr::mul),
-                    Some((_, Tok::Slash)) => Some(Expr::div),
+                    Some((_, Tok::Star)) => Some(Formula::mul),
+                    Some((_, Tok::Slash)) => Some(Formula::div),
                     _ => None,
                 };
                 if let Some(make) = make {
@@ -692,8 +693,8 @@ impl Parser<'_> {
                 }
                 value = fold(level.sum.take(), value)?;
                 let make: Option<Make> = match self.peek() {
-                    Some((_, Tok::Plus)) => Some(Expr::add),
-                    Some((_, Tok::Minus)) => Some(Expr::sub),
+                    Some((_, Tok::Plus)) => Some(Formula::add),
+                    Some((_, Tok::Minus)) => Some(Formula::sub),
                     _ => None,
                 };
                 if let Some(make) = make {
@@ -750,7 +751,7 @@ impl Parser<'_> {
         &mut self,
         levels: &mut Vec<Level>,
         negative: bool,
-    ) -> Result<Option<Expr>, ParseError> {
+    ) -> Result<Option<Formula>, ParseError> {
         match self.next() {
             Some((pos, Tok::Number { text, integral })) => {
                 self.literal(pos, &text, integral, negative).map(Some)
@@ -773,7 +774,7 @@ impl Parser<'_> {
                     // table's key, and an identifier the table lacks
                     // is echoed as the bytes read.
                     match self.params.get_key_value(name.as_str()) {
-                        Some((key, &dim)) => Ok(Some(Expr::named(key.clone(), dim))),
+                        Some((key, &dim)) => Ok(Some(Formula::named(key.clone(), dim))),
                         None => Err(ParseError::UnknownParam { pos, name }),
                     }
                 }
@@ -837,7 +838,7 @@ impl Parser<'_> {
         text: &str,
         integral: bool,
         negative: bool,
-    ) -> Result<Expr, ParseError> {
+    ) -> Result<Formula, ParseError> {
         let signed = |value: f64| if negative { -value } else { value };
         // An identifier DIRECTLY after a number can only be a unit
         // suffix — juxtaposition means nothing else in this grammar.
@@ -874,7 +875,7 @@ impl Parser<'_> {
             // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
             // U8b): canonical value from the one multiply, display
             // unit stored as presentation metadata for the formatter.
-            return Expr::literal_with_unit(value * unit.factor(), dim, unit)
+            return Formula::literal_with_unit(value * unit.factor(), dim, unit)
                 .map_err(|error| ParseError::Dimension { pos, error });
         }
         if integral {
@@ -888,13 +889,13 @@ impl Parser<'_> {
                 pos,
                 text: text.to_string(),
             })?;
-            return Ok(Expr::count(value));
+            return Ok(Formula::count(value));
         }
         let value: f64 = text.parse().map_err(|_| ParseError::MalformedNumber {
             pos,
             text: text.to_string(),
         })?;
-        Expr::literal(signed(value), Dimension::Scalar)
+        Formula::literal(signed(value), Dimension::Scalar)
             .map_err(|error| ParseError::Dimension { pos, error })
     }
 
@@ -904,8 +905,8 @@ impl Parser<'_> {
         pos: usize,
         canonical: &'static str,
         arity: usize,
-        args: Vec<Expr>,
-    ) -> Result<Expr, ParseError> {
+        args: Vec<Formula>,
+    ) -> Result<Formula, ParseError> {
         if args.len() != arity {
             return Err(ParseError::WrongArity {
                 pos,
@@ -926,13 +927,13 @@ impl Parser<'_> {
             });
         };
         let built = match (canonical, b) {
-            ("sin", None) => Expr::sin(a),
-            ("cos", None) => Expr::cos(a),
-            ("tan", None) => Expr::tan(a),
-            ("scalar", None) => Expr::count_to_scalar(a),
-            ("atan2", Some(b)) => Expr::atan2(a, b),
-            ("min", Some(b)) => Expr::min(a, b),
-            ("max", Some(b)) => Expr::max(a, b),
+            ("sin", None) => Formula::sin(a),
+            ("cos", None) => Formula::cos(a),
+            ("tan", None) => Formula::tan(a),
+            ("scalar", None) => Formula::count_to_scalar(a),
+            ("atan2", Some(b)) => Formula::atan2(a, b),
+            ("min", Some(b)) => Formula::min(a, b),
+            ("max", Some(b)) => Formula::max(a, b),
             // Arity was just checked; unreachable, kept typed.
             (_, _) => {
                 return Err(ParseError::WrongArity {

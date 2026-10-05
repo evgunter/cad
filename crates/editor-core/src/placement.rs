@@ -538,15 +538,15 @@ impl<T: Real> Motion<T> {
 /// steps is the [`Affine3`] product, which rounds as that product does.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Placement {
+pub struct Placement<S = Expr> {
     /// The steps, composed as a product (`[a, b]` is `a ∘ b`).
-    pub steps: Vec<Step>,
+    pub steps: Vec<Step<S>>,
 }
 
 /// One step of a [`Placement`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum Step {
+pub enum Step<S = Expr> {
     /// Rotate by `angle` about the axis through the ORIGIN with
     /// direction `axis`, then translate by `translation` — proper by
     /// construction. The axis is decided at evaluation by the
@@ -554,25 +554,25 @@ pub enum Step {
     /// definite direction.
     Rigid {
         /// Translation components, Length.
-        translation: [Expr; 3],
+        translation: [S; 3],
         /// Rotation-axis components, Scalar.
-        axis: [Expr; 3],
+        axis: [S; 3],
         /// Rotation angle, Angle.
-        angle: Expr,
+        angle: S,
     },
     /// A literal frame, held to [`Frame::admission_fault`] at every door
     /// that writes one and at load.
     Literal(Frame),
 }
 
-impl From<Step> for Placement {
+impl<S> From<Step<S>> for Placement<S> {
     /// The one-step placement.
-    fn from(step: Step) -> Self {
+    fn from(step: Step<S>) -> Self {
         Self { steps: vec![step] }
     }
 }
 
-impl Placement {
+impl<S: Clone> Placement<S> {
     /// The empty chain: the identity, and the unit of
     /// [`Placement::compose`].
     pub const IDENTITY: Self = Self { steps: Vec::new() };
@@ -591,8 +591,8 @@ impl Placement {
     /// `self` builds. The chain is `self`'s steps followed by
     /// `inner`'s.
     #[must_use]
-    pub fn compose(&self, inner: &Placement) -> Placement {
-        Placement {
+    pub fn compose(&self, inner: &Self) -> Self {
+        Self {
             steps: self.steps.iter().chain(&inner.steps).cloned().collect(),
         }
     }
@@ -606,6 +606,53 @@ impl Placement {
         self.steps
             .iter()
             .all(|step| matches!(step, Step::Literal(frame) if frame.is_identity_bits()))
+    }
+
+}
+
+impl<S> Placement<S> {
+    /// **This placement in another slot form**: every rigid step's
+    /// components rewritten by `f`, in step order, literal steps kept.
+    /// The first refusal is the answer.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<Placement<S2>, E> {
+        let steps = self
+            .steps
+            .iter()
+            .map(|step| {
+                Ok(match step {
+                    Step::Rigid {
+                        translation,
+                        axis,
+                        angle,
+                    } => Step::Rigid {
+                        translation: crate::node::map_array(translation, f)?,
+                        axis: crate::node::map_array(axis, f)?,
+                        angle: f(angle)?,
+                    },
+                    Step::Literal(frame) => Step::Literal(*frame),
+                })
+            })
+            .collect::<Result<_, E>>()?;
+        Ok(Placement { steps })
+    }
+}
+
+impl Placement {
+    /// **This placement re-authored**: every rigid step's components a
+    /// formula reading what they read ([`crate::Formula::from`]).
+    #[must_use]
+    pub fn author(&self) -> Placement<crate::Formula> {
+        let Ok(authored) = self.try_map_slots(&mut |e| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
+        });
+        authored
     }
 
     /// The first literal step [`Frame::admission_fault`] refuses at

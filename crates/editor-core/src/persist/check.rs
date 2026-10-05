@@ -196,11 +196,6 @@ pub(crate) enum Walk {
     /// admitted a retyped extrude distance the edit door refuses.
     /// Snapshot only.
     SlotDimension,
-    /// [`first_named_reader`] over every node's expressions: a stored
-    /// document holds no name leaf — the edit door lowers every one, so
-    /// a file holding one is data no door wrote. Snapshot only (an edit
-    /// LOG holds edits as authored, and names in it lower on replay).
-    NamedReader,
     /// [`first_slot_read_fault`] over every slot expression's readers,
     /// by the same `Doc::var_read_faults` the edit doors ask: a reader
     /// names a minted variable, and a live one at its kind. A reader of
@@ -250,7 +245,7 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 13] = [
+    pub(crate) const ORDER: [Walk; 12] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
@@ -258,7 +253,6 @@ impl Walk {
         Walk::DefinitionRead,
         Walk::DefinitionCycle,
         Walk::SlotDimension,
-        Walk::NamedReader,
         Walk::SlotRead,
         Walk::PayloadRead,
         Walk::AnonymousVar,
@@ -303,11 +297,6 @@ impl Walk {
             }
             Walk::SlotDimension => first_slot_fault(snapshot)
                 .map(|(node, fault)| slot_refusal(snapshot.spoken(node), fault)),
-            Walk::NamedReader => first_named_reader(snapshot).map(|node| {
-                super::PersistError::Snapshot(SnapshotError::NamedReaderInSnapshot {
-                    node: snapshot.spoken(node),
-                })
-            }),
             Walk::SlotRead => first_slot_read_fault(snapshot).map(|(node, slot, fault)| {
                 read_refusal(
                     snapshot,
@@ -460,13 +449,13 @@ fn read_refusal(
             referenced,
         },
         (_, VarReadFault::Name { .. } | VarReadFault::Dead { .. }) => {
-            unreachable!("the read walks pass on a name leaf and a dead reader")
+            unreachable!("a stored expression holds no name, and the read walks pass on a dead reader")
         }
     })
 }
 
-/// The first fault of `expr`'s readers this door refuses: a name leaf
-/// is [`Walk::NamedReader`]'s, and a dead reader is legal.
+/// The first fault of `expr`'s readers this door refuses: a dead
+/// reader is legal.
 fn refused_read(snapshot: &ProfileDoc, expr: &Expr) -> Option<VarReadFault> {
     snapshot.var_read_faults(expr).into_iter().find(|fault| {
         matches!(
@@ -571,13 +560,6 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.var_order.iter().find_map(|&id| {
         let expr = snapshot.vars.get(&id)?.def().defined()?;
         let var = snapshot.spoken_var(id);
-        // A name leaf at all, whether or not the snapshot's names would
-        // resolve it: the doors lower every one.
-        let mut names = Vec::new();
-        expr.named_reads(&mut names);
-        if !names.is_empty() {
-            return Some(SnapshotError::NamedReaderInDefinition { var });
-        }
         snapshot
             .var_read_faults(expr)
             .into_iter()
@@ -640,21 +622,6 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
         .nodes
         .iter()
         .find_map(|(&id, node)| Some((id, node.slot_dimension_fault()?)))
-}
-
-/// The first node holding a name leaf in any expression it carries,
-/// slot or payload ([`Walk::NamedReader`]).
-fn first_named_reader(snapshot: &ProfileDoc) -> Option<RecipeNodeId> {
-    snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.exprs()
-            .into_iter()
-            .any(|expr| {
-                let mut names = Vec::new();
-                expr.named_reads(&mut names);
-                !names.is_empty()
-            })
-            .then_some(id)
-    })
 }
 
 /// The first slot expression with a reader this door refuses, by the
@@ -1159,13 +1126,6 @@ pub enum SnapshotError {
         /// The expression's dimension.
         found: crate::expr::Dimension,
     },
-    /// A node holding a name leaf: an authored expression no edit door
-    /// lowered. Every door lowers names against the document's, so a
-    /// stored document reads variables by id alone.
-    NamedReaderInSnapshot {
-        /// The offending node.
-        node: SpokenNode,
-    },
     /// A node reading a variable id this document never minted. A
     /// deleted variable's reader is legal (its id is in the mint log);
     /// an id the log never held names nothing that ever existed.
@@ -1211,12 +1171,6 @@ pub enum SnapshotError {
     /// reader removes it).
     AnonymousVarUnread {
         /// The variable.
-        var: SpokenVar,
-    },
-    /// A definition holding a name leaf: the edit doors lower every
-    /// name, so a stored definition reads variables by id alone.
-    NamedReaderInDefinition {
-        /// The defined variable.
         var: SpokenVar,
     },
     /// A definition reading a variable id this document never minted.
@@ -1455,11 +1409,6 @@ impl core::fmt::Display for SnapshotError {
                 "{var} has no name and nothing reads it, and a variable with no name is one \
                  something reads"
             ),
-            Self::NamedReaderInDefinition { var } => write!(
-                f,
-                "the definition of {var} reads a variable by name, and a stored definition \
-                 reads variables by id"
-            ),
             Self::DefinitionReadsUnmintedVar { var, read } => write!(
                 f,
                 "the definition of {var} reads variable {read}, which the document never \
@@ -1558,10 +1507,6 @@ impl core::fmt::Display for SnapshotError {
                     expected: *expected,
                     found: *found
                 }
-            ),
-            Self::NamedReaderInSnapshot { node } => write!(
-                f,
-                "{node} reads a variable by name, and a stored document reads variables by id"
             ),
             Self::ReaderOfUnmintedVar { node, var } => write!(
                 f,
@@ -2065,7 +2010,6 @@ mod tests {
             DefinitionRead,
             DefinitionCycle,
             SlotDimension,
-            NamedReader,
             SlotRead,
             PayloadRead,
             AnonymousVar,
@@ -2087,7 +2031,6 @@ mod tests {
             | Walk::DefinitionRead
             | Walk::DefinitionCycle
             | Walk::SlotDimension
-            | Walk::NamedReader
             | Walk::SlotRead
             | Walk::PayloadRead
             | Walk::AnonymousVar
@@ -2119,12 +2062,10 @@ mod tests {
             NameOnMissingVar,
             VarNameTwice,
             SlotDimension,
-            NamedReaderInSnapshot,
             ReaderOfUnmintedVar,
             SlotVarKind,
             PayloadVarKind,
             AnonymousVarUnread,
-            NamedReaderInDefinition,
             DefinitionReadsUnmintedVar,
             DefinitionVarKind,
             DefinitionCycle,
@@ -2160,15 +2101,13 @@ mod tests {
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
-            SnapshotError::NamedReaderInSnapshot { .. } => Walk::NamedReader,
             // Both read walks raise it; the slot walk runs first.
             SnapshotError::ReaderOfUnmintedVar { .. } | SnapshotError::SlotVarKind { .. } => {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
             SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
-            SnapshotError::NamedReaderInDefinition { .. }
-            | SnapshotError::DefinitionReadsUnmintedVar { .. }
+            SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
                 Walk::DefinitionCycle
@@ -2294,7 +2233,6 @@ mod tests {
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
-            SnapshotError::NamedReaderInSnapshot { node: node() },
             SnapshotError::ReaderOfUnmintedVar {
                 node: node(),
                 var: crate::VarId(7),
@@ -2313,9 +2251,6 @@ mod tests {
                 referenced: Dimension::Length,
             },
             SnapshotError::AnonymousVarUnread {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
-            },
-            SnapshotError::NamedReaderInDefinition {
                 var: crate::SpokenVar::new(crate::VarId(7), None),
             },
             SnapshotError::DefinitionReadsUnmintedVar {

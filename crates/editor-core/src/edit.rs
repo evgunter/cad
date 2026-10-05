@@ -17,6 +17,8 @@ use crate::doc::{
     VarName, VarReadFault, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
+use crate::formula::{Formula, NameFault};
+use crate::expr::Unlowered;
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
@@ -60,7 +62,7 @@ use geom_core::Tol;
 /// typed [`EditError`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum DocEdit<P> {
+pub enum DocEdit<P: crate::ProfilePayload> {
     /// Insert a node; the new [`RecipeNodeId`] is minted from the
     /// document's mint chain ([`crate::Mint`]) and returned in the
     /// [`EditRecord`]. Input refs must resolve to EXISTING nodes —
@@ -69,7 +71,7 @@ pub enum DocEdit<P> {
         /// The node payload (data only, spec D3), boxed: a whole node,
         /// a mate's two frames included, is many times every other
         /// arm, and a history is a `Vec` of edits.
-        node: Box<Node<P>>,
+        node: Box<Node<P::Authored, Formula>>,
     },
     /// Delete a node. Refused while any live node holds it as an
     /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
@@ -199,7 +201,7 @@ pub enum DocEdit<P> {
         node: RecipeNodeId,
         /// The whole new program, outer loop first then holes in
         /// description order — every loop stated in full.
-        loops: Vec<crate::program::LoopProgram>,
+        loops: Vec<crate::program::LoopProgram<Formula>>,
         /// Per new loop, per step in program order: the id of the old
         /// step it keeps, or `None` for a new step.
         ids: Vec<Vec<Option<StepId>>>,
@@ -212,7 +214,7 @@ pub enum DocEdit<P> {
         /// The named slot (spec D5: never an index).
         slot: SlotId,
         /// The replacement expression (dimension re-checked).
-        expr: Expr,
+        expr: Formula,
     },
     /// Replace a STRUCTURAL (Count-typed) slot's expression — a
     /// DISTINCT arm from [`DocEdit::SetParam`] so the structural/
@@ -224,7 +226,7 @@ pub enum DocEdit<P> {
         /// The named structural slot.
         slot: SlotId,
         /// The replacement Count expression.
-        expr: Expr,
+        expr: Formula,
     },
     /// Set which side of its sketch plane an extrude goes toward — the
     /// one structural choice on a [`Node::Extrude`] that is not an
@@ -244,7 +246,7 @@ pub enum DocEdit<P> {
         /// The subtree address.
         path: ExprPath,
         /// The replacement subtree.
-        expr: Expr,
+        expr: Formula,
     },
     /// **Declare a variable** (VARIABLES-DESIGN VR1/VR2): mint its id
     /// from the document's mint chain and hold `name` beside it.
@@ -487,7 +489,7 @@ pub enum DocEdit<P> {
         /// The instantiate node.
         instance: RecipeNodeId,
         /// Its new offset, `None` for none.
-        offset: Option<crate::placement::Placement>,
+        offset: Option<crate::placement::Placement<Formula>>,
     },
     /// Set the gauge a node sits on (A11 (2)): an instance's gauge or
     /// a gauge's parent, `None` for the world. The gauge must be live
@@ -606,7 +608,7 @@ pub enum DocEdit<P> {
     },
 }
 
-impl<P> DocEdit<P> {
+impl<P: crate::ProfilePayload> DocEdit<P> {
     /// **Whether this edit writes a mate's alignment datum** — the
     /// frames, the primitive, the sense and the rider the solve's
     /// per-mate admission decides on. Two edits do, and both ask the
@@ -673,88 +675,113 @@ enum ExprSite {
     Payload,
 }
 
-impl<P: crate::ProfilePayload> DocEdit<P> {
-    /// **Every expression this edit carries** — the expressions the
-    /// edit door lowers. Exhaustive with no wildcard arm, so an arm
-    /// added to [`DocEdit`] says here which of its expressions lower,
-    /// or does not compile.
-    fn exprs_mut(&mut self) -> Vec<&mut Expr> {
-        match self {
-            Self::InsertNode { node } => node.exprs_mut(),
-            Self::SetParam { expr, .. }
-            | Self::SetStructuralParam { expr, .. }
-            | Self::SetExpression { expr, .. } => vec![expr],
-            Self::SetProgram { loops, .. } => loops
-                .iter_mut()
-                .flat_map(|lp| lp.rows_mut().into_iter().map(|(_, e)| e))
-                .collect(),
-            Self::SetOffset { offset, .. } => offset
-                .iter_mut()
-                .flat_map(crate::placement::Placement::rows_mut)
-                .map(|(_, e)| e)
-                .collect(),
-            Self::DeclareVar { def, .. } | Self::DefineVar { def, .. } => {
-                def.defined_mut().into_iter().collect()
-            }
-            Self::DeleteNode { .. }
-            | Self::SetMembers { .. }
-            | Self::SetDeclare { .. }
-            | Self::SetExtrudeSide { .. }
-            | Self::SetVarValue { .. }
-            | Self::SetVarUnit { .. }
-            | Self::SetVarDistribution { .. }
-            | Self::RenameVar { .. }
-            | Self::DeleteVar { .. }
-            | Self::Rebind { .. }
-            | Self::ReWitness { .. }
-            | Self::ReWitnessBulk { .. }
-            | Self::SetAppearance { .. }
-            | Self::ClearAppearance { .. }
-            | Self::SetTolerance { .. }
-            | Self::SetAppearanceMeta { .. }
-            | Self::ClearAppearanceMeta { .. }
-            | Self::SetRoots { .. }
-            | Self::SetGauge { .. }
-            | Self::Promote { .. }
-            | Self::Fold { .. }
-            | Self::UpdateReference { .. }
-            | Self::SetLabel { .. } => Vec::new(),
+/// **A name the lowering left**, as the read fault the doors refuse: an
+/// unheld name, or a variable the name holds at another kind.
+fn name_fault(fault: NameFault) -> VarReadFault {
+    let NameFault { name, dim, why } = fault;
+    match why {
+        Unlowered::Unheld => VarReadFault::Name { name },
+        Unlowered::Kind { var, declared } => VarReadFault::Kind {
+            var,
+            declared,
+            referenced: dim,
+        },
+    }
+}
+
+/// **One authored formula as the door writes it** (VR6's lowering, for
+/// the one authored leaf this build has): every name a reader of the
+/// variable `doc` names so, at the kind the leaf reads it at. A name
+/// that does not lower refuses at the formula's address, in the words
+/// [`check_reads`] gives every faulty read.
+fn lower_at<P>(
+    doc: &Doc<P>,
+    node: impl FnOnce() -> SpokenNode,
+    site: ExprSite,
+    formula: &Formula,
+) -> Result<Expr, EditError> {
+    formula
+        .lower(&|name| doc.lowering_scope(name))
+        .map_err(|fault| read_refusal(doc, node(), site, name_fault(fault)))
+}
+
+/// **An authored node as the door writes it**: every slot and every
+/// payload expression lowered ([`lower_at`]), the first that does not
+/// refusing at its address, slots before payload in their table order.
+/// `spoken` speaks the node a refusal names.
+fn lower_node<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: &Node<P::Authored, Formula>,
+    spoken: impl Fn() -> SpokenNode,
+) -> Result<Node<P>, EditError> {
+    for (slot, formula) in node.rows() {
+        lower_at(doc, &spoken, ExprSite::Slot(slot), formula)?;
+    }
+    for formula in crate::node::payload_exprs(node).into_iter().flatten() {
+        lower_at(doc, &spoken, ExprSite::Payload, formula)?;
+    }
+    let scope = |name: &crate::doc::VarName| doc.lowering_scope(name);
+    match node.try_map_slots(|p, f| P::lower(p, f), &mut |formula| formula.lower(&scope)) {
+        Ok(lowered) => Ok(lowered),
+        Err(fault) => {
+            unreachable!("every slot of the node lowered one by one above, yet {fault} did not")
         }
     }
 }
 
-/// **The edit as the door writes it: every name leaf lowered** to a
-/// reader of the variable `doc` names, where that variable has the kind
-/// the leaf reads it at (VR6's lowering, for the one authored form this
-/// build has). A name that does not lower stays, and the door refuses
-/// it where it checks the expression it writes ([`check_reads`]), in
-/// the order its other checks run. An edit with no name leaf is
-/// answered as handed in.
-///
-/// An insert's preimage is the node AFTER lowering, so a node authored
-/// by name and the same node authored by id mint one id.
-fn lowered<'e, P: Clone + crate::ProfilePayload>(
+/// **A declared definition as the door writes it**: a free one as
+/// handed, a defined one lowered, a name that does not lower refusing
+/// in the words [`check_definition`] gives a faulty read of `var`'s
+/// definition.
+fn lower_decl<P>(doc: &Doc<P>, var: &SpokenVar, decl: &VarDecl) -> Result<VarDef, EditError> {
+    match decl {
+        VarDecl::Free(free) => Ok(VarDef::Free(free.clone())),
+        VarDecl::Defined(formula) => formula
+            .lower(&|name| doc.lowering_scope(name))
+            .map(VarDef::Defined)
+            .map_err(|fault| match name_fault(fault) {
+                VarReadFault::Name { name } => EditError::DefinitionUnknownVarName {
+                    var: var.clone(),
+                    name,
+                },
+                VarReadFault::Kind {
+                    var: read,
+                    declared,
+                    referenced,
+                } => EditError::DefinitionVarKind {
+                    var: var.clone(),
+                    read: doc.spoken_var(read),
+                    declared,
+                    referenced,
+                },
+                fault @ (VarReadFault::Unminted { .. } | VarReadFault::Dead { .. }) => {
+                    unreachable!("a lowering refuses only a name, not {fault:?}")
+                }
+            }),
+    }
+}
+
+/// **The refusal of a `SetProgram` whose program does not lower**: the
+/// first argument, in program order, whose name does not, at the
+/// profile's address. `None` where every argument lowers.
+fn loops_refusal<P: crate::ProfilePayload>(
     doc: &Doc<P>,
-    edit: &'e DocEdit<P>,
-) -> std::borrow::Cow<'e, DocEdit<P>> {
-    let mut probe = edit.clone();
-    let mut named = false;
-    for e in probe.exprs_mut() {
-        let mut names = Vec::new();
-        e.named_reads(&mut names);
-        if !names.is_empty() {
-            named = true;
-            // What did not lower is refused where the door checks
-            // the expression it writes, from the same answer
-            // (`Doc::var_read_faults`).
-            let _unlowered = e.lower_names(&|name| doc.lowering_scope(name));
-        }
-    }
-    if named {
-        std::borrow::Cow::Owned(probe)
-    } else {
-        std::borrow::Cow::Borrowed(edit)
-    }
+    node: RecipeNodeId,
+    edit: &DocEdit<P>,
+) -> Option<EditError> {
+    let DocEdit::SetProgram { loops, .. } = edit else {
+        return None;
+    };
+    loops.iter().enumerate().find_map(|(li, lp)| {
+        lp.rows().into_iter().find_map(|((step, arg), formula)| {
+            let slot = SlotId::Profile {
+                loop_: crate::program::program_index(li),
+                step,
+                arg,
+            };
+            lower_at(doc, || doc.spoken(node), ExprSite::Slot(slot), formula).err()
+        })
+    })
 }
 
 /// **The reads of one expression an edit writes**, against the
@@ -771,8 +798,18 @@ fn check_reads<P>(
     let Some(fault) = doc.var_read_faults(expr).into_iter().next() else {
         return Ok(());
     };
-    let node = node.clone();
-    Err(match (site, fault) {
+    Err(read_refusal(doc, node.clone(), site, fault))
+}
+
+/// **A faulty read as this door refuses it**, at its address: the one
+/// vocabulary [`check_reads`] and the lowering ([`lower_at`]) share.
+fn read_refusal<P>(
+    doc: &Doc<P>,
+    node: SpokenNode,
+    site: ExprSite,
+    fault: VarReadFault,
+) -> EditError {
+    match (site, fault) {
         (ExprSite::Slot(slot), VarReadFault::Name { name }) => {
             EditError::SlotUnknownVarName { name, node, slot }
         }
@@ -819,7 +856,7 @@ fn check_reads<P>(
             declared,
             referenced,
         },
-    })
+    }
 }
 
 /// Which door an edit of a STANDING variable came through: the three
@@ -1213,17 +1250,6 @@ pub enum EditError {
         var: SpokenVar,
         /// The reading node.
         node: SpokenNode,
-    },
-    /// **The door's post-condition failed**: the written document
-    /// holds a name leaf in `node`, where a stored document reads
-    /// variables by id alone. Every writing arm lowers what it writes
-    /// and refuses a name that does not lower, so this is the kernel's
-    /// own defect, refused rather than stored.
-    NameLeafWritten {
-        /// The node holding the name leaf.
-        node: SpokenNode,
-        /// The name it reads.
-        name: VarName,
     },
     /// A [`Node::Measure`]'s expression reads a reference the node does
     /// not carry ([`crate::MeasureNodeFault`]).
@@ -2214,9 +2240,6 @@ impl EditError {
                 *node = node.respoken(doc);
                 *var = var.respoken(doc);
             }
-            Self::NameLeafWritten { node, name: _ } => {
-                *node = node.respoken(doc);
-            }
             Self::ContinuousVarCannotBeCount { var }
             | Self::VarNameTaken {
                 name: _,
@@ -2831,14 +2854,6 @@ impl EditError {
                     f,
                     "the declare drew the variable id {id}, which this document's mint log \
                      already holds"
-                )?;
-                tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
-            }
-            Self::NameLeafWritten { node, name } => {
-                write!(
-                    f,
-                    "the edit would store {node} reading the name {name}, and a stored \
-                     document reads variables by id"
                 )?;
                 tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
             }
@@ -3953,7 +3968,7 @@ impl MaintenanceNet {
 ///
 /// Nothing is written anywhere until a caller takes the [`Recorded`]
 /// up, so undo is the caller keeping the document it started from.
-pub struct Recording<'a, P> {
+pub struct Recording<'a, P: crate::ProfilePayload> {
     start: &'a Doc<P>,
     produced: Option<Doc<P>>,
     refused: Option<EditError>,
@@ -4016,7 +4031,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// # Errors
     ///
     /// As [`Self::apply`]'s.
-    pub fn insert(&mut self, node: Node<P>) -> Result<RecipeNodeId, EditError> {
+    pub fn insert(&mut self, node: Node<P::Authored, Formula>) -> Result<RecipeNodeId, EditError> {
         self.open()?;
         let (applied, id) =
             apply_insert(self.doc(), &node, self.tol, self.reach).map_err(|e| self.end(e))?;
@@ -4086,7 +4101,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
 /// document it produced and the record of how. Undo is the caller
 /// keeping the document the recording started from.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Recorded<P> {
+pub struct Recorded<P: crate::ProfilePayload> {
     /// The document the last edit produced; the start's, unchanged,
     /// when the action recorded no edit.
     pub doc: Doc<P>,
@@ -4589,7 +4604,7 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
 /// together. Undo is the caller keeping the input value: the input is
 /// untouched.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RegaugeThenMateOutcome<P> {
+pub struct RegaugeThenMateOutcome<P: crate::ProfilePayload> {
     /// The input document with the action applied.
     pub doc: Doc<P>,
     /// The edits that produce `doc` from the input, in the order the
@@ -4631,7 +4646,7 @@ pub struct RegaugeThenMateOutcome<P> {
 /// refuses.
 pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
-    mate: Node<P>,
+    mate: Node<P::Authored, Formula>,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<RegaugeThenMateOutcome<P>, EditError> {
@@ -4658,7 +4673,7 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
 /// insert, in order, computed against `doc`.
 fn regauges_for<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
-    mate: &Node<P>,
+    mate: &Node<P::Authored, Formula>,
 ) -> Result<Vec<DocEdit<P>>, EditError> {
     let mut edits = Vec::new();
     if let Node::Mate { a, b, .. } = mate
@@ -4785,9 +4800,8 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
-    let edit = lowered(doc, edit);
     let (doc, record, maintenance) = door(doc, tol, |new, reported| {
-        write_edit(doc, new, reported, &edit, tol, reach)
+        write_edit(doc, new, reported, edit, tol, reach)
     })?;
     Ok(Applied {
         doc,
@@ -4801,16 +4815,10 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
 /// in the type rather than in [`EditRecord::minted`]'s `Option`.
 pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
-    node: &Node<P>,
+    node: &Node<P::Authored, Formula>,
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let edit = DocEdit::InsertNode {
-        node: Box::new(node.clone()),
-    };
-    let DocEdit::InsertNode { node } = &*lowered(doc, &edit) else {
-        unreachable!("lowering keeps an edit's arm")
-    };
     let (doc, id, maintenance) = door(doc, tol, |new, reported| {
         insert_into(doc, new, reported, node, tol, Some(reach))
     })?;
@@ -4838,26 +4846,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // word and reports nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
     let wrote = write(&mut new, &mut reported)?;
-    // The post-condition, on EVERY arm: a stored node reads variables
-    // by id, so no name leaf survives the write. Each writing arm
-    // lowers and checks what it writes; this is what says so rather
-    // than assuming it, and refuses loud where an arm did not.
-    for (&node, n) in new
-        .order
-        .iter()
-        .filter_map(|id| Some((id, new.nodes.get(id)?)))
-    {
-        let mut names = Vec::new();
-        for expr in n.exprs() {
-            expr.named_reads(&mut names);
-        }
-        if let Some((name, _)) = names.into_iter().next() {
-            return Err(EditError::NameLeafWritten {
-                node: written(doc, node, n),
-                name,
-            });
-        }
-    }
     // VR7, on EVERY arm: an anonymous variable is read by something, so
     // the edit that detached its last reader removes it. The mint log
     // keeps its id.
@@ -4950,10 +4938,22 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &mut Doc<P>,
     reported: &mut Vec<Maintenance>,
-    node: &Node<P>,
+    authored: &Node<P::Authored, Formula>,
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<RecipeNodeId, EditError> {
+    // The node as the door writes it, lowered before anything else is
+    // asked of it: its id is minted from the lowered node, so a node
+    // authored by name and the same node authored by id mint one id.
+    // A refusal speaks the node by the id its authored form would mint.
+    let node = &lower_node(doc, authored, || {
+        let would = new
+            .mint
+            .clone()
+            .insert(authored)
+            .unwrap_or_else(|crate::NodeIdCollides { id }| id);
+        SpokenNode::entering(would, authored)
+    })?;
     // Liveness, and it stays spelled here rather than moving to
     // a shared home: the rule IS the node map's own lookup, so
     // the load door's `DanglingInput` walk and this loop share
@@ -5220,10 +5220,33 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // rather than the program. Minting extends a mint held
             // aside, so a refusal further down leaves the document's
             // untouched.
+            let loops = loops
+                .iter()
+                .map(|lp| {
+                    let mut lower = |formula: &Formula| {
+                        formula
+                            .lower(&|name| doc.lowering_scope(name))
+                            .map_err(|fault| (formula.clone(), fault))
+                    };
+                    lp.try_map_slots(&mut lower)
+                })
+                .collect::<Result<Vec<_>, _>>();
+            let loops = match loops {
+                Ok(loops) => loops,
+                Err((_, fault)) => {
+                    // The address the refusal names is the program's:
+                    // the first argument, in program order, that does
+                    // not lower.
+                    let probe = loops_refusal(doc, *node, edit);
+                    return Err(probe.unwrap_or_else(|| {
+                        unreachable!("a program whose {fault} did not lower has an argument that does not")
+                    }));
+                }
+            };
             let mut mint = new.mint.clone();
             let (minted, dropped) =
-                settle_step_ids(&doc.spoken(*node), old_ids, loops, ids, &mut mint)?;
-            let Some(rewritten) = payload.with_program(loops.clone(), minted) else {
+                settle_step_ids(&doc.spoken(*node), old_ids, &loops, ids, &mut mint)?;
+            let Some(rewritten) = payload.with_program(loops, minted) else {
                 return Err(EditError::SetProgramOnNonProfile {
                     node: doc.spoken(*node),
                 });
@@ -5317,7 +5340,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     slot: path.slot,
                 });
             };
-            let rebuilt = root
+            let rebuilt = Formula::from(root)
                 .with_replaced(&path.path, expr.clone())
                 .ok_or_else(|| EditError::PathOffTree {
                     node: doc.spoken(path.node),
@@ -5344,7 +5367,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
-            let def = def.stored();
+            let def = lower_decl(
+                doc,
+                &SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone())),
+                def,
+            )?;
             // The definition is checked BEFORE anything is minted: a
             // definition fault outranks a collision, and a refused
             // declare speaks the id it would have minted.
@@ -5374,7 +5401,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = doc.spoken_var(id);
-            let def = def.stored();
+            let def = lower_decl(doc, &spoken, def)?;
             let kind = doc.var(id).map_or(def.kind(), Var::kind);
             if def.kind() != kind {
                 return Err(EditError::VarKindFixed {
@@ -5791,7 +5818,24 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*instance),
                 });
             };
-            held.clone_from(offset);
+            *held = match offset {
+                None => None,
+                Some(offset) => {
+                    let spoken = || doc.spoken(*instance);
+                    for (slot, formula) in offset.rows() {
+                        lower_at(doc, spoken, ExprSite::Slot(slot), formula)?;
+                    }
+                    let lowered = offset.try_map_slots(&mut |formula| {
+                        formula.lower(&|name| doc.lowering_scope(name))
+                    });
+                    match lowered {
+                        Ok(lowered) => Some(lowered),
+                        Err(fault) => unreachable!(
+                            "every step of the offset lowered above, yet {fault} did not"
+                        ),
+                    }
+                }
+            };
             // The offset's rigid steps are the instance's slots, held
             // to the insert door's own checks: dimensions and parameter
             // references. Its literal steps meet the frame rule in the
@@ -6272,7 +6316,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     before: &Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
-    expr: &Expr,
+    formula: &Formula,
 ) -> Result<(), EditError> {
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode {
@@ -6294,7 +6338,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
         slot,
         expected,
         found,
-    }) = slot.dimension_fault(expr)
+    }) = slot.dimension_fault(formula)
     {
         return Err(EditError::SlotDimensionMismatch {
             slot,
@@ -6302,6 +6346,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
             found,
         });
     }
+    let expr = &lower_at(before, || spoken.clone(), ExprSite::Slot(slot), formula)?;
     check_reads(new, &spoken, ExprSite::Slot(slot), expr)?;
     if let Some(target) = new.nodes.get_mut(&id).and_then(|n| n.expr_mut(slot)) {
         *target = expr.clone();
@@ -6366,35 +6411,6 @@ mod tests {
     use super::DocEdit;
     use crate::program::ProfileProgram;
     use crate::test_support::len;
-
-    /// **The door's post-condition is checked, not assumed**: a write
-    /// that leaves a name leaf in a stored node refuses
-    /// `NameLeafWritten`, naming the node and the name. No public arm
-    /// reaches it — each lowers and checks what it writes first — so the
-    /// row hands [`super::door`] a write that does not, which is the
-    /// defect the check exists to refuse rather than store.
-    #[test]
-    fn a_write_that_leaves_a_name_leaf_refuses_name_leaf_written() {
-        let tol = geom_core::Tol::witness();
-        let (doc, [extrude, _, _]) = crate::test_support::clipped_cylinder(tol);
-        let width = crate::VarName::from_static("width");
-        let unlowered = crate::Expr::named(width.clone(), crate::Dimension::Length);
-        let refused = super::door(&doc, tol, |new, _| {
-            let node = new.nodes.get_mut(&extrude).expect("the extrude is live");
-            *node
-                .expr_mut(crate::node::SlotId::Distance)
-                .expect("a distance slot") = unlowered;
-            Ok(())
-        })
-        .map(|_| ())
-        .expect_err("a stored name leaf is refused");
-        match refused {
-            super::EditError::NameLeafWritten { node, name } => {
-                assert_eq!((node.id(), name), (extrude, width));
-            }
-            other => panic!("the post-condition refuses, got {other:?}"),
-        }
-    }
 
     /// **The datum question is answered by the edit too**: the insert
     /// of a mate and a slot edit at a mate's frame-offset step write a

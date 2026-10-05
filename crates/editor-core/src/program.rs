@@ -89,7 +89,7 @@ macro_rules! document_vocabulary {
     (
         $(
             $(#[$enum_meta:meta])*
-            $vis:vis enum $name:ident {
+            $vis:vis enum $name:ident $(<$slot:ident = $slot_default:ty>)? {
                 $(
                     $(#[$variant_meta:meta])*
                     $variant:ident $(( $($tuple:tt)* ))? $({ $($named:tt)* })?
@@ -99,7 +99,7 @@ macro_rules! document_vocabulary {
     ) => {
         $(
             $(#[$enum_meta])*
-            $vis enum $name {
+            $vis enum $name $(<$slot = $slot_default>)? {
                 $(
                     $(#[$variant_meta])*
                     $variant $(( $($tuple)* ))? $({ $($named)* })?
@@ -162,7 +162,7 @@ macro_rules! document_vocabulary {
         /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
         #[doc(hidden)]
         pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
-            &[$((stringify!($name), $name::ALL_NAMES)),*];
+            &[$((stringify!($name), <$name>::ALL_NAMES)),*];
     };
 }
 
@@ -179,9 +179,9 @@ document_vocabulary! {
 // attribute would have nothing to deny (`work/census/`'s rule; the
 // repo-wide census in `test-utils` reds on an inert one).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ProgramTarget {
+pub enum ProgramTarget<S = Expr> {
     /// An authored absolute point in the profile frame.
-    Point([Expr; 2]),
+    Point([S; 2]),
     /// The entry vertex: this step closes the loop.
     Start,
     /// The entry vertex with the seam's TANGENT JOINT declared — a
@@ -221,17 +221,17 @@ pub enum ProgramTarget {
 /// `Verb::ALL` fully witnessed and the document verb unexercised.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum ProgramStep {
+pub enum ProgramStep<S = Expr> {
     /// `.at(p)`.
-    At([Expr; 2]),
+    At([S; 2]),
     /// `.angle(θ)` (radians).
-    Angle(Expr),
+    Angle(S),
     /// **G1** `.toward(dx, dy)` — exact components, ratio-only.
     Toward {
         /// x component (Scalar).
-        dx: Expr,
+        dx: S,
         /// y component (Scalar).
-        dy: Expr,
+        dy: S,
     },
     /// `.tangent()` — structural, no arguments.
     Tangent,
@@ -239,47 +239,47 @@ pub enum ProgramStep {
     /// reverse-tangent junction (D1's wedge-0/2π authoring door).
     Cusp,
     /// `.turn(δ)`.
-    Turn(Expr),
+    Turn(S),
     /// `line(len)`.
-    Line(Expr),
+    Line(S),
     /// `line_to(target)`.
-    LineTo(ProgramTarget),
+    LineTo(ProgramTarget<S>),
     /// `continue_to(target)` — the declared point-target straight
     /// continuation; `Start` targets close the loop.
-    ContinueTo(ProgramTarget),
+    ContinueTo(ProgramTarget<S>),
     /// `arc_to(spec)` — the sharp arc leg, every §2c mode in the one
     /// unified spec record (derived quantities re-derived at replay).
-    ArcTo(ProgramArcData),
+    ArcTo(ProgramArcData<S>),
     /// `tangent_arc_to(target)`.
-    TangentArcTo(ProgramTarget),
+    TangentArcTo(ProgramTarget<S>),
     /// `.fillet(r)` — line incoming, line arrival.
-    Fillet(Expr),
+    Fillet(S),
     /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
     FilletArc {
         /// The fillet radius.
-        radius: Expr,
+        radius: S,
         /// The arc-arrival spec.
-        spec: ProgramArcData,
+        spec: ProgramArcData<S>,
     },
     /// **§2c** `arc_fillet(spec, r)` — fused arc incoming, line arrival.
     ArcFillet {
         /// The fused incoming-arc spec.
-        spec: ProgramArcData,
+        spec: ProgramArcData<S>,
         /// The fillet radius.
-        radius: Expr,
+        radius: S,
     },
     /// **§2c** `arc_fillet_arc(spec, r, spec₂)` — fused arc incoming,
     /// arc arrival.
     ArcFilletArc {
         /// The fused incoming-arc spec.
-        spec: ProgramArcData,
+        spec: ProgramArcData<S>,
         /// The fillet radius.
-        radius: Expr,
+        radius: S,
         /// The arc-arrival spec.
-        spec2: ProgramArcData,
+        spec2: ProgramArcData<S>,
     },
     /// **G1** `.to(anchor)` — the far-end anchor.
-    FarEndTo([Expr; 2]),
+    FarEndTo([S; 2]),
     /// `.to(Start)` — the seam-fillet close (structural).
     CloseTo,
 }
@@ -307,11 +307,11 @@ pub enum ProgramStep {
 /// stay green. [`Self::ALL_NAMES`] is that direction's anchor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum ProgramArcData {
+pub enum ProgramArcData<S = Expr> {
     /// `Radius { r, side }` — arrival mode, centre derived.
     Radius {
         /// The carrier radius.
-        r: Expr,
+        r: S,
         /// Which side of the tangent the centre sits on (structural).
         #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
@@ -319,46 +319,46 @@ pub enum ProgramArcData {
     /// `Bulge { p, b }` — the bulge is AUTHORED data.
     Bulge {
         /// The authored endpoint.
-        target: ProgramTarget,
+        target: ProgramTarget<S>,
         /// The authored bulge (M2 convention, Scalar).
-        b: Expr,
+        b: S,
     },
     /// `Via { q, p }` — bulge derived at replay.
     Via {
         /// A point the arc passes through.
-        q: [Expr; 2],
+        q: [S; 2],
         /// The authored endpoint.
-        target: ProgramTarget,
+        target: ProgramTarget<S>,
     },
     /// `Center { c, winding, p }` — bulge derived at replay.
     Center {
         /// The carrier centre.
-        c: [Expr; 2],
+        c: [S; 2],
         /// Travel sense (structural).
         #[serde(with = "crate::persist::wire::arc_sweep")]
         winding: ArcSweep,
         /// The authored anchor/endpoint (`Start` closes).
-        target: ProgramTarget,
+        target: ProgramTarget<S>,
     },
     /// `Sweep { r, side, angle }` — endpoint derived at replay.
     Sweep {
         /// The carrier radius.
-        r: Expr,
+        r: S,
         /// Which side the centre sits on (structural).
         #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
         /// The swept central angle.
-        angle: Expr,
+        angle: S,
     },
     /// `ArcLen { r, side, len }` — endpoint derived at replay.
     ArcLen {
         /// The carrier radius.
-        r: Expr,
+        r: S,
         /// Which side the centre sits on (structural).
         #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
         /// The arc length.
-        len: Expr,
+        len: S,
     },
 }
 
@@ -376,28 +376,28 @@ pub enum ProgramArcData {
 /// [`Self::ALL_NAMES`] is its anchor for the same reason.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum LoopProgram {
+pub enum LoopProgram<S = Expr> {
     /// A chain-vocabulary step list (must end in a `Start`-targeting
     /// verb — checked by replay, not representation).
-    Chain(Vec<ProgramStep>),
+    Chain(Vec<ProgramStep<S>>),
     /// `circle(centre, r)` — the seamless closed carrier.
     Circle {
         /// The circle's centre.
-        centre: [Expr; 2],
+        centre: [S; 2],
         /// The circle's radius.
-        radius: Expr,
+        radius: S,
     },
     /// `circle_split(centre, r, n, phase)` — the declared-subdivision
     /// closed carrier (corpus ruling (a); `n` STRUCTURAL).
     CircleSplit {
         /// The carrier's centre.
-        centre: [Expr; 2],
+        centre: [S; 2],
         /// The carrier's radius.
-        radius: Expr,
+        radius: S,
         /// The subdivision count (structural, ≥ 2 at replay).
         n: u32,
         /// The first vertex's angle from +x.
-        phase: Expr,
+        phase: S,
     },
 }
 }
@@ -436,7 +436,7 @@ pub enum LoopProgram {
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ProfileProgram {
+pub struct ProfileProgram<S = Expr> {
     /// The frame node this profile is drawn on — a
     /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
     /// of which lands the same frame value: sketch (0, 0) and the
@@ -462,7 +462,7 @@ pub struct ProfileProgram {
     #[serde(deserialize_with = "crate::persist::wire::plane_ref")]
     pub plane: RecipeNodeId,
     /// The loop programs.
-    pub loops: Vec<LoopProgram>,
+    pub loops: Vec<LoopProgram<S>>,
     /// **Every authored step's minted id**, per loop and per step in
     /// program order ([`LoopProgram::authored_steps`] of them per loop):
     /// what a profile piece's name spells (`names/README.md`, "N1, the
@@ -493,27 +493,57 @@ type Replayed = (
 // The payload trait (Node<P> genericity's seam)
 // ------------------------------------------------------------------
 
+/// **A payload's slot table, in one slot form**: every slot value it
+/// holds, keyed by its `(loop, step, arg)` address, in that
+/// deterministic order. `Node::Profile` reads its slots, and answers
+/// `SlotId::Profile { loop_, step, arg }`, from these rows alone. A
+/// payload's rows carry no other kind of address, so a profile node
+/// cannot answer another node kind's slot. A payload with no program
+/// has none.
+pub trait SlotPayload<S> {
+    /// The rows, shared.
+    fn rows(&self) -> Vec<((u32, u32, StepArg), &S)> {
+        Vec::new()
+    }
+    /// The rows of [`SlotPayload::rows`], exclusive: the same rows, in
+    /// the same order.
+    fn rows_mut(&mut self) -> Vec<((u32, u32, StepArg), &mut S)> {
+        Vec::new()
+    }
+}
+
 /// What `Node<P>` needs from a profile payload so slot addressing and
 /// the authoring-time check stay generic (`Doc<P>` keeps its fake test
 /// payloads — the defaults are the slot-free, check-free behavior the
 /// retired opaque payload had). `Serialize`, because the insert door
 /// mints a node's id from the node's bytes, payload included
 /// ([`crate::Mint`]).
-pub trait ProfilePayload: serde::Serialize {
-    /// **The program's slot table**: every expression it holds, keyed
-    /// by its `(loop, step, arg)` address, in that deterministic order.
-    /// `Node::Profile` reads its slots, and answers
-    /// `SlotId::Profile { loop_, step, arg }`, from these rows alone. A
-    /// payload's rows carry no other kind of address, so a profile node
-    /// cannot answer another node kind's slot.
-    fn rows(&self) -> Vec<((u32, u32, StepArg), &Expr)> {
-        Vec::new()
-    }
-    /// The rows of [`ProfilePayload::rows`], exclusive: the same rows,
-    /// in the same order.
-    fn rows_mut(&mut self) -> Vec<((u32, u32, StepArg), &mut Expr)> {
-        Vec::new()
-    }
+pub trait ProfilePayload: serde::Serialize + SlotPayload<Expr> {
+    /// **The payload this one is authored as**: the same program, its
+    /// slots holding the formulas an edit carries ([`crate::Formula`]).
+    /// The edit door lowers it ([`ProfilePayload::lower`]); re-authoring
+    /// goes back ([`ProfilePayload::author`]).
+    type Authored: SlotPayload<crate::Formula>
+        + Clone
+        + core::fmt::Debug
+        + PartialEq
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>;
+    /// **The stored payload `authored` lowers to**: every slot through
+    /// `f`, everything else kept.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first refusal.
+    fn lower<E>(
+        authored: &Self::Authored,
+        f: &mut dyn FnMut(&crate::Formula) -> Result<Expr, E>,
+    ) -> Result<Self, E>
+    where
+        Self: Sized;
+    /// **This payload re-authored**: every slot a formula reading what
+    /// it read, by id.
+    fn author(&self) -> Self::Authored;
     /// Whether any expression of this program reads the variable
     /// `var` — over [`ProfilePayload::rows`], so every payload answers
     /// it the one way.
@@ -1403,7 +1433,6 @@ impl LoopProgram {
             .collect()
     }
 
-    row_readers!(pub(crate) loop_roles -> (u32, StepArg));
 
     /// Every expression the loop holds, exclusive.
     pub(crate) fn exprs_mut(&mut self) -> Vec<&mut Expr> {
@@ -2142,7 +2171,7 @@ impl ProfileProgram {
     }
 }
 
-impl PartialEq for ProfileProgram {
+impl<L: crate::expr::LeafSet> PartialEq for ProfileProgram<crate::expr::ExprTree<L>> {
     /// BIT equality (struct docs): the frame by node identity,
     /// expressions by [`Expr::bit_eq`], structure structurally.
     fn eq(&self, other: &Self) -> bool {
@@ -2169,7 +2198,10 @@ impl PartialEq for ProfileProgram {
 }
 
 /// Structural equality with Exprs compared by bits.
-fn loop_bit_eq(a: &LoopProgram, b: &LoopProgram) -> bool {
+fn loop_bit_eq<L: crate::expr::LeafSet>(
+    a: &LoopProgram<crate::expr::ExprTree<L>>,
+    b: &LoopProgram<crate::expr::ExprTree<L>>,
+) -> bool {
     match (a, b) {
         (LoopProgram::Chain(x), LoopProgram::Chain(y)) => {
             x.len() == y.len() && x.iter().zip(y).all(|(s, t)| step_bit_eq(s, t))
@@ -2213,11 +2245,17 @@ fn loop_bit_eq(a: &LoopProgram, b: &LoopProgram) -> bool {
     }
 }
 
-fn pair_bit_eq(a: &[Expr; 2], b: &[Expr; 2]) -> bool {
+fn pair_bit_eq<L: crate::expr::LeafSet>(
+    a: &[crate::expr::ExprTree<L>; 2],
+    b: &[crate::expr::ExprTree<L>; 2],
+) -> bool {
     a[0].bit_eq(&b[0]) && a[1].bit_eq(&b[1])
 }
 
-fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
+fn target_bit_eq<L: crate::expr::LeafSet>(
+    a: &ProgramTarget<crate::expr::ExprTree<L>>,
+    b: &ProgramTarget<crate::expr::ExprTree<L>>,
+) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
         (ProgramTarget::StartArriving, ProgramTarget::StartArriving) => true,
@@ -2226,7 +2264,10 @@ fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     }
 }
 
-fn spec_bit_eq(a: &ProgramArcData, b: &ProgramArcData) -> bool {
+fn spec_bit_eq<L: crate::expr::LeafSet>(
+    a: &ProgramArcData<crate::expr::ExprTree<L>>,
+    b: &ProgramArcData<crate::expr::ExprTree<L>>,
+) -> bool {
     use ProgramArcData as S;
     match (a, b) {
         (S::Radius { r: ra, side: sa }, S::Radius { r: rb, side: sb }) => ra.bit_eq(rb) && sa == sb,
@@ -2284,7 +2325,10 @@ fn spec_bit_eq(a: &ProgramArcData, b: &ProgramArcData) -> bool {
     }
 }
 
-fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
+fn step_bit_eq<L: crate::expr::LeafSet>(
+    a: &ProgramStep<crate::expr::ExprTree<L>>,
+    b: &ProgramStep<crate::expr::ExprTree<L>>,
+) -> bool {
     use ProgramStep as P;
     match (a, b) {
         (P::At(x), P::At(y)) | (P::FarEndTo(x), P::FarEndTo(y)) => pair_bit_eq(x, y),
@@ -2370,8 +2414,24 @@ macro_rules! program_rows {
     }};
 }
 
+impl<S> SlotPayload<S> for ProfileProgram<S> {
+    row_readers!(program_rows -> (u32, u32, StepArg), S);
+}
+
 impl ProfilePayload for ProfileProgram {
-    row_readers!(program_rows -> (u32, u32, StepArg));
+    type Authored = ProfileProgram<crate::Formula>;
+    fn lower<E>(
+        authored: &Self::Authored,
+        f: &mut dyn FnMut(&crate::Formula) -> Result<Expr, E>,
+    ) -> Result<Self, E> {
+        authored.try_map_slots(&mut |slot| f(slot))
+    }
+    fn author(&self) -> Self::Authored {
+        let Ok(authored) = self.try_map_slots(&mut |slot| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::from(slot))
+        });
+        authored
+    }
 
     fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
@@ -2410,6 +2470,186 @@ impl ProfilePayload for ProfileProgram {
             .collect();
         self.ids = mint.steps_of_insert(&every_new)?;
         Ok(())
+    }
+}
+
+impl<S> LoopProgram<S> {
+    row_readers!(pub(crate) loop_roles -> (u32, StepArg), S);
+}
+
+// ------------------------------------------------------------------
+// Slot forms (the authored program and the stored one)
+// ------------------------------------------------------------------
+
+impl<S> ProgramTarget<S> {
+    /// **This target in another slot form**: a point's coordinates
+    /// rewritten by `f`, `x` first.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<ProgramTarget<S2>, E> {
+        Ok(match self {
+            ProgramTarget::Point(p) => ProgramTarget::Point(crate::node::map_array(p, f)?),
+            ProgramTarget::Start => ProgramTarget::Start,
+            ProgramTarget::StartArriving => ProgramTarget::StartArriving,
+        })
+    }
+}
+
+impl<S> ProgramArcData<S> {
+    /// **This arc mode in another slot form**, its slots in field order.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<ProgramArcData<S2>, E> {
+        use crate::node::map_array;
+        Ok(match self {
+            ProgramArcData::Radius { r, side } => ProgramArcData::Radius {
+                r: f(r)?,
+                side: *side,
+            },
+            ProgramArcData::Bulge { target, b } => ProgramArcData::Bulge {
+                target: target.try_map_slots(f)?,
+                b: f(b)?,
+            },
+            ProgramArcData::Via { q, target } => ProgramArcData::Via {
+                q: map_array(q, f)?,
+                target: target.try_map_slots(f)?,
+            },
+            ProgramArcData::Center { c, winding, target } => ProgramArcData::Center {
+                c: map_array(c, f)?,
+                winding: *winding,
+                target: target.try_map_slots(f)?,
+            },
+            ProgramArcData::Sweep { r, side, angle } => ProgramArcData::Sweep {
+                r: f(r)?,
+                side: *side,
+                angle: f(angle)?,
+            },
+            ProgramArcData::ArcLen { r, side, len } => ProgramArcData::ArcLen {
+                r: f(r)?,
+                side: *side,
+                len: f(len)?,
+            },
+        })
+    }
+}
+
+impl<S> ProgramStep<S> {
+    /// **This step in another slot form**, its slots in field order.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<ProgramStep<S2>, E> {
+        use crate::node::map_array;
+        Ok(match self {
+            ProgramStep::At(p) => ProgramStep::At(map_array(p, f)?),
+            ProgramStep::Angle(a) => ProgramStep::Angle(f(a)?),
+            ProgramStep::Toward { dx, dy } => ProgramStep::Toward {
+                dx: f(dx)?,
+                dy: f(dy)?,
+            },
+            ProgramStep::Tangent => ProgramStep::Tangent,
+            ProgramStep::Cusp => ProgramStep::Cusp,
+            ProgramStep::Turn(a) => ProgramStep::Turn(f(a)?),
+            ProgramStep::Line(l) => ProgramStep::Line(f(l)?),
+            ProgramStep::LineTo(t) => ProgramStep::LineTo(t.try_map_slots(f)?),
+            ProgramStep::ContinueTo(t) => ProgramStep::ContinueTo(t.try_map_slots(f)?),
+            ProgramStep::ArcTo(spec) => ProgramStep::ArcTo(spec.try_map_slots(f)?),
+            ProgramStep::TangentArcTo(t) => ProgramStep::TangentArcTo(t.try_map_slots(f)?),
+            ProgramStep::Fillet(r) => ProgramStep::Fillet(f(r)?),
+            ProgramStep::FilletArc { radius, spec } => ProgramStep::FilletArc {
+                radius: f(radius)?,
+                spec: spec.try_map_slots(f)?,
+            },
+            ProgramStep::ArcFillet { spec, radius } => ProgramStep::ArcFillet {
+                spec: spec.try_map_slots(f)?,
+                radius: f(radius)?,
+            },
+            ProgramStep::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => ProgramStep::ArcFilletArc {
+                spec: spec.try_map_slots(f)?,
+                radius: f(radius)?,
+                spec2: spec2.try_map_slots(f)?,
+            },
+            ProgramStep::FarEndTo(p) => ProgramStep::FarEndTo(map_array(p, f)?),
+            ProgramStep::CloseTo => ProgramStep::CloseTo,
+        })
+    }
+}
+
+impl<S> LoopProgram<S> {
+    /// **This loop in another slot form**, step by step.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<LoopProgram<S2>, E> {
+        use crate::node::map_array;
+        Ok(match self {
+            LoopProgram::Chain(steps) => LoopProgram::Chain(
+                steps
+                    .iter()
+                    .map(|step| step.try_map_slots(f))
+                    .collect::<Result<_, E>>()?,
+            ),
+            LoopProgram::Circle { centre, radius } => LoopProgram::Circle {
+                centre: map_array(centre, f)?,
+                radius: f(radius)?,
+            },
+            LoopProgram::CircleSplit {
+                centre,
+                radius,
+                n,
+                phase,
+            } => LoopProgram::CircleSplit {
+                centre: map_array(centre, f)?,
+                radius: f(radius)?,
+                n: *n,
+                phase: f(phase)?,
+            },
+        })
+    }
+}
+
+impl<S> ProfileProgram<S> {
+    /// **This program in another slot form**, loop by loop; its plane
+    /// and its step ids kept.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<ProfileProgram<S2>, E> {
+        Ok(ProfileProgram {
+            plane: self.plane,
+            loops: self
+                .loops
+                .iter()
+                .map(|lp| lp.try_map_slots(f))
+                .collect::<Result<_, E>>()?,
+            ids: self.ids.clone(),
+        })
     }
 }
 

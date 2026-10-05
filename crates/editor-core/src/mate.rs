@@ -192,11 +192,11 @@ impl FrameBase {
 /// <Placement>}`, closed over its two keys.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MateFrame {
+pub struct MateFrame<S = crate::Expr> {
     /// What the offset is written in.
     pub base: FrameBase,
     /// The offset, in the base's frame; the empty chain by default.
-    pub offset: Placement,
+    pub offset: Placement<S>,
 }
 
 impl MateFrame {
@@ -358,11 +358,11 @@ impl MatePrimitive {
 /// the clocking rider.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Alignment {
+pub struct Alignment<S = crate::Expr> {
     /// The `a` side's mate frame, in `a`'s part coordinates.
-    pub a: MateFrame,
+    pub a: MateFrame<S>,
     /// The `b` side's mate frame, in `b`'s part coordinates.
-    pub b: MateFrame,
+    pub b: MateFrame<S>,
     /// Which coset this mate pins.
     pub primitive: MatePrimitive,
     /// Which way the axes point at each other.
@@ -378,6 +378,40 @@ pub struct Alignment {
     /// ([`table_gap`]) and the same doors refuse typed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clocking: Option<f64>,
+}
+
+impl<S> Alignment<S> {
+    /// **This alignment in another slot form**: both frames' offsets
+    /// rewritten by `f`, side `a` first ([`Placement::try_map_slots`]).
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<Alignment<S2>, E> {
+        let Self {
+            a,
+            b,
+            primitive,
+            sense,
+            clocking,
+        } = self;
+        let frame = |side: &MateFrame<S>, f: &mut _| -> Result<MateFrame<S2>, E> {
+            Ok(MateFrame {
+                base: side.base,
+                offset: side.offset.try_map_slots(f)?,
+            })
+        };
+        Ok(Alignment {
+            a: frame(a, f)?,
+            b: frame(b, f)?,
+            primitive: *primitive,
+            sense: *sense,
+            clocking: *clocking,
+        })
+    }
 }
 
 impl Alignment {
