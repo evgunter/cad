@@ -2,13 +2,14 @@
 id: conic-quadric-doors-choose-their-first-harmonic-arm-two-ways
 kind: issue
 title: The circle x cylinder and ellipse root doors pick their first-harmonic arm by two different predicates over one algebra
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [non-circle-conic-edge-refuses-against-every-curved-face]
 branch: reach/conic-quadric-one-door
 pr: 4042
+closed: 2026-10-05
 ---
 
 Found by the REACH lane that gave the ELLIPSE carrier its root lane
@@ -42,3 +43,18 @@ falling out of it as the `A₂ ≡ 0` case. It moves the circle doors'
 row names, so the circle rows' pins move with it. Waits on nothing but
 a lane: the ellipse door landed beside `circle_cylinder` rather than
 rewriting a door another lane had in review.
+
+## Closed (2026-10-05)
+
+Merged by PR 4042. One door, `boolean::conic_quadric::conic_quadric_roots`,
+answers `Circle | Ellipse` × `Sphere | Cylinder` and decides its
+first-harmonic arm on `A₂`; the tilt predicate is gone, the circle ×
+sphere first harmonic is its `A₂ ≡ 0` case, and the ellipse × torus arm
+keeps its own door. No suite or tour pose moved (6,479 identical door
+calls over topo+sweep, re-measured by the reviewer). The admitted losses
+(crossings the ladder certified and the arm refuses) are filed as
+`conic-quadric-first-harmonic-arm-refuses-crossings-the-ladder-places`.
+An independent verifier (`analysis/reach-verify/4042`) found 0 wrong in
+the reviewer's fuzz at three ε; the arm's single rounding charge covers
+the coefficients' rounding with about 3× room (max 0.316 of the charge
+over 21,200 exact-rational trials, none over it).

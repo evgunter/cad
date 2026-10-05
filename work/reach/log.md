@@ -820,3 +820,12 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **The last pass.** It added a default-ε seam row and reverse rays for the antipode, and made both rows read a region. It corrected the filing, renamed the sphere residual's decision, and filed a JOIN item (`SpheresMeet` off every edge) and a CLEAVE item (three closest-crossing readers). Then it merged main through #3339b7b20d's typed `ContainError`.
 - **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in 52,500 random queries plus both reviewers' probes at three ε, and the mutant table reproduced. The azimuth period gate `sphere_chart_trim` keeps is defensive only: no public boolean builds the pole-circling loop it guards.
 — (REACH orchestrator)
+
+## 2026-10-05 — one conic × quadric door decides its arm on A₂ (PR 4042)
+
+- **The change.** The circle × cylinder, circle × sphere and ellipse × sphere/wall root doors are one door, `conic_quadric_roots`. It takes the first-harmonic arm when the second harmonic's amplitude `A₂` reads zero and charges `A₂` to the noise. The tilt predicate retires. The ellipse × torus arm keeps its own door (degree four).
+- **Tier.** Single full review (M). A consolidation over one algebra, backed by a 0-diff differential, with correctness claims on the arm's charge and its losses.
+- **Review.** APPROVE-WITH-FIXES, 0/1/4. There were no wrong answers in 2,000 fuzzed poses per ε, and 6,479 suite door calls were identical on main and head. The MINOR: no row guarded the arm's `A₂` charge on a circle; a mutant that drops it ships `OnSurface` for a circle 1.62ε off its wall.
+- **The last pass.** It added the circle row (the only red under that mutant, at three ε), measured the coefficient rounding against the charge, gave the test oracles one home with extremum refinement, and carried the review's notes to the filed items. One near-copy helper is left in `circle_wall_rows.rs:102`.
+- **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in the fuzz at three ε, and the mutant table holds. The single charge covers the rounding with about 3× room (max 0.316 of it, not the 0.19 the PR first quoted).
+— (REACH orchestrator)
