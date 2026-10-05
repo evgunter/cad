@@ -7106,3 +7106,21 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Batteries: 84 + 49, 0 moved.
   - Reviewer `session_015vTj4CuFMXSJPwehrjaB68` dispatched (FULL); it attacks the proof first. Implementer archived.
 - Nothing new on PR 3970. PR 4065 (INTENT-LITERALS) is not ours.
+
+## 18:41 check-in (2026-10-05)
+
+- **PR 4066 review: fix first, no BLOCKING soundness defect.**
+  - Every mid-op read rests on a link that holds. Per-op-postcondition: 4405 passed. Batteries: 84 shards + 49 tests, 0 moved. At-rest claims confirmed.
+  - MINORs:
+    - mid-op walk and `proven` panics name the at-rest premise (`WALKS_CLOSE`, "nothing removes a record during a plan"), so the panic names the wrong premise against Ev's ruling;
+    - `pinch_site` reads the carve's raw arena surgery, which `OPERATORS_KEEP_LINKS` does not cover;
+    - two converted helpers are reached only through HOLD-listed arms;
+    - M3 and M7 do have load-bearing fixtures (cone slab; Smooth arm);
+    - five more conversions have no witness (OA/OB/OC/OF/OG green).
+  - Style: the outer-then-rings link iteration is written eight times; `face_outward_normal` still reads a torn surface as `None`; `sphere_chart_trim` gives two answers in one walk.
+  - Fix lane `session_01NhpzzjUwVex29u8eQXxTfi` takes all of it.
+  - My HOLD ruling: generic geometric helpers reached through declared arms stay converted; sites whose own logic reads a declaration are left.
+  - Reviewer archived (about $7.8).
+- PR 4060: the second fix lane is still running its probes (`9a3f463e` pushed, CI green).
+- PR 4067: the reviewer is still running.
+- Nothing new on PR 3970.
