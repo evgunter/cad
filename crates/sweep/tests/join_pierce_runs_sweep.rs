@@ -1364,3 +1364,64 @@ fn pinch_runs(
     }
     out
 }
+
+/// Review probe (PR 4061): reflex corner pairs at one vertex over the
+/// sweep's grid plus axis-aligned turns, for a main-vs-head diff.
+#[test]
+#[ignore = "review differential battery"]
+fn rv4061_corner_pairs_battery() {
+    let pairs: [(&str, fn() -> Corner, fn() -> Corner); 5] = [
+        ("n343-n343", notch343, notch343),
+        ("w343-w330", || wedge(343.0), || wedge(330.0)),
+        ("w345-n343", wedge345, notch343),
+        ("w300-w270", || wedge(300.0), || wedge(270.0)),
+        ("w350-w200", || wedge(350.0), || wedge(200.0)),
+    ];
+    let mut dirs: Vec<(String, [f64; 3])> = Vec::new();
+    for i in 0..12 {
+        for j in 0..7 {
+            dirs.push((format!("i={i} j={j}"), direction(i, j)));
+        }
+    }
+    for (name, m) in [
+        ("z", [0.0, 0.0, 1.0]),
+        ("-z", [0.0, 0.0, -1.0]),
+        ("x", [1.0, 0.0, 0.0]),
+        ("y", [0.0, 1.0, 0.0]),
+        ("xy", [1.0, 1.0, 0.0]),
+        ("xyz", [1.0, 1.0, 1.0]),
+        ("-xyz", [-1.0, -1.0, 1.0]),
+    ] {
+        dirs.push((name.to_owned(), m));
+    }
+    let psis = [
+        0.0,
+        0.7,
+        2.3,
+        std::f64::consts::FRAC_PI_2,
+        std::f64::consts::PI,
+        4.4,
+    ];
+    for (pname, a, b) in pairs {
+        let (a, b) = (a(), b());
+        for (dname, m) in &dirs {
+            for psi in psis {
+                let f = frame(*m, psi);
+                let runs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    corner_pair_runs(&a, &b, f)
+                        .into_iter()
+                        .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, tol())))
+                        .collect::<Vec<_>>()
+                }));
+                match runs {
+                    Ok(lines) => {
+                        for l in lines {
+                            println!("{pname} {dname} psi={psi:.4} {l}");
+                        }
+                    }
+                    Err(_) => println!("{pname} {dname} psi={psi:.4} PANIC"),
+                }
+            }
+        }
+    }
+}

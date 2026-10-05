@@ -1,0 +1,66 @@
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index 857746d6..b25ebe8c 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -344,6 +344,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
+         // A's pairs are consecutive in its own walk order, so each runs
+         // forward, but for two survivors, which run either way.
+         let a_run = walk_run(n, a_pos[i0], a_pos[i1]);
++        assert_eq!(a_run, (n > 2).then_some(false), "RV: a_run n={n}");
++        eprintln!("RV-ARUN n={n} shared={shared}");
+         let (r0, r1) = (survivors[i0], survivors[i1]);
+         let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
+         let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
+@@ -1004,7 +1006,51 @@ fn held_cut<T: Decide>(
+             if strut && (secs[at.0].he != secs[lo.0].he || nested(secs, (lo, hi), cut, band)?) {
+                 false
+             } else {
+-                match (before(lo, at)?, before(at, hi)?) {
++                let pair = (before(lo, at)?, before(at, hi)?);
++                // RV: the origin-lo reading for struts too.
++                if strut {
++                    let alt = (walks_before(secs, lo.0, lo, at, band)?, walks_before(secs, lo.0, at, hi, band)?);
++                    let fold = |x: (Option<bool>, Option<bool>)| match x {
++                        (Some(false), _) | (_, Some(false)) => 0u8,
++                        (None, _) => 1,
++                        (_, None) => 2,
++                        _ => 3,
++                    };
++                    if fold(alt) != fold(pair) {
++                        eprintln!("RV-STRUT-ORIGIN-DIFF {pair:?} {alt:?}");
++                    }
++                    eprintln!("RV-STRUT lo={} hi={} at={} {pair:?}", lo.0, hi.0, at.0);
++                }
++                if !strut {
++                    assert!(lo.0 != hi.0, "RV: a fan with both ends in one entry");
++                    let n = secs.len();
++                    let rel = |k: usize| (k + n - lo.0) % n;
++                    let (j, d) = at;
++                    let old = if rel(j) == 0 {
++                        eprintln!("RV-FAN-LO {pair:?}");
++                        match walks_after(&secs[lo.0], lo.1, d, band)? {
++                            Some(after) => Some(after),
++                            None => None,
++                        }
++                    } else if rel(j) < rel(hi.0) {
++                        eprintln!("RV-FAN-MID {pair:?}");
++                        Some(true)
++                    } else if rel(j) == rel(hi.0) {
++                        eprintln!("RV-FAN-HI {pair:?}");
++                        walks_after(&secs[hi.0], d, hi.1, band)?
++                    } else {
++                        eprintln!("RV-FAN-OUT {pair:?}");
++                        Some(false)
++                    };
++                    let new_branch = match pair {
++                        (Some(false), _) | (_, Some(false)) => Some(false),
++                        (None, _) | (_, None) => None,
++                        _ => Some(true),
++                    };
++                    assert_eq!(old, new_branch, "RV: fan old {old:?} new {pair:?}");
++                    assert!(!matches!(pair, (None, Some(false)) | (Some(false), None)), "RV: {pair:?}");
++                }
++                match pair {
+                     (Some(false), _) | (_, Some(false)) => false,
+                     (None, _) => tied_held(secs, (lo, true), hi, cut, band)?,
+                     (_, None) => tied_held(secs, (hi, false), lo, cut, band)?,
