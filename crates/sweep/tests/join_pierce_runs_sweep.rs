@@ -589,6 +589,185 @@ fn a_four_germ_pinch_the_pairing_start_avoids_builds_every_op() {
     }
 }
 
+/// Every op in both orders between `x` (volume `vx`) and `y` (`vy`),
+/// which share `common`: `(tag, result, want)`.
+fn every_op(
+    (x, vx): (&AtRestBody<f64>, f64),
+    (y, vy): (&AtRestBody<f64>, f64),
+    common: f64,
+) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+    let decls = BooleanDeclarations::default();
+    let mut out = Vec::new();
+    for (order, p, q, vp) in [("xy", x, y, vx), ("yx", y, x, vy)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, vx + vy - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vp - common),
+        ];
+        for (op, run, want) in ops {
+            out.push((format!("{order} {op}"), run(p, q, &decls, tol()), want));
+        }
+    }
+    out
+}
+
+/// The volume of the convex `pieces` of a unit-height prism inside the
+/// half-spaces `planes`.
+fn pieces_within(pieces: &[&[(f64, f64)]], planes: &[([f64; 3], f64)]) -> f64 {
+    pieces
+        .iter()
+        .map(|piece| {
+            let mut all = planes.to_vec();
+            all.push(([0.0, 0.0, 1.0], 1.0));
+            all.push(([0.0, 0.0, -1.0], 0.0));
+            for (k, &p) in piece.iter().enumerate() {
+                let q = piece[(k + 1) % piece.len()];
+                let n = [q.1 - p.1, p.0 - q.0, 0.0];
+                all.push((n, n[0] * p.0 + n[1] * p.1));
+            }
+            convex_volume(&all)
+        })
+        .sum()
+}
+
+/// Asserts that `x ∖ y`'s result (the `"yx S"` run of [`every_op`])
+/// refuses `PinchUncrossed` and every other run builds `SOUND`.
+fn assert_only_the_difference_refuses(
+    runs: Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)>,
+) {
+    for (tag, r, want) in runs {
+        if tag == "yx S" {
+            assert!(
+                matches!(r, Err(BooleanError::PinchUncrossed { .. })),
+                "{tag}: {}",
+                outcome(r, want, tol())
+            );
+        } else {
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+        }
+    }
+}
+
+/// **A pinch round a notch on a face's outer loop refuses typed.** A
+/// ≈300° vee's reflex top corner `(2, 0.5, 1)` inside the cube's near
+/// face, the cube along Fibonacci direction 62 of 120 (PR 4038's review
+/// r2, `vee300 fib62 face`). The plane cuts the vee in two lobes
+/// meeting at the corner; one runs off the face's edge, so in cube ∖
+/// vee the near face's outer loop passes the corner twice, round the
+/// other lobe's notch. No kept face crosses there but that outer loop,
+/// and crossing it leaves a ring meeting the outer loop: the op refuses
+/// `PinchUncrossed` (`a-pinch-no-kept-face-can-cross-refuses`, nested).
+/// Every other run builds `SOUND` at the clipped volume. Red if an outer
+/// loop may cross (`ResultInvalid { RingMeetsOuter }`) or the pre-pass
+/// is skipped (`Euler(SelfLoopEdge)`).
+#[test]
+fn a_pinch_round_a_notch_on_a_faces_outer_loop_refuses_typed() {
+    const VEE: [(f64, f64); 5] = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)];
+    let pieces: [&[(f64, f64)]; 2] = [
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 0.5), (0.0, 4.0)],
+        &[(2.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5)],
+    ];
+    let v = [2.0, 0.5, 1.0];
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let z: f64 = 1.0 - 2.0 * (62.0 + 0.5) / 120.0;
+    let r = (1.0 - z * z).sqrt();
+    let f = frame([r * (ga * 62.0).cos(), r * (ga * 62.0).sin(), z], 0.0);
+    let lo = [-2.0, -2.0, 0.0];
+    let vee = finished("the vee", fixtures::prism::<f64>(&VEE, 1.0, tol()).body);
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let va = mass_properties(&vee, tol()).unwrap().volume;
+    let common = pieces_within(&pieces, &cube_planes_at(v, f, lo));
+    assert!(common > 1e-3, "the cube holds some of the vee: {common}");
+    assert_only_the_difference_refuses(every_op((&vee, va), (&cube, SIDE.powi(3)), common));
+}
+
+/// **A staircase's second pinch, round a notch, refuses typed.** The
+/// cube's near face through both of [`STAIR`]'s reflex top corners,
+/// turned to direction 594 of 720 (PR 4038's review r1, `u2 S_tt
+/// b594`). Cube ∖ staircase crosses its first pinch; at the second, the
+/// one face through the corner twice passes it on its outer loop. An
+/// outer-loop crossing there reads `LoopRoleInverted` on both loops: it
+/// keeps the outer role on the hole-shaped half, and the two halves
+/// meet at the corner (`RingMeetsOuter`), the nested shape again. The
+/// op refuses `PinchUncrossed`, and every other run builds `SOUND`.
+/// Red as [`a_pinch_round_a_notch_on_a_faces_outer_loop_refuses_typed`].
+#[test]
+fn a_staircases_second_pinch_round_a_notch_refuses_typed() {
+    let (a, b) = ([2.0, 1.0, 1.0], [1.0, 2.0, 1.0]);
+    let [e1, e2, _] = frame(unit([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), 0.0);
+    let t = std::f64::consts::TAU * (594.0 + 0.37) / 720.0;
+    let m = [0, 1, 2].map(|k| t.cos() * e1[k] + t.sin() * e2[k]);
+    let f = frame(m, 0.0);
+    let (mid, lo) = ([1.5, 1.5, 1.0], [-2.0, -2.0, 0.0]);
+    let stair = finished(
+        "the staircase",
+        fixtures::prism::<f64>(&STAIR, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_at(mid, f, lo));
+    let pieces: Vec<Vec<(f64, f64)>> = STAIR_BOXES
+        .iter()
+        .map(|&(l, h)| vec![(l[0], l[1]), (h[0], l[1]), (h[0], h[1]), (l[0], h[1])])
+        .collect();
+    let pieces: Vec<&[(f64, f64)]> = pieces.iter().map(Vec::as_slice).collect();
+    let common = pieces_within(&pieces, &cube_planes_at(mid, f, lo));
+    assert!(
+        common > 1e-3,
+        "the cube holds some of the staircase: {common}"
+    );
+    assert_only_the_difference_refuses(every_op((&stair, 6.0), (&cube, SIDE.powi(3)), common));
+}
+
+/// **An island face pinched to its hole's ring crosses there.** The
+/// holed block `[0, 2]³` less `[0.5, 1.5]² × [0, 2]`, its hole corner
+/// `(0.5, 0.5, 2)` inside the cube's near face, the cube along the
+/// grid's direction `i = 6, j = 0` (PR 4026's review r2, `holed c00
+/// side=4 g6.0`). In cube ∖ block the plane's section closes round the
+/// hole, so the cube's plane keeps an island inside the hole of its
+/// near face, the two touching at the corner, and one seam meets the
+/// corner twice. No kept face passes the corner twice; the island's
+/// outer corner and the near face's ring corner, one surface and sense,
+/// cross by `kef` (`zip::split_across`), the island ringless: the
+/// difference builds `SOUND` at the clipped volume, as do ∪ and ∩ in
+/// both orders. Red if the two faces' crossing asks both corners to be
+/// outer (`PinchUncrossed`). Block ∖ cube refuses before the pre-pass,
+/// where two fragments of the pierced face meet the pinch
+/// (`a-pierce-weld-refuses-where-its-copies-divide-a-kept-face`).
+#[test]
+fn an_island_face_pinched_to_its_holes_ring_crosses_and_builds() {
+    let v = [0.5, 0.5, 2.0];
+    let f = frame(direction(6, 0), 0.0);
+    let lo = [-2.0, -2.0, 0.0];
+    let mut block = fixtures::holed_block::<f64>(2.0, &[1.0], tol());
+    fixtures::describe_as_intersections(&mut block, tol());
+    let block = finished("the holed block", block);
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let box_planes = |l: [f64; 3], h: [f64; 3]| {
+        let mut out = cube_planes_at(v, f, lo);
+        for t in 0..3 {
+            let mut e = [0.0; 3];
+            e[t] = 1.0;
+            out.push((e, h[t]));
+            out.push((e.map(|c| -c), -l[t]));
+        }
+        out
+    };
+    let common = convex_volume(&box_planes([0.0; 3], [2.0; 3]))
+        - convex_volume(&box_planes([0.5, 0.5, 0.0], [1.5, 1.5, 2.0]));
+    assert!(common > 1e-3, "the cube holds some of the block: {common}");
+    for (tag, r, want) in every_op((&block, 6.0), (&cube, SIDE.powi(3)), common) {
+        let line = outcome(r, want, tol());
+        if tag == "xy S" {
+            assert!(
+                line.contains("two fragments of a pierced face meet one pinch"),
+                "{tag}: {line}"
+            );
+        } else {
+            assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+        }
+    }
+}
+
 /// The oracle against the kernel-free closed form the strut-facing row
 /// reads: a face placement at the bare tilt holds the prism's cut by
 /// the plane through `v`, and the empty and whole cases read 0 and 3.

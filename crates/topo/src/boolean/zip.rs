@@ -32,11 +32,11 @@
 //! the zips' fusions would join a vertex to itself (a pinch both
 //! operands keep as one vertex), the op stage first splits that vertex
 //! across two corners of kept faces: `mev`, then `kemr` (two corners of
-//! one ring) or `kef` (two faces' outer corners on one surface and
-//! sense). That rewrites kept faces' topology, not only the section
-//! faces', and a `kef` absorption is reported to the op stage for its
-//! `Descendants` and naming rows. The pre-pass and the zip read one
-//! alignment ([`align`]) and one fusion order ([`fusion_order`]).
+//! one ring) or `kef` (two faces' corners on one surface and sense, one
+//! face ringless). That rewrites kept faces' topology, not only the
+//! section faces', and a `kef` absorption is reported to the op stage
+//! for its `Descendants` and naming rows. The pre-pass and the zip read
+//! one alignment ([`align`]) and one fusion order ([`fusion_order`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -302,11 +302,13 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
 /// `mev` between the two moves `moving`'s side to a new vertex, and
 /// killing the new edge crosses the two corners. Two corners of one
 /// ring cross by `kemr`, which leaves two holes meeting at the point.
-/// Two faces' outer corners on one surface, with one sense, cross by
-/// `kef`, which makes them one face whose boundary meets itself there.
-/// A section face cannot cross, as the zips kill it, and neither can an
-/// outer loop alone: its halves would be a ring meeting the outer loop,
-/// or a ring that is not a hole. `None` when no corners qualify.
+/// Two faces' corners on one surface, with one sense, cross by `kef`
+/// where one of the faces has no ring: it dies into the other, whose
+/// loop at its corner then meets itself there, the outer loop or a
+/// ring (a face standing in the other's hole). A section face cannot
+/// cross, as the zips kill it, and neither can an outer loop alone:
+/// its halves would be a ring meeting the outer loop. `None` when no
+/// corners qualify.
 ///
 /// This is the inverse direction of `finish::pinch_site`, which joins
 /// two vertices on one point across one face: across a ring (its
@@ -353,6 +355,7 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
         Ok((l, face))
     };
     let chart_of = |f: FaceKey| body.get_face(f).map(|d| (d.surface, d.sense));
+    let ringless = |f: FaceKey| body.get_face(f).is_some_and(|d| d.rings.is_empty());
     let mut site = None;
     'search: for i in 0..n {
         let (l, face) = face_of(orbit[i])?;
@@ -369,8 +372,7 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
                 Some(Crossing::OneLoop)
             } else if fj != face
                 && !sections.contains(&fj)
-                && outer(face, l)
-                && outer(fj, lj)
+                && (ringless(face) || ringless(fj))
                 && chart_of(fj).is_some()
                 && chart_of(fj) == chart_of(face)
             {
@@ -401,12 +403,22 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
             None
         }
         Crossing::TwoFaces => {
-            let kept = body
-                .get_half_edge(made.he_minus)
-                .and_then(|h| body.get_loop(h.parent_loop))
-                .ok_or_else(|| corr("a pinch split's edge no longer resolves"))?
-                .face;
-            Some((body.kef_minting(made.he_plus, tol)?.killed_face, kept))
+            let face_of = |he: HalfEdgeKey| -> Result<(FaceKey, bool), BooleanError> {
+                let face = body
+                    .get_half_edge(he)
+                    .and_then(|h| body.get_loop(h.parent_loop))
+                    .ok_or_else(|| corr("a pinch split's edge no longer resolves"))?
+                    .face;
+                let ringless = body.get_face(face).is_some_and(|d| d.rings.is_empty());
+                Ok((face, ringless))
+            };
+            // `kef` kills the face of the half-edge it is given, which
+            // must hold no ring.
+            let (dies, kept) = match (face_of(made.he_plus)?, face_of(made.he_minus)?) {
+                ((_, true), (kept, _)) => (made.he_plus, kept),
+                ((kept, false), _) => (made.he_minus, kept),
+            };
+            Some((body.kef_minting(dies, tol)?.killed_face, kept))
         }
     };
     Ok(Some(Split {
@@ -427,8 +439,8 @@ struct Split {
 enum Crossing {
     /// Both corners are one loop's: `kemr` splits the loop in two.
     OneLoop,
-    /// The corners are two faces' of one surface: `kef` makes them one
-    /// face.
+    /// The corners are two faces' of one surface and sense, one of
+    /// them ringless: `kef` makes them one face.
     TwoFaces,
 }
 
