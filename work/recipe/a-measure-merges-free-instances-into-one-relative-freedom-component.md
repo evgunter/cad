@@ -2,10 +2,11 @@
 id: a-measure-merges-free-instances-into-one-relative-freedom-component
 kind: issue
 title: A measure reading faces of two unmated instances merges them into one A9 relative-freedom component
-status: open
+status: parked
 opened: 2026-10-03
 priority: P2
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 `mate::relative_freedom_components` (`crates/editor-core/src/mate/solve.rs:659`) walks `Node::inputs()`, so a `Measure` whose refs read a face of each of two unmated instances joins them: measured on main by a probe (two instances, then a measure reading one face of each), the partition goes from 2 components to 1 and the roots from `[inst0, inst1]` to `[measure]`. A measurement fixes no pose (A9, `crates/editor-core/ASSEMBLY.md`), and the partition is public through Python's `relative_freedom_components`.
