@@ -207,7 +207,9 @@ pub(super) fn conic_quadric_roots<T: Decide>(
     };
     let two = T::from_f64(2.0);
     // The harmonics' rounding, in residual metres: the term bound is in
-    // m², before the `2r` division.
+    // m², before the `2r` division. It is a charge on the residual's
+    // evaluation (`geom_brep::HARMONIC_NOISE_ULPS`), so it covers the
+    // arm's readings together — `c₀ ∓ A₁` and the `A₂` it charges.
     let noise = rounding_charge(h.terms) / (two * r);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let second = hypot(h.c2, h.s2);

@@ -7,7 +7,10 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
+use core::f64::consts::TAU;
+
 use super::*;
+use crate::boolean::conic_oracle::{crossings, extremes};
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
 fn band() -> Band {
@@ -85,29 +88,10 @@ fn off_wall(pose: Pose, theta: f64, x: f64, y: f64, r: f64) -> f64 {
     (p.x - x).hypot(p.y - y) - r
 }
 
-/// The oracle: the sign changes of the direct residual on `[t0, t1]`,
-/// each bisected to the bit.
+/// The oracle: the crossings of the direct residual on `[t0, t1]`
+/// (`conic_oracle::crossings`).
 fn oracle(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> Vec<f64> {
-    let f = |t: f64| off_wall(pose, t, w[0], w[1], w[2]);
-    let steps = 20_000;
-    let mut out = Vec::new();
-    for k in 0..steps {
-        let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(steps);
-        let (mut a, mut b) = (at(k), at(k + 1));
-        if f(a).signum() == f(b).signum() {
-            continue;
-        }
-        for _ in 0..80 {
-            let m = (a + b) / 2.0;
-            if f(m).signum() == f(a).signum() {
-                a = m;
-            } else {
-                b = m;
-            }
-        }
-        out.push((a + b) / 2.0);
-    }
-    out
+    crossings(|t| off_wall(pose, t, w[0], w[1], w[2]), t0, t1)
 }
 
 fn door(pose: Pose, t0: f64, t1: f64, w: [f64; 3]) -> CircleRoots<f64> {
@@ -276,17 +260,8 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
                 (a2 - closed).abs() <= 1e-3 * closed + rounding_charge(h.terms) / (2.0 * r),
                 "{label}: A₂ {a2:e} is (ρ·sin α)²/4r = {closed:e}, to within its rounding"
             );
-            let deepest = (0..=1000)
-                .map(|k| {
-                    off_wall(
-                        pose,
-                        core::f64::consts::TAU * f64::from(k) / 1000.0,
-                        0.0,
-                        0.0,
-                        r,
-                    )
-                })
-                .fold(0.0_f64, |m, d| m.max(d.abs()));
+            let (lo, hi) = extremes(|t| off_wall(pose, t, 0.0, 0.0, r), 0.0, TAU);
+            let deepest = lo.abs().max(hi.abs());
             let got = conic_quadric_roots(&pose.carrier(), -0.5, 0.5, &wall(0.0, 0.0, r), band);
             if on {
                 assert!(
@@ -313,6 +288,51 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
                 );
             }
         }
+    }
+}
+
+/// **The first-harmonic arm charges the second harmonic it drops.** A
+/// circle of the wall's own radius, centred on its axis and tilted, has
+/// the residual `−A₂(1 − cos 2θ)`: it touches the wall at `θ = 0` and `π`
+/// and lies `2A₂` inside it at `±π/2`. With `A₂` at seven tenths of the
+/// zero band the arm takes it, and its true greatest distance from the
+/// wall, `1.4·zero`, is past the zero band: no `OnSurface`. Read with
+/// the dropped harmonic uncharged, the residual's constant part `−A₂` sits
+/// inside the band and the arm answered `OnSurface`.
+#[test]
+fn a_near_square_circle_inside_the_band_by_its_second_harmonic_is_not_on_the_wall() {
+    let band = band();
+    for r in [1.0, 100.0] {
+        let a2 = 0.7 * band.zero();
+        let tilt = (4.0 * r * a2).sqrt();
+        let label = format!("wall r {r}, A₂ {a2:e}");
+        let pose = Pose {
+            c: [0.0; 3],
+            n: [0.0, -tilt / r, (1.0 - (tilt / r).powi(2)).sqrt()],
+            u: [1.0, 0.0, 0.0],
+            rho: r,
+        };
+        let h = geom_brep::conic_cylinder_harmonics(
+            &geom_brep::Conic::of(&pose.carrier::<f64>()).unwrap(),
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            r,
+        );
+        assert!(
+            h.c2.hypot(h.s2) < band.zero(),
+            "{label}: the second harmonic is in the zero band, so the arm decides"
+        );
+        let (lo, hi) = extremes(|t| off_wall(pose, t, 0.0, 0.0, r), 0.0, TAU);
+        assert!(
+            lo < -band.zero() && hi.abs() <= band.zero(),
+            "{label}: the true distance runs over [{lo:e}, {hi:e}], `2A₂` deep"
+        );
+        let got = conic_quadric_roots(&pose.carrier(), -0.5, 0.5, &wall(0.0, 0.0, r), band);
+        assert!(
+            !matches!(got, Ok(CircleRoots::OnSurface)),
+            "{label}: {:e} off the wall, got {got:?}",
+            -lo
+        );
     }
 }
 

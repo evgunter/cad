@@ -71,6 +71,7 @@ pub(super) fn ellipse_torus_roots<T: Decide>(
 ) -> Result<CircleRoots<T>, BooleanError> {
     let (
         geom::Curve3::Ellipse { .. },
+        Some(conic),
         &geom::Surface::Torus {
             center,
             axis,
@@ -78,16 +79,13 @@ pub(super) fn ellipse_torus_roots<T: Decide>(
             minor_radius,
             ..
         },
-    ) = (carrier, surface)
+    ) = (carrier, geom_brep::Conic::of(carrier), surface)
     else {
         return Err(BooleanError::ClassificationInvariant {
-            what: "the ellipse × torus root door was handed a carrier that is not an ellipse \
-                   or a surface that is not a torus",
+            what: "the ellipse × torus root door was handed a carrier that is not an ellipse or \
+                   a surface that is not a torus",
         });
     };
-    let conic = geom_brep::Conic::of(carrier).ok_or(BooleanError::ClassificationInvariant {
-        what: "an ellipse carrier has no conic frame",
-    })?;
     torus_walk(
         &conic,
         (center, axis, major_radius, minor_radius),
@@ -157,24 +155,11 @@ mod tests {
     use core::f64::consts::{PI, TAU};
 
     use super::*;
-    use crate::boolean::conic_oracle::distance;
+    use crate::boolean::conic_oracle::{self, distance, ellipse, oracle};
     use geom_core::{Point3, Tol, Vec3};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
-    }
-
-    /// The ellipse `c + a·û cos θ + b·v̂ sin θ` on the unit normal `n`.
-    fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> geom::Curve3<f64> {
-        let n = Vec3::from_array(n).normalize();
-        let u = Vec3::from_array(u);
-        geom::Curve3::Ellipse {
-            center: Point3::from_array(c),
-            axis: n,
-            major: a,
-            minor: b,
-            u_ref: (u - n * u.dot(n)).normalize(),
-        }
     }
 
     fn torus(c: [f64; 3], axis: [f64; 3], big: f64, small: f64) -> geom::Surface<f64> {
@@ -186,36 +171,10 @@ mod tests {
         )
     }
 
-    /// The sign changes of the true distance on `[t0, t1]`.
-    fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> Vec<f64> {
-        let f = |t: f64| distance(s, e.eval(t));
-        let steps = 20_000;
-        let mut out = Vec::new();
-        for k in 0..steps {
-            let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(steps);
-            let (mut a, mut b) = (at(k), at(k + 1));
-            if f(a).signum() == f(b).signum() {
-                continue;
-            }
-            for _ in 0..80 {
-                let m = (a + b) / 2.0;
-                if f(m).signum() == f(a).signum() {
-                    a = m;
-                } else {
-                    b = m;
-                }
-            }
-            out.push((a + b) / 2.0);
-        }
-        out
-    }
-
     fn door(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> CircleRoots<f64> {
         ellipse_torus_roots(e, t0, t1, s, band()).unwrap()
     }
 
-    /// Certified roots matching the oracle in number and place, every
-    /// one on the surface and within `π` of the arc's midpoint.
     fn assert_matches_oracle(
         label: &str,
         e: &geom::Curve3<f64>,
@@ -223,27 +182,7 @@ mod tests {
         t0: f64,
         want: usize,
     ) {
-        let t1 = t0 + 1.0;
-        let CircleRoots::Certified { count, thetas } = door(e, s, t0, t1) else {
-            panic!("{label}: certified roots, got {:?}", door(e, s, t0, t1));
-        };
-        assert_eq!(count, want, "{label}: the certified count");
-        let mid = (t0 + t1) / 2.0;
-        let mut got = thetas[..count].to_vec();
-        for &t in &got {
-            assert!((t - mid).abs() <= PI, "{label}: {t} within π of {mid}");
-            let off = distance(s, e.eval(t)).abs();
-            assert!(off < 1e-12, "{label}: root {t} lies {off} off the surface");
-        }
-        got.sort_by(f64::total_cmp);
-        let truth = oracle(e, s, mid - PI, mid + PI);
-        assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs {truth:?}");
-        for (a, b) in got.iter().zip(&truth) {
-            assert!(
-                (a - b).abs() < 1e-9,
-                "{label}: root {a} vs the oracle's {b}"
-            );
-        }
+        conic_oracle::assert_matches_oracle(label, (e, s), t0, want, door);
     }
 
     /// **Against a torus, up to eight crossings, certified wherever the
