@@ -146,8 +146,8 @@
 //! only gaps are on loops a null edge holds open, and one its door
 //! takes the last null edge off, whatever it misses. It leaves a loop
 //! a null edge still holds open as found — its new halves rowless — and
-//! mints whole every loop its door rewires and leaves running through
-//! no null edge. The door that releases a loop is either an operator
+//! mints what is missing on every loop its door rewires and leaves
+//! running through no null edge. The door that releases a loop is either an operator
 //! that rewires it out from under the null edge — the boolean's and the
 //! splitting lane's join, whose chord `mef`s leave the section's null
 //! halves on the sliver between the chords — or the edge's first
@@ -361,6 +361,7 @@ use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
+use std::borrow::Cow;
 
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
@@ -1916,6 +1917,9 @@ pub(crate) struct StoredRows<T: Real> {
     /// `None` when the face's boundary stores no row at all: the face
     /// has not been minted.
     pub(crate) window: Option<ChartWindow<T>>,
+    /// Each loop's share of `window`: the hull of the rows its cycle
+    /// stores, by loop, for the loops that store one.
+    pub(crate) loop_windows: Vec<(LoopKey, ChartWindow<T>)>,
     /// The gaps in the row set, in walk order: each half-edge of a
     /// loop with no row — no image, or no element on the joint into it
     /// from a predecessor that stores one.
@@ -1968,10 +1972,10 @@ impl<T: Real> StoredRows<T> {
     /// **The door that takes a face's last null edge off it re-mints
     /// it whatever it misses**, as the minting pass would once the
     /// scaffolding is gone: a null edge's first description, which
-    /// re-walks every loop, and an operator that rewires a loop out
-    /// from under the edge, as the pipelines' joins do. An operator
-    /// re-mints only the loops it rewires, so a gap on a loop it keeps
-    /// stays. **Any other gap is not the site mint's to fill**: a door
+    /// walks every loop of its faces, and an operator that rewires a
+    /// loop out from under the edge, as the pipelines' joins do. An
+    /// operator walks only the loops it rewires, so a gap on a loop it
+    /// keeps stays. **Any other gap is not the site mint's to fill**: a door
     /// left the face half-minted ([`PcurveMintError::MissingCache`]
     /// lists them) and the site mint leaves it as found, for the
     /// producer's final pass.
@@ -2235,8 +2239,9 @@ fn face_loop_cycles<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<(LoopKey, V
 pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: FaceKey) -> StoredRows<T> {
     let loops = face_loop_cycles(body, face);
     let mut gaps = Vec::new();
-    let mut boxes: Vec<ChartWindow<T>> = Vec::new();
+    let mut loop_windows: Vec<(LoopKey, ChartWindow<T>)> = Vec::new();
     for (lk, cycle) in &loops {
+        let mut boxes: Vec<ChartWindow<T>> = Vec::new();
         for (i, &he) in cycle.iter().enumerate() {
             let before = cycle[(i + cycle.len() - 1) % cycle.len()];
             let gap = match body.pcurve(he) {
@@ -2255,10 +2260,14 @@ pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: FaceKey) -> StoredRow
                 });
             }
         }
+        if let Some(hull) = hull_of(boxes) {
+            loop_windows.push((*lk, hull));
+        }
     }
     StoredRows {
         loops,
-        window: hull_of(boxes),
+        window: hull_of(loop_windows.iter().map(|&(_, hull)| hull)),
+        loop_windows,
         gaps,
     }
 }
@@ -2797,7 +2806,7 @@ fn derive_face<T: AtRestPolicy>(
                 let cycle = loop_rows(body, lp);
                 walk_runs(body, chart, &cycle, band, &mut walked, &mut refused);
             }
-            if let Err(certs) = certify_walked(walked, surface, band, Some(&fitted)) {
+            if let Err(certs) = certify_walked(walked, None, surface, band, Some(&fitted)) {
                 refused.extend(
                     certs
                         .into_iter()
@@ -2807,7 +2816,7 @@ fn derive_face<T: AtRestPolicy>(
         }
         return Err(first_owed::<T>(refused));
     }
-    certify_walked(walked, surface, band, Some(&fitted)).map_err(|refused| {
+    certify_walked(walked, None, surface, band, Some(&fitted)).map_err(|refused| {
         first_owed::<T>(
             refused
                 .into_iter()
@@ -2841,14 +2850,16 @@ type FittedDoor<'a, T, K> =
 
 /// **Pass 2 of the minting walk, for one face**: the face's chart
 /// window — the hull of the images the walk derived, none of which is
-/// stored yet ([`hull_of`]) — and every image certified against it, in
-/// walk order. The one home of that pass, shared by [`mint_face`] (the
-/// minting pass) and [`site_rows`] (the Euler operators' site mint), so
-/// the rows the two write for one walk are one set of bits.
+/// stored yet, and of `standing`, the boxes of the face's images the
+/// walk kept rather than derived ([`hull_of`]) — and every derived
+/// image certified against it, in walk order. The one home of that
+/// pass, shared by [`mint_face`] (the minting pass, which derives every
+/// image and keeps none) and [`site_rows`] (the Euler operators' site
+/// mint), so the rows the two write for one walk are one set of bits.
 ///
-/// **Check 5 is vacuous on both callers of this pass.** The window IS
-/// the hull of exactly the boxes checked against it, so no minted
-/// pcurve can escape it. [`validate_pcurves`] does not use this pass's
+/// **Check 5 is vacuous on both callers of this pass.** The window
+/// hulls every box checked against it, so no minted pcurve can escape
+/// it. [`validate_pcurves`] does not use this pass's
 /// window: it measures stored rows against the hull of the stored rows,
 /// which is vacuous the same way. The crate's one non-tautological
 /// caller is [`split_cache`], whose halves pass by the box's
@@ -2873,11 +2884,13 @@ type FittedDoor<'a, T, K> =
 /// walk order.
 fn certify_walked<T: Decide, K: Copy>(
     walked: Vec<Walked<T, K>>,
+    standing: impl IntoIterator<Item = ChartWindow<T>>,
     surface: &Surface<T>,
     band: Band,
     fitted: Option<FittedDoor<'_, T, K>>,
 ) -> Result<Certified<T, K>, Vec<(K, PcurveCertifyError)>> {
-    let Some(window) = hull_of(walked.iter().map(|w| w.pcurve.chart_box(w.t0, w.t1))) else {
+    let derived = walked.iter().map(|w| w.pcurve.chart_box(w.t0, w.t1));
+    let Some(window) = hull_of(derived.chain(standing)) else {
         return Ok(Vec::new());
     };
     let mut rows = Vec::with_capacity(walked.len());
@@ -3186,10 +3199,10 @@ pub(crate) fn site_rows_owed<T: Decide>(
 /// **The rows a site mint writes onto one face**, derived before its
 /// door mutates: a face an Euler operator adds half-edges to, one a
 /// null edge's halves are on at its first description
-/// ([`crate::Body::set_edge_curve`]), which re-walks every loop of the
-/// face, or one a door moves a loop or run onto whose rows do not
-/// stand there ([`crate::Body::drop_rows`] names the doors). `from` is the face as found, on a face [`site_rows_from`]
-/// read further; every other face is left as found, and never reaches
+/// ([`crate::Body::set_edge_curve`]), or one a door moves a loop or
+/// run onto whose rows do not stand there ([`crate::Body::drop_rows`]
+/// names the doors). `from` is the face as found, on a face
+/// [`site_rows_from`] read further; every other face is left as found, and never reaches
 /// here. The face is re-minted where [`StoredRows::remints`] selects
 /// it, `released` being whether the door takes the last null edge off
 /// it: the face as found runs through one and the face as the door
@@ -3197,25 +3210,29 @@ pub(crate) fn site_rows_owed<T: Decide>(
 ///
 /// - **On the loops the surgery rewires, it mints what the surgery
 ///   creates**, exactly as [`mint_pcurves_of`] would after the surgery:
-///   the image of every half it adds, describes or finds rowless,
-///   derived by the closed form ([`chart_pcurve`]) and certified
-///   ([`PcurveCache::certify`]), and the element of every joint it makes
-///   or finds missing, decided between the two images
-///   ([`decide_joint`]); and the loop must still close ([`Winding`]).
-///   Every other image and element stands: an image is a function of
-///   its edge and the chart, an element of its two images, and the
-///   surgery changes none of them. A loop the surgery keeps keeps its
-///   rows. The window the new images certify against is the hull of
-///   every image of the rewired loops, as the pass's is, and it enters
-///   a certificate's verdicts, never its bits. So on a face whose
-///   stored rows are the pass's, the rows after the op are the pass's,
-///   byte for byte.
+///   the same walk from each loop's `first` ([`walk_cycle`]) and the
+///   same certification ([`certify_walked`]), over the image of every
+///   half the surgery adds, describes or finds rowless, derived by the
+///   closed form ([`chart_pcurve`]), and the element of every joint it
+///   makes or finds missing, decided between the two images
+///   ([`decide_joint`]); the loop must still close ([`Winding`]).
+///   Every other image and element stands, and the walk reads it as
+///   stored: an image is a function of its edge and the chart, an
+///   element of its two images, and the surgery changes none of them.
+///   A loop the surgery keeps keeps its rows. The window the new images
+///   certify against is the hull of every image the face holds after
+///   the surgery — the rewired loops', and the rows the kept loops
+///   store ([`StoredRows::loop_windows`]) — so on a face whose stored
+///   rows are the pass's it is the pass's window; it enters a
+///   certificate's verdicts, never its bits. So on such a face the rows
+///   after the op are the pass's, byte for byte.
 /// - **A rewired loop that still runs through a null edge keeps the
 ///   rows it has** ([`held_open`]): the null halves have no carrier,
 ///   so the loop cannot be walked, and its new halves go rowless until
 ///   the null edge leaves it. Every rewired loop the door leaves
-///   running through no null edge is minted whole, the rows it missed
-///   while it was held open among them.
+///   running through no null edge is walked, and the rows it missed
+///   while it was held open are minted with the rest of what is
+///   missing.
 /// - **A moved loop or run is a rewired loop** ([`SiteFace::moved`]):
 ///   its rows are stated in the chart it left, or missing, so it is
 ///   walked whole in the destination's chart, exactly as the minting
@@ -3249,7 +3266,8 @@ pub(crate) fn site_rows_owed<T: Decide>(
 /// reads: per half-edge of the rewired loops a presence read, its
 /// image's chart box (for the window) and its element (for the
 /// winding), and per half-edge of the rest of the face one presence
-/// read ([`site_rows_from`]); on a face missing a row, three lookups
+/// read and one chart box ([`site_rows_from`], whose per-loop hulls
+/// are the kept loops' share of the window); on a face missing a row, three lookups
 /// more per half-edge of the face as found — its half, edge and curve —
 /// for which loops a null edge holds open, and as many again per
 /// half-edge of the rewired loops.
@@ -3277,7 +3295,7 @@ pub(crate) fn site_rows<T: Decide>(
     if walks.is_empty() {
         return Ok(SiteRows::Leave);
     }
-    let kept = |key: LoopKey| {
+    let kept_halves = |key: LoopKey| {
         from.rows
             .loops
             .iter()
@@ -3294,7 +3312,7 @@ pub(crate) fn site_rows<T: Decide>(
             .flat_map(|lp| -> Vec<SiteHalf> {
                 match lp {
                     SiteLoop::Rewired(halves) => halves.clone(),
-                    SiteLoop::Kept(key) => kept(*key).collect(),
+                    SiteLoop::Kept(key) => kept_halves(*key).collect(),
                 }
             })
             .collect()
@@ -3345,106 +3363,105 @@ pub(crate) fn site_rows<T: Decide>(
     // image: an image is a function of its edge and the chart, and the
     // door changes neither. A moved loop's images are stated in the chart
     // it left, or missing, and are all derived.
-    let reused = |at: SiteHalf| match at {
+    let standing = |at: SiteHalf| match at {
         SiteHalf::Existing(he) if !face.moved => body.pcurve(he),
         SiteHalf::Existing(_) | SiteHalf::NewPlus | SiteHalf::NewMinus | SiteHalf::Described(_) => {
             None
         }
     };
-    let u_period = chart_u_period(&face.surface, band);
-    // The images the door creates, to certify, and every image of the
-    // rewired loops, for the window they hull out to.
+    // The window hulls every image the face holds after the surgery:
+    // the walked loops' and the kept loops' stored rows.
+    let mut boxes: Vec<ChartWindow<T>> = face
+        .loops
+        .iter()
+        .filter_map(|lp| match lp {
+            SiteLoop::Kept(key) => from
+                .rows
+                .loop_windows
+                .iter()
+                .find(|(lk, _)| lk == key)
+                .map(|&(_, hull)| hull),
+            SiteLoop::Rewired(_) => None,
+        })
+        .collect();
     let mut derived: Vec<Walked<T, SiteHalf>> = Vec::new();
-    let mut boxes: Vec<ChartWindow<T>> = Vec::new();
     let mut joints: Vec<(SiteHalf, JointElement)> = Vec::new();
     for halves in walks {
         let n = halves.len();
-        // Each half's image with its entry and exit parameters.
-        let mut images: Vec<(Pcurve<T>, T, T)> = Vec::with_capacity(n);
-        for &at in halves {
-            let (image, t0, t1, plus) = match (reused(at), at) {
+        let stands: Vec<Option<&PcurveCache<T>>> = halves.iter().map(|&at| standing(at)).collect();
+        // The element of each joint the door leaves as found — between
+        // two images that stand, linked as they were — stands too; every
+        // other joint is decided.
+        let keep: Vec<Option<JointElement>> = (0..n)
+            .map(|i| {
+                let p = (i + n - 1) % n;
+                match (halves[p], halves[i]) {
+                    (SiteHalf::Existing(before), SiteHalf::Existing(he))
+                        if stands[p].is_some()
+                            && stands[i].is_some()
+                            && half_edge_record(body, he).prev == before =>
+                    {
+                        body.joint(he)
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+        let mut carriers: Vec<geom::Curve3<T>> = Vec::new();
+        let item = |i: usize| -> Result<WalkItem<'_, T>, PcurveCertifyError> {
+            match (stands[i], halves[i]) {
                 (Some(cache), SiteHalf::Existing(he)) => {
                     let (t0, t1) = cache.params();
-                    (cache.pcurve().clone(), t0, t1, is_plus(body, he))
-                }
-                _ => {
-                    let (carrier, t0, t1, plus) = traversal(at);
-                    // The closed-form derivation refusing: the face is
-                    // cleared.
-                    let Ok(base) = chart_pcurve(&carrier, &face.surface, band) else {
-                        return Ok(SiteRows::Clear(every_half()));
-                    };
-                    derived.push(Walked {
-                        key: at,
-                        carrier,
-                        pcurve: base.clone(),
+                    Ok(WalkItem {
+                        base: Cow::Borrowed(cache.pcurve()),
                         t0,
                         t1,
-                        element: None,
-                    });
-                    (base, t0, t1, plus)
+                        plus: is_plus(body, he),
+                    })
                 }
-            };
-            boxes.push(image.chart_box(t0, t1));
-            let (entry_t, exit_t) = entry_exit(plus, t0, t1);
-            images.push((image, entry_t, exit_t));
-        }
-        // Each joint: kept where the door keeps both halves and the link
-        // between them, decided where it creates the joint. A branch
-        // meeting no neighbour, or a loop that does not close: the face
-        // is cleared.
-        let mut elements: Vec<JointElement> = Vec::with_capacity(n);
-        for i in 0..n {
-            let before = halves[(i + n - 1) % n];
-            let kept = match (before, halves[i]) {
-                (SiteHalf::Existing(p), SiteHalf::Existing(he))
-                    if reused(before).is_some()
-                        && reused(halves[i]).is_some()
-                        && half_edge_record(body, he).prev == p =>
-                {
-                    body.joint(he)
+                (_, at) => {
+                    let (carrier, t0, t1, plus) = traversal(at);
+                    let base = Cow::Owned(chart_pcurve(&carrier, &face.surface, band)?);
+                    carriers.push(carrier);
+                    Ok(WalkItem { base, t0, t1, plus })
                 }
-                _ => None,
-            };
-            let element = match kept {
-                Some(element) => element,
-                None => {
-                    let (image, entry_t, _) = &images[i];
-                    let (prev, _, exit_t) = &images[(i + n - 1) % n];
-                    let Ok(element) =
-                        decide_joint(chart, image, *entry_t, prev.eval(*exit_t), u_period, band)
-                    else {
-                        return Ok(SiteRows::Clear(every_half()));
-                    };
-                    joints.push((halves[i], element));
-                    element
-                }
-            };
-            elements.push(element);
-        }
-        if !Winding::of(elements).closes() {
+            }
+        };
+        // The closed-form derivation refusing, a branch meeting no
+        // neighbour, or a loop that does not close: the face is cleared.
+        let Ok(pinned) = walk_cycle(chart, n, item, |i| keep[i], band, true) else {
             return Ok(SiteRows::Clear(every_half()));
+        };
+        let mut carriers = carriers.into_iter();
+        for (i, (image, t0, t1, element)) in pinned.into_iter().enumerate() {
+            if keep[i].is_none() {
+                let element = element.unwrap_or_else(|| {
+                    unreachable!("walk_cycle decides every joint of a loop it closes")
+                });
+                joints.push((halves[i], element));
+            }
+            match image {
+                Cow::Borrowed(image) => boxes.push(image.chart_box(t0, t1)),
+                Cow::Owned(pcurve) => derived.push(Walked {
+                    key: halves[i],
+                    carrier: carriers.next().unwrap_or_else(|| {
+                        unreachable!("walk_cycle reads one carrier per image it derives")
+                    }),
+                    pcurve,
+                    t0,
+                    t1,
+                    element: None,
+                }),
+            }
         }
     }
-    let Some(window) = hull_of(boxes) else {
-        return Ok(SiteRows::Leave);
-    };
-    let mut images = Vec::with_capacity(derived.len());
-    for w in derived {
-        match PcurveCache::certify(
-            w.pcurve,
-            w.t0,
-            w.t1,
-            &w.carrier,
-            &face.surface,
-            window,
-            band,
-        ) {
-            Ok(cache) => images.push((w.key, cache)),
-            Err(_) => return Ok(SiteRows::Clear(every_half())),
-        }
+    match certify_walked(derived, boxes, &face.surface, band, None) {
+        Ok(rows) => Ok(SiteRows::Mint {
+            images: rows.into_iter().map(|(at, cache, _)| (at, cache)).collect(),
+            joints,
+        }),
+        Err(_) => Ok(SiteRows::Clear(every_half())),
     }
-    Ok(SiteRows::Mint { images, joints })
 }
 
 /// Writes what [`site_rows`] decided, once its door has mutated.
@@ -3471,7 +3488,7 @@ pub(crate) fn apply_site_rows<T: Decide>(
             SiteRows::Leave => {}
             SiteRows::Mint { images, joints } => {
                 for (at, cache) in images {
-                    body.pcurves.insert(key(at), cache);
+                    body.attach_pcurve(key(at), cache);
                 }
                 for (at, element) in joints {
                     body.write_joint(key(at), Some(element));
@@ -3508,42 +3525,48 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
     let surface = chart.surface();
     let cycle = loop_rows(body, lp);
     let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(cycle.len());
-    let item = |i: usize| -> Result<WalkItem<T>, PcurveMintError> {
+    let item = |i: usize| -> Result<WalkItem<'_, T>, PcurveMintError> {
         let he = cycle[i];
         let (carrier, t0, t1, base) = derive_image(body, he, surface, band)?;
         let plus = is_plus(body, he);
         carriers.push(carrier);
-        Ok(WalkItem { base, t0, t1, plus })
+        Ok(WalkItem {
+            base: Cow::Owned(base),
+            t0,
+            t1,
+            plus,
+        })
     };
-    let walked = walk_cycle(chart, cycle.len(), item, band, true).map_err(|fail| match fail {
-        WalkFail::Item(e) => e,
-        WalkFail::Miss {
-            index,
-            miss: PinMiss::Discontinuity,
-        } => PcurveMintError::LoopDiscontinuity {
-            half_edge: cycle[index],
-        },
-        WalkFail::Miss {
-            index,
-            miss: PinMiss::Escalated(cause),
-        } => PcurveMintError::Escalated {
-            half_edge: cycle[index],
-            cause,
-        },
-        WalkFail::Miss {
-            index,
-            miss: PinMiss::OutOfReach,
-        } => PcurveMintError::Certify {
-            half_edge: cycle[index],
-            error: PcurveCertifyError::BranchOutOfReach,
-        },
-        WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
-    })?;
+    let walked =
+        walk_cycle(chart, cycle.len(), item, |_| None, band, true).map_err(|fail| match fail {
+            WalkFail::Item(e) => e,
+            WalkFail::Miss {
+                index,
+                miss: PinMiss::Discontinuity,
+            } => PcurveMintError::LoopDiscontinuity {
+                half_edge: cycle[index],
+            },
+            WalkFail::Miss {
+                index,
+                miss: PinMiss::Escalated(cause),
+            } => PcurveMintError::Escalated {
+                half_edge: cycle[index],
+                cause,
+            },
+            WalkFail::Miss {
+                index,
+                miss: PinMiss::OutOfReach,
+            } => PcurveMintError::Certify {
+                half_edge: cycle[index],
+                error: PcurveCertifyError::BranchOutOfReach,
+            },
+            WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
+        })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
         |((&key, carrier), (pcurve, t0, t1, element))| Walked {
             key,
             carrier,
-            pcurve,
+            pcurve: pcurve.into_owned(),
             t0,
             t1,
             element,
@@ -3570,12 +3593,13 @@ fn walk_runs<T: AtRestPolicy>(
     refused: &mut Vec<PcurveMintError>,
 ) {
     let surface = chart.surface();
-    type Derived<T> = (HalfEdgeKey, geom::Curve3<T>, WalkItem<T>);
+    type Derived<'a, T> = (HalfEdgeKey, geom::Curve3<T>, WalkItem<'a, T>);
     let mut items: Vec<Option<Derived<T>>> = cycle
         .iter()
         .map(|&he| {
             let derived = derive_image(body, he, surface, band).map(|(carrier, t0, t1, base)| {
                 let plus = is_plus(body, he);
+                let base = Cow::Owned(base);
                 (he, carrier, WalkItem { base, t0, t1, plus })
             });
             derived.map_err(|e| refused.push(e)).ok()
@@ -3600,17 +3624,17 @@ fn walk_runs<T: AtRestPolicy>(
             .into_iter()
             .map(|(he, carrier, item)| (he, (carrier, Some(item))))
             .unzip();
-        let item = |j: usize| -> Result<WalkItem<T>, core::convert::Infallible> {
+        let item = |j: usize| -> Result<WalkItem<'_, T>, core::convert::Infallible> {
             Ok(walk_items[j]
                 .take()
                 .unwrap_or_else(|| unreachable!("walk_cycle reads each item of a run once")))
         };
-        match walk_cycle(chart, keys.len(), item, band, false) {
+        match walk_cycle(chart, keys.len(), item, |_| None, band, false) {
             Ok(pinned) => out.extend(keys.iter().zip(carriers).zip(pinned).map(
                 |((&key, carrier), (pcurve, t0, t1, element))| Walked {
                     key,
                     carrier,
-                    pcurve,
+                    pcurve: pcurve.into_owned(),
                     t0,
                     t1,
                     element,
@@ -3671,10 +3695,11 @@ fn derive_image<T: AtRestPolicy>(
 }
 
 /// One half-edge of a cycle as [`walk_cycle`] reads it: its chart
-/// image on the chart's principal branch, its carrier interval, and
-/// whether the loop traverses it forward.
-pub(crate) struct WalkItem<T: Real> {
-    base: Pcurve<T>,
+/// image on the chart's principal branch — derived, or borrowed from a
+/// row that stands — its carrier interval, and whether the loop
+/// traverses it forward.
+pub(crate) struct WalkItem<'a, T: Real> {
+    base: Cow<'a, Pcurve<T>>,
     t0: T,
     t1: T,
     plus: bool,
@@ -3683,7 +3708,7 @@ pub(crate) struct WalkItem<T: Real> {
 /// One image [`walk_cycle`] placed: the image with its carrier
 /// interval, and the element of the joint into it — `None` only for the
 /// first item of an open run, which joins nothing.
-type Pinned<T> = (Pcurve<T>, T, T, Option<JointElement>);
+type Pinned<'a, T> = (Cow<'a, Pcurve<T>>, T, T, Option<JointElement>);
 
 /// Why [`decide_joint`] decided no element.
 pub(crate) enum PinMiss {
@@ -3720,10 +3745,11 @@ pub(crate) enum WalkFail<E> {
 /// cycle order, asking `item` for each in turn (so an item's refusal
 /// is reported in cycle order, before any later item is read), decides
 /// the element of each joint between consecutive images
-/// ([`decide_joint`]), and — when `closes` — the closure joint into the
-/// first item and the loop's winding ([`Winding::closes`]); an open run
-/// of a loop ([`walk_runs`]) has no closure. Returns each item's image
-/// with its interval and the element into it.
+/// ([`decide_joint`]) that `kept` does not hand it, and — when `closes`
+/// — the closure joint into the first item and the loop's winding
+/// ([`Winding::closes`]), kept elements among it; an open run of a loop
+/// ([`walk_runs`]) has no closure. Returns each item's image with its
+/// interval and the element into it.
 ///
 /// Every joint is decided between two IMAGES, each a function of its
 /// edge and the chart, so no element depends on where the walk starts:
@@ -3731,16 +3757,19 @@ pub(crate) enum WalkFail<E> {
 /// is read off conjugation invariants.
 ///
 /// This is the whole of the minting walk except the derivation, and
-/// none of it needs the fitted lane: both of its callers —
-/// [`walk_loop`], the pass's, and [`site_rows`], the Euler operators'
-/// — hand it their own derivation through `item`.
-fn walk_cycle<T: Decide, E>(
+/// none of it needs the fitted lane: its callers — [`walk_loop`] and
+/// [`walk_runs`], the pass's, and [`site_rows`], the Euler operators'
+/// — hand it their own derivation through `item`. The pass keeps no
+/// joint; the site mint keeps the element of every joint its door
+/// leaves as found, between two images that stand.
+fn walk_cycle<'a, T: Decide, E>(
     chart: DescribedChart<'_, T>,
     len: usize,
-    mut item: impl FnMut(usize) -> Result<WalkItem<T>, E>,
+    mut item: impl FnMut(usize) -> Result<WalkItem<'a, T>, E>,
+    kept: impl Fn(usize) -> Option<JointElement>,
     band: Band,
     closes: bool,
-) -> Result<Vec<Pinned<T>>, WalkFail<E>> {
+) -> Result<Vec<Pinned<'a, T>>, WalkFail<E>> {
     // The chart's own u period (`chart_u_period`): `τ` on an analytic
     // azimuth chart, the knot-domain length on a NURBS chart closed in
     // u, and NO shift at all on a chart that does not wrap.
@@ -3749,13 +3778,14 @@ fn walk_cycle<T: Decide, E>(
     // the first item's entry parameter, for the closure joint.
     let mut prev_exit: Option<geom_core::Point2<T>> = None;
     let mut first_entry_t: Option<T> = None;
-    let mut out: Vec<Pinned<T>> = Vec::with_capacity(len);
+    let mut out: Vec<Pinned<'a, T>> = Vec::with_capacity(len);
     for index in 0..len {
         let WalkItem { base, t0, t1, plus } = item(index).map_err(WalkFail::Item)?;
         let (entry_t, exit_t) = entry_exit(plus, t0, t1);
-        let element = match prev_exit {
-            None => None,
-            Some(prev) => Some(
+        let element = match (prev_exit, kept(index)) {
+            (None, _) => None,
+            (Some(_), Some(element)) => Some(element),
+            (Some(prev), None) => Some(
                 decide_joint(chart, &base, entry_t, prev, u_period, band)
                     .map_err(|miss| WalkFail::Miss { index, miss })?,
             ),
@@ -3767,8 +3797,11 @@ fn walk_cycle<T: Decide, E>(
     if closes && let (Some(prev), Some(entry_t)) = (prev_exit, first_entry_t) {
         // The closure joint: the first image's entry carried onto the
         // last image's exit, decided exactly as every other joint.
-        let closure = decide_joint(chart, &out[0].0, entry_t, prev, u_period, band)
-            .map_err(|miss| WalkFail::Miss { index: 0, miss })?;
+        let closure = match kept(0) {
+            Some(element) => element,
+            None => decide_joint(chart, &out[0].0, entry_t, prev, u_period, band)
+                .map_err(|miss| WalkFail::Miss { index: 0, miss })?,
+        };
         out[0].3 = Some(closure);
         if !Winding::of(out.iter().filter_map(|pinned| pinned.3)).closes() {
             return Err(WalkFail::NotClosed);
@@ -4555,11 +4588,12 @@ pub(crate) mod staleness_posture {
         /// in two places.** What it shares with the pass is that no row
         /// the operator could have staled survives: on a face whose rows
         /// were complete, what the operator creates on the loops it
-        /// rewires — new images, new joints' elements — is derived
-        /// exactly as the pass derives it, and every other row stood
-        /// the surgery untouched; on a face whose only gaps a null
-        /// edge holds open, or that the operator takes the last null
-        /// edge off, so are the loops it rewires and leaves running
+        /// rewires — new images, new joints' elements — and any image
+        /// or element it finds missing there is derived exactly as the
+        /// pass derives it, and every other row stood the surgery
+        /// untouched; on a face whose only gaps a null edge holds open,
+        /// or that the operator takes the last null edge off, so is
+        /// what is missing on the loops it rewires and leaves running
         /// through no null edge, and a loop still held open keeps what
         /// it had.
         /// Where the pass would MINT — a face storing no row, or one
