@@ -115,3 +115,21 @@ The run-order fix with the four downstream stops above, each traced
 to where it starts, and the probe's 42 poses building sound at tiers
 2, 3′ and the certificate with the closed-form volume, no pose of
 the JOIN-1 batteries moving from sound or to a wrong body.
+
+## Addendum (2026-10-05): the strut form
+
+The same overlap, where the second run is a strut rather than a fan:
+the first run's fan carries the half bounding the strut's corner to its
+copy vertex, so the strut has no corner left at `vertex`. On main
+`45dc18f9` the strut hung at the copy silently and the join refused
+`JoinDesync` downstream; after PR 4033 the orbit-step check at the
+strut site aborted the process. `insert.rs` `mint_directed` now refuses
+it typed, `ClassificationInvariant` "an earlier run at the vertex
+carried a strut's corner to its copy", before any strut read: 56 poses
+of `crates/sweep/tests/join_rc_probes.rs` `rc_wide_battery`, all `b ∖
+a`, at sqQ1 −20°, dLeft 190°, dDown 100°, dRight 7° and 33°, eBot
+−20°, eLeft 0° and 33° (every other op at those poses refuses
+`JoinDesync` on both heads). This row's fix (each solid's own run
+order) should make that refusal unreachable; pinned by
+`join_rc_probes::a_strut_whose_corner_an_earlier_run_moved_refuses_typed`,
+which flips when it lands.
