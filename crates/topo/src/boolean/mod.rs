@@ -117,6 +117,7 @@ mod rim_wedge;
 pub(crate) mod sectors;
 mod shell_witness;
 pub mod solid_contain;
+pub(crate) mod sphere_region;
 mod surface_group;
 pub mod tables;
 pub mod voids;
@@ -195,6 +196,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
         "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
         "bool_point_in_solid_clearance" => {
             "how far a point lies off the carrier of a face a ray runs along"
@@ -247,14 +249,21 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_iso_rim"
         | "bool_torus_trim_major_period"
         | "bool_torus_trim_minor_period"
-        | "bool_sphere_trim"
         | "bool_sphere_trim_antipode"
         | "bool_sphere_trim_latitude"
         | "bool_sphere_trim_meridian_span"
         | "bool_sphere_trim_period"
-        | "bool_sphere_trim_pole"
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"
+        | "bool_sphere_region_arm"
+        | "bool_sphere_region_span"
+        | "bool_sphere_region_at"
+        | "bool_sphere_region_order"
+        | "bool_sphere_region_cross"
+        | "bool_sphere_region_roots_noise"
+        | "bool_sphere_region_roots_coaxial"
+        | "bool_sphere_region_roots_extreme"
+        | "bool_sphere_region_roots_slack"
         | "bool_torus_chart_affine"
         | "bool_torus_chart_box"
         | "bool_torus_chart_closure"
