@@ -891,7 +891,7 @@ impl<T: Decide> Body<T> {
     /// every loop walks, and whose only gaps are on loops a null edge
     /// holds open or which no null edge is left on once this one is
     /// described — has every loop that no null edge holds open then
-    /// re-minted whole, through the site mint the Euler operators run
+    /// walked and completed, through the site mint the Euler operators run
     /// ([`crate::pcurves`]' `site_rows`): the loop leaves complete — the
     /// rows of halves an operator added while it was held open included,
     /// and on a face no null edge is left on every row it missed — or
@@ -1011,10 +1011,11 @@ impl<T: Decide> Body<T> {
     /// docs), and a face it finds half-minted is left as found. A null
     /// edge's description is the first door that can derive its halves'
     /// rows, so on each face they are on that the site mint selects it
-    /// re-walks every loop, through the Euler operators' site mint
+    /// walks every loop, through the Euler operators' site mint
     /// ([`Body::plan_site_mint`]), each half of a described edge under
-    /// the curve the door installs, and mints each loop no other null
-    /// edge runs through; on a spline chart the face is left as found.
+    /// the curve the door installs, and on each loop no other null edge
+    /// runs through mints what is missing, those halves' rows among it;
+    /// on a spline chart the face is left as found.
     ///
     /// # Errors
     ///

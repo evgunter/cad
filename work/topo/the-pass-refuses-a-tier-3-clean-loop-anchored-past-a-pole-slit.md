@@ -2,11 +2,12 @@
 id: the-pass-refuses-a-tier-3-clean-loop-anchored-past-a-pole-slit
 kind: issue
 title: At a zero-lever pole joint the pass drops the whole-period bookkeeping, so it refuses LoopNotClosed on a loop tier 3 accepts, depending on which half-edge is first
-status: open
+status: closed
 opened: 2026-10-04
 priority: P3
 cost: M
 refs: [a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass]
+closed: 2026-10-04
 ---
 
 
@@ -62,3 +63,17 @@ That is where this has to be decided:
 Either way the two must agree, and must not depend on `first`. Build it with R,
 or before R as a one-place fix that makes `loop_closes` and tier 3 read
 zero-lever joints alike.
+
+## Closed
+
+PR #4037 (R). A pole joint's element is the reset marker
+(`JointElement::Reset`). The pass's winding (`Winding::closes`) and tier
+3's both count no azimuth across a reset, and both read the same elements
+from every member, so neither verdict depends on `first`.
+
+`pcurves::pole_slit_tests::a_pole_slit_loop_re_mints_from_every_anchor`
+pins it. That row is the snowman's shape: a cap whose loop is a rim arc
+(its parameter a period below), a meridian slit to the pole and back, and
+a rim arc. It mints from each of the four anchors with the same rows and
+reads tier-3 clean. On `main` the pass refused `LoopNotClosed` from the
+arc's anchor.
