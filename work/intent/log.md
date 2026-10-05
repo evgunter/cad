@@ -155,3 +155,24 @@ through them. The viewer's parameter text door defines a variable, and
 retires `Refusal::ParamNotANumber`.
 
 Filed: `viewer-value-doors-read-a-defined-variable-as-absent`.
+
+### PR A review pass (both reviewers APPROVE-WITH-FIXES, no MAJOR)
+
+- The viewer's text door folds constant text, continuous or count, to a
+  value (`SetVarValue`), so a toleranced parameter keeps its tolerance.
+  Only text that reads a variable defines one. A value typed over a
+  definition frees the variable and writes through the value door in one
+  action, so `3` over a length refuses `VarValueKindMismatch` whether the
+  variable is free or defined.
+- A defined parameter's row has the free row's field, showing its
+  formula. A formula typed into it redefines the variable; a number
+  frees it.
+- The order memo is gone. `definition_order` is Kahn's algorithm over
+  one adjacency, and the other definition walks read the same index.
+- The edit and load doors ask one `Doc::expansion_fault`, and the
+  definition sentences render once for both.
+- `Doc.definitions` lists the named defined variables in Python.
+- Each mutant the review found surviving has a row, and there are MC and
+  symbolic-tier rows.
+
+Filed: `definition-node-bound-is-re-measured-against-the-corpus-after-d`.
