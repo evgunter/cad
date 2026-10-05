@@ -664,8 +664,8 @@ pub(crate) fn curved_face_placement<T: Decide>(
 /// the face), then the face's region, read from its boundary arcs by the
 /// one reading the ray lane takes too ([`super::sphere_region`]). A face
 /// closed on its own surface is handed to this door as a trimmed one and
-/// read the same way: its loops are seams, each crossed twice, so a point
-/// on the carrier is inside it.
+/// read the same way: every edge of it is a seam, so its region is the
+/// whole sphere.
 ///
 /// `None` is the honest remainder: a boundary edge that is not a circle
 /// arc, a point on the region's boundary that the walk above did not

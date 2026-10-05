@@ -29,9 +29,10 @@
 //!
 //! The rays read every loop of the face at once, rings included, so a
 //! ringed face needs no case of its own. An edge both of whose sides are
-//! the face (both its half-edges in the face's loops) is no boundary of
-//! it, and its two crossings, which coincide, are dropped together. A
-//! pole is no point of interest, because nothing is read in the chart.
+//! the face (both its half-edges in the face's loops, a seam) is no
+//! boundary of it and is left out of the region, so a face whose every
+//! edge is a seam covers the sphere. A pole is no point of interest,
+//! because nothing is read in the chart.
 //!
 //! # Which rays
 //!
@@ -45,8 +46,8 @@
 //! # Grazing
 //!
 //! A ray is never allowed to decide borderline geometry: a closest
-//! crossing at a vertex or along its arc, a tie between two crossings
-//! that are not one edge's pair, a tangency of the ray with an arc (the
+//! crossing at a vertex or along its arc, a tie between two crossings,
+//! a tangency of the ray with an arc (the
 //! root door's `Uncertain`), an arc lying in the ray's plane, or a ray
 //! that meets no arc abandons the ray, and the next is tried. A crossing
 //! at `p` itself is the point on the boundary, which is an answer
@@ -216,6 +217,9 @@ pub(crate) fn sphere_face_region<T: Decide>(
             });
         }
     }
+    let seam = |e: EdgeKey| arcs.iter().filter(|a: &&RegionArc<T>| a.edge == e).count() > 1;
+    let seams: Vec<EdgeKey> = arcs.iter().map(|a| a.edge).filter(|&e| seam(e)).collect();
+    arcs.retain(|a| !seams.contains(&a.edge));
     Ok(Some(SphereFaceRegion {
         center,
         radius,
@@ -241,6 +245,9 @@ impl<T: Decide> SphereFaceRegion<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Option<bool>, PointInSolidError> {
+        if self.arcs.is_empty() {
+            return Ok(Some(true));
+        }
         let w = p - self.center;
         let a = w / w.norm();
         let aimed = self.arcs.iter().flat_map(|arc| {
@@ -312,49 +319,35 @@ impl<T: Decide> SphereFaceRegion<T> {
                 Ok(Sign::Zero) | Err(_)
             )
         };
-        loop {
-            let Some(first) = self.closest(&hits, band) else {
-                return Ok(Ray::Abandoned);
-            };
-            let Hit {
-                s,
-                arc,
-                theta,
-                at_vertex,
-            } = hits[first];
-            // One edge's two half-edges both in the face: no boundary.
-            let pair = hits.iter().position(|h| {
-                h.arc != arc
-                    && self.arcs[h.arc].edge == self.arcs[arc].edge
-                    && self.arcs[h.arc].forward != self.arcs[arc].forward
-                    && tied(h.s, s)
-            });
-            if let Some(other) = pair {
-                hits.remove(first.max(other));
-                hits.remove(first.min(other));
-                continue;
-            }
-            if at_vertex
-                || hits
-                    .iter()
-                    .enumerate()
-                    .any(|(k, h)| k != first && tied(h.s, s))
-            {
-                return Ok(Ray::Abandoned);
-            }
-            let y = self.arcs[arc].at(theta) - self.center;
-            let y = y / y.norm();
-            let outward = geom_brep::OutwardNormal::from_chart(y, self.sense).vec();
-            let face_side = outward.cross(self.arcs[arc].traversal(theta));
-            let heading = g.cross(y);
-            return Ok(
-                match row("bool_sphere_region_cross", r * heading.dot(face_side))? {
-                    Sign::Negative => Ray::Inside(true),
-                    Sign::Positive => Ray::Inside(false),
-                    Sign::Zero => Ray::Abandoned,
-                },
-            );
+        let Some(first) = self.closest(&hits, band) else {
+            return Ok(Ray::Abandoned);
+        };
+        let Hit {
+            s,
+            arc,
+            theta,
+            at_vertex,
+        } = hits[first];
+        if at_vertex
+            || hits
+                .iter()
+                .enumerate()
+                .any(|(k, h)| k != first && tied(h.s, s))
+        {
+            return Ok(Ray::Abandoned);
         }
+        let y = self.arcs[arc].at(theta) - self.center;
+        let y = y / y.norm();
+        let outward = geom_brep::OutwardNormal::from_chart(y, self.sense).vec();
+        let face_side = outward.cross(self.arcs[arc].traversal(theta));
+        let heading = g.cross(y);
+        Ok(
+            match row("bool_sphere_region_cross", r * heading.dot(face_side))? {
+                Sign::Negative => Ray::Inside(true),
+                Sign::Positive => Ray::Inside(false),
+                Sign::Zero => Ray::Abandoned,
+            },
+        )
     }
 
     /// The index of the hit with the least ray parameter, `None` for no
