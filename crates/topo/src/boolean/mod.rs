@@ -2082,10 +2082,12 @@ pub enum BooleanError {
     /// - **Cone**: the germ-pair JOIN dispatch —
     ///   `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names, and
-    ///   no cone or torus pair. Its catch-all raises
-    ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
-    ///   and a torus, `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ
-    ///   lands there too.
+    ///   no cone or torus pair: a plane against a plane, cylinder or
+    ///   sphere, a sphere pair (on its radical plane) and a cylinder
+    ///   pair with parallel offset axes (on its rulings). Its catch-all
+    ///   raises [`BooleanError::CurvedBooleanUnsupported`], not this
+    ///   error, and a torus or `(Cylinder, Sphere)` germ lands there
+    ///   too.
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
@@ -2103,8 +2105,8 @@ pub enum BooleanError {
     ///   window's blocker MOVED at M6-2: `Pcurve::Fitted` now exists
     ///   and certifies at rest (the SSI enclosure/certify stack is no
     ///   longer `f64`-only), so what is left is the JOIN LANE itself —
-    ///   `run_azimuth_window`/`chart_pcurve` have no cyl×sphere window
-    ///   analog, and building one is still banked. **The exact coaxial
+    ///   the C5 table has no cyl×sphere arm for the chord's carrier
+    ///   (`chord_join::section_case`), and building one is still banked. **The exact coaxial
     ///   classification does not retire this**, and the sentence is
     ///   re-verified rather than moved: the coaxial arm's locus is two
     ///   exact CIRCLES and needs no fitted chord at all, so it gives

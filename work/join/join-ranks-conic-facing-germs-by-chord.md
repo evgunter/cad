@@ -91,3 +91,20 @@ The rotational facing test (`germs_face_each_other`) still ACCEPTS a
 back-to-back pair: the two senses oppose. The ranking is what puts such
 a pair after the true partner. It never filters it out.
 
+
+## Also (PR 3985, `reach/arc-from-pairing`)
+
+Reached on a whole body, in the suite:
+`crates/editor-core/tests/reach_slab_cut_sector_side.rs`,
+`a_slab_across_a_round_boss_builds_in_four_orders_and_stops_typed_in_two`,
+order `[1, 2, 0]`: the plate's top cuts the boss wall's circle `z = 1`
+at `x = 1.4` and `x = 1.6`, whose germs point away from each other into
+the face, and the chord paired them with the true partners further
+along the walk. Once a chord takes the arc its pairing names, that pair
+refused `RingHomingAmbiguous`.
+
+Under the ranking above that pair is not taken, and the chord takes
+the arc the right pair's germs leave along. `crates/sweep/tests/four_crossings_on_one_section_circle.rs`
+(a slab crossing one section circle four times, the germs' neighbour
+along the walk farther by chord) holds the ranking and the arc
+together; it is red under a chord ranking.
