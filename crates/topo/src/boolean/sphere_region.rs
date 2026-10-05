@@ -151,11 +151,13 @@ enum Ray {
     Abandoned,
 }
 
-/// One root of one arc on a ray: the ray parameter, the arc, the root.
+/// One root of one arc on a ray: the ray parameter, the arc, the root,
+/// and whether it sits at one of the arc's ends.
 struct Hit<T> {
     s: T,
     arc: usize,
     theta: T,
+    at_vertex: bool,
 }
 
 /// `face`'s region on its sphere `(center, radius)`, or `None` when an
@@ -295,11 +297,13 @@ impl<T: Decide> SphereFaceRegion<T> {
                 if row("bool_sphere_region_at", r * s)? == Sign::Zero {
                     return Ok(Ray::OnBoundary);
                 }
-                if start == Sign::Zero || end == Sign::Zero {
-                    return Ok(Ray::Abandoned);
-                }
                 let s = (T::zero() - s).select_le_zero(s, s + T::tau());
-                hits.push(Hit { s, arc: j, theta });
+                hits.push(Hit {
+                    s,
+                    arc: j,
+                    theta,
+                    at_vertex: start == Sign::Zero || end == Sign::Zero,
+                });
             }
         }
         let tied = |x: T, y: T| {
@@ -312,7 +316,12 @@ impl<T: Decide> SphereFaceRegion<T> {
             let Some(first) = self.closest(&hits, band) else {
                 return Ok(Ray::Abandoned);
             };
-            let Hit { s, arc, theta } = hits[first];
+            let Hit {
+                s,
+                arc,
+                theta,
+                at_vertex,
+            } = hits[first];
             // One edge's two half-edges both in the face: no boundary.
             let pair = hits.iter().position(|h| {
                 h.arc != arc
@@ -325,10 +334,11 @@ impl<T: Decide> SphereFaceRegion<T> {
                 hits.remove(first.min(other));
                 continue;
             }
-            if hits
-                .iter()
-                .enumerate()
-                .any(|(k, h)| k != first && tied(h.s, s))
+            if at_vertex
+                || hits
+                    .iter()
+                    .enumerate()
+                    .any(|(k, h)| k != first && tied(h.s, s))
             {
                 return Ok(Ray::Abandoned);
             }
