@@ -470,8 +470,10 @@ fn wall_graze<T: Decide>(
 ///   not, which is why the refusal is here rather than assumed.
 ///
 /// The refusal is [`UnboundedFace`], naming the face
-/// and the loop's lone vertex. `vertex` and `face` are keys the caller
-/// resolved, and every hop past them is a link, so a miss panics.
+/// and the loop's lone vertex. Every caller resolves `vertex` and
+/// `face` in the same `&Body` call, by a refusal of its own or as a
+/// record it just read, so every hop past them is a link, and a miss
+/// panics.
 ///
 /// [`LoopBoundary::Empty`]: crate::entity::LoopBoundary::Empty
 /// [`Margin::levered`]: geom_core::Margin::levered

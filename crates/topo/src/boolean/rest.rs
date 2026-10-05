@@ -1287,13 +1287,16 @@ fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The faces incident to `u` ([`super::sectors::faces_at`]); a
-/// pierce-ring vertex joined to nothing contributes its host face.
+/// pierce-ring vertex joined to nothing contributes its host face. `u`
+/// is a key the lane carries across its own surgery, so one that no
+/// longer resolves is refused.
 fn incident_faces<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Vec<FaceKey>, BooleanError> {
-    let faces = super::sectors::faces_at(body, u);
+    let faces = super::sectors::faces_at(body, u)
+        .ok_or_else(|| desync("REST lane: a chord endpoint no longer resolves"))?;
     Ok(if faces.is_empty() {
         rings.get(u).copied().into_iter().collect()
     } else {

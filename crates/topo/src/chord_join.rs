@@ -1085,6 +1085,9 @@ fn chord_spec<T: Decide>(
     if u1 == u2 {
         return Ok(None);
     }
+    body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
+        entity: EntityId::Vertex(u1),
+    })?;
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = face_data.surface;
     if let Some(geom::Surface::Plane { .. }) = body.get_surface(wall_key) {

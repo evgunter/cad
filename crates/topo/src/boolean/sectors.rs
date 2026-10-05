@@ -910,19 +910,21 @@ pub(super) fn germ_loci<T: Decide>(
         return one_segment(a, ea, b, eb);
     }
     let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
-        InFace(tangent_face(side, partner, e.edge, contacts).unwrap_or(side.sector.face))
+        Ok::<_, BooleanError>(InFace(
+            tangent_face(side, partner, e.edge, contacts)?.unwrap_or(side.sector.face),
+        ))
     };
     let (ta, tb) = (touch(a, ea.far, contacts), touch(b, eb.far, contacts));
     Ok(match ta.cmp(&tb) {
-        core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)),
-        core::cmp::Ordering::Less => (tangent(a, b, eb), OnEdge(eb.edge)),
+        core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)?),
+        core::cmp::Ordering::Less => (tangent(a, b, eb)?, OnEdge(eb.edge)),
         core::cmp::Ordering::Equal if ta == Touch::Apart => {
             (InFace(a.sector.face), InFace(b.sector.face))
         }
         core::cmp::Ordering::Equal => {
             match (runs_in(a, ea, b, eb, band)?, runs_in(b, eb, a, ea, band)?) {
-                (Some(true), Some(false)) => (OnEdge(ea.edge), tangent(b, a, ea)),
-                (Some(false), Some(true)) => (tangent(a, b, eb), OnEdge(eb.edge)),
+                (Some(true), Some(false)) => (OnEdge(ea.edge), tangent(b, a, ea)?),
+                (Some(false), Some(true)) => (tangent(a, b, eb)?, OnEdge(eb.edge)),
                 _ => (OnEdge(ea.edge), OnEdge(eb.edge)),
             }
         }
@@ -1088,14 +1090,16 @@ fn tangent_face<T: Decide>(
     partner: GermSide<'_, T>,
     along: crate::entity::EdgeKey,
     contacts: &super::ContactRecords,
-) -> Option<FaceKey> {
+) -> Result<Option<FaceKey>, BooleanError> {
     let edge = proven(&partner.body.edges, along, EntityId::Edge);
     let (u, v) = (
         proven(&partner.body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
         proven(&partner.body.half_edges, edge.he_minus, EntityId::HalfEdge).start,
     );
     let near = crate::chord_join::null_site(partner.body, &[partner.site]);
-    let far = [u, v].into_iter().find(|w| !near.contains(w))?;
+    let Some(far) = [u, v].into_iter().find(|w| !near.contains(w)) else {
+        return Ok(None);
+    };
     let far_site = crate::chord_join::null_site(partner.body, &[far]);
     let mut far_faces: Vec<FaceKey> = on_faces(contacts, partner.operand)
         .iter()
@@ -1105,10 +1109,17 @@ fn tangent_face<T: Decide>(
     for c in &contacts.vv {
         let (mine, theirs) = vv_sides(c, side.operand);
         if far_site.contains(&theirs) {
-            far_faces.extend(faces_at(side.body, mine));
+            far_faces.extend(faces_at(side.body, mine).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "a vertex-vertex contact names a vertex that no longer resolves",
+                },
+            )?);
         }
     }
-    sole_common_face(&faces_at(side.body, side.site), &far_faces)
+    let at_site = faces_at(side.body, side.site).ok_or(BooleanError::ClassificationInvariant {
+        what: "a germ's site vertex no longer resolves",
+    })?;
+    Ok(sole_common_face(&at_site, &far_faces))
 }
 
 /// The one face in both `xs` and `ys`; `None` when not exactly one is.
@@ -1122,9 +1133,12 @@ pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey
 /// The faces around a site of `body` (every copy null edges tie
 /// `vertex` to), deduplicated, null faces skipped. With no null edges
 /// at the site, the faces around `vertex` itself. An isolated vertex
-/// (a pierce-ring vertex joined to nothing) contributes none. `vertex`
-/// is one the caller resolved, and every hop past it is a link.
-pub(super) fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Vec<FaceKey> {
+/// (a pierce-ring vertex joined to nothing) contributes none. `None`
+/// when `vertex` does not resolve: callers pass keys they carry across
+/// the operation's surgery, so the root is an argument; the copies its
+/// null edges name, and every hop past them, are links.
+pub(super) fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<FaceKey>> {
+    body.get_vertex(vertex)?;
     let mut out = Vec::new();
     for v in crate::chord_join::null_site(body, &[vertex]) {
         for he in body.vertex_orbit_linked(v) {
@@ -1145,7 +1159,7 @@ pub(super) fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Vec<Face
             }
         }
     }
-    out
+    Some(out)
 }
 
 /// Whether `dir`, coplanar with `s`, runs into its face: within the
