@@ -9264,13 +9264,29 @@ mod torn_reach_rows {
         super::face_reach_in(body, face, band(), &BoxFrame::World).is_some()
     }
 
-    /// `boundary_reach` and the edge rule, on a cube face (the boundary
-    /// hull arm): a torn outer loop and a torn curve.
+    /// The face's surface, `boundary_reach` and the edge rule, on a cube
+    /// face (the boundary hull arm): a torn surface, outer loop and
+    /// curve.
     #[test]
-    fn the_boundary_hull_panics_on_a_torn_loop_and_a_torn_curve() {
+    fn the_boundary_hull_panics_on_a_torn_surface_loop_and_curve() {
         let body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let face = body.faces().next().map(|(k, _)| k).unwrap();
         assert!(reach(&body, face), "the sound face has a reach");
+
+        let mut torn = body.clone();
+        let surface = torn.get_face(face).unwrap().surface;
+        torn.surfaces.remove(surface);
+        let named = format!(
+            "{}'s surface names {}",
+            EntityId::Face(face),
+            GeomRef::Surface(surface)
+        );
+        assert_torn_op_panics(
+            "face_reach_in (surface)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b, face),
+        );
 
         let mut torn = body.clone();
         let outer = torn.get_face(face).unwrap().outer;
