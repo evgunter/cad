@@ -362,13 +362,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             .null_edges
             .iter()
             .map(|r| {
-                if r.attr.below_end == r.at_vertex {
-                    Ok((r.attr.above_end, r.at_vertex))
-                } else if r.attr.above_end == r.at_vertex {
-                    Ok((r.attr.below_end, r.at_vertex))
-                } else {
-                    Err(SplitFinishError::Corrupt)
-                }
+                let copy = r.attr.copy_at(r.at_vertex);
+                copy.map(|c| (c, r.at_vertex))
+                    .ok_or(SplitFinishError::Corrupt)
             })
             .collect::<Result<_, _>>()?,
     };

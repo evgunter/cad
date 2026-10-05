@@ -1,13 +1,13 @@
-//! **A REST union whose seam ends at a nested strut's site.** A block
-//! notched from its apex at the origin holds a wedge in the notch, the
-//! two touching only along the apex line, so the apex is two vertices
-//! at one point. A prism rests on the block's top with its corner on
-//! the apex and its two edges from there reaching the block's filleted
-//! top corners, at the arcs' tangent joints: the fillet's tangency
-//! makes the join refuse, which hands the union to the REST lane. In
-//! the prism's corner the wedge pair's strut hangs at the tip of the
-//! notch pair's, so a seam segment's end is the notch strut's copy,
-//! which the lane's strut undo kills.
+//! **A REST union whose seam ends at a nested strut's site, on a pinch
+//! apex.** A block notched from its apex at the origin holds a wedge in
+//! the notch, the two touching only along the apex line, so the apex is
+//! two vertices at one point. A prism rests on the block's top with its
+//! corner on the apex and its two edges from there reaching the block's
+//! filleted top corners, at the arcs' tangent joints: the fillet's
+//! tangency makes the join refuse, which hands the union to the REST
+//! lane. In the prism's corner the wedge pair's strut hangs at the tip
+//! of the notch pair's, so a seam segment's end is the notch strut's
+//! copy, which the lane's strut undo kills.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,7 +15,10 @@ use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::test_support::bulge_loop;
 use sweep::test_support::{extruded, sketch_at};
-use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass};
+use topo::{
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass,
+    RestZipFrontier,
+};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -103,26 +106,25 @@ fn resting() -> AtRestBody<f64> {
     )
 }
 
-/// **The REST lane reads a nested strut's segment end as the vertex
-/// its copy fuses into.** The join refuses both orders. With the pinch
-/// first, the lane pairs each pinch apex vertex with the prism's corner
-/// and realizes the seam on both operands, reading the nested end at
-/// the corner. It then refuses `SeamOrientation` at the glue, pinned as
-/// it stands: the lane has no reading of two vertices at one point
-/// meeting one
-/// (`work/topo/the-rest-lane-zips-no-pinch-apex.md`). Red as the
-/// first row while the end stays the notch strut's copy: it pairs the
-/// wedge's apex with that copy, against the v-v row pairing it with
-/// the corner, and the lane gives the union back to the join's own
-/// refusal. With the prism first, one corner corresponds to two pinch
-/// vertices, which the lane's one-to-one reading declines: the join's
-/// refusal stands.
+/// **A pinch apex meeting one vertex refuses as the REST lane's
+/// frontier, in either order.** The join refuses both orders and hands
+/// the union to the lane, which reads the segments through its strut
+/// undo. The two apex vertices each correspond to the prism's corner,
+/// which the lane's one-to-one seam does not read: it refuses
+/// `PinchApex` before any chord is minted
+/// (`work/zip/the-rest-lane-zips-no-pinch-apex.md`), whichever operand
+/// holds the pinch.
 #[test]
-fn a_nested_struts_segment_end_reads_as_the_vertex_it_fuses_into() {
+fn a_pinch_apex_meeting_one_vertex_refuses_as_the_frontier_in_either_order() {
     let (pinch, rows) = pinch();
     let pinch = pinch.body;
     let top = resting();
-    let refusal = |a: &AtRestBody<f64>, b: &AtRestBody<f64>, pinch_first: bool| {
+    for pinch_first in [true, false] {
+        let (a, b) = if pinch_first {
+            (&pinch, &top)
+        } else {
+            (&top, &pinch)
+        };
         let mut decls = topo::test_support::flush_declarations(a, b, tol());
         if pinch_first {
             decls.carried_a.vv = rows.clone();
@@ -136,19 +138,14 @@ fn a_nested_struts_segment_end_reads_as_the_vertex_it_fuses_into() {
             "pinch first: {pinch_first}: the join refuses, which opens the lane: {join:?}"
         );
         let got = topo::union_with(a, b, &decls, tol());
-        (join.unwrap().unwrap(), got)
-    };
-
-    let (_, got) = refusal(&pinch, &top, true);
-    assert!(
-        matches!(got, Err(BooleanError::SeamOrientation { .. })),
-        "pinch first: the lane realizes the seam and refuses at the glue: {got:?}"
-    );
-
-    let (join, got) = refusal(&top, &pinch, false);
-    assert_eq!(
-        format!("{:?}", got.err()),
-        format!("{:?}", Some(join)),
-        "prism first: the join's own refusal stands"
-    );
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::RestZipUnsupported {
+                    what: RestZipFrontier::PinchApex
+                })
+            ),
+            "pinch first: {pinch_first}: the lane refuses the pinch apex: {got:?}"
+        );
+    }
 }

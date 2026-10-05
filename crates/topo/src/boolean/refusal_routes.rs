@@ -1205,6 +1205,10 @@ pub enum RestZipFrontier {
     BandRunOffLoops,
     /// A vertex pair inside a zipped fold is fused already.
     FoldVertexFused,
+    /// Two vertices of one part at one point (a pinch apex) meet one
+    /// vertex of the other across the seam, which pairs vertices one
+    /// to one.
+    PinchApex,
 }
 
 impl RestZipFrontier {
@@ -1235,6 +1239,7 @@ impl RestZipFrontier {
             Self::RunVertexBranches => "seam-run interior vertex holds edges beyond the run",
             Self::BandRunOffLoops => "band-closure run edge outside the folded face's loops",
             Self::FoldVertexFused => "pre-fused vertex pair inside a slit-zip fold",
+            Self::PinchApex => "two seam vertices of one part meet one vertex of the other",
         }
     }
 
@@ -1267,7 +1272,8 @@ impl RestZipFrontier {
             | Self::WholeBoundaryShared
             | Self::RunVertexBranches
             | Self::BandRunOffLoops
-            | Self::FoldVertexFused => geom_core::NOT_YET_ENDING,
+            | Self::FoldVertexFused
+            | Self::PinchApex => geom_core::NOT_YET_ENDING,
         }
     }
 }

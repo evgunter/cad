@@ -1,7 +1,7 @@
 ---
 id: the-rest-lane-zips-no-pinch-apex
 kind: issue
-title: The REST lane reads its vertex correspondence one-to-one, so a pinch apex meeting one vertex refuses or declines
+title: The REST lane reads its vertex correspondence one-to-one, so a pinch apex meeting one vertex refuses
 status: open
 opened: 2026-10-05
 priority: P3
@@ -18,24 +18,30 @@ point, as a union carried with its v-v rows leaves where two pieces
 touch along an edge — met by ONE vertex of the other operand has no
 one-to-one reading.
 
-`crates/sweep/tests/rest_nested_strut.rs`
-`a_nested_struts_segment_end_reads_as_the_vertex_it_fuses_into`
-measures both orders (a notched block holding a wedge, touching along
-the apex line, and a prism whose corner rests on the apex; the join
-refuses on the fillets' tangency and hands the union to the lane):
+The lane refuses such a correspondence typed
+(`RestZipFrontier::PinchApex`) as it builds it, in either order, before
+any chord is minted. `crates/sweep/tests/rest_nested_strut.rs`
+`a_pinch_apex_meeting_one_vertex_refuses_as_the_frontier_in_either_order`
+pins it (a notched block holding a wedge, touching along the apex line,
+and a prism whose corner rests on the apex; the join refuses on the
+fillets' tangency and hands the union to the lane): the two apex
+vertices each correspond to the prism's corner.
 
-- **Pinch first.** The two apex vertices each map to the prism's corner
-  and the seam realizes on both operands. The glue then refuses
+Without that refusal the two orders answered different classes for the
+one geometry:
+
+- **Pinch first.** The two apex vertices each mapped to the prism's
+  corner and the seam realized on both operands. The glue then refused
   `SeamOrientation` (the "kernel bug" variant): after the first patch
-  pair's glue fuses the corner into one apex vertex, the second pair's
-  glue meets that corner again (see also
+  pair's glue fused the corner into one apex vertex, the second pair's
+  glue met that corner again (see also
   `work/zip/the-rest-lanes-glue-reads-its-correspondence-unfused.md`).
-  Read through the glue's fusions instead, the second glue fuses the two
-  apex vertices into one and refuses `Euler(SelfLoopEdge)`: the result
+  Read through the glue's fusions instead, the second glue fused the two
+  apex vertices into one and refused `Euler(SelfLoopEdge)`: the result
   wants the apex kept as the pinch it is, which neither zip models.
-- **Prism first.** `vcorr` maps the corner to the first apex vertex and
-  refuses the second (`correspond` → `Ok(None)`), so the join's own
-  refusal (`NotSameFace`) stands.
+- **Prism first.** `vcorr` mapped the corner to the first apex vertex
+  and declined the second (`Ok(None)`), so the join's own refusal
+  (`NotSameFace`) stood.
 
 A fillet-free pinch-and-prism pose (notch 30°–150°, wedge 60°–120°,
 prism corner 10°–170°) builds through the normal join in both orders,
@@ -46,5 +52,5 @@ nested strut and all; only the join's refusal brings a pinch here.
 A correspondence that is a relation (as `zip::SeamCorrespondence`
 already is, "one each, except a welded pinch"), carried into the patch
 pairing and the glue, and a glue that keeps a pinch apex's vertices
-apart. The witness's assertion is pinned to today's refusals and moves
-with the fix.
+apart; then the `PinchApex` refusal goes. The witness's assertion is
+pinned to today's refusal and moves with the fix.

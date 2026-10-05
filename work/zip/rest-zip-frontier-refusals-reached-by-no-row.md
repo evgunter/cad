@@ -119,4 +119,7 @@ strut undo. `realize_seam` takes the chord from the joined apex to a
 pierce-ring vertex as a spur (`mekr` `EmptyRing`), and the apex's next
 chord then meets it twice in that face. The prism's corner edges ending
 at pierce-ring vertices inside the block's top do the same. Measured
-by instrumenting the takes; no row asserts it.
+by instrumenting the takes; no row asserts it. Since the lane refuses a
+pinch apex at its correspondence (`PinchApex`), this pose refuses there
+in both orders, before any chord is minted, so it no longer reaches
+`ChordEndpointRevisited` either; a pose without a pinch has to be found.

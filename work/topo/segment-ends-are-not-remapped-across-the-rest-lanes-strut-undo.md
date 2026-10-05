@@ -55,11 +55,14 @@ remap is load-bearing.
 
 PR 4067. `undo_struts` logs each kill's `(copy, site)` (checking the
 site is the strut's start), `read_segments` reads every end through
-that log (`zip::survivor`), and `realize_seam` panics on an end that
-does not resolve, naming the premise (`SEGMENT_ENDS_SURVIVE`). Witness:
-`crates/sweep/tests/rest_nested_strut.rs`, a pinch apex under a resting
-prism, which the lane gave back to the join before and now realizes on
-both operands; it then refuses at the glue, filed as
+that log (`zip::survivor_checked`), and `realize_seam` panics on an end
+that does not resolve, naming the premise (`SEGMENT_ENDS_SURVIVE`).
+Witnesses: `rest::tests::the_segment_ends_read_through_the_undo_to_standing_vertices`
+and `every_strut_site_reads_through_the_undo_to_a_standing_vertex`, the
+nest in either operand. The one public pose that nests a strut on this
+lane, `crates/sweep/tests/rest_nested_strut.rs` (a pinch apex under a
+resting prism), refuses `PinchApex` at the correspondence in either
+order, before the seam is realized, filed as
 `work/zip/the-rest-lane-zips-no-pinch-apex.md`. Residues filed:
 `work/zip/the-rest-lanes-glue-reads-its-correspondence-unfused.md`,
 `work/join/completed-null-faces-are-carried-unremapped-across-later-cuts.md`.

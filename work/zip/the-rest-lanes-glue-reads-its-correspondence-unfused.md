@@ -26,10 +26,13 @@ does not.
 ## Measured
 
 On the pinch-apex witness
-(`work/zip/the-rest-lane-zips-no-pinch-apex.md`), pinch first: today
-`SeamOrientation`. With `vmap` re-read through each glue's
-`vertex_merges` (`zip::survivor`), the second glue fuses the already
-fused corner onward and refuses `Euler(SelfLoopEdge)`. So the re-read
+(`work/zip/the-rest-lane-zips-no-pinch-apex.md`), pinch first, before
+the lane refused a pinch apex at its correspondence: `SeamOrientation`.
+With `vmap` re-read through each glue's `vertex_merges`
+(`zip::survivor`), the second glue fused the already fused corner
+onward and refused `Euler(SelfLoopEdge)`. That witness now refuses
+`PinchApex` before any glue, so no row reaches this loop with a vertex
+two pairs share; the row below has to be built. So the re-read
 alone is not the fix: `zip_seam` has no reading of a seam vertex its
 two cycles already share, where `zip_folded` names one
 (`RestZipFrontier::FoldVertexFused`).
