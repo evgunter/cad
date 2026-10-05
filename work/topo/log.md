@@ -6903,3 +6903,13 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - **Closed `mint-pcurves-refusal-leaves-the-cache-partly-cleared` (P2) on reading.** PR 4033's derive-then-write already fixed both entries, pinned by `pcurve_door_refusals::a_null_edges_half_…_leaves_the_body_as_found` and the review_d18 clone-unchanged mint check.
 - **Dispatched** `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps` (P3, M) to `session_01E5dJcd5P2Wvx2mz83fCp6q`. The direction is PR 2527's ruling (the kills stay keys-only; the band twins mint the released loop's gaps; a `kemr` twin if needed; producers switch). It re-measures first after R.
 - My merge of main conflicted on the per-op row (main closed it); resolved with main's version. Nothing new on PR 3970.
+- 06:47 check-in.
+  - PR 4049 (sync) merged at `55a173b633`.
+  - **PR 4048 review: fix first, one BLOCKING.** `sectors.rs` `faces_at` panics on a stale root vertex under the at-rest premise, while rest-lane callers (`mirror_edges`, `fragment_holding`) pass keys carried across `undo_struts`' kills: PR 4043's shape, unproven at the site, though not reachable today.
+  - MINOR findings:
+    - `wall_crossing` and `place_witness` swallow a driver `StaleFace` (one rule, applied per site);
+    - the caller-key leg is untested (mutation stays green);
+    - the battery scope statement.
+  - The reviewer re-ran `rc_wide` x84 plus 57 sweep `#[ignore]`d batteries: identical output.
+  - Fix lane `session_01DdLA3weCnKkq4Toaap1nGK` dispatched. Reviewer (about $3.7) and implementer (about $18) archived.
+  - Null-release lane: no PR yet. Nothing new on PR 3970.
