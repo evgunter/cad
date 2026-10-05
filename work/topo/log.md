@@ -6855,3 +6855,9 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - Reviewer (about $1.6) and P0 implementer (about $3.2) archived.
   - Style notes left for the parked four-germ row's owner: three spellings of one refusal, and the `reconcile_shared` caveat.
 - 01:55: **P0 PR 4043 merged** at `d01d8ae1fe` (CI green on `9d2e4b1d06`); unsubscribed. A public boolean no longer aborts in `rc_wide_battery`: 84/84 shards complete, 40,320 lines, with 56 downstream `JoinDesync` refusals now answered at the stale-corner step. The row is closed with the PR.
+- 01:57: **PR 4037 merged** at `201239b0e4`. The code head `e57bfa67` was green on its `pull_request` and dispatch runs; the head commit `41d6248d` is the render bot's `[skip ci]` re-baselines; the test merge with main (after 4043) was clean.
+  - The fix lane mapped all 13 findings: tier 3 strict with the pole-twin row; helpers compare elements (about 15 dumps swept); kev/kemr sum witnesses; `Deck::apply` returns `Option` with `LiftGap`; reset canonicalised; closure miss at index 0; `KillTurnEscalated`; keys-only kev refuses where it would write `None`; DESIGN D1 bullet re-worded.
+  - Four mutations each go red.
+  - Acceptance: every kill-kept face byte-equal and clean (`kef` 21, `kef_minting` 8,102, `kev` 140, `kemr` 73). There are 400 complete-to-incomplete transitions on both base and head, all whole-face `Clear`s, so pre-existing.
+  - Fix lane archived (about $28). Unsubscribed.
+  - **PR 4039** (R part 2, `a580e4d8`, brought up on top of 4037) is subscribed; reviewer `session_01Nwzvm72ye7rapYpyEhZypv` dispatched.
