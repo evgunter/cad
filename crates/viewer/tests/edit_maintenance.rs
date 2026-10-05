@@ -19,9 +19,9 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::Formula;
 use crate::common;
 use editor_core::ExtrudeSide;
+use pncad::document::Formula;
 use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};

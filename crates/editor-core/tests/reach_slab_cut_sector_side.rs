@@ -16,9 +16,9 @@
 //! `work/contact/point-in-solid-refuses-a-ringed-cylinder-wall.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
 use core::f64::consts::PI;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};

@@ -32,8 +32,8 @@ pub mod drive;
 pub mod edit;
 pub mod eval;
 pub mod expr;
-pub mod formula;
 mod finding;
+pub mod formula;
 pub mod ident;
 pub mod label;
 pub mod mate;
@@ -208,8 +208,8 @@ pub use product::{
     own_spaces, product, product_named, product_recorded,
 };
 pub use program::{
-    LoopProgram, ProfileDoc, ProfilePayload, SlotPayload, ProfileProgram, ProgramArcData, ProgramRefusal,
-    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepIdFault,
+    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
+    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault,
     StepSegmentsError, resolve_loops,
 };
 pub use range::{

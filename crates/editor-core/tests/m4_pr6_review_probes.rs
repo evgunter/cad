@@ -12,7 +12,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind,
-    EvalOptions, Formula, ExprPath, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
+    EvalOptions, ExprPath, Formula, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply,
     evaluate, load, save,
 };

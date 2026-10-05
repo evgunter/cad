@@ -134,8 +134,12 @@ pub fn document() -> CorpusDoc {
         assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
         SitedRef::new(node, faces.remove(0))
     };
-    let radius =
-        || MeasureExpr::value(Formula::named(VarName::from_static(HOLE_R), Dimension::Length));
+    let radius = || {
+        MeasureExpr::value(Formula::named(
+            VarName::from_static(HOLE_R),
+            Dimension::Length,
+        ))
+    };
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius(), radius()).expect("Length + Length"),

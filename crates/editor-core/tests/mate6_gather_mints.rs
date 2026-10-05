@@ -16,10 +16,10 @@
 //! across a document boundary.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
@@ -103,12 +103,7 @@ fn rest_mate(a: StableName, b: StableName, seat: f64) -> AuthoredNode {
 
 /// [`rest_mate`]'s shape at an arbitrary class — the totality rows need
 /// a `Tangent` declaration, whose class mints no record at rest.
-fn classed_mate(
-    a: StableName,
-    b: StableName,
-    seat: f64,
-    class: ContactClass,
-) -> AuthoredNode {
+fn classed_mate(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),

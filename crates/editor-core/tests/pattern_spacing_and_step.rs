@@ -66,7 +66,11 @@ fn linear(direction: [f64; 3], spacing: f64) -> PatternKind<Formula> {
 }
 
 /// A pattern (or, with `union`, a placed union) of the block.
-fn patterned(count: i64, kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>, union: bool) -> Built {
+fn patterned(
+    count: i64,
+    kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>,
+    union: bool,
+) -> Built {
     built(count, kind, union, None)
 }
 
@@ -88,7 +92,8 @@ fn built(
     let (mut r, solid, axis) = block(th);
     let kind = kind(axis);
     let node = if union {
-        Node::placed_union(solid, Formula::count(count), kind).expect("a stepped rule takes a count")
+        Node::placed_union(solid, Formula::count(count), kind)
+            .expect("a stepped rule takes a count")
     } else {
         Node::Pattern {
             input: solid,

@@ -128,11 +128,7 @@ pub(crate) fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
 
 /// [`seat`] onto a cap whose seat point is `at`, in its own part's
 /// coordinates.
-pub(crate) fn seat_on(
-    mover: SitedFace,
-    onto: SitedFace,
-    at: [f64; 3],
-) -> AuthoredNode {
+pub(crate) fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -153,14 +149,15 @@ pub(crate) fn lift() -> VarName {
 
 /// A gauge on `parent` at `[0, 0, lift]`, turned `angle` about z — a
 /// placement the document's `lift` drives.
-pub(crate) fn lifting_gauge(
-    parent: Option<RecipeNodeId>,
-    angle: f64,
-) -> AuthoredNode {
+pub(crate) fn lifting_gauge(parent: Option<RecipeNodeId>, angle: f64) -> AuthoredNode {
     Node::gauge(
         parent,
         Step::Rigid {
-            translation: [len(0.0), len(0.0), Formula::named(lift(), Dimension::Length)],
+            translation: [
+                len(0.0),
+                len(0.0),
+                Formula::named(lift(), Dimension::Length),
+            ],
             axis: [0.0, 0.0, 1.0].map(scl),
             angle: ang(angle),
         },
@@ -1432,7 +1429,12 @@ fn a_cut_of_two_placed_groups_moves_verbatim() {
 /// the document, `[base, top, mate, second]` and the top's offset.
 fn checked_pair_beside_a_base(
     label: &str,
-) -> (Parts, ProfileDoc, [RecipeNodeId; 4], Option<Placement<Formula>>) {
+) -> (
+    Parts,
+    ProfileDoc,
+    [RecipeNodeId; 4],
+    Option<Placement<Formula>>,
+) {
     let (p, doc, [base, top, mate]) = placed_pair(label);
     let solved = solve(&doc, &p.opts(), Tol::witness())
         .placement(&doc, top)
@@ -1506,7 +1508,9 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
     );
     assert_eq!(
         offset_of(&out.part, out.node_map[&ids[1]]),
-        checked.as_ref().map(editor_core::test_support::stored_placement),
+        checked
+            .as_ref()
+            .map(editor_core::test_support::stored_placement),
         "the top's checked offset survives the carry"
     );
     for (source, part) in offsets_through(&doc, |id| out.node_map[&id], &out.part) {
@@ -1535,7 +1539,9 @@ fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
     let through = |id: RecipeNodeId| back.node_map[&id];
     assert_eq!(
         offset_of(&back.doc, through(ids[1])),
-        checked.as_ref().map(editor_core::test_support::stored_placement),
+        checked
+            .as_ref()
+            .map(editor_core::test_support::stored_placement),
         "the top's checked offset survives the splice"
     );
     for (source, spliced) in offsets_through(&part, through, &back.doc) {
@@ -1618,7 +1624,9 @@ fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
     let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-replay");
     assert_eq!(
         offset_of(&back.doc, back.node_map[&out.node_map[&ids[1]]]),
-        checked.as_ref().map(editor_core::test_support::stored_placement),
+        checked
+            .as_ref()
+            .map(editor_core::test_support::stored_placement),
         "the round trip holds the checked offset"
     );
 }
@@ -1673,9 +1681,15 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
     for (what, i, want) in [("T", t, t_pose), ("X", x, x_pose), ("Y", y, None)] {
         assert_eq!(
             offset_of(&out.part, out.node_map[&i]),
-            want.as_ref().map(editor_core::test_support::stored_placement),
+            want.as_ref()
+                .map(editor_core::test_support::stored_placement),
             "{what} in the part"
         );
-        assert_eq!(offset_of(&back.doc, host(i)), want.as_ref().map(editor_core::test_support::stored_placement), "{what} in the host");
+        assert_eq!(
+            offset_of(&back.doc, host(i)),
+            want.as_ref()
+                .map(editor_core::test_support::stored_placement),
+            "{what} in the host"
+        );
     }
 }

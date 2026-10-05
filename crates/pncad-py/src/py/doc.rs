@@ -1248,9 +1248,9 @@ impl Doc {
     /// Raises `ValueError` for a node that does not instantiate a part.
     fn offset(&self, node: &NodeId) -> PyResult<Option<super::place::Placement>> {
         match self.inner.node(node.0) {
-            Some(d::Node::InstantiatePart { offset, .. }) => {
-                Ok(offset.as_ref().map(|p| super::place::Placement(p.authored())))
-            }
+            Some(d::Node::InstantiatePart { offset, .. }) => Ok(offset
+                .as_ref()
+                .map(|p| super::place::Placement(p.authored()))),
             _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} does not instantiate a part, so it has no offset",
                 self.inner.spoken(node.0)
@@ -2040,7 +2040,10 @@ fn sketch_plane(
 /// `extract`'s own `TypeError`, so a stringly-typed or numeric
 /// argument still refuses at the boundary rather than being iterated
 /// into nonsense.
-fn loops_from_outline(py: Python<'_>, outline: &Bound<'_, PyAny>) -> PyResult<Vec<d::LoopProgram<d::Formula>>> {
+fn loops_from_outline(
+    py: Python<'_>,
+    outline: &Bound<'_, PyAny>,
+) -> PyResult<Vec<d::LoopProgram<d::Formula>>> {
     match outline.cast::<super::path::ClosedLoop>() {
         Ok(one) => Ok(vec![super::path::loop_program(py, &one.borrow())?]),
         Err(_) => {
@@ -2250,7 +2253,11 @@ impl Node {
     fn tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+        u_ref: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
         major_radius: &super::expr::Formula,
         window: &TubeWindow,
         minor_radius: &super::expr::Formula,
@@ -2297,7 +2304,11 @@ impl Node {
     fn hollow_tube(
         py: Python<'_>,
         spine: &NodeId,
-        u_ref: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+        u_ref: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
         major_radius: &super::expr::Formula,
         window: &TubeWindow,
         minor_radius: &super::expr::Formula,
@@ -2340,7 +2351,11 @@ impl Node {
     /// those is the kernel's own typed refusal, arriving from `insert`
     /// or from `evaluate` exactly where the Rust surface raises it.
     #[staticmethod]
-    fn loft(py: Python<'_>, profiles: Vec<NodeId>, v_degree: &super::expr::Formula) -> PyResult<Self> {
+    fn loft(
+        py: Python<'_>,
+        profiles: Vec<NodeId>,
+        v_degree: &super::expr::Formula,
+    ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
                 profiles: profiles.iter().map(|p| p.0).collect(),
@@ -2407,8 +2422,16 @@ impl Node {
     #[staticmethod]
     fn datum_axis(
         py: Python<'_>,
-        origin: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
-        direction: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+        origin: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        direction: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         let origin = direction_expr(py, d::VectorSlot::Origin, &origin)?;
         let direction = direction_expr(py, d::VectorSlot::Direction, &direction)?;
@@ -2529,9 +2552,21 @@ impl Node {
     #[staticmethod]
     fn datum_frame(
         py: Python<'_>,
-        origin: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
-        u: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
-        v: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+        origin: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        u: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        v: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Frame {
@@ -2552,8 +2587,16 @@ impl Node {
     #[staticmethod]
     fn datum_plane(
         py: Python<'_>,
-        origin: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
-        normal: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+        origin: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        normal: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Plane {
@@ -2581,7 +2624,11 @@ impl Node {
     #[staticmethod]
     fn datum_point(
         py: Python<'_>,
-        position: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+        position: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Point {
@@ -2771,8 +2818,16 @@ impl Node {
     fn transform(
         py: Python<'_>,
         input: &NodeId,
-        translation: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
-        rotation_axis: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+        translation: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
+        rotation_axis: (
+            super::expr::Formula,
+            super::expr::Formula,
+            super::expr::Formula,
+        ),
         rotation_angle: &super::expr::Formula,
     ) -> PyResult<Self> {
         Self::transform_by(
@@ -3438,9 +3493,7 @@ fn continuous(
     if dist.dim != dim {
         return Err(super::analysis::dimension_mismatch(py, door, dim, dist.dim));
     }
-    Ok(FreeVar(d::FreeVar::continuous_with(
-        dim, value, dist.inner,
-    )))
+    Ok(FreeVar(d::FreeVar::continuous_with(dim, value, dist.inner)))
 }
 
 /// A named parameter's declared dimension and exact stored value
@@ -4591,7 +4644,11 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
 /// its own direction, shared so the two cannot drift.
 fn u_ref_expr(
     py: Python<'_>,
-    u: (super::expr::Formula, super::expr::Formula, super::expr::Formula),
+    u: (
+        super::expr::Formula,
+        super::expr::Formula,
+        super::expr::Formula,
+    ),
 ) -> PyResult<[d::Formula; 3]> {
     direction_expr(py, d::VectorSlot::Direction, &u)
 }
@@ -4601,7 +4658,11 @@ fn u_ref_expr(
 pub(crate) fn direction_expr(
     py: Python<'_>,
     slot: d::VectorSlot,
-    v: &(super::expr::Formula, super::expr::Formula, super::expr::Formula),
+    v: &(
+        super::expr::Formula,
+        super::expr::Formula,
+        super::expr::Formula,
+    ),
 ) -> PyResult<[d::Formula; 3]> {
     Ok([
         slot_expr(py, slot.slot(d::Axis3::X), &v.0)?,

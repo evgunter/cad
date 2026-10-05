@@ -96,9 +96,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Alignment, AxisSense, Formula, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, HeldNodes, MateFrame,
-    MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, Said, SitedFace, Speaker,
-    SpokenNode, class_admission, held_by, member_reading, table_gap,
+    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Formula, HeldNodes,
+    MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, Said, SitedFace,
+    Speaker, SpokenNode, class_admission, held_by, member_reading, table_gap,
 };
 use pncad::prelude::StableName;
 use pncad::select::{ContactClass, InterrogateError, Resolution, RunCtx, face_frame, resolve};

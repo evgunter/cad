@@ -999,7 +999,10 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
         .iter()
         .find(|&&id| matches!(block.node(id), Some(Node::Datum(_))))
         .expect("the block's frame");
-    let (with_datum, spare) = insert(block.clone(), block.node(frame).map(Node::authored).expect("live"));
+    let (with_datum, spare) = insert(
+        block.clone(),
+        block.node(frame).map(Node::authored).expect("live"),
+    );
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),
         (&chain, vec![k, k2], k, "a gauge chain"),
@@ -1265,7 +1268,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-root"), 0.5);
         let at = Placement::from(editor_core::Step::Rigid {
             translation: [
-                editor_core::Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
+                editor_core::Formula::named(
+                    crate::p2_gauges::lift(),
+                    editor_core::Dimension::Length,
+                ),
                 fixture::len(0.0),
                 fixture::len(0.0),
             ],

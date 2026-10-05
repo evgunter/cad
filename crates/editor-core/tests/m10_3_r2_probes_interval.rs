@@ -43,8 +43,8 @@ use editor_core::drive::{
     BudgetKind, DriveConfig, ReasonClass, RefusalReason, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node,
-    ProfileDoc, ProfileLift, ProfileProgram, VarName, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, ProfileDoc, ProfileLift, ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Interval, Tol};
 

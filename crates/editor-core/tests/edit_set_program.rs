@@ -874,7 +874,10 @@ fn square_steps() -> Vec<ProgramStep<Formula>> {
 }
 
 /// A document holding `loops` extruded; `(doc, profile, extrude)`.
-fn extruded(label: &str, loops: Vec<LoopProgram<Formula>>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn extruded(
+    label: &str,
+    loops: Vec<LoopProgram<Formula>>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(label, tol());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
@@ -2022,7 +2025,10 @@ fn report_matches_resolution(
 #[test]
 fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
     let mut counts = Vec::new();
-    let mut row = |label: &str, old: Vec<LoopProgram<Formula>>, new: Vec<LoopProgram<Formula>>, keep: &KeepMap| {
+    let mut row = |label: &str,
+                   old: Vec<LoopProgram<Formula>>,
+                   new: Vec<LoopProgram<Formula>>,
+                   keep: &KeepMap| {
         counts.push((
             label.to_owned(),
             report_matches_resolution(label, old, new, keep),
@@ -2234,7 +2240,11 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
 }
 
 /// Two squares on parallel frames, lofted; `(doc, sec0, sec1, loft)`.
-fn lofted(label: &str, lower: LoopProgram<Formula>, upper: LoopProgram<Formula>) -> (ProfileDoc, [RecipeNodeId; 3]) {
+fn lofted(
+    label: &str,
+    lower: LoopProgram<Formula>,
+    upper: LoopProgram<Formula>,
+) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived(label, tol());
     let (doc, p0) = insert(doc, fixture::xy_frame());
     let (doc, sec0) = insert(

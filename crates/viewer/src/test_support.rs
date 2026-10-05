@@ -22,9 +22,10 @@
 
 use editor_core::ExtrudeSide;
 use pncad::document::{
-    AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef, DocumentId,
-    EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, PartFault,
-    ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName, apply, evaluate,
+    AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
+    DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
+    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
+    apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -218,11 +219,7 @@ pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<Pr
 /// answer the minted id, for a fixture that threads one document
 /// through a sequence of edits rather than rebinding at each one.
 /// Same call and same refusal behaviour — only the caller differs.
-pub fn insert_into(
-    doc: &mut Doc<ProfileProgram>,
-    node: AuthoredNode,
-    tol: Tol,
-) -> RecipeNodeId {
+pub fn insert_into(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let (applied, id) = inserted(doc, node, tol);
     *doc = applied;
     id

@@ -735,12 +735,11 @@ pub use stl::{
 // read out of a file gets. `VarNameFault` is the same thing for
 // `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
-    AuthoredNode, CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions,
-    Evaluation, Expr, FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName,
-    ParseError, PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId,
-    StepArg, ValuePayload, VarDecl, VarDef, VarEnv, VarName, VarNameFault, apply, evaluate,
-    parse_formula, unparse,
+    AuthoredNode, CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation,
+    Expr, FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
+    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
+    VarDecl, VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 

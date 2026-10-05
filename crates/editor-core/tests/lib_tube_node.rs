@@ -40,10 +40,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
-use editor_core::AuthoredNode;
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::Formula;
 
 use core::f64::consts::PI;
 
@@ -134,7 +134,12 @@ fn both_radii(outer: f64, inner: f64) -> Vec<u64> {
     w
 }
 
-fn solid_node(u_ref: [f64; 3], major: f64, window: TubeWindow<Formula>, minor: f64) -> AuthoredNode {
+fn solid_node(
+    u_ref: [f64; 3],
+    major: f64,
+    window: TubeWindow<Formula>,
+    minor: f64,
+) -> AuthoredNode {
     Node::Tube {
         spine: RecipeNodeId(0),
         u_ref: u_ref.map(scl),
@@ -205,8 +210,14 @@ fn the_two_kinds_share_every_slot_but_the_wall() {
     assert_eq!(full.slots().len() + 2, s.len());
 
     // One DAG edge each: the spine. A tube has no profile operand.
-    assert_eq!(editor_core::test_support::stored(&solid).inputs(), vec![RecipeNodeId(0)]);
-    assert_eq!(editor_core::test_support::stored(&hollow).inputs(), vec![RecipeNodeId(0)]);
+    assert_eq!(
+        editor_core::test_support::stored(&solid).inputs(),
+        vec![RecipeNodeId(0)]
+    );
+    assert_eq!(
+        editor_core::test_support::stored(&hollow).inputs(),
+        vec![RecipeNodeId(0)]
+    );
     // And no payload names: a tube references no stable name, so a
     // `Rebind` cannot reach one.
     assert!(solid.payload_names().is_empty());

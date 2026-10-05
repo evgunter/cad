@@ -162,7 +162,11 @@ fn exprs() -> Exprs {
     let length = Formula::max(
         Formula::min(
             Formula::add(
-                Formula::sub(Formula::neg(len(3.0)).expect("a shallow negation"), len(0.5)).unwrap(),
+                Formula::sub(
+                    Formula::neg(len(3.0)).expect("a shallow negation"),
+                    len(0.5),
+                )
+                .unwrap(),
                 Formula::mul(len(2.0), scl(1.5)).unwrap(),
             )
             .unwrap(),
@@ -181,7 +185,11 @@ fn exprs() -> Exprs {
     let angle = Formula::atan2(len(1.0), len(2.0)).unwrap();
     let scalar = Formula::mul(
         Formula::sin(ang(0.3)).unwrap(),
-        Formula::mul(Formula::cos(ang(0.4)).unwrap(), Formula::tan(ang(0.5)).unwrap()).unwrap(),
+        Formula::mul(
+            Formula::cos(ang(0.4)).unwrap(),
+            Formula::tan(ang(0.5)).unwrap(),
+        )
+        .unwrap(),
     )
     .unwrap();
     let counted = Formula::count_to_scalar(Formula::count(7)).unwrap();

@@ -540,7 +540,9 @@ mod tests {
 
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
-        let written = crate::test_support::stored_expr(&crate::Formula::length_in(2.0, quantity::MM).unwrap());
+        let written = crate::test_support::stored_expr(
+            &crate::Formula::length_in(2.0, quantity::MM).unwrap(),
+        );
         let canonical = Expr::literal(written.literal_value().unwrap(), Dimension::Length).unwrap();
         let mm = Node::<ProfileProgram>::Extrude {
             profile: RecipeNodeId(1),

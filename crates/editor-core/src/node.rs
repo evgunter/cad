@@ -3996,8 +3996,6 @@ impl<P> Node<P> {
             .into_iter()
             .find_map(|(slot, expr)| slot.dimension_fault(expr))
     }
-
-
 }
 
 /// Sorts a name designation and drops its repeats — the canonical form
@@ -4302,7 +4300,7 @@ impl<P, S: Slot> Node<P, S> {
                 gauge,
                 offset,
             } => Node::InstantiatePart {
-                doc_ref: doc_ref.clone(),
+                doc_ref: *doc_ref,
                 interface: interface.clone(),
                 gauge: *gauge,
                 offset: offset.as_ref().map(|o| o.try_map_slots(f)).transpose()?,

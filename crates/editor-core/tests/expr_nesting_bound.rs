@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    DimensionError, DocEdit, EditError, EvalOptions, Formula, ExprPath, LoopProgram, MeasureExpr,
+    DimensionError, DocEdit, EditError, EvalOptions, ExprPath, Formula, LoopProgram, MeasureExpr,
     Node, NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval,
     eval_count, parse_formula, unparse,
@@ -215,9 +215,17 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             ),
             ("a chain of negations", negations(0.5, BOUND), -0.5),
         ] {
-            assert_eq!(eval(&editor_core::test_support::stored_expr(&e), &env), Ok(value), "{label} evaluates at f64");
+            assert_eq!(
+                eval(&editor_core::test_support::stored_expr(&e), &env),
+                Ok(value),
+                "{label} evaluates at f64"
+            );
             assert!(
-                eval(&editor_core::test_support::stored_expr(&e), &VarEnv::<Interval>::default()).is_ok(),
+                eval(
+                    &editor_core::test_support::stored_expr(&e),
+                    &VarEnv::<Interval>::default()
+                )
+                .is_ok(),
                 "{label} evaluates at Interval"
             );
             let copy = e.clone();
@@ -229,7 +237,10 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             assert!(back.bit_eq(&e), "{label} round-trips through its text");
         }
         assert_eq!(
-            eval_count(&editor_core::test_support::stored_expr(&deep_count(1, BOUND)), &env),
+            eval_count(
+                &editor_core::test_support::stored_expr(&deep_count(1, BOUND)),
+                &env
+            ),
             Ok(i64::try_from(BOUND).unwrap()),
             "a count sum at the bound evaluates exactly"
         );
@@ -243,7 +254,10 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         for (label, text) in [("calls", calls), ("signs", signs), ("terms", terms)] {
             let e = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} nested to the bound parse: {err}"));
-            assert!(eval_count(&editor_core::test_support::stored_expr(&e), &env).is_ok(), "{label} evaluate");
+            assert!(
+                eval_count(&editor_core::test_support::stored_expr(&e), &env).is_ok(),
+                "{label} evaluate"
+            );
         }
 
         // A document holding the bound in its deepest slots.
@@ -312,7 +326,8 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
             ("min", Formula::min(len(0.0), at.clone()).err()),
             (
                 "sin",
-                Formula::sin((1..BOUND).fold(fixture::ang(0.5), |e, _| Formula::neg(e).unwrap())).err(),
+                Formula::sin((1..BOUND).fold(fixture::ang(0.5), |e, _| Formula::neg(e).unwrap()))
+                    .err(),
             ),
             (
                 "count_to_scalar",

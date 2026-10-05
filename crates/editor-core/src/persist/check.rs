@@ -449,7 +449,9 @@ fn read_refusal(
             referenced,
         },
         (_, VarReadFault::Name { .. } | VarReadFault::Dead { .. }) => {
-            unreachable!("a stored expression holds no name, and the read walks pass on a dead reader")
+            unreachable!(
+                "a stored expression holds no name, and the read walks pass on a dead reader"
+            )
         }
     })
 }

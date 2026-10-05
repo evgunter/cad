@@ -10,15 +10,15 @@
 //! still gather.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
-    PatternKind, PlacedTwice, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    SplitHalf, StableName, product, product_named,
+    EvalOptions, Evaluation, Formula, MateFrame, MatePrimitive, MateRole, NameTable, Node,
+    PartSelect, PatternKind, PlacedTwice, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SplitHalf, StableName, product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -291,7 +291,9 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
         placed_twice(&doc, &ev),
         (
             pattern,
-            Some(PartSelect::Instance(editor_core::test_support::stored_expr(&Formula::count(1)))),
+            Some(PartSelect::Instance(
+                editor_core::test_support::stored_expr(&Formula::count(1))
+            )),
             first,
             second
         )

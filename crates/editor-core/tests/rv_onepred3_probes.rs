@@ -20,8 +20,8 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId,
-    SlotId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Formula, Node, PatternKind, PersistError, ProfileDoc,
+    RecipeNodeId, SlotId, SnapshotError, apply, load, save,
 };
 use fixture::{insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;

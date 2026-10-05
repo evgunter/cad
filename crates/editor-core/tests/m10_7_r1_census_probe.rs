@@ -24,8 +24,8 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName,
     evaluate,
 };
 use fixture::{Recorder, len, scl, xy_frame};

@@ -82,11 +82,7 @@ fn authored_a(node: AuthoredNode) -> AuthoredNode {
 
 /// Inserts a mate through the store's reach, which resolves its face
 /// sides at the door.
-fn insert_mate(
-    doc: ProfileDoc,
-    node: AuthoredNode,
-    o: &EvalOptions,
-) -> (ProfileDoc, RecipeNodeId) {
+fn insert_mate(doc: ProfileDoc, node: AuthoredNode, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
     let reach = editor_core::mate_reach::<f64>(o, Tol::witness());
     let (doc, id) = step_with(
         doc,

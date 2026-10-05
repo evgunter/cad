@@ -296,7 +296,13 @@ fn a_kind_is_fixed() {
     let VarDecl::Free(free) = same_kind else {
         panic!("the definition is free")
     };
-    assert!(defined.var(w).unwrap().def().bit_eq(&editor_core::VarDef::Free(free)));
+    assert!(
+        defined
+            .var(w)
+            .unwrap()
+            .def()
+            .bit_eq(&editor_core::VarDef::Free(free))
+    );
 }
 
 // -------------------------------------------------------------- row 10

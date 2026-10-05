@@ -25,8 +25,8 @@ use std::sync::Arc;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Evaluation, Formula, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
-    StableName, UnnamedEntity,
+    Dimension, DocEdit, Evaluation, Formula, HitTestError, NodePick, ProfileDoc, RecipeNodeId,
+    SlotId, StableName, UnnamedEntity,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;

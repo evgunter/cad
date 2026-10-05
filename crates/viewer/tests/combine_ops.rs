@@ -20,8 +20,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::AuthoredNode;
 use crate::common;
+use pncad::document::AuthoredNode;
 use pncad::document::ExtrudeSide;
 use test_utils::refusal::tagged;
 

@@ -575,9 +575,8 @@ impl MeasureExpr {
     /// what it read ([`crate::Formula::from`]).
     #[must_use]
     pub fn authored(&self) -> MeasureExpr<crate::Formula> {
-        let Ok(authored) = self.try_map_values(&mut |e| {
-            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
-        });
+        let Ok(authored) = self
+            .try_map_values(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
         authored
     }
 }
@@ -592,7 +591,6 @@ impl MeasureExpr<crate::Formula> {
             leaf.named_reads(out);
         }
     }
-
 }
 /// **Why a measure has no value at the scalar the build ran at**
 /// ([`crate::eval::ValuePayload::MeasureUnavailable`]).

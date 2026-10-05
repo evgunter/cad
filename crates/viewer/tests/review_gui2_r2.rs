@@ -76,10 +76,7 @@ fn delta() -> DisplayTolerance {
 
 /// `common::inserted` at this suite's tolerance: one node into `doc`
 /// through the document's door, no session.
-fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: AuthoredNode,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
+fn inserted(doc: &Doc<ProfileProgram>, node: AuthoredNode) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(doc, node, tol())
 }
 

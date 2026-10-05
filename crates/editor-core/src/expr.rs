@@ -1901,7 +1901,12 @@ fn write_infix<L: LeafSet>(
 
 /// A call in the parser's own spelling — the arguments are delimited,
 /// so no argument is ever parenthesised.
-fn write_call<L: LeafSet>(name: &str, args: &[&ExprTree<L>], names: Names<'_, '_>, out: &mut String) {
+fn write_call<L: LeafSet>(
+    name: &str,
+    args: &[&ExprTree<L>],
+    names: Names<'_, '_>,
+    out: &mut String,
+) {
     out.push_str(name);
     out.push('(');
     for (i, arg) in args.iter().enumerate() {

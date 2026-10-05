@@ -13,16 +13,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
 use crate::p2_gauges::{Parts, block, body_of, cut, literal, min_corner, parts, set_gauge};
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
 
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocumentId, EditError, EvalOptions,
-    Formula, Frame, FrameSite, FreeValue, FreeVar, MateFrame, MatePrimitive, MateRole, MateSide, Node,
-    PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg, SitedFace, SlotId,
-    SnapshotError, SplitError, Step, VarName, apply, load, save,
+    Formula, Frame, FrameSite, FreeValue, FreeVar, MateFrame, MatePrimitive, MateRole, MateSide,
+    Node, PersistError, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RigidArg, SitedFace,
+    SlotId, SnapshotError, SplitError, Step, VarName, apply, load, save,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -47,7 +47,12 @@ fn shift(t: [Formula; 3]) -> Step<Formula> {
 /// The shift along the base cap's local +Y — its reference, world +x —
 /// by the document's `slide`.
 fn slid_by_the_parameter() -> Placement<Formula> {
-    shift([len(0.0), Formula::named(slide(), Dimension::Length), len(0.0)]).into()
+    shift([
+        len(0.0),
+        Formula::named(slide(), Dimension::Length),
+        len(0.0),
+    ])
+    .into()
 }
 
 /// "Seat the top on the base": the top's lower cap (the mover) on its
@@ -625,7 +630,10 @@ fn a_mates_alignment_compares_by_bits() {
             path: vec![editor_core::RoleSeg::Cap(end)],
         })
     };
-    let mate = |offset: Placement<Formula>, clocking: Option<f64>| Node::<ProfileProgram<Formula>, Formula>::Mate {
+    let mate = |offset: Placement<Formula>, clocking: Option<f64>| Node::<
+        ProfileProgram<Formula>,
+        Formula,
+    >::Mate {
         a: cap(1, editor_core::CapEnd::Start),
         b: cap(2, editor_core::CapEnd::End),
         class: ContactClass::Rest,

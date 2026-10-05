@@ -22,9 +22,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
 use crate::fixture;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use std::collections::BTreeMap;
 

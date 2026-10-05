@@ -80,8 +80,10 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 /// If `node` reads a variable by name.
 pub fn stored(node: &crate::AuthoredNode) -> Node<ProfileProgram> {
     use crate::ProfilePayload;
-    node.try_map_slots(|p, f| ProfileProgram::lower(p, f), &mut |f| Expr::try_from(f))
-        .expect("a node with no name leaf lowers in any scope")
+    node.try_map_slots(|p, f| ProfileProgram::lower(p, f), &mut |f| {
+        Expr::try_from(f)
+    })
+    .expect("a node with no name leaf lowers in any scope")
 }
 
 /// The stored expression `formula` lowers to where no name is held.

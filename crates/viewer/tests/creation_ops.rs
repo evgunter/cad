@@ -24,8 +24,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::AuthoredNode;
 use crate::common;
+use pncad::document::AuthoredNode;
 
 use core::f64::consts::TAU;
 
@@ -458,7 +458,9 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
     let doc = session.committed_doc();
     let expect_bit_eq = |id: RecipeNodeId, want: AuthoredNode| {
         assert!(
-            doc.node(id).expect("the datum is live").bit_eq(&editor_core::test_support::stored(&want)),
+            doc.node(id)
+                .expect("the datum is live")
+                .bit_eq(&editor_core::test_support::stored(&want)),
             "the inserted node is the literal spelling of the form"
         );
     };

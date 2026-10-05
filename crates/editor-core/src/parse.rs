@@ -535,7 +535,10 @@ fn param_name_reason(text: &str) -> VarNameReason {
 /// dimensional rather than syntactic, and
 /// [`DimensionError::NestedTooDeep`] for an expression nested past the
 /// bound.
-pub fn parse_formula(src: &str, params: &BTreeMap<VarName, Dimension>) -> Result<Formula, ParseError> {
+pub fn parse_formula(
+    src: &str,
+    params: &BTreeMap<VarName, Dimension>,
+) -> Result<Formula, ParseError> {
     let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
     Parser {
         toks,
@@ -676,8 +679,8 @@ impl Parser<'_> {
                 };
                 for at in level.signs.clone().rev() {
                     let pos = self.toks[at].0;
-                    value =
-                        Formula::neg(value).map_err(|error| ParseError::Dimension { pos, error })?;
+                    value = Formula::neg(value)
+                        .map_err(|error| ParseError::Dimension { pos, error })?;
                 }
                 level.signs = 0..0;
                 value = fold(level.term.take(), value)?;

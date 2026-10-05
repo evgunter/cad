@@ -607,7 +607,6 @@ impl<S: Clone> Placement<S> {
             .iter()
             .all(|step| matches!(step, Step::Literal(frame) if frame.is_identity_bits()))
     }
-
 }
 
 impl<S> Placement<S> {
@@ -687,9 +686,8 @@ impl Placement {
     /// formula reading what they read ([`crate::Formula::from`]).
     #[must_use]
     pub fn authored(&self) -> Placement<crate::Formula> {
-        let Ok(authored) = self.try_map_slots(&mut |e| {
-            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
-        });
+        let Ok(authored) = self
+            .try_map_slots(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
         authored
     }
 
@@ -705,7 +703,6 @@ impl Placement {
                 Step::Rigid { .. } => None,
             })
     }
-
 
     /// **The rigid motion this placement denotes, at `env`** — every
     /// rigid step's expressions evaluated through the evaluation's one

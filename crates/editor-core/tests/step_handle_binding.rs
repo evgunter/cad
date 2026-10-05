@@ -17,8 +17,8 @@ test_utils::gated_to![
     "crates/editor-core/tests/fixture/",
 ];
 
-use editor_core::Formula;
 use crate::fixture::{self, insert, tol};
+use editor_core::Formula;
 use editor_core::{
     AuthoredStep, DocEdit, EditError, LoopProgram, Node, PieceRole, ProfileDoc, ProfileEdgeRef,
     ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, VarEnv, keep_grid,

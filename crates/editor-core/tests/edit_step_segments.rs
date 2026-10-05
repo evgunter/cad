@@ -2411,7 +2411,8 @@ fn every_attached_radius_was_keyed_first() {
                     );
                 }
             }
-            let attached_here: Vec<&editor_core::Expr> = pv.edge_radii.iter().flatten().flatten().collect();
+            let attached_here: Vec<&editor_core::Expr> =
+                pv.edge_radii.iter().flatten().flatten().collect();
             for lp in &program.loops {
                 for (_, e) in lp.step_radii() {
                     if !attached_here.contains(&e) {

@@ -565,10 +565,7 @@ pub fn at_the_door(
 
 /// [`at_the_door`] for a mate the door refuses on the datum alone,
 /// through the refusing reach: the fault it carries.
-pub fn door_refusal(
-    doc: &editor_core::ProfileDoc,
-    node: AuthoredNode,
-) -> editor_core::MateFault {
+pub fn door_refusal(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> editor_core::MateFault {
     match at_the_door(doc, &RefusingReach, node) {
         Err((_, fault)) => fault,
         Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
@@ -852,11 +849,7 @@ pub fn on_frame_keeping(
 
 /// An axis written in `plane`'s own 2-D coordinates — a revolve's axis
 /// of revolution.
-pub fn axis_in_plane(
-    plane: RecipeNodeId,
-    origin: (f64, f64),
-    dir: (f64, f64),
-) -> AuthoredNode {
+pub fn axis_in_plane(plane: RecipeNodeId, origin: (f64, f64), dir: (f64, f64)) -> AuthoredNode {
     Node::Datum(Datum::AxisInPlane {
         plane,
         origin: [len(origin.0), len(origin.1)],

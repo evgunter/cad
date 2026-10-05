@@ -13,15 +13,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Formula, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind,
-    ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName,
-    member_of, product,
+    Formula, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName, member_of,
+    product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, head, head_at, in_copy, insert, len, on_frame, run, scl, solve, step, xform};

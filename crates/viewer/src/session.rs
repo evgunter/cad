@@ -58,10 +58,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Formula, FreeValue, FreeVar,
-    Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError, ProfileProgram,
-    RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName, apply,
-    assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Formula, FreeValue,
+    FreeVar, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
+    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -349,7 +349,9 @@ fn carry_unmoved(
             arg,
         };
         match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(&Formula::from(committed)) => *held = Formula::from(committed),
+            Some(held) if held.bit_eq(&Formula::from(committed)) => {
+                *held = Formula::from(committed)
+            }
             _ if committed.literal_value().is_some() => {}
             _ => guard_driven(doc, node, slot, notation)?,
         }
@@ -2524,7 +2526,12 @@ impl DocSession {
 
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
-    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Formula) -> OpOutcome {
+    fn add_revolve(
+        &mut self,
+        profile: RecipeNodeId,
+        axis: RecipeNodeId,
+        angle: Formula,
+    ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }

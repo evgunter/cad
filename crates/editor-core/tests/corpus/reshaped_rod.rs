@@ -30,8 +30,8 @@
 //! D2 bump: the extrude's `Distance` (mid-DAG — its cone is the extrude
 //! and the fillet; the frame and the profile are reused).
 
-use editor_core::Formula;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, SlotId, StableName, StepId,

@@ -27,8 +27,8 @@ use crate::fixture;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Axis3, CancelToken, Datum, Dimension, DocEdit, EvalOptions, Formula, FreeVar, Node, NodeErrorKind,
-    NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
+    Axis3, CancelToken, Datum, Dimension, DocEdit, EvalOptions, Formula, FreeVar, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use geom_core::Tol;
 

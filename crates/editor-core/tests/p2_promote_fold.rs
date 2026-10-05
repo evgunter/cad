@@ -13,10 +13,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
 use crate::fixture;
 use crate::p2_gauges::{literal, parts, placed_pair, seat, set_gauge, set_offset};
 use crate::p2_split::{extent, round_trip, same_extent, split};
+use editor_core::Formula;
 
 use editor_core::{
     DocEdit, DocumentId, EditError, Label, Node, Placement, ProfileDoc, RecipeNodeId,

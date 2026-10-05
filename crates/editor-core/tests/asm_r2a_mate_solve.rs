@@ -11,11 +11,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
-use editor_core::AuthoredNode;
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{

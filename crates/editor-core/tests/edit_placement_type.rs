@@ -5,9 +5,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
@@ -620,7 +620,8 @@ fn a_mixed_chain_evaluates_in_the_interval_lane() {
 fn the_content_key_tells_every_chain_apart() {
     let literal = Step::Literal(Frame::translation([0.0, 3.0, 0.0]));
     let turn = about_z([1.0, 0.0, 0.0], core::f64::consts::FRAC_PI_2);
-    let cases: [(&str, Vec<Step<Formula>>, Vec<Step<Formula>>); 4] = [
+    type Chain = Vec<Step<Formula>>;
+    let cases: [(&str, Chain, Chain); 4] = [
         (
             "[rigid, literal] against [literal, rigid]",
             vec![turn.clone(), literal.clone()],
@@ -734,8 +735,7 @@ fn a_literal_frame_compares_by_bits() {
     let signed = Frame::translation([-0.0, 0.0, 0.25]);
     let plain = Frame::translation([0.0, 0.0, 0.25]);
     let body = RecipeNodeId(3);
-    let transform =
-        |f: &Frame| -> AuthoredNode { Node::transform(body, Placement::literal(f)) };
+    let transform = |f: &Frame| -> AuthoredNode { Node::transform(body, Placement::literal(f)) };
     assert!(transform(&signed).bit_eq(&transform(&signed)));
     assert!(
         !transform(&signed).bit_eq(&transform(&plain)),

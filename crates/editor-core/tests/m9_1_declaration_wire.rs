@@ -87,7 +87,10 @@ fn every_coincidence_round_trips_under_its_own_spelling() {
     let applied = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::<editor_core::ProfileProgram<editor_core::Formula>, editor_core::Formula>::Boolean {
+                node: Box::new(Node::<
+                    editor_core::ProfileProgram<editor_core::Formula>,
+                    editor_core::Formula,
+                >::Boolean {
                     op: BooleanOp::Union,
                     a,
                     b,

@@ -1651,12 +1651,13 @@ fn a_mate_row_reads_whether_it_placed_its_child() {
     let mut session = common::asm::open_bench(&bench, tol);
     let middle = common::asm::middle_seat_alignment;
     let quarter = || common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, None);
-    let seat = |session: &mut DocSession, post, shelf, alignment: Alignment<pncad::document::Formula>| {
-        common::commit_mate(
-            session,
-            common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
-        )
-    };
+    let seat =
+        |session: &mut DocSession, post, shelf, alignment: Alignment<pncad::document::Formula>| {
+            common::commit_mate(
+                session,
+                common::asm::seat_op_under(&bench, post, shelf, ContactClass::Rest, alignment),
+            )
+        };
     let a_under_shelf = seat(&mut session, bench.post_a, bench.shelf_i, middle());
     let b_under_shelf = seat(&mut session, bench.post_b, bench.shelf_i, quarter());
     // The second shelf is the mate's FIRST operand, so the door clears

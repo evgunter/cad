@@ -74,8 +74,8 @@
 //! document pins is validity (tier 1 + closed) at every ε row, under
 //! Interval, and through BOTH sweep strategies.
 
-use editor_core::Formula;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     Axis3, BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, SlotId,

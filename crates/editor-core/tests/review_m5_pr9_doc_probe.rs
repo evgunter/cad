@@ -14,8 +14,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture::{frame, len, len2, xy_frame};
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc,

@@ -211,10 +211,12 @@ impl Formula {
 /// leaf, reading every variable by id.
 impl From<&Expr> for Formula {
     fn from(stored: &Expr) -> Self {
-        let Ok(formula) = stored
-            .try_map_leaves(&mut |leaf: &StoredLeaf, _| -> Result<Self, core::convert::Infallible> {
-                match *leaf {}
-            });
+        let Ok(formula) = stored.try_map_leaves(&mut |leaf: &StoredLeaf,
+                                                      _|
+         -> Result<
+            Self,
+            core::convert::Infallible,
+        > { match *leaf {} });
         formula
     }
 }
@@ -231,7 +233,7 @@ impl From<Expr> for Formula {
 /// literals, display units unread).
 impl PartialEq<Formula> for Expr {
     fn eq(&self, formula: &Formula) -> bool {
-        Formula::from(self) == *formula
+        Self::try_from(formula).is_ok_and(|stored| *self == stored)
     }
 }
 

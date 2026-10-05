@@ -37,8 +37,8 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, Distribution, DocEdit,
-    EntityKind, Formula, ExprPath, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8, RoleSeg,
-    SlotId, StableName, UnitSym, VarName, WitnessDatum,
+    EntityKind, ExprPath, Formula, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8,
+    RoleSeg, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 
 use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
@@ -118,8 +118,11 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let h = Formula::named(VarName::from_static("h"), Dimension::Length);
-    let dist =
-        Formula::mul(h, Formula::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
+    let dist = Formula::mul(
+        h,
+        Formula::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin"),
+    )
+    .expect("mul");
     let block_a = r.insert(Node::Extrude {
         profile,
         distance: dist,

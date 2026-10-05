@@ -29,8 +29,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, VarName,
+    BooleanOp, Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, VarName,
 };
 
 use crate::fixture::{frame, len, xy_frame};

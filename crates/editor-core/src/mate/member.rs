@@ -942,7 +942,7 @@ mod tests {
     use super::*;
     use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, NodeResult, evaluate};
-    
+
     use crate::ident::DocumentId;
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::{ang, len, scl, xy_frame};

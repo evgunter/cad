@@ -12,9 +12,9 @@
 //! whose only tie to the target is that it FED the target survives.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
 use crate::fixture::len;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     Doc, DocEdit, EditError, Node, RecipeNodeId, SpokenNode, apply, cascade_delete_order,
 };

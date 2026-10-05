@@ -47,9 +47,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
-    Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, ValuePayload,
-    VarName, evaluate,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr,
+    MeasurePrimitive, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    SitedRef, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 

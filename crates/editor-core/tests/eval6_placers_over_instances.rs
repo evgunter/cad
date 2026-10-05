@@ -57,12 +57,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// A linear pattern of `count` along `dir` at `spacing`.
-pub(crate) fn linear(
-    input: RecipeNodeId,
-    dir: [f64; 3],
-    spacing: f64,
-    count: i64,
-) -> AuthoredNode {
+pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
         input,
         count: editor_core::Formula::count(count),

@@ -485,9 +485,8 @@ impl Alignment {
     /// reading what they read ([`Placement::authored`]).
     #[must_use]
     pub fn authored(&self) -> Alignment<crate::Formula> {
-        let Ok(authored) = self.try_map_slots(&mut |e| {
-            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
-        });
+        let Ok(authored) = self
+            .try_map_slots(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
         authored
     }
 }

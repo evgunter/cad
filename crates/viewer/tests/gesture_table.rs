@@ -87,9 +87,9 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::Formula;
 use crate::common;
 use pncad::document::ExtrudeSide;
+use pncad::document::Formula;
 
 use std::collections::BTreeSet;
 

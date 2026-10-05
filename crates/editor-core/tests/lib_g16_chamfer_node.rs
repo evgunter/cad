@@ -32,14 +32,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use corpus::{body_of, die_chamfer, eval, failures};
 use editor_core::{
-    CancelToken, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, StableName, evaluate,
+    CancelToken, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult, ProfileDoc,
+    RecipeNodeId, SlotId, StableName, evaluate,
 };
 use geom_core::Tol;
 
@@ -170,8 +171,7 @@ fn the_selection_is_payload_names() {
         RecipeNodeId(1),
         editor_core::RoleSeg::Lateral(fixture::leg(0).into()),
     );
-    let node: AuthoredNode =
-        Node::chamfer(RecipeNodeId(1), fixture::len(0.1), vec![a.clone()]);
+    let node: AuthoredNode = Node::chamfer(RecipeNodeId(1), fixture::len(0.1), vec![a.clone()]);
     let names: Vec<&StableName> = node.payload_names();
     assert_eq!(names, vec![&a]);
     assert_eq!(node.named_nodes(), vec![RecipeNodeId(1)]);

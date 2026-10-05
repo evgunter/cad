@@ -506,8 +506,8 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
 fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     let tol = Tol::witness();
     let s = copies("msolve3-view-count-overflow", 1, None, tol);
-    let overflowing =
-        Formula::mul(Formula::count(i64::MAX), Formula::count(2)).expect("a count times a count is a count");
+    let overflowing = Formula::mul(Formula::count(i64::MAX), Formula::count(2))
+        .expect("a count times a count is a count");
     let (doc, _) = common::edited(
         &s.doc,
         DocEdit::SetStructuralParam {

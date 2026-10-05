@@ -16,9 +16,9 @@ use crate::doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, FreeValue, FreeVar, GaugeRefFault, NameCarrier,
     VarName, VarReadFault, WitnessSiteFault,
 };
+use crate::expr::Unlowered;
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::formula::{Formula, NameFault};
-use crate::expr::Unlowered;
 use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
@@ -5242,7 +5242,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     // not lower.
                     let probe = loops_refusal(doc, *node, edit);
                     return Err(probe.unwrap_or_else(|| {
-                        unreachable!("a program whose {fault} did not lower has an argument that does not")
+                        unreachable!(
+                            "a program whose {fault} did not lower has an argument that does not"
+                        )
                     }));
                 }
             };

@@ -14,14 +14,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, ListFault, Node,
-    NodeErrorKind, NodeResult, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
-    SnapshotError, StableName, apply, evaluate, load, save,
+    NodeErrorKind, NodeResult, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError,
+    StableName, apply, evaluate, load, save,
 };
 use geom_core::Tol;
 use sweep::blend::BlendKind;
@@ -252,14 +252,24 @@ fn the_construction_doors_canonicalize() {
         panic!("the door builds a fillet")
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
-    assert!(editor_core::test_support::stored(&fillet).input_fault().is_none(), "and therefore canonical");
+    assert!(
+        editor_core::test_support::stored(&fillet)
+            .input_fault()
+            .is_none(),
+        "and therefore canonical"
+    );
 
     let chamfer: AuthoredNode = Node::chamfer(solid, fixture::len(0.0625), unruly);
     let Node::Chamfer { selection, .. } = &chamfer else {
         panic!("the door builds a chamfer")
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
-    assert!(editor_core::test_support::stored(&chamfer).input_fault().is_none(), "and therefore canonical");
+    assert!(
+        editor_core::test_support::stored(&chamfer)
+            .input_fault()
+            .is_none(),
+        "and therefore canonical"
+    );
 }
 
 /// **An EMPTY selection is canonical**, and stays a different refusal:
@@ -276,7 +286,11 @@ fn an_empty_selection_is_canonical() {
         radius: fixture::len(0.0625),
         selection: Vec::new(),
     };
-    assert!(editor_core::test_support::stored(&empty).input_fault().is_none());
+    assert!(
+        editor_core::test_support::stored(&empty)
+            .input_fault()
+            .is_none()
+    );
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -378,11 +392,12 @@ fn at_names_each_position() {
         ("repeat at 0 + swap at 2", vec![0, 0, 4, 2], Some(0)),
     ];
     for (what, segs, want) in cases {
-        let got = match editor_core::test_support::stored(&raw_fillet(&doc, solid, segs)).input_fault() {
-            Some(InputFault::SelectionNotCanonical { at }) => Some(at),
-            None => None,
-            other => panic!("{what}: unexpected fault {other:?}"),
-        };
+        let got =
+            match editor_core::test_support::stored(&raw_fillet(&doc, solid, segs)).input_fault() {
+                Some(InputFault::SelectionNotCanonical { at }) => Some(at),
+                None => None,
+                other => panic!("{what}: unexpected fault {other:?}"),
+            };
         assert_eq!(got, *want, "{what}");
     }
 }

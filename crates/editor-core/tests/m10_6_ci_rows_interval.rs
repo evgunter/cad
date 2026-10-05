@@ -261,7 +261,10 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
-            centre: [Formula::neg(hs.clone()).expect("a shallow negation"), len(0.0)],
+            centre: [
+                Formula::neg(hs.clone()).expect("a shallow negation"),
+                len(0.0),
+            ],
             radius: Formula::named(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),
@@ -312,7 +315,8 @@ fn distributed_plate() -> ProfileDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &'static str| MeasureExpr::value(Formula::named(name(n), Dimension::Length));
+    let radius_of =
+        |n: &'static str| MeasureExpr::value(Formula::named(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),

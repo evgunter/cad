@@ -7,8 +7,8 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv, VarName,
-    eval, eval_count,
+    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv,
+    VarName, eval, eval_count,
 };
 use geom_core::Tol;
 
@@ -25,10 +25,10 @@ impl editor_core::ProfilePayload for Fake {
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
     ) -> Result<Self, E> {
-        Ok(authored.clone())
+        Ok(*authored)
     }
     fn authored(&self) -> Self {
-        self.clone()
+        *self
     }
     fn drawn_pieces(
         &self,
@@ -330,7 +330,9 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
         i64::from(i32::MIN) - 1,
     ] {
         let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
-        let outcome = std::panic::catch_unwind(|| eval::<f64>(&editor_core::test_support::stored_expr(&e), &env));
+        let outcome = std::panic::catch_unwind(|| {
+            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env)
+        });
         let r = outcome.expect("must never panic");
         assert_eq!(
             r,
@@ -343,7 +345,10 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
         let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
         #[allow(clippy::cast_precision_loss)] // |n| ≤ 2^31: exact
         let expected = n as f64;
-        assert_eq!(eval::<f64>(&editor_core::test_support::stored_expr(&e), &env).unwrap(), expected);
+        assert_eq!(
+            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env).unwrap(),
+            expected
+        );
     }
 }
 
@@ -785,18 +790,29 @@ fn r6_nonfinite_doors_closed() {
     let env = VarEnv::<f64>::default();
     // Door 2: pole and indeterminate-form conduits refused.
     assert_eq!(
-        eval::<f64>(&editor_core::test_support::stored_expr(&Formula::div(len(1.0), scl(0.0)).unwrap()), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(&Formula::div(len(1.0), scl(0.0)).unwrap()),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "1/0"
     );
     assert_eq!(
-        eval::<f64>(&editor_core::test_support::stored_expr(&Formula::div(len(0.0), scl(0.0)).unwrap()), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(&Formula::div(len(0.0), scl(0.0)).unwrap()),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "0/0"
     );
     // Arithmetic overflow to inf from finite literals: also refused.
     assert_eq!(
-        eval::<f64>(&editor_core::test_support::stored_expr(&Formula::mul(len(f64::MAX), scl(2.0)).unwrap()), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(
+                &Formula::mul(len(f64::MAX), scl(2.0)).unwrap()
+            ),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "overflow"
     );
@@ -860,7 +876,11 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         Formula::atan2(len(1.0), len(2.0)).unwrap(),
         Formula::min(ang(1.0), Formula::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
         Formula::max(len(-0.0), len(0.0)).unwrap(),
-        Formula::mul(Formula::count_to_scalar(Formula::count(21)).unwrap(), len(0.002)).unwrap(),
+        Formula::mul(
+            Formula::count_to_scalar(Formula::count(21)).unwrap(),
+            len(0.002),
+        )
+        .unwrap(),
         Formula::neg(Formula::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
             .expect("a shallow negation"),
     ];

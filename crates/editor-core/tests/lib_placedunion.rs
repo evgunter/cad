@@ -16,9 +16,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
@@ -595,8 +595,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
 #[test]
 fn the_slot_surface_follows_the_rule() {
     let (_, fin) = fin_only();
-    let explicit: AuthoredNode =
-        Node::placed_union_at(fin, vec![Frame::IDENTITY]);
+    let explicit: AuthoredNode = Node::placed_union_at(fin, vec![Frame::IDENTITY]);
     assert!(explicit.slots().is_empty());
     assert!(explicit.expr(SlotId::Count).is_none());
     let stepped: AuthoredNode = Node::placed_union(
@@ -775,8 +774,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         with(stretched).placement_rule_fault(Tol::witness()),
         Some(PlacementRuleFault::NonRigidFrame { index: 0, .. })
     ));
-    let two =
-        <editor_core::AuthoredNode>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
+    let two = <editor_core::AuthoredNode>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -954,8 +952,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
 #[test]
 fn the_typed_insert_answers_to_the_placement_backstops() {
     let (doc, fin) = fin_only();
-    let with =
-        |frames: Vec<Frame>| <editor_core::AuthoredNode>::placed_union_at(fin, frames);
+    let with = |frames: Vec<Frame>| <editor_core::AuthoredNode>::placed_union_at(fin, frames);
     let mut mirror = Frame::IDENTITY;
     mirror.columns[0] = [-1.0, 0.0, 0.0];
     let mut stretched = Frame::translation([10.0, 0.0, 0.0]);

@@ -6,7 +6,7 @@
 use crate::fixture::{len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Datum, Dimension, Doc, DocEdit, EditError, Formula, ExprPath, Node, RecipeNodeId, SlotId,
+    Datum, Dimension, Doc, DocEdit, EditError, ExprPath, Formula, Node, RecipeNodeId, SlotId,
 };
 use geom_core::Tol;
 

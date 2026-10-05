@@ -23,9 +23,9 @@ use std::collections::BTreeSet;
 use crate::docm7_union_declare::block;
 
 use editor_core::{
-    DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc, RecipeNodeId,
-    ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin, inline, load,
-    product_named, save, split,
+    DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,
+    RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin,
+    inline, load, product_named, save, split,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
@@ -1728,7 +1728,11 @@ fn reshaped_component(
         doc,
         DocEdit::SetProgram {
             node: p2,
-            loops: program.loops.iter().map(editor_core::LoopProgram::authored).collect(),
+            loops: program
+                .loops
+                .iter()
+                .map(editor_core::LoopProgram::authored)
+                .collect(),
             ids,
         },
     );

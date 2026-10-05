@@ -27,9 +27,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
 use crate::wire;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
@@ -38,7 +38,7 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, EvalOptions, Evaluation, Formula, FaceName, FacePoseRefusal, FaceRefusal, Frame,
+    EntityKind, EvalOptions, Evaluation, FaceName, FacePoseRefusal, FaceRefusal, Formula, Frame,
     LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind, PartFault,
     PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RefusingReach,
     RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,

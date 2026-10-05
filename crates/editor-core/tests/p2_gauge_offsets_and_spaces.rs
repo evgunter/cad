@@ -16,9 +16,9 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
-    Node, NodeErrorKind, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace, SlotId,
-    StableName, Step, ValuePayload, VarName, evaluate, root_of,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame,
+    MatePrimitive, Node, NodeErrorKind, PatternKind, Placement, ProfileDoc, RecipeNodeId,
+    SitedFace, SlotId, StableName, Step, ValuePayload, VarName, evaluate, root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -292,7 +292,11 @@ fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement<Formula>>) -> ProfileDoc {
+fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement<Formula>>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
@@ -333,7 +337,11 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Formula::named(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.25),
             },
@@ -1101,7 +1109,11 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), Formula::named(lift(), Dimension::Length), len(0.0)],
+                translation: [
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                    len(0.0),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },
@@ -1180,7 +1192,11 @@ fn the_memo_moves_instances_when_their_gauge_or_their_root_moves() {
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Formula::named(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },

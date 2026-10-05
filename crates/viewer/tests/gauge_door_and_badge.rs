@@ -5,8 +5,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::document::Formula;
 use crate::common;
+use pncad::document::Formula;
 
 use common::asm;
 use pncad::document::Node;

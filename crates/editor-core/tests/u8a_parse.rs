@@ -20,8 +20,8 @@ test_utils::gated_to![
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DimensionError, Formula, ParseError, VarEnv, VarName, eval, eval_count, parse_formula,
-    unparse,
+    Dimension, DimensionError, Formula, ParseError, VarEnv, VarName, eval, eval_count,
+    parse_formula, unparse,
 };
 use proptest::prelude::*;
 use test_utils::fuzz;
@@ -45,7 +45,11 @@ fn bits(e: &Formula) -> Vec<u64> {
 }
 
 fn ev(e: &Formula) -> f64 {
-    eval::<f64>(&editor_core::test_support::stored_expr(e), &VarEnv::default()).expect("finite eval")
+    eval::<f64>(
+        &editor_core::test_support::stored_expr(e),
+        &VarEnv::default(),
+    )
+    .expect("finite eval")
 }
 
 #[test]
@@ -94,7 +98,13 @@ fn unit_suffixed_literals_land_in_canonical_units() {
 fn bare_integers_are_counts_and_bare_reals_are_scalars() {
     let five = p("5");
     assert_eq!(five.dim(), Dimension::Count);
-    assert_eq!(eval_count(&editor_core::test_support::stored_expr(&five), &VarEnv::<f64>::default()), Ok(5));
+    assert_eq!(
+        eval_count(
+            &editor_core::test_support::stored_expr(&five),
+            &VarEnv::<f64>::default()
+        ),
+        Ok(5)
+    );
     for src in ["5.0", "5.", "1e3", "2.5e-3", "0.5"] {
         assert_eq!(p(src).dim(), Dimension::Scalar, "{src}");
     }
@@ -799,7 +809,9 @@ fn random_atom(rng: &mut fuzz::Rng, dim: Dimension, leaf_only: bool) -> Formula 
     let pick = if leaf_only { 0 } else { rng.below(4) };
     match (dim, pick) {
         (_, 1) => Formula::neg(random_leaf(rng, dim)).expect("shallow"),
-        (Dimension::Scalar, 2) => Formula::sin(random_leaf(rng, Dimension::Angle)).expect("an angle"),
+        (Dimension::Scalar, 2) => {
+            Formula::sin(random_leaf(rng, Dimension::Angle)).expect("an angle")
+        }
         (Dimension::Scalar, 3) => {
             Formula::count_to_scalar(random_leaf(rng, Dimension::Count)).expect("a count")
         }

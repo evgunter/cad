@@ -617,10 +617,14 @@ fn r1_another_documents_verdict_certifies_this_one() {
 /// clause is about.
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr<Formula>| {
-        MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
-            .expect("Scalar lattice max")
-    });
+    let (doc, m) = scalar_measure(
+        0.0,
+        uniform(eps() / 16.0),
+        |a: &dyn Fn() -> MeasureExpr<Formula>| {
+            MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
+                .expect("Scalar lattice max")
+        },
+    );
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
@@ -644,9 +648,11 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
 #[test]
 fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     // m = a / a at a = 0 → 0/0 in the VALUE channel as well.
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr<Formula>| {
-        MeasureExpr::div(a(), a()).expect("Scalar / Scalar")
-    });
+    let (doc, m) = scalar_measure(
+        0.0,
+        uniform(eps() / 16.0),
+        |a: &dyn Fn() -> MeasureExpr<Formula>| MeasureExpr::div(a(), a()).expect("Scalar / Scalar"),
+    );
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     println!(

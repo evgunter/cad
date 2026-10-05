@@ -928,8 +928,10 @@ mod tests {
         let mm = quantity::unit_by_symbol("mm").unwrap();
         let cm = quantity::unit_by_symbol("cm").unwrap();
         let stored = |unit| {
-            Expr::try_from(crate::Formula::literal_with_unit(0.125, Dimension::Length, unit).unwrap())
-                .unwrap()
+            Expr::try_from(
+                crate::Formula::literal_with_unit(0.125, Dimension::Length, unit).unwrap(),
+            )
+            .unwrap()
         };
         let (a, b) = (stored(mm), stored(cm));
         assert!(a.bit_eq(&b));

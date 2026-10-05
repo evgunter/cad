@@ -35,14 +35,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
+    BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
 };
 use fixture::{len, prism_edges};
 use geom_core::Tol;

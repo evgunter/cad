@@ -428,11 +428,7 @@ fn pattern_op(
 /// slot it lands in is the edit door's question
 /// (`EditError::SlotDimensionMismatch`), asked of authored and
 /// hand-written documents alike.
-pub fn pattern_node(
-    input: RecipeNodeId,
-    count: i64,
-    rule: PatternRuleSpec,
-) -> AuthoredNode {
+pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::Pattern {
         input,
         count: Formula::count(count),
@@ -455,11 +451,7 @@ pub fn pattern_node(
 /// edit door's question. Whether the placements are DISJOINT is not
 /// asked here either — that certificate is evaluation's, reported on
 /// the node's own badge.
-pub fn placed_union_node(
-    input: RecipeNodeId,
-    count: i64,
-    rule: PatternRuleSpec,
-) -> AuthoredNode {
+pub fn placed_union_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::PlacedUnion {
         input,
         count: Some(Formula::count(count)),

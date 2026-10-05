@@ -9,15 +9,15 @@
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Expr;
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::Expr;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Formula, ExprPath, Frame,
-    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula,
+    Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
     NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
     SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
@@ -395,7 +395,8 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
 
     // (incoming spec, arrival spec, incoming role, arrival role, the
     // arrival argument's authored value, a replacement for it).
-    let rows: Vec<(ProgramArcData<Formula>, ProgramArcData<Formula>, StepArg, StepArg, f64, Formula)> = vec![
+    type Arc = ProgramArcData<Formula>;
+    let rows: Vec<(Arc, Arc, StepArg, StepArg, f64, Formula)> = vec![
         (
             sweep(0.25),
             sweep(0.6),

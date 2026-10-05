@@ -22,7 +22,7 @@ use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
-    EvalError, EvalOptions, Evaluation, Formula, ExtrudeSide, FreeValue, FreeVar, Maintenance,
+    EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, Maintenance,
     MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
     inline, load, save, split, var_env_over,
@@ -733,7 +733,13 @@ fn split_and_inline_carry_definitions() {
     let (part_w, part_h) = (id(&out.part, "w"), id(&out.part, "h"));
     assert_eq!(
         out.part.var(part_h).and_then(|v| v.def().defined()),
-        Some(&editor_core::Expr::mul(editor_core::test_support::stored_expr(&scalar(2.0)), editor_core::Expr::var(part_w, Dimension::Length)).unwrap()),
+        Some(
+            &editor_core::Expr::mul(
+                editor_core::test_support::stored_expr(&scalar(2.0)),
+                editor_core::Expr::var(part_w, Dimension::Length)
+            )
+            .unwrap()
+        ),
         "h reads the part's w"
     );
     let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
@@ -753,7 +759,13 @@ fn split_and_inline_carry_definitions() {
     let (host_w, host_h) = (id(&inlined.doc, "w"), id(&inlined.doc, "h"));
     assert_eq!(
         inlined.doc.var(host_h).and_then(|v| v.def().defined()),
-        Some(&editor_core::Expr::mul(editor_core::test_support::stored_expr(&scalar(2.0)), editor_core::Expr::var(host_w, Dimension::Length)).unwrap())
+        Some(
+            &editor_core::Expr::mul(
+                editor_core::test_support::stored_expr(&scalar(2.0)),
+                editor_core::Expr::var(host_w, Dimension::Length)
+            )
+            .unwrap()
+        )
     );
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }

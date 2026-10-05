@@ -33,15 +33,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
 
 use corpus::{body_of, cup, eval, failures, vessel};
 use editor_core::{
     CancelToken, DocEdit, EntityKind, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult,
-    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, apply,
-    evaluate, load, save,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, apply, evaluate, load,
+    save,
 };
 use geom_core::{Dual64, Tol};
 use topo::ShellError;
@@ -371,9 +371,7 @@ fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
 }
 
 /// A cup document whose shell node is replaced by `shell`.
-fn cup_with(
-    shell: impl FnOnce(RecipeNodeId) -> AuthoredNode,
-) -> (ProfileDoc, RecipeNodeId) {
+fn cup_with(shell: impl FnOnce(RecipeNodeId) -> AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     fixture::insert(d.doc, shell(blank))

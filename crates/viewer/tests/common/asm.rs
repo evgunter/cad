@@ -16,8 +16,8 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
-use pncad::document::Formula;
 use pncad::document::ExtrudeSide;
+use pncad::document::Formula;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 

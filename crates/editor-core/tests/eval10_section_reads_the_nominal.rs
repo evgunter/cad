@@ -24,8 +24,8 @@ use crate::fixture::digest::digest;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, VarName,
+    Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, VarName,
 };
 use geom_core::Tol;
 

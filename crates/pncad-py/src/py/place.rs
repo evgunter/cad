@@ -464,7 +464,11 @@ impl PatternKind {
     /// naming the direction negated) and a zero one too
     /// (`degenerate_spacing`), wherever a second copy reads it.
     #[staticmethod]
-    fn linear(py: Python<'_>, direction: (Formula, Formula, Formula), spacing: &Formula) -> PyResult<Self> {
+    fn linear(
+        py: Python<'_>,
+        direction: (Formula, Formula, Formula),
+        spacing: &Formula,
+    ) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
             direction: super::doc::direction_expr(py, d::VectorSlot::Direction, &direction)?,
             spacing: super::doc::slot_expr(py, d::SlotId::Spacing, spacing)?,

@@ -41,13 +41,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionDir, Datum, DocEdit, EvalOptions, Formula, Node, NodeErrorKind, PartSelect, PatternKind,
-    ProfileDoc, RecipeNodeId, SplitHalf, TubeWindow,
+    AssertionDir, Datum, DocEdit, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, SplitHalf, TubeWindow,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;

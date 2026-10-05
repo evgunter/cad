@@ -13,8 +13,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::AuthoredNode;
 use crate::common;
+use pncad::document::AuthoredNode;
 
 use common::{frame, inserted, len3, scl3, square, xy_frame};
 use pncad::document::{

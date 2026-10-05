@@ -25,8 +25,8 @@
 //! (`work/props/coincidence-zone-priced-budget-at-the-floor`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Expr;
 use crate::fixture;
+use editor_core::Expr;
 use editor_core::ExtrudeSide;
 
 use std::collections::{BTreeMap, BTreeSet};

@@ -13,10 +13,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
-use editor_core::AuthoredNode;
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use std::sync::Arc;
 
@@ -201,7 +201,11 @@ fn clocked(
     }
 }
 
-fn coincidence(fa: MateFrame<Formula>, fb: MateFrame<Formula>, clocking: f64) -> Alignment<Formula> {
+fn coincidence(
+    fa: MateFrame<Formula>,
+    fb: MateFrame<Formula>,
+    clocking: f64,
+) -> Alignment<Formula> {
     Alignment {
         a: fa,
         b: fb,
@@ -224,11 +228,7 @@ fn at_the_store(
 }
 
 /// [`at_the_store`] for a mate the door admits.
-fn mated(
-    doc: ProfileDoc,
-    opts: &EvalOptions,
-    node: AuthoredNode,
-) -> (ProfileDoc, RecipeNodeId) {
+fn mated(doc: ProfileDoc, opts: &EvalOptions, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     at_the_store(&doc, opts, node).unwrap_or_else(|(_, fault)| panic!("the door admits: {fault}"))
 }
 

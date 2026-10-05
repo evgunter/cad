@@ -26,11 +26,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
-use editor_core::AuthoredNode;
 use crate::fixture;
 use crate::wire;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
@@ -125,10 +125,7 @@ fn mate_across(
 }
 
 /// `node` with its `b` head replaced.
-fn with_b(
-    mut node: AuthoredNode,
-    head: editor_core::SitedFace,
-) -> AuthoredNode {
+fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { b, .. } = &mut node {
         *b = head;
     }
@@ -136,10 +133,7 @@ fn with_b(
 }
 
 /// `node` with its `a` head replaced.
-fn with_a(
-    mut node: AuthoredNode,
-    head: editor_core::SitedFace,
-) -> AuthoredNode {
+fn with_a(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { a, .. } = &mut node {
         *a = head;
     }
@@ -147,10 +141,7 @@ fn with_a(
 }
 
 /// `node` with its class replaced.
-fn with_class(
-    mut node: AuthoredNode,
-    class: ContactClass,
-) -> AuthoredNode {
+fn with_class(mut node: AuthoredNode, class: ContactClass) -> AuthoredNode {
     if let Node::Mate { class: c, .. } = &mut node {
         *c = class;
     }

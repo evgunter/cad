@@ -24,7 +24,7 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalError, EvalOptions,
-    Evaluation, Formula, ExtrudeSide, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
+    Evaluation, ExtrudeSide, Formula, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
     NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
     VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
 };
@@ -404,7 +404,11 @@ fn the_door_lowers_names_before_it_mints() {
         panic!("a fillet");
     };
     let by_name = Node::fillet(target, named("w"), selection.clone());
-    let by_id = Node::fillet(target, Formula::var(w, Dimension::Length), selection.clone());
+    let by_id = Node::fillet(
+        target,
+        Formula::var(w, Dimension::Length),
+        selection.clone(),
+    );
     let a = step(
         &doc,
         DocEdit::InsertNode {

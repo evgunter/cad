@@ -39,8 +39,8 @@ use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
-use crate::formula::Formula;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, UnitSym, VarEnv, eval};
+use crate::formula::Formula;
 use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
 use crate::var::VarId;
 use geom_core::Tol;
@@ -1339,9 +1339,8 @@ impl LoopProgram {
     /// it read ([`crate::Formula::from`]).
     #[must_use]
     pub fn authored(&self) -> LoopProgram<crate::Formula> {
-        let Ok(authored) = self.try_map_slots(&mut |e| {
-            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
-        });
+        let Ok(authored) = self
+            .try_map_slots(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
         authored
     }
 }

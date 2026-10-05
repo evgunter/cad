@@ -177,7 +177,11 @@ fn program(session: &DocSession, node: RecipeNodeId) -> &ProfileProgram {
 
 /// The op the editor's Apply sends for `loops` over `node`'s committed
 /// program, every step kept where it is.
-fn edit_of(session: &DocSession, node: RecipeNodeId, loops: Vec<LoopProgram<Formula>>) -> SessionOp {
+fn edit_of(
+    session: &DocSession,
+    node: RecipeNodeId,
+    loops: Vec<LoopProgram<Formula>>,
+) -> SessionOp {
     let base = program(session, node).clone();
     SessionOp::EditProfile {
         node,

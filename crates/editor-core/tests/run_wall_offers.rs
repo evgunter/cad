@@ -9,8 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     DocEdit, EntityKind, LoopProgram, Node, PieceRun, ProfileDoc, ProfileEdgeRef, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, StepId,
@@ -24,7 +24,10 @@ fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
 
-fn build(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn build(
+    steps: Vec<ProgramStep<Formula>>,
+    side: ExtrudeSide,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("run_wall_offers", Tol::witness());
     let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, p) = insert(
