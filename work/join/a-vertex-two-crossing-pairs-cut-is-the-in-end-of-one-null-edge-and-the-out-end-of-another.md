@@ -80,7 +80,8 @@ directions × 6 turns, every op, both orders), in release:
   every plan at a shared vertex paired from the side In the other
   operand (where both pinch cones' arcs are disjoint):
   - 45 of the 217 go SOUND (13 + 19 notch-first, 13 pinch-first U);
-  - the rest go to `JoinDesync` or `PinchUncrossed`;
+  - 133 go to `JoinDesync` and 20 to `PinchUncrossed`;
+  - the 19 pinch-first I lines are unchanged (that op already pairs In);
   - 414 lines that build SOUND today (with no run turned) go to
     `JoinDesync`, `PinchUncrossed` or `ClassificationInvariant`.
 
