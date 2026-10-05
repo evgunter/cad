@@ -1,6 +1,6 @@
 //! **The circle root cores**: the two root finders every circle × surface
-//! door hands its residual to. A door ([`super::circle_sphere`],
-//! [`super::circle_cylinder`], [`super::circle_torus`]) computes the
+//! door hands its residual to. A door ([`super::conic_quadric`],
+//! [`super::circle_torus`], [`super::ellipse_torus`]) computes the
 //! residual's harmonics from the geometry, names its rows and its
 //! decision, and answers [`CircleRoots`]; the root finding lives here
 //! once. Every door has one shape: `(carrier, t0, t1, surface, band)`,
@@ -93,8 +93,8 @@
 //! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
 //! noise bounds read every harmonic up to `N`. An ellipse against a
 //! torus's implicit is of degree four, an octic in the half-angle with no
-//! ladder, and the ellipse door hands it to the subdivision alone
-//! ([`super::ellipse_roots`]) with a root-slack meter ([`RootSlack`]).
+//! ladder, and the ellipse × torus door hands it to the subdivision alone
+//! ([`super::ellipse_torus`]) with a root-slack meter ([`RootSlack`]).
 //!
 //! **The ladder runs first, for its escalations only.** Under the
 //! tangent half-angle `t = tan(φ/2)`, `F·(1 + t²)²` is a quartic in `t`,
@@ -323,9 +323,9 @@ pub(super) struct HalfAngleFrame<T> {
 /// The rounding charged against a term bound `terms`
 /// ([`geom_brep::rounding_charge`], [`geom_brep::HARMONIC_NOISE_ULPS`]
 /// half-ulps of it) — the meters' one spelling of the charge. The
-/// circle × cylinder square arm charges its first harmonic the same
-/// count; the circle × sphere door charges its extremes their own
-/// running bounds instead (`geom_brep::CircleSphereHarmonic`).
+/// conic × quadric door's first-harmonic arm charges its first harmonic
+/// the same count, except on a circle against a sphere, whose extremes
+/// carry their own running bounds (`geom_brep::CircleSphereHarmonic`).
 pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
     geom_brep::rounding_charge(terms)
 }
@@ -972,10 +972,10 @@ mod subdivision_guard_rows {
     use super::*;
 
     const ROWS: SubdivisionRows = SubdivisionRows {
-        clear: "bool_ellipse_sub_clear",
-        monotone: "bool_ellipse_sub_monotone",
-        side: "bool_ellipse_sub_side",
-        width: "bool_ellipse_sub_width",
+        clear: "bool_conic_quadric_sub_clear",
+        monotone: "bool_conic_quadric_sub_monotone",
+        side: "bool_conic_quadric_sub_side",
+        width: "bool_conic_quadric_sub_width",
     };
 
     fn walk(

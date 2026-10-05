@@ -17,9 +17,9 @@ in the lane that gave the ellipse × torus cell its root lane
 ## Measured (by reading, not on a shape)
 
 `reduce::wall_crossing` (`crates/topo/src/boolean/reduce.rs`) routes a
-`Line` to `line_wall_roots_of`, a `Circle` to the sphere, cylinder and
-torus doors, and an `Ellipse` to `ellipse_roots` on the same three
-kinds. Every other cell answers `SpanVerdict::Unsettled`, so an edge
+`Line` to `line_wall_roots_of`, a `Circle` or an `Ellipse` to the
+conic × quadric door against a sphere or a cylinder, and to the circle
+× torus or ellipse × torus door against a torus. Every other cell answers `SpanVerdict::Unsettled`, so an edge
 whose arc enclosure cannot clear a CONE face refuses
 `CurvedPierceUnsupported` at the curved pierce arm, crossing or not.
 After this lane the cone column is the whole of the table's remainder
