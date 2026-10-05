@@ -5,7 +5,6 @@ title: Refusals forwarding the corpus's longest names overrun the 75-word budget
 status: open
 priority: P2
 cost: M
-needs_ev: true
 opened: 2026-10-03
 ---
 
@@ -50,4 +49,8 @@ With all four every row is within 75 at the p90 name; a tie between two of the c
 
 Found beside it: Python drops a flush pair's second face (`pncad-py/src/py/select.rs`); `pane/properties.rs` `standing_verdict` speaks `ResolveError` without `.within` and repeats the subject; the `*Resolve` node errors name no slot; `CrossingUnverified` says its part's name by tag outside the speaker; a forwarded `StableName` carries no holding node (`PairInBand`, `Vanished`), so "X and X" for two copies cannot be fixed by words alone.
 
-Weighed by two designers over two reconciliation rounds (fork-log row 67).
+Weighed by two designers over two reconciliation rounds (fork-log row 69).
+
+## Ruled (Ev, PR 4069, 2026-10-05)
+
+As the section above says ("sounds good!"). PR 3886 builds it in its last fix pass, with the third review's findings.
