@@ -44,8 +44,9 @@ use super::shell_witness::{
 use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
+use crate::live::{linked, proven};
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
@@ -707,6 +708,14 @@ fn descendants<'r>(
 /// them: a chord when the outer loop holds both, a hole when one ring
 /// does, else across their two loops, into the face's outer loop when
 /// it is one of them. `None` when no such face holds both.
+///
+/// # Panics
+///
+/// Where `u`, which both callers resolved just before, or a record
+/// past it does not resolve, or a walk does not close (D2 row 4): its
+/// orbit, each face and loop on it, and each member's start. `body` is
+/// an operand mid-operation (carved, partly welded), whose links hold
+/// by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(super) fn pinch_site<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
@@ -714,20 +723,19 @@ pub(super) fn pinch_site<T: Decide>(
     allowed: impl Fn(FaceKey) -> bool,
 ) -> Result<Option<(FaceKey, Joint)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let faces = body
-        .faces_of_vertex(u)
-        .ok_or_else(|| desync("a pierce vertex no longer resolves"))?;
     let mut site = None;
-    for face in faces.into_iter().filter(|&f| allowed(f)) {
-        let f = body
-            .get_face(face)
-            .ok_or_else(|| desync("a pierce vertex's face no longer resolves"))?;
+    for face in body
+        .faces_of_vertex_linked(u)
+        .into_iter()
+        .filter(|&f| allowed(f))
+    {
+        let f = proven(&body.faces, face, EntityId::Face);
         let mut hus = Vec::new();
         let mut hws = Vec::new();
-        for &l in core::iter::once(&f.outer).chain(&f.rings) {
-            let first = match body
-                .get_loop(l)
-                .ok_or_else(|| desync("a face's loop no longer resolves"))?
+        for (l, field) in
+            core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&r| (r, "rings")))
+        {
+            let first = match linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), field)
                 .boundary
             {
                 LoopBoundary::Cycle { first } => first,
@@ -736,14 +744,12 @@ pub(super) fn pinch_site<T: Decide>(
                 }
                 LoopBoundary::Empty { .. } => continue,
             };
-            for he in body
-                .loop_cycle(first)
-                .ok_or_else(|| desync("a face's loop is not walkable"))?
-            {
-                match body.get_half_edge(he).map(|h| h.start) {
-                    Some(v) if v == u => hus.push((l, he)),
-                    Some(v) if v == w => hws.push((l, he)),
-                    _ => {}
+            for he in body.loop_walk(first).closed("loop", first) {
+                let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                if v == u {
+                    hus.push((l, he));
+                } else if v == w {
+                    hws.push((l, he));
                 }
             }
         }
@@ -778,6 +784,35 @@ pub(super) fn pinch_site<T: Decide>(
 fn one_kept(kept: &[(VertexKey, VertexKey)]) -> Option<VertexKey> {
     let keys: BTreeSet<VertexKey> = kept.iter().map(|&(_, r)| r).collect();
     keys.first().copied().filter(|_| keys.len() == 1)
+}
+
+/// The members of every cycle bounding `face`, a section face the
+/// discard carries as a key: its miss is
+/// [`BooleanError::JoinDesync`], typed.
+///
+/// # Panics
+///
+/// Where a record past `face` does not resolve or a loop walk does not
+/// close (D2 row 4). `body` is an operand mid-operation, whose links
+/// hold by [`crate::live::OPERATORS_KEEP_LINKS`].
+fn section_boundary<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<HalfEdgeKey>, BooleanError> {
+    let f = body.get_face(face).ok_or(BooleanError::JoinDesync {
+        what: "a section face no longer resolves",
+    })?;
+    let mut members = Vec::new();
+    for (l, field) in
+        core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&r| (r, "rings")))
+    {
+        if let LoopBoundary::Cycle { first } =
+            linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), field).boundary
+        {
+            members.extend(body.loop_walk(first).closed("loop", first));
+        }
+    }
+    Ok(members)
 }
 
 /// The discarded faces of one operand solid (`boolean::discard`): every
@@ -815,49 +850,21 @@ fn discarded<T: Decide>(
     };
     let copy = super::NullCopies::of_operand(&red.null_edges, operand);
     let on_face = |face: FaceKey| -> Result<BTreeSet<VertexKey>, BooleanError> {
-        let f = body
-            .get_face(face)
-            .ok_or_else(|| desync("a section face no longer resolves"))?;
-        let mut on = BTreeSet::new();
-        for &l in core::iter::once(&f.outer).chain(&f.rings) {
-            if let LoopBoundary::Cycle { first } = body
-                .get_loop(l)
-                .ok_or_else(|| desync("a face's loop no longer resolves"))?
-                .boundary
-            {
-                for he in body
-                    .loop_cycle(first)
-                    .ok_or_else(|| desync("a face's loop is not walkable"))?
-                {
-                    on.extend(body.get_half_edge(he).map(|h| h.start));
-                }
-            }
-        }
-        Ok(on)
+        Ok(section_boundary(body, face)?
+            .into_iter()
+            .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
+            .collect())
     };
     let edges_of = |face: FaceKey| -> Result<BTreeSet<(VertexKey, VertexKey)>, BooleanError> {
-        let f = body
-            .get_face(face)
-            .ok_or_else(|| desync("a section face no longer resolves"))?;
-        let mut edges = BTreeSet::new();
-        for &l in core::iter::once(&f.outer).chain(&f.rings) {
-            if let LoopBoundary::Cycle { first } = body
-                .get_loop(l)
-                .ok_or_else(|| desync("a face's loop no longer resolves"))?
-                .boundary
-            {
-                for he in body
-                    .loop_cycle(first)
-                    .ok_or_else(|| desync("a face's loop is not walkable"))?
-                {
-                    let start = body.get_half_edge(he).map(|h| h.start);
-                    if let (Some(a), Some(b)) = (start, body.half_edge_end(he)) {
-                        edges.insert((a, b));
-                    }
-                }
-            }
-        }
-        Ok(edges)
+        Ok(section_boundary(body, face)?
+            .into_iter()
+            .map(|he| {
+                (
+                    proven(&body.half_edges, he, EntityId::HalfEdge).start,
+                    body.proven_half_edge_end(he),
+                )
+            })
+            .collect())
     };
     let twin_of = |across: FaceKey| {
         in_out
@@ -949,4 +956,38 @@ fn discarded<T: Decide>(
         }
     }
     Ok(out)
+}
+
+/// **`section_boundary`: a stale section face refuses typed; a broken
+/// walk past one that resolves panics**, where it refused `JoinDesync`
+/// ("not walkable").
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn a_stale_section_face_refuses_and_a_broken_walk_panics() {
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let members = section_boundary(&body, face).unwrap();
+        assert_eq!(members.len(), 4, "a cube face's four sides");
+        let mut stale = body.clone();
+        stale.faces.remove(face);
+        assert!(
+            matches!(
+                section_boundary(&stale, face),
+                Err(BooleanError::JoinDesync { .. })
+            ),
+            "a section face that does not resolve refuses typed"
+        );
+        body.half_edges.remove(members[1]);
+        assert_torn_op_panics(
+            "section_boundary",
+            &mut body,
+            &["the loop walk from", ROW_FOUR],
+            |b| section_boundary(b, face).map(|m| m.len()),
+        );
+    }
 }

@@ -772,7 +772,9 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // parameters, witness, and surface values ⇒ deterministic — D9);
     // a refusal here is loud, never a dangling reference. ----
     for (k, &dk) in curves.iter() {
-        let Some(CurveGeom::Certified(curve)) = src.curves.get(k) else {
+        // `curves` holds exactly the source arena's keys.
+        let CurveGeom::Certified(curve) = crate::live::proven(&src.curves, k, GeomRef::Curve)
+        else {
             continue;
         };
         let Bridge::Recertify { tol } = bridge else {

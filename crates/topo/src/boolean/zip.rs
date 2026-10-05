@@ -44,9 +44,10 @@ use geom_core::Decide;
 
 use super::BooleanError;
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
+use crate::live::{linked, proven};
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 
@@ -315,6 +316,16 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
 /// `Joint::Hole`) both leave two holes meeting at the point, one shape
 /// at rest. Across an outer loop `pinch_site` divides the face, a step
 /// this split does not take, so the two agree wherever both act.
+///
+/// `v` is a key the zip carries: its miss refuses
+/// [`BooleanError::ZipCorrespondence`].
+///
+/// # Panics
+///
+/// Where a record past `v` does not resolve or its orbit does not close
+/// (D2 row 4): the orbit, each member's loop and face, and `v`'s point.
+/// The body is mid-zip, whose links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 fn split_across<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     v: VertexKey,
@@ -324,9 +335,10 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Option<Split>, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
-    let orbit = body
-        .vertex_orbit_of(v)
-        .ok_or_else(|| corr("a pinch vertex's orbit does not close"))?;
+    if body.get_vertex(v).is_none() {
+        return Err(corr("a pinch vertex no longer resolves"));
+    }
+    let orbit = body.vertex_orbit_linked(v);
     let at = |he: HalfEdgeKey| orbit.iter().position(|&h| h == he);
     let (Some(k), Some(ms)) = (
         at(keep),
@@ -340,25 +352,29 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     let n = orbit.len();
     // Whether position `x` lies in the run `[i, j)`, cyclically.
     let within = |x: usize, i: usize, j: usize| (x + n - i) % n < (j + n - i) % n;
-    let loop_of = |he: HalfEdgeKey| -> Result<LoopKey, BooleanError> {
-        Ok(body
-            .get_half_edge(he)
-            .ok_or_else(|| corr("a pinch half-edge no longer resolves"))?
-            .parent_loop)
+    // Nothing writes the body until the search has chosen its site, so
+    // every record past the orbit is a link of one this call resolved.
+    let face_of = |he: HalfEdgeKey| -> (LoopKey, FaceKey) {
+        let l = proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
+        let face = linked(
+            &body.loops,
+            l,
+            EntityId::Loop,
+            EntityId::HalfEdge(he),
+            "parent_loop",
+        )
+        .face;
+        (l, face)
     };
-    let face_of = |he: HalfEdgeKey| -> Result<(LoopKey, FaceKey), BooleanError> {
-        let l = loop_of(he)?;
-        let face = body
-            .get_loop(l)
-            .ok_or_else(|| corr("a pinch loop no longer resolves"))?
-            .face;
-        Ok((l, face))
+    let face_data = |f: FaceKey| proven(&body.faces, f, EntityId::Face);
+    let chart_of = |f: FaceKey| {
+        let d = face_data(f);
+        (d.surface, d.sense)
     };
-    let chart_of = |f: FaceKey| body.get_face(f).map(|d| (d.surface, d.sense));
-    let ringless = |f: FaceKey| body.get_face(f).is_some_and(|d| d.rings.is_empty());
+    let ringless = |f: FaceKey| face_data(f).rings.is_empty();
     let mut site = None;
     'search: for i in 0..n {
-        let (l, face) = face_of(orbit[i])?;
+        let (l, face) = face_of(orbit[i]);
         if sections.contains(&face) {
             continue;
         }
@@ -366,14 +382,13 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
             if within(k, i, j) || !ms.iter().all(|&m| within(m, i, j)) {
                 continue;
             }
-            let (lj, fj) = face_of(orbit[j])?;
-            let outer = |f: FaceKey, l: LoopKey| body.get_face(f).is_some_and(|d| d.outer == l);
+            let (lj, fj) = face_of(orbit[j]);
+            let outer = |f: FaceKey, l: LoopKey| face_data(f).outer == l;
             let crossing = if lj == l && !outer(face, l) {
                 Some(Crossing::OneLoop)
             } else if fj != face
                 && !sections.contains(&fj)
                 && (ringless(face) || ringless(fj))
-                && chart_of(fj).is_some()
                 && chart_of(fj) == chart_of(face)
             {
                 // `kef` kills only a ringless face, so the one that dies
@@ -405,8 +420,7 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     let Some((he1, he2, crossing)) = site else {
         return Ok(None);
     };
-    let p =
-        crate::readback::vertex_point(body, v).map_err(|_| corr("a pinch vertex has no point"))?;
+    let p = body.resolve_vertex_point(v, crate::live::Proven);
     let made = body.mev(
         MevSite::Fan { he1, he2 },
         p,
@@ -600,4 +614,49 @@ fn start_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<VertexKey, Boo
             what: "seam half-edge no longer resolves",
         })?
         .start)
+}
+
+/// **`split_across`: a stale pinch vertex refuses typed; a torn loop
+/// past its orbit panics**, where it refused `ZipCorrespondence`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn a_stale_vertex_refuses_and_a_torn_loop_panics() {
+        let tol = Tol::witness();
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let v = body.vertices().next().map(|(k, _)| k).unwrap();
+        let orbit = body.vertex_orbit_linked(v);
+        let (keep, moving) = (orbit[0], vec![orbit[1]]);
+        let none = BTreeSet::new();
+        assert!(
+            split_across(&mut body.clone(), v, keep, &moving, &none, tol).is_ok(),
+            "the sound corner answers"
+        );
+        let mut stale = body.clone();
+        stale.vertices.remove(v);
+        assert!(
+            matches!(
+                split_across(&mut stale, v, keep, &moving, &none, tol),
+                Err(BooleanError::ZipCorrespondence { .. })
+            ),
+            "a pinch vertex that does not resolve refuses typed"
+        );
+        let lost = body.get_half_edge(keep).unwrap().parent_loop;
+        body.loops.remove(lost);
+        let named = format!(
+            "'s parent_loop names {}",
+            crate::entity::EntityId::Loop(lost)
+        );
+        assert_torn_op_panics(
+            "split_across",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| split_across(b, v, keep, &moving, &none, tol).map(|s| s.is_some()),
+        );
+    }
 }

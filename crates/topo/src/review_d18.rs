@@ -3406,10 +3406,11 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 17] = [
+const READ_DOORS: [&str; 18] = [
     "face_carrier",
     "carrier_pair_relation",
     "carrier_pair_verdict",
+    "flush_pair_relation",
     "mint_pcurves",
     "mint_pcurves_of",
     "face_pose",
@@ -3431,12 +3432,13 @@ const READ_DOORS: [&str; 17] = [
 /// and neighborhood doors, whose walks a torn loop or orbit reaches,
 /// and the carrier doors, which a dropped surface reaches.
 #[cfg(not(debug_assertions))]
-const PREMISE_DOORS: [&str; 5] = [
+const PREMISE_DOORS: [&str; 6] = [
     "split_reduce",
     "contfp",
     "classify_neighborhood",
     "face_carrier",
     "carrier_pair_verdict",
+    "flush_pair_relation",
 ];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
@@ -3586,6 +3588,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     for (face, data) in body.faces() {
         use crate::boolean::{
             PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+            flush_pair_relation,
         };
         let outside = || match body.get_surface(data.surface) {
             Some(_) => Ok(false),
@@ -3613,6 +3616,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         });
         judge_read(capture, &mut census, "carrier_pair_verdict", || {
             pair(carrier_pair_verdict(body, face, &sound, sound_face, false, band).err())
+        });
+        judge_read(capture, &mut census, "flush_pair_relation", || {
+            pair(flush_pair_relation(body, face, &sound, sound_face, false, band).err())
         });
     }
     // The mints write their body, so each runs on a clone, and a

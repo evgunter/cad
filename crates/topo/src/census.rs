@@ -2647,6 +2647,11 @@ pub(crate) fn face_reach_in<T: Decide>(
 /// [`crate::boolean::boxes::face_window_steps`] and
 /// [`crate::boolean::boxes::torus_chart_window`], which is where the
 /// two guards and every fail mode live.
+///
+/// # Panics
+///
+/// As [`crate::boolean::boxes::face_window_steps`]: `f` is a face
+/// [`face_reach_in`] resolved, and a torn hop past it is a kernel bug.
 pub(crate) fn torus_chart_window<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
@@ -2654,7 +2659,7 @@ pub(crate) fn torus_chart_window<T: Decide>(
     minor: T,
 ) -> Option<crate::boolean::boxes::TorusWindowPair<T>> {
     crate::boolean::boxes::torus_chart_window(
-        &crate::boolean::boxes::face_window_steps(body, f)?,
+        &crate::boolean::boxes::face_window_steps(body, f),
         major,
         minor,
     )

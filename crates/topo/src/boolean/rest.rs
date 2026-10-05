@@ -576,6 +576,12 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// # Errors
 ///
 /// [`PairUnread`], as above.
+///
+/// # Panics
+///
+/// Where a face resolves and its surface does not, or a link
+/// [`carrier_pair_relation`] reads does not resolve: a torn surface is
+/// not one outside the inventory.
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,

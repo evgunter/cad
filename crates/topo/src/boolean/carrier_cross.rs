@@ -49,7 +49,8 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::contain::FaceContainment;
 use super::{BooleanDecision, BooleanError, CrossingDecision, Operand};
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary};
+use crate::entity::{EntityId, FaceKey, LoopBoundary};
+use crate::live::{linked, proven};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 
@@ -79,6 +80,15 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 /// [`BooleanError::Escalated`] when a decision falls in band: whether
 /// a candidate lies inside the span, whether two carriers are parallel,
 /// or the boundary pre-pass's own rows.
+/// [`BooleanError::ClassificationInvariant`] where `face`, a key the
+/// caller passed, does not resolve.
+///
+/// # Panics
+///
+/// Where a record past `face` does not resolve or a loop walk does not
+/// close (D2 row 4): its loops, their members, a member's start point,
+/// edge and curve. `y` is the reduction's working copy, whose links
+/// hold mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(super) fn boundary_crossing<T: Decide>(
     y: &Body<T>,
     y_is: Operand,
@@ -101,34 +111,25 @@ pub(super) fn boundary_crossing<T: Decide>(
             what: "on-carrier crossing: face lost",
         })?;
     let mut candidates: Vec<Point3<T>> = Vec::new();
-    for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let first = match y.get_loop(lk).map(|l| l.boundary) {
-            Some(LoopBoundary::Cycle { first }) => first,
-            Some(LoopBoundary::Empty { .. }) => return Ok(BoundaryCrossing::Unread),
-            None => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "on-carrier crossing: boundary loop lost",
-                });
-            }
+    for (lk, field) in core::iter::once((face_data.outer, "outer"))
+        .chain(face_data.rings.iter().map(|&ring| (ring, "rings")))
+    {
+        let first = match linked(&y.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary
+        {
+            LoopBoundary::Cycle { first } => first,
+            LoopBoundary::Empty { .. } => return Ok(BoundaryCrossing::Unread),
         };
-        let cycle = y
-            .loop_cycle(first)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "on-carrier crossing: boundary loop does not close",
-            })?;
-        for he in cycle {
-            let half = y
-                .get_half_edge(he)
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "on-carrier crossing: half-edge lost",
-                })?;
-            if let Some(p) = y.get_vertex(half.start).and_then(|v| y.get_point(v.point)) {
-                candidates.push(*p);
-            }
-            let Some(CurveGeom::Certified(other)) = y
-                .get_edge(half.edge)
-                .and_then(|e| y.get_curve_geom(e.curve))
-            else {
+        for he in y.loop_walk(first).closed("loop", first) {
+            let half = proven(&y.half_edges, he, EntityId::HalfEdge);
+            candidates.push(y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start"));
+            let edge = linked(
+                &y.edges,
+                half.edge,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            let CurveGeom::Certified(other) = y.edge_curve_linked(half.edge, edge) else {
                 return Ok(BoundaryCrossing::Unread);
             };
             match meetings(carrier, other.carrier(), reach, band)? {
@@ -611,5 +612,71 @@ mod crossing_rows {
             }
             other => panic!("the dividing vertex must be found: {other:?}"),
         }
+    }
+
+    /// **A torn hop past the face panics; the face itself stays the
+    /// caller's.** The tilted-circle row with one boundary edge's curve
+    /// dropped panics naming that curve, where a read of the miss as a
+    /// carrier with no closed form would answer `Unread`; a face that
+    /// does not resolve refuses typed.
+    #[test]
+    fn a_torn_boundary_curve_panics_and_a_stale_face_refuses_typed() {
+        use crate::entity::{EntityId, GeomRef};
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::body::Body::<f64>::new();
+        let face = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        let a: f64 = 0.8;
+        let radial = Vec3::new(a.cos(), a.sin(), 0.0);
+        let normal = (Vec3::new(-a.sin(), a.cos(), 0.0) + Vec3::unit_z() * 0.4).normalize();
+        let out = radial * 0.6 + normal.cross(radial) * 0.8;
+        let tilted = Curve3::Circle {
+            center: Point3::origin() + radial + out * 0.3,
+            axis: normal,
+            radius: 0.3,
+            u_ref: -out,
+        };
+        assert!(
+            matches!(
+                boundary_crossing(&body, Operand::B, face, &tilted, (-0.5, 0.5), band),
+                Ok(BoundaryCrossing::At { .. })
+            ),
+            "the sound face meets the circle"
+        );
+        let mut stale = body.clone();
+        stale.faces.remove(face);
+        assert!(
+            matches!(
+                boundary_crossing(&stale, Operand::B, face, &tilted, (-0.5, 0.5), band),
+                Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
+            ),
+            "a face the caller passed that does not resolve refuses typed"
+        );
+        let (edge, curve) = body
+            .edges()
+            .map(|(k, e)| (k, e.curve))
+            .next()
+            .expect("the sheet has edges");
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "boundary_crossing",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
+        );
     }
 }

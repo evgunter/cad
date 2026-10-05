@@ -116,6 +116,18 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // pierced face the oriented datum is point-dependent, so `p` is an
     // input to the sector algebra rather than only to Delta 3's ring.
     let p = piercing_body.resolve_vertex_point(vertex, Proven);
+    // `contact.face` is a key the sweep recorded and carries here, so
+    // its miss is typed; its surface is a link, and nothing has written
+    // the pierced body yet.
+    let pierced_face =
+        pierced_body
+            .get_face(contact.face)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a vertex-on-face contact's face no longer resolves",
+            })?;
+    let pierced_surface = pierced_body.face_surface_linked(contact.face, pierced_face);
+    // The kind every refusal below cites, read before any write.
+    let pierced_kind = pierced_surface.kind();
     // The pierced face's oriented datum at `p`, from the one door.
     // `n_pierced` carries the material side, typed so the sense flip
     // cannot be dropped on the way; on a PLANE it is bit-identically
@@ -136,7 +148,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand: pierced_op,
                     face: contact.face,
-                    kind: pierced_kind(pierced_body, contact.face),
+                    kind: pierced_kind,
                 });
             }
             Err(refusal) => {
@@ -152,12 +164,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // argument), so it must bound the tightest bend, not the chart's
     // scale: on a fat torus those differ. A plane reports `f64::MAX`, so
     // its charge is vacuous and the planar lane's verdicts are unmoved.
-    let pierced_lever = pierced_body
-        .get_face(contact.face)
-        .and_then(|f| pierced_body.get_surface(f.surface))
-        .map_or_else(super::sectors::NO_CURVATURE, |s| {
-            geom_brep::min_radius_of_curvature(s, p)
-        });
+    let pierced_lever = geom_brep::min_radius_of_curvature(pierced_surface, p);
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();
 
@@ -428,7 +435,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     return Err(BooleanError::CurvedBooleanUnsupported {
                         operand: pierced_op,
                         face: contact.face,
-                        kind: pierced_kind(pierced_body, contact.face),
+                        kind: pierced_kind,
                     });
                 }
             },
@@ -661,10 +668,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 // pierced face), so no answer here is checked: refused.
                 // An answer needs a row that reaches it, with an oracle
                 // independent of the facing rule.
-                facing.ok_or_else(|| BooleanError::CurvedBooleanUnsupported {
+                facing.ok_or(BooleanError::CurvedBooleanUnsupported {
                     operand: pierced_op,
                     face: contact.face,
-                    kind: pierced_kind(pierced_body, contact.face),
+                    kind: pierced_kind,
                 })?
             }
         };
@@ -950,15 +957,6 @@ pub(super) fn pierce_germ_dir<T: Decide>(
             what: "pierce germ direction not uniquely within its sector",
         }),
     }
-}
-
-/// The surface kind a refusal about `face` cites. A face whose surface
-/// cannot be read at all is reported as the kind with no arm anywhere,
-/// which is what the sibling refusal sites in this module do.
-fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom::SurfaceKind {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind)
 }
 
 /// A pierce germ as a run reads it: `(A face, B face)` and
