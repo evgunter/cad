@@ -1,7 +1,7 @@
 ---
 id: kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart
 kind: issue
-title: kef_minting leaves a complete periodic face wholly unminted where the merged loop's re-mint cannot chart it
+title: A band kill (kef_minting, kemr_minting) leaves a face wholly unminted where its re-mint cannot chart the loop it leaves
 status: open
 priority: P3
 cost: M
@@ -39,6 +39,22 @@ either killed half is on, read after the outermost kill door):
   fillet_h5_hostless_rim, review_blend1_r2_probes,
   review_closed_chain_junctions_r1_probes, closed_chain_junctions,
   blend_seam_split_rim, contact_edge_must_carry, and others.
+
+**The same class at `kemr_minting`** (PR 4052, which mints the loops a
+null-edge kill releases): sweep's `ci` profile, f64, read at
+`ChordJoiner::cut_core`'s `kemr`. 147 kills release a minted loop with
+gaps; 87 of those faces leave complete and 60 leave cleared, storing
+nothing (41 under `boolean::join::bool_connect`, 19 under
+`splitting::join::split_connect`). These faces were held open, not
+complete, before the kill, so the clear costs no row a door certified.
+For the 41 on the boolean lane, `mint_pcurves_of` re-run on a clone at
+the same state refuses 27 too (26 "does not meet its predecessor's", 1
+a certification refusal). The other 14 are general sphere circles,
+which only the pass's fitted route mints. The site mint has no fitted
+lane, so it clears them, per `site_rows`' contract ("a carrier outside
+the chart's closed-form classes … stores nothing"). The producer's
+closing pass mints them. The splitting lane's 19 were not probed
+against the pass.
 
 **Shapes:** the door could refuse rather than clear a complete face,
 as the keys-only doors do with `KeysOnly`. The producers that kill

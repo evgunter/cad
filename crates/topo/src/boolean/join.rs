@@ -883,7 +883,15 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         done.sort_unstable_by(|x, y| y.cmp(x));
         for i in done {
             let r = open[i];
-            cut_pair(red, &mut sa, &mut sb, &mut completed, r.a_edge, r.b_edge)?;
+            cut_pair(
+                red,
+                &mut sa,
+                &mut sb,
+                &mut completed,
+                r.a_edge,
+                r.b_edge,
+                tol,
+            )?;
         }
     }
 
@@ -2541,14 +2549,15 @@ fn cut_pair<T: Decide>(
     completed: &mut Vec<UnresolvedPair>,
     a_edge: EdgeKey,
     b_edge: EdgeKey,
+    tol: Tol,
 ) -> Result<(), BooleanError> {
     let a_out = sa
         .joiner
-        .cut_core(&mut red.a, a_edge)
+        .cut_core(&mut red.a, a_edge, tol)
         .map_err(BooleanError::Join)?;
     let b_out = sb
         .joiner
-        .cut_core(&mut red.b, b_edge)
+        .cut_core(&mut red.b, b_edge, tol)
         .map_err(BooleanError::Join)?;
     match (a_out, b_out) {
         (CutOutcome::Merged, CutOutcome::Merged) => Ok(()),

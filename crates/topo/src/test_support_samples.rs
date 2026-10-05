@@ -191,7 +191,12 @@ fn contain_errors() -> Vec<ContainError> {
     vec![
         ContainError::Escalated(diag()),
         ContainError::RayExhausted,
-        ContainError::Corrupt,
+        ContainError::StaleFace(crate::entity::FaceKey::default()),
+        ContainError::EmptyLoop(LoopKey::default()),
+        ContainError::LoopUnreadable(LoopKey::default()),
+        ContainError::Curved(crate::boolean::PointInSolidError::PartialConeFace {
+            face: crate::entity::FaceKey::default(),
+        }),
         ContainError::Uncrossable(crate::splitting::Uncrossable {
             r#loop: LoopKey::default(),
             edge: crate::entity::EdgeKey::default(),

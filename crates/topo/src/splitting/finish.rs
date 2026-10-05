@@ -220,7 +220,7 @@ pub enum SplitFinishError {
     /// solid to begin with: the operand is never validated, and the
     /// one tier-2 finding the reduction refuses is an empty OUTER loop
     /// on a face rule (a) measures at an ON vertex
-    /// ([`super::SplitReduceError::CorruptOperand`], via
+    /// ([`super::SplitReduceError::UnboundedFace`], via
     /// `rules::face_extent`). Only the direct run's refusal
     /// is ever surfaced (a mirrored run's is replaced by it), so
     /// `side` is in the caller's orientation.

@@ -215,7 +215,7 @@ pub enum SolidContainment {
 }
 
 /// Typed failure of [`point_in_solid`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PointInSolidError {
     /// A predicate escalated (in-band margin).
     Escalated {

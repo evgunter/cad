@@ -6903,3 +6903,53 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - **Closed `mint-pcurves-refusal-leaves-the-cache-partly-cleared` (P2) on reading.** PR 4033's derive-then-write already fixed both entries, pinned by `pcurve_door_refusals::a_null_edges_half_…_leaves_the_body_as_found` and the review_d18 clone-unchanged mint check.
 - **Dispatched** `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps` (P3, M) to `session_01E5dJcd5P2Wvx2mz83fCp6q`. The direction is PR 2527's ruling (the kills stay keys-only; the band twins mint the released loop's gaps; a `kemr` twin if needed; producers switch). It re-measures first after R.
 - My merge of main conflicted on the per-op row (main closed it); resolved with main's version. Nothing new on PR 3970.
+- 06:47 check-in.
+  - PR 4049 (sync) merged at `55a173b633`.
+  - **PR 4048 review: fix first, one BLOCKING.** `sectors.rs` `faces_at` panics on a stale root vertex under the at-rest premise, while rest-lane callers (`mirror_edges`, `fragment_holding`) pass keys carried across `undo_struts`' kills: PR 4043's shape, unproven at the site, though not reachable today.
+  - MINOR findings:
+    - `wall_crossing` and `place_witness` swallow a driver `StaleFace` (one rule, applied per site);
+    - the caller-key leg is untested (mutation stays green);
+    - the battery scope statement.
+  - The reviewer re-ran `rc_wide` x84 plus 57 sweep `#[ignore]`d batteries: identical output.
+  - Fix lane `session_01DdLA3weCnKkq4Toaap1nGK` dispatched. Reviewer (about $3.7) and implementer (about $18) archived.
+  - Null-release lane: no PR yet. Nothing new on PR 3970.
+- 07:49 check-in.
+  - PR 4048: green on `56d33e9c`, but no "fixes pushed" comment yet from fix lane `session_01DdLA3weCnKkq4Toaap1nGK`; waiting.
+  - **The null-release lane opened PR 4052** (+684/-125, 12 files):
+    - adds `kemr_minting`;
+    - the twins mint released gaps; keys-only `kev`/`kef`/`kemr` refuse `KeysOnly` where they would release a gap (a behaviour change);
+    - `cut_core` and `undo_struts` switch to the twins.
+  - Re-measured after R: **147** releasing kills in sweep ci (the row said 1), all `cut_core`'s `kemr`; 0 after. Of the 147 faces, 60 end cleared and none half-minted.
+  - 129 battery jobs: identical line sets, no panics.
+  - Subscribed. Reviewer `session_014XpkGYNhbNkvxzXDtVf6Ca` dispatched; it checks the new refusal's reach across every keys-only kill caller in every crate.
+  - Nothing new on PR 3970.
+
+## 08:41 check-in (2026-10-05)
+
+- **PR 4048 merged** at `3d7b5a02ff`.
+  - Fixes: `faces_at` answers `None` on an unresolved root and every caller refuses typed; `chord_join` `u1` resolved; every driver-held `StaleFace` goes through `driver_face_stale` (the sweep found two more sites, `rim_wedge` and `chart_region`); caller-key rows; batteries re-run.
+  - Fix lane archived (about $6).
+- **PR 4052 review: fix first, one BLOCKING.** There is no negative witness that a keys-only kill still returns `Ok` on a minted face: two mutations of `releases_a_gap` stay green (topo's null kills are never on minted faces).
+  - Reach of the new refusal: none found across crates.
+  - MINOR: the gap rule is spelled twice; `bridged` is all-or-nothing; a seqgen axis is unfiled.
+  - Fix lane `session_01DFjLErgYNhtmpF9ftXPRTP` dispatched. Reviewer and implementer archived.
+- **Dispatched** `movefac-roundtrip-re-make-is-unbuilt` (P3, M; seqgen; no overlap) to a new lane.
+- Nothing new on PR 3970.
+
+## 09:24 (2026-10-05)
+
+- **PR 4052 merged** at `e9e060568c` (head `7fa84c61`).
+  - The review fixes answer every item:
+    - three negative witnesses on `ruled_wall`, red under both `releases_a_gap` mutations (the held guard is load-bearing for `kemr`'s two loops);
+    - one gap predicate, `misses_a_row`;
+    - `bridged` decided per side, because each kill hands the elements it will write (`made`), and an over-refusal was shown on the old head;
+    - a `seqgen` `Door` axis for `Kemr` (selection pin re-baselined `10_871_328_829_263_095_025` → `12_351_788_739_244_568_152`);
+    - `rest.rs`' keys-only kills proven null-free.
+  - Unsubscribed. Fix lane archived (about $4.9).
+- **The movefac lane opened PR 4053** (+219/-54, 6 files). `seqgen` now round-trips `Movefac` through c−1 `kfmrh` + `mfkrh_plug`, and filed `kef-and-kfmrh-fuse-roundtrip-skips-are-admitted-per-kind`. Subscribed. Reviewer `session_013yTykYbuMbnKamxhVLMVQZ` dispatched (FULL).
+- **Dispatched**:
+  - `contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant` (P2, E) → `session_01W3RVW5HP5pG8ENEC2j7KRD`;
+  - `torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate` (P3, M) → `session_01CVeJsYfHLqcJExQ3xSHWZP`.
+  - Their files are disjoint. Both briefs carry the at-rest/mid-op rule and the full battery requirement.
+- `torn-body-refusal-families-beyond-the-six-doors` goes back to `open`: no lane holds its residue since PR 4048 merged.
+- Nothing new on PR 3970.
