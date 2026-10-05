@@ -16,11 +16,7 @@ Evidence: `review-4051/`. That folder holds the probe `r4051_island_probes.rs`, 
    - `u`: a U-shaped hole, with planes through both arm tips, so one island is pinched twice. 38 refusal→SOUND, plus 2 more at a single tip.
    - `cyl` (curved island, holed block × cylinder r = 3 and r = 1, h = 2 and 6): 0 lines moved.
      - On r2's cylinder set, 5 lines go `PinchUncrossed`→`ResultInvalid{VolumeUncomputable{RingOnCurvedFace}}`, as the PR says.
-   - All 148 new SOUND lines pass every check:
-     - volume within 1e-7;
-     - tiers 2 and 3′, the certificate, and a legal operand;
-     - `FACE2V=0`: no face meets two vertices at one point.
-   - The gate passed them, so no loop role is inverted.
+   - All 148 new SOUND lines: volume within 1e-7; tiers 2 and 3′, certificate, legal operand; `FACE2V=0` (no face meets two vertices at one point); the gate passed them, so no loop role is inverted.
    - No other line moved on any family. 0 SOUND→refusal, 0 →BAD, 0 panics.
 2. **Bow-tie is not a separate class: HOLDS for every current line; r2's 184 not re-run (unsure there).**
    - I applied the outer-loop instrument to head and printed full errors. Every head `PinchUncrossed` line refuses `RingMeetsOuter`, and every line that also reads `LoopRoleInverted` carries `RingMeetsOuter` too:
@@ -50,7 +46,7 @@ Evidence: `review-4051/`. That folder holds the probe `r4051_island_probes.rs`, 
      - outer loop crosses: 2 red, and the messages say `RingMeetsOuter`;
      - no pre-pass: 4 red;
      - both corners outer: the island row goes red with `PinchUncrossed`.
-   - Mine: `PX_KILLPLUS` (kill `he_plus`'s face, as before the PR) and `PX_ANYFACE` (drop the ringless test) **both survive all 11 rows** (m1, n3).
+   - Mine: `PX_KILLPLUS` (kill `he_plus`'s face, as before) and `PX_ANYFACE` (no ringless test) **survive all 11 rows** (m1, n3).
 
 ## Findings
 
@@ -58,8 +54,7 @@ Evidence: `review-4051/`. That folder holds the probe `r4051_island_probes.rs`, 
 - Code: `crates/topo/src/boolean/zip.rs:417-420`.
 - Mutant `PX_KILLPLUS` passes every row. In the island row, `he_plus` already lands on the island.
 - But it turns 38 of the new U-hole lines from SOUND to `Euler(FaceHasRings)`, for example `u2tip mid side=12 psi=0 th54 cp S` (`PX_KILLPLUS-u.txt.gz`).
-- Fix: pin one such pose.
-- Confidence: sure.
+- Fix: pin one such pose. Confidence: sure.
 
 **n1 (NOTE). The row and PR body count 49 bow-tie lines; their own breakdown is 48.**
 - The breakdown is 43 + 4 + 1, and the table column also sums to 48.
@@ -69,17 +64,14 @@ Evidence: `review-4051/`. That folder holds the probe `r4051_island_probes.rs`, 
 - It also builds the deeper-hole, two-island and twice-pinched-island poses (130 lines above). The `## Built` section could name them, and the twice-pinched island is unpinned.
 
 **n3 (NOTE). The ringless test at `zip.rs:375` has no witness among reachable poses.**
-- Dropping it (`PX_ANYFACE`) changes no line in any of my families and turns no row red.
-- On a pose with two ringed faces of one chart at `v`, `kef` would refuse typed (`FaceHasRings`) instead, so the gap is benign.
+- Dropping it (`PX_ANYFACE`) moves no line of my families and reddens no row. On a pose with two ringed faces of one chart at `v`, `kef` would refuse typed (`FaceHasRings`) instead, so the gap is benign.
 
 **n4 (NOTE, pre-existing, unmoved).** Both trees have:
 - 786 near-tangent lines that read SOUND but have `FACE2V`;
 - 724 holed-block × cylinder results with `FACE2V`.
 - These are the class of the filed cleave row `a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point`.
 
-## Style
-
-Questions exercised: Q1, Q2, Q3, Q4, Q6, Q7, and Q8 (`zip.rs` read end to end, 587 lines). Q5 found nothing.
+## Style (exercised Q1–Q4, Q6–Q8, `zip.rs` read whole; Q5 found nothing)
 
 - **S1 (Q1, sure). `split_across` holds two closures named `face_of` with different signatures, and spells `ringless` twice.**
   - `face_of`: `zip.rs:349` returns `(LoopKey, FaceKey)`; `zip.rs:406` returns `(FaceKey, bool)`.
