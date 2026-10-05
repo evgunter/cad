@@ -2,7 +2,7 @@
 id: rc-wide-battery-panics-at-the-orbit-step-unreachable
 kind: issue
 title: rc_wide_battery panics in 8 of 84 shards at insert.rs orbit_step_at's unreachable! (was 40 320 lines, no panic)
-status: open
+status: dispatched
 opened: 2026-10-04
 priority: P0
 cost: M
