@@ -103,3 +103,24 @@ Per sub-family; nothing below is measured.
   with no face meeting both, which needs each operand's pinched shell
   divided at the vertex before the zips (nothing in `topo` divides a
   shell at a vertex; tier 1 refuses a disconnected shell).
+
+## After PR 4036 (branch `join/reflex-corner-vertex-vertex`, merged with PR 4038)
+
+The `pierce_runs_battery` witnesses no longer reach this class. All 11
+cube ∖ prism lines with `v` on the cube's edge are four-germ vertex
+pairs. PR 4036 starts their pairing where A's runs lie on the side the
+op keeps of A, so each kept run of A is a copy of its own and the
+result needs no crossing at `v`. On the merged head, every one of the
+battery's 4 536 runs is `SOUND` or rightly empty.
+
+The pin moves with that: it is now
+`join_pierce_runs_sweep::a_four_germ_pinch_the_pairing_start_avoids_builds_every_op`,
+a build in every op. Under mutant M4 (start at A's first germ) it goes
+red.
+
+Not re-run on that head: the other witnesses above, which live on
+review branches. They are r2's `r2_shapes_battery` (88) and
+`r2_holed_battery` (392 + 18), and PR 4038's review probes. Their edge
+and corner placements are four-germ vertex pairs too, and may move the
+same way. `PinchUncrossed` itself is untouched and needs a committed
+witness off this lane.

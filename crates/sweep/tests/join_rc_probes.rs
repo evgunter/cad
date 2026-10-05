@@ -78,13 +78,17 @@ fn rc_wide_battery() {
     }
 }
 
-/// **A strut whose corner an earlier run of its pair carried away
-/// refuses typed.** At each pose `b ∖ a`'s four-germ corner runs a fan
-/// that moves the half bounding the corner its pair's strut hangs in
-/// (`work/join/four-germ-vertex-pairs-run-b-in-a-order`); one pose for
-/// each turned profile `rc_wide_battery` aborted on.
+/// **A strut in the entry beside its pair's fan builds.** At each pose
+/// `b ∖ a`'s four-germ corner runs a fan and a strut in the two entries
+/// of one physical sector, and the fan moves the half that bounds the
+/// strut's corner (`work/join/four-germ-vertex-pairs-run-b-in-a-order`).
+/// The pair's struts mint before its fans (`insert::SideRun::shared`),
+/// so every op builds `SOUND` at the closed form. One pose for each
+/// turned profile `rc_wide_battery` once aborted on. Red as
+/// `ClassificationInvariant` "an earlier run at the vertex carried a
+/// strut's corner to its copy" when the fan mints first.
 #[test]
-fn a_strut_whose_corner_an_earlier_run_moved_refuses_typed() {
+fn a_strut_beside_its_pairs_fan_builds_every_op() {
     for (profile, rot, sx, sy) in [
         ("sqQ1", -20.0, -0.75, 0.3),
         ("dLeft", 190.0, -0.3, 0.25),
@@ -96,16 +100,13 @@ fn a_strut_whose_corner_an_earlier_run_moved_refuses_typed() {
         ("eLeft", 33.0, -0.75, 0.0),
     ] {
         let p = reflex_pose(profile, rot, sx, sy, tol());
-        let r = reflex_run(&p, "S_ba", tol());
-        assert!(
-            matches!(
-                r,
-                Err(topo::BooleanError::ClassificationInvariant {
-                    what: "an earlier run at the vertex carried a strut's corner to its copy"
-                })
-            ),
-            "{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) b ∖ a: {r:?}"
-        );
+        for (op, want) in REFLEX_OPS.iter().zip(p.want) {
+            let line = outcome(reflex_run(&p, op, tol()), want, tol());
+            assert!(
+                line.starts_with("OK SOUND") || line.starts_with("EMPTY ok"),
+                "{profile} turned {rot}° (sx, sy) = ({sx}, {sy}) {op}: {line}"
+            );
+        }
     }
 }
 

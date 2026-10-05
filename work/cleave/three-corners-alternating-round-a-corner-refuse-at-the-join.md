@@ -40,3 +40,17 @@ the rays.
 Trace the seam correspondence (`finish.rs`) and the zip's self-loop
 for a shared corner holding three pairs' null edges, two of them one
 pair's struts; build every op at volumes checked outside the kernel.
+
+## Re-measured (JOIN, branch `join/reflex-corner-vertex-vertex`)
+
+With the four-crossing pairing read in each solid's own walk order, and
+started where A's runs lie on the side the op keeps of A, the three
+ops refuse earlier and typed: `SharedVertexCrossings` at the cube's
+corner, where the band's pair, which crosses that corner four times,
+has no run clear of the other two corners' cuts either way round. This
+is the fan-interleave arm of FUSE's
+`shared-vertex-crossings-that-tie-or-interleave-are-unprobed`. Started at
+A's first germ instead, the same ops pass the reconciliation and
+refuse at the finish as before (measured), so neither start builds
+them. The other three ops build as before. The pin moves to the new
+refusal.
