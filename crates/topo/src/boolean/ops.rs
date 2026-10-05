@@ -105,7 +105,8 @@
 //!   flush on the corner's notch wall under a tilted cap, the vertex
 //!   pair keeps four crossing germs, and `insert` runs each pair's null
 //!   edge in B in A's germ order rather than B's: the B runs overlap and
-//!   the op refuses (`Euler(FanStartMismatch)`, `JoinDesync`;
+//!   the op refuses (`Euler(FanStartMismatch)`, a strut's moved corner's
+//!   `ClassificationInvariant`, `JoinDesync`;
 //!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). Some such
 //!   unions are not refused: the declared-REST zip answers them after
 //!   the join's refusal, with a wrong volume

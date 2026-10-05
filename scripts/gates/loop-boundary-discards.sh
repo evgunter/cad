@@ -194,7 +194,6 @@ REGISTER=(
   # and the loop-re-parenting doors' drop all read it, and none of them
   # discards a boundary of its own.
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
-  "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
   "crates/topo/src/review_d18.rs|far_loop||1|audited: the discarded variant is a lone vertex — no half-edge to plant a namer on, and none a kill walks, so the far loop the witness tears must be a cycle"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
