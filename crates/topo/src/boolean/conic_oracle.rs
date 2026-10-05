@@ -195,6 +195,7 @@ pub(super) fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1:
 /// `door`'s answer on `[t0, t0 + 1]` is certified roots matching the
 /// oracle in number and place, every one on the surface and within `π`
 /// of the arc's midpoint.
+#[allow(clippy::panic)]
 pub(super) fn assert_matches_oracle(
     label: &str,
     (e, s): (&geom::Curve3<f64>, &geom::Surface<f64>),
