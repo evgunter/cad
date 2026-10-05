@@ -2,11 +2,13 @@
 id: carved-sphere-body-cannot-be-classified-or-reused-as-an-operand
 kind: issue
 title: A body carrying a sphere face bounded by a tilted circle refuses point classification (PartialSphereFace) and a ball nested in it (CurvedPierceUnsupported)
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: H
-refs: [tilted-sphere-pair-section-refuses-at-the-polar-gate]
+refs: [tilted-sphere-pair-section-refuses-at-the-polar-gate, torus-face-bounded-by-an-oblique-circle-refuses-point-classification]
+pr: 4046
+branch: reach/carved-sphere-classify
 ---
 
 
