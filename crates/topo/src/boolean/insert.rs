@@ -1074,6 +1074,12 @@ fn next_edge_bound<T: geom_core::Real>(sectors: &[BoolSector<T>], k: usize) -> u
 /// One clockwise orbit step from `he`, a half-edge starting at
 /// `vertex`, proven to land on one that starts there too: a strut site
 /// is one half, which no later read ties to `vertex`.
+///
+/// The caller establishes that `he` starts at `vertex`: `mint_directed`
+/// refuses a strut whose corner half an earlier run of the same plan
+/// carried to its copy (`ClassificationInvariant`) before any caller
+/// reaches here, and the `keyed` sort mints shared struts before any fan,
+/// whose `mev_null` is the only mint that moves a sector's half.
 #[track_caller]
 fn orbit_step_at<T: geom_core::Real>(
     body: &Body<T>,
@@ -1085,7 +1091,8 @@ fn orbit_step_at<T: geom_core::Real>(
     if start != vertex {
         unreachable!(
             "the orbit step from {he:?} at {vertex:?} lands on {next:?}, which starts at \
-             {start:?}: {WALKS_CLOSE}"
+             {start:?}: mint_directed checks that a strut's corner half still starts at its \
+             vertex, and the keyed sort mints shared struts before any fan moves a half"
         );
     }
     next
