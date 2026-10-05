@@ -57,7 +57,7 @@ brick does not finish: the row is
 at-rest gate. No row reaches `curved_face_arm`'s raise with a finished
 body; `work/reach/the-operand-gates-curved-arms-have-no-finished-fixture.md`.
 
-## 2026-10-05 — `ArcLoopContainmentUnsupported`'s half is settled
+## 2026-10-05 — `ArcLoopContainmentUnsupported`'s half: wired at every site, witnessed at two
 
 `reduce.rs` `esc` now takes the face it read, and every caller passes
 that face's operand: the two vertex-placement `contfp` calls changed
@@ -68,3 +68,17 @@ every raise site, as its doc says, and so does the new
 `PointInFaceRefused.operand`
 (`contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant`).
 `CurvedBooleanUnsupported` at `curved_face_arm` still has the split.
+
+The fix pass after review keeps that wiring but cannot witness all of
+it. Two callers are pinned: `reduce.rs` `esc_tests`'s
+`vertex_on_face_refuses_on_the_faces_operand` drives `vertex_on_face`
+with A and with B against an `mvfs` seed face, and `ops.rs`'s
+`extent_scan_refusals_name_the_faces_operand` drives
+`extent_scan_refusal`, which now takes the sphere's operand and
+decides the face's. Reverting either to the vertex's or sphere's
+operand goes red. The other four sites have no witness: the two
+`sweep_direction` calls, `vertex_on_curved_face_at`, and
+`carrier_cross.rs` `boundary_crossing`. They are reached only inside a
+reduction on a working copy, and no fixture there reaches a refusing
+face door (the boolean batteries move no line into these arms). Their
+operand rests on reading the code, not on a check.

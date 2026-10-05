@@ -2968,16 +2968,20 @@ struct SphereRecut<T: Real> {
 }
 
 /// The sphere extent scan's reading of a refused [`contfp`] on `face`, a
-/// plane face of `operand`. The operand is AT REST, past the operand
-/// gate, whose tier 2 refuses a lone-vertex loop: meeting one here is a
-/// kernel bug. Every other refusal reads as the reduction reads it
-/// ([`super::reduce::esc`]).
-fn extent_scan_refusal(e: ContainError, operand: Operand, face: FaceKey) -> BooleanError {
+/// plane face of the operand facing the sphere's (`sphere_is`). The
+/// operands are AT REST, past the operand gate, whose tier 2 refuses a
+/// lone-vertex loop: meeting one here is a kernel bug. Every other
+/// refusal reads as the reduction reads it ([`super::reduce::esc`]).
+/// Two test-support doors run the scan on ungated bodies
+/// (`test_support::boolean_through_the_join` and
+/// [`no_crossings_certificates`]); there a lone-vertex loop is the
+/// fixture's, and still answers this typed invariant.
+fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> BooleanError {
     match e {
         ContainError::EmptyLoop(_) => BooleanError::ClassificationInvariant {
             what: "extent scan: a gated operand face has a lone-vertex loop",
         },
-        e => super::reduce::esc(e, operand, face),
+        e => super::reduce::esc(e, sphere_is.other(), face),
     }
 }
 
@@ -3138,7 +3142,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 }
                                 let witness = foot + u_ref * rho;
                                 match contfp(y, yf, normal, witness, band)
-                                    .map_err(|e| extent_scan_refusal(e, x_is.other(), yf))?
+                                    .map_err(|e| extent_scan_refusal(e, x_is, yf))?
                                 {
                                     // The circle misses this face
                                     // (it crosses the carrier plane
@@ -5280,85 +5284,43 @@ mod tests {
         }
     }
 
-    /// **The boolean's containment reads answer `ContainError`'s
-    /// reachable refusals typed**, at both consumers: the reduction's
-    /// [`super::super::reduce::esc`] (a MID-OPERATION working copy) and
-    /// the sphere extent scan's [`super::extent_scan_refusal`] (an
-    /// operand AT REST, past the gate). A loop the walk cannot read, and
-    /// a schedule that grazed out, name the face and its operand; a
-    /// curved chart read's refusal is the solid door's, carried whole;
-    /// only the extent scan's lone-vertex loop, which the gate's tier 2
+    /// **The sphere extent scan answers `ContainError`'s reachable
+    /// refusals typed, on the face's own operand.** It runs on operands
+    /// AT REST: a refusal the face door owns is carried whole with the
+    /// face and the operand facing the sphere's — decided, not
+    /// forwarded — and only a lone-vertex loop, which the gate's tier 2
     /// rules out, stays a kernel-bug claim.
     #[test]
-    fn contain_refusals_answer_typed_at_both_consumers() {
+    fn extent_scan_refusals_name_the_faces_operand() {
+        use crate::boolean::Operand;
         use crate::boolean::contain::ContainError;
         use crate::boolean::solid_contain::PointInSolidError;
-        use crate::boolean::{Operand, PointInFaceCause};
         use crate::entity::{FaceKey, LoopKey};
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let (face, lk) = (FaceKey::from(key(7)), LoopKey::from(key(9)));
-        let refused = |cause| {
-            move |e: &BooleanError| {
-                matches!(
-                    e,
-                    BooleanError::PointInFaceRefused { operand: Operand::B, face: f, cause: c }
-                        if *f == face && *c == cause
-                )
-            }
-        };
-        let curved = |e: &BooleanError| {
-            matches!(
-                e,
-                BooleanError::Containment(PointInSolidError::PartialConeFace { face: f })
-                    if *f == face
-            )
-        };
-        type Read = fn(ContainError, Operand, FaceKey) -> BooleanError;
-        let consumers: [(&str, Read); 2] = [
-            ("reduce::esc", crate::boolean::reduce::esc),
-            ("extent_scan_refusal", super::extent_scan_refusal),
-        ];
-        for (site, read) in consumers {
-            // `None`: the curved chart read's refusal, carried whole.
-            let cases = [
-                (
-                    ContainError::LoopUnreadable(lk),
-                    Some(PointInFaceCause::LoopUnreadable(lk)),
-                ),
-                (
-                    ContainError::RayExhausted,
-                    Some(PointInFaceCause::RayExhausted),
-                ),
-                (
-                    ContainError::Curved(PointInSolidError::PartialConeFace { face }),
-                    None,
-                ),
-            ];
-            for (e, want) in cases {
-                let what = format!("{e:?}");
-                let got = read(e, Operand::B, face);
-                let ok = match want {
-                    Some(cause) => refused(cause)(&got),
-                    None => curved(&got),
-                };
-                assert!(ok, "{site}: {what} answered {got:?}");
+        for (sphere_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
+            for e in [
+                ContainError::LoopUnreadable(lk),
+                ContainError::RayExhausted,
+                ContainError::Curved(PointInSolidError::CorruptFace { face }),
+            ] {
+                let got = super::extent_scan_refusal(e.clone(), sphere_is, face);
+                assert!(
+                    matches!(
+                        &got,
+                        BooleanError::PointInFaceRefused { operand, face: f, refusal }
+                            if *operand == face_is && *f == face && *refusal == e
+                    ),
+                    "sphere on {sphere_is:?}: {e:?} answered {got:?}"
+                );
             }
         }
-        let lone = ContainError::EmptyLoop(lk);
-        assert!(
-            refused(PointInFaceCause::LoneVertexLoop(lk))(&crate::boolean::reduce::esc(
-                lone.clone(),
-                Operand::B,
-                face
-            )),
-            "reduce::esc: a lone-vertex loop on a working copy names the face"
-        );
         assert!(
             matches!(
-                super::extent_scan_refusal(lone, Operand::B, face),
+                super::extent_scan_refusal(ContainError::EmptyLoop(lk), Operand::A, face),
                 BooleanError::ClassificationInvariant { .. }
             ),
-            "extent_scan_refusal: a lone-vertex loop past the gate is a kernel bug"
+            "a lone-vertex loop past the gate is a kernel bug"
         );
     }
 }

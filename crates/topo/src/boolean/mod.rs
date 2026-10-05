@@ -127,13 +127,13 @@ pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point3, Real, Sign, Tol,
+    Margin, MarginDiag, NO_DECLARATION_RECOURSE, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
@@ -1526,18 +1526,6 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
-/// What stopped a point-in-face read of an operand face
-/// ([`BooleanError::PointInFaceRefused`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PointInFaceCause {
-    /// A loop of the face is a lone vertex.
-    LoneVertexLoop(LoopKey),
-    /// The walk could not read the loop as an outline.
-    LoopUnreadable(LoopKey),
-    /// Every ray of the parity schedule grazed the boundary.
-    RayExhausted,
-}
-
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -1721,20 +1709,20 @@ pub enum BooleanError {
         /// The loop, and the edge no ray got past.
         cause: crate::splitting::Uncrossable,
     },
-    /// **Point-in-face on a face whose boundary the walk cannot place a
-    /// point against.** The reduction and the sphere extent scan ask
-    /// which side of an operand face's boundary a point lies on; the
-    /// read refused for a reason the face itself carries, not a
-    /// geometry the walk has no row for
-    /// ([`BooleanError::ArcLoopContainmentUnsupported`]) or a chart the
-    /// solid door cannot read ([`BooleanError::Containment`]).
+    /// **A point-in-face read of an operand face refused.** The
+    /// reduction and the sphere extent scan ask which side of an
+    /// operand face's boundary a point lies on, and the face door
+    /// ([`contfp`], or a curved face's chart read) refused; its
+    /// refusal is carried whole. A sliver margin is
+    /// [`BooleanError::Escalated`] and an edge the walk cannot cross is
+    /// [`BooleanError::ArcLoopContainmentUnsupported`], not this.
     PointInFaceRefused {
         /// The operand whose face was read.
         operand: Operand,
         /// The face.
         face: FaceKey,
-        /// What stopped the read.
-        cause: PointInFaceCause,
+        /// The face door's refusal.
+        refusal: ContainError,
     },
     /// An operand is well-formed but not a closed solid at rest: tier 2
     /// ([`crate::validate_closed`]) refuses it for construction
@@ -2427,9 +2415,9 @@ pub enum BooleanError {
         /// What the settled pairs said about orientation.
         orientation: ShellOrientation,
     },
-    /// The solid door's containment refused: the uncut-component probe
-    /// (F8), a plane read of a germ or locus tie, or a curved operand
-    /// face's chart read in the reduction.
+    /// A read the Boolean put to the solid door (`solid_contain`) about
+    /// an operand refused; the door's refusal, carried whole, says what
+    /// stopped it.
     Containment(PointInSolidError),
     /// `revert` refused on the ∖ B side.
     Revert(RevertError),
@@ -3014,29 +3002,39 @@ impl core::fmt::Display for BooleanError {
                  guess. Recourse: model the outline with lines, circles or ellipses",
                 cause.carrier.word()
             ),
-            Self::PointInFaceRefused { operand, cause, .. } => {
+            // `ContainError`'s own text names the loop by arena key; the
+            // arms the reduction carries are re-worded for a user here,
+            // and a curved chart read's refusal is the solid door's text.
+            Self::PointInFaceRefused {
+                operand, refusal, ..
+            } => {
                 let operand = operand_word(*operand);
-                match cause {
-                    PointInFaceCause::LoneVertexLoop(_) => write!(
+                let preamble = format_args!(
+                    "the Boolean cannot tell which side of a face of the {operand} solid a \
+                     point lies on"
+                );
+                match refusal {
+                    ContainError::EmptyLoop(_) => write!(
                         f,
-                        "the Boolean cannot tell which side of a face of the {operand} solid \
-                         a point lies on: one of the face's loops is a lone vertex, which \
-                         bounds no region"
+                        "{preamble}: one of the face's loops is a lone vertex, which bounds \
+                         no region"
                     ),
-                    PointInFaceCause::LoopUnreadable(_) => write!(
+                    ContainError::LoopUnreadable(_) => write!(
                         f,
-                        "the Boolean cannot tell which side of a face of the {operand} solid \
-                         a point lies on: one of the face's loops could not be walked as an \
+                        "{preamble}: one of the face's loops could not be walked as an \
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    PointInFaceCause::RayExhausted => write!(
+                    ContainError::RayExhausted => write!(
                         f,
-                        "the Boolean cannot tell which side of a face of the {operand} solid \
-                         a point lies on: every test ray grazed the face's boundary, so the \
-                         point sits within ε of it at this tolerance. Recourse: \
-                         {COINCIDENCE_RECOURSE}"
+                        "{preamble}: the point is off the face's boundary, but every test \
+                         ray grazed one of its vertices or edges. Recourse: \
+                         {NO_DECLARATION_RECOURSE}"
                     ),
+                    ContainError::Curved(e) => write!(f, "the Boolean {e}"),
+                    ContainError::Escalated(_)
+                    | ContainError::StaleFace(_)
+                    | ContainError::Uncrossable(_) => write!(f, "{preamble}: {refusal}"),
                 }
             }
             Self::ScaffoldingOperand { operand, .. } => write!(
@@ -5676,7 +5674,7 @@ mod tests {
             BooleanError::PointInFaceRefused {
                 operand: Operand::B,
                 face,
-                cause: PointInFaceCause::RayExhausted,
+                refusal: ContainError::RayExhausted,
             },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,

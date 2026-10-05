@@ -104,5 +104,15 @@ about `CorruptFace`: cone, torus and `cylinder_chart_trim` read it as
 `wall_outline` and `sphere_chart_trim` pass it on. The `CorruptFace`
 split above is therefore also the decision about which of those
 readings is right. The boolean now carries whatever arrives as
-`BooleanError::Containment(e)`
+`BooleanError::PointInFaceRefused { refusal: Curved(e), .. }`
 (`contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant`).
+
+That moved a user-visible claim for the `CorruptFace` arm. Before, the
+reduction's `esc` folded it into `ClassificationInvariant`, which says
+"kernel bug". Now it renders as "the Boolean cannot tell what is
+inside the solid: one of its faces is broken (it cannot be walked, or
+names something that is gone)". Mid-reduction the
+face is a working copy of a gated operand, so an arena miss there is
+the kernel's own surgery, not the user's broken face: the text went
+from "our bug" to "your face is broken" for that arm. Whichever
+reading the `CorruptFace` split settles on, it decides this text too.

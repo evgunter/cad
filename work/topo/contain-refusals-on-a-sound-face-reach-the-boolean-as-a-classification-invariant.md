@@ -47,10 +47,11 @@ move are the point of the change and are listed in the PR.
 ## Outcome (2026-10-05)
 
 `reduce.rs` `esc` and the sphere extent scan (`ops.rs`
-`extent_scan_refusal`) now answer `Curved(e)` as
-`BooleanError::Containment(e)`, and `LoopUnreadable`, `RayExhausted` and,
-at the reduction, `EmptyLoop` as the new
-`BooleanError::PointInFaceRefused { operand, face, cause }`. The extent
+`extent_scan_refusal`) now answer `Curved`, `LoopUnreadable`,
+`RayExhausted` and, at the reduction, `EmptyLoop` as the new
+`BooleanError::PointInFaceRefused { operand, face, refusal }`, which
+carries the `ContainError` whole (as the census's
+`CensusUnsupportedCause::Containment` does). The extent
 scan's `EmptyLoop` stays `ClassificationInvariant`: that operand is at
 rest, past tier 2, which refuses a lone-vertex loop.
 
