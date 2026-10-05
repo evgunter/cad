@@ -124,3 +124,17 @@ does. Across that whole run, `Pcurve::chart_box` (a `sin_cos` per
 harmonic image, per image re-read, per operator) is about a quarter of
 the instructions, and `stored_rows` about a fifth.
 
+
+## Adjudication (TOPO orchestrator, 2026-10-05)
+
+(C) for now: the re-read stays, and the row is not dispatched. No
+producer grows one minted face by more than a handful of operators
+(the fillet surgery is the only one that runs operators on minted
+faces), so the O(N²) shape costs nothing a user reaches today, and the
+harness above keeps the measurement one command away. (A) and (B) both
+add state to the body that D1 describes as a plain value, so they are a
+design fork. It goes to the designers (and to Ev if it is Ev's) when a
+producer that grows one face by many operators is built or planned. A
+dispatch before then reopens this question rather than building (A) or
+(B). `split-edge-re-reads-the-faces-window-on-every-split` is decided
+with this row.
