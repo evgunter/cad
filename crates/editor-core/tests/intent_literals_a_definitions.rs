@@ -347,6 +347,61 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
     );
 }
 
+/// A profile's carrier radius read through a definition is in the
+/// profile's key the same way: respelled to the same value, the
+/// profile and its sweep re-run, and the swept wall carries the new
+/// formula's token.
+#[test]
+fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
+    let disc = |doc: ProfileDoc, radius: Expr| {
+        let (doc, plane) = insert(
+            doc,
+            crate::fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        );
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![editor_core::LoopProgram::Circle {
+                    centre: [len(0.0), len(0.0)],
+                    radius,
+                }],
+                ids: Vec::new(),
+            }),
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
+        )
+    };
+    let (doc, rod) = disc(w_and_h("intent-literals-a-carrier"), named("h"));
+    let prior = eval_after(&doc, None);
+    assert!(failures(&prior).is_empty(), "{:?}", failures(&prior));
+    let respelled = step(
+        &doc,
+        DocEdit::DefineVar {
+            var: n("h").into(),
+            def: VarDecl::defined(Expr::add(named("w"), named("w")).unwrap()),
+        },
+    )
+    .doc;
+    let again = eval_after(&respelled, Some(&prior));
+    assert_eq!(again.recomputed, 2, "the profile and its sweep re-run");
+    let (fresh, by_sum) = disc(
+        w_and_h("intent-literals-a-carrier"),
+        Expr::add(named("w"), named("w")).unwrap(),
+    );
+    let cold = eval_after(&fresh, None);
+    assert_eq!(
+        radius_token(body_of(&again, rod)),
+        radius_token(body_of(&cold, by_sum))
+    );
+}
+
 // ------------------------------------------------- the door's guards
 
 /// The carry-forward doors refuse a defined variable: it has no value,

@@ -2053,4 +2053,84 @@ mod tests {
              store's own key order"
         );
     }
+
+    /// A document holding `a := b + 1 mm` and `b := a`, written past
+    /// the doors (which refuse it, as the load walk does): the shape
+    /// [`Doc::definition_order`] and [`Doc::bind_definitions`] still
+    /// answer for.
+    fn cyclic() -> (ProfileDoc, crate::var::VarId, crate::var::VarId) {
+        use crate::expr::{Dimension, Expr};
+        use crate::var::{Var, VarDef, VarId};
+        let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
+        let (a, b) = (VarId(1), VarId(2));
+        let read = |var| Expr::var(var, Dimension::Length);
+        let one = Expr::literal(0.001, Dimension::Length).expect("a length");
+        doc.vars.insert(
+            a,
+            Var::new(VarDef::Defined(
+                Expr::add(read(b), one).expect("lengths add"),
+            )),
+        );
+        doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
+        doc.var_order = vec![a, b];
+        (doc, a, b)
+    }
+
+    /// A cycle no door admits still orders every variable — the cycle
+    /// last, in declaration order — and binds none of it: each refuses
+    /// with the read it could not answer, `a` first.
+    #[test]
+    fn a_cycle_orders_every_variable_and_binds_none() {
+        use crate::expr::EvalError;
+        let (doc, a, b) = cyclic();
+        assert_eq!(doc.definition_order(), &[a, b]);
+        assert_eq!(doc.definition_cycle(a), Some(vec![a, b]));
+        let env = doc.var_env::<f64>();
+        assert!(env.bindings.is_empty(), "{:?}", env.bindings);
+        assert_eq!(
+            env.refused.get(&a),
+            Some(&EvalError::UnresolvedVar { var: b })
+        );
+        assert_eq!(
+            env.refused.get(&b),
+            Some(&EvalError::DefinitionRefused {
+                var: a,
+                source: Box::new(EvalError::UnresolvedVar { var: b }),
+            })
+        );
+    }
+
+    /// The expansion count saturates one past the bound instead of
+    /// counting an exponential tree out.
+    #[test]
+    fn an_expansion_count_saturates_past_the_bound() {
+        use crate::expr::{Dimension, Expr};
+        use crate::var::{Var, VarDef, VarId};
+        let mut doc = ProfileDoc::empty_derived("doc-saturate", Tol::witness());
+        let w = VarId(1);
+        doc.vars.insert(
+            w,
+            Var::new(VarDef::Free(super::FreeVar::continuous(
+                Dimension::Length,
+                1.0,
+            ))),
+        );
+        doc.var_order.push(w);
+        let mut prev = w;
+        for k in 2..40 {
+            let id = VarId(k);
+            let read = Expr::var(prev, Dimension::Length);
+            doc.vars.insert(
+                id,
+                Var::new(VarDef::Defined(
+                    Expr::add(read.clone(), read).expect("adds"),
+                )),
+            );
+            doc.var_order.push(id);
+            prev = id;
+        }
+        let sizes = doc.expansion_nodes();
+        assert_eq!(sizes[&VarId(2)], 3);
+        assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
+    }
 }
