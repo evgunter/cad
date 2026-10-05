@@ -7067,3 +7067,18 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - **Adjudicated (C) for now.** No producer grows one face by many operators, so the cost reaches no user. The A/B fork goes to the designers when such a producer is built or planned. I wrote this on the row (pushed `3a5e2c72`) and will merge once CI is green. Lane archived (about $4.1).
 - **Dispatched** `torn-hops-read-as-absent-across-the-boolean` (P3, M) → `session_01MW56vvW7ikU3yEER8eFc6m`. Declared-pair and coincidence sites are skipped under the HOLD and listed; the lane may split by file group.
 - PR 4060: reviewer still running. Nothing new on PR 3970.
+
+## 15:48 check-in (2026-10-05)
+
+- PR 4063 merged at `0c0d7ff4` (harness + the (C) adjudication).
+- **PR 4060 review: merge, no BLOCKING.**
+  - Whole workspace run green; probes of offsetting every curved group of 15 fixtures and of 57 step imports: 0 diffs base→head.
+  - Euler doors behaviour-identical; the fold's key sets are identical. All mutations red (8 run).
+  - MINOR-1: the "no production caller moves onto a curved chart" sentence is false. The offset doors do, and their restate arm can, in principle, now refuse a neighbour-chart spec it used to take. No fixture reaches it.
+  - MINOR-2: a dead arm with false text in `RechartDoor::stranded`.
+  - NITs: a misplaced doc; stale `description_surfaces` citations in perf docs.
+  - Style: the repoint-or-kept decision is made in three places, and the listed-repoint reading has one witness.
+  - Fix lane `session_01AndK9JVPUUMJpCgdzZrX3C`. Reviewer archived (about $4.0).
+- **Dispatched** `segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo` (P3, M; `rest.rs`) → `session_01KMJUBZvcozeoq7D8PdbVHd`. A nested-strut witness comes first; a panic only on a proven premise.
+- `kef-minting-clears-…` stays open: its "describing door for kills across keys" shape is PR 3970's question.
+- Torn-hops boolean lane: no PR yet. Nothing new on PR 3970.
