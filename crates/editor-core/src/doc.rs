@@ -1455,12 +1455,14 @@ impl<P> Doc<P> {
     }
 
     /// **The document's free variables, in DECLARATION order** — the
-    /// ONE iteration base every lane reads (the evaluation environment,
-    /// the analysis box and the order its axes are listed, drawn and
-    /// tie-broken in, the interval and seed doors, the drive, the
-    /// stackup), so no two lanes can disagree on which variables there
-    /// are or in what order. A name is read off it with
-    /// [`Self::var_name`] where a lane needs one.
+    /// ONE iteration base every lane's AXES are read from (the analysis
+    /// box and the order its axes are listed, drawn and tie-broken in,
+    /// the interval and seed doors, the drive, the stackup), so no two
+    /// lanes can disagree on which variables vary or in what order. The
+    /// evaluation environment binds these, then the defined variables
+    /// in [`Self::definition_order`] ([`Self::bind_definitions`]). A
+    /// name is read off it with [`Self::var_name`] where a lane needs
+    /// one.
     pub fn free_vars(&self) -> impl Iterator<Item = (VarId, &FreeVar)> + '_ {
         self.var_order
             .iter()

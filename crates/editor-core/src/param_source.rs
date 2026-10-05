@@ -216,7 +216,10 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
         }
         // A defined variable is its definition, expanded (VR8): a
         // reader of `h := 2·w` and a slot spelling `2·w` lower equal.
-        // The doors bound the expansion (`DEFINITION_NODE_BOUND`).
+        // The doors bound each VARIABLE's expansion
+        // (`DEFINITION_NODE_BOUND`), not a slot's: a slot reading one
+        // `k` times writes up to `k` times that, linear in what was
+        // written, never the exponential a diamond of definitions is.
         ExprKind::Var(var) if let Some(definition) = defs(*var) => encode(definition, defs, out),
         // A free variable's identity alone: its kind is fixed (VR3), so
         // the reader's cached dimension says nothing the id does not,
