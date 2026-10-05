@@ -6892,3 +6892,14 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - topo `--all-features` 2310 green; sweep with the feature 2113 green. A mutation reds the scope row.
   - Closed the row and its duplicate. Lane archived (about $2.7).
 - The families lane (`session_016cnJLHrxZC86vFUEVjxVGE`) is still running (88 `rest.rs` sites audited). Disk 28G free.
+
+## 05:47 check-in (2026-10-05)
+
+- The families lane opened **PR 4048** (+651/-487, 27 files).
+  - `ContainError::Corrupt` is deleted and split into honest arms. `sectors`, `rest`, the split gate and `chord_join` are converted.
+  - Batteries: `rc_wide` x84, `rw`, `rw_coplanar` and `pierce_runs` all have the same line sets and 0 panics.
+  - Filed 2 rows; closed `work/issues/corrupt-operand-means-two-things-…` (P0 issue); the families row stays open with a listed residue.
+  - Subscribed. Reviewer `session_01V9YuE6tUq1XgyBKtdtGbQX` dispatched, to re-check at-rest vs mid-op premises and re-run the batteries.
+- **Closed `mint-pcurves-refusal-leaves-the-cache-partly-cleared` (P2) on reading.** PR 4033's derive-then-write already fixed both entries, pinned by `pcurve_door_refusals::a_null_edges_half_…_leaves_the_body_as_found` and the review_d18 clone-unchanged mint check.
+- **Dispatched** `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps` (P3, M) to `session_01E5dJcd5P2Wvx2mz83fCp6q`. The direction is PR 2527's ruling (the kills stay keys-only; the band twins mint the released loop's gaps; a `kemr` twin if needed; producers switch). It re-measures first after R.
+- My merge of main conflicted on the per-op row (main closed it); resolved with main's version. Nothing new on PR 3970.
