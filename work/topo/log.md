@@ -6861,3 +6861,4 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - Acceptance: every kill-kept face byte-equal and clean (`kef` 21, `kef_minting` 8,102, `kev` 140, `kemr` 73). There are 400 complete-to-incomplete transitions on both base and head, all whole-face `Clear`s, so pre-existing.
   - Fix lane archived (about $28). Unsubscribed.
   - **PR 4039** (R part 2, `a580e4d8`, brought up on top of 4037) is subscribed; reviewer `session_01Nwzvm72ye7rapYpyEhZypv` dispatched.
+- 02:09 check-in: the PR 4039 review is pending. The topo rows incoming on main come from the merged 4037 and 4043: the band-straddle residual row filed by R part 1, kev-describing evidence, and the P0 row closed. Nothing new on PR 3970.
