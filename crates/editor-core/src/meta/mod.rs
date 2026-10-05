@@ -346,69 +346,91 @@ impl MetaValue {
 /// **An integer a [`MetaValue`] holds**: any value of `i64` or of `u64`,
 /// so every integer a 64-bit field serializes — a minted id included,
 /// half of which sit above `i64::MAX` — becomes metadata exactly. The
-/// range is the union of the two and no wider: it is what a JSON
-/// reader's integer holds (a `u64` or an `i64`), so a reader of a saved
-/// file reads every value exactly. One number has one value, whichever
-/// type it came from, so equality is numeric.
+/// range is the union of the two and no wider: it is what a JSON reader
+/// with 64-bit integers holds (`serde_json`'s `u64` or `i64`), so such a
+/// reader of a saved file reads every value exactly. One number has one
+/// value, whichever type it came from, so equality is numeric.
 /// It persists as the bare integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MetaInt(i128);
+pub struct MetaInt(Spelled);
+
+/// A [`MetaInt`] as the `u64` it is when non-negative, else as the
+/// negative `i64` — the type `serde_json` visits the same number with,
+/// so a reader that takes only one of `u64` or `i64` reads it back from
+/// [`from_value`] as it does from the saved text. Variant order is
+/// numeric order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum Spelled {
+    /// Below zero.
+    Negative(i64),
+    NonNegative(u64),
+}
 
 impl MetaInt {
     /// The value as an `i64`, `None` above `i64::MAX`.
     #[must_use]
     pub fn as_i64(self) -> Option<i64> {
-        i64::try_from(self.0).ok()
+        match self.0 {
+            Spelled::Negative(v) => Some(v),
+            Spelled::NonNegative(v) => i64::try_from(v).ok(),
+        }
     }
 
     /// The value as a `u64`, `None` below zero.
     #[must_use]
     pub fn as_u64(self) -> Option<u64> {
-        u64::try_from(self.0).ok()
+        match self.0 {
+            Spelled::Negative(_) => None,
+            Spelled::NonNegative(v) => Some(v),
+        }
     }
 
     /// The value as an `i128`, which holds every value.
     #[must_use]
-    pub fn get(self) -> i128 {
-        self.0
+    pub fn as_i128(self) -> i128 {
+        match self.0 {
+            Spelled::Negative(v) => v.into(),
+            Spelled::NonNegative(v) => v.into(),
+        }
     }
 
-    /// The value as the `i64` it is, or else the `u64`: the one spelling
-    /// every writer and reader of the value sees.
     fn spelled(self) -> Spelled {
-        match (self.as_i64(), self.as_u64()) {
-            (Some(v), _) => Spelled::Signed(v),
-            (None, Some(v)) => Spelled::Unsigned(v),
-            (None, None) => unreachable!("a MetaInt is an i64 or a u64 by construction"),
-        }
+        self.0
     }
 }
 
-/// A [`MetaInt`] as an `i64`, or as a `u64` above `i64::MAX`.
-enum Spelled {
-    Signed(i64),
-    Unsigned(u64),
+impl From<i64> for MetaInt {
+    fn from(v: i64) -> Self {
+        Self(u64::try_from(v).map_or(Spelled::Negative(v), Spelled::NonNegative))
+    }
+}
+
+impl From<u64> for MetaInt {
+    fn from(v: u64) -> Self {
+        Self(Spelled::NonNegative(v))
+    }
 }
 
 macro_rules! meta_int_from {
-    ($($t:ty),*) => {$(
+    ($wide:ty: $($t:ty),*) => {$(
         impl From<$t> for MetaInt {
             fn from(v: $t) -> Self {
-                Self(i128::from(v))
+                Self::from(<$wide>::from(v))
             }
         }
     )*};
 }
-meta_int_from!(i8, i16, i32, i64, u8, u16, u32, u64);
+meta_int_from!(i64: i8, i16, i32);
+meta_int_from!(u64: u8, u16, u32);
 
 impl TryFrom<i128> for MetaInt {
     type Error = MetaError;
     /// [`MetaError::IntOutOfRange`] outside `i64::MIN..=u64::MAX`.
     fn try_from(v: i128) -> Result<Self, MetaError> {
-        if (i128::from(i64::MIN)..=i128::from(u64::MAX)).contains(&v) {
-            Ok(Self(v))
-        } else {
-            Err(MetaError::IntOutOfRange)
+        match (u64::try_from(v), i64::try_from(v)) {
+            (Ok(u), _) => Ok(u.into()),
+            (Err(_), Ok(i)) => Ok(i.into()),
+            (Err(_), Err(_)) => Err(MetaError::IntOutOfRange),
         }
     }
 }
@@ -425,15 +447,18 @@ impl TryFrom<u128> for MetaInt {
 
 impl std::fmt::Display for MetaInt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        match self.0 {
+            Spelled::Negative(v) => v.fmt(f),
+            Spelled::NonNegative(v) => v.fmt(f),
+        }
     }
 }
 
 impl serde::Serialize for MetaInt {
     fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        match self.spelled() {
-            Spelled::Signed(v) => ser.serialize_i64(v),
-            Spelled::Unsigned(v) => ser.serialize_u64(v),
+        match self.0 {
+            Spelled::Negative(v) => ser.serialize_i64(v),
+            Spelled::NonNegative(v) => ser.serialize_u64(v),
         }
     }
 }
@@ -452,11 +477,18 @@ impl<'de> serde::Deserialize<'de> for MetaInt {
             fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<MetaInt, E> {
                 Ok(v.into())
             }
-            fn visit_i128<E: serde::de::Error>(self, v: i128) -> Result<MetaInt, E> {
-                MetaInt::try_from(v).map_err(E::custom)
-            }
-            fn visit_u128<E: serde::de::Error>(self, v: u128) -> Result<MetaInt, E> {
-                MetaInt::try_from(v).map_err(E::custom)
+            /// `serde_json` reads an integer past both ends as a float,
+            /// so an integral float out of range is refused for its
+            /// range; any other float is not an integer. The range is
+            /// open at `i64::MIN` because the integer just below it
+            /// rounds to it as a float.
+            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<MetaInt, E> {
+                let inside = v > -(2f64.powi(63)) && v < 2f64.powi(64);
+                if v.trunc() == v && !inside {
+                    Err(E::custom(MetaError::IntOutOfRange))
+                } else {
+                    Err(E::invalid_type(serde::de::Unexpected::Float(v), &self))
+                }
             }
         }
         de.deserialize_any(Visit)
@@ -705,7 +737,8 @@ mod tests {
     /// The integers at each end of `i64` and `u64` and either side of
     /// where they meet are metadata, through the producer boundary and
     /// through the persisted text, which spells each as its bare
-    /// number; one past either end is refused at both.
+    /// number; one past either end is refused at both, on load for its
+    /// range, and a float on load as not an integer.
     #[test]
     fn every_i64_and_u64_is_metadata_and_nothing_past_them() {
         let ends: [(i128, &str); 6] = [
@@ -718,7 +751,7 @@ mod tests {
         ];
         for (n, text) in ends {
             let int = MetaInt::try_from(n).expect("in range");
-            assert_eq!(int.get(), n, "{n} is held as itself");
+            assert_eq!(int.as_i128(), n, "{n} is held as itself");
             let tree = to_value(&n).expect("to_value");
             assert_eq!(tree, MetaValue::Int(int), "{n} erases to Int");
             assert_eq!(from_value::<i128>(&tree), Ok(n), "{n} comes back");
@@ -740,9 +773,22 @@ mod tests {
             assert_eq!(MetaInt::try_from(past), Err(MetaError::IntOutOfRange));
             assert_eq!(to_value(&past), Err(MetaError::IntOutOfRange));
             let json = format!("{{\"Int\":{past}}}");
+            let refusal = serde_json::from_str::<MetaValue>(&json)
+                .expect_err("one past the range is refused on load")
+                .to_string();
             assert!(
-                serde_json::from_str::<MetaValue>(&json).is_err(),
-                "{past} is refused on load"
+                refusal.contains(&MetaError::IntOutOfRange.to_string()),
+                "{past} is refused on load for its range: {refusal}"
+            );
+        }
+        for not_int in ["5.5", "5.0", "-0", "1e3"] {
+            let json = format!("{{\"Int\":{not_int}}}");
+            let refusal = serde_json::from_str::<MetaValue>(&json)
+                .expect_err("a float is not an integer")
+                .to_string();
+            assert!(
+                refusal.starts_with("invalid type: floating point"),
+                "{not_int} is refused as not an integer: {refusal}"
             );
         }
     }

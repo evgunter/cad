@@ -54,4 +54,7 @@ The `IntOutOfRange` half no longer holds: `MetaValue::Int` holds every
 `i64` and `u64` (`meta::MetaInt`, RECIPE's
 `a-node-id-above-i64-max-cannot-become-metadata`), so a name minted
 above `i64::MAX` goes through `to_value` as deep as any other name
-(`tests/meta_minted_ids.rs`).
+(`tests/meta_minted_ids.rs`). `from_value` reads an id back at every
+value too, a program type's included: a non-negative integer reaches
+its visitor as a `u64`, as `serde_json` hands it, so a reader that
+takes only `u64` (a `ProfileProgram`'s `plane`) reads every id.

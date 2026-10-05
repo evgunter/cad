@@ -24,3 +24,5 @@ Filed by the RECIPE orchestrator from PR 3909's fix-pass report.
 ## Built (2026-10-05, PR 4071)
 
 `MetaValue::Int` holds a `MetaInt`: every `i64` and every `u64`, no wider, persisted as the bare integer (unchanged bytes for every value that could be written before). A name minted above `i64::MAX` round-trips through `to_value`/`from_value` at one level and as deep as any name (`tests/meta_minted_ids.rs`), and a document carrying it in metadata saves, loads and pins the same. The same arm carries `StepId` and `VarId`. Nothing remains on this row.
+
+Fix pass (2026-10-05, PR 4071): `MetaInt` hands a non-negative value to a visitor as a `u64`, as `serde_json` does, so a reader that takes only `u64` (`persist::wire::plane_ref`, a `ProfileProgram`'s `plane`) comes back through `from_value` at every id, not only above `i64::MAX` (`tests/meta_minted_ids.rs`, plane ids 5, `i64::MAX`, `i64::MAX + 1`, `u64::MAX`). An integer past both ends of the range in a saved file is refused for its range (`MetaError::IntOutOfRange`'s text) rather than as a float. No stored byte or pin moved.

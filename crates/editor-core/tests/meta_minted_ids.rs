@@ -10,8 +10,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CapEnd, DocEdit, EntityKind, MetaError, MetaValue, Node, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, content_pin, from_value, load, save, to_value,
+    CapEnd, DocEdit, EntityKind, MetaError, MetaValue, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, StableName, content_pin, from_value, load, save, to_value,
 };
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
@@ -156,4 +156,28 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
         Ok(&name),
         "the loaded value reads back as the name"
     );
+}
+
+/// **A node id read by a door that takes only `u64` comes back through
+/// `from_value` at every id**, as it does through the saved text: a
+/// profile's `plane` reads through `plane_ref`, whose visitor takes a
+/// `u64` alone, so an id spelled as an `i64` below `i64::MAX` would be
+/// refused while the same id above it read back.
+#[test]
+fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
+    for id in [5, i64::MAX as u64, i64::MAX as u64 + 1, u64::MAX] {
+        let program = ProfileProgram {
+            plane: RecipeNodeId(id),
+            loops: Vec::new(),
+            ids: Vec::new(),
+        };
+        let value = to_value(&program).expect("a profile program is metadata");
+        let back = from_value::<ProfileProgram>(&value)
+            .unwrap_or_else(|e| panic!("plane {id} comes back through from_value: {e}"));
+        assert_eq!(back.plane, program.plane, "plane {id} comes back as itself");
+        let json = serde_json::to_string(&program).unwrap();
+        let read = serde_json::from_str::<ProfileProgram>(&json)
+            .unwrap_or_else(|e| panic!("plane {id} reads back from text: {e}"));
+        assert_eq!(read.plane, program.plane, "plane {id} reads back from text");
+    }
 }

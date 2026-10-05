@@ -74,8 +74,8 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
             MetaValue::Null => visitor.visit_unit(),
             MetaValue::Bool(b) => visitor.visit_bool(*b),
             MetaValue::Int(i) => match i.spelled() {
-                Spelled::Signed(v) => visitor.visit_i64(v),
-                Spelled::Unsigned(v) => visitor.visit_u64(v),
+                Spelled::Negative(v) => visitor.visit_i64(v),
+                Spelled::NonNegative(v) => visitor.visit_u64(v),
             },
             MetaValue::Float(f) => visitor.visit_f64(*f),
             MetaValue::Str(s) => visitor.visit_borrowed_str(s),
