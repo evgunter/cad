@@ -98,10 +98,15 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
             // physical sector: the strut spliced in that sector's
             // corner, whose tip is the Below copy while the base vertex
             // keeps the Above run.
-            (Some(first), Some(last)) => match body
-                .run_site(first.he, last.he)
-                .ok_or(SplitReduceError::CorruptOperand { vertex })?
-            {
+            (Some(first), Some(last)) => match body.run_site(first.he, last.he).unwrap_or_else(|| {
+                unreachable!(
+                    "the run {:?} ..= {:?} at {vertex:?} has no orbit successor: its halves come \
+                     from the orbit the reduction just walked, the reduction kills nothing, and \
+                     its Euler operators keep every mate link",
+                    first.he,
+                    last.he
+                )
+            }) {
                 site @ RunSite::Fan { .. } => (site.mev_site(), false, false),
                 site @ RunSite::WholeOrbit { .. } => (site.mev_site(), true, true),
             },

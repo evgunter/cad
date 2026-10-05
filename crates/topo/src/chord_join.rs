@@ -547,17 +547,20 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
+/// [`face_extent`]'s refusal as the join's typed frontier: a face with
+/// no outer boundary has no extent to meter a section across.
+fn unbounded(e: crate::splitting::rules::UnboundedFace) -> SplitJoinError {
+    SplitJoinError::SectionInvariant {
+        face: e.face,
+        what: "the face's outer loop is a lone vertex, so it has no extent to meter the \
+               section across",
+    }
+}
+
 /// The corruption refusal naming the edge the join was reading.
 pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
     SplitJoinError::Corrupt {
         entity: EntityId::Edge(edge),
-    }
-}
-
-/// The corruption refusal naming the vertex the join was reading.
-pub(crate) fn corrupt_vertex(vertex: VertexKey) -> SplitJoinError {
-    SplitJoinError::Corrupt {
-        entity: EntityId::Vertex(vertex),
     }
 }
 
@@ -1272,7 +1275,7 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let extent = face_extent(body, at, face).map_err(|_| corrupt_face(face))?;
+    let extent = face_extent(body, at, face).map_err(unbounded)?;
     let case = section_case(face, band, &plane_s, &wall, extent)?;
     Ok(Some(WallSection { wall, case }))
 }
@@ -1373,7 +1376,7 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let extent = face_extent(body, u1, face).map_err(|_| corrupt_vertex(u1))?;
+    let extent = face_extent(body, u1, face).map_err(unbounded)?;
     let conic = match section_case(face, band, &plane_s, wall, extent)? {
         // Ruling seams are straight chords on the plane too.
         SectionCase::Straight => return Ok(None),
