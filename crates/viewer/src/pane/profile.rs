@@ -1302,11 +1302,14 @@ mod tests {
             );
         });
         let committed = session.committed_doc();
+        // The removal draws the named step nowhere, so the line says it
+        // by its tag, as against a document that draws no step at all.
+        let undrawn: Doc<ProfileProgram> = Doc::empty_derived("undrawn", Tol::witness());
         assert!(
             hovered.contains(&format!(
                 "{} carries a name for {}",
                 committed.spoken(carrier),
-                committed.spoken_name(&wall)
+                committed.spoken_name(&wall).steps_respoken(&undrawn)
             )),
             "the hover speaks the carrier and the name's words: {hovered}"
         );
