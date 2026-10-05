@@ -523,7 +523,7 @@ fn err_name(e: &SsiError) -> String {
         SsiError::StepBudget { bound, .. } => format!("StepBudget({bound:?})"),
         SsiError::Fit(f) => format!("Fit({f:?})"),
         SsiError::RefinementExhausted { stop, .. } => format!("RefinementExhausted({stop:?})"),
-        _ if head == "ShortBranchUncertified" || head == "PolylineNotOneArc" => format!("{e:?}").chars().take(160).collect(),
+        _ if head == "ShortBranchUncertified" || head == "MarchStepInBand" || head == "TransversalityBand" => format!("{e:?}").chars().take(160).collect(),
         _ => head,
     }
 }
@@ -1198,6 +1198,21 @@ fn probe2_bend_pair_detail() {
                 }
                 Err(e) => println!("β={beta} g={g:e} ε {eps:e} ({dt:.2}s): {}\n    {}", format!("{e:?}").chars().take(300).collect::<String>(), e.render(Reading::Build).chars().take(500).collect::<String>()),
             }
+        }
+    }
+}
+
+/// Render the dip rows that now end on limb 3.
+#[test]
+fn probe3_dip_render() {
+    use geom_brep::recourse::Reading;
+    for c in [-5e-6, -1e-4] {
+        let f = move |u: f64, v: f64| v - c - 0.2 * (u - 0.5) * (u - 0.5);
+        let s = wall(&f, 2, 1, &VARIANTS[0]);
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        match ssi::plane_nurbs_ssi(&plane(), &s, dom(), band) {
+            Ok(o) => println!("dip c={c:e}: Ok {}", o.branches.len()),
+            Err(e) => println!("dip c={c:e}: {}\n    {}", format!("{e:?}").chars().take(400).collect::<String>(), e.render(Reading::Build)),
         }
     }
 }
