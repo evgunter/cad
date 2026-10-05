@@ -1333,7 +1333,8 @@ fn locus_at_site<T: Decide>(
             body.half_edge_end(he)
                 .ok_or(desync("germ half no longer resolves"))?,
         ],
-    );
+    )
+    .map_err(super::sectors::stale_site)?;
     let (u, v) = body
         .edge_vertices(edge)
         .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;
@@ -1417,13 +1418,19 @@ fn germ_section_frame<T: Decide>(
     // axial extent ends at.
     let reach = match (&sa, &sb) {
         (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
+            // `surf` resolved both faces above, and nothing writes
+            // between, so `face_witnesses` reads each.
             let witnesses = |body: &Body<T>, f: FaceKey| {
-                super::rest::face_witnesses(body, f)
-                    .ok_or(desync("a germ wall's boundary cannot be walked"))
+                super::rest::face_witnesses(body, f).unwrap_or_else(|| {
+                    unreachable!(
+                        "{}, which `surf` resolved, does not resolve",
+                        crate::entity::EntityId::Face(f)
+                    )
+                })
             };
-            let points: Vec<geom_brep::ExtentBall<T>> = witnesses(&red.a, germ.a_face)?
+            let points: Vec<geom_brep::ExtentBall<T>> = witnesses(&red.a, germ.a_face)
                 .into_iter()
-                .chain(witnesses(&red.b, germ.b_face)?)
+                .chain(witnesses(&red.b, germ.b_face))
                 .map(geom_brep::ExtentBall::point)
                 .collect();
             let ball = geom_brep::ExtentBall::enclosing(&points)

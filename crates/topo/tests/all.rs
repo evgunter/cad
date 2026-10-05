@@ -289,6 +289,8 @@ mod shell_roles;
 mod shell_tolerance_chain;
 #[path = "shell_winding.rs"]
 mod shell_winding;
+#[path = "site_mint_scaling.rs"]
+mod site_mint_scaling;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "sphere_twin_rows_interval.rs"]
