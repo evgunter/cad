@@ -7142,3 +7142,22 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Reviewer archived (about $5.1).
 - PR 4060: the second fix lane is running batteries. PR 4066: its fix lane is running.
 - Nothing new on PR 3970.
+
+## 20:46 check-in (2026-10-05)
+
+- **PR 4060 merged** at `d86bccdd` (head `9a3f463e`).
+  - The second fix pass cleared the blocker: the offset doors restate a held neighbour's chart edge as `Intersection(moving, held)`, or as the moving face's own chart for a declared edge, so the declaration is not dropped.
+  - `replace_faces_offset` now also takes two sound moves it refused on main (`ChartResidual`).
+  - Four witnesses, three mutations red. Probes: native 348 lines and step-import 1536 lines, 0 diffs. Workspace: 11766 passed.
+  - Closed the P2 offset row. Filed `the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left` (P3, pre-existing on main).
+  - Fix lane archived (about $8.2).
+- **PR 4066:** the fix lane's pass (`738c07df`) answered everything:
+  - walk and `proven` panics name `OPERATORS_KEEP_LINKS`;
+  - `carve` now checks it drops only records no kept record names (`SplitFinishError::Corrupt`), with three mutations red;
+  - the HOLD criterion is stated (`face_boundary_arcs` moved to converted);
+  - M3/M7 are on load-bearing fixtures; OA/OB/OC′/OF/OG are red;
+  - `face_loops_linked` is the one home;
+  - `face_outward_normal` now panics on a torn surface;
+  - `sphere_chart_trim`'s split is noted as the families row's.
+  - Its CI run was cancelled (superseded), so I merged main (with PR 4060) into it at `d288f84f` (clean; `cargo check` ok). Waiting for CI.
+- PR 4067: its fix lane is still running. Nothing new on PR 3970.
