@@ -31,3 +31,11 @@ One helper that names the face holding both halves among a face's
 lineage, rows in any order, and the three callers reading through it.
 `finish.rs` and `chord_join.rs` are cleave's and hone's ground, so
 PR 4008 shared only the lineage between the two join-side callers.
+
+## Evidence (PR 3985, 2026-10-04)
+
+`boolean::join`'s `wall_region` is gone: it chose the region whose
+azimuth window the planar-side chord read, and PR 3985
+(`reach/arc-from-pairing`) retired that window — the chord takes the
+arc its pairing names. `rest::fragment_holding` and
+`chord_join::lineage` remain.

@@ -4140,8 +4140,8 @@ mod verbs_gate_r1_probes {
         // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
         // With the caps swept whole, the crossing layer's circle × sphere
-        // roots, the radical-plane join and its run-side arc rule for a
-        // section tilted against the zone's polar axis, the carve
+        // roots, the radical-plane join and its chords' arcs, taken from
+        // the germs, for a section tilted against the zone's polar axis, the carve
         // builds under every op, and each answer meets the lens the
         // ball and the zone's sphere share, from the radii and the
         // centre distance alone. What stops the scene is drawing it.
