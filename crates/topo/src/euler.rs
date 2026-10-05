@@ -299,12 +299,14 @@ pub enum FaceSurface<T: Real> {
     },
 }
 
-/// The keys-only door a [`EulerOpError::RechartStrandsDescriptions`] or
+/// The re-chart door a [`EulerOpError::RechartStrandsDescriptions`] or
 /// [`EulerOpError::RechartUnvouched`] refusal is raised by. Each puts
 /// existing half-edges, or a chord it mints, on a face wearing another
 /// key than the one they lay on, and the lever its refusal names is
 /// its own: a minting door picks the chart it mints the face on, a
-/// moving door the face it moves the loop onto.
+/// moving door the face it moves the loop onto, the describing door
+/// the re-descriptions it is handed. Every door but the describing one
+/// is keys-only, and only the keys-only doors strand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RechartDoor {
     /// [`Body::set_face_surface`]: re-charts a face in place.
@@ -322,6 +324,12 @@ pub enum RechartDoor {
     /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
     /// ring onto another face.
     RingMove,
+    /// [`Body::set_face_surfaces_describing`]: re-charts faces with the
+    /// re-descriptions it is handed. It refuses a stranded edge as
+    /// [`EulerOpError::RechartUndescribed`], so it raises only
+    /// [`EulerOpError::RechartUnvouched`]: onto a curved chart, where
+    /// no residual is read.
+    SetFaceSurfacesDescribing,
 }
 
 impl RechartDoor {
@@ -333,6 +341,7 @@ impl RechartDoor {
             Self::Mfkrh => "mfkrh",
             Self::MfkrhPlug => "mfkrh_plug",
             Self::RingMove => "ring_move",
+            Self::SetFaceSurfacesDescribing => "set_face_surfaces_describing",
         }
     }
 
@@ -361,6 +370,11 @@ impl RechartDoor {
             Self::RingMove => (
                 "the move",
                 "move the loop onto a face on the chart its edges name",
+            ),
+            Self::SetFaceSurfacesDescribing => unreachable!(
+                "RechartStrandsDescriptions is raised only by the keys-only doors \
+                 (`Body::vouch_move`); set_face_surfaces_describing refuses a stranded edge \
+                 as RechartUndescribed"
             ),
         };
         format!(
@@ -404,6 +418,13 @@ impl RechartDoor {
                 "{name}: the loop would move onto face {face:?}, on a chart that {named} not \
                  name, so nothing vouches that they lie on that chart. Recourse: move the \
                  loop onto a face on a chart its edges name"
+            ),
+            Self::SetFaceSurfacesDescribing => format!(
+                "{name}: face {face:?} would move onto a curved chart that {named} not name, \
+                 and a curved chart's residuals are not read, so nothing vouches that its \
+                 boundary lies on that chart. Recourse: list a re-description of each on the \
+                 new chart, which the door certifies against it, or move the face onto a \
+                 chart they name"
             ),
         }
     }
@@ -885,20 +906,21 @@ pub enum EulerOpError {
         /// The stranded edges.
         edges: Vec<EdgeKey>,
     },
-    /// A keys-only re-chart door ([`RechartDoor`]) would put these
-    /// certified edges — or the certified chord a minting door mints —
-    /// on a face whose key their descriptions do not name, so nothing
-    /// vouches that they, and the vertices they end at, lie on its
-    /// chart: on a plane, tier 3's `PlanarBoundaryResidual` /
-    /// `PlanarFaceResidual` at rest. Every one is named, in the order
-    /// [`EulerOpError::RechartStrandsDescriptions`] names them. The
-    /// lever is the door's own ([`RechartDoor`]); the describing door,
-    /// [`Body::set_face_surfaces_describing`], certifies every
-    /// re-description it is handed, and asks the boundary's own
-    /// residuals only on a plane: onto a curved chart, handed no
-    /// re-descriptions, it asks nothing
+    /// A re-chart door ([`RechartDoor`]) would put these certified
+    /// edges — or the certified chord a minting door mints — on a face
+    /// whose key their descriptions do not name, and no residual of
+    /// theirs is read there, so nothing vouches that they, and the
+    /// vertices they end at, lie on its chart: on a plane, tier 3's
+    /// `PlanarBoundaryResidual` / `PlanarFaceResidual` at rest. A
+    /// keys-only door reads no residual; the describing door,
+    /// [`Body::set_face_surfaces_describing`], reads them on a plane
+    /// ([`EulerOpError::RechartOffBoundary`]) and not on a curved chart
     /// (`work/restfront/validate-tier3-curved-boundary-containment`,
-    /// #638). Raised in the plan phase, so the body is untouched.
+    /// #638). Every one is named, in the order
+    /// [`EulerOpError::RechartStrandsDescriptions`] names them at a
+    /// keys-only door, and in the face's cycle order at the describing
+    /// one. The lever is the door's own ([`RechartDoor`]). Raised in the
+    /// plan phase, so the body is untouched.
     RechartUnvouched {
         /// The door that refuses.
         door: RechartDoor,
@@ -934,10 +956,10 @@ pub enum EulerOpError {
         error: CertifyError,
     },
     /// [`Body::set_face_surfaces_describing`]: a face moved onto a plane
-    /// has a vertex, or an interior certification sample of an edge,
-    /// definitely off that plane — tier 3's `PlanarFaceResidual` /
-    /// `PlanarBoundaryResidual`, asked before the move. Raised in the
-    /// plan phase, so the body is untouched.
+    /// has a certified edge no key vouches for there with an end, or an
+    /// interior certification sample, definitely off that plane — tier
+    /// 3's `PlanarFaceResidual` / `PlanarBoundaryResidual`, asked before
+    /// the move. Raised in the plan phase, so the body is untouched.
     RechartOffBoundary {
         /// The moved face.
         face: FaceKey,
@@ -7165,7 +7187,7 @@ mod removal_census {
         ),
         (
             "DanglingDescription: Curve -> Surface",
-            Read("remove_surface_if_orphaned", &["description_surfaces("]),
+            Read("remove_surface_if_orphaned", &["Named::of(curve).keys()"]),
         ),
         (
             "DanglingGeometry: Vertex -> Point",
