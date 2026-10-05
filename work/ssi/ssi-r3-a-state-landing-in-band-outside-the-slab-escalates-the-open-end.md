@@ -31,7 +31,7 @@ positions (`probe2_slab_face_sweep` on
 
 | ε | main 396e5a8843 | PR 4034 |
 |---|---|---|
-| 1e-6 | 153 escalate | 225 escalate |
+| 1e-6 | 153 escalate | 225 escalate, and 1 `ssi_step_progress` |
 | 1e-9 | 0 | 2 |
 
 PR 4034's residual test keeps shorter steps near the face than main's
