@@ -6862,3 +6862,19 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - Fix lane archived (about $28). Unsubscribed.
   - **PR 4039** (R part 2, `a580e4d8`, brought up on top of 4037) is subscribed; reviewer `session_01Nwzvm72ye7rapYpyEhZypv` dispatched.
 - 02:09 check-in: the PR 4039 review is pending. The topo rows incoming on main come from the merged 4037 and 4043: the band-straddle residual row filed by R part 1, kev-describing evidence, and the P0 row closed. Nothing new on PR 3970.
+
+## 03:01 check-in (2026-10-05)
+
+**PR 4039 review: fix first, no blocker.**
+- Against main it is only the part-2 delta: `pcurves.rs` +208/-51 plus 5 rows. topo 2293/2293, sweep ci 2066/2066.
+- Mutations M1 and M4 (skip joint writes) turn 34 and 21 rows red.
+- `kef_minting` faces are `moved`, so part 2 cannot change the 400 transitions; they are pre-existing.
+- Findings, all adopted:
+  1. Stale docs: "one certification home", `walk_cycle`'s callers, and `site_rows`' re-walk text.
+  2. A false "hull as the pass's" claim.
+  3. The `prev == p` guard cannot go red (M3).
+  4. The O(N^2) residue row should stay P3.
+  5. The re-walk's incidental repair of stale `kev_describing` far-face rows is lost.
+  - Style: the site mint re-spells `certify_walked` and `walk_cycle` (Q1); double bindings; three write paths.
+
+Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the one certification home, a `kev_describing` M3 witness, residue P3. Reviewer archived (about $3.3). Nothing new on PR 3970.
