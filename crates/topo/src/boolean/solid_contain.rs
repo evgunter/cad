@@ -1263,6 +1263,9 @@ pub(super) fn wall_outline<T: Decide>(
             .copied()
             .ok_or_else(corrupt)
     };
+    // A record miss past `face` answers `CorruptFace` and a torn edge
+    // or curve panics: the walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut edges = Vec::with_capacity(images.len());
     for (i, image) in images.iter().enumerate() {
         let edge = body.get_half_edge(image.he).ok_or_else(corrupt)?.edge;
@@ -2230,6 +2233,9 @@ fn torus_chart_windows<T: Decide>(
     // header's "the window is a box" paragraph).
     let mut variation = (T::zero(), T::zero());
     let mut first_entry: Option<(T, T)> = None;
+    // A record miss past `face` answers `CorruptFace` and a torn curve
+    // panics: the walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
@@ -3090,6 +3096,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Sign::Positive | Sign::Negative => Ok(false),
         }
     };
+    // A record miss past `face` answers `CorruptFace` and a torn edge
+    // or curve panics: the walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut levels: Vec<(T, T)> = Vec::new();
     // A point's own exact meridian-half-plane pair.
     let pair = |p: Point3<T>| -> (T, T) {

@@ -67,6 +67,20 @@ fn drop_outer(body: &mut Body<f64>, face: FaceKey) -> String {
     format!("'s outer names {}", EntityId::Loop(outer))
 }
 
+/// Gives `face` a ring link that does not resolve, and names it.
+fn tear_ring(body: &mut Body<f64>, face: FaceKey) -> String {
+    let outer = body.get_face(face).unwrap().outer;
+    let record = body.get_loop(outer).unwrap().clone();
+    let ring = body.loops.insert(record);
+    body.loops.remove(ring);
+    body.faces.get_mut(face).unwrap().rings.push(ring);
+    format!(
+        "{}'s rings names {}",
+        EntityId::Face(face),
+        EntityId::Loop(ring)
+    )
+}
+
 /// Drops `face`'s surface, and names the link that now dangles.
 fn drop_surface(body: &mut Body<f64>, face: FaceKey) -> String {
     let surface = body.get_face(face).unwrap().surface;
@@ -94,9 +108,7 @@ fn the_box_reads_panic_on_a_torn_loop_and_a_torn_curve() {
         "a certified box"
     );
     let mut torn = body.clone();
-    let outer = torn.get_face(face).unwrap().outer;
-    drop_outer(&mut torn, face);
-    let named = format!("'s loop names {}", EntityId::Loop(outer));
+    let named = drop_outer(&mut torn, face);
     assert_torn_op_panics(
         "face_window_steps",
         &mut torn,
@@ -112,12 +124,14 @@ fn the_box_reads_panic_on_a_torn_loop_and_a_torn_curve() {
     );
 }
 
-/// `boxes.rs` `face_box`: a cylinder face's axial window panics on a
-/// torn boundary curve, where it read as an edge with no claimable span.
+/// `boxes.rs` `face_box`: a cone face's axial window panics on a torn
+/// boundary curve, where it read as an edge with no claimable span. The
+/// cone's arm reads the window alone, with no boundary hull to read the
+/// curve first.
 #[test]
 fn the_face_box_panics_on_a_torn_boundary_curve() {
     use super::boxes::face_box;
-    let (mut body, face) = cyl_sheet();
+    let (mut body, face) = super::boxes::tests::cone_wall(30f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
     assert!(
         face_box(&body, face, 0.0, band())
             .unwrap()
@@ -154,17 +168,43 @@ fn the_pinch_site_panics_on_a_broken_walk_round_its_vertex() {
     assert_torn_op_panics(
         "pinch_site",
         &mut body,
-        &["the loop walk from", ROW_FOUR],
+        &["the loop walk from", ROW_FOUR, OPERATORS_KEEP_LINKS],
+        |b| super::finish::pinch_site(b, u, w, |_| true).map(|s| s.map(|(f, _)| f)),
+    );
+}
+
+/// `finish.rs` `pinch_site`: a ring link of a face round the pierce
+/// vertex that does not resolve panics, where it was stepped over. No
+/// step of the vertex's orbit reads a ring, so the face's own loop walk
+/// is the read.
+#[test]
+fn the_pinch_site_panics_on_a_torn_ring_link() {
+    let mut body = cube();
+    let face = first_face(&body);
+    let members = outer_members(&body, face);
+    let start = |he| body.get_half_edge(he).unwrap().start;
+    let (u, w) = (start(members[0]), start(members[2]));
+    assert!(
+        matches!(super::finish::pinch_site(&body, u, w, |_| true), Ok(Some((f, _))) if f == face),
+        "two diagonal corners pinch across their one face"
+    );
+    let named = tear_ring(&mut body, face);
+    assert_torn_op_panics(
+        "pinch_site",
+        &mut body,
+        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
         |b| super::finish::pinch_site(b, u, w, |_| true).map(|s| s.map(|(f, _)| f)),
     );
 }
 
 /// `ops.rs` `describe_edges`: a torn curve panics, where it read as an
-/// edge with no existing description and was re-described.
+/// edge with no existing description and refused `NotWalkable`. Every
+/// edge of the cylinder sheet is smooth, and the smooth arm writes
+/// nothing before it reads the description.
 #[test]
 fn describe_edges_panics_on_a_torn_curve() {
-    let mut body = cube();
-    let he = outer_members(&body, first_face(&body))[0];
+    let (mut body, face) = cyl_sheet();
+    let he = outer_members(&body, face)[0];
     let edge = body.get_half_edge(he).unwrap().edge;
     let tol = Tol::witness();
     let mut sound = body.clone();
@@ -196,9 +236,17 @@ fn point_in_face_panics_on_a_torn_outer_loop() {
         Some(true),
         "the face's centre is in it"
     );
-    let named = drop_outer(&mut body, face);
+    let mut torn = body.clone();
+    let named = drop_outer(&mut torn, face);
     assert_torn_op_panics(
         "point_in_face",
+        &mut torn,
+        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+        |b| super::solid_contain::point_in_face(b, face, plane.normal, p, band()),
+    );
+    let named = tear_ring(&mut body, face);
+    assert_torn_op_panics(
+        "point_in_face (ring)",
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
         |b| super::solid_contain::point_in_face(b, face, plane.normal, p, band()),
@@ -271,6 +319,21 @@ fn the_wrap_scan_panics_on_a_torn_curve() {
         "the sound sheet answers"
     );
     let he = outer_members(&body, face)[0];
+    let mut torn = body.clone();
+    let mate = torn.mate(he).unwrap();
+    let lost = torn.get_half_edge(mate).unwrap().parent_loop;
+    torn.loops.remove(lost);
+    let named = format!(
+        "{}'s parent_loop names {}",
+        EntityId::HalfEdge(mate),
+        EntityId::Loop(lost)
+    );
+    assert_torn_op_panics(
+        "wrap_rims (mate's loop)",
+        &mut torn,
+        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+        |b| wrap_rims(b, face, rims, band()).map(|r| r.is_some()),
+    );
     let named = drop_curve(&mut body, he);
     assert_torn_op_panics(
         "wrap_rims",
@@ -342,10 +405,36 @@ fn the_maximal_faces_gate_panics_on_a_torn_shared_surface() {
 #[test]
 fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
     use super::{BooleanError, BooleanOp, ContactRecords, DeclaredPairs, Operand, VfContact};
-    let piercing = cube();
-    let vertex = piercing.vertices().next().map(|(k, _)| k).unwrap();
+    // A small cube stood on its corner, the long diagonal up, at the
+    // centre of the unit cube's top face: no face of it is coplanar
+    // with the face it touches.
+    let (e1, e2, e3) = (
+        Vec3::new(1.0, -1.0, 0.0).normalize(),
+        Vec3::new(1.0, 1.0, -2.0).normalize(),
+        Vec3::new(1.0, 1.0, 1.0).normalize(),
+    );
+    let piercing = crate::test_support_fixtures::mapped_cube::<f64>(
+        |x, y, z| {
+            let p = Vec3::new(x, y, z) * 0.3;
+            Point3::new(0.5 + p.dot(e1), 0.5 + p.dot(e2), 1.0 + p.dot(e3))
+        },
+        Tol::witness(),
+    );
+    let tip = Point3::new(0.5, 0.5, 1.0);
+    let vertex = piercing
+        .vertices()
+        .find(|(_, v)| piercing.get_point(v.point).unwrap().distance(tip) < 1e-12)
+        .map(|(k, _)| k)
+        .unwrap();
     let pierced = cube();
-    let face = first_face(&pierced);
+    let face = pierced
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            super::reduce::face_plane(&pierced, f)
+                .is_some_and(|p| p.normal.z > 0.5 && (p.origin.z - 1.0).abs() < 1e-12)
+        })
+        .unwrap();
     let contact = VfContact { vertex, face };
     let classify = |a: &mut Body<f64>, b: &mut Body<f64>| {
         super::vtxfac::classify_vertex_on_face(
@@ -361,6 +450,10 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
         )
         .map(drop)
     };
+    assert!(
+        classify(&mut piercing.clone(), &mut pierced.clone()).is_ok(),
+        "the corner on the face classifies"
+    );
     let mut stale = pierced.clone();
     stale.faces.remove(face);
     assert!(

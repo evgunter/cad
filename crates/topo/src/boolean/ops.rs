@@ -1216,10 +1216,7 @@ fn face_boundary_meets<T: Decide + Bounds>(
     pad: f64,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    for (lk, field) in
-        core::iter::once((fd.outer, "outer")).chain(fd.rings.iter().map(|&r| (r, "rings")))
-    {
-        let l = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field);
+    for (_, l) in body.face_loops_linked(face, fd) {
         let LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };

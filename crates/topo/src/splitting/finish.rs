@@ -985,6 +985,14 @@ fn classify_shell<T: Decide>(
 /// with every other shell's entities removed and orphaned geometry
 /// swept. Kept entities keep their keys (lineage-scoped identity —
 /// deterministic, replay-stable).
+///
+/// **Every surviving link resolves.** The removal is arena surgery, not
+/// an Euler operator, so it keeps the links by removing only records
+/// no kept record names: no kept half-edge starts at a dropped vertex
+/// or shares an edge with a dropped half-edge, and no kept lone-vertex
+/// loop holds a dropped vertex. That is tier-1 pass 6's "no split
+/// orbits" on a body at rest; `src` may be mid-operation, so the carve
+/// checks it and answers [`SplitFinishError::Corrupt`] where it fails.
 pub(crate) fn carve<T: Decide>(
     src: &Body<T>,
     solid: SolidKey,
@@ -1028,6 +1036,31 @@ pub(crate) fn carve<T: Decide>(
                     }
                 }
             }
+        }
+    }
+
+    let dropped_hes: SecondaryMap<crate::entity::HalfEdgeKey, ()> =
+        hes.iter().map(|&he| (he, ())).collect();
+    let dropped_loops: SecondaryMap<crate::entity::LoopKey, ()> =
+        loops.iter().map(|&l| (l, ())).collect();
+    for (he, he_data) in &body.half_edges {
+        if dropped_hes.contains_key(he) {
+            continue;
+        }
+        let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
+        if vertices.contains_key(he_data.start)
+            || dropped_hes.contains_key(edge.he_plus)
+            || dropped_hes.contains_key(edge.he_minus)
+        {
+            return Err(corrupt());
+        }
+    }
+    for (l, loop_data) in &body.loops {
+        if let LoopBoundary::Empty { vertex } = loop_data.boundary
+            && !dropped_loops.contains_key(l)
+            && vertices.contains_key(vertex)
+        {
+            return Err(corrupt());
         }
     }
 

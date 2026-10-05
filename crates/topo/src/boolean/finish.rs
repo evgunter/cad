@@ -44,9 +44,11 @@ use super::shell_witness::{
 use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::entity::{
+    EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
+};
 use crate::euler::FaceSurface;
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
@@ -714,8 +716,10 @@ fn descendants<'r>(
 /// Where `u`, which both callers resolved just before, or a record
 /// past it does not resolve, or a walk does not close (D2 row 4): its
 /// orbit, each face and loop on it, and each member's start. `body` is
-/// an operand mid-operation (carved, partly welded), whose links hold
-/// by [`crate::live::OPERATORS_KEEP_LINKS`].
+/// an operand mid-operation: carved, whose links the carve leaves
+/// resolving ([`carve`] checks that it drops only records no kept
+/// record names), then partly welded, whose links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(super) fn pinch_site<T: Decide>(
     body: &Body<T>,
     u: VertexKey,
@@ -732,19 +736,13 @@ pub(super) fn pinch_site<T: Decide>(
         let f = proven(&body.faces, face, EntityId::Face);
         let mut hus = Vec::new();
         let mut hws = Vec::new();
-        for (l, field) in
-            core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&r| (r, "rings")))
-        {
-            let first = match linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), field)
-                .boundary
+        for (l, boundary, members) in face_cycles(body, face, f) {
+            if let LoopBoundary::Empty { vertex } = boundary
+                && (vertex == u || vertex == w)
             {
-                LoopBoundary::Cycle { first } => first,
-                LoopBoundary::Empty { vertex } if vertex == u || vertex == w => {
-                    return Err(desync("a kept pierce vertex stands alone on its face"));
-                }
-                LoopBoundary::Empty { .. } => continue,
-            };
-            for he in body.loop_walk(first).closed("loop", first) {
+                return Err(desync("a kept pierce vertex stands alone on its face"));
+            }
+            for he in members {
                 let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
                 if v == u {
                     hus.push((l, he));
@@ -802,17 +800,30 @@ fn section_boundary<T: Decide>(
     let f = body.get_face(face).ok_or(BooleanError::JoinDesync {
         what: "a section face no longer resolves",
     })?;
-    let mut members = Vec::new();
-    for (l, field) in
-        core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&r| (r, "rings")))
-    {
-        if let LoopBoundary::Cycle { first } =
-            linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), field).boundary
-        {
-            members.extend(body.loop_walk(first).closed("loop", first));
-        }
-    }
-    Ok(members)
+    Ok(face_cycles(body, face, f)
+        .flat_map(|(_, _, members)| members)
+        .collect())
+}
+
+/// Each loop of `face` (whose record is `f`), outer first: its key, its
+/// boundary, and its members in walk order (none for a lone vertex).
+///
+/// # Panics
+///
+/// Where a loop `f` names does not resolve or a loop walk does not
+/// close (D2 row 4).
+fn face_cycles<'a, T: Decide>(
+    body: &'a Body<T>,
+    face: FaceKey,
+    f: &'a Face,
+) -> impl Iterator<Item = (LoopKey, LoopBoundary, Vec<HalfEdgeKey>)> + 'a {
+    body.face_loops_linked(face, f).map(|(l, lp)| {
+        let members = match lp.boundary {
+            LoopBoundary::Cycle { first } => body.loop_walk(first).closed("loop", first),
+            LoopBoundary::Empty { .. } => Vec::new(),
+        };
+        (l, lp.boundary, members)
+    })
 }
 
 /// The discarded faces of one operand solid (`boolean::discard`): every
@@ -965,6 +976,7 @@ fn discarded<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
     use super::*;
+    use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
 
     #[test]
@@ -986,7 +998,7 @@ mod torn_hop_rows {
         assert_torn_op_panics(
             "section_boundary",
             &mut body,
-            &["the loop walk from", ROW_FOUR],
+            &["the loop walk from", ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| section_boundary(b, face).map(|m| m.len()),
         );
     }

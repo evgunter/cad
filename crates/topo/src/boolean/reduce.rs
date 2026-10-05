@@ -2916,12 +2916,8 @@ fn boundary_meets_circle_only_at<T: Decide>(
             Err(_) => None,
         }
     };
-    for (lk, field) in
-        core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&r| (r, "rings")))
-    {
-        match crate::live::linked(&y.loops, lk, EntityId::Loop, EntityId::Face(face), field)
-            .boundary
-        {
+    for (_, l) in y.face_loops_linked(face, f) {
+        match l.boundary {
             crate::entity::LoopBoundary::Empty { vertex } => {
                 if place(vertex).is_none() {
                     return Ok(false);

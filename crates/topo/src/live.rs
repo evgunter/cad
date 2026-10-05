@@ -51,7 +51,8 @@
 //! [`Body::resolve_half_edge_live`] are it for their callers' shapes.
 use crate::body::Body;
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey,
+    VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
 use crate::geometry::PointKey;
@@ -94,13 +95,18 @@ pub(crate) const NAMES_ONLY_LIVE: &str = "every public door keeps the body tier-
      and a tier-1-valid record names only live records";
 
 /// The premise a link that does not resolve breaks on a body
-/// mid-operation, where tier 1 is not yet asked: every link-miss panic
-/// names it beside [`NAMES_ONLY_LIVE`], and the reads that panic on a
+/// mid-operation, where tier 1 is not yet asked: every link-miss panic,
+/// [`proven`]-miss panic and broken-walk panic ([`crate::body::Walk::closed`])
+/// names it beside the at-rest premise, and the reads that panic on a
 /// link mid-operation cite it rather than restate it. Every removal of
 /// a surface or a curve is orphan-only
 /// ([`Body::remove_surface_if_orphaned`],
 /// [`Body::remove_curve_if_orphaned`], and `splitting/finish.rs`'
 /// sweep, which collects the live ones from faces and curves first).
+/// The one removal of topology that is not an Euler operator,
+/// [`crate::splitting::finish::carve`]'s, checks its own premise (it
+/// drops only records no kept record names), which a read of a carved
+/// body cites beside this one.
 pub(crate) const OPERATORS_KEEP_LINKS: &str = "mid-operation, every Euler operator leaves each \
      link it writes resolving and each walk it writes closed, and removes a record only once no \
      record names it";
@@ -218,7 +224,7 @@ impl KeySource for Proven {
 fn unproven(key: impl core::fmt::Display) -> ! {
     unreachable!(
         "{key}, which this call resolved or read out of a record, does not resolve: \
-         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}"
+         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}; {OPERATORS_KEEP_LINKS}"
     )
 }
 
@@ -267,8 +273,10 @@ pub(crate) fn linked<'a, K: slotmap::Key, V>(
 
 /// `key`'s record in `arena`, for a key this call already resolved,
 /// minted, or read out of a record it resolved: nothing removes a record
-/// during a plan, and a tier-1-valid record names only live records, so
-/// a miss is a kernel bug and panics.
+/// during a plan, a tier-1-valid record names only live records, and
+/// mid-operation [`OPERATORS_KEEP_LINKS`], so a miss is a kernel bug and
+/// panics. A key read out of a record is better resolved through
+/// [`linked`], whose panic names the record that holds it.
 #[track_caller]
 pub(crate) fn proven<K: slotmap::Key, V, I: core::fmt::Display>(
     arena: &slotmap::SlotMap<K, V>,
@@ -330,6 +338,22 @@ impl<T: Real> Body<T> {
         self.get_curve_geom(data.curve).unwrap_or_else(|| {
             dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(data.curve))
         })
+    }
+
+    /// `face`'s loops, each a link its record holds: the outer loop, then
+    /// its rings. The one order every walk of a face's boundary takes,
+    /// and the one spelling of the fields a miss names.
+    pub(crate) fn face_loops_linked<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = (LoopKey, &'a Loop)> + 'a {
+        core::iter::once((data.outer, "outer"))
+            .chain(data.rings.iter().map(|&ring| (ring, "rings")))
+            .map(move |(lk, field)| {
+                let l = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(face), field);
+                (lk, l)
+            })
     }
 
     /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`

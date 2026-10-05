@@ -111,11 +111,8 @@ pub(super) fn boundary_crossing<T: Decide>(
             what: "on-carrier crossing: face lost",
         })?;
     let mut candidates: Vec<Point3<T>> = Vec::new();
-    for (lk, field) in core::iter::once((face_data.outer, "outer"))
-        .chain(face_data.rings.iter().map(|&ring| (ring, "rings")))
-    {
-        let first = match linked(&y.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary
-        {
+    for (_, l) in y.face_loops_linked(face, face_data) {
+        let first = match l.boundary {
             LoopBoundary::Cycle { first } => first,
             LoopBoundary::Empty { .. } => return Ok(BoundaryCrossing::Unread),
         };
@@ -660,6 +657,17 @@ mod crossing_rows {
                 Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
             ),
             "a face the caller passed that does not resolve refuses typed"
+        );
+        // A member's start: no other read of this call passes through it.
+        let mut torn = body.clone();
+        let (vertex, _) = torn.vertices().next().expect("the sheet has vertices");
+        torn.vertices.remove(vertex);
+        let named = format!("'s start names {}", EntityId::Vertex(vertex));
+        assert_torn_op_panics(
+            "boundary_crossing (start)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
         );
         let (edge, curve) = body
             .edges()

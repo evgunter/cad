@@ -44,7 +44,7 @@ use geom_core::Decide;
 
 use super::BooleanError;
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::live::{linked, proven};
@@ -352,9 +352,8 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     let n = orbit.len();
     // Whether position `x` lies in the run `[i, j)`, cyclically.
     let within = |x: usize, i: usize, j: usize| (x + n - i) % n < (j + n - i) % n;
-    // Nothing writes the body until the search has chosen its site, so
-    // every record past the orbit is a link of one this call resolved.
-    let face_of = |he: HalfEdgeKey| -> (LoopKey, FaceKey) {
+    // Nothing writes the body until the search has chosen its site.
+    let face_of = |he: HalfEdgeKey| -> (LoopKey, FaceKey, &Face) {
         let l = proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
         let face = linked(
             &body.loops,
@@ -364,17 +363,14 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
             "parent_loop",
         )
         .face;
-        (l, face)
+        let data = linked(&body.faces, face, EntityId::Face, EntityId::Loop(l), "face");
+        (l, face, data)
     };
-    let face_data = |f: FaceKey| proven(&body.faces, f, EntityId::Face);
-    let chart_of = |f: FaceKey| {
-        let d = face_data(f);
-        (d.surface, d.sense)
-    };
-    let ringless = |f: FaceKey| face_data(f).rings.is_empty();
+    let chart_of = |d: &Face| (d.surface, d.sense);
+    let ringless = |d: &Face| d.rings.is_empty();
     let mut site = None;
     'search: for i in 0..n {
-        let (l, face) = face_of(orbit[i]);
+        let (l, face, fd) = face_of(orbit[i]);
         if sections.contains(&face) {
             continue;
         }
@@ -382,14 +378,13 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
             if within(k, i, j) || !ms.iter().all(|&m| within(m, i, j)) {
                 continue;
             }
-            let (lj, fj) = face_of(orbit[j]);
-            let outer = |f: FaceKey, l: LoopKey| face_data(f).outer == l;
-            let crossing = if lj == l && !outer(face, l) {
+            let (lj, fj, fjd) = face_of(orbit[j]);
+            let crossing = if lj == l && fd.outer != l {
                 Some(Crossing::OneLoop)
             } else if fj != face
                 && !sections.contains(&fj)
-                && (ringless(face) || ringless(fj))
-                && chart_of(fj) == chart_of(face)
+                && (ringless(fd) || ringless(fjd))
+                && chart_of(fjd) == chart_of(fd)
             {
                 // `kef` kills only a ringless face, so the one that dies
                 // is decided here: `face` where it is ringless, else `fj`,
@@ -397,7 +392,7 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
                 // reached has two ringed faces of one chart at `v`; were
                 // one to pass with the dying face holding a ring, `kef`
                 // would refuse typed (`FaceHasRings`).
-                Some(if ringless(face) {
+                Some(if ringless(fd) {
                     Crossing::TwoFaces {
                         dies: Half::Plus,
                         kept: fj,
@@ -645,6 +640,22 @@ mod torn_hop_rows {
                 Err(BooleanError::ZipCorrespondence { .. })
             ),
             "a pinch vertex that does not resolve refuses typed"
+        );
+        // A member's face, its loop kept: no step of the orbit reads it.
+        let mut torn = body.clone();
+        let l = torn.get_half_edge(keep).unwrap().parent_loop;
+        let face = torn.get_loop(l).unwrap().face;
+        torn.faces.remove(face);
+        let named = format!(
+            "{}'s face names {}",
+            crate::entity::EntityId::Loop(l),
+            crate::entity::EntityId::Face(face)
+        );
+        assert_torn_op_panics(
+            "split_across (face)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| split_across(b, v, keep, &moving, &none, tol).map(|s| s.is_some()),
         );
         let lost = body.get_half_edge(keep).unwrap().parent_loop;
         body.loops.remove(lost);

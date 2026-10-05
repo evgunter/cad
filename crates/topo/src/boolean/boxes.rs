@@ -151,7 +151,7 @@ use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
 use super::BooleanError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary};
 use crate::live::{linked, proven};
 
 /// The sweep's box pad in meters — what candidate generation must add
@@ -1130,14 +1130,7 @@ pub(crate) fn face_window_steps<T: Decide>(
 ) -> Vec<Vec<WindowStep<'_, T>>> {
     let f = proven(&body.faces, face, EntityId::Face);
     let mut out = Vec::new();
-    for lk in loops_of(f) {
-        let l = linked(
-            &body.loops,
-            lk,
-            EntityId::Loop,
-            EntityId::Face(face),
-            "loop",
-        );
+    for (_, l) in body.face_loops_linked(face, f) {
         let mut steps = Vec::new();
         if let LoopBoundary::Cycle { first } = l.boundary {
             let cycle = body.loop_walk(first).closed("loop", first);
@@ -1487,14 +1480,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
         let mut acc: Option<Span<f64>> = None;
         let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
-        for lk in loops_of(f) {
-            let l = linked(
-                &body.loops,
-                lk,
-                EntityId::Loop,
-                EntityId::Face(face),
-                "loop",
-            );
+        for (lk, l) in body.face_loops_linked(face, f) {
             match l.boundary {
                 LoopBoundary::Empty { vertex } => {
                     let p = bracket_point(body.linked_vertex_point(
@@ -1751,12 +1737,6 @@ fn aabb_of(s: SpanBox<f64>) -> Aabb {
     }
 }
 
-/// A face's loop keys, outer first — the walk order every arm here
-/// shares (D9: fixed, so two boxes of one face fold identically).
-fn loops_of(f: &crate::entity::Face) -> impl Iterator<Item = LoopKey> + '_ {
-    core::iter::once(f.outer).chain(f.rings.iter().copied())
-}
-
 /// The hull of the face boundary's own certified boxes — every
 /// boundary edge's [`edge_box`], plus the isolated-vertex loops, which
 /// have no edge to speak for them. `None` for a face with no boundary
@@ -1778,14 +1758,7 @@ fn boundary_hull<T: Decide + Bounds>(
 ) -> Option<Aabb> {
     let mut acc: Option<Aabb> = None;
     let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
-    for lk in loops_of(f) {
-        let l = linked(
-            &body.loops,
-            lk,
-            EntityId::Loop,
-            EntityId::Face(face),
-            "loop",
-        );
+    for (lk, l) in body.face_loops_linked(face, f) {
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
                 let p = body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex");
@@ -3481,7 +3454,13 @@ pub(crate) mod tests {
     /// A CONE wall face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
     /// the cone of half-angle `alpha` about `z` with its apex at the
     /// origin. Rims are the cone's own circles, sides its generators.
-    fn cone_wall(alpha: f64, u0: f64, u1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
+    pub(crate) fn cone_wall(
+        alpha: f64,
+        u0: f64,
+        u1: f64,
+        z0: f64,
+        z1: f64,
+    ) -> (Body<f64>, FaceKey) {
         let (mut body, face) = revolved_wall(&|z| z * alpha.tan(), u0, u1, z0, z1);
         let cone = Surface::Cone {
             apex: Point3::origin(),
