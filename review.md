@@ -1,0 +1,34 @@
+# Review of PR #4046, frozen head b793623189
+
+Lane `reach-dual4046-r1`. Start 2026-10-05T03:45Z, end 2026-10-05T05:14Z. **Glimpse: none** (PR body read via `get` only; no `analysis/reach-dual/*` branch, PR comment or review read).
+
+**Verdict: APPROVE-WITH-FIXES** — MAJOR 0 · MINOR 2 · NOTE 5 (+ style). CI on the head (run 37253406375) is green for test/lint/corrupt-input/mesh, checked; `interval` was skipped by the change filter.
+
+## Exercise (all by execution, own oracle)
+- **Oracle**: CSG signed depth for points; exact per-line slice integral (every primitive's breakpoints on the line, each sub-interval classified) for volumes; closed forms cross-checked where my grid was coarse (pole-slab ∩ = 0.2129361735 by Simpson; strut ∩ = 2π/3 − cap(0.75)/2 = 1.4317154). Sources: `probes/probes_4046.rs` (mount as a module of `crates/sweep/tests/all.rs`), `probes/mutants_4046.py`.
+- **p1 lenses**: 4 radius/separation/direction configs (incl. a small ball over a pole), scales ×1, ×1e-3, ×1e3, 3 poses (2 rotated), all 6 op/orders, results reused against a ball crossing the seam circle. **p2 three balls**: chain (middle face = annulus with two rings), triangle and flat triangle (faces with vertices), posed, reused twice (nested + crossing). **p3 ball×box reflex**: box corner inside, the PR's strut, a slab across a pole, an edge through, 3 poses, reused.
+- Sampling per result: 150 uniform points plus offsets 1e-2…1e-12 (×scale) off random sphere points, poles, every sphere–sphere and sphere–plane circle, and every box-edge pierce (face vertices).
+- **Totals at ε 1e-9 / 1e-6 / 1e-12: ~1.47 M `point_in_solid` queries on 1,276 built results, 0 wrong In/Out, 0 OnBoundary farther than 20ε from the boundary, 0 volume mismatches (>2e-3 rel; most agree to 1e-9).** The one skip: scale ×1e3 at ε 1e-12, where my plain revolved ball fixture does not finish (1e-15 relative, before any boolean).
+- **Claim 6 mutants** on the PR's 16 rows (`carved_sphere_operand`, `join1_r1_rows::a_pole_struts…`, `verbs_sphsph_chart`): flipped heading → 10 red; parity instead of closest crossing → 13 red; **seam exclusion dropped → 0 red** (see MINOR 2).
+- **Suites**: `topo` 2281/2281 at all three ε; sweep `carved_sphere_operand|join1_r1_rows|verbs_sphsph_chart|full_turn_wall|pi_seam|tilted_sphere_pair` 54/54 at all three ε.
+- Claims 1, 2, 4 and 5 hold as far as I could push them (claim 5 by inspection: `sphere_region.rs:192-206` returns `None` only for a non-circle or uncertified carrier). Claim 3 holds for correctness: dropping the seam changes an answer only from definite to `None`, never to a wrong one (a seam meets every ray twice at one parameter, so the ray ties and is abandoned).
+
+## MINOR
+1. **`crates/topo/src/boolean/solid_contain.rs:3768-3779`, the `SpherePatch` pre-pass: an in-band carrier residual refuses wherever the face was trimmed away.** DEMONSTRATED BY EXECUTION: e.g. pole-slab A∩B at (0.126, 0.122, −0.985), 0.478 outside the body, refuses `Escalated(bool_point_in_solid_plane)`. ~900 such clear-point refusals per family per ε, plus 65 `bool_ray_sphere_disc` (p1). This predates the PR (main's arm is identical) and is filed as P3 in `work/cleave/point-in-solid-curved-arms-read-the-band-before-the-face.md`. But that file says "Unmeasured: no fixture is known to reach it" (:12) and cites the now-deleted `point_on_sphere_in_face` (:39). This PR is what makes it reachable on every carved body, and its new `SphereFaceRegion::contains` is the foot reader the filing asks for. Owed: the measurement and the corrected cite in that filing. Confidence: sure.
+2. **The seam exclusion (`sphere_region.rs:220-222`) is pinned by no new row.** DEMONSTRATED BY EXECUTION: with it removed, all 16 PR rows and my probes stay green at ε 1e-9. The only row that goes red is the pre-existing `full_turn_wall::both_doors_answer_the_bead_by_its_height_window`, and only at ε 1e-12 (`left: None, right: Some(Out)`, scale 100). So claim 6 ("every new row goes red without the fix") is false for this mechanism, and the PR's all-seam-face sentence (`sphere_region.rs:31-34`, "covers the sphere") has no default-ε row. Confidence: sure (the 1e-12 run in CI's eps-extra step: likely).
+
+## NOTE
+1. `solid_contain.rs:249-251`: `KindUnsupported`'s doc still says a `Sphere` face is served when "its chart rectangle expresses" it. That is stale since this PR. Inspection; sure.
+2. `sphere_region.rs:403-406`: `unreachable!` rests on a comment's claim about another module's error set (`first_harmonic_roots` "raises only escalations"). A type would hold that; today a new variant there panics here. Inspection; likely.
+3. CI's `interval` job was skipped on this head, yet `sphere_region` is generic over `T: Decide` and no interval-lane row I found reads a trimmed sphere region. Inspection; unsure.
+4. Scope (e2e): "reused as an operand" holds where nothing new crosses the carved boundary. A third ball crossing it refuses at Join (`RingOffCylinderChart`, `SpheresMeet`, 72 of p1's reuse rows), and a box corner or edge inside a ball refuses `RingOffCylinderChart` under every op. Both are typed and both are other stages, not this PR's. Executed; sure.
+5. The PR's lattice rows stay 1e-3 clear of the boundary (`carved_sphere_operand.rs:121`). Near-arc behaviour on the *tilted* circles (1e-7…1e-12) is pinned only by my probes, where it holds. Inspection + execution; sure.
+
+## Style (questions exercised: Q1, Q2, Q3, Q4, Q5, Q7; Q6 found nothing; Q8 partial)
+- Q1: `sphere_region` is a third closest-crossing ray reader, after `solid_contain`'s `cast_ray` and `splitting::containment`'s point-in-loop (self-declared: "the 3-D lane's closest-hit rule, moved onto the sphere"). Their graze/abandon vocabularies differ (`Ray::Abandoned` vs `RayFault::Abandon` vs `ray_parity::Abandoned`). likely.
+- Q1: the sphere carrier residual is still metered under `bool_point_in_solid_plane` (`solid_contain.rs:3776`), the plane's predicate name, which is how MINOR 1's payload reads as a plane fault. Pre-existing. sure.
+- Q2/Q7: `contain.rs:524-527` carves a kind exception (`!matches!(…Sphere…)`) into a generic ring short-circuit. A per-kind capability would say it without the comment. likely.
+- Q7: `ray` decides `bool_sphere_region_order` twice over the same hits (`closest`, then `tied`, `sphere_region.rs:316-338`), where one fold could carry the tie. unsure.
+- Q5: the PR body calls the reading "linear in the arc count". That holds per ray, but up to 3 aimed rays per arc are tried before the schedule, so an abandoning face is quadratic per query. unsure.
+- Q4: see MINOR 1 (the filing's stale premise and cite). sure.
+- Q8: `solid_contain.rs` (5616 lines) was swept by grep for rectangle/`PartialSphereFace`/`sphere_chart_trim` prose, not read end to end. That found NOTE 1; `:2148` (sphere_chart_trim "builds its window the same way") still reads true.
