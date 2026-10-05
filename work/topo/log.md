@@ -7182,3 +7182,16 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Batteries: 12 shards + 49 tests, 0 moved.
   - Its CI lost runners too (`change filter` cancelled). Main now carries real code (PR 4071), so I merged it in at `452bb74b` (`cargo check` ok) for a fresh run. Fix lane archived.
 - PR 4066 waits for PR 4067's merge, then the same main merge.
+
+## 22:55 (2026-10-05)
+
+- **PR 4067 merged** at `5f857de4` (head `452bb74b`, with main merged in; CI green).
+- **PR 4066 merged** at `f5284cca`. Head `ed9dd914` carries main including PR 4067; both touch `rest.rs` and `splitting/finish.rs`, merged clean, `cargo check` ok, CI green. Fix lane archived (about $8.8).
+- **Dispatched** `torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules` (P3, M) → `session_01Fmjz4kUeUw92mx4pftwUUm`. The brief carries the precedents' review lessons up front:
+  - a per-site premise table;
+  - load-bearing witnesses and a mutation table, including out-of-table mutations;
+  - premise text asserted;
+  - `face_loops_linked`;
+  - the HOLD criterion;
+  - the `solid_contain` chord-join folds and the shadowed M12.
+- Running: one lane. Nothing new on PR 3970.
