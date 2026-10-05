@@ -60,10 +60,11 @@ use super::tests::{RoundtripTally, run_properties};
 /// exactly that (`seqgen`'s taxonomy: 28 mirror skips before, 97 skips
 /// after, over the pinned streams). For `Kev` the admission is now
 /// per-SITE — the strut and segment kills MUST execute — so the bar
-/// moves with a widening of that arm. The other three arms
-/// (`Kef`, `KfmrhFuse`, `Movefac`) are still per-kind and still blind
-/// in the same way; a widening inside one of them would go unreported
-/// here.
+/// moves with a widening of that arm, and the same holds for
+/// `Movefac`, admitted only where its re-make site search fails. The
+/// other two arms (`Kef`, `KfmrhFuse`) are still per-kind and still
+/// blind in the same way; a widening inside one of them would go
+/// unreported here.
 ///
 /// The totals below are two different things, and the difference
 /// matters more than either:
