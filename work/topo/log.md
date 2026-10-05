@@ -6921,5 +6921,17 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
     - `cut_core` and `undo_struts` switch to the twins.
   - Re-measured after R: **147** releasing kills in sweep ci (the row said 1), all `cut_core`'s `kemr`; 0 after. Of the 147 faces, 60 end cleared and none half-minted.
   - 129 battery jobs: identical line sets, no panics.
-  - Subscribed. Reviewer `session_01P…` dispatched; it checks the new refusal's reach across every keys-only kill caller in every crate.
+  - Subscribed. Reviewer `session_014XpkGYNhbNkvxzXDtVf6Ca` dispatched; it checks the new refusal's reach across every keys-only kill caller in every crate.
   - Nothing new on PR 3970.
+
+## 08:41 check-in (2026-10-05)
+
+- **PR 4048 merged** at `3d7b5a02ff`.
+  - Fixes: `faces_at` answers `None` on an unresolved root and every caller refuses typed; `chord_join` `u1` resolved; every driver-held `StaleFace` goes through `driver_face_stale` (the sweep found two more sites, `rim_wedge` and `chart_region`); caller-key rows; batteries re-run.
+  - Fix lane archived (about $6).
+- **PR 4052 review: fix first, one BLOCKING.** There is no negative witness that a keys-only kill still returns `Ok` on a minted face: two mutations of `releases_a_gap` stay green (topo's null kills are never on minted faces).
+  - Reach of the new refusal: none found across crates.
+  - MINOR: the gap rule is spelled twice; `bridged` is all-or-nothing; a seqgen axis is unfiled.
+  - Fix lane `session_01DFjLErgYNhtmpF9ftXPRTP` dispatched. Reviewer and implementer archived.
+- **Dispatched** `movefac-roundtrip-re-make-is-unbuilt` (P3, M; seqgen; no overlap) to a new lane.
+- Nothing new on PR 3970.
