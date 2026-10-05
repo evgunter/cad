@@ -1447,6 +1447,112 @@ pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     face
 }
 
+/// The arc of the circle at height `v` around the canonical unit
+/// [`CylFrame`]'s axis from azimuth `u0` up to `u1`, its parameter the
+/// azimuth.
+pub fn cyl_arc_at(v: f64, u0: f64, u1: f64) -> EdgeCurveSpec<f64> {
+    let carrier = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, v),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    EdgeCurveSpec::arc_of_circle(carrier, u0, u1).unwrap()
+}
+
+/// The minted [`cyl_wall_sheet`] over `[4.2, 5.4] x [0, 1]` of the
+/// canonical unit [`CylFrame`] carrying a chain hung off its bottom
+/// rim: a strut up the ruling `u = 4.6` to `s`, then two arcs of the
+/// circle `v = 0.5` ([`cyl_arc_at`]), `s → q` from `4.6` to `4.8` and
+/// `q → t` on to `5.0`. An arc's image runs with its carrier's
+/// parameter, and the second arc's carrier is parametrised a period
+/// down (`4.8 − τ` to `5.0 − τ`), so its image sits a period below the
+/// first's and both joints at `q` carry a whole period, one each way.
+/// Returns the body, the wall, `[s → q, q → s]` and `[q → t, t → q]`.
+pub fn arc_chain_over_the_jump(
+    tol: Tol,
+) -> (Body<f64>, FaceKey, [HalfEdgeKey; 2], [HalfEdgeKey; 2]) {
+    let frame = CylFrame::canonical(1.0);
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(&mut body, frame, None, (4.2, 5.4), (0.0, 1.0), tol);
+    let rim = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(crate::CurveGeom::certified)
+                .unwrap();
+            matches!(c.carrier(), Curve3::Circle { .. }) && c.params() == (4.2, 5.4)
+        })
+        .unwrap();
+    let cycle = |body: &Body<f64>| {
+        let f = body.get_face(face).unwrap();
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+            unreachable!("the wall's outer loop is a cycle")
+        };
+        body.loop_cycle(first).unwrap()
+    };
+    let leaving = |body: &Body<f64>, v: crate::VertexKey| {
+        let hit: Vec<HalfEdgeKey> = cycle(body)
+            .into_iter()
+            .filter(|&h| body.get_half_edge(h).unwrap().start == v)
+            .collect();
+        assert_eq!(hit.len(), 1, "one half-edge of the wall leaves {v:?}");
+        hit[0]
+    };
+    let m = body.split_edge(rim, 4.6, tol).unwrap().vertex;
+    let he = leaving(&body, m);
+    let up = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(4.6, 0.5), tol)
+        .unwrap();
+    let mut chain: Vec<MevCreated> = Vec::new();
+    let tau = core::f64::consts::TAU;
+    for (u0, u1) in [(4.6, 4.8), (4.8 - tau, 5.0 - tau)] {
+        let from = chain.last().map_or(up.vertex, |last| last.vertex);
+        let he = leaving(&body, from);
+        let made = body
+            .mev(
+                MevSite::Fan { he1: he, he2: he },
+                frame.at(u1, 0.5),
+                cyl_arc_at(0.5, u0, u1),
+                tol,
+            )
+            .unwrap();
+        chain.push(made);
+    }
+    let outward = |made: &MevCreated, from: crate::VertexKey| {
+        if body.get_half_edge(made.he_plus).unwrap().start == from {
+            [made.he_plus, made.he_minus]
+        } else {
+            [made.he_minus, made.he_plus]
+        }
+    };
+    let s_q = outward(&chain[0], up.vertex);
+    let q_t = outward(&chain[1], chain[0].vertex);
+    let halves = cycle(&body);
+    assert_eq!(halves.len(), 11, "the wall's loop");
+    assert!(
+        halves.iter().all(|&h| body.pcurve(h).is_some()),
+        "the wall is complete"
+    );
+    let band = Band::linear(tol).unwrap();
+    assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
+    let shift = |u| {
+        crate::JointElement::Shift(crate::Deck {
+            u,
+            v: 0,
+            twin: false,
+        })
+    };
+    let [into_out, into_back] = [body.joint(q_t[0]), body.joint(s_q[1])];
+    assert!(
+        into_out.is_some_and(|e| e != shift(0)) && into_back.is_some_and(|e| e != shift(0)),
+        "the premise: both joints at `q` carry a period: {into_out:?} {into_back:?}"
+    );
+    (body, face, s_q, q_t)
+}
+
 /// What [`kill_under_a_null_strut`] hands `Body::kev_describing` to
 /// re-describe.
 pub type NullStrutListing = Vec<(crate::EdgeKey, EdgeCurveSpec<f64>)>;

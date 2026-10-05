@@ -25,7 +25,9 @@
 
 use geom_core::{Band, Point3, Tol};
 use topo::pcurves::validate_pcurves;
-use topo::test_support::{CylFrame, cyl_wall_sheet, kill_under_a_null_strut};
+use topo::test_support::{
+    CylFrame, arc_chain_over_the_jump, cyl_arc_at, cyl_wall_sheet, kill_under_a_null_strut,
+};
 use topo::{Body, FaceKey, HalfEdgeKey, MekrSite, MevSite, PcurveMintError, VertexKey};
 
 fn tol() -> Tol {
@@ -1302,98 +1304,6 @@ fn a_kef_minting_whose_dead_half_anchored_the_loop_keeps_the_pass_rows() {
     );
 }
 
-/// The arc of the circle at height `v` around the wall's axis from
-/// azimuth `u0` up to `u1`, its parameter the azimuth.
-fn arc_at(v: f64, u0: f64, u1: f64) -> geom_brep::EdgeCurveSpec<f64> {
-    let carrier = geom::Curve3::Circle {
-        center: Point3::new(0.0, 0.0, v),
-        axis: geom_core::Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: geom_core::Vec3::unit_x(),
-    };
-    geom_brep::EdgeCurveSpec::arc_of_circle(carrier, u0, u1).unwrap()
-}
-
-/// The minted wall over `[4.2, 5.4] x [0, 1]` carrying a chain hung off
-/// its bottom rim: a strut up the ruling `u = 4.6` to `s`, then two arcs
-/// of the circle `v = 0.5`, `s → q` from `4.6` to `4.8` and `q → t` on
-/// to `5.0`. An arc's image runs with its carrier's parameter, and the
-/// second arc's carrier is parametrised a period down (`4.8 − τ` to
-/// `5.0 − τ`), so its image sits a period below the first's and both
-/// joints at `q` carry a whole period, one each way. Returns the body,
-/// the wall, `[s → q, q → s]` and `[q → t, t → q]`.
-fn arc_chain_over_the_jump() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2], [HalfEdgeKey; 2]) {
-    let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(
-        &mut body,
-        CylFrame::canonical(1.0),
-        None,
-        (4.2, 5.4),
-        (0.0, 1.0),
-        tol(),
-    );
-    let rim = body
-        .edges()
-        .map(|(e, _)| e)
-        .find(|&e| {
-            let c = body
-                .get_curve_geom(body.get_edge(e).unwrap().curve)
-                .and_then(topo::CurveGeom::certified)
-                .unwrap();
-            matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (4.2, 5.4)
-        })
-        .unwrap();
-    let m = body.split_edge(rim, 4.6, tol()).unwrap().vertex;
-    let he = leaving(&body, face, m);
-    let up = body
-        .mev_line(MevSite::Fan { he1: he, he2: he }, at(4.6, 0.5), tol())
-        .unwrap();
-    let mut chain = Vec::new();
-    let tau = core::f64::consts::TAU;
-    for (u0, u1) in [(4.6, 4.8), (4.8 - tau, 5.0 - tau)] {
-        let from = if chain.is_empty() {
-            up.vertex
-        } else {
-            let last: &topo::MevCreated = chain.last().unwrap();
-            last.vertex
-        };
-        let he = leaving(&body, face, from);
-        let made = body
-            .mev(
-                MevSite::Fan { he1: he, he2: he },
-                at(u1, 0.5),
-                arc_at(0.5, u0, u1),
-                tol(),
-            )
-            .unwrap();
-        chain.push(made);
-    }
-    let outward = |made: &topo::MevCreated, from: VertexKey| {
-        if body.get_half_edge(made.he_plus).unwrap().start == from {
-            [made.he_plus, made.he_minus]
-        } else {
-            [made.he_minus, made.he_plus]
-        }
-    };
-    let s_q = outward(&chain[0], up.vertex);
-    let q_t = outward(&chain[1], chain[0].vertex);
-    assert_eq!(rows_of(&body, face), (11, 0), "the wall is complete");
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
-    let shift = |u| {
-        topo::JointElement::Shift(topo::Deck {
-            u,
-            v: 0,
-            twin: false,
-        })
-    };
-    let [into_out, into_back] = [body.joint(q_t[0]), body.joint(s_q[1])];
-    assert!(
-        into_out.is_some_and(|e| e != shift(0)) && into_back.is_some_and(|e| e != shift(0)),
-        "the premise: both joints at `q` carry a period: {into_out:?} {into_back:?}"
-    );
-    (body, face, s_q, q_t)
-}
-
 /// The rows a kill left on `face` are the pass's: images and elements
 /// alike, and tier 3 reads them clean.
 fn kept_rows_are_the_pass_s(mut body: Body<f64>, face: FaceKey, door: &str) {
@@ -1420,7 +1330,7 @@ fn kept_rows_are_the_pass_s(mut body: Body<f64>, face: FaceKey, door: &str) {
 /// neither element alone is.
 #[test]
 fn a_kev_strut_writes_the_sum_of_two_periods() {
-    let (mut body, face, _, q_t) = arc_chain_over_the_jump();
+    let (mut body, face, _, q_t) = arc_chain_over_the_jump(tol());
     body.kev(q_t[0]).unwrap();
     kept_rows_are_the_pass_s(body, face, "kev strut");
 }
@@ -1438,7 +1348,7 @@ fn a_kev_strut_writes_the_sum_of_two_periods() {
 /// halves and the bridged joint is read against the pass alone.
 #[test]
 fn a_kev_mirror_writes_the_sum_of_two_periods() {
-    let (mut body, _, s_q, q_t) = arc_chain_over_the_jump();
+    let (mut body, _, s_q, q_t) = arc_chain_over_the_jump(tol());
     let members = body.kev_merged_members(q_t[1]).unwrap();
     let edge = body.get_half_edge(s_q[0]).unwrap().edge;
     assert_eq!(
@@ -1446,7 +1356,7 @@ fn a_kev_mirror_writes_the_sum_of_two_periods() {
         vec![edge],
         "the merged fan is the arc `s → q`"
     );
-    body.kev_describing(q_t[1], &[(edge, arc_at(0.5, 4.6, 5.0))], tol())
+    body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 4.6, 5.0))], tol())
         .unwrap();
     let mut stale: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
         .into_iter()
@@ -1476,7 +1386,7 @@ fn a_kev_mirror_writes_the_sum_of_two_periods() {
 /// other; the outer side joins the strut's two halves at `s`.
 #[test]
 fn a_kemr_writes_the_sum_of_two_periods_on_each_side() {
-    let (mut body, face, s_q, _) = arc_chain_over_the_jump();
+    let (mut body, face, s_q, _) = arc_chain_over_the_jump(tol());
     body.kemr(s_q[0], s_q[1]).unwrap();
     assert_eq!(rows_of(&body, face), (9, 0), "both loops are complete");
     kept_rows_are_the_pass_s(body, face, "kemr");
