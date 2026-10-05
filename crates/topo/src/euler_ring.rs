@@ -1,5 +1,6 @@
-//! Ring/genus Euler operators — [`Body::kemr`], [`Body::mekr`],
-//! [`Body::kfmrh`] (with its band twin [`Body::kfmrh_minting`]) — plus
+//! Ring/genus Euler operators — [`Body::kemr`] (with its band twin
+//! [`Body::kemr_minting`]), [`Body::mekr`], [`Body::kfmrh`] (with its
+//! band twin [`Body::kfmrh_minting`]) — plus
 //! the [`Body::ring_move`] helper (with [`Body::ring_move_minting`])
 //! (M1 PR 3).
 //!
