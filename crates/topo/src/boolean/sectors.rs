@@ -765,27 +765,16 @@ pub(super) fn within<T: Decide>(
 pub(super) fn bound_edges<T: Decide>(
     body: &Body<T>,
     s: &BoolSector<T>,
-) -> Result<Vec<(crate::entity::EdgeKey, Vec3<T>)>, BooleanError> {
-    let edge = |he| {
-        body.get_half_edge(he)
-            .map(|h| h.edge)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a sector's half-edge no longer resolves",
-            })
-    };
+) -> Vec<(crate::entity::EdgeKey, Vec3<T>)> {
+    let edge = |he| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
     let mut out = Vec::new();
     if s.end_edge() {
-        out.push((edge(s.he)?, s.end));
+        out.push((edge(s.he), s.end));
     }
     if s.start_edge() {
-        let orbit = body
-            .vertex_orbit(s.he)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a sector's vertex orbit does not walk",
-            })?;
-        out.push((edge(orbit[1 % orbit.len()])?, s.start));
+        out.push((edge(body.proven_orbit_step(s.he)), s.start));
     }
-    Ok(out)
+    out
 }
 
 /// **The one fold rule for an on-bound**: an edge read On against the
@@ -921,19 +910,19 @@ pub(super) fn germ_loci<T: Decide>(
         return one_segment(a, ea, b, eb);
     }
     let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
-        tangent_face(side, partner, e.edge, contacts).map(|f| InFace(f.unwrap_or(side.sector.face)))
+        InFace(tangent_face(side, partner, e.edge, contacts).unwrap_or(side.sector.face))
     };
     let (ta, tb) = (touch(a, ea.far, contacts), touch(b, eb.far, contacts));
     Ok(match ta.cmp(&tb) {
-        core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)?),
-        core::cmp::Ordering::Less => (tangent(a, b, eb)?, OnEdge(eb.edge)),
+        core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)),
+        core::cmp::Ordering::Less => (tangent(a, b, eb), OnEdge(eb.edge)),
         core::cmp::Ordering::Equal if ta == Touch::Apart => {
             (InFace(a.sector.face), InFace(b.sector.face))
         }
         core::cmp::Ordering::Equal => {
             match (runs_in(a, ea, b, eb, band)?, runs_in(b, eb, a, ea, band)?) {
-                (Some(true), Some(false)) => (OnEdge(ea.edge), tangent(b, a, ea)?),
-                (Some(false), Some(true)) => (tangent(a, b, eb)?, OnEdge(eb.edge)),
+                (Some(true), Some(false)) => (OnEdge(ea.edge), tangent(b, a, ea)),
+                (Some(false), Some(true)) => (tangent(a, b, eb), OnEdge(eb.edge)),
                 _ => (OnEdge(ea.edge), OnEdge(eb.edge)),
             }
         }
@@ -945,11 +934,10 @@ fn germ_curve<T: Decide>(
     body: &Body<T>,
     edge: crate::entity::EdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
-    body.get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)
+    body.edge_curve_linked(edge, proven(&body.edges, edge, EntityId::Edge))
+        .certified()
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "a germ edge has no certified curve",
+            what: "a germ edge is null scaffolding",
         })
 }
 
@@ -990,9 +978,8 @@ fn one_segment<T: Decide>(
 /// ([`super::solid_contain::point_in_face`]); the sweep splits an edge
 /// at every crossing of the partner, so the midpoint speaks for the
 /// whole edge. `None`: undecided — a midpoint on the face's boundary, a
-/// face that is not a plane, or no single face across `pe`. A face or
-/// loop that does not resolve, and a trim the walk cannot read, are
-/// refused.
+/// face that is not a plane, or no single face across `pe`. A trim the
+/// walk cannot read is refused.
 fn runs_in<T: Decide>(
     side: GermSide<'_, T>,
     e: Along,
@@ -1000,16 +987,11 @@ fn runs_in<T: Decide>(
     pe: Along,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let pb = partner.body;
-    let edge = pb
-        .get_edge(pe.edge)
-        .ok_or(invariant("a germ edge no longer resolves"))?;
+    let edge = proven(&pb.edges, pe.edge, EntityId::Edge);
     let mut faces = Vec::new();
     for h in [edge.he_plus, edge.he_minus] {
-        let f = pb
-            .face_of_half_edge(h)
-            .ok_or(invariant("a germ edge's half has no face"))?;
+        let f = pb.face_of_linked(h);
         if f != partner.sector.face {
             faces.push(f);
         }
@@ -1038,33 +1020,21 @@ fn runs_in<T: Decide>(
 /// that bound is an edge of the face.
 fn along<T: Decide>(side: GermSide<'_, T>) -> Result<Option<Along>, BooleanError> {
     let (body, s, read) = (side.body, side.sector, side.read);
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
     let on_start = read.0 == SideCode::On && s.start_edge();
     let on_end = read.1 == SideCode::On && s.end_edge();
     let he = match (on_start, on_end) {
         (false, false) => return Ok(None),
         (false, true) => s.he,
-        (true, false) => {
-            let orbit = body
-                .vertex_orbit(s.he)
-                .ok_or(invariant("a germ sector's vertex orbit does not walk"))?;
-            orbit[1 % orbit.len()]
-        }
+        (true, false) => body.proven_orbit_step(s.he),
         (true, true) => {
-            return Err(invariant(
-                "a germ sector with both edge bounds on the partner face",
-            ));
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a germ sector with both edge bounds on the partner face",
+            });
         }
     };
-    let half = body
-        .get_half_edge(he)
-        .ok_or(invariant("a germ sector's half-edge no longer resolves"))?;
-    let far = body
-        .half_edge_end(he)
-        .ok_or(invariant("a germ sector's half-edge no longer resolves"))?;
     Ok(Some(Along {
-        edge: half.edge,
-        far,
+        edge: proven(&body.half_edges, he, EntityId::HalfEdge).edge,
+        far: body.proven_half_edge_end(he),
     }))
 }
 
@@ -1118,15 +1088,14 @@ fn tangent_face<T: Decide>(
     partner: GermSide<'_, T>,
     along: crate::entity::EdgeKey,
     contacts: &super::ContactRecords,
-) -> Result<Option<FaceKey>, BooleanError> {
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let (u, v) = partner.body.edge_vertices(along).ok_or(invariant(
-        "a tangent germ's partner edge no longer resolves",
-    ))?;
+) -> Option<FaceKey> {
+    let edge = proven(&partner.body.edges, along, EntityId::Edge);
+    let (u, v) = (
+        proven(&partner.body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
+        proven(&partner.body.half_edges, edge.he_minus, EntityId::HalfEdge).start,
+    );
     let near = crate::chord_join::null_site(partner.body, &[partner.site]);
-    let Some(far) = [u, v].into_iter().find(|w| !near.contains(w)) else {
-        return Ok(None);
-    };
+    let far = [u, v].into_iter().find(|w| !near.contains(w))?;
     let far_site = crate::chord_join::null_site(partner.body, &[far]);
     let mut far_faces: Vec<FaceKey> = on_faces(contacts, partner.operand)
         .iter()
@@ -1136,13 +1105,10 @@ fn tangent_face<T: Decide>(
     for c in &contacts.vv {
         let (mine, theirs) = vv_sides(c, side.operand);
         if far_site.contains(&theirs) {
-            far_faces.extend(faces_at(side.body, mine)?);
+            far_faces.extend(faces_at(side.body, mine));
         }
     }
-    Ok(sole_common_face(
-        &faces_at(side.body, side.site)?,
-        &far_faces,
-    ))
+    sole_common_face(&faces_at(side.body, side.site), &far_faces)
 }
 
 /// The one face in both `xs` and `ys`; `None` when not exactly one is.
@@ -1156,41 +1122,30 @@ pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey
 /// The faces around a site of `body` (every copy null edges tie
 /// `vertex` to), deduplicated, null faces skipped. With no null edges
 /// at the site, the faces around `vertex` itself. An isolated vertex
-/// (a pierce-ring vertex joined to nothing) contributes none; a vertex,
-/// half-edge, edge or loop of the site that does not resolve is refused.
-pub(super) fn faces_at<T: Decide>(
-    body: &Body<T>,
-    vertex: VertexKey,
-) -> Result<Vec<FaceKey>, BooleanError> {
-    let invariant = |what| BooleanError::ClassificationInvariant { what };
+/// (a pierce-ring vertex joined to nothing) contributes none. `vertex`
+/// is one the caller resolved, and every hop past it is a link.
+pub(super) fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Vec<FaceKey> {
     let mut out = Vec::new();
     for v in crate::chord_join::null_site(body, &[vertex]) {
-        body.get_vertex(v)
-            .ok_or(invariant("a site's vertex no longer resolves"))?;
-        // An isolated vertex has an empty orbit and contributes no faces.
-        let orbit = body
-            .vertex_orbit_of(v)
-            .ok_or(invariant("a site's vertex orbit does not walk"))?;
-        for he in orbit {
-            let half = body
-                .get_half_edge(he)
-                .ok_or(invariant("a site's half-edge no longer resolves"))?;
-            let geom = body
-                .get_edge(half.edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .ok_or(invariant("a site's edge has no curve"))?;
-            if geom.null_scaffold().is_some() {
+        for he in body.vertex_orbit_linked(v) {
+            let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let data = linked(
+                &body.edges,
+                edge,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            if body.edge_curve_linked(edge, data).null_scaffold().is_some() {
                 continue;
             }
-            let f = body
-                .face_of_half_edge(he)
-                .ok_or(invariant("a site's half-edge has no face"))?;
+            let f = body.face_of_linked(he);
             if !out.contains(&f) {
                 out.push(f);
             }
         }
     }
-    Ok(out)
+    out
 }
 
 /// Whether `dir`, coplanar with `s`, runs into its face: within the

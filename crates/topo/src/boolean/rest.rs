@@ -1252,7 +1252,7 @@ fn incident_faces<T: Decide>(
     u: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Vec<FaceKey>, BooleanError> {
-    let faces = super::sectors::faces_at(body, u)?;
+    let faces = super::sectors::faces_at(body, u);
     Ok(if faces.is_empty() {
         rings.get(u).copied().into_iter().collect()
     } else {
