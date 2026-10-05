@@ -1089,10 +1089,16 @@ pub(crate) fn place_witness<T: Decide>(
     band: Band,
 ) -> Option<FaceContainment> {
     match *surface {
-        geom::Surface::Plane { normal, .. } => contfp(body, face, normal, p, band).ok(),
+        geom::Surface::Plane { normal, .. } => match contfp(body, face, normal, p, band) {
+            Ok(at) => Some(at),
+            Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+            Err(_) => None,
+        },
         _ => match super::contain::curved_face_placement(body, face, p, band) {
             Ok(super::contain::CurvedPlacement::Trim(v)) => v,
-            _ => None,
+            Ok(super::contain::CurvedPlacement::OffCarrier) => None,
+            Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+            Err(_) => None,
         },
     }
 }
