@@ -2187,7 +2187,7 @@ mod tests {
     use crate::euler::{BadArgument, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
         ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, ops_holed_box,
-        prov, through_the_scalpel,
+        prov,
     };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
@@ -3077,10 +3077,8 @@ mod tests {
         // surviving vertex's point gone, the describing door asks what
         // its docs list in their order: a listed non-member refuses as
         // one, and an empty list asks nothing past the structural list,
-        // as the keys-only door asks nothing, so both kill. (The body is
-        // tier-1-invalid, so the kills run inside a surgery scope,
-        // whose close is dropped unswept; under the scalpel each kill's
-        // own sweep reports the planted dangle and nothing else.)
+        // as the keys-only door asks nothing, so both kill, and leave
+        // the planted dangle the only fault.
         let tol = Tol::witness();
         let (mut body, _seed, seg, strut) = strutted();
         let v = body.get_half_edge(strut.he_plus).unwrap().start;
@@ -3102,23 +3100,19 @@ mod tests {
         }];
         for door in ["kev", "kev_describing"] {
             let mut copy = body.clone();
-            let mut scope = copy.begin_surgery();
-            let got = through_the_scalpel(&[door], || {
-                if door == "kev" {
-                    scope.kev(strut.he_plus)
-                } else {
-                    scope.kev_describing(strut.he_plus, &[], tol)
-                }
-            });
+            let mut scope = copy.begin_surgery_on_a_torn_body();
+            let got = if door == "kev" {
+                scope.kev(strut.he_plus)
+            } else {
+                scope.kev_describing(strut.he_plus, &[], tol)
+            };
             drop(scope);
-            match got {
-                Ok(got) => assert!(got.is_ok(), "{door}: {got:?}"),
-                Err(swept) => assert!(
-                    swept.contains(&format!("left: Err({planted:?})")),
-                    "{door} ran to its end and its sweep reports the planted dangle alone: \
-                     {swept}"
-                ),
-            }
+            assert!(got.is_ok(), "{door}: {got:?}");
+            assert_eq!(
+                validate(&copy),
+                Err(planted.clone()),
+                "{door} ran to its end and the planted dangle is the only fault"
+            );
         }
     }
 
