@@ -175,7 +175,7 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         solid,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
     ));
@@ -224,7 +224,7 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         probe,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(-0.05),
     ));
@@ -245,7 +245,7 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let b = r.insert(translated(a, len(1.0 + gap), len(0.0), len(0.0)));
     let _ = r.insert(translated(
         a,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
         len(0.0),
         len(0.0),
     ));

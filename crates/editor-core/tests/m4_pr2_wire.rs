@@ -213,7 +213,7 @@ fn linear_pattern_evaluates_instances_as_data() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(2.0), scl(0.0), scl(0.0)], // normalized by eval
                 spacing: len(2.0),
@@ -277,7 +277,7 @@ fn circular_pattern_rotates_about_the_datum_axis() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(4),
+            count: editor_core::Formula::count(4),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(FRAC_PI_2),
@@ -408,7 +408,7 @@ fn typed_refusal_doors() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(0),
+            count: editor_core::Formula::count(0),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.0),
@@ -478,7 +478,7 @@ fn non_finite_pattern_direction_refuses_at_the_direction_door() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -534,7 +534,7 @@ fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -619,7 +619,7 @@ fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
             doc,
             Node::Pattern {
                 input: cube,
-                count: editor_core::Expr::count(3),
+                count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
                     spacing: len(2.0),
@@ -665,7 +665,7 @@ fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() 
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -784,7 +784,7 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
             doc,
             Node::Pattern {
                 input: cube,
-                count: editor_core::Expr::count(3),
+                count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
                     spacing: len(2.0),
@@ -915,7 +915,7 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
                 spacing: len(2.0),

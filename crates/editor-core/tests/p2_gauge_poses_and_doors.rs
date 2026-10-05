@@ -323,9 +323,9 @@ fn chain(label: &str) -> Chain {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Formula::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::named(turn(), Dimension::Angle),
+                angle: Formula::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -460,7 +460,7 @@ fn a_pattern_placer_poses_as_composed() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -646,7 +646,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [0.0, 1.0, 0.0].map(scl),
                 spacing: len(4.0),
@@ -675,7 +675,7 @@ fn an_unreachable_member_with_an_offset_faults_and_does_not_evaluate() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
     )
     .0;

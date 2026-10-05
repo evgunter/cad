@@ -104,7 +104,7 @@ fn every_form() -> ProfileDoc {
                             prim(MeasurePrimitive::Gap { outer: 1, inner: 0 }),
                         )
                         .expect("Length - Length"),
-                        MeasureExpr::neg(MeasureExpr::value(Expr::named(
+                        MeasureExpr::neg(MeasureExpr::value(Formula::named(
                             VarName::from_static("pad"),
                             Dimension::Length,
                         )))

@@ -125,7 +125,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         doc,
         Node::Pattern {
             input: body,
-            count: Expr::named(p("n"), Dimension::Count),
+            count: Formula::named(p("n"), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),

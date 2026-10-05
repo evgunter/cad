@@ -334,7 +334,7 @@ fn carry<E>(
             Err(other) => return Err(miss(old, other)),
         };
         settle(old, &mut carried);
-        let new = target.insert(carried.author()).map_err(&edit)?;
+        let new = target.insert(carried.authored()).map_err(&edit)?;
         node_map.insert(old, new);
         if let Some(Node::InstantiatePart { offset, .. }) = target.doc().node(new) {
             stated.push((new, offset.clone()));
@@ -377,7 +377,7 @@ fn carry<E>(
             target
                 .apply(DocEdit::SetOffset {
                     instance,
-                    offset: offset.as_ref().map(crate::placement::Placement::author),
+                    offset: offset.as_ref().map(crate::placement::Placement::authored),
                 })
                 .map_err(&edit)?;
         }

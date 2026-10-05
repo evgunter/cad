@@ -127,7 +127,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     ));
-    let w = Expr::named(VarName::from_static("w"), Dimension::Length);
+    let w = Formula::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Expr::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -223,7 +223,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             }),
         }),
     });
-    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
+    let t = Formula::named(VarName::from_static("t"), Dimension::Scalar);
     let base = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -742,7 +742,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
             }),
         }),
     });
-    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
+    let t = Formula::named(VarName::from_static("t"), Dimension::Scalar);
     let b = base_frame(&mut r, &t, base);
     let on = match place {
         Place::Authored => b,

@@ -54,7 +54,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::named(name(n), Dimension::Length)
+    Formula::named(name(n), Dimension::Length)
 }
 
 fn continuous(value: f64) -> FreeVar {

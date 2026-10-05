@@ -38,7 +38,7 @@ fn both_rules_round_trip() {
     let stepped = r.insert(
         Node::placed_union(
             solid,
-            Expr::count(3),
+            Formula::count(3),
             PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(4.0),

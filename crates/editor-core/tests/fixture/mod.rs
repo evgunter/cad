@@ -615,7 +615,7 @@ pub fn insert_mate_with_stranded_head(
         doc,
         Node::Pattern {
             input: anchor,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.0),
@@ -1051,7 +1051,7 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
+            distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));

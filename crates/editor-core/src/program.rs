@@ -39,6 +39,7 @@ use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
+use crate::formula::Formula;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, UnitSym, VarEnv, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
 use crate::var::VarId;
@@ -522,7 +523,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<Expr> {
     /// **The payload this one is authored as**: the same program, its
     /// slots holding the formulas an edit carries ([`crate::Formula`]).
     /// The edit door lowers it ([`ProfilePayload::lower`]); re-authoring
-    /// goes back ([`ProfilePayload::author`]).
+    /// goes back ([`ProfilePayload::authored`]).
     type Authored: SlotPayload<crate::Formula>
         + Clone
         + core::fmt::Debug
@@ -543,7 +544,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<Expr> {
         Self: Sized;
     /// **This payload re-authored**: every slot a formula reading what
     /// it read, by id.
-    fn author(&self) -> Self::Authored;
+    fn authored(&self) -> Self::Authored;
     /// Whether any expression of this program reads the variable
     /// `var` — over [`ProfilePayload::rows`], so every payload answers
     /// it the one way.
@@ -2426,7 +2427,7 @@ impl ProfilePayload for ProfileProgram {
     ) -> Result<Self, E> {
         authored.try_map_slots(&mut |slot| f(slot))
     }
-    fn author(&self) -> Self::Authored {
+    fn authored(&self) -> Self::Authored {
         let Ok(authored) = self.try_map_slots(&mut |slot| {
             Ok::<_, core::convert::Infallible>(crate::Formula::from(slot))
         });
@@ -2753,27 +2754,27 @@ impl core::error::Error for StepIdFault {}
 
 /// A Length literal (canonical meters), for the literal-authoring
 /// helpers below.
-fn len_lit(v: f64) -> Result<Expr, DimensionError> {
-    Expr::literal(v, Dimension::Length)
+fn len_lit(v: f64) -> Result<Formula, DimensionError> {
+    Formula::literal(v, Dimension::Length)
 }
 
 /// An Angle literal (canonical radians).
-fn ang_lit(v: f64) -> Result<Expr, DimensionError> {
-    Expr::literal(v, Dimension::Angle)
+fn ang_lit(v: f64) -> Result<Formula, DimensionError> {
+    Formula::literal(v, Dimension::Angle)
 }
 
 /// A dimensionless literal — bulges and director components.
-fn scalar_lit(v: f64) -> Result<Expr, DimensionError> {
-    Expr::literal(v, Dimension::Scalar)
+fn scalar_lit(v: f64) -> Result<Formula, DimensionError> {
+    Formula::literal(v, Dimension::Scalar)
 }
 
 /// A literal point.
-fn pt_lit(p: &Point2<f64>) -> Result<[Expr; 2], DimensionError> {
+fn pt_lit(p: &Point2<f64>) -> Result<[Formula; 2], DimensionError> {
     Ok([len_lit(p.x)?, len_lit(p.y)?])
 }
 
 /// A recorded target, lifted.
-fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
+fn target_lit(t: &Target<f64>) -> Result<ProgramTarget<Formula>, DimensionError> {
     Ok(match t {
         Target::Point(p) => ProgramTarget::Point(pt_lit(p)?),
         Target::Start => ProgramTarget::Start,
@@ -3094,7 +3095,7 @@ impl RecordedNotation {
 }
 
 /// A recorded arc spec at literal arguments.
-fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData, RecordedProgramError> {
+fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData<Formula>, RecordedProgramError> {
     Ok(match spec {
         profile::ArcData::Radius { r, side } => ProgramArcData::Radius {
             r: len_lit(*r)?,
@@ -3126,7 +3127,7 @@ fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData, RecordedProg
     })
 }
 
-impl LoopProgram {
+impl LoopProgram<Formula> {
     /// A polygon over EXPRESSION corners: `At(p0)`, `LineTo(p1)`, …,
     /// `LineTo(Start)` — the VQ5 expansion of the polygon builder, at
     /// arbitrary points, so a document whose corners are driven by
@@ -3139,7 +3140,7 @@ impl LoopProgram {
     /// This is the ONE expansion. [`LoopProgram::polygon`] is this
     /// door at literal corners, so the two spellings of a polygon
     /// cannot drift apart.
-    pub fn polygon_expr(points: impl IntoIterator<Item = [Expr; 2]>) -> Self {
+    pub fn polygon_expr(points: impl IntoIterator<Item = [Formula; 2]>) -> Self {
         let mut steps = Vec::new();
         for (i, p) in points.into_iter().enumerate() {
             steps.push(if i == 0 {
@@ -3309,11 +3310,11 @@ impl LoopProgram {
             let Some(value) = slot.literal_value() else {
                 unreachable!(
                     "the {} of step {step} is not a literal, yet `from_recorded` minted every \
-                     argument of this program through `Expr::literal`",
+                     argument of this program through `Formula::literal`",
                     arg.label()
                 )
             };
-            *slot = Expr::literal_with_unit(value, arg.dimension(), sym.def())?;
+            *slot = Formula::literal_with_unit(value, arg.dimension(), sym.def())?;
         }
         Ok(program)
     }
@@ -3392,7 +3393,7 @@ impl LoopProgram {
             centre: [len_lit(cx)?, len_lit(cy)?],
             radius: len_lit(r)?,
             n,
-            phase: Expr::literal(phase, Dimension::Angle)?,
+            phase: Formula::literal(phase, Dimension::Angle)?,
         })
     }
 }

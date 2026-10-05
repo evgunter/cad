@@ -127,7 +127,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(spacing),
@@ -274,7 +274,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(theta),
@@ -364,7 +364,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -574,7 +574,7 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.5),
@@ -650,7 +650,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -661,7 +661,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         doc,
         Node::Pattern {
             input: inner,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(3.0),
@@ -724,7 +724,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         doc2,
         Node::Pattern {
             input: xf,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -795,7 +795,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -839,7 +839,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
         DocEdit::SetStructuralParam {
             node: pattern,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
     );
 
@@ -892,7 +892,7 @@ fn r1_reproduce_the_quoted_red_first_fault() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),

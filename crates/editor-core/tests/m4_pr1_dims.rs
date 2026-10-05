@@ -55,20 +55,20 @@ fn implicit_count_to_scalar_refused() {
     // Count never promotes implicitly (spec D4): mixing a Count with
     // a continuous operand is a typed construction error…
     assert_eq!(
-        Expr::mul(Expr::count(3), len(1.0)).unwrap_err(),
+        Expr::mul(Formula::count(3), len(1.0)).unwrap_err(),
         DimensionError::CountNeedsExplicitPromotion { op: "mul" }
     );
     assert_eq!(
-        Expr::div(Expr::count(3), scl(2.0)).unwrap_err(),
+        Expr::div(Formula::count(3), scl(2.0)).unwrap_err(),
         DimensionError::CountNeedsExplicitPromotion { op: "div" }
     );
     // …and eval refuses a Count expression outright.
     assert_eq!(
-        eval(&Expr::count(3), &env()).unwrap_err(),
+        eval(&Formula::count(3), &env()).unwrap_err(),
         EvalError::CountExprInContinuousEval
     );
     // The explicit promotion works.
-    let promoted = Expr::count_to_scalar(Expr::count(3)).unwrap();
+    let promoted = Expr::count_to_scalar(Formula::count(3)).unwrap();
     let scaled = Expr::mul(promoted, len(2.0)).unwrap();
     assert_eq!(eval(&scaled, &env()).unwrap(), 6.0);
 }
@@ -76,7 +76,7 @@ fn implicit_count_to_scalar_refused() {
 #[test]
 fn count_literal_is_integer_only() {
     assert_eq!(
-        Expr::literal(3.0, Dimension::Count).unwrap_err(),
+        Formula::literal(3.0, Dimension::Count).unwrap_err(),
         DimensionError::LiteralCountIsInteger
     );
 }
@@ -108,17 +108,17 @@ fn atan2_same_dimension_produces_angle() {
         }
     );
     assert_eq!(
-        Expr::atan2(Expr::count(1), Expr::count(1)).unwrap_err(),
+        Expr::atan2(Formula::count(1), Formula::count(1)).unwrap_err(),
         DimensionError::CountNeedsExplicitPromotion { op: "atan2" }
     );
 }
 
 #[test]
 fn count_arithmetic_exact_and_overflow_typed() {
-    let sum = Expr::add(Expr::count(2), Expr::count(3)).unwrap();
+    let sum = Expr::add(Formula::count(2), Formula::count(3)).unwrap();
     assert_eq!(sum.dim(), Dimension::Count);
     assert_eq!(eval_count(&sum, &env()).unwrap(), 5);
-    let big = Expr::mul(Expr::count(i64::MAX), Expr::count(2)).unwrap();
+    let big = Expr::mul(Formula::count(i64::MAX), Formula::count(2)).unwrap();
     assert_eq!(
         eval_count(&big, &env()).unwrap_err(),
         EvalError::CountOverflow
@@ -135,7 +135,7 @@ fn count_arithmetic_exact_and_overflow_typed() {
 #[test]
 fn min_max_same_dimension_only() {
     assert!(Expr::min(len(1.0), len(2.0)).is_ok());
-    assert!(Expr::max(Expr::count(1), Expr::count(2)).is_ok());
+    assert!(Expr::max(Formula::count(1), Formula::count(2)).is_ok());
     assert_eq!(
         Expr::min(len(1.0), ang(1.0)).unwrap_err(),
         DimensionError::Mismatch {

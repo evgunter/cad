@@ -444,7 +444,7 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram) -> ProfileDoc {
 /// A full circle of radius `r` centred `big` off the revolve axis: the
 /// seamless closed carrier.
 fn circle_program(big: f64, r: f64) -> LoopProgram {
-    let length = |v: f64| Expr::literal(v, editor_core::Dimension::Length).unwrap();
+    let length = |v: f64| Formula::literal(v, editor_core::Dimension::Length).unwrap();
     LoopProgram::Circle {
         centre: [length(big), length(0.0)],
         radius: length(r),
@@ -641,7 +641,7 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
         doc,
         Node::Loft {
             profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     let ev = run(&part, &EvalOptions::default());

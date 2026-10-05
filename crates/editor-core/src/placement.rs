@@ -648,7 +648,7 @@ impl Placement {
     /// **This placement re-authored**: every rigid step's components a
     /// formula reading what they read ([`crate::Formula::from`]).
     #[must_use]
-    pub fn author(&self) -> Placement<crate::Formula> {
+    pub fn authored(&self) -> Placement<crate::Formula> {
         let Ok(authored) = self.try_map_slots(&mut |e| {
             Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
         });

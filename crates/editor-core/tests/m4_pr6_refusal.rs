@@ -490,7 +490,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     // a layer earlier, when the frame's slot is authored.
     assert!(
         matches!(
-            Expr::literal(f64::INFINITY, Dimension::Length),
+            Formula::literal(f64::INFINITY, Dimension::Length),
             Err(editor_core::DimensionError::NonFiniteLiteral)
         ),
         "the frame's origin slot refuses a non-finite at its literal door"

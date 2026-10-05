@@ -81,7 +81,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::named(name(n), Dimension::Length)
+    Formula::named(name(n), Dimension::Length)
 }
 
 fn uniform(w: f64) -> Distribution {
@@ -272,7 +272,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             axis: [
                 scl(0.0),
                 scl(0.0),
-                Expr::named(name("axis"), Dimension::Scalar),
+                Formula::named(name("axis"), Dimension::Scalar),
             ],
             angle: ang(0.0),
         },

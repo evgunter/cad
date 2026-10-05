@@ -110,7 +110,7 @@ where
         doc,
         Node::Pattern {
             input: u,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -166,7 +166,7 @@ where
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(1),
+            expr: editor_core::Formula::count(1),
         },
     );
     let ev3 = run::<T>(&doc3, Some(&ev1));

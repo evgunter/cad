@@ -174,7 +174,7 @@ fn patterned(s: Scene) -> Scene {
         s.doc,
         Node::Pattern {
             input: s.xf,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(SPACING),
@@ -346,7 +346,7 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
         s.doc,
         Node::Part {
             of: s.pattern,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
     );
     assert!(
@@ -535,7 +535,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         doc,
         Node::Pattern {
             input: xf,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(SPACING),

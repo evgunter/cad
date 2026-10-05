@@ -173,7 +173,7 @@ fn exprs() -> Exprs {
         // document holds the first, an edit log can hold the second.
         Expr::add(
             Expr::var(editor_core::VarId(0x3fa9_c1d2_a0b1_0001), Dimension::Length),
-            Expr::named(VarName::from_static("width"), Dimension::Length),
+            Formula::named(VarName::from_static("width"), Dimension::Length),
         )
         .unwrap(),
     )
@@ -184,9 +184,9 @@ fn exprs() -> Exprs {
         Expr::mul(Expr::cos(ang(0.4)).unwrap(), Expr::tan(ang(0.5)).unwrap()).unwrap(),
     )
     .unwrap();
-    let counted = Expr::count_to_scalar(Expr::count(7)).unwrap();
+    let counted = Expr::count_to_scalar(Formula::count(7)).unwrap();
     let mm = quantity::unit_by_symbol("mm").expect("mm is a table row");
-    let millimetres = Expr::literal_with_unit(0.012, Dimension::Length, mm).unwrap();
+    let millimetres = Formula::literal_with_unit(0.012, Dimension::Length, mm).unwrap();
     Exprs {
         length,
         angle,

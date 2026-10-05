@@ -1169,7 +1169,7 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
         let expr = broken
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = Expr::named(unbound.clone(), expr.dim());
+        *expr = Formula::named(unbound.clone(), expr.dim());
         let Node::Profile(broken) = broken else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
@@ -1290,7 +1290,7 @@ fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
         let expr = probe
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = Expr::literal(sentinel, expr.dim()).expect("a finite literal");
+        *expr = Formula::literal(sentinel, expr.dim()).expect("a finite literal");
         let Node::Profile(probe) = probe else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };

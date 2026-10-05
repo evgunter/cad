@@ -140,7 +140,7 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
+                distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },

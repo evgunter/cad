@@ -80,7 +80,7 @@ const H: f64 = 1.2;
 const PHI: f64 = PI / 4.0;
 
 fn param(name: &'static str) -> Expr {
-    Expr::named(VarName::from_static(name), Dimension::Length)
+    Formula::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.

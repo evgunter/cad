@@ -212,7 +212,7 @@ fn loft_with_brick() -> ProfileDoc {
     let top = section(&mut r, 2.0, PRISM_SQUARE);
     r.insert(Node::Loft {
         profiles: vec![bottom, middle, top],
-        v_degree: Expr::count(2),
+        v_degree: Formula::count(2),
     });
     let brick_plane = r.insert(frame([0.0, 0.0, 2.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {

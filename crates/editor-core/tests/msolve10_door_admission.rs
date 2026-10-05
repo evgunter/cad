@@ -723,7 +723,7 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
             doc,
             Node::Pattern {
                 input: ids[0],
-                count: editor_core::Expr::count(2),
+                count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(3.0),
@@ -1049,7 +1049,7 @@ fn corpus() -> Vec<Row> {
             doc,
             Node::Pattern {
                 input: ids[0],
-                count: editor_core::Expr::count(2),
+                count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(3.0),
@@ -1135,7 +1135,7 @@ fn corpus() -> Vec<Row> {
             doc,
             Node::Pattern {
                 input: ids[1],
-                count: editor_core::Expr::count(3),
+                count: editor_core::Formula::count(3),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                     spacing: len(3.0),
@@ -1146,7 +1146,7 @@ fn corpus() -> Vec<Row> {
             doc,
             Node::Part {
                 of: pattern,
-                select: editor_core::PartSelect::Instance(editor_core::Expr::count(0)),
+                select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
             },
         );
         let (doc, _) = insert(
@@ -1164,7 +1164,7 @@ fn corpus() -> Vec<Row> {
             DocEdit::SetStructuralParam {
                 node: part,
                 slot: editor_core::SlotId::Instance,
-                expr: editor_core::Expr::count(2),
+                expr: editor_core::Formula::count(2),
             },
         );
         ("msolve10-corpus-part", doc, opts)

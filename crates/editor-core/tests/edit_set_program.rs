@@ -833,7 +833,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::named(VarName::from_static("nope"), Dimension::Length);
+    let nope = Formula::named(VarName::from_static("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -1366,7 +1366,7 @@ fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
 }
 
 fn param_len(name: &'static str) -> Expr {
-    Expr::named(VarName::from_static(name), Dimension::Length)
+    Formula::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A profile of `loops` extruded, in `doc`; `(doc, profile, extrude)`.
@@ -1848,7 +1848,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
             &DocEdit::SetStructuralParam {
                 node: profile,
                 slot: SlotId::Count,
-                expr: Expr::count(3),
+                expr: Formula::count(3),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -2261,7 +2261,7 @@ fn lofted(label: &str, lower: LoopProgram, upper: LoopProgram) -> (ProfileDoc, [
         doc,
         Node::Loft {
             profiles: vec![sec0, sec1],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     (doc, [sec0, sec1, loft])

@@ -43,7 +43,7 @@ fn half_turn_doc() -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    let angle = Expr::literal_with_unit(
+    let angle = Formula::literal_with_unit(
         0.5 * core::f64::consts::PI,
         Dimension::Angle,
         quantity::PI.def(),

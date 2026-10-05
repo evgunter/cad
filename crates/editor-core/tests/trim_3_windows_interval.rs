@@ -194,7 +194,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let placed = r.insert(translated(
         probe,
         [
-            Expr::named(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
             len(0.0),
             len(-0.05),
         ],
@@ -351,7 +351,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         [
             len(0.0),
             len(0.0),
-            Expr::named(name("place"), Dimension::Length),
+            Formula::named(name("place"), Dimension::Length),
         ],
     ));
     (r.doc, solid, placed)
@@ -477,7 +477,7 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(0.3), Expr::named(name("place"), Dimension::Length)).expect("a length"),
+            Expr::add(len(0.3), Formula::named(name("place"), Dimension::Length)).expect("a length"),
         ],
     ))
 }
@@ -633,7 +633,7 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(-0.2), Expr::named(name("place"), Dimension::Length)).expect("a length"),
+            Expr::add(len(-0.2), Formula::named(name("place"), Dimension::Length)).expect("a length"),
         ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));

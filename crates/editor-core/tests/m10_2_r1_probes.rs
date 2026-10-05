@@ -144,7 +144,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::named(VarName::from_static("depth"), Dimension::Length),
+            distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },
     );
@@ -1099,7 +1099,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let [bottom, top] = caps(&ev, slab);
     let expr = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::named(
+        MeasureExpr::value(Formula::named(
             VarName::from_static("ghost"),
             Dimension::Length,
         )),
@@ -1146,7 +1146,7 @@ fn r1_own_document_web_and_flip() {
             plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::named(VarName::from_static("r"), Dimension::Length),
+                radius: Formula::named(VarName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -1171,7 +1171,7 @@ fn r1_own_document_web_and_flip() {
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Expr::named(VarName::from_static("r"), Dimension::Length));
+    let r = || MeasureExpr::value(Formula::named(VarName::from_static("r"), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),

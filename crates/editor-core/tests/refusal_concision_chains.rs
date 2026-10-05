@@ -4682,5 +4682,5 @@ fn formula(text: &str) -> editor_core::Expr {
         editor_core::VarName::new("blades").expect("a name"),
         editor_core::Dimension::Count,
     )]);
-    editor_core::parse_expr(text, &names).expect("the formula parses")
+    editor_core::parse_formula(text, &names).expect("the formula parses")
 }

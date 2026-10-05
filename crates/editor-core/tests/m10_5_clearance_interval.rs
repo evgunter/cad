@@ -254,7 +254,7 @@ fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         solid,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
     ));
     (r.doc, solid, placed)
 }
@@ -316,7 +316,7 @@ fn hexagon() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let solid = extruded(&mut r, &corners, 1.0);
     let placed = r.insert(translated(
         solid,
-        Expr::named(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
     ));
     (r.doc, solid, placed)
 }
@@ -338,7 +338,7 @@ fn facing_blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let by = Expr::add(len(1.0), Expr::named(name("gap"), Dimension::Length))
+    let by = Expr::add(len(1.0), Formula::named(name("gap"), Dimension::Length))
         .expect("1 m + a length is a length");
     let b = r.insert(translated(a, by));
     (r.doc, a, b)
@@ -1150,7 +1150,7 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
     }
     let loft = r.insert(Node::Loft {
         profiles,
-        v_degree: Expr::count(2),
+        v_degree: Formula::count(2),
     });
     let doc = r.doc;
     let sel = Selection::body_of(loft);

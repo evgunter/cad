@@ -71,7 +71,7 @@ fn param_lookup_and_typed_failures() {
     // handed in directly, it refuses typed.
     assert_eq!(
         eval(
-            &Expr::named(VarName::from_static("depth"), Dimension::Length),
+            &Formula::named(VarName::from_static("depth"), Dimension::Length),
             &env
         )
         .unwrap_err(),
@@ -97,20 +97,20 @@ fn count_param_is_exact_i64() {
 fn count_to_scalar_range_guard() {
     // Within i32 range the promotion is exact (i32::try_from +
     // f64::from — ruled at the review, replacing the ±2^53 guard)…
-    let ok = Expr::count_to_scalar(Expr::count(i64::from(i32::MAX))).unwrap();
+    let ok = Expr::count_to_scalar(Formula::count(i64::from(i32::MAX))).unwrap();
     assert_eq!(
         eval(&ok, &VarEnv::<f64>::default()).unwrap(),
         2_147_483_647.0
     );
     // …outside it: typed refusal.
-    let too_big = Expr::count_to_scalar(Expr::count(i64::from(i32::MAX) + 1)).unwrap();
+    let too_big = Expr::count_to_scalar(Formula::count(i64::from(i32::MAX) + 1)).unwrap();
     assert_eq!(
         eval(&too_big, &VarEnv::<f64>::default()).unwrap_err(),
         EvalError::CountToScalarOutOfRange(i64::from(i32::MAX) + 1)
     );
     // Regression (review r2): i64::MIN must be the SAME typed error,
     // never a panic (the old guard called i64::abs first).
-    let min = Expr::count_to_scalar(Expr::count(i64::MIN)).unwrap();
+    let min = Expr::count_to_scalar(Formula::count(i64::MIN)).unwrap();
     assert_eq!(
         eval(&min, &VarEnv::<f64>::default()).unwrap_err(),
         EvalError::CountToScalarOutOfRange(i64::MIN)
@@ -160,8 +160,8 @@ mod props {
         /// does not overflow (spec D4).
         #[test]
         fn count_arithmetic_is_exact(a in -1_000_000i64..1_000_000, b in -1_000_000i64..1_000_000) {
-            let sum = Expr::add(Expr::count(a), Expr::count(b)).unwrap();
-            let prod = Expr::mul(Expr::count(a), Expr::count(b)).unwrap();
+            let sum = Expr::add(Formula::count(a), Formula::count(b)).unwrap();
+            let prod = Expr::mul(Formula::count(a), Formula::count(b)).unwrap();
             prop_assert_eq!(eval_count(&sum, &VarEnv::<f64>::default()).unwrap(), a + b);
             prop_assert_eq!(eval_count(&prod, &VarEnv::<f64>::default()).unwrap(), a * b);
         }

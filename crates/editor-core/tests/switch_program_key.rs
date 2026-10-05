@@ -17,7 +17,7 @@ use crate::fixture::{ang, len, len2, scl, xy_frame};
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
     ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
-    StepArg, VarName, evaluate, parse_expr,
+    StepArg, VarName, evaluate, parse_formula,
 };
 use geom_core::Tol;
 
@@ -185,7 +185,7 @@ fn resolved_values_feed_the_key() {
                     plane: plane(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::named(VarName::from_static("r"), Dimension::Length),
+                        radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -240,7 +240,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                     plane: plane(),
                     loops: vec![LoopProgram::Circle {
                         centre: [
-                            Expr::named(VarName::from_static("cx"), Dimension::Length),
+                            Formula::named(VarName::from_static("cx"), Dimension::Length),
                             len(0.0),
                         ],
                         radius: len(0.5),
@@ -329,7 +329,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
 fn a_chain_arcs_radius_feeds_the_key() {
     let parameterized = doc_with_r(
         0.5,
-        vec![one_arc_chain(Expr::named(
+        vec![one_arc_chain(Formula::named(
             VarName::from_static("r"),
             Dimension::Length,
         ))],
@@ -367,7 +367,7 @@ fn a_straight_chain_respelled_keys_identically() {
     };
     let parameterized = doc_with_r(
         4.0,
-        vec![straight(Expr::named(
+        vec![straight(Formula::named(
             VarName::from_static("r"),
             Dimension::Length,
         ))],
@@ -385,8 +385,8 @@ fn a_straight_chain_respelled_keys_identically() {
 #[test]
 fn display_units_never_enter_the_key() {
     let params = std::collections::BTreeMap::new();
-    let mm = parse_expr("500 mm", &params).unwrap();
-    let m = parse_expr("0.5 m", &params).unwrap();
+    let mm = parse_formula("500 mm", &params).unwrap();
+    let m = parse_formula("0.5 m", &params).unwrap();
     let canonical = len(0.5);
     let make = |r: Expr| {
         doc_with(vec![LoopProgram::Circle {

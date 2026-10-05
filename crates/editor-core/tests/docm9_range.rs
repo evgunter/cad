@@ -53,7 +53,7 @@ fn var(doc: &editor_core::ProfileDoc, n: &'static str) -> editor_core::VarId {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::named(name(n), Dimension::Length)
+    Formula::named(name(n), Dimension::Length)
 }
 
 /// The drive's budgets, both of them the caller's: the query is on
@@ -212,7 +212,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     });
     let pat = r.insert(Node::Pattern {
         input: e,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
@@ -346,7 +346,7 @@ fn a_driven_step_certifies_within_its_turn() {
         });
         let pattern = r.insert(Node::Pattern {
             input: e,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Circular {
                 axis,
                 step: fixture::ang(step),

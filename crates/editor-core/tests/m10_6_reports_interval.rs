@@ -97,7 +97,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::named(name("place"), Dimension::Length),
+                Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],

@@ -41,7 +41,7 @@ fn n(name: &'static str) -> VarName {
 }
 
 fn named(name: &'static str) -> Expr {
-    Expr::named(n(name), Dimension::Length)
+    Formula::named(n(name), Dimension::Length)
 }
 
 fn try_step(

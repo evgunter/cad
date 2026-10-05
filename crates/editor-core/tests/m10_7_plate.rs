@@ -35,7 +35,7 @@ pub(crate) const RADIUS: f64 = 1.25e-3;
 pub(crate) const WEB: f64 = SPACING - 2.0 * RADIUS;
 
 fn param(n: &'static str) -> Expr {
-    Expr::named(VarName::from_static(n), Dimension::Length)
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The plate, its two holes, the web measure and its assertion.

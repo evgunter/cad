@@ -4448,15 +4448,21 @@ impl<P, S: Slot> Node<P, S> {
     }
 }
 
+/// **A node as an edit carries it**: its slots hold authored formulas,
+/// and its profile, if it is one, the authored program. The edit door
+/// lowers it to the [`Node`] a document stores.
+pub type AuthoredNode<P = crate::ProfileProgram> =
+    Node<<P as crate::ProfilePayload>::Authored, crate::Formula>;
+
 impl<P: crate::ProfilePayload> Node<P> {
     /// **This node re-authored**: every slot a formula reading what it
     /// read, by id ([`crate::Formula::from`]), its profile's payload
-    /// re-authored ([`crate::ProfilePayload::author`]). The edit door
+    /// re-authored ([`crate::ProfilePayload::authored`]). The edit door
     /// lowers it back to this node, bit for bit.
     #[must_use]
-    pub fn author(&self) -> Node<P::Authored, crate::Formula> {
+    pub fn authored(&self) -> Node<P::Authored, crate::Formula> {
         let reauthored = self.try_map_slots(
-            |p, _| Ok::<_, core::convert::Infallible>(p.author()),
+            |p, _| Ok::<_, core::convert::Infallible>(p.authored()),
             &mut |e| Ok(crate::Formula::from(e)),
         );
         let Ok(authored) = reauthored;

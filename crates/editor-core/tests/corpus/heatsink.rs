@@ -79,7 +79,7 @@ pub fn document() -> CorpusDoc {
     // The instance-payload half of the document.
     let pattern = r.insert(Node::Pattern {
         input: fin,
-        count: Expr::count(FINS),
+        count: Formula::count(FINS),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(PITCH),
@@ -90,7 +90,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: pattern,
         slot: SlotId::Count,
-        expr: Expr::named(VarName::from_static("fins"), Dimension::Count),
+        expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
     });
 
     // The explicit one-solid chain. Fin i sits at x = i·PITCH; every

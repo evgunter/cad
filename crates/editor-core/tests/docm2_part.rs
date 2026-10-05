@@ -74,14 +74,14 @@ fn half(h: SplitHalf) -> PartSelect {
 }
 
 fn instance(i: i64) -> PartSelect {
-    PartSelect::Instance(Expr::count(i))
+    PartSelect::Instance(Formula::count(i))
 }
 
 /// A three-instance linear pattern of `input`, three metres apart.
 fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
     r.insert(Node::Pattern {
         input,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(3.0),
@@ -517,7 +517,7 @@ fn a4_every_refusal_is_typed() {
         &DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -578,7 +578,7 @@ fn a4_every_refusal_is_typed() {
         &DocEdit::SetParam {
             node: index_of_split,
             slot: SlotId::Instance,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -624,7 +624,7 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
         &DocEdit::SetStructuralParam {
             node: p1,
             slot: SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -864,7 +864,7 @@ fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
     let sub = u_cutter_tie(&mut r);
     let pat = r.insert(Node::Pattern {
         input: sub,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(20.0),

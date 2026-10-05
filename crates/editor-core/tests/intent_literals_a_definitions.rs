@@ -39,11 +39,11 @@ fn n(name: &'static str) -> VarName {
 }
 
 fn named(name: &'static str) -> Expr {
-    Expr::named(n(name), Dimension::Length)
+    Formula::named(n(name), Dimension::Length)
 }
 
 fn scalar(value: f64) -> Expr {
-    Expr::literal(value, Dimension::Scalar).unwrap()
+    Formula::literal(value, Dimension::Scalar).unwrap()
 }
 
 /// `k · name`.

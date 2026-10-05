@@ -572,7 +572,7 @@ fn loft_of_loops(
         doc,
         Node::Loft {
             profiles: ids.clone(),
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     (doc, ids, loft)

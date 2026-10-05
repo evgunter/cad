@@ -86,7 +86,7 @@ pub fn document() -> CorpusDoc {
     let fins = r.insert(
         Node::placed_union(
             fin,
-            Expr::count(FINS),
+            Formula::count(FINS),
             PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(PITCH),
@@ -99,7 +99,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: fins,
         slot: SlotId::Count,
-        expr: Expr::named(VarName::from_static("fins"), Dimension::Count),
+        expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
     });
     CorpusDoc {
         name: "heat_sink_fins",

@@ -270,7 +270,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::named(VarName::from_static("r"), Dimension::Length),
+                        radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -652,13 +652,13 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Loft {
             profiles: vec![nid(1), nid(2)],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
         Node::Sweep {
             profile: nid(1),
             path: nid(2),
-            stations: Expr::count(4),
-            v_degree: Expr::count(1),
+            stations: Formula::count(4),
+            v_degree: Formula::count(1),
         },
         Node::Fillet {
             target: nid(1),
@@ -736,12 +736,12 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     ] {
         nodes.push(Node::Pattern {
             input: nid(1),
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
             input: nid(1),
-            count: Some(Expr::count(3)),
+            count: Some(Formula::count(3)),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
@@ -753,7 +753,7 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     nodes.extend([
         Node::Part {
             of: nid(1),
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
         Node::Part {
             of: nid(1),

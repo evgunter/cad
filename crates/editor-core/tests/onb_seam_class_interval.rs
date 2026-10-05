@@ -292,7 +292,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
         input: solid,
         placement: editor_core::placement::Step::Rigid {
             translation: [
-                Expr::named(
+                Formula::named(
                     VarName::new("place").expect("a valid parameter name"),
                     Dimension::Length,
                 ),
@@ -300,7 +300,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
                 len(0.0),
             ],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+            angle: Formula::literal(0.0, Dimension::Angle).expect("finite angle"),
         }
         .into(),
     });

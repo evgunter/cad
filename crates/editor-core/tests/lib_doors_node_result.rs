@@ -174,7 +174,7 @@ fn refusals_render_as_prose_not_debug_guts() {
         "node 000000000007 is not live. Recourse: aim the edit at a node the document holds"
     );
 
-    let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
+    let literal = Formula::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
     assert_eq!(literal.to_string(), "a literal value must be finite");
 

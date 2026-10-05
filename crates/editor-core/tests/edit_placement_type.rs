@@ -376,7 +376,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         &Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::named(turn.clone(), Dimension::Angle),
+            angle: Formula::named(turn.clone(), Dimension::Angle),
         }
         .into(),
     );
@@ -491,7 +491,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let unknown = Step::Rigid {
         translation: [len(0.0), len(0.0), len(0.0)],
         axis: [scl(0.0), scl(0.0), scl(1.0)],
-        angle: Expr::named(VarName::from_static("nope"), Dimension::Angle),
+        angle: Formula::named(VarName::from_static("nope"), Dimension::Angle),
     };
     assert!(
         door(
@@ -509,7 +509,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         node: Box::new(chain(Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::named(turn, Dimension::Angle),
+            angle: Formula::named(turn, Dimension::Angle),
         })),
     };
     let (doc, t) = step(doc, insert_edit.clone());

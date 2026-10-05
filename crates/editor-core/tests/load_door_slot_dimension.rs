@@ -201,7 +201,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::named(name.clone(), Dimension::Length),
+            expr: editor_core::Formula::named(name.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -223,7 +223,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::named(missing.clone(), Dimension::Length),
+            expr: editor_core::Formula::named(missing.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -332,7 +332,7 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Formula::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.25),
             },
@@ -355,7 +355,7 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(2.0),
@@ -466,7 +466,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(5.0),
@@ -485,7 +485,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     let unstated = solve(&doc, &o, Tol::witness());
@@ -1100,7 +1100,7 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), Expr::named(lift(), Dimension::Length), len(0.0)],
+                translation: [len(0.0), Formula::named(lift(), Dimension::Length), len(0.0)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },
@@ -1179,7 +1179,7 @@ fn the_memo_moves_instances_when_their_gauge_or_their_root_moves() {
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Formula::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },

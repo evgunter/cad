@@ -91,7 +91,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
 }
 
 fn depth_param() -> Expr {
-    Expr::named(name("depth"), Dimension::Length)
+    Formula::named(name("depth"), Dimension::Length)
 }
 
 /// **A document whose witness chamber is BOUNDED ON BOTH SIDES in the
@@ -103,7 +103,7 @@ fn depth_param() -> Expr {
 /// chamber-containment amendment describes, and the unit's own suite
 /// has no fixture for it.
 fn pinched(nominal: f64, half: f64) -> ProfileDoc {
-    let t = || Expr::named(name("height"), Dimension::Length);
+    let t = || Formula::named(name("height"), Dimension::Length);
     let height = Expr::neg(
         Expr::min(
             t(),
@@ -628,14 +628,14 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
                     centre: [len(1.0), len(1.0)],
-                    radius: Expr::named(name("hole_r"), Dimension::Length),
+                    radius: Formula::named(name("hole_r"), Dimension::Length),
                 },
             ],
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
-            distance: Expr::named(name("plate_h"), Dimension::Length),
+            distance: Formula::named(name("plate_h"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
         r.doc

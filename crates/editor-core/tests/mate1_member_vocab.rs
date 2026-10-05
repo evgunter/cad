@@ -117,7 +117,7 @@ fn four_legs(
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(spacing),
@@ -238,7 +238,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(theta),
@@ -314,7 +314,7 @@ fn two_seats(
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(spacing),
@@ -506,7 +506,7 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -572,7 +572,7 @@ fn the_master_name_spelling_refuses_moved_above() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -641,7 +641,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -678,7 +678,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         doc2,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -729,7 +729,7 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.0),

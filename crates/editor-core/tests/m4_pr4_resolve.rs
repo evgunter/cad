@@ -505,7 +505,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         doc,
         Node::Pattern {
             input: body,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -537,7 +537,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         DocEdit::SetStructuralParam {
             node: pattern,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(2),
+            expr: editor_core::Formula::count(2),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -578,7 +578,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         s.doc.clone(),
         Node::Pattern {
             input: s.union,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -1351,7 +1351,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
         doc,
         Node::Pattern {
             input: body,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),

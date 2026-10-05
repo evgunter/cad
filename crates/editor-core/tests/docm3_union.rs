@@ -1052,7 +1052,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
         doc,
         Node::Loft {
             profiles: profiles[..3].to_vec(),
-            v_degree: editor_core::Expr::count(2),
+            v_degree: editor_core::Formula::count(2),
         },
     );
     (doc, loft, profiles)
@@ -1075,7 +1075,7 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
             &DocEdit::InsertNode {
                 node: Box::new(Node::Loft {
                     profiles: vec![profiles[0]],
-                    v_degree: editor_core::Expr::count(1),
+                    v_degree: editor_core::Formula::count(1),
                 }),
             },
             Tol::witness(),

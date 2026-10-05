@@ -144,7 +144,7 @@ fn four_legs(
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: linear(2.0),
         },
     );
@@ -359,7 +359,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(2.0),
         },
     );
@@ -367,7 +367,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         doc,
         Node::Pattern {
             input: inner,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(5.0),
         },
     );

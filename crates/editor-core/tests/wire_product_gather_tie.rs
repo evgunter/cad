@@ -224,7 +224,7 @@ fn a_placed_union_carries_each_instances_tie_with_both_candidates() {
         doc,
         Node::placed_union(
             sub,
-            Expr::count(3),
+            Formula::count(3),
             PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(10.0),

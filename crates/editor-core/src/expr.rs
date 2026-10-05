@@ -1381,15 +1381,6 @@ impl Expr {
         Self::literal_leaf(value, dim)
     }
 
-    /// A continuous literal remembering its display unit.
-    pub(crate) fn literal_with_unit(
-        value: f64,
-        dim: Dimension,
-        unit: quantity::UnitDef,
-    ) -> Result<Self, DimensionError> {
-        Self::literal_leaf_with_unit(value, dim, unit)
-    }
-
     /// A `Count` literal — an exact integer.
     pub(crate) fn count(value: i64) -> Self {
         Self::count_leaf(value)

@@ -117,7 +117,7 @@ pub fn document() -> CorpusDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let h = Expr::named(VarName::from_static("h"), Dimension::Length);
+    let h = Formula::named(VarName::from_static("h"), Dimension::Length);
     let dist =
         Expr::mul(h, Expr::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
     let block_a = r.insert(Node::Extrude {
@@ -173,7 +173,7 @@ pub fn document() -> CorpusDoc {
     ));
     let linear = r.insert(Node::Pattern {
         input: moved,
-        count: Expr::count(2),
+        count: Formula::count(2),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(3.0),
@@ -186,7 +186,7 @@ pub fn document() -> CorpusDoc {
     });
     r.insert(Node::Pattern {
         input: lone,
-        count: Expr::count(2),
+        count: Formula::count(2),
         kind: PatternKind::Circular {
             axis,
             step: ang(std::f64::consts::PI),
@@ -215,7 +215,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: linear,
         slot: SlotId::Count,
-        expr: Expr::named(VarName::from_static("n"), Dimension::Count),
+        expr: Formula::named(VarName::from_static("n"), Dimension::Count),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
     // (same dimension, same value — a pure representation edit).

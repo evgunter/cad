@@ -546,7 +546,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         doc,
         Node::Pattern {
             input: ext,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -576,7 +576,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     let ev = run(&doc);
@@ -596,7 +596,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(3),
+            expr: Formula::count(3),
         },
     );
     assert!(run(&doc).appearance.is_lossless());

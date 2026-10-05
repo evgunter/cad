@@ -27,7 +27,7 @@ use editor_core::{
     DimensionError, DocEdit, EditError, EvalOptions, Expr, ExprPath, LoopProgram, MeasureExpr,
     Node, NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval,
-    eval_count, parse_expr, unparse,
+    eval_count, parse_formula, unparse,
 };
 use fixture::{Recorder, len, run, scl, xy_frame};
 use geom_core::{Interval, Tol};
@@ -51,8 +51,8 @@ fn negations(metres: f64, levels: usize) -> Expr {
 
 /// A count `levels` deep: `start + 1 + … + 1`.
 fn deep_count(start: i64, levels: usize) -> Expr {
-    (1..levels).fold(Expr::count(start), |e, _| {
-        Expr::add(e, Expr::count(1)).unwrap()
+    (1..levels).fold(Formula::count(start), |e, _| {
+        Expr::add(e, Formula::count(1)).unwrap()
     })
 }
 
@@ -224,7 +224,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             assert!(copy.bit_eq(&e), "{label} clones bit for bit");
             assert!(format!("{e:?}").contains("Literal"), "{label} prints");
             let text = unparse(&e, &|_| None);
-            let back = parse_expr(&text, &BTreeMap::new())
+            let back = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} reads back through the text door: {err}"));
             assert!(back.bit_eq(&e), "{label} round-trips through its text");
         }
@@ -241,7 +241,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         let signs = format!("{}1", "-".repeat(BOUND));
         let terms = vec!["1"; BOUND].join(" + ");
         for (label, text) in [("calls", calls), ("signs", signs), ("terms", terms)] {
-            let e = parse_expr(&text, &BTreeMap::new())
+            let e = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} nested to the bound parse: {err}"));
             assert!(eval_count(&e, &env).is_ok(), "{label} evaluate");
         }
@@ -342,7 +342,7 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
         let terms = vec!["1"; BOUND + 1].join("+");
         let last_plus = terms.rfind('+').unwrap();
         for (label, text, pos) in [("signs", signs, 0), ("terms", terms, last_plus)] {
-            match parse_expr(&text, &BTreeMap::new()) {
+            match parse_formula(&text, &BTreeMap::new()) {
                 Err(ParseError::Dimension { pos: at, error }) => {
                     assert_eq!(refused_bound(&error), BOUND, "{label}");
                     assert_eq!(at, pos, "{label} refuses at the node that would pass it");
@@ -393,7 +393,7 @@ fn text_and_files_nested_far_past_the_bound_refuse_typed_on_the_smallest_stack()
             ),
             ("terms", vec!["1"; FAR].join("+")),
         ] {
-            match parse_expr(&text, &BTreeMap::new()) {
+            match parse_formula(&text, &BTreeMap::new()) {
                 Err(ParseError::Dimension { error, .. }) => {
                     assert_eq!(refused_bound(&error), BOUND, "{label}");
                 }
@@ -428,18 +428,18 @@ fn brackets_nest_no_expression_so_only_the_tree_refuses() {
     on_the_smallest_stack(|| {
         const FAR: usize = 100_000;
         let lone = format!("{}1{}", "(".repeat(FAR), ")".repeat(FAR));
-        let read = parse_expr(&lone, &BTreeMap::new()).expect("a bracketed literal reads");
+        let read = parse_formula(&lone, &BTreeMap::new()).expect("a bracketed literal reads");
         assert!(
-            read.bit_eq(&Expr::count(1)),
+            read.bit_eq(&Formula::count(1)),
             "the brackets add no node: {read:?}"
         );
         let wrapped = |terms: usize| {
             let sum = vec!["1"; terms].join("+");
             format!("{}{sum}{}", "(".repeat(BOUND), ")".repeat(BOUND))
         };
-        let at = parse_expr(&wrapped(BOUND), &BTreeMap::new());
+        let at = parse_formula(&wrapped(BOUND), &BTreeMap::new());
         assert!(at.is_ok(), "a sum at the bound, bracketed: {at:?}");
-        match parse_expr(&wrapped(BOUND + 1), &BTreeMap::new()) {
+        match parse_formula(&wrapped(BOUND + 1), &BTreeMap::new()) {
             Err(ParseError::Dimension { error, .. }) => {
                 assert_eq!(refused_bound(&error), BOUND);
             }
@@ -463,7 +463,7 @@ fn a_negative_leaf_at_the_bound_reads_back() {
                 ("the least count", deep_count(i64::MIN, levels)),
             ] {
                 let text = unparse(&e, &|_| None);
-                let back = parse_expr(&text, &BTreeMap::new()).unwrap_or_else(|err| {
+                let back = parse_formula(&text, &BTreeMap::new()).unwrap_or_else(|err| {
                     panic!("{label} {levels} deep reads back from {text:.40}…: {err}")
                 });
                 assert!(

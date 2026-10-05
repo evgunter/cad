@@ -64,7 +64,7 @@ pub(crate) fn linear(
 ) -> Node<editor_core::ProfileProgram> {
     Node::Pattern {
         input,
-        count: editor_core::Expr::count(count),
+        count: editor_core::Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
             spacing: len(spacing),
@@ -76,7 +76,7 @@ pub(crate) fn linear(
 pub(crate) fn part(of: RecipeNodeId, i: i64) -> Node<editor_core::ProfileProgram> {
     Node::Part {
         of,
-        select: PartSelect::Instance(editor_core::Expr::count(i)),
+        select: PartSelect::Instance(editor_core::Formula::count(i)),
     }
 }
 

@@ -266,7 +266,7 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
             doc,
             Node::shell(
                 blank,
-                Expr::named(VarName::from_static("t"), Dimension::Length),
+                Formula::named(VarName::from_static("t"), Dimension::Length),
                 vec![cup::top(blank)],
             ),
         )

@@ -164,7 +164,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
             node: Box::new(
                 Node::placed_union(
                     fin,
-                    Expr::count(5),
+                    Formula::count(5),
                     PatternKind::Linear {
                         direction: [scl(1.0), scl(0.0), scl(0.0)],
                         spacing: len(PITCH),
@@ -417,7 +417,7 @@ fn a_circular_group_places_around_a_datum_axis() {
     let group = r.insert(
         Node::placed_union(
             solid,
-            Expr::count(4),
+            Formula::count(4),
             PatternKind::Circular {
                 axis,
                 step: ang(std::f64::consts::FRAC_PI_2),
@@ -441,7 +441,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     let (doc, fin) = fin_only();
     let with_count = Node::PlacedUnion {
         input: fin,
-        count: Some(Expr::count(2)),
+        count: Some(Formula::count(2)),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY, Frame::translation([9.0, 0.0, 0.0])]),
     };
     assert!(matches!(
@@ -457,7 +457,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     ));
     let pattern_explicit = Node::Pattern {
         input: fin,
-        count: Expr::count(2),
+        count: Formula::count(2),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
     };
     assert!(matches!(
@@ -475,7 +475,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
     assert!(
         Node::<editor_core::ProfileProgram>::placed_union(
             fin,
-            Expr::count(2),
+            Formula::count(2),
             PatternKind::Explicit(vec![Frame::IDENTITY]),
         )
         .is_none()
@@ -510,7 +510,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             "a placed union's list, with a count",
             Node::PlacedUnion {
                 input: fin,
-                count: Some(Expr::count(1)),
+                count: Some(Formula::count(1)),
                 kind: listed(),
             },
             Some(CountMismatch::ListedWithCount),
@@ -532,7 +532,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             "insert it with a count",
             vec![Node::PlacedUnion {
                 input: fin,
-                count: Some(Expr::count(2)),
+                count: Some(Formula::count(2)),
                 kind: linear(),
             }],
         ),
@@ -540,7 +540,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             "a pattern given a list",
             Node::Pattern {
                 input: fin,
-                count: Expr::count(1),
+                count: Formula::count(1),
                 kind: listed(),
             },
             Some(CountMismatch::ListedOnPattern),
@@ -549,7 +549,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             vec![
                 Node::Pattern {
                     input: fin,
-                    count: Expr::count(1),
+                    count: Formula::count(1),
                     kind: linear(),
                 },
                 Node::PlacedUnion {
@@ -600,7 +600,7 @@ fn the_slot_surface_follows_the_rule() {
     assert!(explicit.expr(SlotId::Count).is_none());
     let stepped: Node<editor_core::ProfileProgram> = Node::placed_union(
         fin,
-        Expr::count(3),
+        Formula::count(3),
         PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
@@ -609,7 +609,7 @@ fn the_slot_surface_follows_the_rule() {
     .expect("a stepped rule takes a count");
     let pattern: Node<editor_core::ProfileProgram> = Node::Pattern {
         input: fin,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
@@ -655,7 +655,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
             node: Box::new(
                 Node::placed_union(
                     fin,
-                    Expr::count(0),
+                    Formula::count(0),
                     PatternKind::Linear {
                         direction: [scl(1.0), scl(0.0), scl(0.0)],
                         spacing: len(2.0),

@@ -9,7 +9,7 @@
 //! Shape: a rectangular plate with two round holes, unioned with a
 //! small tab (the tab is there so the incremental probe has a sibling
 //! branch to reuse — it carries no parametric weight). The holes'
-//! radius is `Expr::named("hole_r")`, SHARED between both loops, so one
+//! radius is `Formula::named("hole_r")`, SHARED between both loops, so one
 //! parameter edit moves two loops at once — the sharing V2's
 //! expression layer exists for.
 //!
@@ -55,7 +55,7 @@ pub const HOLE_CENTRES: [(f64, f64); 2] = [(1.0, 1.0), (2.2, 1.0)];
 
 /// The hole radius, as the shared parameter reference.
 pub fn hole_radius() -> Expr {
-    Expr::named(VarName::from_static(HOLE_R), Dimension::Length)
+    Formula::named(VarName::from_static(HOLE_R), Dimension::Length)
 }
 
 /// One hole loop: a circle whose radius is the shared parameter.

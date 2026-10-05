@@ -860,7 +860,7 @@ pub(crate) fn lofted_on_face_frame() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Loft {
             profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     )
 }

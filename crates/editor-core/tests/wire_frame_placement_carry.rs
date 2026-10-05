@@ -152,7 +152,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
             origin: [
                 fixture::len(2.0),
                 fixture::len(-3.0),
-                Expr::named(p(), Dimension::Length),
+                Formula::named(p(), Dimension::Length),
             ],
             u: [0.0, 1.0, 0.0].map(fixture::scl),
             v: [0.0, 0.0, 1.0].map(fixture::scl),
@@ -488,7 +488,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         Node::Datum(Datum::Frame {
             origin: [0.0, 0.0, 0.0].map(fixture::len),
             u: [
-                Expr::named(span(), Dimension::Scalar),
+                Formula::named(span(), Dimension::Scalar),
                 fixture::scl(0.0),
                 fixture::scl(0.0),
             ],
@@ -610,7 +610,7 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
             u: [1.0, 0.0, 0.0].map(fixture::scl),
             v: [
                 fixture::scl(1.0),
-                Expr::named(span(), Dimension::Scalar),
+                Formula::named(span(), Dimension::Scalar),
                 fixture::scl(0.0),
             ],
         }),

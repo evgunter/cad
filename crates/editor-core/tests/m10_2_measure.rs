@@ -138,7 +138,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                     plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
-                        radius: Expr::named(VarName::from_static(HOLE_R), Dimension::Length),
+                        radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -355,7 +355,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
     assert_eq!(walls.len(), 2, "two holes, one wall reference each");
-    let r = || MeasureExpr::value(Expr::named(VarName::from_static(HOLE_R), Dimension::Length));
+    let r = || MeasureExpr::value(Formula::named(VarName::from_static(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -749,7 +749,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
         MeasureExpr::value(len(13.0)),
-        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     doc = push(
@@ -827,7 +827,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 profile: disc,
                 distance: Expr::div(
                     len(13.0),
-                    Expr::named(VarName::from_static("s"), Dimension::Scalar),
+                    Formula::named(VarName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
@@ -1377,7 +1377,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
         &doc,
         Node::Loft {
             profiles,
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     let body = gathers(&doc, loft);
@@ -1439,7 +1439,7 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
         &doc,
         Node::Pattern {
             input: ex,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(5.0),

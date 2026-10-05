@@ -63,7 +63,7 @@ pub fn document() -> CorpusDoc {
     let top = section(&mut r, 2.0, PRISM_SQUARE);
     let loft = r.insert(Node::Loft {
         profiles: vec![bottom, middle, top],
-        v_degree: Expr::count(2),
+        v_degree: Formula::count(2),
     });
 
     CorpusDoc {
@@ -81,7 +81,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetStructuralParam {
             node: loft,
             slot: SlotId::VDegree,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
         bump_root: loft,
     }

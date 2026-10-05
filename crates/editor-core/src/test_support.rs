@@ -26,7 +26,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Datum, Dimension, DocEdit, Expr, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Datum, Dimension, DocEdit, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach,
 };
 
@@ -36,10 +36,10 @@ use crate::{
 ///
 /// # Panics
 ///
-/// If `metres` is not finite — the refusal is `Expr::literal`'s, and a
+/// If `metres` is not finite — the refusal is `Formula::literal`'s, and a
 /// row about that refusal spells the call rather than reaching here.
-pub fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
+pub fn len(metres: f64) -> Formula {
+    Formula::literal(metres, Dimension::Length).expect("a finite length")
 }
 
 /// An angle literal, in radians.
@@ -47,8 +47,8 @@ pub fn len(metres: f64) -> Expr {
 /// # Panics
 ///
 /// If `radians` is not finite.
-pub fn ang(radians: f64) -> Expr {
-    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
+pub fn ang(radians: f64) -> Formula {
+    Formula::literal(radians, Dimension::Angle).expect("a finite angle")
 }
 
 /// A dimensionless literal — a direction component, a bulge, a ratio.
@@ -56,8 +56,8 @@ pub fn ang(radians: f64) -> Expr {
 /// # Panics
 ///
 /// If `value` is not finite.
-pub fn scl(value: f64) -> Expr {
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+pub fn scl(value: f64) -> Formula {
+    Formula::literal(value, Dimension::Scalar).expect("a finite scalar")
 }
 
 /// Two length literals — a point in a sketch frame's own coordinates.
@@ -65,7 +65,7 @@ pub fn scl(value: f64) -> Expr {
 /// # Panics
 ///
 /// If either coordinate is not finite.
-pub fn len2(v: [f64; 2]) -> [Expr; 2] {
+pub fn len2(v: [f64; 2]) -> [Formula; 2] {
     [len(v[0]), len(v[1])]
 }
 
@@ -77,7 +77,7 @@ pub fn len2(v: [f64; 2]) -> [Expr; 2] {
 /// # Panics
 ///
 /// If a component is not finite.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::AuthoredNode {
     Node::Datum(Datum::Frame {
         origin: origin.map(len),
         u: u.map(scl),
@@ -87,7 +87,7 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
 
 /// The world xy frame as a node — origin at the world origin, sketch
 /// +x along world +x, sketch +y along world +y.
-pub fn xy_frame() -> Node<ProfileProgram> {
+pub fn xy_frame() -> crate::AuthoredNode {
     frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
@@ -104,7 +104,7 @@ pub fn xy_frame() -> Node<ProfileProgram> {
 ///
 /// If a door refuses an insert.
 pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) {
-    let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
+    let ins = |doc: ProfileDoc, node: crate::AuthoredNode| {
         let a = crate::apply(
             &doc,
             &DocEdit::InsertNode {

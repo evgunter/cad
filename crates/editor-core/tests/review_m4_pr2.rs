@@ -410,7 +410,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Pattern {
             input: base,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: editor_core::PatternKind::Circular {
                 axis: ax,
                 step: ang(std::f64::consts::FRAC_PI_2),
@@ -866,7 +866,7 @@ fn wire_doors_refuse_typed() {
         doc.clone(),
         Node::Pattern {
             input: base,
-            count: Expr::count(0),
+            count: Formula::count(0),
             kind: editor_core::PatternKind::Circular {
                 axis: ax,
                 step: ang(1.0),

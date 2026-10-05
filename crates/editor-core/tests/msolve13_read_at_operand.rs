@@ -407,7 +407,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         s.doc.clone(),
         Node::Pattern {
             input: s.top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -418,7 +418,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(Expr::count(1)),
+            select: PartSelect::Instance(Formula::count(1)),
         },
     );
     let copy1 = in_copy(pattern, 1, s.top_cap());
@@ -672,7 +672,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         doc,
         Node::Part {
             of: moved,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
     );
     let head = head_at(part, member_name(union, t1, s.top_cap()));

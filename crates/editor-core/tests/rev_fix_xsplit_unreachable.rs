@@ -178,7 +178,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );
@@ -190,7 +190,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: c,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(3.0),
         },
     );
@@ -198,7 +198,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: pc,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(7.0),
         },
     );
@@ -245,7 +245,7 @@ fn foreign_master() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );

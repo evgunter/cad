@@ -36,7 +36,7 @@ use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 
 fn plen(n: &'static str) -> Expr {
-    Expr::named(VarName::from_static(n), Dimension::Length)
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// The pad's half-width and half-height, in metres.

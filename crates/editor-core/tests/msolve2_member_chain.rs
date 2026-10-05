@@ -177,7 +177,7 @@ fn control_seat(label: &str) -> Affine3<f64> {
 fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Node<ProfileProgram> {
     Node::Pattern {
         input,
-        count: Expr::count(count),
+        count: Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
             spacing: len(spacing),
@@ -190,7 +190,7 @@ fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Node<
 fn part_of(of: RecipeNodeId, i: i64) -> Node<ProfileProgram> {
     Node::Part {
         of,
-        select: PartSelect::Instance(Expr::count(i)),
+        select: PartSelect::Instance(Formula::count(i)),
     }
 }
 
@@ -220,7 +220,7 @@ fn circular(
         doc,
         Node::Pattern {
             input,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(step_angle),
@@ -292,7 +292,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
         doc,
         Node::Pattern {
             input: part,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(std::f64::consts::FRAC_PI_2),
@@ -1201,7 +1201,7 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
         DocEdit::SetStructuralParam {
             node: part2,
             slot: editor_core::SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     // Both references are members: admission is structural and the
@@ -1255,7 +1255,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
         doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(Expr::named(k.clone(), Dimension::Count)),
+            select: PartSelect::Instance(Formula::named(k.clone(), Dimension::Count)),
         },
     );
     let a = in_part(base, base_body, CapEnd::End);

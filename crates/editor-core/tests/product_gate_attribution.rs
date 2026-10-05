@@ -304,7 +304,7 @@ fn a_pattern_root_names_each_failing_instance() {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),

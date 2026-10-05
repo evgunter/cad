@@ -242,7 +242,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(theta),
@@ -320,7 +320,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 // Document ŷ: the placed group frame turns the leg
                 // and top a quarter turn about z, so the top's long
@@ -401,7 +401,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
         doc,
         Node::Pattern {
             input: leg1,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -413,7 +413,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
         doc,
         Node::Pattern {
             input: leg2,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -473,7 +473,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -542,7 +542,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -582,7 +582,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
         DocEdit::SetStructuralParam {
             node: pattern,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
     );
 
@@ -636,7 +636,7 @@ fn r2_nested_pattern_head_is_a_member() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -647,7 +647,7 @@ fn r2_nested_pattern_head_is_a_member() {
         doc,
         Node::Pattern {
             input: inner,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(2.0),

@@ -8,7 +8,7 @@
 //! only in display units are the same expression.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{Dimension, DimensionError, Expr, parse_expr};
+use editor_core::{Dimension, DimensionError, Expr, parse_formula};
 
 fn no_params() -> std::collections::BTreeMap<editor_core::VarName, Dimension> {
     std::collections::BTreeMap::new()
@@ -34,7 +34,7 @@ fn dim_of(row: quantity::UnitDef) -> Dimension {
 /// The §4g acceptance ladder, end to end on one literal.
 #[test]
 fn twenty_five_mm_round_trips_value_and_unit() {
-    let e = parse_expr("25 mm", &no_params()).unwrap();
+    let e = parse_formula("25 mm", &no_params()).unwrap();
     assert_eq!(e.dim(), Dimension::Length);
     // Canonical value: 25 · 1e-3, one multiply.
     assert_eq!(e.literal_value().unwrap().to_bits(), 0.025_f64.to_bits());
@@ -69,9 +69,9 @@ fn twenty_five_mm_round_trips_value_and_unit() {
 /// difference still shows through all three.
 #[test]
 fn display_units_never_enter_expression_identity() {
-    let plain = Expr::literal(0.025, Dimension::Length).unwrap();
-    let with_mm = parse_expr("25 mm", &no_params()).unwrap();
-    let with_cm = parse_expr("2.5 cm", &no_params()).unwrap();
+    let plain = Formula::literal(0.025, Dimension::Length).unwrap();
+    let with_mm = parse_formula("25 mm", &no_params()).unwrap();
+    let with_cm = parse_formula("2.5 cm", &no_params()).unwrap();
     // Same canonical bits, three different display units (none/mm/cm):
     // one expression, all comparators agree.
     assert_eq!(plain, with_mm);
@@ -85,7 +85,7 @@ fn display_units_never_enter_expression_identity() {
     assert_eq!(bits(&plain), bits(&with_mm));
     assert_eq!(bits(&with_mm), bits(&with_cm));
     // Direction two: a real value difference is NOT hidden.
-    let other = Expr::literal(0.026, Dimension::Length).unwrap();
+    let other = Formula::literal(0.026, Dimension::Length).unwrap();
     assert_ne!(plain, other);
     assert!(!plain.bit_eq(&other));
     assert_ne!(bits(&plain), bits(&other));
@@ -95,21 +95,21 @@ fn display_units_never_enter_expression_identity() {
 /// literal's dimension is corrupt data, refused typed.
 #[test]
 fn mismatched_display_unit_refuses_at_construction() {
-    match Expr::literal_with_unit(0.5, Dimension::Angle, table_row("mm")) {
+    match Formula::literal_with_unit(0.5, Dimension::Angle, table_row("mm")) {
         Err(DimensionError::DisplayUnitMismatch {
             unit: Dimension::Length,
             literal: Dimension::Angle,
         }) => {}
         other => panic!("mm on an Angle literal must refuse, got {other:?}"),
     }
-    match Expr::literal_with_unit(0.5, Dimension::Scalar, table_row("deg")) {
+    match Formula::literal_with_unit(0.5, Dimension::Scalar, table_row("deg")) {
         Err(DimensionError::DisplayUnitMismatch { .. }) => {}
         other => panic!("deg on a Scalar literal must refuse, got {other:?}"),
     }
     // The dimensionless row is the one a Scalar literal MAY name, and
     // it is the one `Expr::literal` gives it.
     assert_eq!(
-        Expr::literal_with_unit(0.5, Dimension::Scalar, table_row(""))
+        Formula::literal_with_unit(0.5, Dimension::Scalar, table_row(""))
             .expect("the dimensionless row suits a Scalar")
             .display_unit()
             .map(|u| u.symbol()),
@@ -117,7 +117,7 @@ fn mismatched_display_unit_refuses_at_construction() {
     );
     // literal()'s own doors still run underneath.
     assert!(matches!(
-        Expr::literal_with_unit(f64::NAN, Dimension::Length, table_row("mm")),
+        Formula::literal_with_unit(f64::NAN, Dimension::Length, table_row("mm")),
         Err(DimensionError::NonFiniteLiteral)
     ));
 }
@@ -147,14 +147,14 @@ fn wire_door_refuses_unknown_units_and_writes_every_one() {
 
     // A canonically-authored literal names the canonical row, and says
     // so on the wire.
-    let plain = Expr::literal(0.025, Dimension::Length).unwrap();
+    let plain = Formula::literal(0.025, Dimension::Length).unwrap();
     let json = serde_json::to_string(&plain).unwrap();
     assert!(json.contains(r#""unit":"m""#), "canonical is named: {json}");
     let back: Expr = serde_json::from_str(&json).unwrap();
     assert_eq!(back.display_unit().map(|u| u.symbol()), Some("m"));
 
     // Including the dimensionless one, whose symbol is empty.
-    let scalar = Expr::literal(0.5, Dimension::Scalar).unwrap();
+    let scalar = Formula::literal(0.5, Dimension::Scalar).unwrap();
     let json = serde_json::to_string(&scalar).unwrap();
     assert!(
         json.contains(r#""unit":"""#),
@@ -228,7 +228,7 @@ fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
 #[test]
 fn units_survive_inside_compound_expressions() {
     let params = no_params();
-    let a = parse_expr("25 mm + 1 in", &params).unwrap();
+    let a = parse_formula("25 mm + 1 in", &params).unwrap();
     let json = serde_json::to_string(&a).unwrap();
     let back: Expr = serde_json::from_str(&json).unwrap();
     assert!(a.bit_eq(&back));
@@ -239,7 +239,7 @@ fn units_survive_inside_compound_expressions() {
     assert_eq!(right.display_unit().unwrap().symbol(), "in");
     // And a canonically-spelled twin (same values, `m` suffixes — a
     // bare real would be Scalar) is the SAME expression.
-    let twin = parse_expr("0.025 m + 0.0254 m", &params).unwrap();
+    let twin = parse_formula("0.025 m + 0.0254 m", &params).unwrap();
     assert!(a.bit_eq(&twin));
 }
 
@@ -277,7 +277,7 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         // tell "applied the factor" from "returned the factor", and
         // for `m` and `rad` (factor exactly 1.0) it degenerates to
         // `1.0 == 1.0`. 2.5 distinguishes all three.
-        let e = Expr::literal_with_unit(2.5, dim, row)
+        let e = Formula::literal_with_unit(2.5, dim, row)
             .unwrap_or_else(|err| panic!("{} is a table row: {err:?}", row.symbol()));
         assert_eq!(
             e.display_unit().expect("the authored unit is stored"),
@@ -288,7 +288,7 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         // The text parser reaches the same row from the suffix, and
         // the canonical value is the decimal times the row's factor,
         // one multiply (the parser's stated contract).
-        let parsed = parse_expr(&format!("2.5 {}", row.symbol()), &no_params())
+        let parsed = parse_formula(&format!("2.5 {}", row.symbol()), &no_params())
             .unwrap_or_else(|err| panic!("`2.5 {}` must parse: {err:?}", row.symbol()));
         assert_eq!(
             parsed.dim(),
@@ -423,7 +423,7 @@ fn a_display_unit_is_accepted_exactly_on_its_own_dimension() {
     for r in quantity::UNITS {
         let row_dim = dim_of(r);
         for dim in Dimension::ALL {
-            match Expr::literal_with_unit(2.5, dim, r) {
+            match Formula::literal_with_unit(2.5, dim, r) {
                 Ok(_) => {
                     assert_eq!(
                         dim,
@@ -466,9 +466,9 @@ fn a_display_unit_is_accepted_exactly_on_its_own_dimension() {
 /// the sugar cannot drift from the two doors underneath it.
 #[test]
 fn the_authored_helpers_are_exactly_the_composition() {
-    let sugar = Expr::length_in(25.0, quantity::MM).unwrap();
+    let sugar = Formula::length_in(25.0, quantity::MM).unwrap();
     let spelled =
-        Expr::written_length(quantity::WrittenLength::in_unit(25.0, quantity::MM)).unwrap();
+        Formula::written_length(quantity::WrittenLength::in_unit(25.0, quantity::MM)).unwrap();
     assert!(
         sugar.bit_eq(&spelled),
         "the length helper is the composition"
@@ -479,9 +479,9 @@ fn the_authored_helpers_are_exactly_the_composition() {
         0.025_f64.to_bits()
     );
 
-    let sugar = Expr::angle_in(90.0, quantity::DEG).unwrap();
+    let sugar = Formula::angle_in(90.0, quantity::DEG).unwrap();
     let spelled =
-        Expr::written_angle(quantity::WrittenAngle::in_unit(90.0, quantity::DEG)).unwrap();
+        Formula::written_angle(quantity::WrittenAngle::in_unit(90.0, quantity::DEG)).unwrap();
     assert!(
         sugar.bit_eq(&spelled),
         "the angle helper is the composition"
@@ -490,11 +490,11 @@ fn the_authored_helpers_are_exactly_the_composition() {
 
     // The refusal is `written_length`'s, reached through the sugar.
     assert_eq!(
-        Expr::length_in(f64::NAN, quantity::MM),
+        Formula::length_in(f64::NAN, quantity::MM),
         Err(DimensionError::NonFiniteLiteral)
     );
     assert_eq!(
-        Expr::angle_in(f64::INFINITY, quantity::DEG),
+        Formula::angle_in(f64::INFINITY, quantity::DEG),
         Err(DimensionError::NonFiniteLiteral)
     );
 }

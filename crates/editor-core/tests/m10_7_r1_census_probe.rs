@@ -52,7 +52,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             }),
         }),
     });
-    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
+    let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let plane = r.insert(xy_frame());
     let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {

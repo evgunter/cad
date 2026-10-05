@@ -264,10 +264,10 @@ fn bolted(label: &str, slab_frame: MateFrame) -> Bolted {
         doc,
         Node::Pattern {
             input: bolt,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),
-                spacing: Expr::named(spacing(), Dimension::Length),
+                spacing: Formula::named(spacing(), Dimension::Length),
             },
         },
     );
@@ -313,7 +313,7 @@ fn lifted(label: &str) -> Lifted {
         Node::transform(
             bolt,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(gap(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Formula::named(gap(), Dimension::Length)],
                 axis: [1.0, 0.0, 0.0].map(scl),
                 angle: ang(0.4),
             },
@@ -405,7 +405,7 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
             b: MateFrame::on_part(Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(rise(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Formula::named(rise(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             }),
@@ -572,9 +572,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Formula::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::named(turn(), Dimension::Angle),
+                angle: Formula::named(turn(), Dimension::Angle),
             },
         ),
     );
@@ -1396,12 +1396,12 @@ fn slid(label: &str) -> Slid {
     let doc = declare(doc, spin(), SPIN, Dimension::Angle);
     let frame = MateFrame::on_part(Step::Rigid {
         translation: [
-            Expr::named(slide(), Dimension::Length),
+            Formula::named(slide(), Dimension::Length),
             len(3.0),
             len(SLAB_HEIGHT),
         ],
         axis: [0.0, 0.0, 1.0].map(scl),
-        angle: Expr::named(spin(), Dimension::Angle),
+        angle: Formula::named(spin(), Dimension::Angle),
     });
     let (doc, mate) = insert(
         doc,

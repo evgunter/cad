@@ -180,7 +180,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     // NaN can no longer enter a document at all (door 1): the
     // conflation hazard for NaN is gone at the source.
     assert_eq!(
-        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        Formula::literal(f64::NAN, Dimension::Length).unwrap_err(),
         editor_core::DimensionError::NonFiniteLiteral
     );
 }
@@ -190,7 +190,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
 #[test]
 fn r2_dimension_smuggling_probes() {
     use editor_core::DimensionError as DE;
-    let c = || Expr::count(3);
+    let c = || Formula::count(3);
     // Nested promotion: CountToScalar(CountToScalar(c)) — inner is
     // Scalar, outer demands Count.
     let inner = Expr::count_to_scalar(c()).unwrap();
@@ -262,8 +262,8 @@ fn r2_contradictory_param_dims_caught_downstream() {
     )
     .unwrap();
     let expr = Expr::mul(
-        Expr::named(VarName::from_static("q"), Dimension::Scalar),
-        Expr::named(VarName::from_static("q"), Dimension::Length),
+        Formula::named(VarName::from_static("q"), Dimension::Scalar),
+        Formula::named(VarName::from_static("q"), Dimension::Length),
     )
     .unwrap();
     // eval: whichever binding q has, one read mismatches — typed.
@@ -317,7 +317,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
         i64::from(i32::MAX) + 1,
         i64::from(i32::MIN) - 1,
     ] {
-        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
+        let e = Expr::count_to_scalar(Formula::count(n)).unwrap();
         let outcome = std::panic::catch_unwind(|| eval::<f64>(&e, &env));
         let r = outcome.expect("must never panic");
         assert_eq!(
@@ -328,7 +328,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
     }
     // Boundary values promote exactly.
     for n in [i64::from(i32::MIN), i64::from(i32::MAX)] {
-        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
+        let e = Expr::count_to_scalar(Formula::count(n)).unwrap();
         #[allow(clippy::cast_precision_loss)] // |n| ≤ 2^31: exact
         let expected = n as f64;
         assert_eq!(eval::<f64>(&e, &env).unwrap(), expected);
@@ -656,7 +656,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc;
     let (doc, _) = apply_all(
         doc,
-        &[point_edit(Expr::named(name.clone(), Dimension::Length))],
+        &[point_edit(Formula::named(name.clone(), Dimension::Length))],
     );
     // Dimension flip under the referencing slot: refused, because a
     // variable's kind is fixed whatever reads it.
@@ -799,11 +799,11 @@ fn r6_nonfinite_doors_closed() {
     );
     // Door 1: construction and edit-time injection refused, typed.
     assert_eq!(
-        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        Formula::literal(f64::NAN, Dimension::Length).unwrap_err(),
         DimensionError::NonFiniteLiteral
     );
     assert_eq!(
-        Expr::literal(f64::NEG_INFINITY, Dimension::Angle).unwrap_err(),
+        Formula::literal(f64::NEG_INFINITY, Dimension::Angle).unwrap_err(),
         DimensionError::NonFiniteLiteral
     );
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
@@ -848,7 +848,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         Expr::atan2(len(1.0), len(2.0)).unwrap(),
         Expr::min(ang(1.0), Expr::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
         Expr::max(len(-0.0), len(0.0)).unwrap(),
-        Expr::mul(Expr::count_to_scalar(Expr::count(21)).unwrap(), len(0.002)).unwrap(),
+        Expr::mul(Expr::count_to_scalar(Formula::count(21)).unwrap(), len(0.002)).unwrap(),
         Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
             .expect("a shallow negation"),
     ];
@@ -876,7 +876,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         "interval 1/[0,0] refused at the boundary"
     );
     // NaN literal can no longer enter ANY lane (door 1).
-    assert!(Expr::literal(f64::NAN, Dimension::Length).is_err());
+    assert!(Formula::literal(f64::NAN, Dimension::Length).is_err());
 }
 
 /// R4 (deviation 6) — the `structural` flag admits FALSE POSITIVES
@@ -914,7 +914,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // Count slot referencing the Count doc param: accepted.
     let a = doc
         .apply(
-            &pattern(Expr::named(cnt_param.clone(), Dimension::Count)),
+            &pattern(Formula::named(cnt_param.clone(), Dimension::Count)),
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -926,7 +926,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // CONTINUOUS param. The only promotion is Count→Scalar (wrong
     // direction), and a Length-dim ref in a Count slot is refused at
     // the slot-dimension check — unrepresentable, not just unvalidated.
-    let smuggle = Expr::named(VarName::from_static("d_len"), Dimension::Length);
+    let smuggle = Formula::named(VarName::from_static("d_len"), Dimension::Length);
     let res = doc.apply(
         &Edit::SetStructuralParam {
             node: pat_id,

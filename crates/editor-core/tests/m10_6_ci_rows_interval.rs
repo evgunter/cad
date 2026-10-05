@@ -257,12 +257,12 @@ fn distributed_plate() -> ProfileDoc {
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
-    let hs = Expr::named(name("half_spacing"), Dimension::Length);
+    let hs = Formula::named(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [Expr::neg(hs.clone()).expect("a shallow negation"), len(0.0)],
-            radius: Expr::named(name("hole_a_r"), Dimension::Length),
+            radius: Formula::named(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
@@ -275,7 +275,7 @@ fn distributed_plate() -> ProfileDoc {
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [hs, len(0.0)],
-            radius: Expr::named(name("hole_b_r"), Dimension::Length),
+            radius: Formula::named(name("hole_b_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
@@ -312,7 +312,7 @@ fn distributed_plate() -> ProfileDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &'static str| MeasureExpr::value(Expr::named(name(n), Dimension::Length));
+    let radius_of = |n: &'static str| MeasureExpr::value(Formula::named(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
@@ -423,7 +423,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::named(name("place"), Dimension::Length),
+                Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],

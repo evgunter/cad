@@ -1264,7 +1264,7 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-root"), 0.5);
         let at = Placement::from(editor_core::Step::Rigid {
             translation: [
-                editor_core::Expr::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
+                editor_core::Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
                 fixture::len(0.0),
                 fixture::len(0.0),
             ],

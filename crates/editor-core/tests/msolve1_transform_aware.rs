@@ -405,7 +405,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             doc,
             Node::Pattern {
                 input: xf,
-                count: Expr::count(3),
+                count: Formula::count(3),
                 // Spaced wide enough that copies 0 and 2 clear the
                 // slab entirely: the row is about the copy the mate
                 // names, and a sibling resting on the base uninvited
@@ -467,7 +467,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             doc,
             Node::Pattern {
                 input: top,
-                count: Expr::count(3),
+                count: Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(5.0),
@@ -1086,7 +1086,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0]),
         },
     );
@@ -1094,7 +1094,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
         doc,
         Node::Pattern {
             input: inner,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
     );
@@ -1481,7 +1481,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0], 5.0),
         },
     );
@@ -1491,7 +1491,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
         doc,
         Node::Pattern {
             input: t,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0], 20.0),
         },
     );
@@ -1583,7 +1583,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: rule([1.0, 0.0, 0.0]),
         },
     );
@@ -1591,7 +1591,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         doc,
         Node::Pattern {
             input: inner,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
     );
@@ -1604,7 +1604,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         doc,
         Node::Part {
             of,
-            select: editor_core::PartSelect::Instance(Expr::count(k)),
+            select: editor_core::PartSelect::Instance(Formula::count(k)),
         },
     );
     let a = in_part(base, base_body, CapEnd::End);

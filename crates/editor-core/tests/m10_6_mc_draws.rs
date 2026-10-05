@@ -76,7 +76,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Box::new(
                 Node::measure(
-                    MeasureExpr::value(Expr::named(VarName::from_static("x"), Dimension::Length)),
+                    MeasureExpr::value(Formula::named(VarName::from_static("x"), Dimension::Length)),
                     Vec::new(),
                 )
                 .expect("a measure over a value leaf takes no references"),

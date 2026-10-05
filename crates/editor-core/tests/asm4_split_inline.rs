@@ -550,7 +550,7 @@ fn row3_uncut_param_reference_refuses() {
             )),
         },
     );
-    let h = || Expr::named(VarName::from_static("h"), editor_core::Dimension::Length);
+    let h = || Formula::named(VarName::from_static("h"), editor_core::Dimension::Length);
     // Each block draws on its OWN frame. A shared one would sever an
     // edge at the cut below — the frame is a document input now — and
     // that refusal would fire before the parameter question this row

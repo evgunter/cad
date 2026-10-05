@@ -71,9 +71,9 @@ fn id(doc: &ProfileDoc, name: &str) -> VarId {
 /// the two variables apart.
 fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
     let doc = twins();
-    let w = Expr::named(n("w"), Dimension::Length);
-    let v = Expr::named(n("v"), Dimension::Length);
-    let two = Expr::literal(2.0, Dimension::Scalar).unwrap();
+    let w = Formula::named(n("w"), Dimension::Length);
+    let v = Formula::named(n("v"), Dimension::Length);
+    let two = Formula::literal(2.0, Dimension::Scalar).unwrap();
     let sum = Expr::add(w, Expr::mul(two, v).unwrap()).unwrap();
     let applied = apply(
         &doc,

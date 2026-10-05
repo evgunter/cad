@@ -236,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     );
     let block = r.insert(Node::Extrude {
         profile,
-        distance: Expr::named(h.clone(), Dimension::Length),
+        distance: Formula::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
@@ -305,7 +305,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
                 expr: editor_core::Expr::div(
-                    editor_core::Expr::named(
+                    editor_core::Formula::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),

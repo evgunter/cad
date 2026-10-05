@@ -152,7 +152,7 @@ fn patterned(label: &str, kind: PatternKind, count: i64, i: u32) -> Scene {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(count),
+                count: Formula::count(count),
                 kind,
             },
         );
@@ -166,7 +166,7 @@ fn patterned(label: &str, kind: PatternKind, count: i64, i: u32) -> Scene {
 /// promoted out of the exactly-representable range. (An unbound
 /// parameter cannot be used — `InsertNode` refuses it.)
 fn unevaluable() -> Expr {
-    Expr::count_to_scalar(Expr::count(1 << 40)).expect("a count promotes to a scalar")
+    Expr::count_to_scalar(Formula::count(1 << 40)).expect("a count promotes to a scalar")
 }
 
 /// The scene builder both shapes share: two part documents, the
@@ -462,7 +462,7 @@ fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis: plane,
                     step: ang(0.5),
@@ -498,7 +498,7 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis: body,
                     step: ang(0.5),
@@ -532,7 +532,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
                 doc,
                 Node::Pattern {
                     input: legs,
-                    count: Expr::count(2),
+                    count: Formula::count(2),
                     kind: PatternKind::Linear {
                         direction: [scl(1.0), scl(0.0), scl(0.0)],
                         spacing: len(2.0),
@@ -544,7 +544,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
                 doc,
                 Node::Pattern {
                     input: legs,
-                    count: Expr::count(4),
+                    count: Formula::count(4),
                     kind: PatternKind::Circular {
                         axis: moved,
                         step: ang(0.5),
@@ -576,7 +576,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_oper
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis: again,
                     step: ang(0.5),
@@ -616,7 +616,7 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis,
                     step: ang(0.5),
@@ -678,7 +678,7 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
             doc,
             Node::Pattern {
                 input: legs,
-                count: Expr::count(4),
+                count: Formula::count(4),
                 kind: PatternKind::Circular {
                     axis,
                     step: ang(0.5),
@@ -788,7 +788,7 @@ impl Rule {
                         doc,
                         Node::Pattern {
                             input: legs,
-                            count: Expr::count(4),
+                            count: Formula::count(4),
                             kind: PatternKind::Circular {
                                 axis,
                                 step: ang(*step),
@@ -822,7 +822,7 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Pattern {
                 input: legs,
-                count: Expr::count(2),
+                count: Formula::count(2),
                 kind: PatternKind::Explicit(vec![
                     Frame::IDENTITY,
                     Frame::translation([2.0, 0.0, 0.0]),
@@ -863,7 +863,7 @@ fn an_index_at_the_count_is_still_a_dangling_head() {
         DocEdit::SetStructuralParam {
             node: scene.placer,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     scene.doc = doc;

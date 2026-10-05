@@ -26,7 +26,7 @@ use geom_core::Tol;
 /// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
 /// `Dimension::Count` on purpose (Count literals are integers).
 fn count(v: i64) -> Expr {
-    Expr::count(v)
+    Formula::count(v)
 }
 
 /// A square section at height `z`, scaled by `s`: the frame it sits

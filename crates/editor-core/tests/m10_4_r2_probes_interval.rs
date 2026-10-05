@@ -67,7 +67,7 @@ fn name(n: &'static str) -> VarName {
 }
 
 fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::named(name(n), dim)
+    Formula::named(name(n), dim)
 }
 
 fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
@@ -457,7 +457,7 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     }));
     let loft = r.insert(Node::Loft {
         profiles: vec![p0, p1],
-        v_degree: Expr::count(1),
+        v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);
     if let Some(e) = ev.node_error(loft) {
