@@ -54,8 +54,9 @@ or the REST zip are parked with `blocked_on: [3990]` (the ruling's
 item is not on main yet, so the PR number stands for it, as MSOLVE
 parks):
 
-- `four-germ-vertex-pairs-run-b-in-a-order` (P0): its fix waits on the
-  REST zip refusing a union that is not a pure REST contact;
+- `four-germ-vertex-pairs-run-b-in-a-order` (P0): closed 2026-10-05 by
+  PR 4036 (see the log: its fix needed no REST-zip ruling once the
+  undeclared lane's four fixes landed together);
 - `peg-in-socket-union-refuses-join-desync-at-a-coarse-eps`;
 - `a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync`;
 - `declared-flush-intersect-refuses-in-one-operand-order`;
@@ -63,11 +64,11 @@ parks):
   (its poses are declared-flush).
 
 Still startable, because they are undeclared booleans or join topology
-alone: the pierce families PR 4026 filed (the pinch families landed in
-PR 4038, whose residue is `a-pinch-no-kept-face-can-cross-refuses`;
-the vertex-vertex lane is in flight, and its PR 4036
-also builds the parked four-germ row's fix and the reflex vertex's B
-senses, which share its mechanism). Parked on
+alone: the residue of the pierce families: `a-pinch-no-kept-face-can-cross-refuses`
+(PR 4038's) and `a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`
+(PR 4036's). The pinch families landed in PR 4038, and the vertex-vertex
+lane in PR 4036 (with the four-germ row and the reflex vertex's B
+senses). Parked on
 `d10-one-way-to-say-intent-is-unbuilt` on 2026-10-04, on a closer
 read: the tube on a ball (its rim lies ON the ball, a coincidence
 verdict) and the closed in-face loop (a conic lying in the partner's

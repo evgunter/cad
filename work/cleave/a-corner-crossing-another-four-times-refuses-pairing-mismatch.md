@@ -1,11 +1,12 @@
 ---
 id: a-corner-crossing-another-four-times-refuses-pairing-mismatch
 kind: issue
-title: "A corner whose boundary crosses another corner's four times refuses PairingMismatch: the B-adjacency guard orders two germs in one B sector by their A sector"
-status: open
+title: A corner whose boundary crosses another corner's four times refuses PairingMismatch: the B-adjacency guard orders two germs in one B sector by their A sector
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+closed: 2026-10-05
 ---
 
 ## What

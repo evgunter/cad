@@ -2,11 +2,12 @@
 id: a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner
 kind: issue
 title: Along an edge of b through a's reflex corner, both B halves of a matched pair read up (JoinDesync B senses agree)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap, locus-matching-moves-frontier-refusals-to-join-desync]
+closed: 2026-10-05
 ---
 
 

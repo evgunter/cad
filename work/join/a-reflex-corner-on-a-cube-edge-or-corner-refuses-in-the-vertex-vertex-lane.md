@@ -2,10 +2,11 @@
 id: a-reflex-corner-on-a-cube-edge-or-corner-refuses-in-the-vertex-vertex-lane
 kind: issue
 title: The L-prism's reflex corner on a cube's edge or corner, undeclared, refuses in 526 of 4 032 sweep runs (PairingMismatch, B senses agree, SelfLoopEdge)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
+closed: 2026-10-05
 ---
 
 
