@@ -121,7 +121,7 @@ mod surface_group;
 pub mod tables;
 pub mod voids;
 pub(crate) mod vtxfac;
-mod zip;
+pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
@@ -2002,6 +2002,20 @@ pub enum BooleanError {
         /// How many Out runs it has against the face.
         runs: usize,
     },
+    /// The result pinches at `vertex`: two cones of its boundary meet
+    /// there, and the seam zips would fuse the point to itself
+    /// (`zip::cross_pinches`). One vertex holds two cones only where a
+    /// face's boundary crosses from one to the other there, and the
+    /// pre-pass crosses only two corners of one ring, or the outer
+    /// corners of two faces of one surface and sense. Here none offer:
+    /// the faces through the point pass it twice on one outer loop, or
+    /// none passes it twice. Which body is right there is measured per
+    /// arrangement, not derived
+    /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
+    PinchUncrossed {
+        /// The pinch vertex, in the joined body's keys.
+        vertex: VertexKey,
+    },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
     /// (two crossing pairs share both their vertices). Each solid's
@@ -2565,6 +2579,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PierceRunsUnordered`].
     PierceRunsUnordered,
+    /// [`BooleanError::PinchUncrossed`].
+    PinchUncrossed,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -2757,6 +2773,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PierceRunsUnordered { .. } => BooleanErrorKind::PierceRunsUnordered,
+            Self::PinchUncrossed { .. } => BooleanErrorKind::PinchUncrossed,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3209,6 +3226,12 @@ impl core::fmt::Display for BooleanError {
                  more than two such wedges round one point. There is no way through this in \
                  the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::PinchUncrossed { .. } => write!(
+                f,
+                "the result would pinch at one point, where two parts of its boundary meet, \
+                 and the Boolean cannot yet join the faces that pass through that point. \
+                 There is no way through this in the kernel yet"
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -5652,6 +5675,9 @@ mod tests {
                 vertex: VertexKey::default(),
                 runs: 3,
             },
+            BooleanError::PinchUncrossed {
+                vertex: VertexKey::default(),
+            },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
                 b_vertices: [VertexKey::default(); 2],
@@ -5819,6 +5845,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PierceRunsUnordered => "PierceRunsUnordered",
+                BooleanErrorKind::PinchUncrossed => "PinchUncrossed",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

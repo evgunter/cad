@@ -18,9 +18,11 @@ pass in release, against main `45dc18f9`.
 Near-tangent poses build bodies with tier 2, the certificate and the
 exact volume, but tier 3′ (`validate_pseudomanifold`) does not certify
 them. Every finding is `CensusEscalated`: an `Indeterminate` margin in
-the sliver band (zero 1e-9, escalate 1e-8) on the census's edge-edge
-predicates (`pm_census_ee_span`, `pm_census_ee_parallel`,
-`pm_census_ee_overlap`). In these poses the plane of a cube's face
+the sliver band (zero 1e-9, escalate 1e-8), mostly on the census's
+edge-edge predicates (`pm_census_ee_span`, `pm_census_ee_parallel`,
+`pm_census_ee_overlap`, `pm_census_ee_gap`), and on some poses on its
+edge-face ones (`pm_census_ef_residual`, `pm_census_ef_cut_gap`; PR
+4038's review r2). In these poses the plane of a cube's face
 lies 1e-5 to 1e-8 rad off a prism corner's edge, which leaves vertices
 and edges of the result a few bands apart.
 
@@ -92,6 +94,36 @@ copies of many of these poses' neighbours (116 tier-3′-SOUND lines at
 REACH's `boolean-door-adopts-the-finished-body-type` gates results at
 tier 3′. It lists 11 other `CensusEscalated` results as a prerequisite;
 this class is a larger instance of the same prerequisite.
+
+**17 more runs, built by `join/pierce-pinch-families`** (the pinch
+crossing, `zip::cross_pinches`, and the walk's facing in every op),
+against main `81dde823` in release on `r1_pierce_probes cube` with the
+`R1_NT_D` set above. Main refused each: 12 "every chord arc separates a
+loose scaffolding pair" and 5 `Euler(SelfLoopEdge)`. Every tier-3′
+finding on them is `CensusEscalated` (118 findings, `ee_span`,
+`ee_overlap`, `ee_parallel`, margins 1.0e-9 to 5.5e-9), none definite.
+All lie at poses listed above:
+- notch307 `nt e0 a0 d1e-7` pc I; `nt e0 a1 d1e-7` pc I;
+  `nt e0 a3 d1e-8` pc I, cp I; `nt e0 a11 d-1e-8` cp S;
+  `nt e1 a4 d1e-8` pc I, cp I; `nt e1 a7 d1e-7` pc I;
+  `nt e1 a12 d-1e-8` cp S;
+- shallow200 `nt e0 a0 d1e-8` pc I, cp I; `nt e0 a1 d1e-8` pc I, cp I;
+  `nt e1 a5 d1e-8` cp I; `nt e1 a7 d1e-8` pc I; `nt e1 a13 d-1e-8` cp S;
+  `nt e1 a14 d-1e-8` cp S.
+
+**More from PR 4038's dual review** (base `8793177b`), again all
+`CensusEscalated` with no definite finding, volume, tier 2 and the
+certificate passing:
+- review r1 (`r1b_pinch_probes nt`, turned L corners), 5 runs at
+  d = ±1e-7, margins 1.06e-9 to 3.95e-9, `pm_census_ee_gap` as well as
+  `ee_span`: `Ltop_r-45 nt e0 a2 d1e-7` pc I, `Ltop_r-45 nt e1 a14 d-1e-7`
+  cp S, `Lbot_r-45 nt e0 a15 d1e-7` cp I, `Lbot_r-45 nt e1 a2 d-1e-7`
+  cp S, `Ltop_r30 nt e0 a10 d-1e-7` cp S;
+- review r2 (`r2_pinch_probes nt`, face placement, d = 1e-8, all ∩),
+  19 runs: notch307 `e1 a2` cp; notchbot `e0 a6` pc, cp; shallow200
+  `e0 a0` pc, cp, `e0 a1` pc, cp, `e1 a3` cp; vee300 `e0 a0` pc, cp,
+  `e0 a1` pc, `e1 a2` pc, cp, `e1 a3` pc, cp; asym `e0 a0` pc, cp,
+  `e0 a1` pc, cp. Three vee300 runs escalate on edge-face predicates.
 
 ## The shape to give
 

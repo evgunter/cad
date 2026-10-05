@@ -638,3 +638,40 @@ in-face loop. Both are coincidence verdicts; see the plan's hold
 section.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4038 lands: a pinch the zips would fuse twice is crossed first
+
+Four rows close:
+- the two P0s, `a-pierce-whose-wide-run-pinches-its-intersection-refuses` and `a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`;
+- `the-intersection-ring-facing-is-measured-not-derived`;
+- `a-two-run-pierce-on-a-notch-or-shallow-corner-refuses-its-intersection-every-chord-arc`.
+
+**What changed.** `zip::cross_pinches` is a new pre-pass in `ops::boolean_op_recut`. It replays the zips' fusions with a union-find, and where a vertex pair would be fused twice it crosses the pinch first. It crosses on two faces of one surface and one sense (`kef`), or on one ring (`kemr`). The zips' fusion order has one home, `zip::fusion_order`. PR 4026's measured ∩ start rule is removed, so the ring struts face by the walk in every op. A pinch no kept face can cross refuses typed `PinchUncrossed`, a new Python tag.
+
+**Measured** (main `1546630d` vs head):
+- refusal→SOUND: `pierce_runs_battery` 36, PR 4026's r1 battery 516, r1 1 110 + 761 + 103, r2 397 + 406.
+- refusal→`PinchUncrossed`: 509 in the PR's own measure.
+- refusal→BAD: only escalated census findings (5 + 19, plus the PR's 17), all added to the near-tangent P0. On the cylinder there are legal-operand-only failures, CONTACT's at-infinity row.
+- 0 SOUND→refusal anywhere.
+- `rc_wide` is line-identical, now running to the end since PR 4043 fixed main's `orbit_step_at` panic.
+
+**Review tier: DUAL, H / TRICKY (DR-81).** The unit adds a pre-pass that joins pinch copies before the zips, and removes an op-specific facing rule.
+- R1 APPROVE-WITH-FIXES 0/3/3, R2 APPROVE-WITH-FIXES 0/3/5. Tally 0: neither raised a MAJOR.
+- The blinded coder recorded one factual conflict, whether the B-side split branch is reached. The fix pass settled it: R2's 44 corner and edge unions reach it, while R1's batteries placed `v` only on faces.
+- The fix pass:
+  - pins two pinches in one op, and a second-operand split;
+  - gives the fusion order one home;
+  - makes the two-face crossing read sense;
+  - says in `PinchUncrossed`'s message only what is measured;
+  - restates the residue row per sub-family (nested / bow-tie / none-twice), with the bow-tie cure, a loop splice, marked unmeasured.
+
+I read the fix pass myself and judged no delta review needed: the new logic is a sense check that refuses, plus a moved order function.
+
+**Filed:**
+- `a-pinch-no-kept-face-can-cross-refuses` (P0/H, restated);
+- CLEAVE `a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point` (P0/M, pre-existing on main);
+- evidence on the near-tangent P0, CONTACT's at-infinity row and FLUX's ellipse-ring row.
+
+**Hold (D10).** Nothing on declared ground changed. One declared pose's refusal changed: `union_flush_onto_edge_contact` `cube ∖ y` went from `SelfLoopEdge` to `PinchUncrossed`, refusal to refusal. `rest.rs`'s zip calls are untouched.
+
+Signed (JOIN orchestrator).
