@@ -7046,3 +7046,24 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - PR 4056: fix lane pushed `1401b17e`, CI running, no "fixes pushed" comment yet.
 - **Dispatched** `the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op` (P3, M; `pcurves.rs`/`plan_site_rows`) → `session_01BMu89ppKGExnAuicB4891Y`. A cached window or winding must equal the re-read at every consult, with an assert guard and a mutation; the lane stops on a ratified-clause touch.
 - Nothing new on PR 3970.
+
+## 14:44 check-in (2026-10-05)
+
+- **PR 4056 merged** at `72b4c9cf` (head `1401b17e`). The fixes:
+  - O1–O4 witnesses are red;
+  - `review_d18` drives `face_carrier`/`carrier_pair_*` (READ_DOORS 14 → 17; `flush_pair_relation` waits on `reduce.rs` `face_plane`);
+  - `realize_seam`'s premise names `undo_struts`, with row `segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo` filed and a two-span witness;
+  - one `StaleSite` → `ClassificationInvariant` for the site-vertex fact;
+  - `null_site` calls `edges_of_vertex_linked`;
+  - `mint_chord`'s face reads agree;
+  - the payload was dropped (naming the vertex would need a new public variant);
+  - `live::OPERATORS_KEEP_LINKS` is the one home for the mid-op premise.
+  - Batteries: 84 shards + 48 tests, 0 moved. Fix lane archived (about $6.1).
+- **PR 4063 (site-mint delta) stopped at the design question, as briefed.**
+  - Any delta design keeps state across operators on `Body` (D1's plain value): (A) a persistent summary; (B) a scope-only summary. (C) keeps the re-read.
+  - The window enters verdicts and cannot shrink by delta.
+  - Callgrind: about 53% of instructions are the per-door tier-1 sweep, so a producer outside a scope stays quadratic anyway.
+  - The PR ships only an `#[ignore]`d harness and analysis, and files `split-edge-re-reads-the-faces-window-on-every-split`.
+  - **Adjudicated (C) for now.** No producer grows one face by many operators, so the cost reaches no user. The A/B fork goes to the designers when such a producer is built or planned. I wrote this on the row (pushed `3a5e2c72`) and will merge once CI is green. Lane archived (about $4.1).
+- **Dispatched** `torn-hops-read-as-absent-across-the-boolean` (P3, M) → `session_01MW56vvW7ikU3yEER8eFc6m`. Declared-pair and coincidence sites are skipped under the HOLD and listed; the lane may split by file group.
+- PR 4060: reviewer still running. Nothing new on PR 3970.
