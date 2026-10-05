@@ -51,7 +51,7 @@ use super::enclose::{ChartSpeeds, NurbsBoxes};
 use super::exhaust::UvRect;
 use super::march::MarchTol;
 use super::section::{
-    BandVerdict, BoundarySection, SectionRoot, boundary_roots, boundary_section, magnitude,
+    BoundarySection, SectionRoot, band_verdict, boundary_roots, boundary_section, magnitude,
     settle_root, sign,
 };
 use super::system::{LocalSystem, ParametricPairR4};
@@ -60,9 +60,7 @@ use super::{ChartAxis, SsiError, TraceDecision};
 /// How finely a side's strip is cut along the side to bound its reach:
 /// at most `2^`this pieces (D9, a fixed rule).
 const STRIP_PIECES_LOG2: u32 = 6;
-use crate::dihedral::decide_reported;
 use crate::nurbs_iso::{boundary_iso_u, boundary_iso_v};
-use crate::recourse::Refused;
 
 /// Which end of a parameter's domain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -505,11 +503,7 @@ impl Pass<'_> {
                 // is.
                 let sine = div_down(inf, speed.get());
                 let margin = Margin::levered(sine, self.extent);
-                let verdict = match decide_reported("ssi_boundary_strip", margin, self.band) {
-                    Ok(decided) => Refused::of(decided, self.band).map(BandVerdict::Refused),
-                    Err(cause) => Some(BandVerdict::Undecided(cause)),
-                };
-                if let Some(verdict) = verdict {
+                if let Some(verdict) = band_verdict("ssi_boundary_strip", margin, self.band) {
                     return Err(SsiError::BoundaryTangent { side, verdict });
                 }
             }
