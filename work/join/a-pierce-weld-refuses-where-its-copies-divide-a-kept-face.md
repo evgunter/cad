@@ -36,3 +36,20 @@ Item 1: record the division's fragment row in result keys (an A face
 is its own key; a B face goes through `graft_faces`), and admit the
 `Chord` weld after the zips. Then rerun the shapes battery: the 214
 lines should build, or show what else stands. Item 2: diagnose first.
+
+## Reach on main `4cf3f8b9` (`join/pinch-uncrossed-residue`)
+
+PR 4038's review batteries (`r2_pinch_probes`, `r1b_pinch_probes`) and
+PR 4026's review r2 holed battery, re-run on main after PRs 4036 and
+4038. Unchanged on that lane's head. This row's two refusals are the
+other place a pinch is left uncrossed, after the zips rather than
+before them:
+
+- **Item 1** ("a pierce's copies divide a face the zips kept"), 260
+  lines, every one a union in both orders apart from the holed block's:
+  r2 cube 48, r2 near-tangent 66, r2 cylinder 40, r1 cube 92 (all ∪);
+  holed 14 (block ∖ cube).
+- **Item 2** ("two fragments of a pierced face meet one pinch"), 22
+  lines, all block ∖ cube. One is pinned in
+  `join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds`
+  (`holed c00 side=4 g6.0`, whose cube ∖ block now builds).

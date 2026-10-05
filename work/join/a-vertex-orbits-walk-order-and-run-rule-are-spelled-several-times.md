@@ -41,3 +41,12 @@ it, against one fixed origin. Have the walk order, the cut order and the
 hold tests read it, and read the run rule off it for every survivor
 count. The two survivors' tie-break may stay; it is the one place where
 either way is a run.
+
+## Since (the six-crossing pairing)
+
+`b_runs` is a third run rule. A pair not adjacent in B's walk order
+runs forward from its earlier position to its later, and its run then
+holds another pair's run whole (a nested matching, six crossings or
+more). So "the run that holds no third germ" now holds only in A, and
+in B only for adjacent pairs. The one position type should carry the
+nesting too: an interval of the walk, read from one origin.

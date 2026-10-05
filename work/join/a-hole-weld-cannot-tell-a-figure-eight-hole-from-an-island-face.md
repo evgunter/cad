@@ -35,3 +35,12 @@ divided-off loop bounds material (an island) or a void (a hole). Read
 that from the loop's winding about the face normal, as
 `join::ring_run_ccw` does. Then build a row that reaches `Hole` in
 `weld_pinches`, and one that reaches an island.
+
+## The split direction builds the island shape (PR 4051)
+
+The pinch pre-pass (`zip::split_across`) now crosses an island face
+pinched to its hole's ring by `kef`: the island dies into the holed
+face, whose ring then passes the point twice. So the island poses that
+"never reached" `Joint::Hole` do reach that shape now, by the other
+route. Witness: `join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds`.
+This row's question is unchanged for the weld direction.

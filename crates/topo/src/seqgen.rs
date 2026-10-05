@@ -71,19 +71,20 @@
 //!
 //! Two of the four are shell bookkeeping rather than kill sites:
 //!
-//! - `movefac`, always — and the reason is that the re-make is
-//!   UNBUILT, not that none exists. The obvious inverse mirrors the
-//!   fusion arm's: `kfmrh` fuses the minted shell back and `mfkrh`
-//!   re-promotes the face that fusion demoted. What stops it here is
-//!   that choosing its `(f1, f2)` is a search — `f2` must be a
-//!   ring-free face of the component that moved — and that search has
-//!   to run BEFORE the partition, since a `roundtrip` that discovers
-//!   mid-way that it cannot finish has already mutated the body. The
-//!   pairing is exercised from the fusion's side instead (below), so
-//!   nothing about the `movefac`/`kfmrh` pair goes untested; what is
-//!   missing is the pair driven from this end.
-//!   `work/topo/movefac-roundtrip-re-make-is-unbuilt.md` carries
-//!   it.
+//! - `movefac(shell)` where some component the partition moves out has
+//!   no ring-free face. The re-make mirrors the fusion arm's run
+//!   backwards: per minted shell, `kfmrh(f1, f2)` fuses it back into
+//!   `shell` and `mfkrh` re-promotes the face that fusion demoted, so a
+//!   `c`-component shell pairs `c − 1` fusions with `c − 1` promotions.
+//!   `f2` must be a ring-free face of the moved component (`kfmrh`'s
+//!   `FaceHasRings`), and [`movefac_remake_sites`] searches for one
+//!   per component BEFORE the partition, since a `roundtrip` that
+//!   discovers mid-way that it cannot finish has already mutated the
+//!   body. The shell order the canonical form compares positionally
+//!   (`crate::iso`'s honest limits) comes back whatever order the
+//!   fusions run in: `movefac` appends the minted shells after every
+//!   shell the solid held, and each fusion keeps `shell` where it
+//!   stands and removes one minted shell from the solid's list.
 //! - `kfmrh`'s fusion form, where the three-op re-make
 //!   (`mfkrh` re-promotes the demoted ring, `movefac` re-partitions
 //!   the complex that promotion disconnects again) does not land back
@@ -226,7 +227,26 @@ fn kfmrh_by(
     .unwrap()
 }
 
-/// `mfkrh_plug(ring, true)` through `door`: the twin is handed the
+/// The sense of every face the generator makes: `mvfs` and every
+/// `mfkrh` plug pass it, and `mef` hands the new face its old one's. So
+/// a re-make that plugs a ring `kfmrh` demoted rebuilds that face with
+/// the sense it had — the assumption [`kfmrh_then_plug`] asserts for
+/// [`roundtrip`]'s `Kfmrh`, `KfmrhFuse` and `Movefac` arms.
+const GENERATOR_SENSE: bool = true;
+
+/// `kfmrh(f1, f2)` through `door`, then the `mfkrh` plug that
+/// re-promotes the ring it demoted, as a face of [`GENERATOR_SENSE`].
+fn kfmrh_then_plug(body: &mut Body<f64>, f1: FaceKey, f2: FaceKey, door: Door, tol: Tol) {
+    assert_eq!(
+        body.get_face(f2).expect("face resolves").sense,
+        GENERATOR_SENSE,
+        "the face {f2:?} kfmrh demotes has the sense its plug re-makes",
+    );
+    let result = kfmrh_by(body, f1, f2, door, tol);
+    mfkrh_plug_by(body, result.ring, door, tol);
+}
+
+/// `mfkrh_plug(ring, GENERATOR_SENSE)` through `door`: the twin is handed the
 /// placeholder the sugar hands the keys-only door.
 fn mfkrh_plug_by(
     body: &mut Body<f64>,
@@ -235,12 +255,12 @@ fn mfkrh_plug_by(
     tol: Tol,
 ) -> crate::euler_kill::MfkrhCreated {
     match door {
-        Door::KeysOnly => body.mfkrh_plug(ring, true),
+        Door::KeysOnly => body.mfkrh_plug(ring, GENERATOR_SENSE),
         Door::Minting => body.mfkrh_minting(
             ring,
             crate::euler::FaceSurface::New {
                 surface: geom::Surface::nurbs_placeholder(),
-                sense: true,
+                sense: GENERATOR_SENSE,
             },
             tol,
         ),
@@ -380,9 +400,10 @@ impl OpChoice {
 
     /// Whether [`roundtrip`] is DOCUMENTED as possibly skipping this
     /// choice — the four arms that hold a site with no re-make
-    /// (module docs). A skip on any other choice is property
-    /// (c) quietly ceasing to run, so the fuzz row asserts against
-    /// this list rather than against a measured constant.
+    /// (module docs), per kind; [`OpChoice::may_skip_roundtrip_at`]
+    /// narrows two of them to the site. A skip on any other choice is
+    /// property (c) quietly ceasing to run, so the fuzz row asserts
+    /// against this list rather than against a measured constant.
     pub(crate) fn may_skip_roundtrip(&self) -> bool {
         matches!(
             self,
@@ -391,7 +412,7 @@ impl OpChoice {
     }
 
     /// [`OpChoice::may_skip_roundtrip`] refined by the SITE, for the
-    /// one arm where the site is what decides.
+    /// two arms where the site is what decides.
     ///
     /// The per-KIND list is too coarse to see anything about `Kev`:
     /// every `Kev` is on it, so a bound built from it reads the same
@@ -401,18 +422,25 @@ impl OpChoice {
     /// neighbourhood, though: `kev(he)` has a single-op re-make exactly
     /// where the far vertex carries NO fan (`next(he) == mate(he)` —
     /// the strut and segment kills), so that is asked here and a `Kev`
-    /// on any other site must execute its roundtrip. The other three
-    /// arms have no cheaper site question and fall through to the kind.
+    /// on any other site must execute its roundtrip. `Movefac` skips
+    /// exactly where [`movefac_remake_sites`] finds no site, which is
+    /// the question [`roundtrip`] itself asks. The other two arms fall
+    /// through to the kind, though both decide their skip from pre-kill
+    /// reads too
+    /// (`work/topo/kef-and-kfmrh-fuse-roundtrip-skips-are-admitted-per-kind.md`).
     pub(crate) fn may_skip_roundtrip_at(&self, body: &Body<f64>) -> bool {
-        let Self::Kev(he) = *self else {
-            return self.may_skip_roundtrip();
-        };
-        match (body.mate(he), body.get_half_edge(he)) {
-            (Some(mate), Some(he_data)) => he_data.next != mate,
-            // An unresolvable site is the operator's to refuse, not
-            // this classifier's; leave the skip permitted and let the
-            // roundtrip's own unwrap be the loud one.
-            _ => true,
+        // An unresolvable site is the operator's to refuse, not this
+        // classifier's: both arms leave the skip permitted and let the
+        // roundtrip's own unwrap be the loud one.
+        match *self {
+            Self::Kev(he) => match (body.mate(he), body.get_half_edge(he)) {
+                (Some(mate), Some(he_data)) => he_data.next != mate,
+                _ => true,
+            },
+            Self::Movefac(shell) => {
+                body.get_shell(shell).is_none() || movefac_remake_sites(body, shell).is_none()
+            }
+            _ => self.may_skip_roundtrip(),
         }
     }
 }
@@ -895,14 +923,22 @@ fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
 /// across each edge via `mate`, and an empty-loop face is its own
 /// dartless component.
 pub(crate) fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
+    shell_component_faces(body, shell).len()
+}
+
+/// [`shell_components`]' components themselves, labelled as `movefac`
+/// labels them: seeded in the shell's face-list order, each listing its
+/// faces in that order. Component `k` is the one `movefac`'s result
+/// puts in its `k`-th shell.
+fn shell_component_faces(body: &Body<f64>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
     let faces = &body.get_shell(shell).expect("shell resolves").faces;
-    let mut seen: slotmap::SecondaryMap<FaceKey, ()> = slotmap::SecondaryMap::new();
-    let mut components = 0;
+    let mut label: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
+    let mut count = 0;
     for &seed in faces {
-        if seen.insert(seed, ()).is_some() {
+        if label.contains_key(seed) {
             continue;
         }
-        components += 1;
+        label.insert(seed, count);
         let mut pending = vec![seed];
         while let Some(face_key) = pending.pop() {
             let face = body.get_face(face_key).expect("face resolves");
@@ -916,14 +952,43 @@ pub(crate) fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
                     let mate = body.mate(member).expect("valid body: mate resolves");
                     let mate_loop = body.get_half_edge(mate).expect("half resolves").parent_loop;
                     let neighbor = body.get_loop(mate_loop).expect("loop resolves").face;
-                    if seen.insert(neighbor, ()).is_none() {
+                    if label.insert(neighbor, count).is_none() {
                         pending.push(neighbor);
                     }
                 }
             }
         }
+        count += 1;
+    }
+    let mut components = vec![Vec::new(); count];
+    for &face in faces {
+        components[label[face]].push(face);
     }
     components
+}
+
+/// The re-make of `movefac(shell)`, read BEFORE the partition: `f1`,
+/// the face that seeds the component the partition leaves in `shell`,
+/// and one ring-free `f2` per component it moves out, in component
+/// order — or `None` where a moved component has no ring-free face for
+/// `kfmrh` to demote. A connected shell moves nothing and gets an empty
+/// `f2` list. A shell with no faces has no component to keep; it is a
+/// tier-1 defect, and this panics on it.
+fn movefac_remake_sites(body: &Body<f64>, shell: ShellKey) -> Option<(FaceKey, Vec<FaceKey>)> {
+    let components = shell_component_faces(body, shell);
+    let (stays, moved) = components
+        .split_first()
+        .expect("a tier-1 shell has a face, so a component to keep");
+    let f2s = moved
+        .iter()
+        .map(|faces| {
+            faces
+                .iter()
+                .copied()
+                .find(|&face| body.get_face(face).expect("face resolves").rings.is_empty())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((stays[0], f2s))
 }
 
 fn mfkrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
@@ -1361,7 +1426,7 @@ fn assert_run_site_refuses(body: &Body<f64>, he1: HalfEdgeKey, point: Point3<f64
 pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, tol: Tol) {
     match choice {
         OpChoice::Mvfs => {
-            body.mvfs(next_point(counter), true).unwrap();
+            body.mvfs(next_point(counter), GENERATOR_SENSE).unwrap();
         }
         OpChoice::MevLone(l) => {
             body.mev_line(MevSite::Lone { r#loop: l }, next_point(counter), tol)
@@ -1465,7 +1530,7 @@ pub(crate) fn roundtrip(
     match choice {
         // ---- make ∘ kill: the created keys address the inverse. ----
         OpChoice::Mvfs => {
-            let created = body.mvfs(next_point(counter), true).unwrap();
+            let created = body.mvfs(next_point(counter), GENERATOR_SENSE).unwrap();
             body.kvfs(created.solid).unwrap();
         }
         OpChoice::MevLone(l) => {
@@ -1545,10 +1610,7 @@ pub(crate) fn roundtrip(
             };
             body.mekr_chord(site, tol).unwrap();
         }
-        OpChoice::Kfmrh(f1, f2, door) => {
-            let result = kfmrh_by(body, f1, f2, door, tol);
-            mfkrh_plug_by(body, result.ring, door, tol);
-        }
+        OpChoice::Kfmrh(f1, f2, door) => kfmrh_then_plug(body, f1, f2, door, tol),
         OpChoice::KfmrhFuse(f1, f2, door) => {
             // The fusion is two surgeries at once, so its re-make is
             // three ops: `mfkrh` re-promotes the demoted ring, and
@@ -1559,23 +1621,35 @@ pub(crate) fn roundtrip(
             let Some(surviving_shell) = fusion_remake_shell(body, f1, f2) else {
                 return RoundtripOutcome::SkippedIrreversible;
             };
-            let result = kfmrh_by(body, f1, f2, door, tol);
-            mfkrh_plug_by(body, result.ring, door, tol);
+            kfmrh_then_plug(body, f1, f2, door, tol);
             body.movefac(surviving_shell).unwrap();
         }
-        OpChoice::Movefac(_) => {
-            // The re-make here is UNBUILT, not impossible — a one-op
-            // bar would be the wrong one to argue against, since the
-            // arm above re-makes in three. It would mirror that arm:
-            // `kfmrh` fuses the minted shell back, `mfkrh` re-promotes
-            // the face the fusion demoted. What is missing is the
-            // SITE: `f2` must be a ring-free face of the component
-            // that moved, and that search has to succeed before the
-            // partition runs, because a skip decided afterwards has
-            // already mutated the body. The `movefac`/`kfmrh` pair is
-            // exercised from the fusion's side meanwhile; module docs,
-            // and `work/topo/movefac-roundtrip-re-make-is-unbuilt.md`.
-            return RoundtripOutcome::SkippedIrreversible;
+        OpChoice::Movefac(shell) => {
+            // The fusion arm above run backwards: `kfmrh` fuses each
+            // minted shell back into `shell`, and `mfkrh` re-promotes
+            // the face that fusion demoted. Every fusion keeps `shell`
+            // and kills a minted one, which `movefac` appended after
+            // every shell the solid already held, so the solid's shell
+            // list comes back as it was. The sites are read before the
+            // partition, since a skip decided afterwards would leave
+            // the body mutated.
+            let Some((f1, f2s)) = movefac_remake_sites(body, shell) else {
+                return RoundtripOutcome::SkippedIrreversible;
+            };
+            let minted = body.movefac(shell).unwrap();
+            assert_eq!(
+                minted.len(),
+                f2s.len() + 1,
+                "movefac minted a shell per moved component"
+            );
+            for (&f2, &shell2) in f2s.iter().zip(&minted[1..]) {
+                assert_eq!(
+                    body.get_face(f2).expect("face resolves").shell,
+                    shell2,
+                    "the re-make site {f2:?} moved with its component",
+                );
+                kfmrh_then_plug(body, f1, f2, Door::KeysOnly, tol);
+            }
         }
         OpChoice::Kvfs(solid) => {
             // Record the lone vertex's coordinates for the re-make.
@@ -1589,7 +1663,7 @@ pub(crate) fn roundtrip(
             let point = body.get_vertex(vertex).expect("resolves").point;
             let coords = *body.get_point(point).expect("resolves");
             body.kvfs(solid).unwrap();
-            body.mvfs(coords, true).unwrap();
+            body.mvfs(coords, GENERATOR_SENSE).unwrap();
         }
         OpChoice::Kev(he) => {
             let he_data = body.get_half_edge(he).expect("resolves").clone();
@@ -1992,6 +2066,158 @@ mod tests {
         let t = ops_holed_box(Tol::witness());
         let mut body = t.body;
         teardown(&mut body, Tol::witness());
+    }
+
+    /// `movefac`'s re-make lands back on the body it partitioned: on a
+    /// shell of three components (two fusions, two promotions), and on
+    /// a two-component shell that is NOT its solid's last — the site
+    /// where a fusion that kept the minted shell instead of `shell`
+    /// would move the shell order the canonical form compares
+    /// positionally. [`roundtrip`] asserts the canonical form itself.
+    #[test]
+    fn movefac_roundtrip_restores_the_partitioned_shell() {
+        let tol = Tol::witness();
+        let mut counter = 0_u32;
+
+        let (mut body, shell, _, _) = crate::fixtures::detached_digons(2);
+        assert_eq!(shell_components(&body, shell), 3, "three components");
+        let choice = OpChoice::Movefac(shell);
+        assert!(!choice.may_skip_roundtrip_at(&body), "the site is found");
+        assert_eq!(
+            roundtrip(&mut body, choice, &mut counter, tol),
+            RoundtripOutcome::Done,
+            "the three-component shell round-trips",
+        );
+        assert_eq!(
+            validate(&body),
+            Ok(()),
+            "tier 1 after the three-component re-make"
+        );
+
+        let (mut body, shell, seed, promoted) = crate::fixtures::detached_digons(2);
+        body.movefac(shell).unwrap();
+        let ring = body.kfmrh(seed, promoted[0]).unwrap().ring;
+        body.mfkrh_plug(ring, true).unwrap();
+        let solid = body.get_shell(shell).unwrap().solid;
+        let shells = body.shells_of_solid(solid).unwrap().to_vec();
+        assert_eq!(shells.len(), 2, "two shells");
+        assert_eq!(shells[0], shell, "the partitioned shell is not the last");
+        assert_eq!(shell_components(&body, shell), 2, "two components");
+        assert_eq!(
+            roundtrip(&mut body, OpChoice::Movefac(shell), &mut counter, tol),
+            RoundtripOutcome::Done,
+            "the shell ahead of another round-trips",
+        );
+        assert_eq!(
+            validate(&body),
+            Ok(()),
+            "tier 1 after the re-make ahead of a shell"
+        );
+
+        // c = 3 ahead of a shell: the one body found where a fusion
+        // that keeps a minted shell goes red with more than one fusion.
+        let (mut body, shell, seed, promoted) = crate::fixtures::detached_digons(3);
+        body.movefac(shell).unwrap();
+        for &face in &promoted[..2] {
+            let ring = body.kfmrh(seed, face).unwrap().ring;
+            body.mfkrh_plug(ring, true).unwrap();
+        }
+        let solid = body.get_shell(shell).unwrap().solid;
+        let shells = body.shells_of_solid(solid).unwrap().to_vec();
+        assert_eq!(shells.len(), 2, "two shells (c = 3)");
+        assert_eq!(
+            shells[0], shell,
+            "the partitioned shell is not the last (c = 3)"
+        );
+        assert_eq!(
+            shell_components(&body, shell),
+            3,
+            "three components ahead of a shell"
+        );
+        assert_eq!(
+            roundtrip(&mut body, OpChoice::Movefac(shell), &mut counter, tol),
+            RoundtripOutcome::Done,
+            "the three-component shell ahead of another round-trips",
+        );
+        assert_eq!(
+            validate(&body),
+            Ok(()),
+            "tier 1 after the c = 3 re-make ahead of a shell"
+        );
+    }
+
+    /// Plants an empty ring on `face`: a strut off its outer cycle's
+    /// first half-edge to `tip`, killed into a ring by `kemr`.
+    fn plant_ring(body: &mut Body<f64>, face: FaceKey, tip: Point3<f64>) {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("a detached digon face has a cycle outer");
+        };
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                tip,
+                Tol::witness(),
+            )
+            .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        assert!(
+            !body.get_face(face).unwrap().rings.is_empty(),
+            "the ring is planted"
+        );
+    }
+
+    /// The re-make's one skip: a moved component with no ring-free face
+    /// for `kfmrh` to demote. One ringed face leaves the component
+    /// another to demote; every face ringed is the skip, decided before
+    /// the partition and announced by the classifier.
+    #[test]
+    fn movefac_roundtrip_demotes_a_ring_free_face_or_skips() {
+        let tol = Tol::witness();
+        let mut counter = 0_u32;
+
+        let (mut body, shell, _, _) = crate::fixtures::detached_digons(2);
+        let ringed = shell_component_faces(&body, shell)[1][0];
+        plant_ring(&mut body, ringed, Point3::new(0.5, 5.0, 0.0));
+        let (_, f2s) = movefac_remake_sites(&body, shell).expect("a ring-free face remains");
+        assert_ne!(f2s[0], ringed, "the ringed face is not the demoted one");
+        let choice = OpChoice::Movefac(shell);
+        assert!(
+            !choice.may_skip_roundtrip_at(&body),
+            "one ringed face: the site is found"
+        );
+        assert_eq!(
+            roundtrip(&mut body, choice, &mut counter, tol),
+            RoundtripOutcome::Done,
+            "a component with one ringed face round-trips",
+        );
+        assert_eq!(validate(&body), Ok(()), "tier 1 after the ringed re-make");
+
+        let (mut body, shell, _, _) = crate::fixtures::detached_digons(2);
+        let moved = shell_component_faces(&body, shell)[2].clone();
+        assert_eq!(moved.len(), 2, "a digon component has two faces");
+        for (i, &face) in moved.iter().enumerate() {
+            plant_ring(&mut body, face, Point3::new(0.5 + i as f64, 6.0, 0.0));
+        }
+        let choice = OpChoice::Movefac(shell);
+        assert!(
+            choice.may_skip_roundtrip_at(&body),
+            "every face ringed: the skip is admitted"
+        );
+        let before = canonical_form(&body);
+        assert_eq!(
+            roundtrip(&mut body, choice, &mut counter, tol),
+            RoundtripOutcome::SkippedIrreversible,
+            "a component with every face ringed skips",
+        );
+        assert_eq!(
+            canonical_form(&body),
+            before,
+            "the skip leaves the body untouched"
+        );
     }
 
     #[test]
