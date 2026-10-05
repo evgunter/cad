@@ -547,17 +547,20 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
+/// [`face_extent`]'s refusal as the join's typed frontier: a face with
+/// no outer boundary has no extent to meter a section across.
+fn unbounded(e: crate::splitting::rules::UnboundedFace) -> SplitJoinError {
+    SplitJoinError::SectionInvariant {
+        face: e.face,
+        what: "the face's outer loop is a lone vertex, so it has no extent to meter the \
+               section across",
+    }
+}
+
 /// The corruption refusal naming the edge the join was reading.
 pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
     SplitJoinError::Corrupt {
         entity: EntityId::Edge(edge),
-    }
-}
-
-/// The corruption refusal naming the vertex the join was reading.
-pub(crate) fn corrupt_vertex(vertex: VertexKey) -> SplitJoinError {
-    SplitJoinError::Corrupt {
-        entity: EntityId::Vertex(vertex),
     }
 }
 
@@ -1082,6 +1085,9 @@ fn chord_spec<T: Decide>(
     if u1 == u2 {
         return Ok(None);
     }
+    body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
+        entity: EntityId::Vertex(u1),
+    })?;
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = face_data.surface;
     if let Some(geom::Surface::Plane { .. }) = body.get_surface(wall_key) {
@@ -1272,7 +1278,7 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let extent = face_extent(body, at, face).map_err(|_| corrupt_face(face))?;
+    let extent = face_extent(body, at, face).map_err(unbounded)?;
     let case = section_case(face, band, &plane_s, &wall, extent)?;
     Ok(Some(WallSection { wall, case }))
 }
@@ -1373,7 +1379,7 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let extent = face_extent(body, u1, face).map_err(|_| corrupt_vertex(u1))?;
+    let extent = face_extent(body, u1, face).map_err(unbounded)?;
     let conic = match section_case(face, band, &plane_s, wall, extent)? {
         // Ruling seams are straight chords on the plane too.
         SectionCase::Straight => return Ok(None),
@@ -2817,11 +2823,13 @@ impl ChordJoiner {
 
     /// `cut` (module docs): retire a fully-joined null edge. The
     /// completion outcome comes back unresolved — the caller assigns
-    /// roles from its own side data.
+    /// roles from its own side data. The kill is the band door, so a
+    /// loop it releases from its last null edge is minted at `tol`.
     pub(crate) fn cut_core<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         edge: EdgeKey,
+        tol: Tol,
     ) -> Result<CutOutcome, SplitJoinError> {
         let edge_data = body
             .get_edge(edge)
@@ -2842,7 +2850,7 @@ impl ChordJoiner {
                 .get_loop(l_plus)
                 .ok_or_else(|| corrupt_loop(l_plus))?
                 .face;
-            let result = body.kemr(edge_data.he_plus, edge_data.he_minus)?;
+            let result = body.kemr_minting(edge_data.he_plus, edge_data.he_minus, tol)?;
             Ok(CutOutcome::Completed {
                 face,
                 ring: result.ring,
@@ -2866,7 +2874,7 @@ impl ChordJoiner {
             } else {
                 return Err(SplitJoinError::CutInvariant { edge });
             };
-            let killed = body.kef(victim)?;
+            let killed = body.kef_minting(victim, tol)?;
             self.slivers.remove(killed.killed_face);
             Ok(CutOutcome::Merged)
         }

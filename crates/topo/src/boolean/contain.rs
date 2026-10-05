@@ -17,7 +17,8 @@ use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
+use crate::live::{linked, proven};
 use crate::ray_parity::ParityRows;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
@@ -59,11 +60,20 @@ pub enum ContainError {
     Escalated(Indeterminate),
     /// The ray-parity schedule exhausted (every ray grazed).
     RayExhausted,
-    /// The face's topology could not be walked.
-    Corrupt,
+    /// The face the caller passed does not resolve in this body.
+    StaleFace(FaceKey),
+    /// A loop of the face is a lone vertex: it bounds no region a
+    /// point could be placed against.
+    EmptyLoop(LoopKey),
+    /// The in-plane walk refused a loop
+    /// ([`PointInLoopError::CorruptLoop`], carried).
+    LoopUnreadable(LoopKey),
     /// The walk could not read a loop at this point: an edge of it it
     /// could not cross stood in the way of every ray.
     Uncrossable(Uncrossable),
+    /// A curved face's chart read refused. The reads are the solid
+    /// door's own, so the refusal is its, carried whole.
+    Curved(super::solid_contain::PointInSolidError),
 }
 
 impl From<PointInLoopError> for ContainError {
@@ -71,7 +81,7 @@ impl From<PointInLoopError> for ContainError {
         match e {
             PointInLoopError::Escalated { diag, .. } => Self::Escalated(diag),
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
-            PointInLoopError::CorruptLoop { .. } => Self::Corrupt,
+            PointInLoopError::CorruptLoop { r#loop } => Self::LoopUnreadable(r#loop),
             PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
             PointInLoopError::OffPlane(_) => {
                 unreachable!("contfp reads loops through carrier_loop, which certifies no plane")
@@ -80,14 +90,14 @@ impl From<PointInLoopError> for ContainError {
     }
 }
 
-// Each arm names WHAT STOPPED and the repair that moves it, because a
-// consumer that carries this refusal renders it verbatim and adds no
-// sentence of its own. The three non-escalated arms want three
-// different repairs — re-model the loop, move the point or lower ε,
-// repair the body — so one shared tail would name the wrong one for
-// two of them.
+// Each arm names WHAT STOPPED, and the repair that moves it where one
+// does, because a consumer that carries this refusal renders it verbatim
+// and adds no sentence of its own. `RayExhausted` and `Uncrossable` want
+// different repairs — move the point or lower ε, re-model the loop — so
+// one shared tail would name the wrong one.
 //
-// `Escalated` delegates to [`Indeterminate`]'s own `Display`, which
+// `Escalated` and `Curved` delegate to the carried value's own
+// `Display`; for `Escalated` that is [`Indeterminate`]'s, which
 // already composes the named predicate, the margin it metred and the
 // shared two-tolerance recourse; restating any of that here would
 // double it.
@@ -102,13 +112,19 @@ impl core::fmt::Display for ContainError {
                  within ε of the boundary at this tolerance; move the point off the \
                  boundary"
             ),
-            Self::Corrupt => write!(
+            Self::StaleFace(face) => {
+                write!(f, "contfp: face {face:?} does not resolve in this body")
+            }
+            Self::EmptyLoop(lp) => write!(
                 f,
-                "contfp: the face's topology is not a walkable cycle of resolvable \
-                 geometry — a loop, half-edge, vertex or point reference does not \
-                 resolve; repair the body's topology before asking it a containment \
-                 question"
+                "contfp: loop {lp:?} of the face is a lone vertex, which bounds no region \
+                 to place a point against"
             ),
+            Self::LoopUnreadable(lp) => write!(
+                f,
+                "contfp: the in-plane walk could not read loop {lp:?} of the face"
+            ),
+            Self::Curved(e) => write!(f, "contfp: {e}"),
             Self::Uncrossable(u) => write!(
                 f,
                 "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
@@ -118,6 +134,26 @@ impl core::fmt::Display for ContainError {
 }
 
 impl std::error::Error for ContainError {}
+
+/// The panic for a kernel driver whose own face key a containment door
+/// answered [`ContainError::StaleFace`]: a driver reads its faces out of
+/// the body, so they resolve.
+#[track_caller]
+pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
+    unreachable!(
+        "a kernel driver asked a containment door about face {face:?}, which does not \
+         resolve: a driver reads its faces out of the body, and {}",
+        crate::live::NAMES_ONLY_LIVE
+    )
+}
+
+/// `face`'s outer loop and rings, the face the caller's key.
+fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
+    let face_data = body.get_face(face).ok_or(ContainError::StaleFace(face))?;
+    Ok(core::iter::once(face_data.outer)
+        .chain(face_data.rings.iter().copied())
+        .collect())
+}
 
 /// **`contfp`** — classifies point `q` (already on the plane of `face`,
 /// with unit plane normal `normal`) against the face. Sweep order is
@@ -135,10 +171,7 @@ pub fn contfp<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<FaceContainment, ContainError> {
-    let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
-    let loops: Vec<_> = core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
-        .collect();
+    let loops = face_loops(body, face)?;
 
     let read = match boundary_pre_pass(body, &loops, q, band)? {
         PrePass::On(on) => return Ok(on),
@@ -152,7 +185,9 @@ pub fn contfp<T: Decide>(
     let inside = |(lk, lp): &(LoopKey, CarrierLoop<T>)| -> Result<bool, ContainError> {
         Ok(carrier_loop_side(*lk, lp, normal, q, band)?)
     };
-    let (outer, rings) = read.split_first().ok_or(ContainError::Corrupt)?;
+    let Some((outer, rings)) = read.split_first() else {
+        unreachable!("the pre-pass reads every loop of the face, and a face has its outer loop")
+    };
     if !inside(outer)? {
         return Ok(FaceContainment::Out);
     }
@@ -215,11 +250,17 @@ pub(crate) fn loop_circle<T: Decide>(
     let mut circle: Option<LoopCircle<T>> = None;
     let mut one_circle = true;
     for (_, he, _) in loop_cycle_points(body, r#loop)? {
-        let edge_key = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.edge;
+        let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+        let edge = linked(
+            &body.edges,
+            edge_key,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
         let carrier = body
-            .get_edge(edge_key)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::null::CurveGeom::certified)
+            .edge_curve_linked(edge_key, edge)
+            .certified()
             .map(|c| c.carrier().clone());
         match carrier {
             Some(geom::Curve3::Circle {
@@ -275,10 +316,7 @@ pub(super) fn curved_boundary_containment<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<Option<FaceContainment>, ContainError> {
-    let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
-    let loops: Vec<_> = core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
-        .collect();
+    let loops = face_loops(body, face)?;
     Ok(match boundary_pre_pass(body, &loops, q, band)? {
         PrePass::On(on) => Some(on),
         PrePass::Off(_) => None,
@@ -518,30 +556,30 @@ pub(crate) fn curved_face_placement<T: Decide>(
     if let Some(v) = curved_boundary_containment(body, face, q, band)? {
         return Ok(CurvedPlacement::Trim(Some(v)));
     }
-    let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
-    if !face_data.rings.is_empty() {
+    let face_data = proven(&body.faces, face, EntityId::Face);
+    let surface = body.face_surface_linked(face, face_data);
+    // The sphere's region reading takes rings in its stride; the chart
+    // trims below do not model them.
+    if !face_data.rings.is_empty() && !matches!(surface, geom::Surface::Sphere { .. }) {
         return Ok(CurvedPlacement::Trim(None));
     }
-    let (origin, axis, radius, u_ref) = match body.get_surface(face_data.surface) {
-        Some(&geom::Surface::Cylinder {
+    let (origin, axis, radius, u_ref) = match surface {
+        &geom::Surface::Cylinder {
             origin,
             axis,
             radius,
             u_ref,
-        }) => (origin, axis, radius, u_ref),
-        Some(&geom::Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        }) => return sphere_face_containment(body, face, center, radius, axis, u_ref, q, band),
-        Some(&geom::Surface::Torus {
+        } => (origin, axis, radius, u_ref),
+        &geom::Surface::Sphere { center, radius, .. } => {
+            return sphere_face_containment(body, face, center, radius, q, band);
+        }
+        &geom::Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             u_ref,
-        }) => {
+        } => {
             return torus_face_containment(
                 body,
                 face,
@@ -556,12 +594,12 @@ pub(crate) fn curved_face_placement<T: Decide>(
                 band,
             );
         }
-        Some(&geom::Surface::Cone {
+        &geom::Surface::Cone {
             apex,
             axis,
             half_angle,
             u_ref,
-        }) => {
+        } => {
             return cone_face_containment(
                 body,
                 face,
@@ -575,8 +613,9 @@ pub(crate) fn curved_face_placement<T: Decide>(
                 band,
             );
         }
-        Some(geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_))
-        | None => return Ok(CurvedPlacement::Trim(None)),
+        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            return Ok(CurvedPlacement::Trim(None));
+        }
     };
     // ON THE CHART FIRST. The trim below is parameter-domain work and
     // premises an on-wall point (`point_on_wall_in_face` says so in its
@@ -656,36 +695,25 @@ pub(crate) fn curved_face_placement<T: Decide>(
     }
 }
 
-/// The SPHERE chart's arm of [`curved_face_containment`], reached after
-/// the shared boundary walk and the ring test.
+/// The SPHERE arm of [`curved_face_containment`], reached after the
+/// shared boundary walk.
 ///
-/// Same three steps as the cylinder arm, in the same order and for the
-/// same reasons: the CARRIER first (a face is a subset of its surface,
-/// so a point definitely off the sphere is definitely outside the
-/// face — and the trim below is parameter-domain work that premises an
-/// on-chart point), then the chart rectangle, then membership in it.
+/// The CARRIER first, as on every chart (a face is a subset of its
+/// surface, so a point definitely off the sphere is definitely outside
+/// the face), then the face's region, read from its boundary arcs by the
+/// one reading the ray lane takes too ([`super::sphere_region`]). A face
+/// closed on its own surface is handed to this door as a trimmed one and
+/// read the same way: every edge of it is a seam, so its region is the
+/// whole sphere.
 ///
-/// The class test and the rectangle are one call
-/// ([`super::solid_contain::sphere_chart_trim`]) rather than the
-/// cylinder's two: on a sphere the two questions are the same question.
-/// Whether every boundary edge is a rim or a meridian is exactly
-/// whether the `[azimuth] × [latitude]` window describes the face, and
-/// the invariant that keeps it exact — no pole strictly inside a
-/// meridian edge, where latitude stops being monotone — is checked
-/// while those edges are being classified. `None` is the honest
-/// remainder throughout.
-///
-/// A FULL-PERIOD azimuth window (a cap, or a latitude band) is served
-/// as the ray lane serves it: every azimuth is in the face, so the
-/// latitude window alone decides.
-#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
+/// `None` is the honest remainder: a boundary edge that is not a circle
+/// arc, a point on the region's boundary that the walk above did not
+/// place, or a reading no target's walk decides at this ε.
 fn sphere_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     center: Point3<T>,
     radius: T,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
@@ -698,20 +726,19 @@ fn sphere_face_containment<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
-    let trim = match super::solid_contain::sphere_chart_trim(body, face, center, radius, axis, band)
-    {
-        Ok(Some(t)) => t,
-        // A face the rectangle cannot express is the honest
-        // remainder, not corruption of the caller's query.
+    let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
+        Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    match super::solid_contain::point_on_sphere_in_face(
-        face, center, radius, axis, u_ref, &trim, q, band,
-    ) {
+    match region.contains(face, q, band) {
         Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
         Ok(None) => Ok(CurvedPlacement::Trim(None)),
+        Err(super::solid_contain::PointInSolidError::Escalated { diag, .. }) => {
+            Err(ContainError::Escalated(diag))
+        }
+        Err(e) if e.inconclusive() => Ok(CurvedPlacement::Trim(None)),
         Err(e) => Err(solid_err(e)),
     }
 }
@@ -896,7 +923,7 @@ fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
         super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
             ContainError::Escalated(diag)
         }
-        _ => ContainError::Corrupt,
+        e => ContainError::Curved(e),
     }
 }
 
@@ -937,29 +964,28 @@ pub(super) fn point_on_circle<T: Decide>(
     }
 }
 
-/// The loop's (start vertex, half-edge, point) cycle. An empty/lone
-/// loop yields `Corrupt` (a face boundary must be a cycle here).
+/// The loop's (start vertex, half-edge, point) cycle, for a loop key
+/// read out of a face record. A lone-vertex loop is
+/// [`ContainError::EmptyLoop`]: it bounds no region.
 #[allow(clippy::type_complexity)]
 fn loop_cycle_points<T: Decide>(
     body: &Body<T>,
-    lk: crate::entity::LoopKey,
+    lk: LoopKey,
 ) -> Result<Vec<(VertexKey, crate::entity::HalfEdgeKey, Point3<T>)>, ContainError> {
-    let loop_data = body.get_loop(lk).ok_or(ContainError::Corrupt)?;
-    let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-        return Err(ContainError::Corrupt);
+    let first = match proven(&body.loops, lk, EntityId::Loop).boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { .. } => return Err(ContainError::EmptyLoop(lk)),
     };
-    let mut out = Vec::new();
-    for he in body.loop_cycle(first).ok_or(ContainError::Corrupt)? {
-        let start = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.start;
-        let p = *body
-            .get_point(body.get_vertex(start).ok_or(ContainError::Corrupt)?.point)
-            .ok_or(ContainError::Corrupt)?;
-        out.push((start, he, p));
-    }
-    if out.is_empty() {
-        return Err(ContainError::Corrupt);
-    }
-    Ok(out)
+    Ok(body
+        .loop_walk(first)
+        .closed("loop", first)
+        .into_iter()
+        .map(|he| {
+            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+            let p = body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
+            (start, he, p)
+        })
+        .collect())
 }
 
 #[cfg(test)]

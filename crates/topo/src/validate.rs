@@ -2993,7 +2993,19 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
             "a point of it lies too close to a boundary to place at this tolerance".into(),
             OFF_BOUNDARY,
         ),
-        ContainError::Corrupt => ("its boundary could not be walked".into(), DEFECT),
+        ContainError::StaleFace(_) => (
+            "a face the check asked about does not resolve in the body".into(),
+            DEFECT,
+        ),
+        ContainError::EmptyLoop(_) => (
+            "a loop of its boundary is a lone vertex, which bounds no region".into(),
+            DEFECT,
+        ),
+        ContainError::LoopUnreadable(_) => ("its boundary could not be walked".into(), DEFECT),
+        ContainError::Curved(_) => (
+            "a curved face's trim is one the check cannot yet read".into(),
+            NOT_YET,
+        ),
         // The edge is whatever the body's producer made — a shell's or a
         // revolve's section of a torus as readily as a drawn spline — so
         // the cause is the check's, and no redrawing is prescribed.

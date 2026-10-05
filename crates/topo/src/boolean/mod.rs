@@ -119,6 +119,7 @@ mod rim_wedge;
 pub(crate) mod sectors;
 mod shell_witness;
 pub mod solid_contain;
+pub(crate) mod sphere_region;
 mod surface_group;
 pub mod tables;
 pub mod voids;
@@ -146,7 +147,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
-pub(crate) use contain::loop_circle;
+pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -197,6 +198,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
         "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
         "bool_point_in_solid_clearance" => {
             "how far a point lies off the carrier of a face a ray runs along"
@@ -249,14 +251,21 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_iso_rim"
         | "bool_torus_trim_major_period"
         | "bool_torus_trim_minor_period"
-        | "bool_sphere_trim"
         | "bool_sphere_trim_antipode"
         | "bool_sphere_trim_latitude"
         | "bool_sphere_trim_meridian_span"
         | "bool_sphere_trim_period"
-        | "bool_sphere_trim_pole"
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"
+        | "bool_sphere_region_arm"
+        | "bool_sphere_region_span"
+        | "bool_sphere_region_at"
+        | "bool_sphere_region_order"
+        | "bool_sphere_region_cross"
+        | "bool_sphere_region_roots_noise"
+        | "bool_sphere_region_roots_coaxial"
+        | "bool_sphere_region_roots_extreme"
+        | "bool_sphere_region_roots_slack"
         | "bool_torus_chart_affine"
         | "bool_torus_chart_box"
         | "bool_torus_chart_closure"
@@ -2014,11 +2023,13 @@ pub enum BooleanError {
     /// there, and the seam zips would fuse the point to itself
     /// (`zip::cross_pinches`). One vertex holds two cones only where a
     /// face's boundary crosses from one to the other there, and the
-    /// pre-pass crosses only two corners of one ring, or the outer
-    /// corners of two faces of one surface and sense. Here none offer:
-    /// the faces through the point pass it twice on one outer loop, or
-    /// none passes it twice. Which body is right there is measured per
-    /// arrangement, not derived
+    /// pre-pass crosses only two corners of one ring, or the corners of
+    /// two faces of one surface and sense, one of them ringless. Here
+    /// none offer. On every residue line measured (that row's table),
+    /// the one face through the point twice passes it on its outer
+    /// loop, round a hole touching that loop there, and crossing it
+    /// would leave a ring meeting the outer loop. Which body is right
+    /// there is open
     /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
     PinchUncrossed {
         /// The pinch vertex, in the joined body's keys.

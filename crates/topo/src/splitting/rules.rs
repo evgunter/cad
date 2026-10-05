@@ -142,7 +142,8 @@ use geom_core::{Band, Decide, Margin, Sign};
 use super::neighborhood::{chord, sector_face};
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{Proven, proven};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -208,12 +209,8 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-                    let surface_key = body.get_face(face).ok_or_else(corrupt)?.surface;
-                    let surface = body.get_surface(surface_key).ok_or_else(corrupt)?;
-                    let p_base = *body
-                        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-                        .ok_or_else(corrupt)?;
+                    let surface = face_surface(body, face);
+                    let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
                     // WHOLE-FACE extent, which decides a bend more
@@ -352,7 +349,6 @@ fn edge_wedge<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Option<bool>, SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
     let (own_face, n_own, _) = sector_face(body, vertex, prev)?;
     let (mate_face, n_mate, _) = sector_face(body, vertex, he)?;
     let sliver = |diag| SplitReduceError::SliverSector {
@@ -360,15 +356,8 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         diag,
     };
-    let surface = |face: FaceKey| {
-        body.get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .ok_or_else(corrupt)
-    };
-    let (s_own, s_mate) = (surface(own_face)?, surface(mate_face)?);
-    let p = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
+    let (s_own, s_mate) = (face_surface(body, own_face), face_surface(body, mate_face));
+    let p = body.resolve_vertex_point(vertex, Proven);
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = along.norm();
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
@@ -407,10 +396,7 @@ fn wall_graze<T: Decide>(
     side: PlaneSide,
     band: Band,
 ) -> Result<PlaneSide, SplitReduceError> {
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let p = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
+    let p = body.resolve_vertex_point(vertex, Proven);
     let toward_side = if side == PlaneSide::Above {
         plane.normal.get()
     } else {
@@ -424,10 +410,7 @@ fn wall_graze<T: Decide>(
         let this =
             if tangent {
                 let extent = face_extent(body, vertex, face)?;
-                let surface = body
-                    .get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .ok_or_else(corrupt)?;
+                let surface = face_surface(body, face);
                 let material_on_side = match enters_material(toward_side, n_face, extent, band) {
                     Ok(EntersMaterial::Enters) => true,
                     Ok(EntersMaterial::Exits) => false,
@@ -460,7 +443,7 @@ fn wall_graze<T: Decide>(
             _ => verdict = Some(this),
         }
     }
-    verdict.ok_or_else(corrupt)
+    Ok(verdict.unwrap_or_else(|| unreachable!("rule (b) hands wall_graze at least one sector")))
 }
 
 /// The face-extent lever arm for the coplanarity/sense predicates: the
@@ -486,21 +469,11 @@ fn wall_graze<T: Decide>(
 ///   (`gate_operand_pairs`) runs it, but the split's operand gate does
 ///   not, which is why the refusal is here rather than assumed.
 ///
-/// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
-/// is *"a traversal failed (broken orbit/loop or a **lone vertex**):
-/// the operand is not a well-formed closed solid"* — which is what an
-/// empty outer loop is, and what `validate_closed` calls
-/// `ScaffoldingEmptyLoop`. It names the loop's **lone vertex**, not the
-/// caller's base vertex, so the message points at the thing that is
-/// wrong. It cannot also name the FACE: the variant carries a
-/// `VertexKey` only, and widening it to an `EntityId` is public API,
-/// filed as issue #695 (`splitting/neighborhood.rs`). Both outside
-/// callers (`chord_join`'s `wall_section` and `bool_planar_chord_spec`)
-/// then `map_err` this into
-/// their own corrupt-face / corrupt-vertex refusals, so at those two
-/// the distinction is flattened on arrival — loud, but reported as a
-/// body corruption for what is really unsupported inventory. Closing
-/// that properly is #695's, not this arm's.
+/// The refusal is [`UnboundedFace`], naming the face
+/// and the loop's lone vertex. Every caller resolves `vertex` and
+/// `face` in the same `&Body` call, by a refusal of its own or as a
+/// record it just read, so every hop past them is a link, and a miss
+/// panics.
 ///
 /// [`LoopBoundary::Empty`]: crate::entity::LoopBoundary::Empty
 /// [`Margin::levered`]: geom_core::Margin::levered
@@ -508,40 +481,52 @@ pub(crate) fn face_extent<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     face: FaceKey,
-) -> Result<T, SplitReduceError> {
+) -> Result<T, UnboundedFace> {
     use crate::entity::LoopBoundary;
-    let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let point_of = |v: VertexKey| -> Result<geom_core::Point3<T>, SplitReduceError> {
-        Ok(*body
-            .get_point(body.get_vertex(v).ok_or_else(corrupt)?.point)
-            .ok_or_else(corrupt)?)
-    };
-    let p_base = point_of(vertex)?;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+    let p_base = body.resolve_vertex_point(vertex, Proven);
+    let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = T::zero();
     let outer = face_data.outer;
     let loops = core::iter::once(outer).chain(face_data.rings.iter().copied());
     for loop_key in loops {
-        let loop_data = body.get_loop(loop_key).ok_or_else(corrupt)?;
-        let first = match loop_data.boundary {
+        let first = match proven(&body.loops, loop_key, EntityId::Loop).boundary {
             LoopBoundary::Cycle { first } => first,
             // An unbounded face has no finite lever arm (docs above).
-            // Named at the loop's own lone vertex, not the caller's
-            // base vertex: that is the entity the refusal is about.
             LoopBoundary::Empty { vertex: lone } if loop_key == outer => {
-                return Err(SplitReduceError::CorruptOperand { vertex: lone });
+                return Err(UnboundedFace { face, vertex: lone });
             }
             LoopBoundary::Empty { vertex: lone } => {
-                extent = extent.max((point_of(lone)? - p_base).norm());
+                let p = body.linked_vertex_point(lone, EntityId::Loop(loop_key), "boundary");
+                extent = extent.max((p - p_base).norm());
                 continue;
             }
         };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let start = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-            extent = extent.max((point_of(start)? - p_base).norm());
+        for he in body.loop_walk(first).closed("loop", first) {
+            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+            let p = body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
+            extent = extent.max((p - p_base).norm());
         }
     }
     Ok(extent)
+}
+
+/// [`face_extent`]'s refusal: `face`'s outer loop is the lone `vertex`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct UnboundedFace {
+    pub(crate) face: FaceKey,
+    pub(crate) vertex: VertexKey,
+}
+
+impl From<UnboundedFace> for SplitReduceError {
+    fn from(UnboundedFace { face, vertex }: UnboundedFace) -> Self {
+        Self::UnboundedFace { face, vertex }
+    }
+}
+
+/// `face`'s surface, for a face the caller resolved: its `surface` is a
+/// link, and a miss panics.
+fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> &geom::Surface<T> {
+    body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
 }
 
 #[cfg(test)]
@@ -752,24 +737,10 @@ mod tests {
             body.get_loop(seed.r#loop).unwrap().boundary,
             crate::entity::LoopBoundary::Empty { .. }
         ));
-        // `face_extent` mints `CorruptOperand` from eleven arena
-        // lookups as well as from the arm under test, so the variant
-        // alone cannot tell the refusal from a broken fixture. Pin the
-        // fixture first — every lookup the function makes resolves —
-        // and then pin the vertex the refusal NAMES, which is the
-        // loop's lone vertex and not the base vertex the eleven others
-        // would report.
-        assert!(body.get_face(seed.face).is_some(), "fixture: face resolves");
-        assert!(
-            body.get_vertex(seed.vertex)
-                .and_then(|v| body.get_point(v.point))
-                .is_some(),
-            "fixture: the base vertex and its point resolve"
-        );
         assert!(
             matches!(
                 face_extent(&body, seed.vertex, seed.face),
-                Err(SplitReduceError::CorruptOperand { vertex }) if vertex == seed.vertex
+                Err(UnboundedFace { face, vertex }) if face == seed.face && vertex == seed.vertex
             ),
             "an empty OUTER loop refuses at its own lone vertex; it must not answer zero"
         );
