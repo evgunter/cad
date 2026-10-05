@@ -573,16 +573,15 @@ pub enum SsiError {
         from: Option<BoundaryPoint>,
     },
     /// A branch whose samples are too short for their gaps to be halved
-    /// to the cubic fit's, half of a gap or of the whole falling in the
-    /// band (`ssi_refine_halving`).
+    /// to the cubic fit's, half of one falling in the band
+    /// (`ssi_refine_halving`).
     ShortBranchUncertified {
         /// The branch's length along its samples, in metres.
         length: f64,
         /// The refusal of the Hermite cubic through the branch's two
         /// ends, on the lane that tries one.
         limb: Option<Box<SsiError>>,
-        /// The verdict that fell in the band: on half a gap, or on half
-        /// the polyline's length.
+        /// The verdict on half the longest gap that could not be halved.
         verdict: BandVerdict,
         /// What bounds the branch, whose lever the refusal names.
         bounded_by: BranchBound,
@@ -4055,104 +4054,94 @@ mod budget_tests {
         assert!(gaps(hi - 1).is_none(), "{} steps refuses", hi - 1);
     }
 
-    /// Straight for `u ≤ ½`, bending by `β(u − ½)²` after.
-    fn psi(u: f64, beta: f64) -> f64 {
-        if u <= 0.5 {
-            0.0
-        } else {
-            beta * (u - 0.5) * (u - 0.5)
-        }
+    /// The Bernstein coefficients on `[0, 1]` of degree `n` of the
+    /// polynomial `Σ c[k]·tᵏ`, of at most that degree.
+    fn bernstein(c: &[f64], n: usize) -> Vec<f64> {
+        let binom =
+            |n: usize, k: usize| (0..k).fold(1.0, |r, i| r * (n - i) as f64 / (i + 1) as f64);
+        (0..=n)
+            .map(|i| {
+                (0..=i.min(c.len() - 1))
+                    .map(|k| binom(i, k) / binom(n, k) * c[k])
+                    .sum()
+            })
+            .collect()
     }
 
-    /// The B-spline basis function `N_{i,p}(t)` on `knots`.
-    fn basis(knots: &[f64], p: usize, i: usize, t: f64) -> f64 {
-        if p == 0 {
-            let (a, b) = (knots[i], knots[i + 1]);
-            let last = knots[knots.len() - 1];
-            return f64::from(u8::from(
-                (a <= t && t < b) || (t == last && b == last && a < b),
-            ));
-        }
-        let mut r = 0.0;
-        let d1 = knots[i + p] - knots[i];
-        if d1 > 0.0 {
-            r += (t - knots[i]) / d1 * basis(knots, p - 1, i, t);
-        }
-        let d2 = knots[i + p + 1] - knots[i + 1];
-        if d2 > 0.0 {
-            r += (knots[i + p + 1] - t) / d2 * basis(knots, p - 1, i + 1, t);
-        }
-        r
-    }
-
-    /// `a·x = b` by Gauss–Jordan with partial pivoting.
-    fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
-        let n = b.len();
-        for c in 0..n {
-            let p = (c..n)
-                .max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs()))
-                .unwrap();
-            a.swap(c, p);
-            b.swap(c, p);
-            for r in (0..n).filter(|&r| r != c) {
-                let f = a[r][c] / a[c][c];
-                let pivot = a[c].clone();
-                for (x, p) in a[r].iter_mut().zip(&pivot).skip(c) {
-                    *x -= f * p;
-                }
-                b[r] -= f * b[c];
-            }
-        }
-        (0..n).map(|i| b[i] / a[i][i]).collect()
-    }
-
-    /// The graph wall `(u, v, (a − g)·a)`, `a = v − 0.4 − ψ(u)`, exact as
-    /// a spline of degree 4 in `u` with a triple knot at ½ and 2 in `v`:
-    /// the plane `z = 0` cuts it in two branches `g` apart, straight and
-    /// then bending, the wall's slope across them `g`.
+    /// The graph wall `(u, v, a·(a − g))`, `a = v − 0.4 − ψ(u)`, `ψ = 0` for
+    /// `u ≤ ½` and `β(u − ½)²` after, in closed form: degree 4 in `u`
+    /// with a triple knot at ½ (C¹, as `ψ` is), 2 in `v`. The plane
+    /// `z = 0` cuts it in two branches `g` apart, straight and then
+    /// bending, the wall's slope across them `g`.
     fn bend_pair(g: f64, beta: f64) -> NurbsSurface<f64> {
-        let ku = [
+        // `a·(a − g)` in the piece's `s ∈ [0, 1]`, `ψ = b·s²` there, as
+        // coefficients of `vʲ` per power of `s`: `a = v − w`, `w = 0.4 + b·s²`.
+        let piece = |b: f64| -> Vec<[f64; 3]> {
+            // (v − w)² − g(v − w) = v² − (2w + g)v + w(w + g)
+            let w = [0.4, 0.0, b, 0.0, 0.0];
+            let ww = [0.16, 0.0, 0.8 * b, 0.0, b * b];
+            (0..5)
+                .map(|k| {
+                    [
+                        ww[k] + g * w[k],
+                        -2.0 * w[k] - if k == 0 { g } else { 0.0 },
+                        if k == 0 { 1.0 } else { 0.0 },
+                    ]
+                })
+                .collect()
+        };
+        let net = |b: f64| -> Vec<[f64; 3]> {
+            let p = piece(b);
+            let by_v: Vec<[f64; 3]> = p
+                .iter()
+                .map(|c| {
+                    let r = bernstein(c, 2);
+                    [r[0], r[1], r[2]]
+                })
+                .collect();
+            let cols: Vec<Vec<f64>> = (0..3)
+                .map(|j| bernstein(&by_v.iter().map(|r| r[j]).collect::<Vec<_>>(), 4))
+                .collect();
+            (0..5)
+                .map(|i| [cols[0][i], cols[1][i], cols[2][i]])
+                .collect()
+        };
+        let (left, right) = (net(0.0), net(beta * 0.25));
+        let xs = [0.0, 0.125, 0.25, 0.375, 0.625, 0.75, 0.875, 1.0];
+        let rows = left[..4].iter().chain(&right[1..]);
+        let control = xs
+            .iter()
+            .zip(rows)
+            .flat_map(|(&x, z)| (0..3).map(move |j| Point3::new(x, j as f64 / 2.0, z[j])))
+            .collect();
+        let ku = vec![
             0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0,
         ];
-        let (pu, q) = (4usize, 2usize);
-        let n = ku.len() - pu - 1;
-        let f = |u: f64, v: f64| {
-            let a = v - 0.4 - psi(u, beta);
-            a * (a - g)
-        };
-        let grev: Vec<f64> = (0..n)
-            .map(|i| ku[i + 1..=i + pu].iter().sum::<f64>() / pu as f64)
-            .collect();
-        let mu: Vec<Vec<f64>> = grev
-            .iter()
-            .map(|&u| (0..n).map(|i| basis(&ku, pu, i, u)).collect())
-            .collect();
-        let kv = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-        let vs = [0.0, 0.5, 1.0];
-        let mv: Vec<Vec<f64>> = vs
-            .iter()
-            .map(|&v| (0..=q).map(|j| basis(&kv, q, j, v)).collect())
-            .collect();
-        let rows: Vec<Vec<f64>> = grev
-            .iter()
-            .map(|&u| solve(mv.clone(), vs.iter().map(|&v| f(u, v)).collect()))
-            .collect();
-        let cols: Vec<Vec<f64>> = (0..=q)
-            .map(|j| solve(mu.clone(), rows.iter().map(|r| r[j]).collect()))
-            .collect();
-        let control = (0..n)
-            .flat_map(|i| {
-                let (u, cols) = (grev[i], &cols);
-                (0..=q).map(move |j| Point3::new(u, vs[j], cols[j][i]))
-            })
-            .collect();
-        NurbsSurface::new(
-            KnotVector::clamped(ku.to_vec(), pu).unwrap(),
-            KnotVector::clamped(kv.to_vec(), q).unwrap(),
+        let wall = NurbsSurface::new(
+            KnotVector::clamped(ku, 4).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
             control,
-            vec![1.0; n * (q + 1)],
+            vec![1.0; 24],
         )
-        .unwrap()
+        .unwrap();
+        for k in 0..=20 {
+            for l in 0..=20 {
+                let (u, v) = (f64::from(k) / 20.0, f64::from(l) / 20.0);
+                let a = v
+                    - 0.4
+                    - if u <= 0.5 {
+                        0.0
+                    } else {
+                        beta * (u - 0.5) * (u - 0.5)
+                    };
+                let miss = (wall.eval(u, v).z - a * (a - g)).abs();
+                assert!(
+                    miss < 1e-12,
+                    "the bend pair is exact: {miss:e} at ({u}, {v})"
+                );
+            }
+        }
+        wall
     }
 
     /// **A sliver pair refuses on few tries.** The two branches of

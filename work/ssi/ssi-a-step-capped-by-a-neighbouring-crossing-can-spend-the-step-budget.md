@@ -162,7 +162,7 @@ Two designers weighed it over two rounds. The record is in `docs/DESIGN-FORK-LOG
   band or undecided it refuses there (`TransversalityBand`, the clearer
   angle's lever); clear, the gap counts as `unsettled` in
   `NothingToHalve`, beside `off_domain`. Where nothing halves in
-  `fit_minimum`, a gap or the polyline whose half falls in the band is
+  `fit_minimum`, a polyline half of one of whose gaps falls in the band is
   `ShortBranchUncertified`, its bound the lane's (`BranchBound::of_lane`);
   otherwise `RefinementExhausted`/`NothingToHalve` with the lane's own
   limit as its refusal. In refinement rounds, limb 3 is asked once

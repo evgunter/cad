@@ -41,7 +41,7 @@ a row shows the case cannot arise.
 not settle is read by the march's transversality decision at the gap's
 chord midpoint: near tangent, that refusal stands (the clearer angle);
 clear of the band, the gap counts as `unsettled`. Where nothing halves,
-a polyline half of a gap or of whose length falls in the band refuses
+a polyline half of one of whose gaps falls in the band refuses
 sized (`ShortBranchUncertified`), and any other stops with nothing to
 halve (`RefinementExhausted`/`NothingToHalve`), the lane's own limit as
 its refusal: on the ℝ³ lane the slab's (`TraceUnresolved`). So

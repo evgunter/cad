@@ -247,8 +247,7 @@ marched, and the march's carrier is refined as any is. The fit is given
 the cubic's four samples where the march gave fewer, by halving gaps at
 their midpoints settled onto the locus, read where they do not settle
 as refinement reads them. Where nothing halves, a polyline half of one
-of whose gaps, or half of whose length, falls in the band is a sized
-refusal in its length (`SsiError::ShortBranchUncertified`), naming the
+of whose gaps falls in the band is a sized refusal in its length (`SsiError::ShortBranchUncertified`), naming the
 lever of what bounds the branch, the wall or the caller's slab; any
 other stops with nothing to halve, the lane's own limit its refusal.
 Where neither candidate certifies, the march's refusal stands, with

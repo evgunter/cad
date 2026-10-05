@@ -240,9 +240,8 @@ where
 /// The transversality decision's refusal at a gap's chord midpoint where
 /// the midpoint does not settle and the surfaces are near tangent there.
 /// Where nothing halves: [`SsiError::ShortBranchUncertified`] in the
-/// polyline's length, on the first half gap that falls in the band, or
-/// on half the polyline's length where that falls in the band, bounded
-/// by the lane ([`BranchBound::of_lane`]); otherwise
+/// polyline's length, on the first half gap that falls in the band,
+/// bounded by the lane ([`BranchBound::of_lane`]); otherwise
 /// [`SsiError::RefinementExhausted`] stopped with nothing to halve, the
 /// lane's own limit as its refusal: on the ℝ³ lane the slab's
 /// ([`SsiError::TraceUnresolved`]), on the plane × NURBS lane a march
@@ -282,9 +281,7 @@ where
             }
         }
         let length: f64 = gaps.iter().map(|&i| chord(&states, i)).sum();
-        let short =
-            in_band.or_else(|| band_verdict("ssi_refine_halving", Margin::of(0.5 * length), band));
-        if let Some(verdict) = short {
+        if let Some(verdict) = in_band {
             return Err(SsiError::ShortBranchUncertified {
                 length,
                 limb: None,
