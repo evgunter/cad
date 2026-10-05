@@ -34,7 +34,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
 use geom_core::spline::algebra::refine_plan_homogeneous;
-use geom_core::{Band, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
 use super::exhaust::{ParamSpan, SweepFloor, isolate_section};
@@ -107,6 +107,20 @@ impl BandVerdict {
             Self::Refused(r) => format!("{:e}", r.margin()),
             Self::Undecided(cause) => cause.payload().to_string(),
         }
+    }
+}
+
+/// The verdict of the decision `predicate` on `margin` where it does
+/// not pass: refused in the band or definitely, or undecided. `None`
+/// where it passes positive.
+pub(crate) fn band_verdict<T: Decide>(
+    predicate: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Option<BandVerdict> {
+    match decide_reported(predicate, margin, band) {
+        Ok(decided) => Refused::of(decided, band).map(BandVerdict::Refused),
+        Err(cause) => Some(BandVerdict::Undecided(cause)),
     }
 }
 
@@ -496,12 +510,8 @@ fn roots(
 /// [`SsiError::BoundaryGraze`] with no side named.
 pub(crate) fn decide_crossing(root: SectionRoot, arm: f64, band: Band) -> Result<(), SsiError> {
     let margin = Margin::levered(root.slope, arm);
-    let verdict = match decide_reported("ssi_boundary_crossing", margin, band) {
-        Ok(decided) => match Refused::of(decided, band) {
-            None => return Ok(()),
-            Some(r) => BandVerdict::Refused(r),
-        },
-        Err(cause) => BandVerdict::Undecided(cause),
+    let Some(verdict) = band_verdict("ssi_boundary_crossing", margin, band) else {
+        return Ok(());
     };
     Err(SsiError::BoundaryGraze {
         side: None,
