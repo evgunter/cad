@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [non-circle-conic-edge-refuses-against-every-curved-face]
 branch: reach/conic-quadric-one-door
+pr: 4042
 ---
 
 Found by the REACH lane that gave the ELLIPSE carrier its root lane
