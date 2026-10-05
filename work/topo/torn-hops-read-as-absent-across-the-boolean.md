@@ -70,3 +70,37 @@ leaves resolving, never a fact read before a write (`insert.rs`
 stays typed. `reduce.rs` and `ops.rs` were under another lane's edit
 when this was filed; take them after it lands.
 
+
+## 2026-10-05 — converted; the declared-pair and coincidence sites wait for D10
+
+Every listed site that is not declared-pair, contact or coincidence
+machinery now reads its hops through `live::linked` / `proven` /
+`face_surface_linked` / `edge_curve_linked` / `face_of_linked` /
+`faces_of_vertex_linked` / `vertex_orbit_linked` / `proven_mate`, and a
+key the caller carries keeps its typed or `None` answer: `boxes.rs`
+`face_window_steps` / `face_box` / `edge_box`, `carrier_cross.rs`
+`boundary_crossing`, `finish.rs` `pinch_site` and `discarded`'s two
+walks (`section_boundary`), `ops.rs` `describe_edges` and
+`sphere_extent_scan`, `reduce.rs` `face_plane` / `gate_maximal_faces` /
+`boundary_meets_circle_only_at`, `solid_contain.rs` `wall_outline` /
+`torus_chart_windows` / `sphere_chart_trim` / `point_in_face`,
+`surface_group.rs` `unmated_boundary`, `vtxfac.rs`
+`classify_vertex_on_face`'s pierced surface and kind, `zip.rs`
+`split_across`, `combine.rs` `graft_solids_impl`'s curve read, and the
+sweep hit `sphere_region.rs` `sphere_face_region`. `weld_pinches`' skip
+stays: it asks whether a pierce copy survived the carve's kills.
+
+**Left for after D10** (the HOLD of PR 3990), because each exists to
+read a declaration or a coincidence: `mod.rs` `build`'s declared-face
+side, `tangent_struts` (it feeds `DeclaredPairs::build`),
+`border_held` (held edges of covered pairs) and
+`locus_through_plane_face` (`verify_tangent_declaration`); `ops.rs`
+`declared_surface_pairs`; `recl.rs` `carrier_of` / `require_same` (the
+carrier-identity ladder) and `resolve_edge_edge`'s flank-sense
+coincidence arm; `reduce.rs` `face_edges` (the undeclared-coincidence
+scan), `edge_face_read`, `edge_covers`, `on_declared_shared_carrier`
+and `parents_distinct_from` (the carrier-distinctness ladder);
+`rim_wedge.rs` `face_boundary_arcs`, whose every caller is the
+declared seam or cover machinery; and `vtxfac.rs`' sector/contact
+`surface` closure and the two conformal-lump `map_or(Nurbs, ..)`s.
+This row stays open for them.
