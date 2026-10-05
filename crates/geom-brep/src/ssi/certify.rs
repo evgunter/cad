@@ -1179,6 +1179,17 @@ fn certificate<T: Real>(
     }
 }
 
+/// Which limbs a certificate asks: all three in order, or limb 3 alone,
+/// which refinement asks once of a carrier whose refused margin stopped
+/// falling ([`super::refine::refine_by_certificate`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Limbs {
+    /// Limbs 1, 2 and 3, refusing at the first that refuses.
+    All,
+    /// Limb 3 alone: whether the carrier's tube holds one arc.
+    Tube,
+}
+
 /// What a carrier is certified against, and what limb 3 proves of its
 /// tube there. Each arm carries its own lane's inputs, so no lane reads
 /// another's.
@@ -1267,9 +1278,10 @@ pub(crate) fn certify_located(
     lane: Lane<'_, f64>,
     scale: TubeScale<f64>,
     band: Band,
+    limbs: Limbs,
 ) -> Result<SsiCertificate<f64>, Located> {
     let mut spans = Vec::new();
-    certify_branch(carrier, lane, scale, band, &mut spans).map_err(|error| {
+    certify_branch(carrier, lane, scale, band, limbs, &mut spans).map_err(|error| {
         let at = match super::refine::limb_reading(&error) {
             Some((limb, margin)) if !spans.is_empty() => Some(Box::new(Spans {
                 limb,
@@ -1314,6 +1326,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     lane: Lane<'_, T>,
     scale: TubeScale<T>,
     band: Band,
+    limbs: Limbs,
     at: &mut Vec<RefusedSpan>,
 ) -> Result<SsiCertificate<T>, SsiError> {
     // The pair the first two limbs read, the pcurve beside the second.
@@ -1335,7 +1348,11 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     };
     let mut on_locus = T::zero();
     let mut hull_sup = T::zero();
-    for (op, pc) in [(a, None), (b, pcurve_b)] {
+    let asked: &[_] = match limbs {
+        Limbs::All => &[(a, None), (b, pcurve_b)],
+        Limbs::Tube => &[],
+    };
+    for &(op, pc) in asked {
         let (l1, l2) = match op {
             SsiOperand::Analytic(s) => analytic_limbs(carrier, s, band, at)?,
             SsiOperand::Nurbs(s) => {
@@ -2207,7 +2224,13 @@ mod tests {
             pcurve: &pcurve,
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let Err(refused) = certify_located(&carrier, lane, TubeScale::uniform(1.0), band) else {
+        let Err(refused) = certify_located(
+            &carrier,
+            lane,
+            TubeScale::uniform(1.0),
+            band,
+            super::Limbs::All,
+        ) else {
             panic!("the carrier across the gap certified on the search's lane");
         };
         assert!(

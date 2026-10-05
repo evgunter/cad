@@ -4274,23 +4274,22 @@ fn half_cylinder(r: f64) -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, weights).unwrap()
 }
 
-/// **A semicircle too short to march whose cubic misses it refuses by
-/// its length.** The plane `z = ½` cuts the half cylinder of radius
-/// `r` in a semicircle whose ends, on its two `u` sides, are `2r`
-/// apart. The Hermite cubic through the ends and their antiparallel
-/// tangents runs half a radius inside the arc at its middle, and limb 1
-/// refuses it or cannot call it. The march's step is `r/5`, the relative
-/// rung `2·SSI_STEP_RELATIVE/κ` on the carrier. At `r = 1.25Kε` and
-/// `r = 2Kε` it falls in the band, so the march cannot progress either,
-/// and the answer is the sized refusal in the ends' distance `2r`, the
-/// Hermite's refusal in it, whose ending names the wall's lever and the
-/// tolerance below which the march's step clears the band. At
-/// `r = 10Kε` the step clears the band, and the march traces the
-/// semicircle in sixteen steps or more. Every ε.
+/// **A semicircle too tight to march whose cubic misses it refuses by
+/// its step.** The plane `z = ½` cuts the half cylinder of radius `r` in
+/// a semicircle whose ends, on its two `u` sides, are `2r` apart. The
+/// Hermite cubic through the ends and their antiparallel tangents runs
+/// half a radius inside the arc at its middle, and limb 1 refuses it or
+/// cannot call it. The march's step is `r/5`, the relative rung
+/// `2·SSI_STEP_RELATIVE/κ` on the carrier. At `r = 1.25Kε` and `r = 2Kε`
+/// it falls in the band, so the march cannot progress either, and the
+/// answer is the march's step in the band, the Hermite's refusal in it,
+/// whose ending names the bend and the tolerance below which the step
+/// clears the band, and no branch length. At `r = 10Kε` the step clears
+/// the band, and the march traces the semicircle in sixteen steps or
+/// more. Every ε.
 #[test]
-fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
+fn a_semicircle_too_tight_to_march_whose_cubic_misses_refuses_by_its_step() {
     use geom_brep::recourse::Reading;
-    use geom_brep::ssi::BranchBound;
     let k_eps = band().escalate();
     let plane = Surface::Plane {
         origin: Point3::new(0.0, 0.0, 0.5),
@@ -4306,22 +4305,9 @@ fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
     for k in [1.25, 2.0] {
         let at = format!("r = {k}Kε");
         let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(k * k_eps), dom, band());
-        let Err(
-            ref err @ SsiError::ShortBranchUncertified {
-                length,
-                limb: Some(ref limb),
-                bounded_by,
-                ..
-            },
-        ) = r
-        else {
-            panic!("{at}: expected the short branch's refusal, got {r:?}");
+        let Err(ref err @ SsiError::MarchStepInBand { ref limb, .. }) = r else {
+            panic!("{at}: expected the march's step in the band, got {r:?}");
         };
-        assert!(
-            (length - 2.0 * k * k_eps).abs() <= 1.0e-6 * k_eps,
-            "{at}: the ends' distance {length:e}"
-        );
-        assert_eq!(bounded_by, BranchBound::Wall, "{at}: the wall bounds it");
         assert!(
             matches!(
                 **limb,
@@ -4337,13 +4323,12 @@ fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
         );
         let shown = err.render(Reading::Build);
         assert!(
-            shown.contains(
-                "Recourse: move the plane or the wall so the branch it clips is longer, or clear \
-                 of the wall"
-            ) && shown.contains("tolerance")
+            shown.contains("bends less sharply")
+                && shown.contains("if this bend is intended, tighten the tolerance below")
+                && !shown.contains("longer")
                 && !shown.contains("size range")
                 && !shown.contains("name a domain"),
-            "{at}: the wall's lever, not the step's scale: {shown}"
+            "{at}: the step's levers: {shown}"
         );
     }
     let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(10.0 * k_eps), dom, band());
@@ -5404,90 +5389,78 @@ fn a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature() {
 // quarter of the step to confirm) from every crossing a dense scan of
 // the four sides finds.
 
-/// `a·x = b` by Gauss–Jordan with partial pivoting.
-fn gauss(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
-    let n = b.len();
-    for c in 0..n {
-        let p = (c..n)
-            .max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs()))
-            .unwrap();
-        a.swap(c, p);
-        b.swap(c, p);
-        for r in (0..n).filter(|&r| r != c) {
-            let f = a[r][c] / a[c][c];
-            let pivot = a[c].clone();
-            for (x, p) in a[r].iter_mut().zip(&pivot).skip(c) {
-                *x -= f * p;
+/// A polynomial in two variables, `c[k][l]` the coefficient of `sᵏ·tˡ`.
+type Poly2 = Vec<Vec<f64>>;
+
+/// The polynomial `a + b·s + c·t`.
+fn poly_lin(a: f64, b: f64, c: f64) -> Poly2 {
+    vec![vec![a, c], vec![b, 0.0]]
+}
+
+/// `x·a + y·b`.
+fn poly_comb(x: f64, a: &Poly2, y: f64, b: &Poly2) -> Poly2 {
+    let rows = a.len().max(b.len());
+    let cols = a.iter().chain(b).map(Vec::len).max().unwrap_or(0);
+    let at =
+        |p: &Poly2, k: usize, l: usize| p.get(k).and_then(|r| r.get(l)).copied().unwrap_or(0.0);
+    (0..rows)
+        .map(|k| {
+            (0..cols)
+                .map(|l| x * at(a, k, l) + y * at(b, k, l))
+                .collect()
+        })
+        .collect()
+}
+
+/// `a·b`.
+fn poly_mul(a: &Poly2, b: &Poly2) -> Poly2 {
+    let cols = |p: &Poly2| p.iter().map(Vec::len).max().unwrap_or(0);
+    let mut out = vec![vec![0.0; cols(a) + cols(b)]; a.len() + b.len()];
+    for (k, ra) in a.iter().enumerate() {
+        for (l, x) in ra.iter().enumerate() {
+            for (m, rb) in b.iter().enumerate() {
+                for (n, y) in rb.iter().enumerate() {
+                    out[k + m][l + n] += x * y;
+                }
             }
-            b[r] -= f * b[c];
         }
     }
-    (0..n).map(|i| b[i] / a[i][i]).collect()
+    out
 }
 
-/// The B-spline basis function `N_{i,p}(t)` on `knots`.
-fn basis_fn(knots: &[f64], p: usize, i: usize, t: f64) -> f64 {
-    if p == 0 {
-        let (a, b) = (knots[i], knots[i + 1]);
-        let last = knots[knots.len() - 1];
-        return f64::from(u8::from(
-            (a <= t && t < b) || (t == last && b == last && a < b),
-        ));
-    }
-    let mut r = 0.0;
-    let d1 = knots[i + p] - knots[i];
-    if d1 > 0.0 {
-        r += (t - knots[i]) / d1 * basis_fn(knots, p - 1, i, t);
-    }
-    let d2 = knots[i + p + 1] - knots[i + 1];
-    if d2 > 0.0 {
-        r += (knots[i + p + 1] - t) / d2 * basis_fn(knots, p - 1, i + 1, t);
-    }
-    r
-}
-
-/// The graph wall of `f` on clamped knots `ku` (degree `pu`) and `kv`
-/// (degree `pv`), interpolated at the Greville points, its `(x, y)` the
-/// image of the Greville point under `warp`.
-fn graph_wall(
-    f: &dyn Fn(f64, f64) -> f64,
-    (ku, pu): (&[f64], usize),
-    (kv, pv): (&[f64], usize),
-    warp: fn(f64, f64) -> (f64, f64),
-) -> NurbsSurface<f64> {
-    let greville = |k: &[f64], p: usize| -> Vec<f64> {
-        (0..k.len() - p - 1)
-            .map(|i| k[i + 1..=i + p].iter().sum::<f64>() / p as f64)
-            .collect()
-    };
-    let (gu, gv) = (greville(ku, pu), greville(kv, pv));
-    let matrix = |k: &[f64], p: usize, g: &[f64]| -> Vec<Vec<f64>> {
-        g.iter()
-            .map(|&t| (0..g.len()).map(|i| basis_fn(k, p, i, t)).collect())
-            .collect()
-    };
-    let (mu, mv) = (matrix(ku, pu, &gu), matrix(kv, pv, &gv));
-    let rows: Vec<Vec<f64>> = gu
-        .iter()
-        .map(|&u| gauss(mv.clone(), gv.iter().map(|&v| f(u, v)).collect()))
-        .collect();
-    let cols: Vec<Vec<f64>> = (0..gv.len())
-        .map(|j| gauss(mu.clone(), rows.iter().map(|r| r[j]).collect()))
-        .collect();
-    let mut control = Vec::new();
-    for (i, &u) in gu.iter().enumerate() {
-        for (j, &v) in gv.iter().enumerate() {
-            let (x, y) = warp(u, v);
-            control.push(Point3::new(x, y, cols[j][i]));
+/// The Bernstein coefficients on the unit square of degrees `(p, q)`
+/// of `c`, of at most those degrees: `b[i][j] = Σ C(i,k)C(j,l) /
+/// (C(p,k)C(q,l)) · c[k][l]`.
+fn poly_bernstein(c: &Poly2, p: usize, q: usize) -> Vec<Vec<f64>> {
+    let binom = |n: usize, k: usize| (0..k).fold(1.0, |r, i| r * (n - i) as f64 / (i + 1) as f64);
+    let at = |k: usize, l: usize| c.get(k).and_then(|r| r.get(l)).copied().unwrap_or(0.0);
+    for (k, row) in c.iter().enumerate() {
+        for (l, x) in row.iter().enumerate() {
+            assert!(
+                *x == 0.0 || (k <= p && l <= q),
+                "degree ({k}, {l}) past ({p}, {q})"
+            );
         }
     }
-    let wall = NurbsSurface::new(
-        KnotVector::clamped(ku.to_vec(), pu).unwrap(),
-        KnotVector::clamped(kv.to_vec(), pv).unwrap(),
-        control,
-        vec![1.0; gu.len() * gv.len()],
-    )
-    .unwrap();
+    (0..=p)
+        .map(|i| {
+            (0..=q)
+                .map(|j| {
+                    let mut b = 0.0;
+                    for k in 0..=i {
+                        for l in 0..=j {
+                            b += binom(i, k) / binom(p, k) * binom(j, l) / binom(q, l) * at(k, l);
+                        }
+                    }
+                    b
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Asserts `wall` is the graph of `f` over its unit chart.
+fn exact_graph(wall: &NurbsSurface<f64>, f: &dyn Fn(f64, f64) -> f64) {
     for k in 0..=40 {
         for l in 0..=40 {
             let (u, v) = (f64::from(k) / 40.0, f64::from(l) / 40.0);
@@ -5498,7 +5471,112 @@ fn graph_wall(
             );
         }
     }
+}
+
+/// The Bézier graph wall of `f` (`s = u`, `t = v`) of degrees `(p, q)`,
+/// its `(x, y)` the image under the affine `warp` of `(u, v)`.
+fn bezier_wall(
+    f: &Poly2,
+    p: usize,
+    q: usize,
+    warp: fn(f64, f64) -> (f64, f64),
+) -> NurbsSurface<f64> {
+    let b = poly_bernstein(f, p, q);
+    let mut control = Vec::new();
+    for (i, row) in b.iter().enumerate() {
+        for (j, z) in row.iter().enumerate() {
+            let (x, y) = warp(i as f64 / p as f64, j as f64 / q as f64);
+            control.push(Point3::new(x, y, *z));
+        }
+    }
+    let clamped = |d: usize| {
+        let mut k = vec![0.0; d + 1];
+        k.extend(vec![1.0; d + 1]);
+        KnotVector::clamped(k, d).unwrap()
+    };
+    NurbsSurface::new(
+        clamped(p),
+        clamped(q),
+        control,
+        vec![1.0; (p + 1) * (q + 1)],
+    )
+    .unwrap()
+}
+
+/// The graph wall `(u, v, f)` whose `f` is the quartic `left` in
+/// `s = u/k` for `u ≤ k` and `right` in `s = (u − k)/(1 − k)` after, each
+/// of degree `q` in `t = v`, C¹ at `k`: degree 4 in `u` with a triple
+/// knot at `k`.
+fn bent_wall(left: &Poly2, right: &Poly2, k: f64, q: usize) -> NurbsSurface<f64> {
+    let (bl, br) = (poly_bernstein(left, 4, q), poly_bernstein(right, 4, q));
+    let xs = [0.0, k / 4.0, k / 2.0, 3.0 * k / 4.0];
+    let xs_right = [1.0, 2.0, 3.0, 4.0].map(|i| k + i * (1.0 - k) / 4.0);
+    let mut control = Vec::new();
+    for (x, row) in xs.iter().zip(&bl).chain(xs_right.iter().zip(&br[1..])) {
+        for (j, z) in row.iter().enumerate() {
+            control.push(Point3::new(*x, j as f64 / q as f64, *z));
+        }
+    }
+    let ku = [0.0, 0.0, 0.0, 0.0, 0.0, k, k, k, 1.0, 1.0, 1.0, 1.0, 1.0];
+    let mut kv = vec![0.0; q + 1];
+    kv.extend(vec![1.0; q + 1]);
+    NurbsSurface::new(
+        KnotVector::clamped(ku.to_vec(), 4).unwrap(),
+        KnotVector::clamped(kv, q).unwrap(),
+        control,
+        vec![1.0; 8 * (q + 1)],
+    )
+    .unwrap()
+}
+
+/// A branch `v = c + ψ(u)`, straight for `u ≤ k` and bending by
+/// `ψ = β(u − k)²` after, as the pieces of [`bent_wall`]: `v − c − ψ`.
+fn bend_line(c: f64, beta: f64, k: f64) -> (Poly2, Poly2, impl Fn(f64, f64) -> f64) {
+    let left = poly_lin(-c, 0.0, 1.0);
+    let right = poly_comb(
+        1.0,
+        &left,
+        -beta * (1.0 - k) * (1.0 - k),
+        &vec![vec![0.0], vec![0.0], vec![1.0]],
+    );
+    let f = move |u: f64, v: f64| {
+        v - c
+            - if u <= k {
+                0.0
+            } else {
+                beta * (u - k) * (u - k)
+            }
+    };
+    (left, right, f)
+}
+
+/// The wall of the bending branch [`bend_line`], `v − c − ψ`.
+fn bend_single(c: f64, beta: f64, k: f64) -> NurbsSurface<f64> {
+    let (left, right, f) = bend_line(c, beta, k);
+    let wall = bent_wall(&left, &right, k, 1);
+    exact_graph(&wall, &f);
     wall
+}
+
+/// The wall `a·(a − g)` of two branches `g` apart, `a` the bending
+/// branch [`bend_line`]: the wall's slope across each is `g`.
+fn bend_pair(c: f64, beta: f64, k: f64, g: f64) -> NurbsSurface<f64> {
+    let (left, right, f) = bend_line(c, beta, k);
+    let pair = |a: &Poly2| poly_comb(1.0, &poly_mul(a, a), -g, a);
+    let wall = bent_wall(&pair(&left), &pair(&right), k, 2);
+    exact_graph(&wall, &move |u, v| f(u, v) * (f(u, v) - g));
+    wall
+}
+
+/// The hyperbola `(v + u/10 − 0.55)² − s²(u − ½)² = c` on a
+/// biquadratic wall under `warp`, its asymptotes of slopes `±s` off the
+/// line `v = 0.55 − u/10`.
+fn hyperbola_wall(c: f64, s: f64, warp: fn(f64, f64) -> (f64, f64)) -> NurbsSurface<f64> {
+    let w = poly_lin(-0.55, 0.1, 1.0);
+    let d = poly_lin(-0.5, 1.0, 0.0);
+    let f = poly_comb(1.0, &poly_mul(&w, &w), -s * s, &poly_mul(&d, &d));
+    let f = poly_comb(1.0, &f, -c, &vec![vec![1.0]]);
+    bezier_wall(&f, 2, 2, warp)
 }
 
 /// The identity chart.
@@ -5731,21 +5809,6 @@ fn pairs_as_the_truth(
     assert_eq!(got, tr.pairs, "{at}: every truth pair once");
 }
 
-/// Straight for `u ≤ ½`, bending by `β(u − ½)²` after.
-fn psi(u: f64, beta: f64) -> f64 {
-    if u <= 0.5 {
-        0.0
-    } else {
-        beta * (u - 0.5) * (u - 0.5)
-    }
-}
-
-/// The knots of a wall straight for `u ≤ ½` and bending after: degree 4
-/// with a triple knot at ½.
-const BEND_KNOTS: [f64; 13] = [
-    0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0,
-];
-
 /// **A branch straight and then bending certifies.** The locus
 /// `v = 0.3 + ψ(u)`, straight for `u ≤ ½` and bending down by `8(u − ½)²`
 /// after, out through the bottom side. At a state on the straight part
@@ -5757,8 +5820,7 @@ const BEND_KNOTS: [f64; 13] = [
 #[test]
 fn a_branch_straight_then_bending_certifies() {
     let at = format!("ε {:e}", band().zero());
-    let f = |u: f64, v: f64| v - 0.3 - psi(u, -8.0);
-    let wall = graph_wall(&f, (&BEND_KNOTS, 4), (&[0.0, 0.0, 1.0, 1.0], 1), plain);
+    let wall = bend_single(0.3, -8.0, 0.5);
     let tr = chart_truth(&wall);
     assert_eq!(tr.crossings.len(), 2, "{at}: the left side and the bottom");
     let (plane, dom) = graph_cut();
@@ -5776,12 +5838,13 @@ fn a_branch_straight_then_bending_certifies() {
 /// certify paired as the truth pairs them, on the plain chart and on one
 /// whose `v` axis lies nearly along its `u` axis, at every ε, but one:
 /// at ε 1e-6 on the near-degenerate chart at `c = −1e-4` the march's step
-/// falls in the band, and the branch refuses sized, the Hermite's
-/// refusal in it, with the wall's lever.
+/// falls in the band at the vertex, whose radius in the chart is about
+/// the band's width, and the refusal is the step's, carrying the
+/// Hermite's: its lever the bend, its tolerance the one below which the
+/// step clears the band, and no length.
 #[test]
 fn a_hyperbola_along_its_asymptote_pairs_its_branches_right() {
-    use geom_brep::ssi::BranchBound;
-    let k2 = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+    use geom_brep::recourse::Reading;
     let (plane, dom) = graph_cut();
     for c in [1e-4, -1e-4] {
         for (chart, warp) in [
@@ -5789,20 +5852,106 @@ fn a_hyperbola_along_its_asymptote_pairs_its_branches_right() {
             ("near-degenerate", near_degenerate),
         ] {
             let at = format!("c = {c:e} on the {chart} chart at ε {:e}", band().zero());
-            let f =
-                move |u: f64, v: f64| (v + 0.1 * u - 0.55).powi(2) - 0.25 * (u - 0.5).powi(2) - c;
-            let wall = graph_wall(&f, (&k2, 2), (&k2, 2), warp);
+            let wall = hyperbola_wall(c, 0.5, warp);
             let tr = chart_truth(&wall);
             assert_eq!(tr.crossings.len(), 4, "{at}: two branches' crossings");
-            match ssi::plane_nurbs_ssi(&plane, &wall, dom, band()) {
-                Ok(out) => pairs_as_the_truth(&at, &wall, &tr, &out),
-                Err(SsiError::ShortBranchUncertified {
-                    limb: Some(_),
-                    bounded_by: BranchBound::Wall,
-                    ..
-                }) if c < 0.0 && chart == "near-degenerate" && band().zero() >= 1e-6 => {}
-                Err(e) => panic!("{at}: {e:?}"),
+            let r = ssi::plane_nurbs_ssi(&plane, &wall, dom, band());
+            if c < 0.0 && chart == "near-degenerate" && eps() == 1e-6 {
+                let Err(ref e @ SsiError::MarchStepInBand { .. }) = r else {
+                    panic!("{at}: expected the march's step in the band, got {r:?}");
+                };
+                let shown = e.render(Reading::Build);
+                assert!(
+                    shown.contains("bends less sharply")
+                        && shown.contains("if this bend is intended, tighten the tolerance below")
+                        && !shown.contains("longer")
+                        && !shown.contains("m long"),
+                    "{at}: the step's levers, no length: {shown}"
+                );
+                continue;
             }
+            let out = r.unwrap_or_else(|e| panic!("{at}: {e:?}"));
+            pairs_as_the_truth(&at, &wall, &tr, &out);
         }
+    }
+}
+
+/// Whether `r` refuses with the near-tangent lever: the surfaces cross
+/// at a clearer angle.
+fn near_tangent(r: &Result<geom_brep::SsiOutcome, SsiError>) -> bool {
+    r.as_ref().is_err_and(|e| {
+        e.ending(geom_brep::recourse::Reading::Build)
+            .contains("move the geometry so the surfaces cross at a clearer angle")
+    })
+}
+
+/// **A sliver the march could step through refuses as near tangent.** At
+/// ε 1e-6, walls lying within ε of the plane between two branches:
+/// - the hyperbola of [`hyperbola_wall`] with asymptotes of slope ±⅕, at
+///   waists `c = ±1e-7` and `3e-8`, its two branches meeting the plane's
+///   band at the saddle, on the plain chart and the near-degenerate one;
+/// - pairs `a·(a − g)`, `a = v − ½ − ψ`, `g = 1e-3`, whose residual midway
+///   is `g²/4 = 2.5e-7`, straight to the knot at ¾ and bending by
+///   `β(u − ¾)²`, `β = 1, 3, −3`.
+///
+/// A step's predicted state can land anywhere in the sliver with a
+/// residual within ε, so the march can step from one branch to the
+/// other. Each refuses with the transversality decision's lever, the
+/// clearer angle, as main refused them on limb 3's tube: whether the
+/// sample on the other branch reaches the certificate, or a midpoint
+/// across the sliver does not settle and the decision at the gap's
+/// chord midpoint reads the surfaces tangent there. Run at its own band.
+#[test]
+fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
+    let b = band_at(1e-6);
+    let (plane, dom) = graph_cut();
+    let mut walls: Vec<(String, NurbsSurface<f64>)> = Vec::new();
+    for c in [1e-7, -1e-7, 3e-8] {
+        for (chart, warp) in [
+            ("plain", plain as fn(f64, f64) -> (f64, f64)),
+            ("near-degenerate", near_degenerate),
+        ] {
+            walls.push((
+                format!("hyperbola c = {c:e} on the {chart} chart"),
+                hyperbola_wall(c, 0.2, warp),
+            ));
+        }
+    }
+    for beta in [1.0, 3.0, -3.0] {
+        walls.push((
+            format!("pair β = {beta}, g = 1e-3"),
+            bend_pair(0.5, beta, 0.75, 1e-3),
+        ));
+    }
+    for (what, wall) in &walls {
+        let r = ssi::plane_nurbs_ssi(&plane, wall, dom, b);
+        assert!(
+            near_tangent(&r),
+            "{what}: the near-tangent lever, got {r:?}"
+        );
+    }
+}
+
+/// **A pair bending late refuses as near tangent once, without
+/// refining toward the wall.** Two branches `a = v − ½ − ψ` and `a = g`,
+/// `g = 1e-2`, straight to the knot at ¾ and bending by `β(u − ¾)²`
+/// after, `β = −3, 1`, at ε 1e-6: the march on the straight part can keep
+/// a step landing on the other branch, and its carrier, across the two,
+/// fails limbs 1 and 2 at a margin halving does not lower. Refinement
+/// asks limb 3 once where the refused margin stops falling, and the tube
+/// refuses with the clearer angle's lever, as main refused both pairs,
+/// where refining on would add three samples a round to the step wall.
+/// Run at its own band.
+#[test]
+fn a_pair_bending_late_refuses_on_limb_3_without_refining_to_the_wall() {
+    let b = band_at(1e-6);
+    let (plane, dom) = graph_cut();
+    for beta in [-3.0, 1.0] {
+        let at = format!("β = {beta}");
+        let r = ssi::plane_nurbs_ssi(&plane, &bend_pair(0.5, beta, 0.75, 1e-2), dom, b);
+        assert!(
+            matches!(r, Err(SsiError::TubeStraddles { .. })) && near_tangent(&r),
+            "{at}: limb 3's refusal, the clearer angle, got {r:?}"
+        );
     }
 }

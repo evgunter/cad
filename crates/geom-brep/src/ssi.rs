@@ -272,19 +272,13 @@ pub enum BranchBound {
     Slab,
 }
 
-/// What a gap's refined midpoint did where the gap does not hold one
-/// arc ([`SsiError::PolylineNotOneArc`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ArcMiss {
-    /// It did not settle onto the locus.
-    Unsettled,
-    /// It settled `off` metres from the chord's midpoint.
-    Far {
-        /// The distance, in metres.
-        off: f64,
-    },
-    /// It settled outside the domain, and no gap could be halved.
-    OffDomain,
+impl BranchBound {
+    /// The bound of the lane whose state has `N` coordinates: the
+    /// plane × NURBS lane traces in ℝ⁴, the implicit lane in ℝ³.
+    #[must_use]
+    pub(crate) const fn of_lane<const N: usize>() -> Self {
+        if N == 4 { Self::Wall } else { Self::Slab }
+    }
 }
 
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
@@ -597,16 +591,18 @@ pub enum SsiError {
         /// What bounds the branch, whose lever the refusal names.
         bounded_by: BranchBound,
     },
-    /// A gap between a polyline's samples does not hold one arc of the
-    /// locus: its midpoint settled farther from the gap's chord midpoint
-    /// than half the gap and the settling residual, the most an arc
-    /// turning by less than π lies from it, or not at all. The march's
-    /// limit, a candidate's, so the fit never reads the polyline.
-    PolylineNotOneArc {
-        /// The gap's chord, in metres.
-        gap: f64,
-        /// What its midpoint did.
-        miss: ArcMiss,
+    /// Between a plane × NURBS branch's known ends, the march could not
+    /// step, its step falling in the band where the branch or the wall's
+    /// chart along it bends at the tolerance's scale, and the Hermite
+    /// candidate was refused. The branch may be long: its step is the
+    /// short quantity.
+    MarchStepInBand {
+        /// The verdict on the step the march could not take, in metres
+        /// (`ssi_step_progress`).
+        verdict: BandVerdict,
+        /// The refusal of the Hermite cubic through the branch's two
+        /// ends.
+        limb: Box<SsiError>,
     },
     /// The plane's chart window does not hold the wall's image, so it
     /// would bound the march where the wall does not.
@@ -993,20 +989,22 @@ impl core::fmt::Display for SsiError {
                      its two ends"
                 )
             }
-            Self::PolylineNotOneArc { gap, miss } => {
+            Self::MarchStepInBand { verdict, limb } => {
+                let refused = match &**limb {
+                    Self::CertificateLimb { limb, .. }
+                    | Self::CertificateEscalated { limb, .. } => limb.name(),
+                    _ => "the Hermite candidate",
+                };
                 write!(
                     f,
-                    "ssi: a gap {gap:e} m long between a traced branch's samples does not hold one \
-                     arc of the intersection: its midpoint "
-                )?;
-                match miss {
-                    ArcMiss::Unsettled => write!(f, "did not settle onto it"),
-                    ArcMiss::Far { off } => write!(
-                        f,
-                        "settled {off:e} m from the gap's chord midpoint, farther than half the gap"
-                    ),
-                    ArcMiss::OffDomain => write!(f, "settled outside the domain"),
-                }
+                    "ssi: the march between the branch's crossings could not take its {:e} m \
+                     step, in the tolerance band where the branch bends, and {refused} refused \
+                     the cubic through its two ends",
+                    match verdict {
+                        BandVerdict::Refused(r) => r.margin(),
+                        BandVerdict::Undecided(cause) => cause.margin,
+                    }
+                )
             }
             Self::WindowShortOfWall { half_extent, reach } => write!(
                 f,
@@ -1028,16 +1026,33 @@ impl core::fmt::Display for SsiError {
                 let refusal = refusal.to_string();
                 let refusal = refusal.strip_prefix("ssi: ").unwrap_or(&refusal);
                 match (stop, earlier.len()) {
-                    (RefineStop::NothingToHalve { in_band, unsettled }, 0) => write!(
+                    (
+                        RefineStop::NothingToHalve {
+                            in_band,
+                            unsettled,
+                            off_domain,
+                        },
+                        0,
+                    ) => write!(
                         f,
-                        "ssi: no refused gap of the branch's {samples} samples halves \
-                         ({in_band} within the tolerance, {unsettled} not settling): {refusal}"
+                        "ssi: no selected gap of the branch's {samples} samples halves \
+                         ({in_band} within the tolerance, {unsettled} not settling where the \
+                         surfaces cross clearly, {off_domain} settling outside the domain): \
+                         {refusal}"
                     ),
-                    (RefineStop::NothingToHalve { in_band, unsettled }, rounds) => write!(
+                    (
+                        RefineStop::NothingToHalve {
+                            in_band,
+                            unsettled,
+                            off_domain,
+                        },
+                        rounds,
+                    ) => write!(
                         f,
                         "ssi: refined over {rounds} round{} to {samples} samples, then no \
                          refused gap halved further ({in_band} within the tolerance, \
-                         {unsettled} not settling): {refusal}",
+                         {unsettled} not settling where the surfaces cross clearly, \
+                         {off_domain} settling outside the domain): {refusal}",
                         if rounds == 1 { "" } else { "s" }
                     ),
                     (RefineStop::StepBudget { budget }, 0) => write!(
@@ -1272,10 +1287,8 @@ impl SsiError {
                 BranchBound::Wall => SHORT_BRANCH.recourse(verdict.arm(), reading),
                 BranchBound::Slab => SHORT_TRACE.recourse(verdict.arm(), reading),
             },
-            // A candidate generator's limit, as a march that loses its
-            // branch is.
-            Self::PolylineNotOneArc { .. } => {
-                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
+            Self::MarchStepInBand { verdict, .. } => {
+                MARCH_STEP_BEND.recourse(verdict.arm(), reading)
             }
             Self::WindowShortOfWall { reach, .. } => format!(
                 "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
@@ -1734,6 +1747,18 @@ const fn short_branch(lever: &'static str) -> SizedDecision {
         at_zero: None,
     }
 }
+
+/// A march between a plane × NURBS branch's known ends whose step fell
+/// in the band ([`SsiError::MarchStepInBand`]): the step is the
+/// curvature's, the branch's or its chart's, so a branch that bends less
+/// sharply steps, and a tolerance whose band the step clears marches it.
+const MARCH_STEP_BEND: SizedDecision = SizedDecision {
+    lever: "move the plane or the wall so the branch bends less sharply where the march stalls",
+    size: "bend",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// A short branch the wall bounds.
 const SHORT_BRANCH: SizedDecision = short_branch(
@@ -2331,13 +2356,8 @@ fn finish_r3(
     let march_tol = seam_tol(ctx.tol, band)?;
     let points = trace_points::<2, 3, _, _>(sys, trace);
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
-    let (carrier, cert) = refine::refine_by_certificate(
-        sys,
-        trace.states.clone(),
-        ctx,
-        band,
-        BranchBound::Slab,
-        |states| {
+    let (carrier, cert) =
+        refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
             let (carrier, _, _) = fit_branch(&points, None)?;
             let cert = certify::certify_located(
@@ -2348,10 +2368,10 @@ fn finish_r3(
                 },
                 TubeScale::split(arm, domain.extent),
                 band,
+                limbs,
             )?;
             Ok((carrier, cert))
-        },
-    )?;
+        })?;
     let params = carrier.domain();
     let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
     let witness = carrier.mid_point(params.0, params.1);
@@ -2773,26 +2793,26 @@ fn trace_plane_nurbs_within(
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
-    let densified =
-        refine::refine_by_certificate(&sys, states, &ctx, band, BranchBound::Wall, |states| {
-            let fitted = ends::fit_states(&sys, states)?;
-            match certify::certify_located(
-                &fitted.0,
-                certify::Lane::AtRest {
-                    a: &SsiOperand::Analytic(plane),
-                    b: &wall_op,
-                    pcurve_b: fitted.2.as_ref(),
-                },
-                TubeScale::uniform(domain.extent),
-                band,
-            ) {
-                Ok(_) => Ok(fitted),
-                Err(verdict) => {
-                    refused = Some(fitted);
-                    Err(verdict)
-                }
+    let densified = refine::refine_by_certificate(&sys, states, &ctx, band, |states, limbs| {
+        let fitted = ends::fit_states(&sys, states)?;
+        match certify::certify_located(
+            &fitted.0,
+            certify::Lane::AtRest {
+                a: &SsiOperand::Analytic(plane),
+                b: &wall_op,
+                pcurve_b: fitted.2.as_ref(),
+            },
+            TubeScale::uniform(domain.extent),
+            band,
+            limbs,
+        ) {
+            Ok(_) => Ok(fitted),
+            Err(verdict) => {
+                refused = Some(fitted);
+                Err(verdict)
             }
-        });
+        }
+    });
     let (carrier, pa, pb) = match densified {
         Ok(fitted) => fitted,
         // A refusal before any triple was fitted is the fit's own.
@@ -2843,6 +2863,7 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
         certify::Lane::AtRest { a, b, pcurve_b },
         scale,
         band,
+        certify::Limbs::All,
         &mut Vec::new(),
     )
 }
@@ -3289,6 +3310,7 @@ mod ending_tests {
                 stop: RefineStop::NothingToHalve {
                     in_band: 2,
                     unsettled: 0,
+                    off_domain: 0,
                 },
                 samples: 348,
                 refusal: Box::new(SsiError::CertificateLimb {
@@ -3308,7 +3330,7 @@ mod ending_tests {
         for (earlier, opens) in [
             (
                 0,
-                "ssi: no refused gap of the branch's 348 samples halves (",
+                "ssi: no selected gap of the branch's 348 samples halves (",
             ),
             (
                 1,
@@ -3422,11 +3444,6 @@ mod ending_tests {
             ),
             (
                 "crossing unmatched, seed",
-                KERNEL_LIMIT_RECOURSE,
-                KERNEL_OR_FILE_DEFECT_ENDING,
-            ),
-            (
-                "polyline not one arc",
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
@@ -3547,7 +3564,7 @@ mod ending_tests {
             SsiError::WindowShortOfWall { .. } => 35,
             SsiError::TubeNotOneArc { .. } => 36,
             SsiError::RefinementExhausted { .. } => 37,
-            SsiError::PolylineNotOneArc { .. } => 38,
+            SsiError::MarchStepInBand { .. } => 38,
         }
     }
 
@@ -3654,6 +3671,7 @@ mod ending_tests {
                     stop: RefineStop::NothingToHalve {
                         in_band: 2,
                         unsettled: 0,
+                        off_domain: 0,
                     },
                     samples: 348,
                     refusal: Box::new(SsiError::CertificateLimb {
@@ -3915,17 +3933,13 @@ mod ending_tests {
                 },
             ),
             (
-                "polyline not one arc",
-                SsiError::PolylineNotOneArc {
-                    gap: 2e-3,
-                    miss: super::ArcMiss::Far { off: 4e-3 },
-                },
-            ),
-            (
-                "polyline not one arc, unsettled",
-                SsiError::PolylineNotOneArc {
-                    gap: 2e-3,
-                    miss: super::ArcMiss::Unsettled,
+                "march step in band",
+                SsiError::MarchStepInBand {
+                    verdict: BandVerdict::Undecided(cause(MarginDiag::value(6e-9))),
+                    limb: Box::new(SsiError::CertificateLimb {
+                        limb: SsiLimb::OnLocus,
+                        value: 3e-9,
+                    }),
                 },
             ),
             (

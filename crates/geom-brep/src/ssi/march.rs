@@ -1024,6 +1024,7 @@ where
 
         // ---- 4.–6. the step ----
         let mut halved = 0usize;
+        let mut out_of_budget = false;
         let (dx, h_meters, bound) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
@@ -1099,10 +1100,11 @@ where
                     .into_iter()
                     .fold(h_curve, Real::min);
                 // (e) the residual test: the predicted state on the locus
-                //     to ε plus the settling residual its start carries;
-                //     a step whose end leaves the domain has its midpoint
-                //     inside and on the locus instead. Otherwise halve,
-                //     down to the band, where the step guard below speaks.
+                //     to ε plus the settle tolerance; a step whose end
+                //     leaves the domain has its midpoint and its last
+                //     predicted state inside on the locus instead. Otherwise
+                //     halve, down to the band, where the step guard below
+                //     speaks.
                 let reach = ctx.tol.meters() + ctx.tol.settling();
                 let predict = |h: f64| -> [f64; N] {
                     core::array::from_fn(|i| {
@@ -1115,14 +1117,32 @@ where
                 let kept = |h: f64| {
                     let end = add(&x, &predict(h));
                     if exit.holds(&end, &ctx) {
-                        on_locus(&end)
-                    } else {
-                        on_locus(&add(&x, &predict(0.5 * h)))
+                        return on_locus(&end);
                     }
+                    // A step that leaves: its midpoint, and the last of
+                    // its predicted states inside, by a fixed bisection.
+                    if !on_locus(&add(&x, &predict(0.5 * h))) {
+                        return false;
+                    }
+                    let (mut lo, mut hi) = (0.5 * h, h);
+                    for _ in 0..SSI_SLAB_BISECTIONS {
+                        let m = 0.5 * (lo + hi);
+                        if exit.holds(&add(&x, &predict(m)), &ctx) {
+                            lo = m;
+                        } else {
+                            hi = m;
+                        }
+                    }
+                    on_locus(&add(&x, &predict(lo)))
                 };
                 // An infinite `h` is no try: its step is not finite, which
-                // the step's own guard below refuses.
+                // the step's own guard below refuses. Every try counts
+                // against the budget, the kept one included.
                 while h.is_finite() && h * speed > band.escalate() && !kept(h) {
+                    if steps + halved + 1 >= ctx.max_steps {
+                        out_of_budget = true;
+                        break;
+                    }
                     h *= 0.5;
                     halved += 1;
                 }
@@ -1138,6 +1158,9 @@ where
             }
         };
 
+        if out_of_budget {
+            break;
+        }
         longest_step = Real::max(longest_step, h_meters);
         // The stepper must be able to move at this tolerance.
         match decide("ssi_step_progress", Margin::of(h_meters), band) {
