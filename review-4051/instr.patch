@@ -1,0 +1,94 @@
+diff --git a/crates/sweep/tests/common/differential.rs b/crates/sweep/tests/common/differential.rs
+index 172c5e2d..4397a752 100644
+--- a/crates/sweep/tests/common/differential.rs
++++ b/crates/sweep/tests/common/differential.rs
+@@ -162,7 +162,7 @@ pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol)
+     match r {
+         Err(e) => {
+             let s = format!("{e:?}");
+-            let cut: String = s.chars().take(110).collect();
++            let cut: String = s.chars().take(std::env::var("OUTCOME_WIDE").map_or(110, |_| 4000)).collect();
+             format!("ERR {cut}")
+         }
+         Ok(r) => match r.body() {
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index b5205137..aad5aee7 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -597,7 +597,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+     // A pinch is one vertex on two seams: the first zip fuses it, so
+     // each later zip reads the correspondence through the fusions made.
+     let mut vertex_map = fin.vertex_map.clone();
+-    let crossed = super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, tol)?;
++    let crossed = if std::env::var("PX_NOPREPASS").is_ok() { Vec::new() } else { super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, tol)? };
+     desc.absorb_faces(&crossed);
+     for &(a_face, b_face) in &fin.seams {
+         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
+diff --git a/crates/topo/src/boolean/zip.rs b/crates/topo/src/boolean/zip.rs
+index 376d5096..91fb3c36 100644
+--- a/crates/topo/src/boolean/zip.rs
++++ b/crates/topo/src/boolean/zip.rs
+@@ -271,6 +271,23 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
+                     }
+                 }
+                 let Some((v, new)) = fresh else {
++                    if std::env::var("PX_DUMP").is_ok() {
++                        let mut summary = Vec::new();
++                        for (side, v) in [("a", a), ("b", b)] {
++                            let orbit = body.vertex_orbit_of(v).unwrap_or_default();
++                            let mut seen = BTreeSet::new();
++                            for he in orbit {
++                                let l = body.get_half_edge(he).unwrap().parent_loop;
++                                if !seen.insert(l) { continue; }
++                                let ld = body.get_loop(l).unwrap();
++                                let fd = body.get_face(ld.face).unwrap();
++                                let n = match ld.boundary { LoopBoundary::Cycle { first } => body.loop_cycle(first).map_or(0, |c| c.iter().filter(|&&h| body.get_half_edge(h).unwrap().start == v).count()), _ => 0 };
++                                if sections.contains(&ld.face) { continue; }
++                                summary.push(format!("{side}:{}{:?}x{n}r{}", if fd.outer == l {"O"} else {"R"}, ld.face, fd.rings.len()));
++                            }
++                        }
++                        eprintln!("PXSHAPE {}", summary.join(" "));
++                    }
+                     return Err(BooleanError::PinchUncrossed { vertex: a });
+                 };
+                 match vmap.get(&v).cloned() {
+@@ -368,11 +385,11 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+             }
+             let (lj, fj) = face_of(orbit[j])?;
+             let outer = |f: FaceKey, l: LoopKey| body.get_face(f).is_some_and(|d| d.outer == l);
+-            let crossing = if lj == l && !outer(face, l) {
++            let crossing = if lj == l && (!outer(face, l) || std::env::var("PX_OUTERLOOP").is_ok()) {
+                 Some(Crossing::OneLoop)
+             } else if fj != face
+                 && !sections.contains(&fj)
+-                && (ringless(face) || ringless(fj))
++                && (if std::env::var("PX_BOTHOUTER").is_ok() { outer(face, l) && outer(fj, lj) } else if std::env::var("PX_ANYFACE").is_ok() { true } else { ringless(face) || ringless(fj) })
+                 && chart_of(fj).is_some()
+                 && chart_of(fj) == chart_of(face)
+             {
+@@ -414,10 +431,10 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
+             };
+             // `kef` kills the face of the half-edge it is given, which
+             // must hold no ring.
+-            let (dies, kept) = match (face_of(made.he_plus)?, face_of(made.he_minus)?) {
++            let (dies, kept) = if std::env::var("PX_KILLPLUS").is_ok() { (made.he_plus, face_of(made.he_minus)?.0) } else { match (face_of(made.he_plus)?, face_of(made.he_minus)?) {
+                 ((_, true), (kept, _)) => (made.he_plus, kept),
+                 ((kept, false), _) => (made.he_minus, kept),
+-            };
++            } };
+             Some((body.kef_minting(dies, tol)?.killed_face, kept))
+         }
+     };
+diff --git a/crates/topo/src/lib.rs b/crates/topo/src/lib.rs
+index c6c809bc..37e88624 100644
+--- a/crates/topo/src/lib.rs
++++ b/crates/topo/src/lib.rs
+@@ -291,7 +291,7 @@ pub mod test_support {
+         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
+         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
+         cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
+-        describe_as_intersections, flush_declarations, geometric_cube, holed_block, identity_map,
++        describe_as_intersections, drill_hole, flush_declarations, geometric_cube, holed_block, identity_map, plane_every_face,
+         kill_under_a_null_strut, line, mapped_cube, plane, plant_disc_face, plant_ring_face, prism,
+         prism_ops, prism_z, split_plane, straddle_seat,
+     };

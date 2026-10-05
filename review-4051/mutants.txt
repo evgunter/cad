@@ -1,0 +1,19 @@
+== CLEAN
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 2136 filtered out; finished in 2.99s
+== PX_OUTERLOOP
+test join_pierce_runs_sweep::a_staircases_second_pinch_round_a_notch_refuses_typed ... FAILED
+test join_pierce_runs_sweep::a_pinch_round_a_notch_on_a_faces_outer_loop_refuses_typed ... FAILED
+test result: FAILED. 9 passed; 2 failed; 1 ignored; 0 measured; 2136 filtered out; finished in 3.53s
+== PX_NOPREPASS
+test join_pierce_runs_sweep::a_staircases_second_pinch_round_a_notch_refuses_typed ... FAILED
+test join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds ... FAILED
+test join_pierce_runs_sweep::a_pinch_round_a_notch_on_a_faces_outer_loop_refuses_typed ... FAILED
+test join_pierce_runs_sweep::two_pinches_in_one_op_are_each_crossed ... FAILED
+test result: FAILED. 7 passed; 4 failed; 1 ignored; 0 measured; 2136 filtered out; finished in 2.88s
+== PX_BOTHOUTER
+test join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds ... FAILED
+test result: FAILED. 10 passed; 1 failed; 1 ignored; 0 measured; 2136 filtered out; finished in 3.57s
+== PX_KILLPLUS
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 2136 filtered out; finished in 4.31s
+== PX_ANYFACE
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 2136 filtered out; finished in 3.53s

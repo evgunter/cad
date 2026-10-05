@@ -1,0 +1,28 @@
+== r1b_pinch_probes-u2 main->head
+only-a 0 only-b 0
+-- head PinchUncrossed lines under PX_OUTERLOOP
+pinch lines 43 missing 0
+  43 ERR ResultInvalid LoopRoleInverted+RingMeetsOuter
+== r1b_pinch_probes-cube main->head
+only-a 0 only-b 0
+-- head PinchUncrossed lines under PX_OUTERLOOP
+pinch lines 48 missing 0
+  47 ERR ResultInvalid RingMeetsOuter
+  1 ERR ResultInvalid LoopRoleInverted+RingMeetsOuter
+== r2_pinch_probes-cube main->head
+only-a 0 only-b 0
+-- head PinchUncrossed lines under PX_OUTERLOOP
+pinch lines 26 missing 0
+  26 ERR ResultInvalid RingMeetsOuter
+== r2_pinch_probes-nt main->head
+only-a 0 only-b 0
+-- head PinchUncrossed lines under PX_OUTERLOOP
+pinch lines 28 missing 0
+  24 ERR ResultInvalid RingMeetsOuter
+  4 ERR ResultInvalid LoopRoleInverted+RingMeetsOuter
+== r2_pinch_probes-cyl main->head
+only-a 0 only-b 0
+5 ERR PinchUncrossed -> ERR ResultInvalid VolumeUncomputable/SolidKey
+== rc_wide 84 shards: 40320 lines, cmp:
+identical
+== pierce_runs_battery: 4536 pose lines, byte-identical (only the test-result timing line differs)
