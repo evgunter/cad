@@ -2688,6 +2688,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within", "Coincide::Sectors", 1),
+    ("sphere_region.rs", "-", "BooleanDecision::Containment", 1),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",

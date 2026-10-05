@@ -343,7 +343,7 @@ pub(super) fn recl_sectors<T: Decide>(
                     what: "a covered sector's half-edge no longer resolves",
                 },
             )?;
-            for (edge, dir) in super::sectors::bound_edges(body, own)? {
+            for (edge, dir) in super::sectors::bound_edges(body, own) {
                 if super::sectors::runs_into(other, dir, arm, band)? {
                     held.push(super::HeldEdge {
                         holder: keeper,

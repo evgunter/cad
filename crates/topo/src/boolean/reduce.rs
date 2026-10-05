@@ -3214,13 +3214,19 @@ fn wall_crossing<T: Decide>(
                     diag,
                 });
             }
-            // Unwalkable topology under a query the crossing layer just
-            // routed: the operand is corrupt, and saying "the roots did
-            // not settle it" would report a geometry frontier for a
-            // structural break. It keeps the caller's door because that
-            // is the conservative direction, and the distinction is
-            // recorded here rather than left to the payload.
-            Err(_) => return Ok(SpanVerdict::Unsettled),
+            Err(super::contain::ContainError::StaleFace(face)) => {
+                super::contain::driver_face_stale(face)
+            }
+            // The face's boundary read refused (a lone-vertex loop, a
+            // loop it cannot walk, a chart refusal): the roots are not
+            // placed, so the caller keeps its door.
+            Err(
+                super::contain::ContainError::EmptyLoop(_)
+                | super::contain::ContainError::LoopUnreadable(_)
+                | super::contain::ContainError::Curved(_)
+                | super::contain::ContainError::RayExhausted
+                | super::contain::ContainError::Uncrossable(_),
+            ) => return Ok(SpanVerdict::Unsettled),
         }
     }
     Ok(no_pierce_verdict(crossed_elsewhere, at_end))
@@ -3581,11 +3587,15 @@ pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
         ContainError::Uncrossable(cause) => {
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
-        // `ContainError::Corrupt` also carries the curved doors'
-        // folded refusals (`contain::solid_err`), some reachable by a
-        // sound face, so it is no proof of a torn operand.
-        ContainError::Corrupt => BooleanError::ClassificationInvariant {
-            what: "a containment read of an operand face answered ContainError::Corrupt",
+        ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
+        ContainError::EmptyLoop(_) => BooleanError::ClassificationInvariant {
+            what: "a containment read met a lone-vertex loop on an operand face",
+        },
+        ContainError::LoopUnreadable(_) => BooleanError::ClassificationInvariant {
+            what: "a containment read could not walk a loop of an operand face",
+        },
+        ContainError::Curved(_) => BooleanError::ClassificationInvariant {
+            what: "a containment read of a curved operand face refused its chart read",
         },
     }
 }
@@ -4892,8 +4902,8 @@ mod edge_span_tests {
     /// wall at `θ = π/2 − 2e-8`, 2e-8 m of arc short of the span's end
     /// `π/2` of the span `[π/2 − 0.1, π/2]` (the wall's other crossings lie
     /// outside it), where the carrier runs at 1 m/rad — past the escalation
-    /// threshold, so the root is interior and goes on to the trim (which
-    /// an empty body cannot give, so `Unsettled`). Metered at the
+    /// threshold, so the root is interior and goes on to the trim, a
+    /// half-wall sheet holding it: a pierce. Metered at the
     /// semi-minor axis, the least speed, the same gap reads 1e-9 m, inside
     /// the zero band: the root read as the end's own incidence, and the
     /// span `NoInterior`.
@@ -4909,16 +4919,30 @@ mod edge_span_tests {
         };
         let root = core::f64::consts::FRAC_PI_2 - 2e-8;
         let p = ellipse.eval(root);
-        let wall = geom::Surface::Cylinder {
-            origin: Point3::new(p.x + 0.3, p.y, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.3,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let y = Body::<f64>::new();
+        let mut y = Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut y,
+            crate::test_support_fixtures::CylFrame {
+                origin: Point3::new(p.x + 0.3, p.y, 0.0),
+                axis: Vec3::unit_z(),
+                radius: 0.3,
+                u_ref: Vec3::unit_x(),
+            },
+            None,
+            (
+                core::f64::consts::FRAC_PI_2,
+                3.0 * core::f64::consts::FRAC_PI_2,
+            ),
+            (-1.0, 1.0),
+            Tol::witness(),
+        );
+        let wall = y
+            .get_surface(y.get_face(face).expect("the sheet's face").surface)
+            .expect("the sheet's wall")
+            .clone();
         let got = wall_crossing(
             &y,
-            FaceKey::default(),
+            face,
             &wall,
             &ellipse,
             core::f64::consts::FRAC_PI_2 - 0.1,
@@ -4926,8 +4950,8 @@ mod edge_span_tests {
             band,
         );
         assert!(
-            matches!(got, Ok(SpanVerdict::Unsettled)),
-            "the root is interior, and the empty body has no trim to place it in: {got:?}"
+            matches!(got, Ok(SpanVerdict::Pierce { .. })),
+            "the root is interior, and the half-wall's trim holds it: {got:?}"
         );
     }
 }
