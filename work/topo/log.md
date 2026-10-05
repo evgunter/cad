@@ -6935,3 +6935,21 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Fix lane `session_01DFjLErgYNhtmpF9ftXPRTP` dispatched. Reviewer and implementer archived.
 - **Dispatched** `movefac-roundtrip-re-make-is-unbuilt` (P3, M; seqgen; no overlap) to a new lane.
 - Nothing new on PR 3970.
+
+## 09:24 (2026-10-05)
+
+- **PR 4052 merged** at `e9e060568c` (head `7fa84c61`).
+  - The review fixes answer every item:
+    - three negative witnesses on `ruled_wall`, red under both `releases_a_gap` mutations (the held guard is load-bearing for `kemr`'s two loops);
+    - one gap predicate, `misses_a_row`;
+    - `bridged` decided per side, because each kill hands the elements it will write (`made`), and an over-refusal was shown on the old head;
+    - a `seqgen` `Door` axis for `Kemr` (selection pin re-baselined `10_871_328_829_263_095_025` → `12_351_788_739_244_568_152`);
+    - `rest.rs`' keys-only kills proven null-free.
+  - Unsubscribed. Fix lane archived (about $4.9).
+- **The movefac lane opened PR 4053** (+219/-54, 6 files). `seqgen` now round-trips `Movefac` through c−1 `kfmrh` + `mfkrh_plug`, and filed `kef-and-kfmrh-fuse-roundtrip-skips-are-admitted-per-kind`. Subscribed. Reviewer `session_013yTykYbuMbnKamxhVLMVQZ` dispatched (FULL).
+- **Dispatched**:
+  - `contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant` (P2, E) → `session_01W3RVW5HP5pG8ENEC2j7KRD`;
+  - `torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate` (P3, M) → `session_01CVeJsYfHLqcJExQ3xSHWZP`.
+  - Their files are disjoint. Both briefs carry the at-rest/mid-op rule and the full battery requirement.
+- `torn-body-refusal-families-beyond-the-six-doors` goes back to `open`: no lane holds its residue since PR 4048 merged.
+- Nothing new on PR 3970.
