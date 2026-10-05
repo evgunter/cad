@@ -77,5 +77,15 @@ strut's corner to its copy" when it does not. With that, `orbit_step_at`'s
 premise holds at every caller. All 84 shards complete: 40 320 lines, no
 panic; they differ from the base's in exactly those 56 lines.
 Pinned by `crates/sweep/tests/join_rc_probes.rs`
-`a_strut_whose_corner_an_earlier_run_moved_refuses_typed`, one pose per
+`a_strut_beside_its_pairs_fan_builds_every_op`, one pose per
 aborting (profile, turn) pair.
+
+## After JOIN's PR 4036 (branch `join/reflex-corner-vertex-vertex`)
+
+PR 4036 marks the runs of a pair crossing more than twice `shared`, so
+its struts mint before its fans, anchored off the sectors, and the
+strut's corner is never carried away. Merged with the check above, the
+56 `b ∖ a` poses build `SOUND` against the battery's oracle, and the
+check becomes a backstop that no battery reaches. On that branch the
+pin above, once `a_strut_whose_corner_an_earlier_run_moved_refuses_typed`,
+asks every op `SOUND` under its new name.

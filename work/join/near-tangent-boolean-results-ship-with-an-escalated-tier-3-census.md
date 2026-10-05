@@ -135,3 +135,25 @@ decide:
   is CONTACT's.
 
 Then decide whether a door may ship a body its census cannot certify.
+
+## More poses (PR 4036's dual review)
+
+PR 4036 (the four-germ vertex pairs) builds near-tangent poses that main
+refused, and some land in this class. Each has the exact volume, tier
+2, the certificate and a legal operand, and only tier 3′ escalates.
+None is definite.
+
+- **r1** (`join/reflex-corner-vertex-vertex-review-r1`,
+  `join_vv_review_r1_probes.rs` tilt battery): 3 runs on `notch343 edge
+  base=4 psi=0 p=1 t=-1e-7`, pc I, pc S and cp I. The census reports
+  `CensusEscalated` `pm_census_ef_cut_gap`, margin 8.4e-9. At the same
+  tilt main ships this class on four other shapes. Detail probe:
+  `join_vv_review_r1_tilt_detail`.
+- **r2** (`join/reflex-corner-vertex-vertex-review-r2`,
+  `review_r2_vv_probes.rs`, `R2_SWEEP=tilt R2_SHAPES=flat181`, eps =
+  1e-6): 15 runs on flat181, e.g. `flat181 corner frame=11 eps=1e-6
+  ax=1 cs U`. On main they refused `PairingMismatch`, `JoinDesync` or
+  `Euler`. The census reports `CensusEscalated` `pm_census_ef_residual`,
+  margin ±3.54e-9. Main ships 42 identical bodies of this pose family.
+  r2 also counts 21 such runs on `valley4` (roof ∪ roof), which only
+  head builds.
