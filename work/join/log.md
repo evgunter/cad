@@ -775,7 +775,7 @@ Measured, main vs head:
   census-escalated with exact volume, so on the near-tangent P0, and
   no definite refusal→BAD.
 
-**Review tier: DUAL, H / TRICKY (DR-83).** R1 APPROVE-WITH-FIXES 0/3/4,
+**Review tier: DUAL, H / TRICKY (DR-84).** R1 APPROVE-WITH-FIXES 0/3/4,
 R2 0/5/2; tally 0.
 - Both found that a strut held by a strut held by a fan minted at the
   original vertex (`ClassificationInvariant`). It is fixed and pinned by
