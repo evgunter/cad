@@ -45,7 +45,7 @@ use core::fmt;
 
 use crate::doc::Doc;
 use crate::label::Label;
-use crate::names::words::{Detail, unique_detail};
+use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
 use crate::node::{BooleanOp, Datum, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
@@ -838,9 +838,10 @@ impl<'a> Speaker<'a> {
     }
 
     /// **This speaker, saying each name within its table**: a name
-    /// `tables` holds, in the table of the node whose output holds it,
-    /// is said at a detail no other name of that table reads alike at
-    /// (found greedily, not the fewest openings); any other name, in
+    /// `tables` holds, in the table of the node that minted it, is said
+    /// at the detail that table gives it, so that no two of its names
+    /// read alike, each said at its own (found greedily, not the fewest
+    /// openings, and worked out once per table); any other name, in
     /// full.
     #[must_use]
     pub fn within(self, tables: &'a dyn NameTables) -> Self {
@@ -850,20 +851,13 @@ impl<'a> Speaker<'a> {
         }
     }
 
-    /// Whether the enclosing sentence is about `id` ([`Speaker::about`]).
-    pub(crate) fn is_about(self, id: RecipeNodeId) -> bool {
-        self.subject == Some(id)
-    }
-
     /// The detail this speaker says `name` at ([`Speaker::within`]).
     pub(crate) fn detail_of(self, name: &StableName) -> Detail {
-        let Some(table) = self.scope.and_then(|tables| tables.table(name.node)) else {
-            return Detail::Full;
-        };
-        if table.lookup(name).is_none() {
-            return Detail::Full;
-        }
-        unique_detail(name, self, table)
+        self.scope
+            .and_then(|tables| tables.table(name.node))
+            .and_then(|table| table.detail(name))
+            .cloned()
+            .unwrap_or(Detail::Full)
     }
 
     /// The operation of the Boolean `id` in this speaker's document,

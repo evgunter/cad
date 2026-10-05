@@ -3,7 +3,7 @@
 //! ruled on #3571 and #3906).
 //!
 //! The path as a structure is the machine channel; a person reads it
-//! as one sentence, `<role> of <feature>[, <join>…][, on <node>]`:
+//! as one sentence, `<role> of <feature>[, <join>…]`:
 //!
 //! - **The role** is the leaf's: the entity the author made, reached by
 //!   looking through every segment that carries an operand's entity on
@@ -13,35 +13,39 @@
 //!   bordering …", "instance 2's copy of …".
 //! - **The feature** is the node that made the leaf, said right after
 //!   the leaf's own words, so a name a role cites keeps its feature:
-//!   "the blend face over the end rim edge over the leg of loop 0
-//!   step 2 of Extrude e548 of Fillet 92b0".
+//!   "the blend face over the end rim edge over loop 0 step 2 of
+//!   Extrude e548 of Fillet 92b0".
 //! - **A join** is a carry through a secondary operand — a Boolean's B,
 //!   a union's member — said with its node, outermost first. A Boolean
 //!   is said by its operation: "…, cut in at Subtract 1669", "…, joined
 //!   at Union 2b40", "…, intersected at Intersect 77c1"; a union by its
-//!   member: "…, joined at Union d1aa from Transform 3218". A carry
+//!   member: "…, joined at Union d1aa from Transform 3218". By tag, or
+//!   where the document does not hold the Boolean, a B join says what
+//!   the name holds: "…, through operand B of node 1669". A carry
 //!   through a primary operand (a Boolean's A, a fillet's target) is the
 //!   body's own continuation and is silent. Two names of one table first
 //!   differ at a node where one went through a secondary operand, which
 //!   a join says.
-//! - **"on <node>"** names the node whose output holds the name, said
-//!   only where the sentence does not already say it: not when it made
-//!   the leaf, not when it is the outermost join, not when the
-//!   enclosing sentence is about it ([`Speaker::about`]), and never for
-//!   a cited name, whose holder its citing role fixes.
+//!
+//! **Which node's output holds the entity is not the name's to say**:
+//! two copies of one body hold names alike, and the sentence that says
+//! a name says the node it is held at where that is not already fixed
+//! (a pick hit's node, a flush query's two nodes).
 //!
 //! **How much of a cited name is said is the speaker's [`Detail`].**
 //! The full form says every cited name and every list member in full,
 //! however deep. A speaker holding the name table the name was read
-//! from ([`Speaker::within`]) says a detail no other name of that table
-//! reads alike at, found greedily ([`unique_detail`]); one holding none
+//! from ([`Speaker::within`]) says the detail that table gives it, so
+//! no two of its names read alike ([`table_details`]); one holding none
 //! says the full form. Past the detail's depth a cited name is said by
 //! its kind ("a face"), and past its width a list says how many more.
 //!
 //! **Every number is counted from zero**, as the profile pane numbers
 //! a loop and its steps: `loop 0 step 2`, `instance 0's copy`, `part 1
 //! of 3`. A profile piece is a "piece" (`piece 1 of loop 0 step 0`); a
-//! cut of a face, edge or body is a "part".
+//! cut of a face, edge or body is a "part". A leg is its step's only
+//! piece, so the step alone says it (`the side wall over loop 0 step
+//! 2`).
 //!
 //! A profile step is said as the pane numbers it wherever the speaker's
 //! document holds it, and with its profile unless the feature reads
@@ -52,21 +56,21 @@
 //! so a name nested past every thread's stack renders.
 
 use core::fmt;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::names::NameTable;
 use crate::names::attribute::{CarriedAs, SegOrigin, origin};
 use crate::names::role::{
-    CapEnd, EntityKind, MeridianEnd, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier,
-    RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName, fragment_tail_start,
+    CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, ProfileEdgeRef, ProfileVertexRef,
+    Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName, fragment_tail_start,
 };
 use crate::node::{BooleanOp, RecipeNodeId};
 use crate::spoken::{Said, Say, Speaker};
 use profile::PieceRole;
 
 /// **A name in words** ([module docs](self)): `the end cap of Extrude
-/// e548`, `the part above the split of the side wall over the leg of
-/// loop 0 step 2 of Extrude e548, on Split 2fec`. Article-led, so a
+/// e548`, `the part above the split of the side wall over loop 0 step 2
+/// of Extrude e548`. Article-led, so a
 /// sentence takes it as a noun phrase.
 ///
 /// Its `Display` says each node and profile step by its tag, in full;
@@ -139,23 +143,80 @@ pub(crate) fn words(name: &StableName, by: Speaker<'_>, detail: &Detail) -> Stri
     out
 }
 
-/// **A detail at which `name` reads apart from every other name of
-/// `table`**, said by `by`, found greedily. Starting from no citation
-/// opened, it opens one citation at a time — the one that leaves the
-/// fewest names reading alike, the nearest among equals — until no
-/// other name of the table reads alike, then shuts again each opening
-/// it can while that still holds. The answer is checked against every
-/// other name of the table before it is given; where opening every
-/// citation still leaves one alike, the full form.
+/// **The detail each name of `table` is said at within it**: what
+/// [`Speaker::within`] says, so that no two names of the table read
+/// alike as each is said.
 ///
-/// It is unique in the table, not the fewest openings: the search is
-/// greedy, and a smaller detail that also reads apart may exist.
-pub(crate) fn unique_detail(name: &StableName, by: Speaker<'_>, table: &NameTable) -> Detail {
-    let others: Vec<&StableName> = table
+/// A name no other reads alike with at no citation opened is said so.
+/// Each other name is searched greedily against the names it reads
+/// alike with there: one citation at a time is opened — the one that
+/// leaves the fewest of them reading alike, the nearest among equals —
+/// until none does, then each opening it can is shut again while that
+/// still holds. Where opening every citation still leaves one alike,
+/// the full form.
+///
+/// Then every name is said at its own detail, and each group of names
+/// whose words are alike — each at the detail it chose, which no search
+/// above compared — is said in full, until no two read alike: the full
+/// form never says two names alike. A detail is unique in the table,
+/// not the fewest openings.
+///
+/// Worked out by tag: a speaker holding a document says each node and
+/// step it names in a spelling of its own for each, so names that read
+/// apart by tag read apart said by it.
+pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
+    let by = Speaker::TAG;
+    let names: Vec<&NameRef> = table.iter_refs().map(|(name, _)| name).collect();
+    let bare = Detail::Open(BTreeSet::new());
+    let mut alike: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for (i, name) in names.iter().enumerate() {
+        alike.entry(words(name, by, &bare)).or_default().push(i);
+    }
+    let mut details = vec![bare; names.len()];
+    for group in alike.values().filter(|group| group.len() > 1) {
+        for &i in group {
+            let rivals: Vec<&StableName> = group
+                .iter()
+                .filter(|&&j| j != i)
+                .map(|&j| &**names[j])
+                .collect();
+            details[i] = apart_from(names[i], &rivals);
+        }
+    }
+    let mut said: Vec<String> = names
         .iter()
-        .map(|(n, _)| n)
-        .filter(|n| *n != name)
+        .zip(&details)
+        .map(|(name, detail)| words(name, by, detail))
         .collect();
+    loop {
+        let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+        for (i, words) in said.iter().enumerate() {
+            groups.entry(words).or_default().push(i);
+        }
+        let opened: Vec<usize> = groups
+            .values()
+            .filter(|group| group.len() > 1)
+            .flatten()
+            .copied()
+            .filter(|&i| details[i] != Detail::Full)
+            .collect();
+        // Two names alike in full are left for the corpus gate to name:
+        // no detail says more than the full form.
+        if opened.is_empty() {
+            break;
+        }
+        for i in opened {
+            details[i] = Detail::Full;
+            said[i] = words(names[i], by, &Detail::Full);
+        }
+    }
+    names.into_iter().cloned().zip(details).collect()
+}
+
+/// A detail at which `name` reads apart from each of `rivals`, each said
+/// at that same detail, found greedily ([`table_details`]).
+fn apart_from(name: &StableName, rivals: &[&StableName]) -> Detail {
+    let by = Speaker::TAG;
     let alike = |open: &BTreeSet<Pos>, among: &[&StableName]| -> usize {
         let detail = Detail::Open(open.clone());
         let mine = words(name, by, &detail);
@@ -165,22 +226,22 @@ pub(crate) fn unique_detail(name: &StableName, by: Speaker<'_>, table: &NameTabl
             .count()
     };
     let mut open = BTreeSet::new();
-    let mut rivals = others.clone();
+    let mut left: Vec<&StableName> = rivals.to_vec();
     let mut shut = cited_positions(name, by);
     loop {
         let detail = Detail::Open(open.clone());
         let mine = words(name, by, &detail);
-        rivals.retain(|other| words(other, by, &detail) == mine);
-        if rivals.is_empty() {
-            // An opening can make alike a name an earlier detail told
+        left.retain(|other| words(other, by, &detail) == mine);
+        if left.is_empty() {
+            // An opening can make alike a rival an earlier detail told
             // apart ("2 faces" and "2 entities" both open to "the side
-            // wall … and 1 more"), so every other name is asked again.
-            rivals = others
+            // wall … and 1 more"), so every rival is asked again.
+            left = rivals
                 .iter()
                 .copied()
                 .filter(|other| words(other, by, &detail) == mine)
                 .collect();
-            if rivals.is_empty() {
+            if left.is_empty() {
                 break;
             }
         }
@@ -188,33 +249,26 @@ pub(crate) fn unique_detail(name: &StableName, by: Speaker<'_>, table: &NameTabl
         let sayable: Vec<usize> = (0..shut.len())
             .filter(|&i| detail.opens(&shut[i][..shut[i].len() - 1]))
             .collect();
-        // The opening that leaves the fewest names reading alike, the
-        // nearest among equals.
         let Some(pick) = sayable.iter().copied().min_by_key(|&i| {
             let mut tried = open.clone();
             tried.insert(shut[i].clone());
-            alike(&tried, &rivals)
+            alike(&tried, &left)
         }) else {
             return Detail::Full;
         };
         open.insert(shut.remove(pick));
     }
     // An opening a later one made needless is shut again, with every
-    // opening beneath it, while the name still reads apart from every
-    // other; in reverse order, so an opening is tried before the one
-    // it sits beneath.
+    // opening beneath it, while the name still reads apart; in reverse
+    // order, so an opening is tried before the one it sits beneath.
     for pos in open.clone().iter().rev() {
         let mut fewer = open.clone();
         fewer.retain(|kept| !kept.starts_with(pos));
-        if alike(&fewer, &others) == 0 {
+        if alike(&fewer, rivals) == 0 {
             open = fewer;
         }
     }
-    if alike(&open, &others) == 0 {
-        Detail::Open(open)
-    } else {
-        Detail::Full
-    }
+    Detail::Open(open)
 }
 
 /// Every citation of `name`'s full form, nearest first.
@@ -452,28 +506,24 @@ fn expand<'n, 's>(
         items.push(text(match *join {
             Join::B(at) => match by.boolean_op(at) {
                 Some(op) => {
-                    let (verb, noun) = match op {
-                        BooleanOp::Subtract => ("cut in", "Subtract"),
-                        BooleanOp::Union => ("joined", "Union"),
-                        BooleanOp::Intersect => ("intersected", "Intersect"),
+                    let verb = match op {
+                        BooleanOp::Subtract => "cut in",
+                        BooleanOp::Union => "joined",
+                        BooleanOp::Intersect => "intersected",
                     };
-                    format!(", {verb} at {}", by.node_as_kind(at, noun))
+                    format!(
+                        ", {verb} at {}",
+                        by.node_as_kind(at, verbs::VerbKind::Boolean(op).noun())
+                    )
                 }
-                None => format!(", joined at {}", by.node(at)),
+                // Which operation is the document's to say: the name
+                // holds only that it came in as operand B.
+                None => format!(", through operand B of {}", by.node(at)),
             },
             Join::Member { union, member } => {
                 format!(", joined at {} from {}", by.node(union), by.node(member))
             }
         }));
-    }
-    let holder_said = name.node == leaf.node
-        || by.is_about(name.node)
-        || matches!(
-            joins.first(),
-            Some(Join::B(at) | Join::Member { union: at, .. }) if *at == name.node
-        );
-    if pos.is_empty() && !holder_said {
-        items.push(text(format!(", on {}", by.node(name.node))));
     }
     items
 }
@@ -544,16 +594,22 @@ fn role_np(role: PieceRole) -> String {
 /// A profile piece of `feature`'s profile: its role, and the step that
 /// drew it as the profile pane numbers it — with the profile, unless
 /// `feature` reads that profile alone — or, on a kernel-built section,
-/// which circle.
+/// which circle. A leg is its step's only piece, so the step alone says
+/// it (`loop 0 step 2`); a fillet's pieces say which (`the arc of loop
+/// 0 step 2`).
 fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     match e {
-        ProfileEdgeRef::Piece { step, role } => match by.step(*step) {
-            Some(at) if by.sole_profile(feature) == Some(at.profile()) => {
-                format!("{} of {at}", role_np(*role))
+        ProfileEdgeRef::Piece { step, role } => {
+            let step = match by.step(*step) {
+                Some(at) if by.sole_profile(feature) == Some(at.profile()) => at.to_string(),
+                Some(at) => format!("{at} in {}", by.node(at.profile())),
+                None => format!("the profile step {step}"),
+            };
+            match role {
+                PieceRole::Leg => step,
+                _ => format!("{} of {step}", role_np(*role)),
             }
-            Some(at) => format!("{} of {at} in {}", role_np(*role), by.node(at.profile())),
-            None => format!("{} of the profile step {step}", role_np(*role)),
-        },
+        }
         ProfileEdgeRef::Section { circle, role } => format!(
             "{} of the {} circle",
             role_np(*role),
@@ -718,11 +774,19 @@ fn role<'n, 's>(
             cites.one(edge),
         ],
         RoleSeg::BandFoot(v) => vec![text("the blend band's foot at "), cites.one(v)],
-        RoleSeg::BandCross { edge, .. } => {
-            vec![text("the blend band's crossing of "), cites.one(edge)]
+        // A band's crossing and its slit each say their band: two
+        // bands can cross, or slit, one edge.
+        RoleSeg::BandCross { edge, band } => {
+            let mut items = vec![text("the crossing of "), cites.one(edge)];
+            items.push(text(" by the blend band over "));
+            items.extend(cites.list(band));
+            items
         }
-        RoleSeg::BandSlit { edge, .. } => {
-            vec![text("the blend band's slit along "), cites.one(edge)]
+        RoleSeg::BandSlit { edge, band } => {
+            let mut items = vec![text("the slit along "), cites.one(edge)];
+            items.push(text(" of the blend band over "));
+            items.extend(cites.list(band));
+            items
         }
         RoleSeg::Inner(of) => vec![text("the cavity twin of "), cites.one(of)],
         RoleSeg::Rim(of) => vec![text("the shell rim of "), cites.one(of)],
@@ -736,15 +800,13 @@ fn role<'n, 's>(
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its
         // own, so such a path reads apart from every other.
-        RoleSeg::FromA(of) => vec![text("operand A's "), cites.one(of)],
-        RoleSeg::FromB(of) => vec![text("operand B's "), cites.one(of)],
-        RoleSeg::FromMember { member, of } => {
-            vec![
-                text(format!("member {}'s ", by.node(*member))),
-                cites.one(of),
-            ]
-        }
-        RoleSeg::FromTarget(of) => vec![text("the target's "), cites.one(of)],
+        RoleSeg::FromA(of) => vec![cites.one(of), text(" from operand A")],
+        RoleSeg::FromB(of) => vec![cites.one(of), text(" from operand B")],
+        RoleSeg::FromMember { member, of } => vec![
+            cites.one(of),
+            text(format!(" from member {}", by.node(*member))),
+        ],
+        RoleSeg::FromTarget(of) => vec![cites.one(of), text(" from the target")],
         RoleSeg::SplitFragment { parent, side } => vec![
             text(format!("the part {} of ", half(*side))),
             cites.one(parent),
@@ -827,10 +889,10 @@ mod tests {
     }
 
     /// A carry through a primary operand is silent, and the sentence
-    /// says the feature that made the leaf and the node that holds the
-    /// name.
+    /// says the feature that made the leaf; which node holds the name is
+    /// the enclosing sentence's to say.
     #[test]
-    fn a_primary_carry_is_silent_and_the_feature_and_holder_are_said() {
+    fn a_primary_carry_is_silent_and_the_feature_is_said() {
         let carried = name(
             EntityKind::Face,
             OP,
@@ -840,10 +902,7 @@ mod tests {
                 vec![RoleSeg::FromTarget(NameRef::new(cap(CapEnd::End)))],
             )))],
         );
-        assert_eq!(
-            said(&carried),
-            "the end cap of node 000000000001, on node 000000000003"
-        );
+        assert_eq!(said(&carried), "the end cap of node 000000000001");
         assert_eq!(role_leaf(&carried).node, EXTRUDE);
         assert_eq!(said(&cap(CapEnd::End)), "the end cap of node 000000000001");
         assert_eq!(
@@ -855,7 +914,8 @@ mod tests {
 
     /// Two copies of one master, brought into one body through two
     /// secondary operands, differ in their joins: each is said, outermost
-    /// first, and the holder is not said twice.
+    /// first. By tag a Boolean's B join says only what the name holds,
+    /// that it came in as operand B.
     #[test]
     fn a_secondary_carry_is_a_join_said_with_its_node() {
         let through_b = |at: RecipeNodeId, inner: StableName| {
@@ -875,8 +935,8 @@ mod tests {
         );
         assert_eq!(
             said(&through_b(OP, member.clone())),
-            "the end cap of node 000000000001, joined at node 000000000003, joined at node \
-             000000000002 from node 000000000004"
+            "the end cap of node 000000000001, through operand B of node 000000000003, joined \
+             at node 000000000002 from node 000000000004"
         );
         assert_ne!(
             said(&through_b(OP, cap(CapEnd::End))),
@@ -905,12 +965,12 @@ mod tests {
         };
         assert_eq!(
             said(&part(Qualifier::Borders(vec![wall(1)]))),
-            "the part of the end cap of node 000000000001 bordering the side wall over the leg \
-             of the profile step 000000000001 of node 000000000001, on node 000000000003"
+            "the part of the end cap of node 000000000001 bordering the side wall over the \
+             profile step 000000000001 of node 000000000001"
         );
         assert_eq!(
             said(&part(Qualifier::OrderAlong { rank: 1, of: 3 })),
-            "part 1 of 3 of the end cap of node 000000000001, on node 000000000003"
+            "part 1 of 3 of the end cap of node 000000000001"
         );
         let half = |side| {
             name(
@@ -924,8 +984,8 @@ mod tests {
         };
         assert_eq!(
             said(&half(SplitHalf::Above)),
-            "the part above the split of the side wall over the leg of the profile step \
-             000000000001 of node 000000000001, on node 000000000003"
+            "the part above the split of the side wall over the profile step 000000000001 of \
+             node 000000000001"
         );
         assert_ne!(said(&half(SplitHalf::Above)), said(&half(SplitHalf::Below)));
     }
@@ -944,8 +1004,8 @@ mod tests {
         };
         assert_eq!(
             said(&blend(1)),
-            "the blend face over the end rim edge over the leg of the profile step 000000000001 \
-             of node 000000000001 of node 000000000003"
+            "the blend face over the end rim edge over the profile step 000000000001 of node \
+             000000000001 of node 000000000003"
         );
         assert_ne!(said(&blend(1)), said(&blend(2)));
         let twin = name(
@@ -980,8 +1040,8 @@ mod tests {
         assert_eq!(
             said(&blend),
             "the blend face over the seam edge of the end cap of node 000000000001 and the side \
-             wall over the leg of the profile step 000000000001 of node 000000000001 of node \
-             000000000002 of node 000000000003"
+             wall over the profile step 000000000001 of node 000000000001 of node 000000000002 \
+             of node 000000000003"
         );
         assert_eq!(
             words(&blend, Speaker::TAG, &open(&[&[0]])),
@@ -1023,7 +1083,7 @@ mod tests {
         assert_eq!(
             said(&deep),
             "instance 2's copy of instance 1's copy of instance 0's copy of the end cap of node \
-             000000000001, on node 000000000003"
+             000000000001"
         );
     }
 
@@ -1060,6 +1120,21 @@ mod tests {
         name(EntityKind::Face, OP, vec![RoleSeg::Merged(members)])
     }
 
+    /// Each name of `names`, said at the detail a table of them all
+    /// gives it.
+    fn within(names: &[&StableName]) -> Vec<String> {
+        let table = table(names);
+        let details = table_details(&table);
+        names
+            .iter()
+            .map(|n| words(n, Speaker::TAG, &details[*n]))
+            .collect()
+    }
+
+    fn detail_in(names: &[&StableName], name: &StableName) -> Detail {
+        table_details(&table(names))[name].clone()
+    }
+
     /// The scoped detail opens a citation only where a rival needs it:
     /// a blend face beside a cap opens nothing, and beside a blend over
     /// another rim opens the one rim that tells them apart.
@@ -1074,19 +1149,19 @@ mod tests {
         };
         let (one, two, top) = (blend(1), blend(2), cap(CapEnd::End));
         assert_eq!(
-            unique_detail(&one, Speaker::TAG, &table(&[&one, &top])),
+            detail_in(&[&one, &top], &one),
             open(&[]),
             "nothing alike, nothing opened"
         );
         assert_eq!(
-            unique_detail(&one, Speaker::TAG, &table(&[&one, &two, &top])),
+            detail_in(&[&one, &two, &top], &one),
             open(&[&[0]]),
             "the rim the two blends differ by, and no more"
         );
     }
 
-    /// **The detail returned reads apart from every name of the table**,
-    /// including one an earlier detail had told apart: `mixed` reads "2
+    /// **No two names of a table read alike as each is said**, including
+    /// a name an earlier detail had told apart: `mixed` reads "2
     /// entities" beside `faces`' "2 faces", but opens to the same "the
     /// side wall … and 1 more" at the member the other rival needed
     /// opened.
@@ -1095,21 +1170,69 @@ mod tests {
         let faces = merged(vec![wall(1), wall(2)]);
         let rival = merged(vec![wall(2), wall(3)]);
         let mixed = merged(vec![wall(1), rim(4)]);
-        let detail = unique_detail(&faces, Speaker::TAG, &table(&[&faces, &rival, &mixed]));
-        assert_ne!(detail, Detail::Full, "two openings tell all three apart");
-        let mine = words(&faces, Speaker::TAG, &detail);
-        for other in [&rival, &mixed] {
-            assert_ne!(
-                words(other, Speaker::TAG, &detail),
-                mine,
-                "said at {detail:?}, a name of the table reads alike"
-            );
-        }
+        let names = [&faces, &rival, &mixed];
+        assert_ne!(
+            detail_in(&names, &faces),
+            Detail::Full,
+            "an opening tells all three apart"
+        );
+        let said = within(&names);
+        assert!(
+            said[0] != said[1] && said[0] != said[2] && said[1] != said[2],
+            "said within the table, two names read alike: {said:#?}"
+        );
         assert_eq!(
             words(&mixed, Speaker::TAG, &open(&[&[0]])),
             words(&faces, Speaker::TAG, &open(&[&[0]])),
             "the premise: the opening the first rival asks for makes the second alike"
         );
+    }
+
+    /// **Each name is told apart as every other is said, at its own
+    /// detail**: `x` and `w` each read apart from every rival at one
+    /// shared detail, but `x` opens its second member and `w` its first,
+    /// and both then say "the side wall over step 2 … and 1 more". Lists
+    /// in canonical order, then out of it.
+    #[test]
+    fn two_names_at_their_own_details_never_read_alike() {
+        for steps in [[[1, 2], [2, 5], [1, 6]], [[2, 1], [2, 3], [3, 4]]] {
+            let [x, w, r] = steps.map(|s| merged(s.iter().map(|&k| wall(k)).collect()));
+            let top = name(
+                EntityKind::Face,
+                OP,
+                vec![RoleSeg::FromA(NameRef::new(cap(CapEnd::End)))],
+            );
+            let said = within(&[&x, &w, &r, &top]);
+            for (i, one) in said.iter().enumerate() {
+                for other in &said[i + 1..] {
+                    assert_ne!(one, other, "{steps:?}: two names read alike: {said:#?}");
+                }
+            }
+        }
+    }
+
+    /// Two bands crossing, or slitting, one edge differ only in their
+    /// band, and each says it.
+    #[test]
+    fn a_band_crossing_and_slit_say_their_band() {
+        let edge = || NameRef::new(rim(1));
+        let crossing = |band: Vec<StableName>| {
+            name(
+                EntityKind::Vertex,
+                OP,
+                vec![RoleSeg::BandCross { edge: edge(), band }],
+            )
+        };
+        let slit = |band: Vec<StableName>| {
+            name(
+                EntityKind::Edge,
+                OP,
+                vec![RoleSeg::BandSlit { edge: edge(), band }],
+            )
+        };
+        let (near, far) = (vec![rim(1), rim(2)], vec![rim(1), rim(3)]);
+        assert_ne!(said(&crossing(near.clone())), said(&crossing(far.clone())));
+        assert_ne!(said(&slit(near)), said(&slit(far)));
     }
 
     /// A path no operation mints is said segment by segment, so two of
