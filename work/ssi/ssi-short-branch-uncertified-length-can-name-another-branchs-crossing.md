@@ -17,3 +17,13 @@ priority: P3
 ## Done when
 
 The sized refusal names what it measured (the distance to the nearest unused crossing), or is sized by the branch's own length where one is known.
+
+## After PR 4034
+
+The crossing cap is retired, and the sized refusal now comes from
+halving (`fit_minimum`): `length` is the length along the samples
+halving stopped at. Where the march's own states were too short, those
+are the branch's. Where the march refused for want of step, they are
+the branch's crossing `A`, the nearest unused crossing `B` and any
+midpoint settled between them (`neither` in `ssi/ends.rs`), so the
+finding stands on that path: `B` can be another branch's.

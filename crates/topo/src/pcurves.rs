@@ -2222,12 +2222,8 @@ pub(crate) fn face_loop_walks<T: Decide>(
     face: FaceKey,
 ) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
     let data = proven(&body.faces, face, EntityId::Face);
-    core::iter::once((data.outer, "outer"))
-        .chain(data.rings.iter().map(|&ring| (ring, "rings")))
-        .map(|(lk, field)| {
-            let _ = linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field);
-            (lk, loop_rows(body, lk))
-        })
+    body.face_loops_linked(face, data)
+        .map(|(lk, _)| (lk, loop_rows(body, lk)))
         .collect()
 }
 
