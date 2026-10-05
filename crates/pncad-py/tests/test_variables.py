@@ -124,7 +124,7 @@ class TestADefinedVariable(unittest.TestCase):
         self.assertAlmostEqual(volume(doc, box), before * 2.0)
 
     def test_a_definition_is_spelled_by_a_var_decl_and_back(self):
-        doc, box = self.defined()
+        doc, _ = self.defined()
         height = doc.var(ParamName("height"))
         decl = VarDecl.defined(doc.parse_expr("base + base"))
         self.assertIsNotNone(decl.expr)
