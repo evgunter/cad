@@ -6844,3 +6844,8 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - **Lesson:** a brief that converts boolean sites must run the `join_rc` batteries.
 - Also filed on the slate: `torn-body-rows-are-red-under-per-op-postcondition` (4 rows red under `--features per-op-postcondition`), set to P3 and E; it waits.
 - R fix lane: 4037 head moved to `e57bfa67` (not yet green); 4039 is unchanged and dirty. Nothing new on PR 3970.
+- 01:20 check-in.
+  - **P0 PR 4043 opened.** Reading (a): a real insertion defect (a fan `mev_null` moves the strut's corner before the strut reads its stale sector table), already parked on JOIN's four-germ row. It now refuses `ClassificationInvariant` before any read. All 84 shards are clean: 40,320 lines, with exactly 56 refusals changed from `JoinDesync` to the new one and no body lost. A repro row is added. Subscribed. Quick reviewer `session_01NGRK6qh17Rp2APL4DWHZub` dispatched.
+  - **R:** the fix lane posted its review fixes on 4037 (`41d6248d`); CI is running. 4039 is now `a580e4d8`.
+  - **Cross-program:** PCERT's open PR 3945 (approved, dirty since 10-03) implements C4's joint deck element as "identity at every joint". R stores non-identity elements under the later C4 (PR 4024). Filed `work/pcert/pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways` (P1) for the PCERT orchestrator; whichever lands second reconciles. R proceeds.
+  - Nothing new on PR 3970.
