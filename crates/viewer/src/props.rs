@@ -108,21 +108,20 @@
 //!   — so the field and the unit picker agree afterwards without
 //!   either being told about the other.
 //!
-//! **The two doors differ in WHERE that text may land, and only
-//! there.** A slot can be driven by an expression, so its text door is
-//! `SessionOp::SetSlotExpression` and `w * 2` is an edit. A document
-//! parameter holds an `f64` and nothing else — there is no
-//! `SetVarExpression` — so its text door is
-//! `SessionOp::SetParamText`, which takes a number and its notation
-//! (`50 mm`) and refuses every other expression by name.
+//! **The two doors differ in WHERE that text lands.** A slot's text
+//! door is `SessionOp::SetSlotExpression`, and `w * 2` drives the slot.
+//! A document parameter's is `SessionOp::SetParamText`: a number and
+//! its notation (`50 mm`) are the free parameter's value, and any
+//! other expression DEFINES the parameter (`DocEdit::DefineVar`),
+//! keeping its identity.
 //!
 //! A slot field that evaluated to a literal shows its number, which
 //! the widget formats (`crate::widgets::number_text`); the unit is the
 //! picker's to say, not the field's. Every other slot field shows
 //! [`field_text`] in its number's place: a driven slot the value its
 //! expression equals, with its keyboard edit opening on the source
-//! ([`field_source`]). A parameter's always shows its number, because
-//! a parameter is never driven by anything.
+//! ([`field_source`]). A free parameter's always shows its number; a
+//! defined parameter's row shows its formula ([`defined_rows`]).
 //!
 //! **Text the field itself produced is not an edit**, at either field
 //! — [`echoed`], one function because it is one rule, asked of the
@@ -939,6 +938,36 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
                 FreeVar::Continuous { display_unit, .. } => Some(display_unit.def()),
                 FreeVar::Count { .. } => None,
             },
+        })
+        .collect()
+}
+
+/// One defined variable, as the panel shows it: read-only, its
+/// formula as the document's names write it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DefinedRow {
+    /// The variable.
+    pub var: VarId,
+    /// The variable as the panel labels it.
+    pub label: SpokenVar,
+    /// Its dimension.
+    pub dimension: Dimension,
+    /// Its definition, unparsed (`Doc::unparse`).
+    pub formula: String,
+}
+
+/// Every defined variable, declaration order.
+pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
+    doc.var_order()
+        .iter()
+        .filter_map(|&var| {
+            let expr = doc.var(var)?.def().defined()?;
+            Some(DefinedRow {
+                var,
+                label: doc.spoken_var(var),
+                dimension: expr.dim(),
+                formula: doc.unparse(expr),
+            })
         })
         .collect()
 }

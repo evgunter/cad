@@ -123,6 +123,20 @@ impl ViewerBehavior<'_> {
                         self.param_unit_ui(ui, &row);
                     });
                     self.param_bounds_ui(ui, &row);
+                } else if let Some(row) = crate::props::defined_rows(self.session.doc())
+                    .into_iter()
+                    .find(|row| row.var == var)
+                {
+                    // A defined variable holds no value of its own, so
+                    // its row is its formula, read-only: typing into a
+                    // free parameter's field is what defines one.
+                    crate::widgets::message(
+                        ui,
+                        format!(
+                            "parameter {} ({}) = {}",
+                            row.label, row.dimension, row.formula
+                        ),
+                    );
                 }
                 // No row is an undeclared parameter, and nothing is
                 // drawn for it here: the header above has said so
@@ -139,6 +153,13 @@ impl ViewerBehavior<'_> {
         for row in crate::props::param_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
             if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
+                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
+            }
+        }
+        for row in crate::props::defined_rows(self.session.doc()) {
+            if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
+                .clicked()
+            {
                 self.ops.push(SessionOp::Select(Selection::Param(row.var)));
             }
         }

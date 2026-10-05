@@ -571,13 +571,17 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.var_order.iter().find_map(|&id| {
         let expr = snapshot.vars.get(&id)?.def().defined()?;
         let var = snapshot.spoken_var(id);
+        // A name leaf at all, whether or not the snapshot's names would
+        // resolve it: the doors lower every one.
+        let mut names = Vec::new();
+        expr.named_reads(&mut names);
+        if !names.is_empty() {
+            return Some(SnapshotError::NamedReaderInDefinition { var });
+        }
         snapshot
             .var_read_faults(expr)
             .into_iter()
             .find_map(|fault| match fault {
-                VarReadFault::Name { .. } => {
-                    Some(SnapshotError::NamedReaderInDefinition { var: var.clone() })
-                }
                 VarReadFault::Unminted { var: read } => {
                     Some(SnapshotError::DefinitionReadsUnmintedVar {
                         var: var.clone(),
@@ -594,7 +598,9 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                     declared,
                     referenced,
                 }),
-                VarReadFault::Dead { .. } => None,
+                // Answered above, and a deleted variable's reader is
+                // legal (VR7).
+                VarReadFault::Name { .. } | VarReadFault::Dead { .. } => None,
             })
     })
 }

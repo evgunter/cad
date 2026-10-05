@@ -272,23 +272,6 @@ pub enum Refusal {
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchParam(VarId),
-    /// A parameter's value field was given text that is not a number.
-    ///
-    /// **A document parameter holds a number, not an expression** —
-    /// `FreeVar::Continuous` holds an `f64` — so there is no
-    /// `SetVarExpression` for such text to reach and no partial
-    /// reading of it that would be honest. A slot's field takes the
-    /// expression door here; a parameter's says why it has none, which
-    /// is itself the affordance.
-    ///
-    /// **Raised only for text that PARSED.** Text that did not carries
-    /// [`Self::Parse`], whose sentence names the token and its offset;
-    /// re-wording it at this door would be a second opinion about a
-    /// refusal the parser already made.
-    ParamNotANumber {
-        /// The parameter whose field was typed into.
-        var: SpokenVar,
-    },
     /// The New door was asked for a blank name. The document id is
     /// derived from the name (`DocumentId::derive` — the identity
     /// ruling logged in `docs/GAUTH-LOG.md`), so a nameless document
@@ -464,9 +447,6 @@ impl Refusal {
                 current,
                 notation,
             },
-            Self::ParamNotANumber { var } => Self::ParamNotANumber {
-                var: var.respoken(doc),
-            },
             unspoken @ (Self::NoSuchParam(_)
             | Self::EmptyName
             | Self::Dimension(_)
@@ -493,7 +473,6 @@ impl Refusal {
             Self::DrivenByExpression { .. }
             | Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
-            | Self::ParamNotANumber { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -534,7 +513,6 @@ impl Refusal {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
-            | Self::ParamNotANumber { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -796,13 +774,6 @@ impl core::fmt::Display for Refusal {
                 write!(
                     f,
                     "variable {var} is not in this document — {UNKNOWN_VAR_RECOURSE}"
-                )
-            }
-            Self::ParamNotANumber { var } => {
-                write!(
-                    f,
-                    "parameter {var} holds a number, not an expression — write a number, with a \
-                     unit if you want one (50 mm)"
                 )
             }
             Self::EmptyName => {

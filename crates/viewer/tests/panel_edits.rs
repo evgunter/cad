@@ -676,7 +676,6 @@ test_utils::f6_variants! {
         DrivenByExpression,
         NoSuchSlot,
         NoSuchParam,
-        ParamNotANumber,
         EmptyName,
         WrongNodeKind,
         Duplicate,
@@ -1171,60 +1170,91 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     assert_eq!(row.value, SlotValue::Continuous(0.05));
 }
 
-/// **A document parameter holds a number, not an expression** — the
-/// refusal says so, by name, and nothing moves.
+/// **An expression typed into a parameter DEFINES it**, keeping its
+/// identity, and its panel row turns into its formula; a number typed
+/// back makes it free again.
 ///
-/// **Two spellings, because the layer that refuses differs.**
-/// `base_r * 2` does not reach this door at all: `2` is a count and
-/// the expression vocabulary refuses a count times a length without an
-/// explicit promotion, so what a user reads there is the parser's
-/// sentence about the multiply. `base_r * 2.0` and a bare `base_r`
-/// both parse, and those are the texts this door has to answer for.
+/// One reading itself is refused as the cycle it is, by the door, and
+/// nothing moves. `base_r * 2` does not reach the door at all: `2` is
+/// a count and the expression vocabulary refuses a count times a
+/// length without an explicit promotion, so what a user reads there is
+/// the parser's sentence about the multiply.
 #[test]
-fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
+fn an_expression_typed_into_a_parameter_defines_it() {
     let tol = Tol::witness();
     let name = VarName::from_static("base_r");
-    let mut session = DocSession::inline(
-        common::declared(
-            "auth2-expression",
-            &name,
-            FreeVar::written_length(WrittenLength::in_unit(50.0, MM)),
-            tol,
-        ),
+    let doc = common::declared(
+        "auth2-expression",
+        &name,
+        FreeVar::written_length(WrittenLength::in_unit(50.0, MM)),
         tol,
     );
+    let mut session = DocSession::inline(doc, tol);
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: VarName::from_static("rim"),
+        value: FreeVar::written_length(WrittenLength::in_unit(20.0, MM)),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    let base_r = common::var_of(session.committed_doc(), name.as_str());
     let before = session.history().len();
     for text in ["base_r * 2.0", "base_r"] {
-        let outcome = session.perform(SessionOp::SetParamText {
-            var: common::var_of(session.committed_doc(), name.as_str()),
-            text: text.to_owned(),
-        });
-        let refusal = outcome.refusal.expect("a parameter takes no expression");
+        let refusal = session
+            .perform(SessionOp::SetParamText {
+                var: base_r,
+                text: text.to_owned(),
+            })
+            .refusal
+            .expect("a definition reading itself is a cycle");
         assert!(
-            matches!(refusal, Refusal::ParamNotANumber { .. }),
+            matches!(&refusal, Refusal::Edit(error) if matches!(**error, EditError::DefinitionCycle { .. })),
             "{text}: {refusal:?}"
         );
-        let shown = refusal.to_string();
-        assert!(
-            shown.contains("holds a number, not an expression"),
-            "the sentence says what a parameter is: {shown}"
-        );
     }
-    // The count-promotion spelling is refused one layer earlier, by
-    // the parser, and carries the parser's own sentence.
     let refusal = session
         .perform(SessionOp::SetParamText {
-            var: common::var_of(session.committed_doc(), name.as_str()),
+            var: base_r,
             text: "base_r * 2".to_owned(),
         })
         .refusal
         .expect("a count times a length needs an explicit promotion");
     assert!(matches!(refusal, Refusal::Parse(_)), "{refusal:?}");
     assert_eq!(session.history().len(), before, "and nothing moved");
-    assert_eq!(
-        param_row(&session, &name).value,
-        SlotValue::Continuous(0.05)
+
+    let outcome = session.perform(SessionOp::SetParamText {
+        var: base_r,
+        text: "rim * 2.0".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        matches!(outcome.committed.as_slice(), [DocEdit::DefineVar { .. }]),
+        "{:?}",
+        outcome.committed
     );
+    assert_eq!(
+        session.committed_doc().var_named("base_r"),
+        Some(base_r),
+        "the definition keeps the variable's identity"
+    );
+    let rows = props::defined_rows(session.doc());
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0].var, base_r);
+    assert_eq!(rows[0].formula, "rim * 2.0");
+    assert!(
+        props::param_rows(session.doc())
+            .iter()
+            .all(|row| row.var != base_r),
+        "a defined variable has no value row"
+    );
+
+    let outcome = session.perform(SessionOp::SetParamText {
+        var: base_r,
+        text: "30 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(props::defined_rows(session.doc()).is_empty());
+    let row = param_row(&session, &name);
+    assert_eq!(row.value, SlotValue::Continuous(0.03));
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
 }
 
 /// **An unknown unit carries the parser's own refusal**, which names

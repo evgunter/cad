@@ -239,6 +239,14 @@ fn driver_of(
     Ok((row.driver, row.value.ok()))
 }
 
+/// Whether `expr` reads any variable, by id or by name.
+fn reads_a_variable(expr: &pncad::document::Expr) -> bool {
+    let (mut ids, mut names) = (Vec::new(), Vec::new());
+    expr.var_reads(&mut ids);
+    expr.named_reads(&mut names);
+    !ids.is_empty() || !names.is_empty()
+}
+
 /// Refuse a numeric edit to a driven slot, with the affordance.
 fn guard_driven(
     doc: &Doc<ProfileProgram>,
@@ -1890,7 +1898,8 @@ impl DocSession {
     }
 
     /// The text door: a number, and the notation to write it in, from
-    /// one piece of typed text.
+    /// one piece of typed text — or an expression, which DEFINES the
+    /// variable (`DocEdit::DefineVar`), keeping its identity.
     ///
     /// **One parser.** `parse_expr` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
@@ -1924,19 +1933,53 @@ impl DocSession {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
-        // A literal is the whole of what a parameter can hold. Every
-        // other kind of expression — a reference, an operator, a count
-        // — is refused by name rather than flattened to a number,
-        // because flattening would store a value the text does not
-        // say.
-        let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
-            return OpOutcome::refused(Refusal::ParamNotANumber {
-                var: self.committed_doc().spoken_var(var),
+        let doc = self.committed_doc();
+        let defined = doc.var(var).is_some_and(|v| v.def().defined().is_some());
+        // A count typed as a constant is a value, as a written
+        // quantity is; any other expression is a definition.
+        let constant_count = (expr.dim() == Dimension::Count && !reads_a_variable(&expr))
+            .then(|| pncad::document::eval_count(&expr, &pncad::document::VarEnv::<f64>::default()))
+            .and_then(Result::ok);
+        let free = match (expr.literal_value(), expr.display_unit(), constant_count) {
+            (Some(value), Some(unit), _) => Some((SlotValue::Continuous(value), Some(unit))),
+            (_, _, Some(count)) => Some((SlotValue::Count(count), None)),
+            _ => None,
+        };
+        let Some((value, unit)) = free else {
+            return self.commit(DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::defined(expr),
             });
+        };
+        // A value typed over a definition makes the variable free again,
+        // written in the typed notation; the door judges the pairing.
+        if defined {
+            let def = match (value, unit) {
+                (SlotValue::Count(value), _) => FreeVar::Count { value },
+                (SlotValue::Continuous(value), unit) => FreeVar::Continuous {
+                    dim: expr.dim(),
+                    value,
+                    display_unit: unit.map_or_else(
+                        || pncad::document::UnitSym::canonical_for(expr.dim()),
+                        |unit| pncad::document::UnitSym::from_def(&unit),
+                    ),
+                    distribution: None,
+                },
+            };
+            return self.commit(DocEdit::DefineVar {
+                var: var.into(),
+                def: pncad::document::VarDecl::Free(def),
+            });
+        }
+        let SlotValue::Continuous(_) = value else {
+            return self.commit(props::param_edit(var, value));
+        };
+        let Some(unit) = unit else {
+            unreachable!("a continuous literal remembers the unit it was written in")
         };
         let declared = self.committed_doc().free(var).map(FreeVar::dim);
         let notation = props::param_unit_edit(var, unit);
-        let written = props::param_edit(var, SlotValue::Continuous(value));
+        let written = props::param_edit(var, value);
         match declared {
             // An undeclared variable takes the commit path so the typed
             // refusal comes from the door rather than from here, the
