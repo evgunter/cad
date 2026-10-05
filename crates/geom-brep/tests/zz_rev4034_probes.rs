@@ -523,7 +523,7 @@ fn err_name(e: &SsiError) -> String {
         SsiError::StepBudget { bound, .. } => format!("StepBudget({bound:?})"),
         SsiError::Fit(f) => format!("Fit({f:?})"),
         SsiError::RefinementExhausted { stop, .. } => format!("RefinementExhausted({stop:?})"),
-        _ if head == "ShortBranchUncertified" || head == "MarchStepInBand" || head == "TransversalityBand" => format!("{e:?}").chars().take(160).collect(),
+        _ if head == "ShortBranchUncertified" || head == "MarchShortOfFit" || head == "MarchStepInBand" || head == "TransversalityBand" => format!("{e:?}").chars().take(160).collect(),
         _ => head,
     }
 }
@@ -1213,6 +1213,41 @@ fn probe3_dip_render() {
         match ssi::plane_nurbs_ssi(&plane(), &s, dom(), band) {
             Ok(o) => println!("dip c={c:e}: Ok {}", o.branches.len()),
             Err(e) => println!("dip c={c:e}: {}\n    {}", format!("{e:?}").chars().take(400).collect::<String>(), e.render(Reading::Build)),
+        }
+    }
+}
+
+/// Semicircles of radius kKε cut from a half cylinder: the ending by k.
+#[test]
+fn probe4_semicircle_radii() {
+    let half_cylinder = |r: f64| {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for (x, y, w) in [(0.0, -r, 1.0), (r, -r, s), (r, 0.0, 1.0), (r, r, s), (0.0, r, 1.0)] {
+            for z in [0.0, 1.0] {
+                control.push(Point3::new(x, y, z));
+                weights.push(w);
+            }
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    };
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let d = SsiDomain { center: Point3::new(0.0, 0.0, 0.5), half_extent: 1.0, extent: 1.0, floor_scale: 1.0 };
+    for eps in epss() {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for k in [1.0, 1.1, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 20.0] {
+            let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(k * 10.0 * eps), d, band);
+            let s = match &r {
+                Ok(o) => format!("Ok {} samples {:?}", o.branches.len(), o.branches.iter().map(|b| b.pcurve_b.as_ref().map_or(0, |c| c.control().len())).collect::<Vec<_>>()),
+                Err(e) => err_name(e).chars().take(40).collect(),
+            };
+            println!("semicircle ε {eps:e} r={k}Kε: {s}");
         }
     }
 }
