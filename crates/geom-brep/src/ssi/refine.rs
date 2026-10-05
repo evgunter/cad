@@ -923,7 +923,9 @@ mod tests {
     /// across the hole of [`HoledR4`], 1 apart: the midpoint does not
     /// settle, the surfaces crossing at a right angle there, so the
     /// refusal is the march's samples short of the fit, one gap
-    /// unsettled. Two states the band apart are short: the sized refusal,
+    /// unsettled; with a third state the band past the second, one gap in
+    /// the band does not make the branch short while the other does not
+    /// settle. Two states the band apart are short: the sized refusal,
     /// the wall's.
     #[test]
     fn a_wall_polyline_short_of_the_fit_says_what_its_midpoints_did() {
@@ -945,6 +947,20 @@ mod tests {
                 off_domain: 0,
             }) => {}
             other => panic!("across the hole: expected the march short of the fit, got {other:?}"),
+        }
+        let mixed = vec![
+            [-0.5, 0.0, 0.0, 0.0],
+            [0.5, 0.0, 0.0, 0.0],
+            [0.5 + 2e-9, 0.0, 0.0, 0.0],
+        ];
+        match fit_minimum(&HoledR4, mixed, &ctx, band) {
+            Err(SsiError::MarchShortOfFit {
+                samples: 3,
+                in_band: 1,
+                unsettled: 1,
+                off_domain: 0,
+            }) => {}
+            other => panic!("one gap in the band, one across the hole: not short, got {other:?}"),
         }
         let short = vec![[0.5, 0.0, 0.0, 0.0], [0.5 + 2e-9, 0.0, 0.0, 0.0]];
         assert!(
