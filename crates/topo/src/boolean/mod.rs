@@ -131,7 +131,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
@@ -1516,6 +1516,18 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
+/// What stopped a point-in-face read of an operand face
+/// ([`BooleanError::PointInFaceRefused`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointInFaceCause {
+    /// A loop of the face is a lone vertex.
+    LoneVertexLoop(LoopKey),
+    /// The walk could not read the loop as an outline.
+    LoopUnreadable(LoopKey),
+    /// Every ray of the parity schedule grazed the boundary.
+    RayExhausted,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -1698,6 +1710,21 @@ pub enum BooleanError {
         operand: Operand,
         /// The loop, and the edge no ray got past.
         cause: crate::splitting::Uncrossable,
+    },
+    /// **Point-in-face on a face whose boundary the walk cannot place a
+    /// point against.** The reduction and the sphere extent scan ask
+    /// which side of an operand face's boundary a point lies on; the
+    /// read refused for a reason the face itself carries, not a
+    /// geometry the walk has no row for
+    /// ([`BooleanError::ArcLoopContainmentUnsupported`]) or a chart the
+    /// solid door cannot read ([`BooleanError::Containment`]).
+    PointInFaceRefused {
+        /// The operand whose face was read.
+        operand: Operand,
+        /// The face.
+        face: FaceKey,
+        /// What stopped the read.
+        cause: PointInFaceCause,
     },
     /// An operand is well-formed but not a closed solid at rest: tier 2
     /// ([`crate::validate_closed`]) refuses it for construction
@@ -2382,7 +2409,9 @@ pub enum BooleanError {
         /// What the settled pairs said about orientation.
         orientation: ShellOrientation,
     },
-    /// The containment fallback / uncut-component probe refused (F8).
+    /// The solid door's containment refused: the uncut-component probe
+    /// (F8), a plane read of a germ or locus tie, or a curved operand
+    /// face's chart read in the reduction.
     Containment(PointInSolidError),
     /// `revert` refused on the ∖ B side.
     Revert(RevertError),
@@ -2539,6 +2568,8 @@ pub enum BooleanErrorKind {
     GermEdgeCarrierUnsupported,
     /// [`BooleanError::ArcLoopContainmentUnsupported`].
     ArcLoopContainmentUnsupported,
+    /// [`BooleanError::PointInFaceRefused`].
+    PointInFaceRefused,
     /// [`BooleanError::ScaffoldingOperand`].
     ScaffoldingOperand,
     /// [`BooleanError::InsideOutOperand`].
@@ -2751,6 +2782,7 @@ impl BooleanError {
             Self::ArcLoopContainmentUnsupported { .. } => {
                 BooleanErrorKind::ArcLoopContainmentUnsupported
             }
+            Self::PointInFaceRefused { .. } => BooleanErrorKind::PointInFaceRefused,
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::InsideOutOperand { .. } => BooleanErrorKind::InsideOutOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
@@ -2964,6 +2996,31 @@ impl core::fmt::Display for BooleanError {
                  guess. Recourse: model the outline with lines, circles or ellipses",
                 cause.carrier.word()
             ),
+            Self::PointInFaceRefused { operand, cause, .. } => {
+                let operand = operand_word(*operand);
+                match cause {
+                    PointInFaceCause::LoneVertexLoop(_) => write!(
+                        f,
+                        "the Boolean cannot tell which side of a face of the {operand} solid \
+                         a point lies on: one of the face's loops is a lone vertex, which \
+                         bounds no region"
+                    ),
+                    PointInFaceCause::LoopUnreadable(_) => write!(
+                        f,
+                        "the Boolean cannot tell which side of a face of the {operand} solid \
+                         a point lies on: one of the face's loops could not be walked as an \
+                         outline (a whole-turn construction circle, or an arc wound past a \
+                         full turn, is one it cannot read)"
+                    ),
+                    PointInFaceCause::RayExhausted => write!(
+                        f,
+                        "the Boolean cannot tell which side of a face of the {operand} solid \
+                         a point lies on: every test ray grazed the face's boundary, so the \
+                         point sits within ε of it at this tolerance. Recourse: \
+                         {COINCIDENCE_RECOURSE}"
+                    ),
+                }
+            }
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
                 "the {} operand is not a finished solid: it still carries what an edit \
@@ -3321,9 +3378,10 @@ impl core::fmt::Display for BooleanError {
                     ),
                 }
             }
-            // The payload does not say which operand was being tested, so
-            // the sentence says "one of the solids" rather than guess.
-            Self::Containment(e) => write!(f, "the solids do not cross, and the Boolean {e}"),
+            // The payload does not say which operand was being tested,
+            // nor which question asked: the uncut-component probe asks it
+            // of solids that do not cross, the reduction of ones that do.
+            Self::Containment(e) => write!(f, "the Boolean {e}"),
             Self::Revert(e) => write!(f, "revert of the ∖ B side refused: {e}"),
             Self::SeamOrientation { a_face, b_face } => write!(
                 f,
@@ -5597,6 +5655,11 @@ mod tests {
                     carrier: crate::splitting::UncrossableCarrier::Spiric,
                 },
             },
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                cause: PointInFaceCause::RayExhausted,
+            },
             BooleanError::ScaffoldingOperand {
                 operand: Operand::A,
                 errors: vec![ValidationError::ScaffoldingStrutVertex {
@@ -5825,6 +5888,7 @@ mod tests {
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
+                BooleanErrorKind::PointInFaceRefused => "PointInFaceRefused",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::InsideOutOperand => "InsideOutOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",

@@ -69,7 +69,7 @@ use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
 use super::refusal_routes::NeighbourOffset;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
-use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
+use super::{BooleanError, ContactRecords, Operand, PointInFaceCause, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
@@ -1349,8 +1349,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     Some(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
                             let p = curve.carrier().eval(t);
-                            let containment =
-                                contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
+                            let containment = contfp(y, face, plane.normal, p, band)
+                                .map_err(|e| esc(e, x_is.other(), face))?;
                             if !matches!(containment, FaceContainment::Out)
                                 && let Some(tr) = trace.as_deref_mut()
                             {
@@ -1432,8 +1432,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     let d2 = (pv - plane.origin).dot(plane.normal);
                     let t = t0 + (t1 - t0) * (d1 / (d1 - d2));
                     let p = curve.carrier().eval(t);
-                    let containment =
-                        contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
+                    let containment = contfp(y, face, plane.normal, p, band)
+                        .map_err(|e| esc(e, x_is.other(), face))?;
                     if !matches!(containment, FaceContainment::Out)
                         && let Some(tr) = trace.as_deref_mut()
                     {
@@ -3516,7 +3516,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(Placement, Option<VertexKey>), BooleanError> {
     let placement = super::contain::curved_face_placement(y, face, px, band)
-        .map_err(|e| esc(e, x_is.other()))?;
+        .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
         CurvedPlacement::OffCarrier => None,
@@ -3585,28 +3585,31 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     ))
 }
 
-pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
+/// A containment read of `face`, a face of `operand`, refused. The body
+/// is MID-OPERATION — a working copy the reduction has been splitting —
+/// so the operand gate's at-rest verdict does not bind it, and every
+/// arm but the stale face answers typed: a loop the walk could not read
+/// or a ray schedule that grazed out names the face, and a curved
+/// chart read's refusal is the solid door's, carried whole.
+pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanError {
+    let refused = |cause| BooleanError::PointInFaceRefused {
+        operand,
+        face,
+        cause,
+    };
     match e {
         ContainError::Escalated(diag) => BooleanError::Escalated {
             decision: BooleanDecision::Containment,
             diag,
         },
-        ContainError::RayExhausted => BooleanError::ClassificationInvariant {
-            what: "contfp ray schedule exhausted",
-        },
+        ContainError::RayExhausted => refused(PointInFaceCause::RayExhausted),
         ContainError::Uncrossable(cause) => {
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
         ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
-        ContainError::EmptyLoop(_) => BooleanError::ClassificationInvariant {
-            what: "a containment read met a lone-vertex loop on an operand face",
-        },
-        ContainError::LoopUnreadable(_) => BooleanError::ClassificationInvariant {
-            what: "a containment read could not walk a loop of an operand face",
-        },
-        ContainError::Curved(_) => BooleanError::ClassificationInvariant {
-            what: "a containment read of a curved operand face refused its chart read",
-        },
+        ContainError::EmptyLoop(lk) => refused(PointInFaceCause::LoneVertexLoop(lk)),
+        ContainError::LoopUnreadable(lk) => refused(PointInFaceCause::LoopUnreadable(lk)),
+        ContainError::Curved(e) => BooleanError::Containment(e),
     }
 }
 
@@ -3646,7 +3649,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other()))? {
+    match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other(), face))? {
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {

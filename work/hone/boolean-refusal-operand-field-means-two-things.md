@@ -56,3 +56,15 @@ brick does not finish: the row is
 `UncertifiableSurface` and the four `DescriptionNotAdjacent` at the
 at-rest gate. No row reaches `curved_face_arm`'s raise with a finished
 body; `work/reach/the-operand-gates-curved-arms-have-no-finished-fixture.md`.
+
+## 2026-10-05 — `ArcLoopContainmentUnsupported`'s half is settled
+
+`reduce.rs` `esc` now takes the face it read, and every caller passes
+that face's operand: the two vertex-placement `contfp` calls changed
+from `x_is` to `x_is.other()`. The sphere extent scan, now
+`ops.rs` `extent_scan_refusal`, passes `x_is.other()` with `yf`. So
+`ArcLoopContainmentUnsupported.operand` names the face's operand at
+every raise site, as its doc says, and so does the new
+`PointInFaceRefused.operand`
+(`contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant`).
+`CurvedBooleanUnsupported` at `curved_face_arm` still has the split.

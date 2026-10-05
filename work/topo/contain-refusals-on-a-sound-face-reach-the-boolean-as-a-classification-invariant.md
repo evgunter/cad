@@ -2,11 +2,12 @@
 id: contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant
 kind: issue
 title: The boolean answers ContainError's reachable refusals as ClassificationInvariant
-status: open
+status: closed
 priority: P2
 cost: E
 refs: [torn-body-refusal-families-beyond-the-six-doors]
 opened: 2026-10-05
+closed: 2026-10-05
 ---
 
 ## What
@@ -42,3 +43,19 @@ honest typed refusal naming the face. Re-run the boolean batteries
 (`rc_wide_battery` and the `join_*` ignored batteries); lines that
 move are the point of the change and are listed in the PR.
 
+
+## Outcome (2026-10-05)
+
+`reduce.rs` `esc` and the sphere extent scan (`ops.rs`
+`extent_scan_refusal`) now answer `Curved(e)` as
+`BooleanError::Containment(e)`, and `LoopUnreadable`, `RayExhausted` and,
+at the reduction, `EmptyLoop` as the new
+`BooleanError::PointInFaceRefused { operand, face, cause }`. The extent
+scan's `EmptyLoop` stays `ClassificationInvariant`: that operand is at
+rest, past tier 2, which refuses a lone-vertex loop.
+
+Measured: on an operand past the gate, none of the routed arms is
+reached. The batteries' lines are identical on main and head. `Curved`
+carries only corruption-shaped payloads here (evidence on
+`torn-body-refusal-families-beyond-the-six-doors`), not the partial
+cone or torus faces this row named.
