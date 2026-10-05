@@ -52,3 +52,18 @@ batteries reach this lane with a ring on the cylinder wall
   ones are at θ ∈ {70, 78}°, ∪ in both orders and rod ∖ plate, which
   refused `RingHomingAmbiguous` before the fix.
 
+
+## More witnesses (JOIN, PR 4038's pinch crossing)
+
+PR 4038 crosses a pinch before the seam zips; on a cylinder's side
+wall the crossing is one ring of the wall split in two (`kemr`), and
+the result then refuses at the gate
+`ResultInvalid { VolumeUncomputable { RingOnCurvedFace } }`. Main
+refused the same lines earlier, `Euler(SelfLoopEdge)`.
+
+- PR 4038's review r1 (`r1b_pinch_probes cyl`, on
+  `join/pierce-pinch-families-review-r1`): 61 cube ∖ prism lines on a
+  cylinder of axis y, r = 5 (Ltop 19, Lbot 10, notch327 32).
+- Its review r2 (`r2_pinch_probes cyl`, on
+  `join/pierce-pinch-families-review-r2`): 76 cube ∖ prism lines, e.g.
+  `Ltop cyl fib33 psi=0.9 off cp S`.
