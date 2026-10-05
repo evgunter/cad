@@ -878,26 +878,28 @@ fn face_geo<T: Decide>(
                     .sense,
             })
         }
-        Some(&Surface::Sphere { center, radius, .. }) => match closed_sphere_group(body, face, charts) {
-            Some(representative) => Ok(FaceGeo::Sphere {
-                center,
-                radius,
-                representative,
-                sense: body
-                    .get_face(representative)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .sense,
-            }),
-            None => match sphere_face_region(body, face, center, radius)? {
-                Some(region) => Ok(FaceGeo::SpherePatch {
+        Some(&Surface::Sphere { center, radius, .. }) => {
+            match closed_sphere_group(body, face, charts) {
+                Some(representative) => Ok(FaceGeo::Sphere {
                     center,
                     radius,
-                    region,
-                    sense: f.sense,
+                    representative,
+                    sense: body
+                        .get_face(representative)
+                        .ok_or(PointInSolidError::CorruptFace { face })?
+                        .sense,
                 }),
-                None => Err(PointInSolidError::PartialSphereFace { face }),
-            },
-        },
+                None => match sphere_face_region(body, face, center, radius)? {
+                    Some(region) => Ok(FaceGeo::SpherePatch {
+                        center,
+                        radius,
+                        region,
+                        sense: f.sense,
+                    }),
+                    None => Err(PointInSolidError::PartialSphereFace { face }),
+                },
+            }
+        }
         Some(&Surface::Torus {
             center,
             axis,

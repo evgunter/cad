@@ -8,6 +8,8 @@
 //! from it, and one at the lens centre crossing nothing of its boundary,
 //! under every op in both orders, each against its closed form.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
@@ -74,7 +76,14 @@ fn assert_op(label: &str, op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64
 /// The carved body `u` (volume `vu`) against a ball `s` (volume `vs`)
 /// sharing volume `shared` with it, under ∪ and ∩ in both orders and
 /// both differences.
-fn assert_every_op(pose: &str, u: &AtRestBody<f64>, vu: f64, s: &AtRestBody<f64>, vs: f64, shared: f64) {
+fn assert_every_op(
+    pose: &str,
+    u: &AtRestBody<f64>,
+    vu: f64,
+    s: &AtRestBody<f64>,
+    vs: f64,
+    shared: f64,
+) {
     for (label, op, x, y, expected) in [
         ("U ∪ S", BooleanOp::Union, u, s, vu + vs - shared),
         ("S ∪ U", BooleanOp::Union, s, u, vu + vs - shared),
@@ -183,9 +192,19 @@ fn the_lens_union_classifies_every_point() {
 fn the_lens_union_is_an_operand() {
     let (u, vu) = lens_union();
     for (pose, r, c, shared) in [
-        ("a nested ball", 0.2, Vec3::new(2.7, 2.0, 0.5), ball_volume(0.2)),
+        (
+            "a nested ball",
+            0.2,
+            Vec3::new(2.7, 2.0, 0.5),
+            ball_volume(0.2),
+        ),
         ("a disjoint ball", 0.3, Vec3::new(7.0, 2.0, 0.5), 0.0),
-        ("the ball at the lens centre", 0.5, Vec3::new(2.7, 2.0, 0.5), ball_volume(0.5)),
+        (
+            "the ball at the lens centre",
+            0.5,
+            Vec3::new(2.7, 2.0, 0.5),
+            ball_volume(0.5),
+        ),
     ] {
         assert_every_op(pose, &u, vu, &ball(r, c), ball_volume(r), shared);
     }
@@ -224,7 +243,12 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
         },
     );
     for (pose, r, c, shared) in [
-        ("a nested ball", 0.2, Vec3::new(-0.4, 0.0, 0.0), ball_volume(0.2)),
+        (
+            "a nested ball",
+            0.2,
+            Vec3::new(-0.4, 0.0, 0.0),
+            ball_volume(0.2),
+        ),
         ("a disjoint ball", 0.3, Vec3::new(4.0, 0.0, 0.0), 0.0),
         (
             "a ball across the plane, below the box",

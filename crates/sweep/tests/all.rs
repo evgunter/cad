@@ -89,6 +89,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "carved_sphere_operand.rs"]
+mod carved_sphere_operand;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -169,8 +171,6 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
-#[path = "carved_sphere_operand.rs"]
-mod carved_sphere_operand;
 #[path = "tilted_sphere_pair_k_rows.rs"]
 mod tilted_sphere_pair_k_rows;
 #[path = "topo_ring_nesting.rs"]

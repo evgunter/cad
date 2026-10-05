@@ -242,9 +242,8 @@ impl<T: Decide> SphereFaceRegion<T> {
         let w = p - self.center;
         let a = w / w.norm();
         let aimed = self.arcs.iter().flat_map(|arc| {
-            TARGET_SHARES.map(|share| {
-                arc.at(arc.t0 + (arc.t1 - arc.t0) * T::from_f64(share)) - self.center
-            })
+            TARGET_SHARES
+                .map(|share| arc.at(arc.t0 + (arc.t1 - arc.t0) * T::from_f64(share)) - self.center)
         });
         let scheduled = SCHEDULE.iter().map(|r| r.map(T::from_f64));
         let mut first_diag = None;

@@ -618,9 +618,24 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
     };
     for (what, az, polar, want) in [
         ("the quarter above the rim", 0.4, 2.0, FaceContainment::In),
-        ("beyond the planted meridian", beyond_planted, 1.0, FaceContainment::In),
-        ("beyond the planted meridian, past the pole", beyond_planted, 2.9, FaceContainment::In),
-        ("beyond the other meridian", beyond_other, 1.0, FaceContainment::Out),
+        (
+            "beyond the planted meridian",
+            beyond_planted,
+            1.0,
+            FaceContainment::In,
+        ),
+        (
+            "beyond the planted meridian, past the pole",
+            beyond_planted,
+            2.9,
+            FaceContainment::In,
+        ),
+        (
+            "beyond the other meridian",
+            beyond_other,
+            1.0,
+            FaceContainment::Out,
+        ),
         ("the quarter below the rim", 0.4, 2.8, FaceContainment::Out),
     ] {
         assert_eq!(
@@ -728,7 +743,10 @@ fn a_boundary_circle_tilted_against_the_chart_is_read_at_the_face_door() {
                     "polar angle {polar} on the quarter's middle meridian"
                 );
             }
-            assert!(ins > 0 && outs > 0, "probes on both sides: {ins} in, {outs} out");
+            assert!(
+                ins > 0 && outs > 0,
+                "probes on both sides: {ins} in, {outs} out"
+            );
         } else {
             assert_eq!(
                 topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
