@@ -6981,3 +6981,29 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - the fuzz sample was re-taken.
   - Fix lane archived (about $1.7).
 - **PR 4055:** CI lint failed at my merge head `700d0ed3`. `payload-rung-sweep.py --check` flagged the new `PointInFaceCause` as an undispositioned rung. That is the PR's own miss: the lane ran `scripts/gates/*.sh` but not this second step. I filed it under `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error` (the row that holds `BooleanError`'s rungs), with an evidence paragraph, and pushed `15c8ed5a`. The reviewer is still running.
+
+## 11:34 check-in (2026-10-05)
+
+- **PR 4055 review: merge, no BLOCKING.**
+  - The measurement is confirmed by tracing every `Err` path. `Curved` carries only `CorruptFace` or `Loop(CorruptLoop)`.
+  - The premises hold: `esc` keeps only `StaleFace` (a key-liveness premise); the extent scan reads only gated operands or rigid re-charts.
+  - No ratified text states the old `Display`. Batteries: 15 shards + 47 tests, 0 moved, 0 panics.
+  - MINORs:
+    - the operand fix has no witness (M4/M5 green on the whole ci profile);
+    - `Containment(CorruptFace)` now tells a user their face is broken for a kernel arena miss;
+    - an open REACH row's symptom text no longer reproduces.
+  - Style (sure): "a loop could not be walked" comes out of `esc` as two variants by chart, and `PointInFaceCause` re-spells `ContainError`.
+  - Folded in before merge via fix lane `session_0139BWEAKtKxCKt4Ucv5M6yn`:
+    - one variant carrying `ContainError` whole (the census precedent), unless the lane shows why not;
+    - an operand witness;
+    - row evidence;
+    - the word-budget guard;
+    - the `RayExhausted` text check;
+    - the `Containment` doc stating a meaning instead of listing raisers.
+  - Reviewer (about $4.1) and implementer (about $8.8) archived.
+- **The torn-reads lane opened PR 4056** (+516/-114, 8 files).
+  - `rest.rs`, `classify.rs` and `chord_join.rs` `null_site` are converted, plus sweep hits in the same files. Mid-op panics rest on link resolution (operators leave written links resolving); caller keys stay typed. `null_site` → `Result<_, VertexKey>`.
+  - 5 witnesses, each red under a mutation. Batteries: all 84 shards + 47 tests, 0 moved.
+  - Filed `torn-hops-read-as-absent-across-the-boolean` (about 45 hits) and `torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`.
+  - Subscribed. Reviewer `session_012s3TpxmuWke9NCG4HawBji` dispatched (FULL): it attacks the link-resolution premise at each mid-op site, `has_edge`'s new desync, and `site_of`'s `ClassificationInvariant`. Implementer archived (about $9.0).
+- PR 4057 (`[ev]` pinch at rest) is JOIN's, not ours. Nothing new on PR 3970. Moved-boundary lane: no PR yet.
