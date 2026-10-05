@@ -3180,11 +3180,14 @@ pub(crate) mod tests {
         // calls through those closure parameters match the same text.
         // So are one of `boolean/ops.rs`'s three and `pieces.rs`'s one:
         // the boolean's exit builds the face-box closure the piece
-        // sort's screen calls.
-        const PINNED: [(&str, usize); 6] = [
+        // sort's screen calls. `boolean/torn_hop_rows.rs`' four are not
+        // doors either: its torn-body witnesses call `face_box` and
+        // `edge_box` to show a torn link panics.
+        const PINNED: [(&str, usize); 7] = [
             ("boolean/mod.rs", 2),
             ("boolean/ops.rs", 3),
             ("boolean/reduce.rs", 8),
+            ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
             ("pieces.rs", 1),
             ("separation.rs", 2),
