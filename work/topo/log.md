@@ -7007,3 +7007,27 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Filed `torn-hops-read-as-absent-across-the-boolean` (about 45 hits) and `torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`.
   - Subscribed. Reviewer `session_012s3TpxmuWke9NCG4HawBji` dispatched (FULL): it attacks the link-resolution premise at each mid-op site, `has_edge`'s new desync, and `site_of`'s `ClassificationInvariant`. Implementer archived (about $9.0).
 - PR 4057 (`[ev]` pinch at rest) is JOIN's, not ours. Nothing new on PR 3970. Moved-boundary lane: no PR yet.
+
+## 12:37 check-in (2026-10-05)
+
+- PR 4058 (sync) merged at `6d737709`.
+- **PR 4055:** the fix lane pushed `e7a0adc4` (CI green), but there is no "fixes pushed" comment yet. Waiting.
+- **PR 4056 review: merge, no BLOCKING.**
+  - The link-resolution premise held at every mid-op site: orphan-only removals; `split_edge` keeps its key; per-op-postcondition passes over topo+sweep.
+  - Batteries: 12 shards + 47 tests, zero diff.
+  - MINORs:
+    - `realize_seam`'s premise misses `undo_struts`: a nested strut's segment end can be dead, so a former `Ok(None)` becomes `JoinDesync` (a pre-existing defect);
+    - O1–O4 mutations are green (`interior_edges`, `edge_clears`, `gate_face_reach`, `null_site` orbit);
+    - `review_d18`'s read sweep was not extended.
+  - Style:
+    - one "site vertex no longer resolves" fact is raised as two error kinds;
+    - `null_site` re-walks `edges_of_vertex_linked`;
+    - the premise is restated six times.
+  - As with PRs 4052/4053, the green mutations are folded in before merge: fix lane `session_017AAeHCUDuoFUsqY5BvR5MT`, covering everything plus a row for the `undo_struts` end remap. Reviewer (about $5.1) archived.
+- **The moved-boundary lane opened PR 4060** (+641/-343, 11 files).
+  - `Body::unvouched` is the one home: keys, then plane residuals where a band is held.
+  - Decisions: curved moves no key vouches are refused by both doors; lone vertices and scaffolds are asked by neither; the placeholder plug is refused.
+  - `description_surfaces` is folded into `Named::keys`. Batteries: 84 shards + 47 tests, 0 moved.
+  - Ten fixtures now lift `RechartUnvouched` (a curved move onto a copy of its own surface has no recourse). Filed `a-listed-spec-cannot-name-a-fresh-chart-a-neighbour-keeps-the-old-key-of`, whose first option, "an equal payload vouches", is a design choice the lane left alone. No question for Ev.
+  - Subscribed. Reviewer `session_016iMYYHNDx5q1U7i2GuvkaF` dispatched (FULL): no production regression across all crates; whether "the describing door certifies later" always happens before rest; the fold's key sets. Implementer archived (about $7.8).
+- Nothing new on PR 3970. PR 4061 is JOIN's.
