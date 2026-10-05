@@ -2,11 +2,12 @@
 id: a-two-run-pierce-on-a-notch-or-shallow-corner-refuses-its-intersection-every-chord-arc
 kind: issue
 title: A two-run pierce on a 307° notch or a 200° shallow corner refuses its intersection 'every chord arc separates a loose scaffolding pair'
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [a-pierce-whose-wide-run-pinches-its-intersection-refuses]
+closed: 2026-10-05
 ---
 
 
@@ -30,3 +31,7 @@ Whether the two are one cause is the first thing to measure.
 Run `r1_pierce_probes cube notch307` and `… shallow200`. Take one pose
 of each, and read where the join's chord arcs separate the loose pair:
 the ring's struts, or the piercing side's In face passing `v` twice.
+
+## Built
+
+PR 4038 (2026-10-05). The measured ∩ start rule is gone, and the ring struts face by the walk in every op. That is right once `zip::cross_pinches` crosses the pinch the rule had been dodging. Both dual reviewers built every two-run face ∩ SOUND: r2 350/350 over 8 corners, r1 340 per order on the original five corners plus its new ones, notch307 and shallow200 included. The rule's mutant turns 2 rows red.

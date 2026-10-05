@@ -2,11 +2,12 @@
 id: a-pierce-whose-wide-run-pinches-its-intersection-refuses
 kind: issue
 title: A two-run pierce whose second run holds a face's bisector and the -z edge refuses its intersection (derived ring role order)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
+closed: 2026-10-05
 ---
 
 

@@ -63,8 +63,9 @@ parks):
   (its poses are declared-flush).
 
 Still startable, because they are undeclared booleans or join topology
-alone: the pierce families PR 4026 filed (the pinch families and the
-vertex-vertex lane, both in flight; the vertex-vertex lane, PR 4036,
+alone: the pierce families PR 4026 filed (the pinch families landed in
+PR 4038, whose residue is `a-pinch-no-kept-face-can-cross-refuses`;
+the vertex-vertex lane is in flight, and its PR 4036
 also builds the parked four-germ row's fix and the reflex vertex's B
 senses, which share its mechanism). Parked on
 `d10-one-way-to-say-intent-is-unbuilt` on 2026-10-04, on a closer

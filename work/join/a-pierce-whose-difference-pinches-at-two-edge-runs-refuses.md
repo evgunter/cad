@@ -2,11 +2,12 @@
 id: a-pierce-whose-difference-pinches-at-two-edge-runs-refuses
 kind: issue
 title: A pierce with two lone-edge Out runs refuses cube minus prism, which pinches at the pierce point (Euler SelfLoopEdge)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
+closed: 2026-10-05
 ---
 
 
