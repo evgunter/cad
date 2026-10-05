@@ -7031,3 +7031,18 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Ten fixtures now lift `RechartUnvouched` (a curved move onto a copy of its own surface has no recourse). Filed `a-listed-spec-cannot-name-a-fresh-chart-a-neighbour-keeps-the-old-key-of`, whose first option, "an equal payload vouches", is a design choice the lane left alone. No question for Ev.
   - Subscribed. Reviewer `session_016iMYYHNDx5q1U7i2GuvkaF` dispatched (FULL): no production regression across all crates; whether "the describing door certifies later" always happens before rest; the fold's key sets. Implementer archived (about $7.8).
 - Nothing new on PR 3970. PR 4061 is JOIN's.
+
+## 13:40 check-in (2026-10-05)
+
+- **PR 4055 merged** at `843b1e2b` (head `e7a0adc4`). The fixes:
+  - one variant, `PointInFaceRefused { operand, face, refusal: ContainError }`, carrying the face door's refusal whole; `PointInFaceCause` and its rung row retired, since `ContainError` is an error type and not a rung;
+  - operand witnesses at `vertex_on_face` and the extent scan, red under M4/M5. The four reduction-only callers are disclosed as unreachable by fixture, and the hone row says "witnessed at two";
+  - families and REACH evidence;
+  - the word budget;
+  - the `RayExhausted` text corrected at both doors (the point is off the boundary; every ray grazed);
+  - the `Containment` doc states a meaning.
+  - Batteries: 13 shards + 47 tests, 0 moved. Fix lane archived (about $4.4).
+- **PR 4060** conflicted with main on its own row's status line; I merged main in keeping `closed` (`6d963a69`, `cargo check` ok). The reviewer is still running.
+- PR 4056: fix lane pushed `1401b17e`, CI running, no "fixes pushed" comment yet.
+- **Dispatched** `the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op` (P3, M; `pcurves.rs`/`plan_site_rows`) → `session_01BMu89ppKGExnAuicB4891Y`. A cached window or winding must equal the re-read at every consult, with an assert guard and a mutation; the lane stops on a ratified-clause touch.
+- Nothing new on PR 3970.
