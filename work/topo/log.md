@@ -6849,21 +6849,6 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - **R:** the fix lane posted its review fixes on 4037 (`41d6248d`); CI is running. 4039 is now `a580e4d8`.
   - **Cross-program:** PCERT's open PR 3945 (approved, dirty since 10-03) implements C4's joint deck element as "identity at every joint". R stores non-identity elements under the later C4 (PR 4024). Filed `work/pcert/pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways` (P1) for the PCERT orchestrator; whichever lands second reconciles. R proceeds.
   - Nothing new on PR 3970.
-- 03:52: **PR 4039 merged** at `4b1fe513c5`; **R complete.**
-  - Fixes: `site_rows` reuses `walk_cycle` and `certify_walked` (one certification home again); the window hulls the kept loops' stored rows (matches the pass; no extra cost); a direct `kept_joint_tests` witness, red under M3; residue row P3; the far-face-staleness line added.
-  - The witness does not use `kev_describing`: the lane argued no coherent `kev_describing` can reach the guard with a stale `Some`, which instrumentation confirms (only torn-body rows fire).
-  - The params `debug_assert` was left out as unsound (a reachable stale state).
-  - Acceptance: every kill-kept face byte-equal and clean (`kef_minting` 8,355). 404 pre-existing transitions, filed as `kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`.
-  - Fix lane archived (about $5.8). Unsubscribed.
-- Dispatched two lanes (both rows now `dispatched`):
-  - `session_01DbT7iaUmiEzfBXActEdZSR`: `torn-body-rows-are-red-under-per-op-postcondition` (E).
-  - `session_016cnJLHrxZC86vFUEVjxVGE`: `torn-body-refusal-families-beyond-the-six-doors` (M). Its brief carries the P0 lesson: say at-rest vs mid-op at every site, and run every `#[ignore]`d boolean/split battery with zero panics and an unchanged line set.
-- 01:40: PR 4045 (sync) merged at `2e28e78c5c`.
-  - **PR 4043 review: merge** (diagnosis sure, placement sure, atomic). It found one small doc fix: `orbit_step_at`'s `unreachable!` still cited `WALKS_CLOSE`, the premise the PR refuted.
-  - I merged main into `claude/rcw-orbit-step` (the row conflict: kept `closed`) and re-worded the message and doc to name the real premise (the `mint_directed` corner check, the strut-first `keyed` sort). Pushed `9d2e4b1d06`; `cargo check -p topo` and fmt are clean. Merge on green.
-  - Reviewer (about $1.6) and P0 implementer (about $3.2) archived.
-  - Style notes left for the parked four-germ row's owner: three spellings of one refusal, and the `reconcile_shared` caveat.
-- 01:55: **P0 PR 4043 merged** at `d01d8ae1fe` (CI green on `9d2e4b1d06`); unsubscribed. A public boolean no longer aborts in `rc_wide_battery`: 84/84 shards complete, 40,320 lines, with 56 downstream `JoinDesync` refusals now answered at the stale-corner step. The row is closed with the PR.
 - 01:57: **PR 4037 merged** at `201239b0e4`. The code head `e57bfa67` was green on its `pull_request` and dispatch runs; the head commit `41d6248d` is the render bot's `[skip ci]` re-baselines; the test merge with main (after 4043) was clean.
   - The fix lane mapped all 13 findings: tier 3 strict with the pole-twin row; helpers compare elements (about 15 dumps swept); kev/kemr sum witnesses; `Deck::apply` returns `Option` with `LiftGap`; reset canonicalised; closure miss at index 0; `KillTurnEscalated`; keys-only kev refuses where it would write `None`; DESIGN D1 bullet re-worded.
   - Four mutations each go red.
@@ -6887,3 +6872,18 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - Style: the site mint re-spells `certify_walked` and `walk_cycle` (Q1); double bindings; three write paths.
 
 Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the one certification home, a `kev_describing` M3 witness, residue P3. Reviewer archived (about $3.3). Nothing new on PR 3970.
+- 03:52: **PR 4039 merged** at `4b1fe513c5`; **R complete.**
+  - Fixes: `site_rows` reuses `walk_cycle` and `certify_walked` (one certification home again); the window hulls the kept loops' stored rows (matches the pass; no extra cost); a direct `kept_joint_tests` witness, red under M3; residue row P3; the far-face-staleness line added.
+  - The witness does not use `kev_describing`: the lane argued no coherent `kev_describing` can reach the guard with a stale `Some`, which instrumentation confirms (only torn-body rows fire).
+  - The params `debug_assert` was left out as unsound (a reachable stale state).
+  - Acceptance: every kill-kept face byte-equal and clean (`kef_minting` 8,355). 404 pre-existing transitions, filed as `kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`.
+  - Fix lane archived (about $5.8). Unsubscribed.
+- Dispatched two lanes (both rows now `dispatched`):
+  - `session_01DbT7iaUmiEzfBXActEdZSR`: `torn-body-rows-are-red-under-per-op-postcondition` (E).
+  - `session_016cnJLHrxZC86vFUEVjxVGE`: `torn-body-refusal-families-beyond-the-six-doors` (M). Its brief carries the P0 lesson: say at-rest vs mid-op at every site, and run every `#[ignore]`d boolean/split battery with zero panics and an unchanged line set.
+- 01:40: PR 4045 (sync) merged at `2e28e78c5c`.
+  - **PR 4043 review: merge** (diagnosis sure, placement sure, atomic). It found one small doc fix: `orbit_step_at`'s `unreachable!` still cited `WALKS_CLOSE`, the premise the PR refuted.
+  - I merged main into `claude/rcw-orbit-step` (the row conflict: kept `closed`) and re-worded the message and doc to name the real premise (the `mint_directed` corner check, the strut-first `keyed` sort). Pushed `9d2e4b1d06`; `cargo check -p topo` and fmt are clean. Merge on green.
+  - Reviewer (about $1.6) and P0 implementer (about $3.2) archived.
+  - Style notes left for the parked four-germ row's owner: three spellings of one refusal, and the `reconcile_shared` caveat.
+- 01:55: **P0 PR 4043 merged** at `d01d8ae1fe` (CI green on `9d2e4b1d06`); unsubscribed. A public boolean no longer aborts in `rc_wide_battery`: 84/84 shards complete, 40,320 lines, with 56 downstream `JoinDesync` refusals now answered at the stale-corner step. The row is closed with the PR.
