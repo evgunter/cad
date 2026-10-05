@@ -909,6 +909,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
                 arg: StepArg::Radius,
             },
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));
@@ -930,6 +931,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            fresh: Vec::new(),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1093,6 +1095,7 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
                 arg: StepArg::CarrierRadius,
             },
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc, Some(&ev1));

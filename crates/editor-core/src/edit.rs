@@ -932,6 +932,27 @@ fn lower_node<P: crate::ProfilePayload>(
     })
 }
 
+/// **One formula lowered into `doc` as a slot's**, outside any edit:
+/// the variable the door would store for it, minted into `doc` where
+/// the door would mint one. The test support's stored forms are built
+/// through it, so a row that places a node by hand holds what the door
+/// writes.
+///
+/// # Errors
+///
+/// A formula that does not lower, or reads what `doc` cannot answer.
+#[doc(hidden)]
+pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, EditError> {
+    let lowering = Lowering::none();
+    lowering.check(
+        doc,
+        || SpokenNode::absent(RecipeNodeId(0)),
+        ExprSite::Payload,
+        formula,
+    )?;
+    lowering.slot(doc, formula)
+}
+
 /// **A name a definition reads that does not lower**, as the doors
 /// refuse it of `var`'s definition.
 fn definition_name_refusal<P>(doc: &Doc<P>, var: &SpokenVar, fault: NameFault) -> EditError {
@@ -6870,6 +6891,7 @@ mod tests {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         };
         assert!(mate.writes_a_mates_datum());
         let step = crate::node::SlotId::MateFrameStep {
@@ -6882,6 +6904,7 @@ mod tests {
                 node: id,
                 slot: step,
                 expr: crate::test_support::ang(0.5),
+                fresh: Vec::new(),
             },
             DocEdit::SetExpression {
                 path: crate::expr::ExprPath {
@@ -6900,6 +6923,7 @@ mod tests {
                 node: Box::new(crate::node::Node::Datum(crate::node::Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
                 })),
+                fresh: Vec::new(),
             },
             DocEdit::Rebind {
                 from: name(id),
@@ -6909,11 +6933,13 @@ mod tests {
                 node: id,
                 slot: crate::node::SlotId::Count,
                 expr: crate::Formula::count(1),
+                fresh: Vec::new(),
             },
             DocEdit::SetParam {
                 node: id,
                 slot: crate::node::SlotId::RotationAngle,
                 expr: crate::test_support::ang(0.5),
+                fresh: Vec::new(),
             },
         ];
         for edit in &others {

@@ -267,6 +267,7 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
         node: first,
         loops: loops.clone(),
         ids: grid,
+        fresh: Vec::new(),
     };
     let after = doc
         .apply(&edit, tol(), &editor_core::RefusingReach)
@@ -288,6 +289,7 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
             node: first,
             loops,
             ids: twice,
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,

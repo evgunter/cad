@@ -18,17 +18,20 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
 impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
     type Authored = Self;
     fn lower<E>(
         authored: &Self,
-        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
-    fn authored(&self) -> Self {
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
         self.clone()
     }
     fn drawn_pieces(
@@ -125,6 +128,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, cube) = step(
@@ -136,6 +140,7 @@ fn author_die() -> Die {
                 distance: len(2.0 * HALF),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     // Pip tool: profile wrap + extrude by the pip_depth parameter.
@@ -144,6 +149,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
+            fresh: Vec::new(),
         },
     );
     let (mut doc, pip_extrude) = step(
@@ -155,6 +161,7 @@ fn author_die() -> Die {
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let pip_extrude = pip_extrude.unwrap();
@@ -186,6 +193,7 @@ fn author_die() -> Die {
                             angle: ang(rot_angle),
                         },
                     )),
+                    fresh: Vec::new(),
                 },
             );
             let (d3, cut) = step(
@@ -198,6 +206,7 @@ fn author_die() -> Die {
                         b: placed.unwrap(),
                         declare: Vec::new(),
                     }),
+                    fresh: Vec::new(),
                 },
             );
             doc = d3;
@@ -234,6 +243,7 @@ fn die_authors_replays_and_diffs() {
                 node: die.pip_extrude,
                 slot: SlotId::Distance,
                 expr: len(0.003),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

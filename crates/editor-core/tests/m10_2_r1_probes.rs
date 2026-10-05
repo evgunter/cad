@@ -49,6 +49,7 @@ fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Rec
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -1110,6 +1111,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::measure(expr, at_mint([bottom, top])).expect("indices in range")),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

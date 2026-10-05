@@ -287,16 +287,15 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
         )),
         "{err}"
     );
+    let (placed, select, at_first, at_second) = placed_twice(&doc, &ev);
+    assert_eq!((placed, at_first, at_second), (pattern, first, second));
+    let Some(PartSelect::Instance(index)) = select else {
+        panic!("the refusal names the instance, got {select:?}")
+    };
     assert_eq!(
-        placed_twice(&doc, &ev),
-        (
-            pattern,
-            Some(PartSelect::Instance(
-                editor_core::test_support::stored_expr(&Formula::count(1))
-            )),
-            first,
-            second
-        )
+        doc.free(index),
+        Some(&editor_core::FreeVar::Count { value: 1 }),
+        "the instance index the first pick read"
     );
 }
 
@@ -438,6 +437,7 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
                     head_at(base, in_part(base, base_body, CapEnd::End)),
                     head_at(at, in_part(top, top_body, CapEnd::Start)),
                 )),
+                fresh: Vec::new(),
             },
         );
         (doc, m.expect("the mate inserts"))

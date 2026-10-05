@@ -120,6 +120,7 @@ fn with_measure(
         doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::measure(expr, refs).expect("indices in range")),
+            fresh: Vec::new(),
         },
     );
     let id = crate::fixture::newest(&doc);
@@ -168,6 +169,7 @@ fn boxed(
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -178,6 +180,7 @@ fn boxed(
                 plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
             ))),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&doc);
@@ -189,6 +192,7 @@ fn boxed(
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -214,6 +218,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
                 [1.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -224,6 +229,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0))),
+            fresh: Vec::new(),
         },
     );
     let axis = crate::fixture::newest(&doc);
@@ -235,6 +241,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
                 loops: vec![half],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&doc);
@@ -246,6 +253,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
                 axis,
                 angle: ang(std::f64::consts::TAU),
             }),
+            fresh: Vec::new(),
         },
     );
     let s = crate::fixture::newest(&doc);
@@ -270,6 +278,7 @@ fn cylinder(
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -284,6 +293,7 @@ fn cylinder(
                 }],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&doc);
@@ -295,6 +305,7 @@ fn cylinder(
                 distance: len(h),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -731,6 +742,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                 [1.0, 0.0, 0.0],
                 [0.0, theta.cos(), -theta.sin()],
             )),
+            fresh: Vec::new(),
         },
     );
     let plane = crate::fixture::newest(&d1);
@@ -745,6 +757,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                 }],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
     );
     let p = crate::fixture::newest(&d2);
@@ -756,6 +769,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                 distance: len(0.01),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let c2 = crate::fixture::newest(&d3);
@@ -808,6 +822,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = crate::fixture::newest(&d3);
@@ -866,6 +881,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 &d3,
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
             ) {
                 // Refused at the edit door: ideal.
@@ -913,6 +929,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = crate::fixture::newest(&with_assertion);
@@ -1070,6 +1087,7 @@ fn r2_a_transform_has_no_emission_to_measure() {
                     angle: ang(0.0),
                 },
             )),
+            fresh: Vec::new(),
         },
     );
     let moved = crate::fixture::newest(&d3);
@@ -1152,6 +1170,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let text = editor_core::save(&good, &[], Tol::witness()).expect("a well-formed document saves");
@@ -1196,6 +1215,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     assert!(
@@ -1210,6 +1230,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     assert!(
@@ -1266,6 +1287,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
                     bound: len(0.02),
                     dir: AssertionDir::AtLeast,
                 }),
+                fresh: Vec::new(),
             },
         );
         let assertion = crate::fixture::newest(&d4);
@@ -1344,6 +1366,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     );
     let assertion = *doc.order().last().expect("the assertion is the last node");
@@ -1453,6 +1476,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     if let Ok(doc) = slotted {
@@ -1514,6 +1538,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
     ) else {
         eprintln!("R2/nonfinite-assert: the assertion was refused at the edit door");

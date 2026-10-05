@@ -81,6 +81,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
                 DocEdit::SetOffset {
                     instance: id,
                     offset: None,
+                    fresh: Vec::new(),
                 },
             )
             .0;
@@ -173,6 +174,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId)
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     // The seating face: a's outward normal is +z at z = 1; b's own
@@ -193,6 +195,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId)
                 frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
                 None,
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, store, rest)
@@ -225,6 +228,7 @@ fn stacked_pair(
                 z_up(),
                 None,
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, joint, store, body)
@@ -312,6 +316,7 @@ fn row2_a_v_block_refuses_under_naming_prismatic_and_its_direction() {
                     frame([0.0, 0.0, 0.0], axis, [0.0, 0.0, 1.0]),
                     None,
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -364,6 +369,7 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
                     frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
                     None,
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -416,6 +422,7 @@ fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
         DocEdit::SetOffset {
             instance: ids[0],
             offset: Some(a_offset.clone()),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -425,6 +432,7 @@ fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 0.0, 5.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(groups(&doc).len(), 2, "two singleton groups");
@@ -440,6 +448,7 @@ fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
             z_up(),
             Some(0.0),
         )),
+        fresh: Vec::new(),
     };
     let applied = apply(&doc, &insert, Tol::witness(), &editor_core::RefusingReach)
         .expect("the mate inserts");
@@ -448,7 +457,7 @@ fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
         applied.maintenance,
         vec![Maintenance::OffsetCleared {
             instance: doc.spoken(ids[0]),
-            offset: editor_core::test_support::stored_placement(&a_offset),
+            offset: fixture::offset_of(&doc, ids[0]).expect("the moved root holds an offset"),
         }],
         "the door clears the moved group's root offset and says so"
     );
@@ -481,6 +490,7 @@ fn row4b_a_mate_delete_is_not_refused_and_unplaces_the_orphan() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 0.0, 0.0, 4.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let before = doc.clone();
@@ -562,6 +572,7 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
         DocEdit::SetOffset {
             instance: ids[2],
             offset: Some(editor_core::Placement::literal(&placed)),
+            fresh: Vec::new(),
         },
     );
     let poses = solve(&doc, &with_resolver(store), Tol::witness());
@@ -612,6 +623,7 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
                     z_up(),
                     None,
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -624,6 +636,7 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 3.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -633,6 +646,7 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 7.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, mates, store)
@@ -902,6 +916,7 @@ fn row5b_two_pins_clocked_apart_but_invariant_matched_fold_to_prismatic() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(pin(body, ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     // A's second pin sits at +x; B's at +y — same radius, quarter turn.
@@ -909,6 +924,7 @@ fn row5b_two_pins_clocked_apart_but_invariant_matched_fold_to_prismatic() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(pin(body, ids[0], ids[1], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let o = with_resolver(store);
@@ -974,12 +990,14 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(pin(body, ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let (doc, second) = mint(
         doc,
         DocEdit::InsertNode {
             node: Box::new(pin(body, ids[0], ids[1], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let o = with_resolver(store);
@@ -1025,18 +1043,21 @@ fn row5b_a_rest_and_two_pins_determine_the_plate() {
                 frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
                 None,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = mint(
         doc,
         DocEdit::InsertNode {
             node: Box::new(pin(body, ids[0], ids[1], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = mint(
         doc,
         DocEdit::InsertNode {
             node: Box::new(pin(body, ids[0], ids[1], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let o = with_resolver(store);
@@ -1080,6 +1101,7 @@ fn row6a_mated_instances_share_an_a9_component() {
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     let together = relative_freedom_components(&doc);
@@ -1111,6 +1133,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(
@@ -1173,6 +1196,7 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
@@ -1238,6 +1262,7 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
                     z_up(),
                     None,
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1280,6 +1305,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
@@ -1337,6 +1363,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     // The boolean's operands are the instances the delete leaves; its
@@ -1358,6 +1385,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
                     BooleanCoincidence::REST,
                 )],
             }),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[1] });
@@ -1411,6 +1439,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
                     z_up(),
                     Some(0.0),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1442,6 +1471,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
@@ -1490,6 +1520,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
                     z_up(),
                     Some(0.0),
                 )),
+                fresh: Vec::new(),
             },
             &ev,
             Tol::witness(),
@@ -1538,6 +1569,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
                 class,
                 alignment,
             }),
+            fresh: Vec::new(),
         },
         &ev,
         Tol::witness(),
@@ -1625,6 +1657,7 @@ fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
                 z_up(),
                 Some(0.0),
             )),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
@@ -1667,6 +1700,7 @@ fn row7d_an_in_band_case_split_escalates_typed() {
                     frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
                     None,
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1720,6 +1754,7 @@ fn row7e_a_mate_solve_escalation_is_on_the_refused_mates_own_log_and_not_in_an_o
                     frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
                     None,
                 )),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1819,6 +1854,7 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
                     z_up(),
                     clocking,
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1877,6 +1913,7 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
                     z_up(),
                     Some(core::f64::consts::FRAC_PI_2),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,

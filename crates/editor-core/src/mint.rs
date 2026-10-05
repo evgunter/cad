@@ -494,7 +494,6 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
 
     use super::{Mint, Minted, NodeIdCollides, VarIdCollides};
-    use crate::expr::{Dimension, Expr};
     use crate::node::{Node, RecipeNodeId, StepId};
     use crate::program::{LoopProgram, ProfileProgram, StepIdFault};
     use crate::var::{VarId, VarKind};
@@ -502,7 +501,7 @@ mod tests {
     fn extrude(profile: u64, distance: f64) -> Node<ProfileProgram> {
         Node::Extrude {
             profile: RecipeNodeId(profile),
-            distance: Expr::literal(distance, Dimension::Length).unwrap(),
+            distance: VarId(distance.to_bits()),
             side: crate::ExtrudeSide::Along,
         }
     }
@@ -536,27 +535,32 @@ mod tests {
         );
     }
 
+    /// The display unit a slot's value is written in enters neither the
+    /// variable's preimage (its kind alone) nor the node's (its
+    /// variable's id): one point written in millimetres and in metres
+    /// mints one id (D6).
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
-        let written = crate::test_support::stored_expr(
-            &crate::Formula::length_in(2.0, quantity::MM).unwrap(),
-        );
-        let canonical = Expr::literal(written.literal_value().unwrap(), Dimension::Length).unwrap();
-        let mm = Node::<ProfileProgram>::Extrude {
-            profile: RecipeNodeId(1),
-            distance: written,
-            side: crate::ExtrudeSide::Along,
+        let point = |position: [crate::Formula; 3]| -> RecipeNodeId {
+            let doc = crate::ProfileDoc::empty_derived("mint_units", geom_core::Tol::witness());
+            let applied = crate::edit::apply(
+                &doc,
+                &crate::DocEdit::InsertNode {
+                    node: Box::new(Node::Datum(crate::node::Datum::Point { position })),
+                    fresh: Vec::new(),
+                },
+                geom_core::Tol::witness(),
+                &crate::RefusingReach,
+            )
+            .unwrap();
+            applied.record.minted.unwrap()
         };
-        let m = Node::<ProfileProgram>::Extrude {
-            profile: RecipeNodeId(1),
-            distance: canonical,
-            side: crate::ExtrudeSide::Along,
-        };
-        assert!(mm.bit_eq(&m), "bit_eq cannot tell the two apart");
+        let mm = [2.0, 3.0, 4.0].map(|v| crate::Formula::length_in(v, quantity::MM).unwrap());
+        let m = [2.0, 3.0, 4.0].map(|v| crate::test_support::len(v / 1000.0));
         assert_eq!(
-            Mint::empty().insert(&mm).unwrap(),
-            Mint::empty().insert(&m).unwrap(),
-            "so they mint one id (D6)"
+            point(mm),
+            point(m),
+            "one point in two units mints one id (D6)"
         );
     }
 

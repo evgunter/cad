@@ -102,6 +102,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
             node: tr,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(-4.0),
+            fresh: Vec::new(),
         },
     );
     let (ev, ev2) = (run(&doc), run(&doc2));

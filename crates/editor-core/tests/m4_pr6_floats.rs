@@ -71,6 +71,7 @@ fn round_trip(value: f64) -> ProfileDoc {
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     doc = push(
@@ -80,6 +81,7 @@ fn round_trip(value: f64) -> ProfileDoc {
                 doc.order()[0],
                 vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
             ))),
+            fresh: Vec::new(),
         },
     );
     doc = push(
@@ -88,6 +90,7 @@ fn round_trip(value: f64) -> ProfileDoc {
             node: Box::new(Node::Datum(editor_core::Datum::Point {
                 position: [len(value), len(0.0), len(-0.0)],
             })),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("save");
@@ -118,7 +121,11 @@ fn check_all_slots(value: f64) {
         panic!("frame lost");
     };
     let mut frame_bits = Vec::new();
-    origin[0].literal_bits(&mut frame_bits);
+    doc.written(&editor_core::Expr::var(
+        origin[0],
+        editor_core::Dimension::Length,
+    ))
+    .literal_bits(&mut frame_bits);
     assert_eq!(
         frame_bits,
         vec![value.to_bits()],
@@ -136,9 +143,12 @@ fn check_all_slots(value: f64) {
         panic!("datum lost");
     };
     let mut bits = Vec::new();
-    position[0].literal_bits(&mut bits);
+    let written = |var: editor_core::VarId| {
+        doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
+    };
+    written(position[0]).literal_bits(&mut bits);
     assert_eq!(bits, vec![value.to_bits()], "expression literal bits");
-    position[2].literal_bits(&mut bits);
+    written(position[2]).literal_bits(&mut bits);
     assert!(
         bits.contains(&(-0.0f64).to_bits()),
         "-0.0 literal must keep its sign"

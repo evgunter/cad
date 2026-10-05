@@ -266,6 +266,7 @@ fn placed_pair(
         DocEdit::SetOffset {
             instance: a,
             offset: Some(offset.clone()),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(groups(&doc), vec![vec![a, b]], "one group, two members");
@@ -273,7 +274,10 @@ fn placed_pair(
         doc,
         std::sync::Arc::new(store),
         [a, b, joint],
-        editor_core::test_support::stored_placement(&offset),
+        editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(),
+            &offset,
+        ),
     )
 }
 

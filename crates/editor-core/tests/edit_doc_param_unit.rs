@@ -158,6 +158,7 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
         &DocEdit::DefineVar {
             var: p("wall").into(),
             def: editor_core::VarDecl::Free(rebuilt),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -696,6 +697,7 @@ fn annotating_through_define_var_reverts_the_notation() {
                 value,
                 Distribution::Normal { sigma: 2e-5 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -759,7 +761,8 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
             &doc,
             &DocEdit::DefineVar {
                 var: p("wall").into(),
-                def: editor_core::VarDecl::Free(crooked)
+                def: editor_core::VarDecl::Free(crooked),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach,

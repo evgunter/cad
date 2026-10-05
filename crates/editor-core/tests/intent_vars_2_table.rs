@@ -79,6 +79,7 @@ fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::measure(MeasureExpr::value(sum), Vec::new()).unwrap()),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -258,6 +259,7 @@ fn a_kind_is_fixed() {
         DocEdit::DefineVar {
             var: w.into(),
             def: VarDecl::Free(FreeVar::Count { value: 3 }),
+            fresh: Vec::new(),
         },
     )
     .unwrap_err();
@@ -274,7 +276,8 @@ fn a_kind_is_fixed() {
             &doc,
             DocEdit::DefineVar {
                 var: w.into(),
-                def: angle
+                def: angle,
+                fresh: Vec::new()
             }
         ),
         Err(EditError::VarKindFixed {
@@ -289,6 +292,7 @@ fn a_kind_is_fixed() {
         DocEdit::DefineVar {
             var: w.into(),
             def: same_kind.clone(),
+            fresh: Vec::new(),
         },
     )
     .expect("a definition of the variable's kind applies");

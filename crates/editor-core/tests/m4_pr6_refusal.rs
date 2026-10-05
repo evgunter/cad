@@ -747,6 +747,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(unclosed)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -793,6 +794,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         node: RecipeNodeId(77),
         slot: editor_core::SlotId::Distance,
         expr: len(1.0),
+        fresh: Vec::new(),
     };
     assert!(matches!(
         save(&doc, &[orphan], Tol::witness()),

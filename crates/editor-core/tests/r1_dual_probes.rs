@@ -708,6 +708,7 @@ fn r1_e2e_consumer_drive_at_dual64() {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
             expr: len(0.6875),
+            fresh: Vec::new(),
         },
         tol,
         &editor_core::RefusingReach,

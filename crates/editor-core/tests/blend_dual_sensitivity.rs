@@ -141,6 +141,7 @@ fn measured(doc: &ProfileDoc, measure: RecipeNodeId, param: &'static str, value:
         &DocEdit::DefineVar {
             var: name(param).into(),
             def: editor_core::VarDecl::Free(length(value)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

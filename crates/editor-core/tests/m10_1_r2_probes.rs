@@ -589,6 +589,7 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
                 fixture::DEPTH,
                 Distribution::Normal { sigma: 0.001 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -642,6 +643,7 @@ fn a_distribution_changes_no_content_key_at_interval() {
                 fixture::DEPTH,
                 Distribution::Normal { sigma: 0.001 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -702,6 +704,7 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         &DocEdit::DefineVar {
             var: p("hole_r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(existing.dim(), 0.004)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

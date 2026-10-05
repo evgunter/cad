@@ -277,6 +277,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
             node: shell,
             slot: SlotId::ShellThickness,
             expr: fixture::len(cup::T_BUMPED),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

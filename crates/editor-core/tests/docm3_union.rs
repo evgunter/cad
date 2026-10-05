@@ -246,6 +246,7 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(node.clone()),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
@@ -442,8 +443,10 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .iter()
         .map(|id| DocEdit::InsertNode {
             node: Box::new(crate::fixture::as_authored(
+                &doc,
                 doc.node(*id).expect("an ordered node"),
             )),
+            fresh: Vec::new(),
         })
         .collect();
     edits.push(DocEdit::SetMembers {
@@ -717,7 +720,11 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .doc;
         let (edited, rim) = insert(
             edited,
-            Node::fillet(rim_target, Formula::from(&rim_radius), kept_rims.clone()),
+            Node::fillet(
+                rim_target,
+                Formula::var(rim_radius, editor_core::Dimension::Length),
+                kept_rims.clone(),
+            ),
         );
         let after = evaluate::<f64>(
             &edited,
@@ -1079,6 +1086,7 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
                     profiles: vec![profiles[0]],
                     v_degree: editor_core::Formula::count(1),
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

@@ -752,6 +752,7 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
                     clocking: Some(0.0),
                 },
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

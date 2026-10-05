@@ -166,6 +166,7 @@ fn stand(
                 in_part(ids[1], body, CapEnd::Start),
                 seat,
             )),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, mate.expect("the mate mints"))
@@ -194,6 +195,7 @@ fn row_of(
                     offset: Some(editor_core::Placement::literal(&Frame::translation([
                         dx, 0.0, 0.0,
                     ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
@@ -403,6 +405,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
                 in_part_in_part(ids[1], subs[0], body, CapEnd::Start),
                 2.5,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the outer mate mints");
@@ -503,6 +506,7 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -513,6 +517,7 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
 
@@ -560,6 +565,7 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
     );
     let tangent = tangent.expect("the tangent mate mints");
@@ -620,6 +626,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let bad = bad.expect("the dangling mate is still a node");
@@ -631,6 +638,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let good = good.expect("the good mate mints");
@@ -682,6 +690,7 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
                 1.5,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     let bad = bad.expect("the tangent mate is still a node");
@@ -693,6 +702,7 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let good = good.expect("the good mate mints");
@@ -742,6 +752,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
                 1.5,
                 ContactClass::Tangent,
             )),
+            fresh: Vec::new(),
         },
     );
     let first_bad = first_bad.expect("the tangent mate is a node");
@@ -753,6 +764,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let good = good.expect("the good mate mints");
@@ -764,6 +776,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
                 in_part(ids[0], body, CapEnd::Start),
                 1.0,
             )),
+            fresh: Vec::new(),
         },
     );
     let second_bad = second_bad.expect("the dangling mate is a node");

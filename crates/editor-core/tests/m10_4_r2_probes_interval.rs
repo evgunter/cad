@@ -757,6 +757,7 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
                 2.0,
                 Some(uniform(-0.1, 0.1)),
             )),
+            fresh: Vec::new(),
         },
     );
     let r = sensitivities(

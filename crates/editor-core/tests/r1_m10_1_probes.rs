@@ -376,6 +376,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
                 corpus::plate_param::HOLE_R_VALUE,
                 Distribution::Normal { sigma: 1e-4 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

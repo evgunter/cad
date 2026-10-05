@@ -33,6 +33,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -46,6 +47,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -106,6 +108,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
                 node: doc.order()[1],
                 slot: radius_slot(),
                 expr: len(0.75),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -150,6 +153,7 @@ fn set_expression_and_expr_at_route_into_programs() {
                 node: doc.order()[1],
                 slot: radius_slot(),
                 expr: sum,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -162,7 +166,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         path: vec![0],
     };
     assert_eq!(
-        doc.expr_at(&path).and_then(Expr::literal_value),
+        doc.expr_at(&path).as_ref().and_then(Expr::literal_value),
         Some(0.5),
         "expr_at descends into the program slot"
     );
@@ -178,7 +182,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .expect("sub-path edit applies")
         .doc;
     assert_eq!(
-        doc.expr_at(&path).and_then(Expr::literal_value),
+        doc.expr_at(&path).as_ref().and_then(Expr::literal_value),
         Some(0.375)
     );
 }
@@ -193,6 +197,7 @@ fn program_slots_refuse_wrong_dimensions() {
             node: doc.order()[1],
             slot: radius_slot(),
             expr: ang(0.5),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -218,6 +223,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
             node: doc.order()[1],
             slot: radius_slot(),
             expr: len(0.0),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -259,6 +265,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -276,6 +283,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
                     }],
                     ids: Vec::new(),
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -288,6 +296,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
             &DocEdit::DefineVar {
                 var: VarName::from_static("r").into(),
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -326,6 +335,7 @@ fn insert_node_checks_program_dimensions() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -344,6 +354,7 @@ fn insert_node_checks_program_dimensions() {
     match doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(bad)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -427,6 +438,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -510,6 +522,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         match doc.apply(
             &DocEdit::InsertNode {
                 node: Box::new(program),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1000,10 +1013,11 @@ fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;
     let mut text = String::new();
     for node in one_of_every_node_shape() {
-        let node = editor_core::test_support::stored(&node);
+        let node =
+            editor_core::test_support::stored(&mut editor_core::test_support::scratch(), &node);
         let slots = node.slots();
-        let tags: Vec<editor_core::Expr> = (0..slots.len())
-            .map(|i| editor_core::test_support::stored_expr(&scl(1000.0 + i as f64)))
+        let tags: Vec<editor_core::VarId> = (0..slots.len())
+            .map(|i| editor_core::VarId(1000 + i as u64))
             .collect();
         let mut tagged = node.clone();
         for (&slot, tag) in slots.iter().zip(&tags) {

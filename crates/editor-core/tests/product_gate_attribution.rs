@@ -200,6 +200,7 @@ fn a_lone_multi_solid_source_is_named() {
                 offset: Some(editor_core::Placement::literal(&Frame::translation([
                     dx, 0.0, 0.0,
                 ]))),
+                fresh: Vec::new(),
             },
         );
         sub = next;

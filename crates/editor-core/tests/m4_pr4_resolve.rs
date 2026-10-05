@@ -123,6 +123,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(tx),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -539,6 +540,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
             node: pattern,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -614,6 +616,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(2.5),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -688,6 +691,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
             node: a,
             slot: SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc2, None);
@@ -887,7 +891,8 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(Node::fillet(a, len(0.1), vec![rim.clone()]))
+                node: Box::new(Node::fillet(a, len(0.1), vec![rim.clone()])),
+                fresh: Vec::new()
             },
             &ev,
             Tol::witness(),
@@ -905,6 +910,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::fillet(a, len(0.1), vec![bogus.clone()])),
+            fresh: Vec::new(),
         },
         &ev,
         Tol::witness(),

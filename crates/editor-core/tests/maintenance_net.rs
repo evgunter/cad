@@ -237,6 +237,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let delete = DocEdit::DeleteNode { id: b };
     let insert = DocEdit::InsertNode {
         node: Box::new(other),
+        fresh: Vec::new(),
     };
     let clear = DocEdit::SetDeclare {
         node: union,
@@ -309,6 +310,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
         delete_b.clone(),
         DocEdit::InsertNode {
             node: Box::new(union.clone()),
+            fresh: Vec::new(),
         },
     ] {
         assert!(

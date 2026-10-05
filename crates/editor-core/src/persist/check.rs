@@ -2450,6 +2450,7 @@ mod tests {
                 &doc,
                 &crate::edit::DocEdit::InsertNode {
                     node: Box::new(Node::instantiate_part(doc_ref)),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &crate::mate::RefusingReach,
@@ -2498,6 +2499,7 @@ mod tests {
             &doc,
             &crate::edit::DocEdit::InsertNode {
                 node: Box::new(mate),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &crate::mate::RefusingReach,
@@ -2571,7 +2573,10 @@ mod tests {
         let insert = |doc: ProfileDoc, node| {
             let doc = doc
                 .apply(
-                    &crate::DocEdit::InsertNode { node },
+                    &crate::DocEdit::InsertNode {
+                        node,
+                        fresh: Vec::new(),
+                    },
                     tol,
                     &crate::RefusingReach,
                 )
@@ -2752,13 +2757,14 @@ mod tests {
             .clone()
             .logged([0, 1, 2, 3].map(|id| crate::Minted::Node(RecipeNodeId(id))));
         for id in [2u64, 3] {
-            doc.nodes.insert(
-                RecipeNodeId(id),
-                crate::test_support::stored(&Node::Datum(crate::node::Datum::Plane {
+            let plane = crate::test_support::stored(
+                &mut doc,
+                &Node::Datum(crate::node::Datum::Plane {
                     origin: [0.0; 3].map(crate::test_support::len),
                     normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
-                })),
+                }),
             );
+            doc.nodes.insert(RecipeNodeId(id), plane);
         }
         for (id, derived) in [(0u64, 50u64), (1, 60)] {
             let sited = || {

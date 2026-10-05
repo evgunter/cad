@@ -4733,6 +4733,7 @@ mod route_tests {
                             origin: [0.0; 3].map(crate::test_support::len),
                             normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
                         })),
+                        fresh: Vec::new(),
                     },
                     Tol::witness(),
                     &crate::mate::RefusingReach,

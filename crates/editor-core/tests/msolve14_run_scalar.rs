@@ -200,7 +200,15 @@ fn set_offset(
     instance: RecipeNodeId,
     offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
-    step(doc, DocEdit::SetOffset { instance, offset }).0
+    step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -> ProfileDoc {
@@ -237,6 +245,7 @@ fn insert_through(
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -640,14 +649,16 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let opts = p.opts();
     let poses = solve(&doc, &opts, Tol::witness());
     let world = |id| poses.placement(&doc, id).expect("posed").affine::<f64>();
-    let root_offset =
-        editor_core::test_support::stored_placement(&editor_core::Placement::from(Step::Rigid {
+    let root_offset = editor_core::test_support::stored_placement(
+        &mut editor_core::test_support::scratch(),
+        &editor_core::Placement::from(Step::Rigid {
             translation: [1.0, 2.0, 0.0].map(len),
             axis: [0.0, 1.0, 0.0].map(scl),
             angle: ang(0.2),
-        }))
-        .eval(&doc.var_env::<f64>(), fixture::band())
-        .expect("a literal offset evaluates");
+        }),
+    )
+    .eval(&doc.var_env::<f64>(), fixture::band())
+    .expect("a literal offset evaluates");
     let stated = root_offset * world(slab).inverse() * world(third);
     let doc = set_offset(
         doc,

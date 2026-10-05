@@ -1087,15 +1087,17 @@ mod tests {
             ([-0.0, 2.0, 0.1], [0.0, 0.0, 1.0], 0.0),
             ([1.0, -0.0, 3.0], [1.0, 2.0, -3.0], 0.7),
         ] {
-            let placement = Placement::from(Step::Rigid {
-                translation: t.map(len),
-                axis: axis.map(scl),
-                angle: ang(angle),
-            })
-            .try_map_slots(&mut |f| Expr::try_from(f))
-            .expect("literals lower");
+            let mut doc = crate::ProfileDoc::empty_derived("rigid", geom_core::Tol::witness());
+            let placement = crate::test_support::stored_placement(
+                &mut doc,
+                &Placement::from(Step::Rigid {
+                    translation: t.map(len),
+                    axis: axis.map(scl),
+                    angle: ang(angle),
+                }),
+            );
             let got = placement
-                .eval::<f64>(&VarEnv::default(), band())
+                .eval::<f64>(&doc.var_env(), band())
                 .expect("a rigid step evaluates");
             let want = crate::eval::transform_map(
                 Vec3::from_array(t),

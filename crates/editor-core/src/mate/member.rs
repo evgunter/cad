@@ -998,6 +998,7 @@ mod tests {
                 &doc,
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &RefusingReach,
@@ -1034,7 +1035,8 @@ mod tests {
             Src::Dangling => DANGLING,
         };
         let mut push = |id: RecipeNodeId, node: crate::AuthoredNode| {
-            doc.nodes.insert(id, crate::test_support::stored(&node));
+            let node = crate::test_support::stored(&mut doc, &node);
+            doc.nodes.insert(id, node);
             doc.order.push(id);
         };
         push(AXIS, axis_datum_node());

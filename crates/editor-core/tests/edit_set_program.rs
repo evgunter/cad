@@ -154,7 +154,12 @@ fn set_program(
 ) -> Result<editor_core::Applied<ProfileProgram>, EditError> {
     apply(
         doc,
-        &DocEdit::SetProgram { node, loops, ids },
+        &DocEdit::SetProgram {
+            node,
+            loops,
+            ids,
+            fresh: Vec::new(),
+        },
         tol(),
         &editor_core::RefusingReach,
     )
@@ -632,6 +637,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
             face: unminted.clone(),
             spin: fixture::ang(0.0),
         })),
+        fresh: Vec::new(),
     });
     let painted = paint(&reshaped, &dropped);
     never(DocEdit::SetAppearance {
@@ -787,6 +793,7 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(preminted)),
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -847,6 +854,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
             node: profile,
             slot,
             expr: nope,
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -913,6 +921,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let edits = [
         DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
@@ -920,6 +929,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
             })),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
@@ -927,6 +937,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
                 distance: len(ROD_L),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
             node: Box::new(Node::fillet(
@@ -934,11 +945,13 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
                 len(ROD_FILLET),
                 vec![lateral_edge(&r.doc, rod_node, CREASE)],
             )),
+            fresh: Vec::new(),
         },
         DocEdit::SetProgram {
             node: profile_node,
             loops: vec![rod_loop(true)],
             ids: bump_ids(&r.doc, profile_node),
+            fresh: Vec::new(),
         },
     ];
     (empty, edits.to_vec())
@@ -990,6 +1003,7 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
         node: RecipeNodeId(1),
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).unwrap()],
         ids: vec![vec![None]],
+        fresh: Vec::new(),
     };
     let wire = serde_json::to_string(&edit).expect("serializes");
     assert_eq!(
@@ -1222,6 +1236,7 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
     match doctored.apply(
         &DocEdit::InsertNode {
             node: Box::new(next),
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -1281,6 +1296,7 @@ fn set_radius(
                 arg: StepArg::Radius,
             },
             expr: len(r),
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -1475,6 +1491,7 @@ fn a_sense_flip_moves_no_name() {
                 arg: StepArg::TargetY,
             },
             expr: len(-1.0),
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -1852,6 +1869,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
                 node: profile,
                 slot: SlotId::Count,
                 expr: Formula::count(3),
+                fresh: Vec::new(),
             },
             tol(),
             &editor_core::RefusingReach,

@@ -93,6 +93,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::DefineVar {
         var: VarName::from_static("n").into(),
         def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
+        fresh: Vec::new(),
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),
@@ -219,6 +220,7 @@ pub fn document() -> CorpusDoc {
         node: linear,
         slot: SlotId::Count,
         expr: Formula::named(VarName::from_static("n"), Dimension::Count),
+        fresh: Vec::new(),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
     // (same dimension, same value — a pure representation edit).
@@ -235,6 +237,7 @@ pub fn document() -> CorpusDoc {
         node: lone,
         slot: SlotId::Distance,
         expr: len(0.375),
+        fresh: Vec::new(),
     });
     // The extrude's structural side: the same block, below its plane.
     r.push(DocEdit::SetExtrudeSide {
@@ -343,6 +346,7 @@ pub fn document() -> CorpusDoc {
             node: moved,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(5.0),
+            fresh: Vec::new(),
         },
         bump_root: moved,
     }

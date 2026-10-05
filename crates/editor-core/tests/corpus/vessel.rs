@@ -123,6 +123,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
             node: vessel,
             slot: SlotId::ShellThickness,
             expr: len(WALL_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: vessel,
     }

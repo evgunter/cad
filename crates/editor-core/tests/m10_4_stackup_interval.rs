@@ -1181,6 +1181,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
                 )
                 .expect("indices in range"),
             ),
+            fresh: Vec::new(),
         },
     );
     let unsupported = *doc.order().last().expect("inserted");

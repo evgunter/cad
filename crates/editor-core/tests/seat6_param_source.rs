@@ -695,6 +695,7 @@ fn the_memo_never_serves_a_stale_token() {
             node: a,
             slot: SlotId::Radius,
             expr: len(R),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc2, Some(&ev1));
@@ -728,6 +729,7 @@ fn the_memo_never_serves_a_stale_token() {
         DocEdit::DefineVar {
             var: VarName::from_static("r").into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
+            fresh: Vec::new(),
         },
     );
     let ev3 = memo_eval(&doc3, Some(&ev2));
@@ -760,6 +762,7 @@ fn a_memo_served_body_compares_correctly_with_a_re_run_sibling() {
             node: blends[0],
             slot: SlotId::Radius,
             expr: Formula::add(param("r"), param("t")).unwrap(),
+            fresh: Vec::new(),
         },
     );
     let ev2 = memo_eval(&doc2, Some(&ev1));

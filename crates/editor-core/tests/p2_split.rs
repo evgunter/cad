@@ -757,7 +757,10 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     let out = inline(&stated, i, &store);
     assert_eq!(
         offset_of(&out.doc, out.node_map[&part_base]),
-        Some(editor_core::test_support::stored_placement(&checked)),
+        Some(editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(),
+            &checked
+        )),
         "the root carries the checked offset"
     );
 
@@ -793,6 +796,7 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
         DocEdit::SetOffset {
             instance: part_base,
             offset: Some(literal([1.0, 0.0, 0.0])),
+            fresh: Vec::new(),
         },
     );
     let mut shifted_store = store.clone();
@@ -1001,7 +1005,7 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
         .expect("the block's frame");
     let (with_datum, spare) = insert(
         block.clone(),
-        block.node(frame).map(Node::authored).expect("live"),
+        block.node(frame).map(|n| n.authored(&block)).expect("live"),
     );
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),

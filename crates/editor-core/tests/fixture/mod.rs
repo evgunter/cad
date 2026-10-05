@@ -250,6 +250,7 @@ pub fn offsets_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
             DocEdit::SetOffset {
                 instance,
                 offset: Some(editor_core::Placement::literal(&frame)),
+                fresh: Vec::new(),
             },
         )
         .0;
@@ -479,6 +480,7 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
     );
     (doc, minted.unwrap())
@@ -550,6 +552,7 @@ pub fn at_the_door(
     match doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         reach,
@@ -665,7 +668,7 @@ pub fn insert_mate_with_stranded_head(
 ///
 /// A test that builds a `profile::Profile` by hand needs the plane the
 /// profile's `plane` id names, and the id alone is not it. Reads the
-/// frame's authored literals and mints the SAME frame witness the
+/// frame's written values and mints the SAME frame witness the
 /// evaluator mints from them — Gram–Schmidt under the datum
 /// boundary's own funnel name — so the plane here is the evaluator's
 /// bit for bit whether or not the fixture authored an orthonormal
@@ -673,16 +676,16 @@ pub fn insert_mate_with_stranded_head(
 ///
 /// # Panics
 ///
-/// If `plane` is not a `Datum::Frame`, if its components are not
-/// literals, or if `u` and `v` span no plane.
+/// If `plane` is not a `Datum::Frame`, if its components do not read
+/// free variables, or if `u` and `v` span no plane.
 pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
     let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
         panic!("node {} is not a Datum::Frame", plane.0)
     };
-    let read = |xs: &[editor_core::Expr; 3]| {
-        let c = |e: &editor_core::Expr| {
-            e.literal_value()
-                .expect("a fixture frame's components are literals")
+    let read = |xs: &[editor_core::VarId; 3]| {
+        let c = |var: &editor_core::VarId| match doc.free(*var) {
+            Some(editor_core::FreeVar::Continuous { value, .. }) => *value,
+            _ => panic!("a fixture frame's components are written values"),
         };
         geom_core::Vec3::new(c(&xs[0]), c(&xs[1]), c(&xs[2]))
     };
@@ -907,6 +910,7 @@ impl Recorder {
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         self.push(DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         })
         .expect("minted id")
     }
@@ -1474,8 +1478,8 @@ pub fn leg(step: u64) -> ProfileEdgeRef {
 /// the document without step ids — the insert door mints them — so a
 /// row that rebuilds a document by re-inserting its nodes clears them;
 /// re-inserted in the same order, they are minted the same.
-pub fn as_authored(node: &Node<editor_core::ProfileProgram>) -> AuthoredNode {
-    let mut node = node.authored();
+pub fn as_authored(doc: &ProfileDoc, node: &Node<editor_core::ProfileProgram>) -> AuthoredNode {
+    let mut node = editor_core::test_support::as_written(doc, node);
     if let Node::Profile(program) = &mut node {
         program.ids = Vec::new();
     }

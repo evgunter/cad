@@ -22,17 +22,20 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
 impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
     type Authored = Self;
     fn lower<E>(
         authored: &Self,
-        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
-    fn authored(&self) -> Self {
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
         self.clone()
     }
     fn drawn_pieces(
@@ -168,6 +171,7 @@ fn author_theirs() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, cube) = step(
@@ -179,6 +183,7 @@ fn author_theirs() -> Authored {
                 distance: len(2.0 * HALF),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let (doc, pip_p) = step(
@@ -186,6 +191,7 @@ fn author_theirs() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
+            fresh: Vec::new(),
         },
     );
     let (mut doc, pip_e) = step(
@@ -197,6 +203,7 @@ fn author_theirs() -> Authored {
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -208,6 +215,7 @@ fn author_theirs() -> Authored {
             &mut log,
             TEdit::InsertNode {
                 node: Box::new(transform_node(pip_e, &p)),
+                fresh: Vec::new(),
             },
         );
         let (d3, cut) = step(
@@ -215,6 +223,7 @@ fn author_theirs() -> Authored {
             &mut log,
             TEdit::InsertNode {
                 node: Box::new(subtract_node(body, placed.unwrap())),
+                fresh: Vec::new(),
             },
         );
         doc = d3;
@@ -237,6 +246,7 @@ fn author_mine() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, pip_p) = step(
@@ -244,6 +254,7 @@ fn author_mine() -> Authored {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, &mut log, depth_param());
@@ -256,6 +267,7 @@ fn author_mine() -> Authored {
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let (mut doc, cube) = step(
@@ -267,6 +279,7 @@ fn author_mine() -> Authored {
                 distance: len(2.0 * HALF),
                 side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
         },
     );
     let pip_e = pip_e.unwrap();
@@ -277,6 +290,7 @@ fn author_mine() -> Authored {
             &mut log,
             TEdit::InsertNode {
                 node: Box::new(transform_node(pip_e, &p)),
+                fresh: Vec::new(),
             },
         );
         doc = d2;
@@ -290,6 +304,7 @@ fn author_mine() -> Authored {
             &mut log,
             TEdit::InsertNode {
                 node: Box::new(subtract_node(body, t)),
+                fresh: Vec::new(),
             },
         );
         doc = d2;
@@ -324,8 +339,16 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
         assert_eq!(mapped, mn.inputs(), "inputs of {t_id:?}→{m_id:?}");
         assert_eq!(tn.slots(), mn.slots());
         for slot in tn.slots() {
-            let tv = eval::<f64>(tn.expr(slot).unwrap(), &theirs.doc.var_env()).unwrap();
-            let mv = eval::<f64>(mn.expr(slot).unwrap(), &mine.doc.var_env()).unwrap();
+            let tv = eval::<f64>(
+                &theirs.doc.slot_expansion(t_id, slot).unwrap(),
+                &theirs.doc.var_env(),
+            )
+            .unwrap();
+            let mv = eval::<f64>(
+                &mine.doc.slot_expansion(m_id, slot).unwrap(),
+                &mine.doc.var_env(),
+            )
+            .unwrap();
             assert_eq!(tv.to_bits(), mv.to_bits(), "slot {slot:?} of {t_id:?}");
         }
     }

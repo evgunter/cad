@@ -75,6 +75,7 @@ fn the_selection_reaches_the_wire_canonical() {
                 len(0.0625),
                 vec![rim(high as u32), rim(low as u32)],
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

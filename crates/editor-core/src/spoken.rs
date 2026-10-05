@@ -807,6 +807,7 @@ mod tests {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(node),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &RefusingReach,
