@@ -126,23 +126,11 @@ pub use editor_core::{
 /// [`DeclaredContact`] plus the [`ContactVerdict`] that decided it,
 /// by composition, and both are carried above.
 pub use topo::ContactFinding;
-/// The frame type the geometry doors answer with, its refusal, and
-/// the refusal's own payload — re-exported from the kernel's
-/// read-back module so a façade user names one crate, not two.
-///
-/// [`DanglingRef`] rides beside [`ReadbackError`] because it is that
-/// refusal's MATCHABLE payload — the same convention the prelude's
-/// `SurfaceKind` follows for `BooleanError`, and the curated half of
-/// the crate contract's closure over error payloads. The contract's
-/// crate-level half is already met by the whole re-export of `topo`;
-/// what a curated list owes on top of it is that a refusal it names
-/// is matchable THROUGH it, and `Dangling`'s two arms are different
-/// facts about the model: a topological key that does not resolve is
-/// a stale or foreign handle, while a geometry key reached from a
-/// live entity that does not resolve is a dangling reference inside
-/// the body. Carrying the carrier alone leaves that distinction
-/// readable only out of the message prose.
-pub use topo::readback::{DanglingRef, Pose, ReadbackError};
+/// The frame type the geometry doors answer with and its refusal —
+/// re-exported from the kernel's read-back module so a façade user
+/// names one crate, not two. [`ReadbackError::Dangling`]'s payload is
+/// an [`EntityId`](topo::EntityId), carried with the keys.
+pub use topo::readback::{Pose, ReadbackError};
 
 // **Picking: the fourth door onto a name.** The three above answer
 // "which entities match this shape" (`select`), "where is this named

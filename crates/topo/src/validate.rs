@@ -393,6 +393,7 @@ use geom_brep::{
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
+use crate::attach::Named;
 use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
@@ -400,12 +401,31 @@ use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
-use crate::props::AtRestOutcome;
+use crate::props::{AtRestOutcome, Certified, ShellRole};
 
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
 };
+
+/// The key to [`Body::orbit_walk_reading_no_start`]. Its field is
+/// private to this module, so only the validator (and this module's
+/// tests) can take the walk that does not prove its members' start.
+#[derive(Clone, Copy)]
+pub(crate) struct ValidatorSeal(());
+
+/// [`Body::vertex_orbit`] over [`Body::orbit_walk_reading_no_start`]:
+/// for a torn fixture that shows the walk its tear closes.
+#[cfg(test)]
+pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Option<Vec<HalfEdgeKey>> {
+    match body.orbit_walk_reading_no_start(he, ValidatorSeal(())) {
+        Walk::Closed(members) => Some(members),
+        Walk::Broken { .. } | Walk::Overrun => None,
+    }
+}
 
 /// The one classification funnel of this crate (the `geom-brep`
 /// pattern): delegates to the unified recorder funnel
@@ -458,16 +478,16 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
-/// The gate for a side read off a sign that has no side at zero, whose
-/// decided zero escalates with its decided margin
-/// ([`geom_core::k_stats::decide_nonzero_reported`]): the refusal is on
-/// the frame's escalation log beside the verdict.
-pub(crate) fn decide_nonzero_reported<T: Decide>(
+/// [`decide`] gated on a nonzero margin, for a side read off a sign
+/// that has no side at zero
+/// ([`geom_core::k_stats::decide_nonzero`]): the refusal is on the
+/// frame's escalation log beside the verdict.
+pub(crate) fn decide_nonzero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
 ) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
-    geom_core::k_stats::decide_nonzero_reported(name, margin, band)
+    geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
 /// **What a census refusal is ABOUT** — the whole of the subject the
@@ -1355,6 +1375,17 @@ pub enum ValidationError {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
     },
+    /// Tier 3, check 7 — **the sign is unresolved.** The solid's volume
+    /// enclosure straddles zero, and it was taken partly about the world
+    /// origin (a face the re-derivation could not measure about the
+    /// body keeps the width it was measured with), so the straddle may be
+    /// that width rather than a volume in the band. Escalated rather than exempted: exempting it would pass
+    /// an inside-out body whose enclosure is merely wide
+    /// (escalate-never-guess, D4 paragraph 3).
+    VolumeSignUnresolved {
+        /// The solid whose volume's sign is unresolved.
+        solid: SolidKey,
+    },
     /// **Tier 3, check 8 (M5 PR 6).** A stored pcurve cache failed its
     /// at-rest pass: missing on a chart that mints, failed
     /// re-certification (the meters-through-the-map residual, the
@@ -1479,6 +1510,18 @@ pub enum ValidationError {
         solid: SolidKey,
         /// How many of its shells are decided `Outer`.
         outer: usize,
+    },
+    /// **Tier 3, check 10 — a role undecided.** A shell of a
+    /// several-shell solid has no certified role: its volume's sign is
+    /// escalated, zero or straddling at this tolerance, or its
+    /// measurement refused. Without every role the solid's winding
+    /// cannot be read, so the solid is refused rather than passed
+    /// unchecked (escalate-never-guess, D4 paragraph 3).
+    ShellRoleUndecided {
+        /// The solid whose shells cannot be wound.
+        solid: SolidKey,
+        /// The shell's refusal, naming it.
+        error: crate::props::ShellClassifyError,
     },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
@@ -2849,8 +2892,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     const CLOSE: &str = "the boundary is too close to call at this tolerance";
     let (why, recourse) = match e {
-        M::Corrupt
-        | M::LoopDiscontinuity { .. }
+        M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
         | M::SingularChartJoint { .. }
         | M::MissingCache { .. }
@@ -2872,11 +2914,22 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         M::Band(b) => (classify_band(b), TOLERANCE),
-        // Never produced at rest (the pass skips a placeholder face);
-        // classified as its Display states it.
+        // A null edge at rest is tier 2's finding, and a row stored on
+        // one of its halves is the producer's.
+        M::NoCarrier { .. } => ("an edge of the face has no curve yet", DEFECT),
+        // Never produced at rest: the pass takes no key from a caller,
+        // so a key it named that did not resolve would be its own.
+        M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
+        // Never produced at rest (the pass skips a placeholder face, and
+        // describes no face's boundary); classified as its Display
+        // states it.
         M::PlaceholderChart { .. } => (
             geom::PLACEHOLDER_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
+        M::EmptyOuter { .. } => (
+            "the face's outline is a lone vertex, so it bounds no region",
+            crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
             let (why, own) = match error {
@@ -2941,7 +2994,19 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
             "a point of it lies too close to a boundary to place at this tolerance".into(),
             OFF_BOUNDARY,
         ),
-        ContainError::Corrupt => ("its boundary could not be walked".into(), DEFECT),
+        ContainError::StaleFace(_) => (
+            "a face the check asked about does not resolve in the body".into(),
+            DEFECT,
+        ),
+        ContainError::EmptyLoop(_) => (
+            "a loop of its boundary is a lone vertex, which bounds no region".into(),
+            DEFECT,
+        ),
+        ContainError::LoopUnreadable(_) => ("its boundary could not be walked".into(), DEFECT),
+        ContainError::Curved(_) => (
+            "a curved face's trim is one the check cannot yet read".into(),
+            NOT_YET,
+        ),
         // The edge is whatever the body's producer made — a shell's or a
         // revolve's section of a torus as readily as a drawn spline — so
         // the cause is the check's, and no redrawing is prescribed.
@@ -3299,6 +3364,17 @@ impl fmt::Display for ValidationError {
                 f,
                 "a solid holds {outer} separate pieces of material, and a solid is one piece. \
                  {DEFECT}"
+            ),
+            Self::VolumeSignUnresolved { .. } => f.write_str(
+                "the sign of a solid's volume cannot be read: its enclosure straddles zero, and \
+                 a face that could not be measured about the solid itself keeps the width it was \
+                 measured with far from the world origin. Recourse: model the part nearer the \
+                 origin, or tighten the tolerance",
+            ),
+            Self::ShellRoleUndecided { error, .. } => write!(
+                f,
+                "a shell's role in its solid cannot be read, so the solid's shells cannot be \
+                 wound: {error}"
             ),
             // The position alone: a witness may carry detail after " — "
             // (the field's contract), which rides in `Debug`.
@@ -4144,7 +4220,7 @@ pub fn validate_geometric<
 /// computation again. This door returns what the gate computed.
 ///
 /// **A SIGN, and the number on request.** What comes back is a
-/// [`crate::SignCertificate`]: the enclosure `plus_v_decide`
+/// [`crate::SignCertificate`]: the enclosure check 7
 /// decided on, refined exactly as far as THIS check's certification
 /// needed and no further. There is no volume to read off it, by
 /// construction — a quadrature stopped at the round its caller was
@@ -4224,17 +4300,21 @@ pub fn validate_geometric_certificate<
 /// and never about the scalar it is called at — the `f64` caller gets
 /// exactly what the dual caller gets. **Check 7 runs through the closed
 /// form alone** (`plus_v_by_sign` with no lane, the one place every
-/// door makes it): on a body the closed form computes, the verdict is
-/// [`validate_geometric`]'s — an inverted planar body is refused
-/// [`ValidationError::NegativeVolume`] here too — and a face that
-/// needed the quadrature is refused typed
+/// door makes it), and **decides on the walk's own sums**: certifying a
+/// sign needs the interval re-derivation, which a lane carries and a
+/// dual cannot, so this door reads the sums at every scalar alike. It
+/// therefore diverges from [`validate_geometric`], which reads the
+/// re-derivation: on a body whose volume is below its sums' rounding
+/// (a thin body far from the world origin), the two can give opposite
+/// verdicts (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
 /// unbounded. **Check 2 makes no claim about an M7-8 edge** (a plane ×
 /// described-NURBS `Intersection`): that class re-derives only through
 /// the certified plane × NURBS lane, which this door does not hold.
-/// Check 10 (shell winding) reads each shell's role through the same
-/// closed form, so it is silent on a shell whose sign needed the
-/// quadrature.
+/// Check 10 (shell winding) reads each shell's role off the same sums,
+/// and refuses a several-shell solid one of whose shells needed the
+/// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
 ///
 /// Its check 7 is gated the way the one-call battery gates it — on
 /// checks 1–6 — where the composed door gates on the whole structural
@@ -4340,7 +4420,9 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
 /// blessed by a volume claim while its geometry went unchecked. The
 /// composed entry is the only way in, and its `?` is what puts the two
 /// in the right order.
-fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn validate_geometric_certified<
+    T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::CertifiedBounds,
+>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
@@ -4363,6 +4445,12 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
 /// through the lane the door holds, each stopped at the round where
 /// that solid's enclosure's sign stops being in doubt, and the body
 /// certificate those walks assemble to.
+///
+/// Each round's role is certified ([`crate::props::Round::certify`]):
+/// the walk's sums propose it, and the round's interval re-derivation
+/// decides it, so the check refuses only a certified negative and
+/// passes only a certified positive. A round neither decides reads on
+/// as undecided.
 ///
 /// Every door makes check 7 here — [`validate_geometric`]
 /// with [`crate::QuadLane::certified`], the battery with
@@ -4404,18 +4492,18 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     let mut errors = Vec::new();
     let mut parts = Vec::new();
     for (solid, faces) in check7_subjects(body) {
+        // Whether the last round's sign was unresolved rather than in
+        // band ([`crate::props::Certified::Unresolved`]).
+        let unresolved = core::cell::Cell::new(false);
         match crate::props::sign_walk(
             body,
             &faces,
             band,
             tol,
             quad,
-            |e| match plus_v_decide(e, band) {
-                PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
-                PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
-                PlusVOutcome::Undecided => None,
-            },
-            |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
+            quad,
+            |round| plus_v_round(round.certify(PLUS_V, PLUS_V_EXACT), &unresolved),
+            |refusal| plus_v_at_target(refusal, unresolved.get()),
         ) {
             Ok((verdict, certificate)) => {
                 errors.extend(plus_v_errors(solid, &verdict));
@@ -4430,6 +4518,29 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
         ))
     } else {
         Err(errors)
+    }
+}
+
+/// **The solids of `body` that check 7 refuses as inside-out** — its
+/// [`ValidationError::NegativeVolume`] verdicts and nothing else, at the
+/// lane `quad` gives. A solid whose sign the lane leaves undecided, or
+/// cannot measure, is not named: this reads only what check 7 decides
+/// definitely. Premise: tier 1 is clean ([`check7_subjects`]).
+pub(crate) fn inside_out_solids<T: geom_core::Decide>(
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+    quad: Option<crate::props::QuadLane<T>>,
+) -> Vec<SolidKey> {
+    match plus_v_by_sign(body, band, tol, quad) {
+        Ok(_) => Vec::new(),
+        Err(errors) => errors
+            .into_iter()
+            .filter_map(|e| match e {
+                ValidationError::NegativeVolume { solid } => Some(solid),
+                _ => None,
+            })
+            .collect(),
     }
 }
 
@@ -4551,7 +4662,7 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// shells pays `n` sign walks and, behind a clean count, at least
 /// `n (n - 1)` point probes, with no bounding-box prefilter
 /// (`work/restfront/check-10-is-quadratic-in-shells-per-solid`).
-fn shell_winding_errors<T: Decide>(
+fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
@@ -4564,11 +4675,26 @@ fn shell_winding_errors<T: Decide>(
         if record.shells.len() < 2 {
             continue;
         }
+        let mut undecided = false;
         let reads: Vec<Option<ShellRead>> = record
             .shells
             .iter()
-            .map(|&shell| ShellRead::of(body, shell, band, tol, quad))
+            .map(
+                |&shell| match ShellRead::of(body, shell, band, tol, quad)? {
+                    Ok(read) => Some(read),
+                    Err(error) => {
+                        errors.push(ValidationError::ShellRoleUndecided { solid, error });
+                        undecided = true;
+                        None
+                    }
+                },
+            )
             .collect();
+        // A shell whose role does not read leaves the solid's winding
+        // unknowable; its refusal is the solid's verdict.
+        if undecided {
+            continue;
+        }
         let outer = reads
             .iter()
             .flatten()
@@ -4627,22 +4753,23 @@ pub(crate) struct ShellRead {
 }
 
 impl ShellRead {
-    /// `shell` read, or `None` where its selection or its role cannot be
-    /// read.
+    /// `shell` read: `None` where its selection cannot be read, and the
+    /// shell's typed refusal where its role cannot ([`shell_role`]).
     pub(crate) fn of<T: Decide>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
         quad: Option<crate::props::QuadLane<T>>,
-    ) -> Option<Self> {
+    ) -> Option<Result<Self, crate::props::ShellClassifyError>> {
         let sel = crate::boolean::solid_contain::SolidFaces::of_shell(body, shell).ok()?;
-        let role = shell_role(body, sel.faces(), band, tol, quad)?;
-        Some(Self {
-            shell,
-            role,
-            sel: sel.with_role(role),
-        })
+        Some(
+            shell_role(body, shell, sel.faces(), band, tol, quad).map(|role| Self {
+                shell,
+                role,
+                sel: sel.with_role(role),
+            }),
+        )
     }
 }
 
@@ -4677,7 +4804,7 @@ pub(crate) enum Insides {
 /// as not enclosing this one and is not probed. It must be sound — a
 /// shell that could enclose must pass — so only a certificate of
 /// disjointness rules one out (the result sort's padded boxes).
-pub(crate) fn witness_insides<T: Decide>(
+pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     i: usize,
     reads: &[ShellRead],
@@ -4735,26 +4862,46 @@ pub(crate) fn shell_vertices<'b, T: Real>(
         .filter_map(move |v| vertex_point(body, v))
 }
 
-/// One shell's role, from its own sign walk through `quad` read by
-/// check 7's [`plus_v_read`], or `None` where the walk refuses or the
-/// sign is still undecided when the schedule runs out.
+/// One shell's role, from its own sign walk through `quad`, certified
+/// round by round ([`crate::props::Round::certify`]).
+///
+/// # Errors
+///
+/// The shell's typed refusal: the walk's or the re-derivation's
+/// [`crate::props::ShellClassifyError::Props`], or the role read the
+/// last round left undecided (escalated, zero or straddling).
 pub(crate) fn shell_role<T: Decide>(
     body: &Body<T>,
+    shell: ShellKey,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Option<crate::props::ShellRole> {
+) -> Result<ShellRole, crate::props::ShellClassifyError> {
+    use crate::props::ShellClassifyError;
+    let last = core::cell::Cell::new(None);
+    let props = |source| ShellClassifyError::Props { shell, source };
     crate::props::sign_walk(
         body,
         faces,
         band,
         tol,
         quad,
-        |e| plus_v_read(e, band).map(Some),
-        |_| None,
+        quad,
+        |round| match round.certify(PLUS_V, PLUS_V_EXACT) {
+            Certified::Role(role) => Some(Ok(role)),
+            Certified::Refused(source) => Some(Err(props(source))),
+            Certified::Open(unread) | Certified::Unresolved(unread) => {
+                last.set(Some(unread));
+                None
+            }
+        },
+        |_| match last.get() {
+            Some(unread) => Err(unread.refusal(shell, band)),
+            None => unreachable!("a sign walk settles every round it reads"),
+        },
     )
-    .ok()
+    .map_err(props)
     .and_then(|(role, _)| role)
 }
 
@@ -4820,53 +4967,9 @@ pub(crate) fn tier3_local_checks<
     )
 }
 
-/// **What check 7 has decided, and whether refining could change it.**
-///
-/// The +V invariant reads a volume ENCLOSURE and refuses only on a
-/// definite disagreement, so its verdict on a bracket `[lo, hi]` is
-/// settled as soon as that bracket excludes zero, because EVERY
-/// round's bracket contains the true volume. The brackets need not
-/// nest and their widths are not monotone in the round — each round
-/// recomputes its sum from scratch, and the rounding width of its
-/// midpoint sum grows with the cell count (`geom-brep`'s
-/// `last_round_width_lo`) — but containment is all the argument
-/// reads:
-///
-/// - `hi` definitely negative ⇒ the body's volume is `≤ hi < 0`, and
-///   no finer round produces an upper end above the volume. REFUSE.
-/// - `lo` definitely positive ⇒ the body's volume is `≥ lo > 0`, so
-///   every finer round's upper end is above `lo` too and none of them
-///   can read definitely negative. PASS.
-/// - otherwise the bracket straddles zero (or its margin is in-band),
-///   and a finer round may still decide it.
-///
-/// The two ends are read under two names, because they are two
-/// questions: `positive_volume` is the refusal this check has always
-/// made, on the same quantity and the same lever it always made it on;
-/// `positive_volume_enclosure` is the question the coupling to the
-/// reporting target used to leave unasked — *is the sign already
-/// certain?* — and it is the one an orientation gate actually consumes.
-///
-/// The lever is the surface area (`V/A`, a length: the mean boundary
-/// displacement the volume defect corresponds to). Closed-form bodies
-/// have `pad = 0.0`, so `lo` and `hi` are the volume itself and the
-/// refusing margin is bit-identical to the pre-PR-11 one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PlusVOutcome {
-    /// The volume is definitely negative: orientation corruption.
-    Refuse,
-    /// The volume is definitely positive: the invariant holds, and no
-    /// finer round can change that.
-    Pass,
-    /// The enclosure does not decide. At the reporting target this is
-    /// a PASS — only a definite disagreement refuses — but before it,
-    /// it is a reason to refine.
-    Undecided,
-}
-
 /// **Check 7's whole verdict**, which is what a sign-level walk stops
-/// on — never [`PlusVOutcome`], which is a reading of ONE enclosure and
-/// has an arm that decides nothing.
+/// on — never a reading of ONE round, which has an arm that decides
+/// nothing.
 ///
 /// The difference is the bug this shape exists to make unwritable. An
 /// undecided enclosure is a reason to refine, and at the reporting
@@ -4885,63 +4988,78 @@ pub(crate) enum PlusVVerdict {
     Refuse,
     /// Check 7 could not be made: the sign was still undecided when
     /// the certified quadrature ran out of schedule, so the body's
-    /// volume is neither measurable nor sign-certifiable at this ε.
-    /// The payload is the refusal a target-level reading earns, which
-    /// is the refusal the reporting door makes on the same body.
+    /// volume is neither measurable nor sign-certifiable at this ε; or
+    /// the round's interval re-derivation refused a face. The payload
+    /// is that refusal.
     Uncomputable(crate::props::MassPropsError),
+    /// The sign is unresolved: the enclosure straddles zero, and it kept
+    /// a face's world-origin width (one the re-derivation could not
+    /// measure about the body), so the straddle is not known to be the
+    /// body's own rounding.
+    Unresolved,
 }
 
-/// Check 7's reading of one enclosure, as the role
-/// [`crate::props::ShellRole::decided_at`] gives it: the high end under
-/// `positive_volume` first, and the low end under
-/// `positive_volume_enclosure` only when the high end decides nothing.
+/// Check 7's names: the bracket's high end under `positive_volume`, the
+/// refusal this check has always made, and its low end under
+/// `positive_volume_enclosure`, whether the sign is already certain.
+pub(crate) const PLUS_V: crate::props::RoleNames = crate::props::RoleNames {
+    high: "positive_volume",
+    low: "positive_volume_enclosure",
+};
+
+/// Check 7's name on the interval re-derivation, which reads the exact
+/// value of the stored geometry ([`crate::props::Round::certify`]).
+pub(crate) const PLUS_V_EXACT: crate::props::RoleNames =
+    crate::props::RoleNames::one("positive_volume_exact");
+
+/// Check 7's reading of one volume ([`crate::props::read_role`] under
+/// [`PLUS_V`]).
 pub(crate) fn plus_v_read<T: geom_core::Decide>(
-    enclosure: crate::props::VolumeEnclosure<T>,
+    reading: crate::props::SignReading<T>,
     band: Band,
 ) -> Option<crate::props::ShellRole> {
-    use crate::props::{BracketEnd, ShellRole};
-    let lever = enclosure.surface_area;
-    let role_at = |end, name, volume| {
-        decide(name, Margin::over_lever(volume, lever), band)
-            .ok()
-            .and_then(|sign| ShellRole::decided_at(end, sign))
-    };
-    role_at(BracketEnd::High, "positive_volume", enclosure.volume_hi).or_else(|| {
-        role_at(
-            BracketEnd::Low,
-            "positive_volume_enclosure",
-            enclosure.volume_lo,
-        )
-    })
+    crate::props::read_role(reading, PLUS_V, band).role()
 }
 
-fn plus_v_decide<T: geom_core::Decide>(
-    enclosure: crate::props::VolumeEnclosure<T>,
-    band: Band,
-) -> PlusVOutcome {
-    match plus_v_read(enclosure, band) {
-        Some(crate::props::ShellRole::Outer) => PlusVOutcome::Pass,
-        Some(crate::props::ShellRole::Void) => PlusVOutcome::Refuse,
-        None => PlusVOutcome::Undecided,
+/// **What a round that decided nothing means once there is nothing
+/// left to refine** — the sign-level walk's `last_word`, handed the
+/// outstanding target refusal and whether the last round's sign was
+/// unresolved. Undecided with the schedule run out is not a pass when
+/// the quadrature still owes a refusal: it never produced an enclosure
+/// tight enough to decide, and the body is exactly as unvalidatable as
+/// the reporting door says it is. Nor is it a pass when the enclosure
+/// kept a face's world-origin width: a straddle there may be
+/// that width and not the body, and is escalated. A sign in band or
+/// straddling zero by the body's own rounding is what the invariant
+/// exempts.
+fn plus_v_at_target(
+    refusal: Option<crate::props::MassPropsError>,
+    unresolved: bool,
+) -> PlusVVerdict {
+    match (refusal, unresolved) {
+        (Some(source), _) => PlusVVerdict::Uncomputable(source),
+        (None, true) => PlusVVerdict::Unresolved,
+        (None, false) => PlusVVerdict::Pass,
     }
 }
 
-/// **What an enclosure reading means once there is nothing left to
-/// refine** — the one place the undecided arm is resolved: the
-/// sign-level walk's `last_word`, handed the outstanding target
-/// refusal.
-fn plus_v_at_target(
-    outcome: PlusVOutcome,
-    refusal: Option<crate::props::MassPropsError>,
-) -> PlusVVerdict {
-    match (outcome, refusal) {
-        (PlusVOutcome::Refuse, _) => PlusVVerdict::Refuse,
-        // Undecided with the schedule run out is NOT a pass: the
-        // quadrature never produced an enclosure tight enough to
-        // decide, and the body is exactly as unvalidatable as the
-        // reporting door says it is.
-        (PlusVOutcome::Undecided, Some(source)) => PlusVVerdict::Uncomputable(source),
-        (PlusVOutcome::Pass | PlusVOutcome::Undecided, _) => PlusVVerdict::Pass,
+/// **Check 7's reading of one round** ([`plus_v_by_sign`]'s `settle`):
+/// a certified role decides; an open round decides nothing, and
+/// `unresolved` records whether it was in band or unresolved, for
+/// [`plus_v_at_target`] to read once the schedule runs out.
+fn plus_v_round(certified: Certified, unresolved: &core::cell::Cell<bool>) -> Option<PlusVVerdict> {
+    match certified {
+        Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
+        Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
+        Certified::Open(_) => {
+            unresolved.set(false);
+            None
+        }
+        Certified::Unresolved(_) => {
+            unresolved.set(true);
+            None
+        }
+        Certified::Refused(source) => Some(PlusVVerdict::Uncomputable(source)),
     }
 }
 
@@ -4954,6 +5072,7 @@ fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError
             solid,
             source: source.clone(),
         }],
+        PlusVVerdict::Unresolved => vec![ValidationError::VolumeSignUnresolved { solid }],
     }
 }
 
@@ -6297,9 +6416,9 @@ pub(crate) fn tier3_local_checks_marked<
                 Sign::Positive
             };
             // Line, Circle and Ellipse carriers (banner); an empty
-            // ring, a loop riding a spiric or NURBS edge, and a torn
-            // lookup (unreachable on tier-1 input) are not asked.
-            let Ok(Some(winding)) = body.planar_loop_winding(l, outward, band) else {
+            // ring and a loop riding a spiric or NURBS edge are not
+            // asked. Tier 3 runs on a body tier 1 cleared.
+            let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
             };
             if winding == Ok(wrong) {
@@ -7784,8 +7903,11 @@ pub fn validate_pseudomanifold<
 /// this door gets exactly what the dual caller gets. **Check 7 runs
 /// through the closed form alone**: a face that needs the certified
 /// quadrature refuses typed ([`ValidationError::VolumeUncomputable`])
-/// rather than passing unbounded, and on a closed-form body the verdict
-/// is the certified door's, with pads of `0`. **Check 2 makes no claim
+/// rather than passing unbounded, and the sign is decided on the walk's
+/// own sums, where the certified door reads their interval
+/// re-derivation — so the two can disagree on a body whose volume is
+/// below its sums' rounding ([`validate_geometric_structural`] says
+/// more). **Check 2 makes no claim
 /// about an M7-8 edge**, at any scalar, this one's `f64` included: that
 /// class re-derives only through the certified plane × NURBS lane,
 /// which this door does not hold, and check 2 is a whole-edge check, so
@@ -8057,7 +8179,7 @@ fn pseudomanifold_certificate_via<
 /// tail of both tier-3′ paths: [`pseudomanifold_certificate_via`] after
 /// its own battery, and [`AtRestBody::validate_pseudomanifold`] over a
 /// kept verdict.
-fn census_verdict<T: geom_core::Decide + geom_core::Bounds>(
+fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     band: Band,
@@ -8272,7 +8394,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // pass-8 orphan count exactly like a face's reference does (the
     // removal guard `remove_surface_if_orphaned` honors the same rule).
     for (curve_key, curve) in body.curves.iter() {
-        for surface in Body::description_surfaces(curve) {
+        for surface in Named::of(curve).keys() {
             if body.surfaces.contains_key(surface) {
                 count_ref(&mut surface_refs, surface);
             } else {
@@ -8340,7 +8462,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                 }
             }
             // Broken: a stale link mid-cycle — pass 1 reported it.
-            Walk::Broken => {}
+            Walk::Broken { .. } => {}
             Walk::Overrun => {
                 errors.push(ValidationError::LoopCycleOverrun { loop_: loop_key });
             }
@@ -8480,10 +8602,12 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         if he.start != vertex_key {
             continue; // pass 5 reported the mismatch
         }
-        match body.orbit_walk(emanating) {
+        // The walk that reads no start, so a foreign member is named
+        // rather than collapsed into `Broken`.
+        match body.orbit_walk_reading_no_start(emanating, ValidatorSeal(())) {
             // Broken: a stale link or broken mate — passes 1/3 reported
             // the cause.
-            Walk::Broken => {}
+            Walk::Broken { .. } => {}
             Walk::Overrun => {
                 errors.push(ValidationError::VertexOrbitOverrun { vertex: vertex_key });
             }
@@ -8971,6 +9095,44 @@ mod tests {
     };
     use crate::seqgen;
     use crate::test_support_fixtures::{declined_cube, plane_every_face, plant_ring_face};
+
+    /// **An unresolved sign refuses where an in-band one passes.** Check
+    /// 7's last round, read through [`plus_v_round`] and
+    /// [`plus_v_at_target`] as [`plus_v_by_sign`] reads it: a straddle
+    /// the re-derivation took about the body (`Open`) is the body's own
+    /// rounding and passes, and one it could not (`Unresolved`) refuses
+    /// [`ValidationError::VolumeSignUnresolved`] rather than passing.
+    /// Pinned here because no shipped surface kind reaches `Unresolved`
+    /// now that every face is taken about the body's corner
+    /// ([`crate::props::rederive`]); the arm is what keeps a face that
+    /// someday cannot be from reading an inside-out straddle as a pass.
+    #[test]
+    fn an_unresolved_sign_refuses_where_an_in_band_one_passes() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let unread = || match crate::props::read_role(
+            crate::props::SignReading::exact(0.0_f64, 1.0),
+            PLUS_V,
+            band,
+        ) {
+            crate::props::RoleRead::Unread(unread) => unread,
+            crate::props::RoleRead::Decided(role) => panic!("a zero volume read {role:?}"),
+        };
+        let solid = SolidKey::default();
+        let at_target = |certified| {
+            let unresolved = core::cell::Cell::new(false);
+            assert!(
+                plus_v_round(certified, &unresolved).is_none(),
+                "an open round decides nothing"
+            );
+            plus_v_errors(solid, &plus_v_at_target(None, unresolved.get()))
+        };
+        assert_eq!(at_target(Certified::Open(unread())), Vec::new(), "in band");
+        assert_eq!(
+            at_target(Certified::Unresolved(unread())),
+            vec![ValidationError::VolumeSignUnresolved { solid }],
+            "unresolved"
+        );
+    }
 
     /// **Check 1's analytic verdicts at BOTH scalars**, one surface
     /// lifted from `f64` to `Interval` through `Surface::map_scalar`
@@ -10432,7 +10594,7 @@ mod tests {
 
     // ------------------------------------------------------------------
     // The PR 3 carry: two empty loops on ONE vertex, in one face — the
-    // state `kemr`'s EmptyAnchorsCollide defends against. Pass 5's
+    // state `kemr`'s empty-anchor proof panics on. Pass 5's
     // exclusive empty-loop ownership is the rule that catches it.
     // ------------------------------------------------------------------
 

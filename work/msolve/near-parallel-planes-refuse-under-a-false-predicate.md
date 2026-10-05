@@ -2,10 +2,13 @@
 id: near-parallel-planes-refuse-under-a-false-predicate
 kind: issue
 title: Two planar rests a hair past parallel classify as a line and then refuse a NON-FINITE translation margin under mate_member_translation_in_plane — a false cause
-status: open
+status: closed
 opened: 2026-09-20
 priority: P0
 cost: H
+parent: MSOLVE-12
+pr: 3698
+closed: 2026-10-01
 ---
 
 
@@ -57,3 +60,30 @@ a false cause); `coset.rs`'s `candidate_translation` and
 the membership check then refuses" sentence, which is the behaviour
 this row measured and is honest about the mechanism but not the
 cause the user reads.
+
+## Closed (2026-10-01, PR 3698)
+
+Final state (a), solving in the frame of the remaining freedom. The
+measurement on the tree (MSOLVE-12's census over every table entry
+whose verdict turns on a sine or a cosine, at the ulps around the
+band's edge) found the class wider than this row: the planes, a plane
+with a near-perpendicular line or prismatic, and the three
+near-parallel line/prismatic pairs all reached a non-finite candidate,
+refused as `Indeterminate { margin: Invalid }` under
+`mate_member_translation_in_plane`, `mate_member_point_on_axis` or
+`mate_member_translation_along`. `candidate_translation`
+(`crates/editor-core/src/mate/coset.rs`) now solves each shape of the
+held freedom the residual does not keep in closed form, dividing only
+by the levered sine or cosine the table decided away from zero
+(re-spelled bit for bit) or by a number near one; `inverse3` is gone.
+A candidate or membership length the format cannot hold refuses
+`FoldStop::OutOfRange`, which the solve reports as the new
+`MateFault::PoseOutOfRange`, carrying `RANGE_RECOURSE`.
+
+Rows: `msolve8_levered_clash::c2_parallel_boundary_direct` (this row's
+search; the full door now agrees with the table at all 134 400 pairs),
+`msolve12_honest_translation::c1_every_separated_pair_measures_what_it_refuses`,
+`c2_the_pose_is_the_independent_intersection`,
+`out_of_range_at_the_coset`, `out_of_range_through_the_doors`. The
+residue the census found past the session's range is filed as
+`a-far-meeting-point-fails-membership-by-its-own-rounding`.

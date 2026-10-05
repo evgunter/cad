@@ -355,7 +355,8 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let split = crate::m10_8_harness::split(&shapes);
     assert_eq!(split.get("pcurve_envelope"), Some(&[16, 0, 0, 0]));
     // The branches themselves are definite sign decisions read off the
-    // value: 32 for check 4's fidelity, 24 for the walk.
+    // value: 32 for check 4's fidelity, 34 for the walk, which decides
+    // each loop's closure joint as it does every other.
     assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 0, 0, 32]));
-    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 0, 0, 24]));
+    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 0, 0, 34]));
 }

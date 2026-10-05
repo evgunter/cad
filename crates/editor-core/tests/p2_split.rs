@@ -923,7 +923,9 @@ fn r1_a_cut_holding_nested_gauges_round_trips_exactly() {
         Some(g)
     );
     assert!(
-        out.part.params().contains_key(&crate::p2_gauges::lift()),
+        out.part
+            .var_named(crate::p2_gauges::lift().as_str())
+            .is_some(),
         "K's parameter moves with it"
     );
 
@@ -1141,7 +1143,7 @@ fn r1_the_comparator_reads_every_field() {
         (Tweak::Placement, "payload", 0),
         (Tweak::Alignment, "payload", 3),
         (Tweak::Head, "payload", 3),
-        (Tweak::Param, "parameters", 0),
+        (Tweak::Param, "variables", 0),
         (Tweak::Label, "label", 0),
     ] {
         let (b, _) = comparator_scene(&p, tweak);
@@ -1150,7 +1152,7 @@ fn r1_the_comparator_reads_every_field() {
         let said = fails(&b, &map, &step_map);
         assert!(
             said.lines().any(|l| l.starts_with(check)
-                && (check == "parameters" || l.contains(&format!("{node:?}")))),
+                && (check == "variables" || l.contains(&format!("{node:?}")))),
             "{check}: {said}"
         );
     }
@@ -1262,7 +1264,7 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-root"), 0.5);
         let at = Placement::from(editor_core::Step::Rigid {
             translation: [
-                editor_core::Expr::param(crate::p2_gauges::lift(), editor_core::Dimension::Length),
+                editor_core::Expr::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
                 fixture::len(0.0),
                 fixture::len(0.0),
             ],

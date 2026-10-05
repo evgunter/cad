@@ -421,7 +421,7 @@ const OLDER_SHAPED: &str = concat!(
     "calar\",\"unit\":\"\"}}],\"v\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Li",
     "teral\":{\"value\":1.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Sc",
     "alar\",\"unit\":\"\"}}]}}}},\"order\":[16481222604345390933,11240919837605776152,147306",
-    "74704444354654],\"roots\":[14730674704444354654],\"params\":{},\"epsilon\":1e-09,\"witne",
+    "74704444354654],\"roots\":[14730674704444354654],\"vars\":{},\"epsilon\":1e-09,\"witne",
     "sses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );

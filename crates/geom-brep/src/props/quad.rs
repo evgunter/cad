@@ -6021,11 +6021,10 @@ mod tests {
                 let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);
                 truth += if e.forward { s } else { -s };
             }
-            // Two honest outcomes, ε-dependent (the FitSampleBudget
-            // precedent): a converged enclosure MUST contain the
-            // oracle; at tight ε (1e-12 drives the target to ~1e-9 m
-            // while the sliver's ring-arithmetic floor sits above it)
-            // the TYPED budget refusal is the correct answer — never a
+            // Two honest outcomes, ε-dependent: a converged enclosure
+            // MUST contain the oracle; at tight ε (1e-12 drives the
+            // target to ~1e-9 m while the sliver's ring-arithmetic floor
+            // sits above it) the TYPED budget refusal is the correct answer — never a
             // silently wide bracket, never a silent skip.
             match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &edges, eps, band) {
                 Ok(out) => {

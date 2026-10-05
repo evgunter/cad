@@ -2,8 +2,8 @@
 //!
 //! A recourse the door cannot honour is the defect a missing one only
 //! looks like, so each row here takes the way through a refusal names
-//! and shows the door accepting it: a count redeclared continuous, a
-//! count slot moved onto another count, a forward reference rebound
+//! and shows the door accepting it: a continuous variable beside a
+//! count, a count defined as a count, a forward reference rebound
 //! back. And a door that forwards an edit refusal the user never
 //! authored states its own recourse rather than the edit door's.
 
@@ -12,42 +12,43 @@
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use editor_core::{
-    BooleanOp, Dimension, Distribution, DocEdit, DocParam, DocumentId, EditError, Expr, Node,
-    ParamName, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, UnitSym,
-    UpstreamCause, apply,
+    BooleanOp, Dimension, Distribution, DocEdit, DocumentId, EditError, Expr, FreeVar, Node,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause,
+    VarKind, VarName, apply,
 };
 use fixture::{fname, insert, len, run, scl, step, wall};
 use geom_core::{Sign, Tol};
 use std::collections::BTreeSet;
 
-fn p(name: &'static str) -> ParamName {
-    ParamName::from_static(name)
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
 }
 
 fn edit(doc: &ProfileDoc, e: DocEdit<ProfileProgram>) -> Result<ProfileDoc, EditError> {
     apply(doc, &e, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
 }
 
-fn length(mm: f64) -> DocParam {
-    DocParam::written_length(quantity::WrittenLength::in_unit(mm, quantity::MM))
+fn length(mm: f64) -> FreeVar {
+    FreeVar::written_length(quantity::WrittenLength::in_unit(mm, quantity::MM))
 }
 
 fn mm() -> UnitSym {
     UnitSym::from_def(&quantity::MM.def())
 }
 
-/// **A count's unit and distribution: the redeclaration the sentence
-/// names gets through.** Both refusals name redeclaring the parameter
-/// continuous; the create-or-replace door accepts it, and the unit and
-/// the distribution the count refused then land.
+/// **A count's unit and distribution: the variable the sentence names
+/// gets through.** Both refusals name declaring a continuous variable
+/// in the count's place, since a kind is fixed; the declare door
+/// accepts one, and the unit and the distribution the count refused
+/// then land on it.
 #[test]
-fn a_count_refuses_a_unit_and_a_distribution_and_names_the_redeclaration_that_gets_through() {
+fn a_count_refuses_a_unit_and_a_distribution_and_names_the_variable_that_gets_through() {
     let doc = ProfileDoc::empty(DocumentId::derive("recourse-count"), Tol::witness());
     let doc = edit(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: p("n"),
-            value: DocParam::Count { value: 4 },
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
         },
     )
     .unwrap();
@@ -55,16 +56,16 @@ fn a_count_refuses_a_unit_and_a_distribution_and_names_the_redeclaration_that_ge
     let refusals = [
         edit(
             &doc,
-            DocEdit::SetDocParamUnit {
-                name: p("n"),
+            DocEdit::SetVarUnit {
+                var: p("n").into(),
                 unit: mm(),
             },
         )
         .expect_err("a count has no unit"),
         edit(
             &doc,
-            DocEdit::SetDocParamDistribution {
-                name: p("n"),
+            DocEdit::SetVarDistribution {
+                var: p("n").into(),
                 distribution: Some(band),
             },
         )
@@ -73,57 +74,58 @@ fn a_count_refuses_a_unit_and_a_distribution_and_names_the_redeclaration_that_ge
     for refusal in &refusals {
         let text = refusal.to_string();
         assert!(
-            text.contains("Recourse: redeclare it as a continuous parameter")
+            text.contains("Recourse: declare a continuous variable in its place")
                 && !text.contains("There is no way through"),
-            "the count arm names the redeclaration: {text}"
+            "the count arm names the continuous variable: {text}"
         );
     }
-    let redeclared = edit(
+    let declared = edit(
         &doc,
-        DocEdit::SetDocParam {
-            name: p("n"),
-            value: length(4.0),
+        DocEdit::DeclareVar {
+            name: p("w"),
+            def: editor_core::VarDecl::Free(length(4.0)),
         },
     )
-    .expect("the create-or-replace door redeclares an unreferenced count continuous");
+    .expect("the declare door mints a continuous variable beside the count");
     let with_unit = edit(
-        &redeclared,
-        DocEdit::SetDocParamUnit {
-            name: p("n"),
+        &declared,
+        DocEdit::SetVarUnit {
+            var: p("w").into(),
             unit: mm(),
         },
     )
-    .expect("the redeclared parameter takes a unit");
+    .expect("the continuous variable takes a unit");
     edit(
         &with_unit,
-        DocEdit::SetDocParamDistribution {
-            name: p("n"),
+        DocEdit::SetVarDistribution {
+            var: p("w").into(),
             distribution: Some(band),
         },
     )
-    .expect("the redeclared parameter takes a distribution");
+    .expect("the continuous variable takes a distribution");
 }
 
-/// **A count a slot reads as a count: the redeclaration refuses with
-/// the slot's recourse, and that recourse gets through too.** Moving
-/// the slot onto another count parameter frees the first to be
-/// redeclared.
+/// **A count redefined as a length: the definition door refuses with
+/// a recourse of two halves, and each gets through.** A kind is fixed
+/// when a variable is declared, so the door refuses whether or not a
+/// slot reads it; a definition of the count's own kind lands, and so
+/// does a new variable of the offered kind.
 #[test]
-fn a_count_a_slot_reads_refuses_the_redeclaration_with_a_recourse_that_gets_through() {
+fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_through() {
     let doc = ProfileDoc::empty_derived("recourse_count_slot", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: p("n"),
-            value: DocParam::Count { value: 3 },
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
     );
-    let (doc, pattern) = insert(
+    let (doc, _pattern) = insert(
         doc,
         Node::Pattern {
             input: body,
-            count: Expr::param(p("n"), Dimension::Count),
+            count: Expr::named(p("n"), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -132,45 +134,48 @@ fn a_count_a_slot_reads_refuses_the_redeclaration_with_a_recourse_that_gets_thro
     );
     let refused = edit(
         &doc,
-        DocEdit::SetDocParam {
-            name: p("n"),
-            value: length(4.0),
+        DocEdit::DefineVar {
+            var: p("n").into(),
+            def: editor_core::VarDecl::Free(length(4.0)),
         },
     )
-    .expect_err("a count slot reads n as a count");
+    .expect_err("n is a count for good");
     assert!(
-        matches!(refused, EditError::SlotDocParamDimension { .. }),
-        "the slot's arm refuses the redeclaration: {refused:?}"
+        matches!(
+            refused,
+            EditError::VarKindFixed {
+                kind: VarKind::Count,
+                offered: VarKind::Length,
+                ..
+            }
+        ),
+        "the definition door refuses the other kind: {refused:?}"
     );
     let text = refused.to_string();
     assert!(
-        text.contains("Recourse: reference a parameter declared count, or declare this one count"),
-        "the slot's recourse: {text}"
+        text.contains(
+            "Recourse: offer a definition of kind count, or declare a new variable of kind length"
+        ),
+        "the kind's recourse: {text}"
     );
-    // Its first half, followed: another count, and the slot moved onto it.
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetDocParam {
-            name: p("m"),
-            value: DocParam::Count { value: 3 },
-        },
-    );
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetStructuralParam {
-            node: pattern,
-            slot: SlotId::Count,
-            expr: Expr::param(p("m"), Dimension::Count),
-        },
-    );
+    // Its first half, followed: a definition of the count's own kind.
     edit(
         &doc,
-        DocEdit::SetDocParam {
-            name: p("n"),
-            value: length(4.0),
+        DocEdit::DefineVar {
+            var: p("n").into(),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 5 }),
         },
     )
-    .expect("with no slot reading it, the count redeclares continuous");
+    .expect("a count definition lands on the count");
+    // Its second half: a new variable of the offered kind.
+    edit(
+        &doc,
+        DocEdit::DeclareVar {
+            name: p("w"),
+            def: editor_core::VarDecl::Free(length(4.0)),
+        },
+    )
+    .expect("a length variable declares beside the count");
 }
 
 /// A document holding a fillet whose selection was rebound onto a
@@ -264,11 +269,19 @@ const WORDLESS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        // Tier 3's +V reading (check 7), which the boolean door's
-        // volume backstop runs on its result: the kernel checking its
-        // own result through tier 3's rule, so no model question either.
-        "tier 3's +V read, at the boolean door",
-        &["positive_volume", "positive_volume_enclosure"],
+        // Tier 3 at the boolean door: the at-rest gate the door runs on
+        // its result and the boolean seat runs on each operand it
+        // finishes (`AtRestPolicy::gate_at_rest_kept`), and its +V
+        // reading (check 7) with its interval re-derivation, which the
+        // volume backstop also runs. The kernel checking its own bodies
+        // through tier 3's rules, so no model question either.
+        "tier 3, at the boolean door",
+        &[
+            "planar_boundary_residual",
+            "planar_face_residual",
+            "positive_volume",
+            "positive_volume_exact",
+        ],
     ),
     (
         // Raised under two decisions — the Boolean contact sweep's
@@ -277,6 +290,15 @@ const WORDLESS: &[(&str, &[&str])] = &[
         // (`topo::decision_words`).
         "one name, two decisions",
         &["bool_contact_vertex"],
+    ),
+    (
+        // Raised by the loop-winding lane for every caller that asks a
+        // ring's turning (`topo::loop_winding`): the join's ring roles,
+        // the face merge, the chord join, and tier 3's role check at the
+        // boolean door — so, as above, no one decision's words are true
+        // of it.
+        "one name, several decisions",
+        &["bool_ring_run_winding"],
     ),
     (
         // Filed: work/doctail/flip-reports-name-no-decision-for-most-predicates.md.
@@ -293,6 +315,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "bool_point_in_solid_advance",
             "bool_point_in_solid_denom",
             "bool_point_in_solid_infinity",
+            "bool_point_in_solid_infinity_enclosure",
             "bool_point_in_solid_order",
             "carrier_endpoint_end",
             "carrier_endpoint_start",

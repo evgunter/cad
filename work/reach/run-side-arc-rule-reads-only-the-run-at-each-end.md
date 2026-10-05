@@ -2,10 +2,13 @@
 id: run-side-arc-rule-reads-only-the-run-at-each-end
 kind: issue
 title: The run-side arc rule refuses at a reflex run end, where a reading of the face's whole sector would answer
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+pr: 3985
+branch: reach/arc-from-pairing
+closed: 2026-10-04
 ---
 
 
@@ -36,3 +39,17 @@ candidate inside the face's whole sector there (the arriving and
 leaving boundary tangents bound it), with a fixture whose pierce lands
 on a reflex corner of a sphere face (a face notched by a prior cut,
 pierced at the notch's corner).
+
+## Retired (PR 3985, `reach/arc-from-pairing`)
+
+The rule is gone; the chord takes the germs' arc and reads no run, so no
+corner gate exists. The reflex-notch pierce this item asked for is
+`crates/sweep/tests/snowman.rs`
+`a_bar_through_a_ball_builds_under_every_boolean`: the bar's corner left
+a reflex run end (`ReflexRunEnd`, every op), and every op now builds to
+its slice-integral volume.
+
+## Closed (2026-10-04)
+
+PR 3985 merged (`31eeed1268`); its answer above is on main, verified twice
+(`analysis/reach-verify/3985`, `analysis/reach-verify2/3985`).

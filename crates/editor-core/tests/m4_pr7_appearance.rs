@@ -11,8 +11,8 @@ use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
-    DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, evaluate,
+    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, FreeVar, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -260,7 +260,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     // diff: appearance-only change is reported, and only it.
     let d = doc2.diff(&doc3);
     assert!(d.appearance_changed);
-    assert!(d.nodes.is_empty() && d.params.is_empty() && !d.metadata_changed);
+    assert!(d.nodes.is_empty() && d.vars.is_empty() && !d.metadata_changed);
     assert!(!d.is_empty());
 
     // Replay from empty reproduces the appearance bit-identically.
@@ -328,9 +328,9 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     // dyadic, still-shallow pip depth).
     let (doc2, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
+        DocEdit::DefineVar {
+            var: VarName::from_static("pip_depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
         },
     );
     let ev2 = rerun(&doc2, &ev1);

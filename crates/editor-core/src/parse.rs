@@ -56,7 +56,7 @@ use std::collections::BTreeMap;
 
 use quantity::{UnitDef, unit_by_symbol};
 
-use crate::doc::ParamName;
+use crate::doc::VarName;
 use crate::expr::{Dimension, DimensionError, Expr, UnitSym};
 
 /// Typed refusal from the text door. Positions are byte offsets into
@@ -173,7 +173,7 @@ pub enum ParseError {
 // symbol, a parameter name — and the delimiter is what says where that
 // text began and ended, which matters most when the reason it failed
 // is a typo or a stray space. A parameter name is bare everywhere else
-// in this crate (`ParamName`'s `Display`), because every other door
+// in this crate (`VarName`'s `Display`), because every other door
 // names a parameter the DOCUMENT holds rather than bytes it was handed.
 impl core::fmt::Display for ParseError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -279,7 +279,7 @@ impl Tok {
 /// way it refuses is a character outside the alphabet, returned as
 /// the offset and the character: [`parse_expr`] words it as
 /// [`ParseError::UnexpectedChar`] and [`param_name_reason`] as
-/// [`ParamNameReason::OutsideAlphabet`], each in its own vocabulary
+/// [`VarNameReason::OutsideAlphabet`], each in its own vocabulary
 /// over the same fact.
 fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
     let mut out = Vec::new();
@@ -374,24 +374,24 @@ fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
 
 /// Why a text is not a parameter name, with the text that was offered.
 ///
-/// What [`ParamName::new`] answers. The rule is the parser's, asked
-/// once by `param_name_fault`: a parameter exists to be referenced
+/// What [`VarName::new`] answers. The rule is the parser's, asked
+/// once by `var_name_fault`: a parameter exists to be referenced
 /// from an expression, so a name is admissible exactly when the
 /// expression parser reads the text back as a reference to that same
 /// parameter — one identifier token covering the whole text, and
 /// nothing else. Every door that turns text into a name renders this
 /// one sentence: the constructor, the load door (through
-/// `ParamName`'s `Deserialize`, which is the same constructor) and
+/// `VarName`'s `Deserialize`, which is the same constructor) and
 /// the bindings above them.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParamNameFault {
+pub struct VarNameFault {
     /// The text offered as a name, verbatim.
     pub offered: String,
     /// What the lexer found in it.
-    pub reason: ParamNameReason,
+    pub reason: VarNameReason,
 }
 
-impl core::fmt::Display for ParamNameFault {
+impl core::fmt::Display for VarNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // Quoted, because this is the one class of sentence that echoes
         // bytes an author typed rather than framing a name the document
@@ -400,14 +400,14 @@ impl core::fmt::Display for ParamNameFault {
     }
 }
 
-impl core::error::Error for ParamNameFault {}
+impl core::error::Error for VarNameFault {}
 
 /// The lexer's finding in a text that is not a parameter name: each
 /// arm names what was read and where, so a reader knows what to
 /// change. Rendered as a predicate phrase after the quoted text
-/// ([`ParamNameFault`]'s `Display`).
+/// ([`VarNameFault`]'s `Display`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParamNameReason {
+pub enum VarNameReason {
     /// No token at all: the text is empty or whitespace.
     Blank,
     /// A character the expression alphabet has no token for.
@@ -439,7 +439,7 @@ pub enum ParamNameReason {
     Padded,
 }
 
-impl core::fmt::Display for ParamNameReason {
+impl core::fmt::Display for VarNameReason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Blank => f.write_str("is blank — a parameter name is one identifier"),
@@ -478,7 +478,7 @@ impl core::fmt::Display for ParamNameReason {
 /// because this is the parser's own reading, not a second grammar.
 /// No name is minted to ask: the table is empty, and the parser looks
 /// an identifier up by its lexed text.
-pub(crate) fn param_name_fault(text: &str) -> Option<ParamNameReason> {
+pub(crate) fn var_name_fault(text: &str) -> Option<VarNameReason> {
     match parse_expr(text, &BTreeMap::new()) {
         Err(ParseError::UnknownParam { name, .. }) if name == text => None,
         _ => Some(param_name_reason(text)),
@@ -488,23 +488,23 @@ pub(crate) fn param_name_fault(text: &str) -> Option<ParamNameReason> {
 /// Why a text the parser does not read back as a reference to itself
 /// is not a name, as the lexer sees it: the first thing that breaks
 /// "one identifier token covering the whole text".
-fn param_name_reason(text: &str) -> ParamNameReason {
+fn param_name_reason(text: &str) -> VarNameReason {
     let toks = match lex(text) {
         Ok(toks) => toks,
-        Err((pos, ch)) => return ParamNameReason::OutsideAlphabet { pos, ch },
+        Err((pos, ch)) => return VarNameReason::OutsideAlphabet { pos, ch },
     };
     let mut it = toks.into_iter();
     let Some((pos, first)) = it.next() else {
-        return ParamNameReason::Blank;
+        return VarNameReason::Blank;
     };
     let Tok::Ident(_) = first else {
-        return ParamNameReason::NotAnIdentifier {
+        return VarNameReason::NotAnIdentifier {
             pos,
             found: first.describe(),
         };
     };
     if let Some((pos, second)) = it.next() {
-        return ParamNameReason::NotOneToken {
+        return VarNameReason::NotOneToken {
             pos,
             found: second.describe(),
         };
@@ -512,7 +512,7 @@ fn param_name_reason(text: &str) -> ParamNameReason {
     // One identifier the parser did not read back as the whole text:
     // an identifier carries no whitespace of its own, so the rest of
     // the text is whitespace around it.
-    ParamNameReason::Padded
+    VarNameReason::Padded
 }
 
 /// Parse `src` into a dimension-checked [`Expr`] (module docs: the
@@ -534,7 +534,7 @@ fn param_name_reason(text: &str) -> ParamNameReason {
 /// dimensional rather than syntactic, and
 /// [`DimensionError::NestedTooDeep`] for an expression nested past the
 /// bound.
-pub fn parse_expr(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Result<Expr, ParseError> {
+pub fn parse_expr(src: &str, params: &BTreeMap<VarName, Dimension>) -> Result<Expr, ParseError> {
     let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
     Parser {
         toks,
@@ -549,7 +549,7 @@ struct Parser<'a> {
     toks: Vec<(usize, Tok)>,
     i: usize,
     end: usize,
-    params: &'a BTreeMap<ParamName, Dimension>,
+    params: &'a BTreeMap<VarName, Dimension>,
 }
 
 /// A binary smart constructor, as the grammar's operators name them.
@@ -767,13 +767,13 @@ impl Parser<'_> {
                     }));
                     Ok(None)
                 } else {
-                    // Looked up by the lexed text (`ParamName:
+                    // Looked up by the lexed text (`VarName:
                     // Borrow<str>`), so the parser never mints a name
                     // of its own: the reference it builds is the
                     // table's key, and an identifier the table lacks
                     // is echoed as the bytes read.
                     match self.params.get_key_value(name.as_str()) {
-                        Some((key, &dim)) => Ok(Some(Expr::param(key.clone(), dim))),
+                        Some((key, &dim)) => Ok(Some(Expr::named(key.clone(), dim))),
                         None => Err(ParseError::UnknownParam { pos, name }),
                     }
                 }

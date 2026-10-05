@@ -162,19 +162,16 @@
 //!   recourse that is true of it.
 //! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
 //!   that did not resolve, a cycle that did not close, or a verdict
-//!   whose keys disagree with the body's own structure. **This is not a kernel
-//!   bug channel.** A body that fails referential integrity is
-//!   reachable at this door without any kernel bug in the trace —
-//!   `topo::instance::graft_disjoint_all`'s own docs record that a
-//!   refusal raised mid-transplant leaves its destination *spent,
-//!   never resumable*, and a caller that keeps that body may hand it
-//!   here. So these sites refuse typed, naming the entity.
-//! - **Row 4**, `unreachable!`: only where the state is impossible on
-//!   facts THIS call establishes — a key this call minted, a key a
-//!   walk in this call returned, or a count this call checked. Each
-//!   carries that proof in its message. No site inherits its proof
-//!   from whole-body validity, which the paragraph above is exactly
-//!   why.
+//!   whose keys disagree with the body's own structure. These sites
+//!   refuse typed, naming the entity. Every public door keeps a body
+//!   tier-1 valid (D9), so a body that fails referential integrity
+//!   here has met a kernel bug; D2's torn-body rule makes such a read
+//!   row 4, and the conversion is
+//!   `work/topo/stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body.md`.
+//! - **Row 4**, `unreachable!`: where the state is impossible on facts
+//!   THIS call establishes — a key this call minted, a key a walk in
+//!   this call returned, or a count this call checked. Each carries
+//!   that proof in its message.
 //!
 //! # What this surgery may destroy
 //!
@@ -276,10 +273,13 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 /// A plain function, not a closure factory: the step name is an
 /// argument at every call rather than a value captured once per phase,
 /// so `BlendError::Op` cannot be constructed here without naming its
-/// site, and the operator's own typed refusal — `StaleKey`,
-/// `Certification`, the whole vocabulary — travels intact.
+/// site, and the operator's own typed refusal travels intact
+/// ([`topo::EulerOpError::from_driver`]).
 pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
-    BlendError::Op { site, source }
+    BlendError::Op {
+        site,
+        source: source.from_driver(),
+    }
 }
 
 // ------------------------------------------------------------------
@@ -2949,36 +2949,27 @@ fn rim_carrier<T: Decide>(
 
 /// The scaled trim carrier for the arc REPLACING a rim edge on one
 /// side: same frame, same parameter window, oriented so `he_plus` runs
-/// with that side's loop — reversed by negating the axis and the
-/// window, never by an endpoint `atan2` (π-arc safe).
+/// with that side's loop — reversed by [`Curve3::reversed`] over the
+/// negated window, never by an endpoint `atan2` (π-arc safe).
 fn scaled<T: Real>(
     rc: &RimCarrier<T>,
     center: Point3<T>,
     radius: T,
     forward: bool,
 ) -> (Curve3<T>, T, T) {
+    let circle = Curve3::Circle {
+        center,
+        axis: rc.axis,
+        radius,
+        u_ref: rc.u_ref,
+    };
     if forward {
-        (
-            Curve3::Circle {
-                center,
-                axis: rc.axis,
-                radius,
-                u_ref: rc.u_ref,
-            },
-            rc.t0,
-            rc.t1,
-        )
+        (circle, rc.t0, rc.t1)
     } else {
-        (
-            Curve3::Circle {
-                center,
-                axis: -rc.axis,
-                radius,
-                u_ref: rc.u_ref,
-            },
-            -rc.t1,
-            -rc.t0,
-        )
+        let back = circle
+            .reversed()
+            .unwrap_or_else(|| unreachable!("a circle reverses"));
+        (back, -rc.t1, -rc.t0)
     }
 }
 
@@ -4612,15 +4603,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
-    let sides = topo::readback::edge_sides(body, edge).map_err(|what| match what {
-        topo::DanglingRef::Entity(EntityId::Edge(_)) => {
-            not_intact(EntityId::Edge(edge), "an edge awaiting its description")
-        }
-        _ => not_intact(
-            EntityId::Edge(edge),
-            "the two faces a described edge separates, or their surfaces",
-        ),
-    })?;
+    let sides = topo::readback::edge_sides(body, edge)
+        .map_err(|_| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?;
     let he_plus = sides.plus.half_edge;
     let (s1, s2) = sides.surfaces();
     let (p0, p1) = {

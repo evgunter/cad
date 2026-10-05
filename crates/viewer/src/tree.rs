@@ -1171,6 +1171,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
+        // The input's door shipped a body its gate should have refused:
+        // a kernel defect, and no author's slot refused.
+        NodeErrorKind::UnfinishedOperand { .. } => None,
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.
         NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
@@ -1277,10 +1280,12 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::ClassNotAdmitted { .. }
         | MateFault::TableLacks { .. }
         | MateFault::Indeterminate { .. }
+        | MateFault::PoseOutOfRange { .. }
         | MateFault::Under { .. }
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
         | MateFault::FaceUnresolved { .. }
+        | MateFault::FrameUnevaluated { .. }
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
@@ -1336,7 +1341,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. }
-        | MateFault::FaceUnresolved { mate, .. } => vec![*mate],
+        | MateFault::FaceUnresolved { mate, .. }
+        | MateFault::FrameUnevaluated { mate, .. } => vec![*mate],
         // Names no mate and reaches EVERY row of the document — the
         // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),
@@ -1346,10 +1352,12 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Name no mate: the fault is the instance's own checked
         // offset, so the instance's row keeps its own `Failed`.
         MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => Vec::new(),
-        // A contradiction is a claim about a PAIR of mates: neither is
-        // the wrong one on the fault's own telling, so both read as
-        // causes and the user picks which to relax.
-        MateFault::Contradictory { held, added, .. } => {
+        // A contradiction is a claim about a PAIR of mates, and so is
+        // a meeting point past the format: neither is the wrong one on
+        // the fault's own telling, so both read as causes and the user
+        // picks which to relax.
+        MateFault::Contradictory { held, added, .. }
+        | MateFault::PoseOutOfRange { held, added } => {
             if held == added {
                 vec![*held]
             } else {

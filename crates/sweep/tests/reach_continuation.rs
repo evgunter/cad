@@ -20,10 +20,10 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Open, ProfileLoop, RawLoop, Start};
-use sweep::test_support::{extruded, sketch_at};
+use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{
-    Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
-    FacePairDeclaration, Operand, PlaneRelation,
+    AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError,
+    BooleanOp, BooleanResult, FacePairDeclaration, Operand, PlaneRelation,
 };
 
 const W: f64 = 6.0;
@@ -101,8 +101,12 @@ fn sharp() -> ProfileLoop<f64> {
 }
 
 /// A unit-thick plate of `outline`, its bottom at `z0`.
-fn plate(outline: ProfileLoop<f64>, z0: f64) -> Body<f64> {
-    extruded(sketch_at(z0), vec![outline], 1.0, tol())
+fn plate(outline: ProfileLoop<f64>, z0: f64) -> AtRestBody<f64> {
+    finished(
+        "the plate",
+        extruded(sketch_at(z0), vec![outline], 1.0, tol()),
+        tol(),
+    )
 }
 
 /// The 6×4 area less what `rounded_corners` fillets of radius `R` take.
@@ -157,8 +161,8 @@ fn volume(body: &Body<f64>) -> f64 {
 /// The union, which must build, be additive and valid at tier 3 and 3′.
 fn union_honest(
     label: &str,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     d: &BooleanDeclarations,
 ) -> BooleanBody<f64> {
     let out = topo::union_with(a, b, d, tol()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -424,7 +428,12 @@ fn corner(r: f64) -> f64 {
 /// ends there) and the upper one has none. Whichever operand's edges
 /// are swept first, the touch is read on the edge's fragments once both
 /// directions have split it, and the `Rest` seam along each fillet's rim
-/// carries the fillet's arc on both sides.
+/// carries the fillet's arc on both sides. The join pairs the fillet's
+/// germs: the straight bottom edge passing the tangent point reads
+/// along the germ to first order, but its far end touches nothing, so
+/// only the arc carries the segment. The join's surgery then refuses
+/// the germ's tangent face pair (the wall and the fillet), and the
+/// declared-REST zip builds the union on the join's segments.
 ///
 /// The poses: the 6 × 4 sharp plate on its rounded twin, and the 6 × 6
 /// sharp L (a 3 × 3 notch: five convex corners and a concave one, whose
@@ -484,6 +493,17 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
             let ab = with(&mate, &walls);
             let (mate, walls) = findings(b, a);
             let ba = with(&mate, &walls);
+            let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, &ab, tol());
+            assert!(
+                matches!(
+                    join,
+                    Ok(Some(BooleanError::Join(
+                        topo::SplitJoinError::SectionInvariant { .. }
+                    )))
+                ),
+                "{label}: A ∪ B, the join pairs every germ and its surgery refuses the fillet's \
+                 tangent faces, which the zip takes over: {join:?}"
+            );
             builds(
                 &format!("{label}: A ∪ B"),
                 topo::union_with(a, b, &ab, tol()),
@@ -632,7 +652,7 @@ fn box_beside_the_fillet(
     p: &Body<f64>,
     z0: f64,
     z1: f64,
-) -> (Body<f64>, topo::FaceKey, topo::FaceKey) {
+) -> (AtRestBody<f64>, topo::FaceKey, topo::FaceKey) {
     let s2 = core::f64::consts::FRAC_1_SQRT_2;
     let touch = Point2::new(W - R + R * s2, R - R * s2);
     let at = |along: f64, out: f64| {
@@ -670,13 +690,13 @@ fn box_beside_the_fillet(
             )
         })
         .expect("the south-east fillet");
-    (boxed, wall, fillet)
+    (finished("the box", boxed, tol()), wall, fillet)
 }
 
 /// The comb: two 2 × 3 blocks at x 0 to 2 and 8 to 10 bridged above
 /// y = 1.5, and between them a tooth whose 90° tip, rounded r = 0.5,
 /// touches y = 0 at x = 5 in the middle of its fillet. Unit thick.
-fn comb() -> Body<f64> {
+fn comb() -> AtRestBody<f64> {
     let t = tol();
     let r = 0.5;
     // The tip corner sits r(√2 − 1) below y = 0, so the fillet's lowest
@@ -757,6 +777,7 @@ fn a_covered_touch_no_vertex_splits_refuses_in_both_orders() {
         1.75,
         tol(),
     );
+    let long = finished("the long box", long, tol());
     let wall = long
         .faces()
         .map(|(k, _)| k)
@@ -869,13 +890,17 @@ fn the_stack_is_a_legal_operand() {
     }
 }
 
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    sweep::test_support::brick(x, y, z, tol())
+fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
+    finished(
+        "the brick",
+        sweep::test_support::brick(x, y, z, tol()),
+        tol(),
+    )
 }
 
 /// The rabbeted plate: 6 × 4 × 1 with a 1 × 0.5 step cut along its
 /// east edge, swept along y from its xz section (volume 22).
-fn rabbeted() -> Body<f64> {
+fn rabbeted() -> AtRestBody<f64> {
     let section = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(W, 0.0),
@@ -890,7 +915,11 @@ fn rabbeted() -> Body<f64> {
         geom_core::Vec3::new(0.0, 0.0, 1.0),
         tol(),
     );
-    extruded(xz, vec![section], H, tol())
+    finished(
+        "the rabbeted plate",
+        extruded(xz, vec![section], H, tol()),
+        tol(),
+    )
 }
 
 /// A boolean that must build, at `expect`, valid at tier 3 and 3′.
@@ -977,15 +1006,15 @@ fn a_kiss_or_a_gap_is_no_continuation() {
 /// the result is empty).
 type ContinuationRow = (
     &'static str,
-    Body<f64>,
-    Body<f64>,
+    AtRestBody<f64>,
+    AtRestBody<f64>,
     [Option<(f64, usize)>; 3],
 );
 
 /// The three ops, by name.
 type Op = fn(
-    &Body<f64>,
-    &Body<f64>,
+    &AtRestBody<f64>,
+    &AtRestBody<f64>,
     &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
@@ -1138,7 +1167,7 @@ fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
 /// the outline's area `24 − (4 − π)·R²`: half the thick plate's volume
 /// each, the sunk subtract as two plates of a quarter unit (twenty
 /// faces). A ∪ B refuses `FallbackExtentUnsupported`: no crossing
-/// event exists, and that pass exempts no declared pair
+/// event exists, and that pass exempts no continuation
 /// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
 /// With the declarations keyed for (B, A), B ∖ A, empty (the thin
 /// plate lies inside the thick one), refuses as A ∪ B does, while B ∪ A
@@ -1161,7 +1190,11 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
         ("flush top", 0.5, 10, 14),
         ("flush bottom", 0.0, 10, 14),
     ] {
-        let b = extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol());
+        let b = finished(
+            "the thin plate",
+            extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol()),
+            tol(),
+        );
         let (rest, cont) = findings(&a, &b);
         assert!(rest.coincident_faces.is_empty(), "{label}: no Rest pair");
         let d = with(&rest, &cont);

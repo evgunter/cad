@@ -770,7 +770,7 @@ class TestTheStepsReadBack(unittest.TestCase):
         against the document (`th`, in degrees, declared first)."""
         doc = Doc()
         if th is not None:
-            doc.apply(DocEdit.set_doc_param(ParamName("th"), DocParam.angle(th * deg)))
+            doc.apply(DocEdit.declare_var(ParamName("th"), DocParam.angle(th * deg)))
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
         rule = PatternKind.circular(self.axis(doc), doc.parse_expr(step))
         return doc, doc.insert(Node.pattern(box, Expr.count(5), rule))
@@ -835,11 +835,11 @@ class TestTheStepsReadBack(unittest.TestCase):
 class TestTheCountParamBinding(unittest.TestCase):
     """`bind_count_param` — the narrowed structural-slot edit. The
     count stops being a literal and becomes a named number one
-    `set_doc_param` away from any other value."""
+    `define_var` away from any other value."""
 
     def build(self):
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(ParamName("fins"), DocParam.count(2)))
         group = doc.insert(
             Node.placed_union(
                 fin_only(doc), Expr.count(2), PatternKind.linear((
@@ -855,29 +855,29 @@ class TestTheCountParamBinding(unittest.TestCase):
         doc, group = self.build()
         doc.apply(DocEdit.bind_count_param(group, ParamName("fins")))
         self.assertEqual(mass_of(doc, group).volume, 2 * FIN_VOLUME)
-        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(4)))
+        doc.apply(DocEdit.define_var(ParamName("fins"), DocParam.count(4)))
         self.assertEqual(mass_of(doc, group).volume, 4 * FIN_VOLUME)
 
     def test_binding_an_unknown_parameter_refuses(self):
         doc, group = self.build()
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(group, ParamName("nope")))
-        self.assertEqual(caught.exception.variant, "slot_unknown_doc_param")
+        self.assertEqual(caught.exception.variant, "slot_unknown_var_name")
 
     def test_binding_a_parameter_of_the_wrong_dimension_refuses(self):
         """The slot is a Count, and a Length parameter is not one —
         the edit's own dimension check, arriving unchanged."""
         doc, group = self.build()
-        doc.apply(DocEdit.set_doc_param(ParamName("width"), DocParam.length(1 * m)))
+        doc.apply(DocEdit.declare_var(ParamName("width"), DocParam.length(1 * m)))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(group, ParamName("width")))
-        self.assertEqual(caught.exception.variant, "slot_doc_param_dimension")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
     def test_an_explicit_group_has_no_count_slot_to_bind(self):
         """The list IS the count, so there is nothing for a parameter
         to drive — the two-sources-of-truth state, refused."""
         doc = Doc()
-        doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(2)))
+        doc.apply(DocEdit.declare_var(ParamName("fins"), DocParam.count(2)))
         group = doc.insert(
             Node.placed_union_at(
                 fin_only(doc), [Frame.translation((0 * m, 0 * m, 0 * m))]

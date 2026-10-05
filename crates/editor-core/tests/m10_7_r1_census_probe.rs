@@ -24,8 +24,8 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
+    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName,
     evaluate,
 };
 use fixture::{Recorder, len, scl, xy_frame};
@@ -40,9 +40,9 @@ use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 /// the chain vocabulary. `Err` carries the door's refusal.
 fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("w"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("w"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -50,9 +50,9 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
-    let w = || Expr::param(ParamName::from_static("w"), Dimension::Length);
+    let w = || Expr::named(VarName::from_static("w"), Dimension::Length);
     let plane = r.insert(xy_frame());
     let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
@@ -93,7 +93,7 @@ fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static 
         ParamBox::of(&analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     );
     let opts = EvalOptions {
@@ -185,7 +185,7 @@ fn r1_parametric_chain_at_a_point_box() {
                 ParamBox::of(&analyzed)
                     .axes()
                     .keys()
-                    .map(|n| (n.clone(), BoxAxis::Fixed))
+                    .map(|n| (*n, BoxAxis::Fixed))
                     .collect(),
             )
         } else {

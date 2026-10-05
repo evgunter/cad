@@ -30,9 +30,9 @@
 
 use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId,
-    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, BooleanOp, CancelToken, Dimension, Distribution, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::PlaneRelation;
@@ -75,7 +75,7 @@ fn scl(v: f64) -> Expr {
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(n), Dimension::Length)
+    Expr::named(VarName::from_static(n), Dimension::Length)
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -101,9 +101,13 @@ fn declare(
 ) {
     let applied = apply(
         doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static(n),
-            value: DocParam::continuous_with(Dimension::Length, value, distribution),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous_with(
+                Dimension::Length,
+                value,
+                distribution,
+            )),
         },
         tol,
         &RefusingReach,
@@ -327,7 +331,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 pncad::prelude::SurfaceKind::Cylinder,
             ))],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             tol,
         )
         .expect("the surface-kind atom is exact");

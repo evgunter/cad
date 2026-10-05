@@ -42,8 +42,8 @@ use editor_core::clearance::{
     ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
 };
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    CapEnd, Datum, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::Tol;
 
@@ -67,14 +67,14 @@ fn k_eps() -> f64 {
     Tol::witness().k() * eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn box_of(axis: &'static str) -> ParamBox {
+fn box_of(doc: &ProfileDoc, axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        name(axis),
+        doc.var_named(axis).expect("the fixture declares the axis"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -84,9 +84,9 @@ fn box_of(axis: &'static str) -> ParamBox {
 }
 
 fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name(axis),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -94,7 +94,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
 }
 
@@ -142,6 +142,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -193,7 +194,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let placed = r.insert(translated(
         probe,
         [
-            Expr::param(name("place"), Dimension::Length),
+            Expr::named(name("place"), Dimension::Length),
             len(0.0),
             len(-0.05),
         ],
@@ -240,7 +241,7 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     let block = Selection::body_of(block_node);
     let report = editor_core::clearance::clearance_with(
         &doc,
-        &box_of("place"),
+        &box_of(&doc, "place"),
         &cap,
         &block,
         &at_least(0.3, cfg(65_536, 40)),
@@ -350,7 +351,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         [
             len(0.0),
             len(0.0),
-            Expr::param(name("place"), Dimension::Length),
+            Expr::named(name("place"), Dimension::Length),
         ],
     ));
     (r.doc, solid, placed)
@@ -384,7 +385,7 @@ fn a_cylinder_band_answers_through_a_cut_root() {
         vec![fixture::fname(solid, fixture::wall(&doc, solid, 3))],
     );
     let sp = Selection::body_of(probe);
-    let report = clearance(&doc, &box_of("place"), &ss, &sp, 1.0, Tol::witness());
+    let report = clearance(&doc, &box_of(&doc, "place"), &ss, &sp, 1.0, Tol::witness());
     println!(
         "[E7] scalloped block vs the probe in the scallop at c = 1.0: windows {:?}, {}",
         report.windows(),
@@ -476,7 +477,7 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(0.3), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+            Expr::add(len(0.3), Expr::named(name("place"), Dimension::Length)).expect("a length"),
         ],
     ))
 }
@@ -522,7 +523,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
     );
     let report = clearance(
         &r.doc,
-        &box_of("place"),
+        &box_of(&r.doc, "place"),
         &wall,
         &Selection::body_of(block),
         0.3,
@@ -632,11 +633,18 @@ fn a_selection_door_refusal_reports_no_windows_at_all() {
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(-0.2), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+            Expr::add(len(-0.2), Expr::named(name("place"), Dimension::Length)).expect("a length"),
         ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
-    let report = clearance(&r.doc, &box_of("place"), &sq, &sb, 1.0, Tol::witness());
+    let report = clearance(
+        &r.doc,
+        &box_of(&r.doc, "place"),
+        &sq,
+        &sb,
+        1.0,
+        Tol::witness(),
+    );
     println!(
         "[E8] y-axis quarter annulus, verdict {} windows {:?}: {}",
         report.verdict().label(),

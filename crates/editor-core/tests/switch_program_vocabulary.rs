@@ -118,8 +118,8 @@ use std::collections::BTreeSet;
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Expr, LoopProgram, Node, ParamEnv, ParamName, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, SlotId, StepArg,
+    Expr, LoopProgram, Node, ProfilePayload, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, SlotId, StepArg, VarEnv, VarName,
 };
 use profile::{ArcMode, TargetKind, Verb};
 
@@ -469,7 +469,7 @@ fn every_table_verb_is_a_document_program() {
     // the chain. Walking every chain loop drops that assumption too.
     let program = corpus();
     let resolved = program
-        .resolve(&ParamEnv::<f64>::default())
+        .resolve(&VarEnv::<f64>::default())
         .expect("the corpus resolves at f64");
 
     let mut chains = 0usize;
@@ -560,7 +560,7 @@ fn every_target_form_is_a_document_program() {
             ids: Vec::new(),
         };
         let resolved = program
-            .resolve(&ParamEnv::<f64>::default())
+            .resolve(&VarEnv::<f64>::default())
             .expect("a one-step target witness resolves at f64");
         let profile::Step::LineTo(got) = &resolved[0][0] else {
             panic!(
@@ -585,7 +585,7 @@ fn every_target_form_is_a_document_program() {
     // what this clause assumes, and a verb that gains one is
     // adjudicated here.
     let seen: Vec<TargetKind> = corpus()
-        .resolve(&ParamEnv::<f64>::default())
+        .resolve(&VarEnv::<f64>::default())
         .expect("the corpus resolves at f64")
         .iter()
         .flat_map(|loop_| loop_.iter())
@@ -662,7 +662,7 @@ fn every_arc_mode_is_a_document_program() {
             ids: Vec::new(),
         };
         let resolved = program
-            .resolve(&ParamEnv::<f64>::default())
+            .resolve(&VarEnv::<f64>::default())
             .expect("a one-step mode witness resolves at f64");
         let profile::Step::ArcTo(spec) = &resolved[0][0] else {
             panic!(
@@ -679,7 +679,7 @@ fn every_arc_mode_is_a_document_program() {
     }
 
     let corpus_modes: Vec<ArcMode> = corpus()
-        .resolve(&ParamEnv::<f64>::default())
+        .resolve(&VarEnv::<f64>::default())
         .expect("the corpus resolves at f64")
         .iter()
         .flat_map(|loop_| loop_.iter())
@@ -1162,18 +1162,18 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
     let node = Node::Profile(corpus());
     let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
-    let unbound = ParamName::from_static("nothing_binds_this");
+    let unbound = VarName::from_static("nothing_binds_this");
     let mut misplaced = Vec::new();
     for slot in &slots {
         let mut broken = node.clone();
         let expr = broken
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = Expr::param(unbound.clone(), expr.dim());
+        *expr = Expr::named(unbound.clone(), expr.dim());
         let Node::Profile(broken) = broken else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
-        match broken.resolve(&ParamEnv::<f64>::default()) {
+        match broken.resolve(&VarEnv::<f64>::default()) {
             Err((reported, _)) if reported == *slot => {}
             Err((reported, _)) => {
                 misplaced.push(format!("{} refuses at {}", slot.label(), reported.label()))
@@ -1295,7 +1295,7 @@ fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
         let loops = probe
-            .resolve(&ParamEnv::<f64>::default())
+            .resolve(&VarEnv::<f64>::default())
             .unwrap_or_else(|(at, e)| {
                 panic!("the literal corpus refuses at {}: {e:?}", at.label())
             });
@@ -1491,7 +1491,7 @@ fn the_persisted_spelling_of_the_program_is_pinned() {
 fn lifting_then_erasing_is_erasing_the_recording() {
     let program = corpus();
     let resolved = program
-        .resolve(&ParamEnv::<f64>::default())
+        .resolve(&VarEnv::<f64>::default())
         .expect("the corpus resolves at f64");
     for (l, steps) in resolved.iter().enumerate() {
         let lifted = LoopProgram::from_recorded(steps).expect("a literal recording lifts");

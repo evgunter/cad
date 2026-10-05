@@ -50,6 +50,7 @@ use super::tests::every_decision;
 use super::*;
 use crate::contact::ContactClass;
 use crate::entity::VertexKey;
+use crate::test_support::finished;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
 use core::f64::consts::FRAC_1_SQRT_2;
 use geom_brep::OutwardNormal;
@@ -349,6 +350,18 @@ cases! {
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
         Withdrawn(Because::Refuses("JoinDesync")) =>
         coaxial_frame(0.5, D);
+    // The transverse frame's reach a band past and short of the walls'
+    // tangency. The section's coincidence names its lever and no
+    // tolerance; the tolerance it withdrew decides the loop count.
+    transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
+        Withdrawn(Because::Passes) => transverse_frame(D);
+    transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Passes) => transverse_frame(-D);
+    // Two parallel walls whose axes stand a band apart: their radical
+    // plane's normal has no decided length. The coincidence names no
+    // tolerance; the tolerance it withdrew decides the offset.
+    parallel_axes_offset_in_band: "Coincidence(Section)", D, RADICAL_PLANE_SITE,
+        Withdrawn(Because::Passes) => parallel_radical_plane_at(D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
     arc_root_just_outside_its_span: "Crossing(OnEdge)", -D, ROOT_SITE, Valued =>
@@ -373,16 +386,16 @@ cases! {
         planar_flank_membership(true, false);
     neighbours_bent_at_the_band: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
         bent_neighbours(D);
-    // The coincfr4 review's bent prism, through a public union: its
-    // re-run meets the containment (CONTACT's row).
-    neighbours_bent_in_a_union: "Neighbours(Parallel)", D, Public, Valued =>
-        bent_neighbours_in_a_union(D);
-    // Valid bodies only (the coincv5 review's NF-2 poses): on one, the
-    // offset the gate reads is the bend `Neighbours(Parallel)` reads
-    // first, so it is offered from the zero band. A prism whose wall
-    // turns by a zero-band angle at a short edge, beside a far brick and
-    // crossed by one through each public op; and a split top bent about
-    // its diagonal, its plane's origin far along the plane.
+    // A disc bent about a diameter: its one edge is a closed circle,
+    // whose chord is 0, so the angle reads over the circle's extent.
+    neighbours_bent_across_a_circle: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
+        bent_disc(D);
+    // Finished bodies (the coincv5 review's NF-2 pose): a prism whose
+    // wall turns by a zero-band angle at a short edge, the offset the
+    // gate reads being the bend, so it is offered from the zero band.
+    // Its kink lies on both walls exactly, so it is described at every
+    // tolerance a re-run takes; beside a far brick and crossed by one
+    // through each public op.
     neighbours_kinked_beside_a_far_brick: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
         Valued => kinked_prism(None, KINK);
     neighbours_kinked_crossed_union: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
@@ -395,13 +408,14 @@ cases! {
         -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(None, 2.0 * KINK);
     neighbours_kinked_twice_as_far_crossed_union: "CoplanarNeighbours",
         -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(Some(0), 2.0 * KINK);
-    neighbours_bent_far_origin_beside_a_far_brick: "CoplanarNeighbours",
-        KINK * FRAC_1_SQRT_2, Public, Valued => bent_split_far_origin(None, 10.0);
-    // Its re-run meets a corner's side of a face, whose own offer is true.
-    neighbours_bent_far_origin_crossed_union: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
-        Public, Valued => bent_split_far_origin(Some(0), 10.0);
-    neighbours_bent_far_origin_crossed_subtract: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
-        Public, Valued => bent_split_far_origin(Some(1), -10.0);
+    // The coincv5 review's split top bent about its diagonal, its
+    // plane's origin far along the plane, asked at the gate: its bent
+    // half's far corner stays on the walls, `KINK · ½√2` off the bent
+    // plane, inside the band at the design tolerance and outside it
+    // below the offer, so the re-run has no finished body of this pose
+    // to hand a door (`bent_split_far_origin`).
+    neighbours_bent_far_origin_at_the_gate: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
+        GATE_SITE, Valued => at_the_gate(bent_split_far_origin(10.0));
     rim_just_above_a_face: "Coincidence(EdgeOnPlane)", D, RIM_PLANE_SITE, Valued =>
         rim_over_a_brick(1.0 - D);
     rim_just_below_a_face: "Coincidence(EdgeOnPlane)", -D, RIM_PLANE_SITE, Valued =>
@@ -459,6 +473,16 @@ const NORMAL_SITE: Door = Door::Site(
 const FRAME_SITE: Door = Door::Site(
     "the radius guards run on the declared-coaxial cylinder and sphere frame, which no public \
      door passes",
+);
+const TRANSVERSE_FRAME_SITE: Door = Door::Site(
+    "the transverse cylinder and sphere frame's reach is read on the two surfaces, set \
+     directly: a ball whose wall reaches the cylinder's far side within the band crosses it \
+     near-tangent, which the crossing layer meets first",
+);
+const RADICAL_PLANE_SITE: Door = Door::Site(
+    "a parallel cylinder pair's radical plane is read on the two surfaces, set directly: two \
+     walls whose axes stand a band apart coincide or nest, which the coincidence ladder and \
+     the crossing layer meet first",
 );
 const ROOT_SITE: Door =
     Door::Site("the conic root lane is asked of a carrier and a plane, set directly");
@@ -708,7 +732,7 @@ fn wedge_on_a_block(
 }
 
 /// The block and the wedge of [`wedge_on_a_block`].
-fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::body::Body<f64>, crate::body::Body<f64>) {
+fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
     use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
     let phi = opening_deg.to_radians();
@@ -721,7 +745,14 @@ fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::body::Body<f64>, crate::bo
         move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w),
         tol,
     );
-    (brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol), wedge)
+    (
+        finished(
+            "the lane's block",
+            brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            tol,
+        ),
+        finished("the lane's wedge", wedge, tol),
+    )
 }
 
 /// A block tilted by an in-band angle on a block's top face, the pair
@@ -734,9 +765,13 @@ fn tilted_block_declared_tangent() -> Result<(), BooleanError> {
 fn block_declared_tangent_at(tilt: f64) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
-    let b = mapped_cube::<f64>(
-        move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
+    let a = finished("block", brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol), tol);
+    let b = finished(
+        "tilted block",
+        mapped_cube::<f64>(
+            move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
+            tol,
+        ),
         tol,
     );
     let facing = |body: &crate::body::Body<f64>, up: bool| {
@@ -865,8 +900,16 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
 fn block_on_a_block(z0: f64) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::brick;
     let tol = Tol::witness();
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
-    let b = brick::<f64>((0.5, 1.5), (0.5, 1.5), (z0, 2.0), tol);
+    let a = finished(
+        "block",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = finished(
+        "standing block",
+        brick::<f64>((0.5, 1.5), (0.5, 1.5), (z0, 2.0), tol),
+        tol,
+    );
     super::super::union(&a, &b, tol).map(|_| ())
 }
 
@@ -982,6 +1025,42 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
         .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
 
+/// The radical plane of a radius-0.5 cylinder about `z` and a
+/// radius-0.3 one about the parallel axis `offset` along `x`.
+fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
+    let wall = |x: f64, radius: f64| geom::Surface::Cylinder {
+        origin: Point3::new(x, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), band())
+        .map(|_| ())
+}
+
+/// The transverse frame of a radius-0.5 cylinder about `z` and a
+/// sphere centred 0.25 off its axis whose radius reaches `reach` past
+/// the cylinder's far side.
+fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
+    use super::super::join::{frame_refusal, pair_section_frame};
+    let c = geom::Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let s = geom::Surface::Sphere {
+        center: Point3::new(0.25, 0.0, 0.0),
+        radius: 0.75 + reach,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let face = crate::entity::FaceKey::default();
+    pair_section_frame(&c, &s, geom_brep::RadiusEvidence::None, None, band())
+        .map(|_| ())
+        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+}
+
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
 /// `x = cos(t)`: a root at `t`, the conic root lane's.
 fn circle_roots(t: f64) -> Result<(), BooleanError> {
@@ -1025,7 +1104,8 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
 /// `carrier` over `span` against the plane `x = x0`, as the conic root
 /// lane reads it.
 fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result<(), BooleanError> {
-    match crate::splitting::conic_plane_crossing_roots(
+    use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
+    match crate::splitting::plane_crossing_lane(
         carrier,
         span.0,
         span.1,
@@ -1033,12 +1113,16 @@ fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result
         Vec3::new(1.0, 0.0, 0.0),
         band(),
     ) {
-        Ok(crate::splitting::ConicPlaneMeet::Roots(Err(fault))) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
-            diag: fault.diag(),
-        }),
-        Ok(_) => Ok(()),
-        Err(()) => panic!("a conic"),
+        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
+                diag: fault.diag(),
+            })
+        }
+        PlaneCrossingLane::Conic(_) => Ok(()),
+        lane @ (PlaneCrossingLane::Line | PlaneCrossingLane::Unlaned) => {
+            panic!("a conic takes the root lane, not {lane:?}")
+        }
     }
 }
 
@@ -1305,29 +1389,46 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
-/// The same bent prism beside a far brick, through a public union (the
-/// coincfr4 review's `split_bent_public`).
-fn bent_neighbours_in_a_union(margin: f64) -> Result<(), BooleanError> {
-    let body = super::tests::top_split_redescribed(|p0, along, diagonal| {
-        let theta = margin / diagonal;
-        let up = Vec3::new(0.0, 0.0, 1.0);
-        plane_through(p0, along, up * theta.cos() + along.cross(up) * theta.sin())
-    });
-    let far = crate::test_support_fixtures::brick::<f64>(
-        (5.0, 6.0),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        Tol::witness(),
-    );
-    super::super::union(&body, &far, Tol::witness()).map(|_| ())
+/// A brick's top with a disc of radius ½ planted in it, the disc bent
+/// about its diameter along `x` by an angle whose sine over the
+/// circle's extent, its diameter, is `margin`: the operand's
+/// maximal-faces gate.
+fn bent_disc(margin: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    let prism = prism_z::<f64>(&square, 0.0, 1.0, tol);
+    let mut body = prism.body;
+    let outer = body.get_face(prism.top_face).unwrap().outer;
+    let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the top face's outer loop is a cycle");
+    };
+    let center = Point3::new(1.0, 1.0, 1.0);
+    let disc = crate::test_support_fixtures::plant_disc_face(&mut body, first, center, 0.5, tol);
+    let up = Vec3::new(0.0, 0.0, 1.0);
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    let theta = margin.asin();
+    // Lifts RechartStrandsDescriptions: the bent disc is the gate's input; its circle is not the row.
+    body.set_face_surface_unvouched_for_tests(
+        disc.face,
+        crate::euler::FaceSurface::New {
+            surface: plane_through(
+                center,
+                along,
+                up * theta.cos() + along.cross(up) * theta.sin(),
+            ),
+            sense: true,
+        },
+    )
+    .unwrap();
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
 /// The public op `k` (0 union, 1 subtract, else intersect) of `a` and
 /// `b`, `decls` declared.
 fn public_op(
     k: u8,
-    a: &crate::body::Body<f64>,
-    b: &crate::body::Body<f64>,
+    a: &crate::AtRestBody<f64>,
+    b: &crate::AtRestBody<f64>,
     decls: &BooleanDeclarations,
 ) -> Result<(), BooleanError> {
     let op = match k {
@@ -1358,7 +1459,7 @@ fn turned_z(deg: f64, v: Vec3<f64>) -> Vec3<f64> {
 /// in-face edge rising off the face by `tilt · s · sin(opening)` away
 /// from the block (into it where negative), the whole turned by `rot`
 /// degrees about `z`.
-fn review_wedge(top: bool, rot: f64, opening: f64, s: f64, tilt: f64) -> crate::body::Body<f64> {
+fn review_wedge(top: bool, rot: f64, opening: f64, s: f64, tilt: f64) -> crate::AtRestBody<f64> {
     use crate::test_support_fixtures::mapped_cube;
     let tol = Tol::witness();
     let phi = opening.to_radians();
@@ -1368,16 +1469,22 @@ fn review_wedge(top: bool, rot: f64, opening: f64, s: f64, tilt: f64) -> crate::
         + Vec3::new(0.0, 0.0, up * tilt * s * phi.sin());
     let p = Point3::new(0.3, -0.2, if top { 1.0 } else { 0.0 });
     let h = Vec3::new(0.0, 0.0, up);
-    if top {
+    let wedge = if top {
         mapped_cube::<f64>(move |u, v, w| p + ea * u + eb * v + h * w, tol)
     } else {
         mapped_cube::<f64>(move |u, v, w| p + eb * u + ea * v + h * w, tol)
-    }
+    };
+    finished("the review's wedge", wedge, tol)
 }
 
 /// The review's big block, `[−4, 4]² × [0, 1]`.
-fn big_block() -> crate::body::Body<f64> {
-    crate::test_support_fixtures::brick((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), Tol::witness())
+fn big_block() -> crate::AtRestBody<f64> {
+    let tol = Tol::witness();
+    finished(
+        "the review's big block",
+        crate::test_support_fixtures::brick((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), tol),
+        tol,
+    )
 }
 
 /// The review's wedge on its big block, through the public op `k`.
@@ -1411,8 +1518,8 @@ fn z_face(body: &crate::body::Body<f64>, z: f64, up: bool) -> crate::entity::Fac
 /// declared `Rest` on the block's top through the public door, by op `k`.
 fn declared_rest_wedge(
     k: u8,
-    block: &crate::body::Body<f64>,
-    wedge: &crate::body::Body<f64>,
+    block: &crate::AtRestBody<f64>,
+    wedge: &crate::AtRestBody<f64>,
 ) -> Result<(), BooleanError> {
     let decls = BooleanDeclarations {
         coincident_faces: vec![FacePairDeclaration::new(
@@ -1431,48 +1538,143 @@ fn declared_rest_wedge(
 fn corner_on_a_corner(axis: Vec3<f64>, theta: f64) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let a = finished(
+        "unit block",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let k = axis.normalize();
     let c = Point3::new(1.0, 1.0, 1.0);
     let turn = move |v: Vec3<f64>| {
         v * theta.cos() + k.cross(v) * theta.sin() + k * (k.dot(v) * (1.0 - theta.cos()))
     };
-    let b = mapped_cube::<f64>(move |u, v, w| c + turn(Vec3::new(u, v, w)), tol);
+    let b = finished(
+        "turned block",
+        mapped_cube::<f64>(move |u, v, w| c + turn(Vec3::new(u, v, w)), tol),
+        tol,
+    );
     public_op(0, &a, &b, &BooleanDeclarations::none())
 }
 
-/// The zero-band angle the neighbour cases turn by.
+/// The zero-band angle the neighbour bodies turn by.
 const KINK: f64 = 5.5e-10;
 
 /// The height of [`kinked_prism`], the length of its kinked edge.
 const KINK_HEIGHT: f64 = 0.1;
 
-/// The public op `k` of `body` and the brick `cross`, or, where `k` is
-/// `None`, the union of `body` and a far brick.
+/// `body`'s edges described the way a construction describes them at
+/// this run's tolerance: each edge the at-rest gate finds without an
+/// honest description (the scaffold an extrusion or a split leaves, a
+/// description a re-chart strands, or one at rest where its faces are
+/// transverse) is described as the intersection of its two faces where
+/// the band decides them transverse, and at rest in its first face's
+/// chart otherwise, which holds it exactly. A pose bent within the band
+/// at one tolerance is bent past it at a smaller one, so a case re-run
+/// below its offer finishes the same geometry.
+fn described_at_this_tolerance(mut body: crate::body::Body<f64>) -> crate::body::Body<f64> {
+    use crate::ValidationError as V;
+    let tol = Tol::witness();
+    let Err(errors) = crate::AtRestBody::validate(body.clone(), tol) else {
+        return body;
+    };
+    let mut edges: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            V::ScaffoldAtRest { edge }
+            | V::DescriptionNotAdjacent { edge }
+            | V::TransverseNotIntrinsic { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    edges.sort();
+    edges.dedup();
+    for edge in edges {
+        let (s1, s2) = crate::readback::edge_sides(&body, edge)
+            .expect("a live edge's sides")
+            .surfaces();
+        let e = body.get_edge(edge).expect("a live edge");
+        let at = |body: &crate::body::Body<f64>, v| {
+            *body
+                .get_point(body.get_vertex(v).expect("a live vertex").point)
+                .expect("a live point")
+        };
+        let (p0, p1) = (
+            at(
+                &body,
+                body.get_half_edge(e.he_plus)
+                    .expect("a live half-edge")
+                    .start,
+            ),
+            at(
+                &body,
+                body.get_half_edge(e.he_minus).expect("its twin").start,
+            ),
+        );
+        let witness = p0.lerp(p1, 0.5);
+        let transverse = geom_brep::classify_dihedral(
+            body.get_surface(s1).expect("a live surface"),
+            body.get_surface(s2).expect("a live surface"),
+            witness,
+            p0.distance(p1),
+            band(),
+        );
+        let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
+        spec = match transverse {
+            Ok(geom_brep::DihedralClass::Transverse) => {
+                spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
+                spec
+            }
+            _ => spec.at_rest_in_chart(s1, false),
+        };
+        body.set_edge_curve(edge, spec, tol)
+            .expect("the edge takes its description");
+    }
+    body
+}
+
+/// `body` finished, then the public op `k` of it and the brick `cross`,
+/// or, where `k` is `None`, the union of it and a far brick.
 fn beside_or_crossed(
-    body: &crate::body::Body<f64>,
+    what: &str,
+    body: crate::body::Body<f64>,
     k: Option<u8>,
-    cross: &crate::body::Body<f64>,
+    cross: crate::body::Body<f64>,
 ) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let body = finished(what, body, tol);
     match k {
         None => {
             let far = crate::test_support_fixtures::brick::<f64>(
                 (20.0, 21.0),
                 (0.0, 1.0),
                 (0.0, 1.0),
-                Tol::witness(),
+                tol,
             );
-            public_op(0, body, &far, &BooleanDeclarations::none())
+            public_op(
+                0,
+                &body,
+                &finished("the far brick", far, tol),
+                &BooleanDeclarations::none(),
+            )
         }
-        Some(k) => public_op(k, body, cross, &BooleanDeclarations::none()),
+        Some(k) => public_op(
+            k,
+            &body,
+            &finished("the crossing brick", cross, tol),
+            &BooleanDeclarations::none(),
+        ),
     }
 }
 
-/// A valid prism of height [`KINK_HEIGHT`] whose profile turns by `theta`
-/// at `(0.1, 0)`: the wall along `y = 0` and the one tilted by `theta` out
-/// to `x = 10.1` share the vertical edge there. Beside a far brick (`k`
-/// `None`) or crossed on its long wall by the public op `k` (the coincv5
-/// review's `kinked_prism`).
+/// A prism of height [`KINK_HEIGHT`] whose profile turns by `theta` at
+/// `(0.1, 0)`: the wall along `y = 0` and the one tilted by `theta` out
+/// to `x = 10.1` share the vertical edge there, which lies on both walls
+/// exactly and is described at this run's tolerance (the extrusion
+/// leaves it a scaffold, the walls being in band of each other at the
+/// design tolerance). Beside a far
+/// brick (`k` `None`) or crossed on its long wall by the public op `k`
+/// (the coincv5 review's `kinked_prism`; the kink at rest is the delta
+/// review's `d_kinked_prism_with_its_kink_at_rest`).
 fn kinked_prism(k: Option<u8>, theta: f64) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let h = KINK_HEIGHT;
@@ -1483,62 +1685,91 @@ fn kinked_prism(k: Option<u8>, theta: f64) -> Result<(), BooleanError> {
         (10.1, 1.0),
         (0.0, 1.0),
     ];
-    let body = prism_z::<f64>(&profile, 0.0, h, tol).body;
+    let body = described_at_this_tolerance(prism_z::<f64>(&profile, 0.0, h, tol).body);
     let cross = crate::test_support_fixtures::brick::<f64>(
         (4.0, 5.0),
         (-0.5, 0.5),
         (0.02, 0.5 * h + 0.3),
         tol,
     );
-    beside_or_crossed(&body, k, &cross)
+    beside_or_crossed("the kinked prism", body, k, cross)
 }
 
-/// The brick that crosses a split top.
-fn split_top_crossing() -> crate::body::Body<f64> {
-    crate::test_support_fixtures::brick::<f64>((0.3, 2.0), (0.2, 0.7), (0.5, 1.5), Tol::witness())
+/// `body` through the maximal-faces gate, as operand A.
+fn at_the_gate(body: crate::Body<f64>) -> Result<(), BooleanError> {
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
-/// A valid split top: the re-described half bent by [`KINK`] about the
+/// A split top whose re-described half is bent by [`KINK`] about the
 /// diagonal (its edges stay on it), its plane's origin `l` from the
-/// diagonal within the plane. Beside a far brick (`k` `None`) or crossed
-/// by the public op `k` (the coincv5 review's `split_bent_far_origin`).
-fn bent_split_far_origin(k: Option<u8>, l: f64) -> Result<(), BooleanError> {
-    let body = super::tests::top_split_redescribed(|p0, along, _| {
+/// diagonal within the plane (the coincv5 review's
+/// `split_bent_far_origin`). The bent half's far corner stays where the
+/// walls put it, `KINK · ½√2` off the bent plane: a finished body only
+/// while that is inside the band, so no tolerance below the offer
+/// finishes it.
+fn bent_split_far_origin(l: f64) -> crate::Body<f64> {
+    super::tests::top_split_redescribed(|p0, along, _| {
         let up = Vec3::new(0.0, 0.0, 1.0);
         let n = up * KINK.cos() + along.cross(up) * KINK.sin();
         plane_through(p0 + n.cross(along) * l, along, n)
-    });
-    beside_or_crossed(&body, k, &split_top_crossing())
+    })
 }
 
-/// **A stranded split top, crossed by a brick, reaches the classification
-/// invariant, at a clear offset, through each public op**: the half
-/// re-described on the parallel plane `1000 ε` above leaves its own edges
-/// `1000 ε` off it, which no valid body does, and the operation ends on a
-/// kernel invariant rather than a typed refusal. The offset is far past
-/// the band at every tolerance, so the invariant is the stranded body's,
-/// not any offer's (the coincv5 review's NF-2; filed as
-/// `work/hone/a-stranded-operand-reaches-the-classification-invariant.md`).
-/// The `CoplanarNeighbours` offers run on valid bodies, in the cases.
+/// **A stranded split top is refused typed at the at-rest gate, before
+/// any door**: the half re-described on the parallel plane `1000 ε` above
+/// leaves its own edges and vertices `1000 ε` off it, which no finished
+/// body does, so finishing it refuses with the planar residuals of that
+/// half and nothing else, each finding naming the stranded half's own
+/// face, edges or vertices. It never reaches a classification: every
+/// door that classifies — the boolean doors and `boolean_reduce`
+/// alike — takes a finished body. The offset
+/// is far past the band at every tolerance, so the refusal is the
+/// stranded body's, not any offer's (the coincv5 review's NF-2). The
+/// `CoplanarNeighbours` offers run on finished bodies, in the cases.
 #[test]
-fn a_stranded_split_top_crossed_by_a_brick_reaches_the_classification_invariant() {
+fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
     let up = Vec3::new(0.0, 0.0, 1.0);
     let offset = 1e3 * Tol::witness().get().eps;
-    let body = super::tests::top_split_redescribed(|p0, along, _| {
+    // The stranded half: the face whose plane is lifted off the top,
+    // and the vertices and edges of its boundary.
+    let (body, stranded) = super::tests::top_split_redescribed_face(|p0, along, _| {
         plane_through(p0 + up * offset, along, up)
     });
-    for k in 0..3 {
-        let err = public_op(
-            k,
-            &body,
-            &split_top_crossing(),
-            &BooleanDeclarations::none(),
-        )
-        .expect_err("a stranded operand does not pass");
-        assert_eq!(
-            err.kind(),
-            BooleanErrorKind::ClassificationInvariant,
-            "op {k}: {err}"
+    let outer = body.get_face(stranded).expect("a live face").outer;
+    let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).expect("its loop").boundary
+    else {
+        panic!("the stranded half's outer loop is a cycle");
+    };
+    let boundary: Vec<_> = body
+        .loop_cycle(first)
+        .expect("its loop walks")
+        .into_iter()
+        .map(|he| body.get_half_edge(he).expect("a live half-edge"))
+        .collect();
+    let edges: Vec<_> = boundary.iter().map(|he| he.edge).collect();
+    let vertices: Vec<_> = boundary.iter().map(|he| he.start).collect();
+    let errors = crate::AtRestBody::validate(body, Tol::witness())
+        .expect_err("a stranded body is not a finished body");
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, crate::ValidationError::PlanarFaceResidual { .. })),
+        "the stranded half's vertices lie off its plane: {errors:?}"
+    );
+    for e in &errors {
+        let own = match e {
+            crate::ValidationError::PlanarFaceResidual { face, vertex } => {
+                *face == stranded && vertices.contains(vertex)
+            }
+            crate::ValidationError::PlanarBoundaryResidual { face, edge } => {
+                *face == stranded && edges.contains(edge)
+            }
+            crate::ValidationError::DescriptionNotAdjacent { edge } => edges.contains(edge),
+            _ => false,
+        };
+        assert!(
+            own,
+            "a finding that is not the stranded half's own: {e:?} in {errors:?}"
         );
     }
 }
@@ -1836,9 +2067,13 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CurvedEdgeUnsupported
+        | BooleanErrorKind::CrossingCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
+        | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
+        | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::ScaffoldingOperand
+        | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
@@ -1852,8 +2087,9 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
+        | BooleanErrorKind::PierceRunsUnordered
+        | BooleanErrorKind::PinchUncrossed
         | BooleanErrorKind::ClassificationInvariant
-        | BooleanErrorKind::CorruptOperand
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
         | BooleanErrorKind::FallbackExtentUnsupported
@@ -1869,6 +2105,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ResultInvalid
         | BooleanErrorKind::ResultVolumeImplausible
         | BooleanErrorKind::VolumeCorrupt
+        | BooleanErrorKind::PoisonedCarrierDatum
         | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult
@@ -2172,18 +2409,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
-    (
-        "circle_cylinder.rs",
-        "-",
-        "BooleanDecision::ArcCylinderRoots",
-        2,
-    ),
-    (
-        "circle_sphere.rs",
-        "-",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
     ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",
@@ -2192,20 +2417,26 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "ellipse_roots.rs",
-        "ellipse_roots",
+        "conic_quadric/mod.rs",
+        "conic_quadric_roots",
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
     (
-        "ellipse_roots.rs",
-        "ellipse_roots",
+        "conic_quadric/mod.rs",
+        "conic_quadric_roots",
         "BooleanDecision::ArcSphereRoots",
-        1,
+        2,
     ),
     (
         "finish.rs",
         "weld_pinches",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
+    (
+        "finish.rs",
+        "weld_pierce_copies",
         "BooleanDecision::VertexOnVertex",
         1,
     ),
@@ -2217,20 +2448,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
-    (
-        "join.rs",
-        "germs_face_each_other",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
+    ("join.rs", "germ_arm", "Coincide::Join", 1),
     ("join.rs", "germs_face_each_other", "Coincide::Join", 1),
-    (
-        "join.rs",
-        "germs_face_each_other",
-        "SelfCheck::ArcFacing",
-        1,
-    ),
-    ("join.rs", "loose_partners", "Coincide::Join", 1),
+    ("join.rs", "nearer", "Coincide::Join", 1),
+    ("join.rs", "nearer_along", "Coincide::Join", 1),
+    ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     ("join.rs", "partners", "Coincide::Join", 1),
     (
         "join.rs",
@@ -2239,7 +2461,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "ring_winding_order", "SelfCheck::RingWinding", 1),
-    ("join.rs", "slots", "Coincide::Join", 1),
+    (
+        "join.rs",
+        "rotational_sense",
+        "BooleanDecision::SelfCheck",
+        1,
+    ),
+    ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
@@ -2307,15 +2535,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
-    ("ops.rs", "seam_class", "LeverArm::Seam", 1),
-    ("ops.rs", "seam_must_carry", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "seam_must_carry", "LeverArm::Seam", 1),
-    (
-        "ops.rs",
-        "sphere_extent_scan",
-        "BooleanDecision::Containment",
-        1,
-    ),
+    ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
+    ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
         "ops.rs",
@@ -2347,6 +2568,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
         "arc_chain_reaches",
@@ -2429,7 +2651,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
-    ("rest.rs", "enumerate_segments", "Coincide::Join", 1),
     (
         "sectors.rs",
         "bisector_zero_refusal",
@@ -2443,15 +2664,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::DirectionSense",
         1,
     ),
-    (
-        "sectors.rs",
-        "invalid_escalation",
-        "BooleanDecision::SelfCheck",
-        1,
-    ),
-    ("sectors.rs", "invalid_escalation", "SelfCheck::Normals", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
+    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
         "side_code",
@@ -2468,6 +2683,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within", "Coincide::Sectors", 1),
+    ("sphere_region.rs", "-", "BooleanDecision::Containment", 1),
     (
         "vtxfac.rs",
         "classify_vertex_on_face",

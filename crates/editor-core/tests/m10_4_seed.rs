@@ -32,25 +32,33 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Evaluation, Expr, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, ParamValue,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError,
-    SitedRef, ValuePayload, evaluate, seed_env,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc,
+    ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError, SitedRef,
+    ValuePayload, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, fname, len, wall};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+/// A variable as the free mass doors' refusals speak it.
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId(0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+    Expr::named(name(n), Dimension::Length)
 }
 
-fn continuous(value: f64) -> DocParam {
-    DocParam::Continuous {
+fn continuous(value: f64) -> FreeVar {
+    FreeVar::Continuous {
         dim: Dimension::Length,
         value,
         display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -58,12 +66,22 @@ fn continuous(value: f64) -> DocParam {
     }
 }
 
-fn opts(seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &ProfileDoc, seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(name),
+        seed: seed.map(|n| var(doc, n)),
         profile_lift: lift,
         ..EvalOptions::default()
     }
+}
+
+/// The variable `doc` declares as `n`, or an id it never minted.
+fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
+    doc.var_named(n).unwrap_or(editor_core::VarId(0))
+}
+
+/// `doc`'s variable `n` as a refusal speaks it.
+fn spoken(doc: &ProfileDoc, n: &str) -> editor_core::SpokenVar {
+    doc.spoken_var(var(doc, n))
 }
 
 fn run<T: editor_core::EvalScalar>(
@@ -111,9 +129,9 @@ fn two_param_web() -> ProfileDoc {
     };
     doc = push(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: name("depth"),
-            value: continuous(0.1),
+            def: editor_core::VarDecl::Free(continuous(0.1)),
         },
     );
     // The plate is the corpus web's extrude; its distance becomes the
@@ -166,9 +184,9 @@ fn two_param_web() -> ProfileDoc {
 /// measure node.
 fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("w"),
-        value: continuous(w),
+        def: editor_core::VarDecl::Free(continuous(w)),
     });
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -204,9 +222,9 @@ fn with_count() -> ProfileDoc {
     let (mut doc, _) = width_slab(2.0);
     doc = editor_core::apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name("n"),
-            value: DocParam::Count { value: 3 },
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -240,7 +258,7 @@ fn an_unseeded_evaluation_is_the_default_options_evaluation() {
     assert!(EvalOptions::default().seed.is_none());
     for doc in corpus::documents() {
         let default = run::<f64>(&doc.doc, None, &EvalOptions::default());
-        let explicit = run::<f64>(&doc.doc, None, &opts(None, ProfileLift::Pinned));
+        let explicit = run::<f64>(&doc.doc, None, &opts(&doc.doc, None, ProfileLift::Pinned));
         assert_eq!(default.order, explicit.order, "{}", doc.name);
         for id in &default.order {
             let (a, b) = (default.value(*id), explicit.value(*id));
@@ -262,12 +280,12 @@ fn an_unseeded_evaluation_is_the_default_options_evaluation() {
 #[test]
 fn a_seed_at_f64_refuses_every_node_typed() {
     let doc = two_param_web();
-    let ev = run::<f64>(&doc, None, &opts(Some("hole_r"), ProfileLift::Pinned));
+    let ev = run::<f64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Pinned));
     every_node_refuses_seed(&ev, |e| {
         assert_eq!(
             *e,
             SeedError::TangentUnrepresentable {
-                param: name("hole_r")
+                var: spoken(&doc, "hole_r")
             }
         );
     });
@@ -278,31 +296,38 @@ fn a_seed_at_f64_refuses_every_node_typed() {
 #[test]
 fn an_unknown_or_count_seed_refuses_at_env_construction() {
     let doc = with_count();
-    let unknown = run::<Dual64>(&doc, None, &opts(Some("nope"), ProfileLift::Pinned));
+    let unknown = run::<Dual64>(&doc, None, &opts(&doc, Some("nope"), ProfileLift::Pinned));
     every_node_refuses_seed(&unknown, |e| {
         assert_eq!(
             *e,
-            SeedError::UnknownParam {
-                param: name("nope")
+            SeedError::UnknownVar {
+                var: spoken(&doc, "nope")
             }
         );
     });
-    let count = run::<Dual64>(&doc, None, &opts(Some("n"), ProfileLift::Pinned));
+    let count = run::<Dual64>(&doc, None, &opts(&doc, Some("n"), ProfileLift::Pinned));
     every_node_refuses_seed(&count, |e| {
-        assert_eq!(*e, SeedError::CountParam { param: name("n") });
+        assert_eq!(
+            *e,
+            SeedError::CountVar {
+                var: spoken(&doc, "n")
+            }
+        );
     });
     // The same door, called directly: the name is checked against the
     // DOCUMENT first, so an unknown name refuses as unknown even at a
     // scalar that would have refused the tangent.
     assert_eq!(
-        seed_env::<f64, _>(&doc, doc.param_env::<f64>(), &name("nope")).err(),
-        Some(SeedError::UnknownParam {
-            param: name("nope")
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "nope")).err(),
+        Some(SeedError::UnknownVar {
+            var: spoken(&doc, "nope")
         })
     );
     assert_eq!(
-        seed_env::<f64, _>(&doc, doc.param_env::<f64>(), &name("w")).err(),
-        Some(SeedError::TangentUnrepresentable { param: name("w") })
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "w")).err(),
+        Some(SeedError::TangentUnrepresentable {
+            var: spoken(&doc, "w")
+        })
     );
 }
 
@@ -313,9 +338,9 @@ fn an_unknown_or_count_seed_refuses_at_env_construction() {
 #[test]
 fn the_seed_is_exactly_one_and_zero_by_construction() {
     let doc = two_param_web();
-    let env = seed_env::<Dual64, _>(&doc, doc.param_env::<Dual64>(), &name("hole_r"))
+    let env = seed_env::<Dual64, _>(&doc, doc.var_env::<Dual64>(), var(&doc, "hole_r"))
         .expect("hole_r is continuous");
-    let binding = |n: &'static str| match env.bindings[&name(n)] {
+    let binding = |n: &'static str| match env.bindings[&var(&doc, n)] {
         ParamValue::Continuous { value, .. } => value,
         ParamValue::Count(_) => panic!("{n} is continuous"),
     };
@@ -342,13 +367,19 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
         panic!("a measure")
     };
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let on_r = measured(&run::<Dual64>(&doc, None, &opts(Some("hole_r"), lift)), m);
+        let on_r = measured(
+            &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), lift)),
+            m,
+        );
         assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits(), "{lift:?}");
         assert_eq!(on_r.value.to_bits(), web.to_bits(), "{lift:?}");
-        let on_d = measured(&run::<Dual64>(&doc, None, &opts(Some("depth"), lift)), m);
+        let on_d = measured(
+            &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"), lift)),
+            m,
+        );
         assert_eq!(on_d.deriv.to_bits(), 1.0f64.to_bits(), "{lift:?}");
         assert_eq!(on_d.value.to_bits(), web.to_bits(), "{lift:?}");
-        let unseeded = measured(&run::<Dual64>(&doc, None, &opts(None, lift)), m);
+        let unseeded = measured(&run::<Dual64>(&doc, None, &opts(&doc, None, lift)), m);
         assert_eq!(unseeded.deriv.to_bits(), 0.0f64.to_bits(), "{lift:?}");
     }
 }
@@ -360,7 +391,7 @@ fn a_seeded_pass_is_schedule_independent() {
     let doc = two_param_web();
     let m = measure_node(&doc);
     let seq = measured(
-        &run::<Dual64>(&doc, None, &opts(Some("hole_r"), ProfileLift::Guided)),
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Guided)),
         m,
     );
     let par = measured(
@@ -369,7 +400,7 @@ fn a_seeded_pass_is_schedule_independent() {
             None,
             &EvalOptions {
                 parallel: true,
-                ..opts(Some("hole_r"), ProfileLift::Guided)
+                ..opts(&doc, Some("hole_r"), ProfileLift::Guided)
             },
         ),
         m,
@@ -390,9 +421,13 @@ fn a_seeded_pass_is_schedule_independent() {
 fn the_memo_never_serves_one_parameters_pass_to_another() {
     let doc = two_param_web();
     let m = measure_node(&doc);
-    let on_r = run::<Dual64>(&doc, None, &opts(Some("hole_r"), ProfileLift::Guided));
-    let on_d_fresh = run::<Dual64>(&doc, None, &opts(Some("depth"), ProfileLift::Guided));
-    let on_d_threaded = run::<Dual64>(&doc, Some(&on_r), &opts(Some("depth"), ProfileLift::Guided));
+    let on_r = run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Guided));
+    let on_d_fresh = run::<Dual64>(&doc, None, &opts(&doc, Some("depth"), ProfileLift::Guided));
+    let on_d_threaded = run::<Dual64>(
+        &doc,
+        Some(&on_r),
+        &opts(&doc, Some("depth"), ProfileLift::Guided),
+    );
     let (fresh, threaded) = (measured(&on_d_fresh, m), measured(&on_d_threaded, m));
     assert_eq!(threaded.deriv.to_bits(), fresh.deriv.to_bits());
     assert_eq!(threaded.deriv.to_bits(), 1.0f64.to_bits());
@@ -407,7 +442,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
         .iter()
         .copied()
         .filter(|&id| match doc.node(id) {
-            Some(Node::Profile(p)) => p.references(&name("hole_r")),
+            Some(Node::Profile(p)) => doc.var_named("hole_r").is_some_and(|v| p.reads(v)),
             _ => false,
         })
         .flat_map(|id| corpus::cone(&doc, id))
@@ -437,7 +472,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
 fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
     let (doc, m) = width_slab(2.0);
     let guided = measured(
-        &run::<Dual64>(&doc, None, &opts(Some("w"), ProfileLift::Guided)),
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Guided)),
         m,
     );
     assert_eq!(guided.value.to_bits(), 2.0f64.to_bits());
@@ -448,7 +483,7 @@ fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
         guided.deriv
     );
     let pinned = measured(
-        &run::<Dual64>(&doc, None, &opts(Some("w"), ProfileLift::Pinned)),
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Pinned)),
         m,
     );
     assert_eq!(pinned.value.to_bits(), 2.0f64.to_bits());
@@ -492,7 +527,7 @@ fn the_truncated_normal_sigma_is_finite_and_the_variance_floor_is_measured() {
                     lo: lo * sigma,
                     hi: hi * sigma,
                 };
-                let s = std_deviation(&name("p"), &dist).expect("a truncated normal prices");
+                let s = std_deviation(&sp("p"), &dist).expect("a truncated normal prices");
                 assert!(s.is_finite() && s >= 0.0, "{dist:?}: σ = {s}");
                 let z = mass(lo, hi);
                 if z > 0.0 {
@@ -543,9 +578,9 @@ fn seed_and_box_compose_exactly_at_dual_interval() {
     let doc = two_param_web();
     let m = measure_node(&doc);
     let mut axes = std::collections::BTreeMap::new();
-    axes.insert(name("hole_r"), BoxAxis::Fixed);
+    axes.insert(var(&doc, "hole_r"), BoxAxis::Fixed);
     axes.insert(
-        name("depth"),
+        var(&doc, "depth"),
         BoxAxis::Varying {
             lo: -0.01,
             hi: 0.01,
@@ -554,7 +589,7 @@ fn seed_and_box_compose_exactly_at_dual_interval() {
     let box_ = Arc::new(ParamBox::from_axes(axes));
     let both = EvalOptions {
         param_box: Some(Arc::clone(&box_)),
-        ..opts(Some("depth"), ProfileLift::Guided)
+        ..opts(&doc, Some("depth"), ProfileLift::Guided)
     };
     let ev = run::<DualInterval>(&doc, None, &both);
     let Some(NodeResult::Ok(v)) = ev.result(m) else {
@@ -577,7 +612,7 @@ fn seed_and_box_compose_exactly_at_dual_interval() {
         assert_eq!(
             *e,
             SeedError::TangentUnrepresentable {
-                param: name("depth")
+                var: spoken(&doc, "depth")
             }
         );
     });

@@ -8,7 +8,7 @@ use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
 
 use crate::eval::slots::SlotValues;
 use crate::eval::{NodeErrorKind, NodeRefusal};
-use crate::expr::{Expr, ParamEnv};
+use crate::expr::{Expr, VarEnv};
 use crate::node::{RigidArg, SlotId};
 
 /// **A placement axis with no definite direction** — the ONE thing
@@ -423,6 +423,13 @@ pub enum FrameSite {
         /// Its index in the chain.
         index: usize,
     },
+    /// Step `index` of a mate side's frame offset.
+    MateStep {
+        /// Which side's frame.
+        side: crate::mate::MateSide,
+        /// Its index in the offset's chain.
+        index: usize,
+    },
 }
 
 impl FrameSite {
@@ -435,6 +442,11 @@ impl FrameSite {
         match self {
             Self::Listed { index } => format!("placement {index} of {node}"),
             Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
+            Self::MateStep { side, index } => format!(
+                "step {} of {node}'s {} frame offset",
+                index + 1,
+                side.name()
+            ),
         }
     }
 }
@@ -585,6 +597,17 @@ impl Placement {
         }
     }
 
+    /// Whether every step is a literal frame that is the identity by
+    /// its bits — the empty chain included: the placements that move
+    /// nothing with no arithmetic, which [`Placement::motion_at`]
+    /// answers [`Motion::Identity`] for, known without evaluating.
+    #[must_use]
+    pub fn is_identity_bits(&self) -> bool {
+        self.steps
+            .iter()
+            .all(|step| matches!(step, Step::Literal(frame) if frame.is_identity_bits()))
+    }
+
     /// The first literal step [`Frame::admission_fault`] refuses at
     /// `tol`, with its index in the chain.
     #[must_use]
@@ -646,7 +669,7 @@ impl Placement {
     /// no definite direction.
     pub fn eval<T: Decide>(
         &self,
-        env: &ParamEnv<T>,
+        env: &VarEnv<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
         self.motion_at(env, band).map(Motion::affine)
@@ -662,7 +685,7 @@ impl Placement {
     /// [`Placement::eval`]'s.
     pub(crate) fn motion_at<T: Decide>(
         &self,
-        env: &ParamEnv<T>,
+        env: &VarEnv<T>,
         band: Band,
     ) -> Result<Motion<T>, NodeErrorKind> {
         self.motion_after(Motion::Identity, env, band)
@@ -682,7 +705,7 @@ impl Placement {
     pub(crate) fn motion_after<T: Decide>(
         &self,
         before: Motion<T>,
-        env: &ParamEnv<T>,
+        env: &VarEnv<T>,
         band: Band,
     ) -> Result<Motion<T>, NodeErrorKind> {
         let vals = crate::eval::slots::eval_rows(self.rows(), env)
@@ -990,7 +1013,7 @@ mod tests {
     fn a_one_step_literal_is_its_frame_bit_for_bit() {
         for f in [sample(), other()] {
             let motion = Placement::literal(&f)
-                .eval::<f64>(&ParamEnv::default(), band())
+                .eval::<f64>(&VarEnv::default(), band())
                 .expect("a literal evaluates");
             assert!(Frame::from_affine(motion).bit_eq(&f));
         }
@@ -1013,7 +1036,7 @@ mod tests {
                 angle: ang(angle),
             });
             let got = placement
-                .eval::<f64>(&ParamEnv::default(), band())
+                .eval::<f64>(&VarEnv::default(), band())
                 .expect("a rigid step evaluates");
             let want = crate::eval::transform_map(
                 Vec3::from_array(t),

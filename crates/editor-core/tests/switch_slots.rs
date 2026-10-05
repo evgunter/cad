@@ -4,7 +4,7 @@
 //! `SlotId::Profile { loop_, step, arg }` address routes `SetParam`/
 //! `SetExpression`/`Doc::expr_at` into the program; the authoring-time
 //! check (VQ9) refuses program-breaking edits typed AT THE DOOR under
-//! the current environment, while `SetDocParam` NEVER refuses for
+//! the current environment, while `DefineVar` NEVER refuses for
 //! downstream profile breakage — that surfaces as the node's typed
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -14,11 +14,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, Frame, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, Placement, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, SplitHalf, Step, StepArg, TubeWindow, ValuePayload, evaluate,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Expr, ExprPath, Frame,
+    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -236,17 +236,17 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     }
 }
 
-/// VQ9 direction two: `SetDocParam` NEVER refuses for downstream
+/// VQ9 direction two: `DefineVar` NEVER refuses for downstream
 /// profile breakage — the broken binding surfaces as the NODE's typed
 /// evaluation error naming (loop, step): V1 class 2, refusing programs
 /// exist at rest.
 #[test]
-fn set_doc_param_never_refuses_for_downstream_profiles() {
+fn define_var_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.5),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("r"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -270,7 +270,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
+                        radius: Expr::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -283,14 +283,14 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     // The breaking param edit APPLIES (never refused here)…
     let broken = doc
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.0),
+            &DocEdit::DefineVar {
+                var: VarName::from_static("r").into(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("SetDocParam never refuses for downstream profile breakage (VQ9)")
+        .expect("DefineVar never refuses for downstream profile breakage (VQ9)")
         .doc;
     // …and the refusal surfaces at evaluation, typed, naming the loop.
     let ev = evaluate::<f64>(
@@ -787,8 +787,26 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-                b: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                a: MateFrame::authored(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
+                // A face base whose offset is a literal then a rigid
+                // step: the rigid step's slots carry the side and the
+                // step's own index.
+                b: MateFrame::on_face(
+                    Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
+                        &Step::Rigid {
+                            translation: [len(0.5), len(0.0), len(0.0)],
+                            axis: [scl(0.0), scl(0.0), scl(1.0)],
+                            angle: ang(0.5),
+                        }
+                        .into(),
+                    ),
+                ),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: None,

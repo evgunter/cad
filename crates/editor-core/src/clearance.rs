@@ -162,12 +162,13 @@ use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, ParamName};
+use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts, sliver};
 use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
+use crate::var::VarId;
 
 /// The funnel site name of the clearance comparison — the separation
 /// enclosure between two domain cells minus the requested clearance,
@@ -330,7 +331,7 @@ impl Default for ClearanceConfig {
 /// promise the implementor keeps, not one this module enforces.
 pub trait MonotoneOracle {
     /// The sign of `∂d/∂p` over the whole leaf, or `None`.
-    fn monotone_in(&self, param: &ParamName) -> Option<Sign>;
+    fn monotone_in(&self, param: VarId) -> Option<Sign>;
 }
 
 /// The oracle that certifies nothing: E9's state, and the shipped
@@ -339,7 +340,7 @@ pub trait MonotoneOracle {
 pub struct NoTangents;
 
 impl MonotoneOracle for NoTangents {
-    fn monotone_in(&self, _param: &ParamName) -> Option<Sign> {
+    fn monotone_in(&self, _param: VarId) -> Option<Sign> {
         None
     }
 }
@@ -363,6 +364,13 @@ pub struct ClearanceQuery<'a> {
     /// The monotonicity seam. [`NoTangents`] forfeits every pruning,
     /// which is the state every verdict is defined against.
     pub oracle: &'a dyn MonotoneOracle,
+    /// The seam a document's instantiated parts resolve through, as
+    /// an evaluation over options carrying it would
+    /// ([`EvalOptions::resolver`]); `None` for a document that
+    /// instantiates none. An assembly's mates solve over the leaf's box
+    /// at its scalar (`ASSEMBLY.md` A11 (5)), so a face frame's pose
+    /// encloses over the box like any other geometry.
+    pub resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
 }
 
 impl ClearanceQuery<'_> {
@@ -374,6 +382,7 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
         }
     }
 
@@ -384,6 +393,19 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
+        }
+    }
+}
+
+impl<'a> ClearanceQuery<'a> {
+    /// The same question over a document whose parts resolve through
+    /// `resolver` ([`ClearanceQuery::resolver`]).
+    #[must_use]
+    pub fn resolved_by(self, resolver: &'a Arc<dyn crate::part::PartResolver>) -> Self {
+        Self {
+            resolver: Some(resolver),
+            ..self
         }
     }
 }
@@ -489,9 +511,10 @@ pub struct Violation {
 /// on.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamWitness {
-    /// Per parameter, the OFFSET from the document's nominal (the
-    /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]).
-    pub offsets: BTreeMap<ParamName, f64>,
+    /// Per variable, the OFFSET from the document's nominal (the
+    /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]),
+    /// in the document's declaration order.
+    pub offsets: Vec<(VarId, f64)>,
 }
 
 /// A concrete pair of surface points, at `f64`, with the distance the
@@ -1082,12 +1105,7 @@ impl ClearanceReport {
                 let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
                 let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(
-                        s,
-                        "witness param {} {:016x}",
-                        name.as_str(),
-                        offset.to_bits()
-                    );
+                    let _ = writeln!(s, "witness param {} {:016x}", name.full(), offset.to_bits());
                 }
             }
             ClearanceVerdict::Refused(r) => {
@@ -1139,7 +1157,7 @@ impl ClearanceReport {
                     g.distance, g.a, g.b
                 );
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "    at {} = nominal {offset:+}", name.as_str());
+                    let _ = writeln!(s, "    at variable {name} = nominal {offset:+}");
                 }
             }
             ClearanceVerdict::Refused(r) => {
@@ -1268,6 +1286,7 @@ pub fn clearance_with(
     };
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
+        resolver: query.resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
@@ -1299,6 +1318,7 @@ pub fn clearance_with(
         band,
         config: query.config,
         deepest: 0,
+        resolver: query.resolver.cloned(),
     };
     sweep.run(doc, &queried, &windows_a, &windows_b, same_body, query.tol)
 }
@@ -2139,12 +2159,12 @@ fn combine(acc: ClearanceVerdict, next: ClearanceVerdict) -> ClearanceVerdict {
 /// else about the query changes — which is the whole content of "an
 /// accelerator only".
 fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
-    ParamBox::from_axes(
+    ParamBox::from_axes_in(
         box_.axes()
             .iter()
             .map(|(name, axis)| {
                 let (lo, hi) = axis.span();
-                let collapsed = match (axis, oracle.monotone_in(name)) {
+                let collapsed = match (axis, oracle.monotone_in(*name)) {
                     (BoxAxis::Varying { .. }, Some(Sign::Positive | Sign::Zero)) => {
                         Some(BoxAxis::Varying { lo, hi: lo })
                     }
@@ -2153,9 +2173,10 @@ fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
                     }
                     _ => None,
                 };
-                (name.clone(), collapsed.unwrap_or(*axis))
+                (*name, collapsed.unwrap_or(*axis))
             })
             .collect(),
+        box_.order(),
     )
 }
 
@@ -2753,6 +2774,9 @@ struct Sweep {
     band: Band,
     config: ClearanceConfig,
     deepest: u32,
+    /// The query's part resolver, which the `f64` witness rebuild
+    /// resolves the same parts through.
+    resolver: Option<Arc<dyn crate::part::PartResolver>>,
 }
 
 impl Sweep {
@@ -2932,6 +2956,7 @@ impl Sweep {
                             (x, pair.a, y, pair.b),
                             self.bound,
                             self.band,
+                            self.resolver.as_ref(),
                             tol,
                         ) {
                             Ok(w) => {
@@ -2977,6 +3002,7 @@ impl Sweep {
                                 (x, pair.a, y, pair.b),
                                 self.bound,
                                 self.band,
+                                self.resolver.as_ref(),
                                 tol,
                             )
                         {
@@ -3183,9 +3209,9 @@ fn split(pair: CellPair, x: &Window, y: &Window) -> Option<(CellPair, CellPair)>
 fn witness_point(leaf: &ParamBox) -> ParamWitness {
     ParamWitness {
         offsets: leaf
-            .axes()
+            .order()
             .iter()
-            .map(|(name, axis)| (name.clone(), axis.midpoint()))
+            .filter_map(|&name| Some((name, leaf.get(name)?.midpoint())))
             .collect(),
     }
 }
@@ -3222,19 +3248,21 @@ fn verify_witness(
     at: (&Window, Cell, &Window, Cell),
     bound: ClearanceBound,
     band: Band,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let (x, ca, y, cb) = at;
-    let mid: BTreeMap<ParamName, BoxAxis> = leaf
+    let mid: BTreeMap<VarId, BoxAxis> = leaf
         .axes()
         .iter()
-        .map(|(n, a)| {
+        .map(|(&n, a)| {
             let m = a.midpoint();
-            (n.clone(), BoxAxis::Varying { lo: m, hi: m })
+            (n, BoxAxis::Varying { lo: m, hi: m })
         })
         .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, leaf.order()))),
+        resolver: resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);

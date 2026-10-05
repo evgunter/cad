@@ -14,7 +14,7 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
+    Dimension, Doc, DocEdit, Expr, FreeVar, Node, NodeChange, RecipeNodeId, VarName, eval,
 };
 use geom_core::Tol;
 
@@ -25,7 +25,7 @@ struct FakeProfile(&'static str);
 impl editor_core::ProfilePayload for FakeProfile {
     fn drawn_pieces(
         &self,
-        _env: &editor_core::ParamEnv<f64>,
+        _env: &editor_core::VarEnv<f64>,
         _tol: geom_core::Tol,
     ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
     {
@@ -136,9 +136,9 @@ struct Authored {
 }
 
 fn depth_param() -> TEdit {
-    TEdit::SetDocParam {
-        name: ParamName::from_static("pip_depth"),
-        value: DocParam::continuous(Dimension::Length, 0.002),
+    TEdit::DeclareVar {
+        name: VarName::from_static("pip_depth"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
     }
 }
 
@@ -182,7 +182,7 @@ fn author_theirs() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -241,7 +241,7 @@ fn author_mine() -> Authored {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                distance: Expr::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
         },
@@ -312,8 +312,8 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
         assert_eq!(mapped, mn.inputs(), "inputs of {t_id:?}→{m_id:?}");
         assert_eq!(tn.slots(), mn.slots());
         for slot in tn.slots() {
-            let tv = eval::<f64>(tn.expr(slot).unwrap(), &theirs.doc.param_env()).unwrap();
-            let mv = eval::<f64>(mn.expr(slot).unwrap(), &mine.doc.param_env()).unwrap();
+            let tv = eval::<f64>(tn.expr(slot).unwrap(), &theirs.doc.var_env()).unwrap();
+            let mv = eval::<f64>(mn.expr(slot).unwrap(), &mine.doc.var_env()).unwrap();
             assert_eq!(tv.to_bits(), mv.to_bits(), "slot {slot:?} of {t_id:?}");
         }
     }
@@ -340,25 +340,38 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);
 
-    // The diff is EXACTLY the relabeling residue. The first insert is
-    // one edit from one mint in both authorings, so it is one id and
-    // unchanged; from the second on the edit sequences differ, so the
-    // two share no other id: the rest of theirs Removed in its order,
-    // the rest of mine Added in its.
-    assert_eq!(
+    // The diff is EXACTLY the relabeling residue. Theirs opens with the
+    // declare and mine with an insert, so the two sequences part at the
+    // first minting edit and share no id: every node of theirs Removed
+    // in its order, every node of mine Added in its, and the one
+    // variable, declared at a different point of each chain, two ids.
+    assert_ne!(
         theirs.doc.order()[0],
         mine.doc.order()[0],
-        "one first edit, one first id"
+        "two first edits, two first ids"
     );
     let d = theirs.doc.diff(&mine.doc);
-    let expected: Vec<NodeChange> = theirs.doc.order()[1..]
+    let expected: Vec<NodeChange> = theirs
+        .doc
+        .order()
         .iter()
         .copied()
         .map(NodeChange::Removed)
-        .chain(mine.doc.order()[1..].iter().copied().map(NodeChange::Added))
+        .chain(mine.doc.order().iter().copied().map(NodeChange::Added))
         .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
-    assert!(d.params.is_empty(), "same params");
-    assert!(d.order_changed, "the orders share only the first id");
+    let depth = |a: &Authored| a.doc.var_named("pip_depth").expect("declared");
+    // `self`'s as `self` declared them, then `other`'s added ones.
+    assert_eq!(
+        d.vars,
+        vec![depth(&theirs), depth(&mine)],
+        "one variable under two minted ids"
+    );
+    assert_eq!(
+        theirs.doc.var_scope(),
+        mine.doc.var_scope(),
+        "and one name at one kind"
+    );
+    assert!(d.order_changed, "the orders share no id");
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

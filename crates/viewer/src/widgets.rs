@@ -3484,8 +3484,8 @@ mod value_field_tests {
     use crate::test_support::{declared, framed_square, inserted, len, scl};
     use eframe::egui;
     use pncad::document::{
-        Dimension, DimensionError, Doc, DocParam, Expr, Node, ParamName, PatternKind,
-        ProfileProgram, RecipeNodeId, SlotId,
+        Dimension, DimensionError, Doc, Expr, FreeVar, Node, PatternKind, ProfileProgram,
+        RecipeNodeId, SlotId, VarId, VarName,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
@@ -3504,7 +3504,7 @@ mod value_field_tests {
     #[derive(Clone)]
     enum Subject {
         /// A document parameter's row — `Selection::Param`'s arm.
-        Param(ParamName),
+        Param(VarId),
         /// A feature's slot row — `slot_value_ui`.
         Slot { node: RecipeNodeId, slot: SlotId },
     }
@@ -3536,18 +3536,22 @@ mod value_field_tests {
         /// `canonical` metres.
         fn millimetres(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
-            let name = ParamName::from_static("base_r");
+            let name = VarName::from_static("base_r");
             let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
             let mut session = DocSession::inline(doc, tol);
-            let outcome = session.perform(SessionOp::CreateParam {
+            let outcome = session.perform(SessionOp::DeclareVar {
                 name: name.clone(),
-                value: DocParam::written_length(WrittenLength::canonical_in(canonical, MM)),
+                value: FreeVar::written_length(WrittenLength::canonical_in(canonical, MM)),
             });
             assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            let var = session
+                .committed_doc()
+                .var_named(name.as_str())
+                .expect("the declare landed");
             Self {
                 ctx: egui::Context::default(),
                 session,
-                subject: Subject::Param(name),
+                subject: Subject::Param(var),
                 rect: egui::Rect::NOTHING,
                 emitted: Vec::new(),
                 landed: Vec::new(),
@@ -3567,8 +3571,8 @@ mod value_field_tests {
             let tol = Tol::witness();
             let doc = declared(
                 label,
-                &ParamName::from_static("base_r"),
-                DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
+                &VarName::from_static("base_r"),
+                FreeVar::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );
             let (doc, profile) = framed_square(&doc, 0.04, tol);
@@ -3680,12 +3684,12 @@ mod value_field_tests {
         }
 
         fn row(&self) -> props::ParamRow {
-            let Subject::Param(name) = &self.subject else {
+            let Subject::Param(var) = &self.subject else {
                 panic!("this row is not a parameter row");
             };
             props::param_rows(self.session.doc())
                 .into_iter()
-                .find(|row| &row.name == name)
+                .find(|row| row.var == *var)
                 .expect("the parameter is declared")
         }
 
@@ -3719,11 +3723,11 @@ mod value_field_tests {
             let mut output = ctx.run_ui(input, |ui| {
                 let showing = field.clone();
                 match &subject {
-                    Subject::Param(name) => value_field_ops(
+                    Subject::Param(var) => value_field_ops(
                         ui,
                         showing,
-                        value_gesture(ValueGestureName::Param(name.clone())),
-                        crate::pane::properties::param_doors(name),
+                        value_gesture(ValueGestureName::Param(*var)),
+                        crate::pane::properties::param_doors(*var),
                         &mut ops,
                         &mut notices,
                     ),
@@ -4423,12 +4427,12 @@ mod value_field_tests {
         );
 
         let mut param = Row::millimetres("chrome-stale-param", 0.01);
-        let Subject::Param(name) = param.subject.clone() else {
+        let Subject::Param(var) = param.subject.clone() else {
             panic!("the fixture is a parameter row");
         };
         param.click_in();
         let outcome = param.session.perform(SessionOp::SetParam {
-            name,
+            var,
             value: props::SlotValue::Continuous(0.02),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -4528,13 +4532,13 @@ mod value_field_tests {
     #[test]
     fn typing_the_opening_text_back_after_a_change_is_an_edit() {
         let mut row = Row::millimetres("chrome-deliberate-revert", 0.01);
-        let Subject::Param(name) = row.subject.clone() else {
+        let Subject::Param(var) = row.subject.clone() else {
             panic!("the fixture is a parameter row");
         };
         let (_, opening) = row.showing();
         row.click_in();
         let outcome = row.session.perform(SessionOp::SetParam {
-            name,
+            var,
             value: props::SlotValue::Continuous(0.02),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -4553,13 +4557,13 @@ mod value_field_tests {
     #[test]
     fn an_ime_commit_of_the_opening_text_is_an_edit() {
         let mut row = Row::millimetres("chrome-ime-revert", 0.01);
-        let Subject::Param(name) = row.subject.clone() else {
+        let Subject::Param(var) = row.subject.clone() else {
             panic!("the fixture is a parameter row");
         };
         let (_, opening) = row.showing();
         row.click_in();
         let outcome = row.session.perform(SessionOp::SetParam {
-            name,
+            var,
             value: props::SlotValue::Continuous(0.02),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

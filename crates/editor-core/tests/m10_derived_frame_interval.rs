@@ -45,9 +45,9 @@ use crate::m10_8_harness::head;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
-    Evaluation, Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg,
-    UnitSym, evaluate,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    FreeVar, Node, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, VarName,
+    evaluate,
 };
 use geom_core::{Interval, SymRules, Tol};
 
@@ -56,9 +56,9 @@ fn eps() -> f64 {
 }
 
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static(name),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(name),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -66,7 +66,7 @@ fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
 }
 
@@ -154,7 +154,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     );
     let cube = r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(ParamName::from_static("h"), Dimension::Length),
+        distance: Expr::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
@@ -185,7 +185,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
         origin: [
             len(0.0),
             len(0.0),
-            Expr::param(ParamName::from_static("z0"), Dimension::Length),
+            Expr::named(VarName::from_static("z0"), Dimension::Length),
         ],
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
@@ -225,7 +225,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
             translation: [
                 len(0.0),
                 len(0.0),
-                Expr::param(ParamName::from_static("lift"), Dimension::Length),
+                Expr::named(VarName::from_static("lift"), Dimension::Length),
             ],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: ang(0.0),
@@ -372,7 +372,10 @@ fn measured_replay(
     };
 
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &doc.spoken_var(*name).to_string(),
+        );
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
@@ -743,7 +746,10 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
     let analyzed = analyzed_box(&derived, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &derived.spoken_var(*name).to_string(),
+        );
     }
     let n = SymRules::none();
     for (label, rules) in [

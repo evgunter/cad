@@ -45,7 +45,8 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
-            | Maintenance::LabelDropped { .. } => None,
+            | Maintenance::LabelDropped { .. }
+            | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
 }
@@ -59,7 +60,8 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             Maintenance::StrandedAppearance { name } => Some(name.name().clone()),
             Maintenance::Strand { .. }
             | Maintenance::OffsetCleared { .. }
-            | Maintenance::LabelDropped { .. } => None,
+            | Maintenance::LabelDropped { .. }
+            | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
 }
@@ -478,7 +480,13 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 // ---------------------------------------------------------------------
 
 fn mate_frame() -> MateFrame {
-    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {

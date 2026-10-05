@@ -1139,7 +1139,7 @@ class TestDocParamEquality(unittest.TestCase):
     """LIB-PYBUNDLE rider (a): `DocParam` mirrors Rust's `PartialEq`.
 
     Which is IEEE comparison of the stored value, NOT the bit
-    comparison `DocParam::bit_eq` makes — so the two spellings of zero
+    comparison `FreeVar::bit_eq` makes — so the two spellings of zero
     are the SAME parameter here and different ones to `bit_eq`,
     exactly as in Rust. The hash follows the equality it mirrors."""
 
@@ -1939,7 +1939,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         )
         with self.assertRaises(EditError) as unknown:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("n")))
-        self.assertEqual(unknown.exception.variant, "slot_unknown_doc_param")
+        self.assertEqual(unknown.exception.variant, "slot_unknown_var_name")
         self.assertEqual(unknown.exception.node, pattern)
         self.assertEqual(unknown.exception.slot, "count")
         self.assertEqual(unknown.exception.param, "n")
@@ -1968,11 +1968,11 @@ class TestTheEditDoorsPayload(unittest.TestCase):
                 Expr.literal(0.0),
             ), Expr.length_in(2, m)))
         )
-        doc.apply(DocEdit.set_doc_param(ParamName("len"), DocParam.length(1 * m)))
+        doc.apply(DocEdit.declare_var(ParamName("len"), DocParam.length(1 * m)))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("len")))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "slot_doc_param_dimension")
+        self.assertEqual(refusal.variant, "slot_var_kind")
         self.assertEqual(refusal.expected, "length")
         self.assertEqual(refusal.found, "count")
         self.assertEqual(
@@ -1986,9 +1986,9 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         # fabrication this surface refuses elsewhere.
         with self.assertRaises(EditError) as offered:
             doc.apply(
-                DocEdit.set_doc_param_value(ParamName("len"), DocParamValue.count(3))
+                DocEdit.set_var_value(ParamName("len"), DocParamValue.count(3))
             )
-        self.assertEqual(offered.exception.variant, "doc_param_value_kind_mismatch")
+        self.assertEqual(offered.exception.variant, "var_value_kind_mismatch")
         self.assertEqual(offered.exception.expected, "length")
         self.assertEqual(offered.exception.offered, 3)
         self.assertIsInstance(offered.exception.offered, int)

@@ -15,10 +15,10 @@ use std::sync::Arc;
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, MateFault, MateFrame, MatePrimitive,
-    MateRole, Node, ParamBox, ParamName, PatternKind, Placement, ProfileDoc, RecipeNodeId,
-    SitedFace, SlotId, StableName, Step, ValuePayload, evaluate, regauge_then_mate, root_of,
+    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
+    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
+    MateRole, Node, ParamBox, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace, SlotId,
+    StableName, Step, ValuePayload, VarName, evaluate, regauge_then_mate, root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -93,7 +93,8 @@ impl Parts {
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
@@ -115,8 +116,8 @@ fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
-fn lift() -> ParamName {
-    ParamName::from_static("lift")
+fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
 fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -> ProfileDoc {
@@ -277,23 +278,23 @@ fn check_body_interval(
     }
 }
 
-fn declare(doc: ProfileDoc, name: ParamName, v: f64, dim: Dimension) -> ProfileDoc {
+fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name,
-            value: DocParam::continuous(dim, v),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(dim, v)),
         },
     )
     .0
 }
 
-fn set_value(doc: ProfileDoc, name: ParamName, v: f64) -> ProfileDoc {
+fn set_value(doc: ProfileDoc, name: VarName, v: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name,
-            value: DocParamValue::Continuous(v),
+        DocEdit::SetVarValue {
+            var: name.into(),
+            value: FreeValue::Continuous(v),
         },
     )
     .0
@@ -307,8 +308,8 @@ struct Chain {
     g1: RecipeNodeId,
 }
 
-fn turn() -> ParamName {
-    ParamName::from_static("turn")
+fn turn() -> VarName {
+    VarName::from_static("turn")
 }
 
 fn chain(label: &str) -> Chain {
@@ -322,9 +323,9 @@ fn chain(label: &str) -> Chain {
         Node::gauge(
             Some(g0),
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [len(0.0), len(0.0), Expr::named(lift(), Dimension::Length)],
                 axis: [0.0, 0.0, 1.0].map(scl),
-                angle: Expr::param(turn(), Dimension::Angle),
+                angle: Expr::named(turn(), Dimension::Angle),
             },
         ),
     );

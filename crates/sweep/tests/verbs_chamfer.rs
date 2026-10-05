@@ -30,9 +30,8 @@ const D: f64 = 0.1;
 /// two bodies' vertex SETS can be compared bit for bit.
 fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut pts: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p)
         .map(|p| (p.x, p.y, p.z))
         .collect();
     pts.sort_by(|a, b| a.partial_cmp(b).expect("finite coordinates"));

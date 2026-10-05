@@ -38,13 +38,13 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::UnitSym;
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, param_env_over};
+use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, var_env_over};
 use editor_core::drive::{
     BudgetKind, DriveConfig, ReasonClass, RefusalReason, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
+    ProfileDoc, ProfileLift, ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Interval, Tol};
 
@@ -54,8 +54,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn unit_square() -> LoopProgram {
@@ -67,14 +67,14 @@ fn unit_square() -> LoopProgram {
 /// `depth` carrying `dist`.
 fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -91,7 +91,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
 }
 
 fn depth_param() -> Expr {
-    Expr::param(name("depth"), Dimension::Length)
+    Expr::named(name("depth"), Dimension::Length)
 }
 
 /// **A document whose witness chamber is BOUNDED ON BOTH SIDES in the
@@ -103,7 +103,7 @@ fn depth_param() -> Expr {
 /// chamber-containment amendment describes, and the unit's own suite
 /// has no fixture for it.
 fn pinched(nominal: f64, half: f64) -> ProfileDoc {
-    let t = || Expr::param(name("height"), Dimension::Length);
+    let t = || Expr::named(name("height"), Dimension::Length);
     let height = Expr::neg(
         Expr::min(
             t(),
@@ -413,13 +413,14 @@ fn a_degenerate_varying_axis_is_one_leaf_and_never_a_silent_partial() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let mut axes = BTreeMap::new();
-    axes.insert(name("depth"), BoxAxis::Varying { lo: 0.0, hi: 0.0 });
+    let depth = doc.var_named("depth").expect("declared");
+    axes.insert(depth, BoxAxis::Varying { lo: 0.0, hi: 0.0 });
     let degenerate = ParamBox::from_axes(axes);
-    assert_eq!(degenerate.split_axis(&degenerate), Some(name("depth")));
-    assert_eq!(degenerate.split(&name("depth")), None);
+    assert_eq!(degenerate.split_axis(&degenerate), Some(depth));
+    assert_eq!(degenerate.split(depth), None);
     // And it binds at Interval as the nominal exactly.
-    let env = param_env_over::<Interval, _>(&doc, &degenerate).expect("a point axis binds");
-    let editor_core::ParamValue::Continuous { value, .. } = env.bindings[&name("depth")] else {
+    let env = var_env_over::<Interval, _>(&doc, &degenerate).expect("a point axis binds");
+    let editor_core::ParamValue::Continuous { value, .. } = env.bindings[&depth] else {
         panic!("depth is continuous")
     };
     use geom_core::Bounds;
@@ -606,9 +607,9 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
     let plate = |scale: f64| -> ProfileDoc {
         let mut r = Recorder::new();
         for (n, nominal) in [("hole_r", 0.25_f64), ("plate_h", 0.5)] {
-            r.push(DocEdit::SetDocParam {
+            r.push(DocEdit::DeclareVar {
                 name: name(n),
-                value: DocParam::Continuous {
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -616,7 +617,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                         lo: -scale * eps(),
                         hi: scale * eps(),
                     }),
-                },
+                }),
             });
         }
         let xy_frame_1 = r.insert(xy_frame());
@@ -627,14 +628,14 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
                     centre: [len(1.0), len(1.0)],
-                    radius: Expr::param(name("hole_r"), Dimension::Length),
+                    radius: Expr::named(name("hole_r"), Dimension::Length),
                 },
             ],
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
-            distance: Expr::param(name("plate_h"), Dimension::Length),
+            distance: Expr::named(name("plate_h"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
         r.doc

@@ -57,9 +57,9 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, StepArg, evaluate, persist,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, FreeVar,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
 use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
@@ -80,7 +80,7 @@ const H: f64 = 1.2;
 const PHI: f64 = PI / 4.0;
 
 fn param(name: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(name), Dimension::Length)
+    Expr::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
@@ -88,9 +88,9 @@ fn doc_with_r(name: &'static str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(name), tol());
     step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, R),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
         },
     )
     .0
@@ -289,14 +289,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
 /// realized-vs-idealized bit equality) were green across the change
 /// untouched.
+///
+/// RE-BLESSED, `die` and `kitchen_sink` only, when declaring a variable
+/// began minting its id on the document's chain: every node minted
+/// after a declare was renumbered, and this digest feeds ids. The
+/// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb23f_de75_dcfd_65e9),
-        ("corner_table", 0x246c_30e8_519e_c23f),
+        ("die", 0x63de_edf2_4dee_ef58),
+        ("corner_table", 0xd8b1_634f_074f_de08),
         ("cut_cylinder", 0x1676_4144_da9e_6975),
         ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0x0973_ecf8_520a_08a7),
+        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -757,9 +764,9 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
     let doc = doc_with_r("seat7-hole-first");
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("q"),
-            value: DocParam::continuous(Dimension::Length, Q),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("q"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     // Hole first, deliberately.
@@ -920,9 +927,9 @@ fn the_memo_never_serves_a_stale_sweep_token() {
     // the old one under a token that claims `r`.
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::continuous(Dimension::Length, 2.0 * R),
+        DocEdit::DefineVar {
+            var: VarName::from_static("r").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * R)),
         },
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
@@ -1149,9 +1156,9 @@ fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_
     let doc = doc_with_r(id);
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::from_static("q"),
-            value: DocParam::continuous(Dimension::Length, Q),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("q"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, Q)),
         },
     );
     let (doc, profile_node, chain) =
@@ -1358,6 +1365,8 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         Vec3::new(0.0, 1.0, 0.0),
         PHI,
     );
+    let raw_a = topo::test_support::finished("the raw spun cylinder A", raw_a, tol());
+    let raw_b = topo::test_support::finished("the raw spun cylinder B", raw_b, tol());
     let raw = topo::union(&raw_a, &raw_b, tol()).expect_err("this family has no join arm");
     assert_eq!(
         pinch_evidence(&raw),

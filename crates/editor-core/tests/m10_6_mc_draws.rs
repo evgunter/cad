@@ -17,7 +17,7 @@
 //!   `monte_carlo` reports, bit for bit;
 //! * **`nominal + offset` is where the lane put the sample** — which
 //!   is the claim a consumer needs in order to place a draw through an
-//!   ordinary `SetDocParamValue` edit rather than through a
+//!   ordinary `SetVarValue` edit rather than through a
 //!   `ParamBox`, since that box is the interval driver's type and the
 //!   advisory lane is meant to be reachable without it.
 //!
@@ -33,8 +33,8 @@ use geom_core::Tol;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo, sample_offsets};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, Expr, MeasureExpr, Node, ParamName, ProfileDoc,
-    RecipeNodeId, UnitSym, apply,
+    Dimension, Distribution, DocEdit, Expr, FreeVar, MeasureExpr, Node, ProfileDoc, RecipeNodeId,
+    UnitSym, VarName, apply,
 };
 
 /// The nominal, and a number with no dyadic shortcuts in it: a mean
@@ -56,14 +56,14 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("m10-mc-draws", tol);
     let applied = apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("x"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("x"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: NOMINAL,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(law),
-            },
+            }),
         },
         tol,
         &editor_core::RefusingReach,
@@ -76,7 +76,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Box::new(
                 Node::measure(
-                    MeasureExpr::value(Expr::param(ParamName::from_static("x"), Dimension::Length)),
+                    MeasureExpr::value(Expr::named(VarName::from_static("x"), Dimension::Length)),
                     Vec::new(),
                 )
                 .expect("a measure over a value leaf takes no references"),
@@ -134,9 +134,9 @@ fn sample_offsets_enumerates_the_population_monte_carlo_summarizes() {
     let values: Vec<f64> = (0..SAMPLES)
         .map(|i| {
             let offsets =
-                sample_offsets(&analyzed, &config, i).expect("a normal law is sampleable");
+                sample_offsets(&doc, &analyzed, &config, i).expect("a normal law is sampleable");
             assert_eq!(offsets.len(), 1, "one varying parameter, one offset");
-            NOMINAL + offsets[&ParamName::from_static("x")]
+            NOMINAL + offsets[&doc.var_named("x").expect("declared")]
         })
         .collect();
     let (mean, sigma, min, max) = summarize(&values);
@@ -156,14 +156,14 @@ fn a_samples_draw_depends_on_its_index_alone() {
     let (doc, _) = doc_with_one_law(Distribution::Uniform { lo: -0.5, hi: 0.5 });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let config = McConfig::default();
-    let x = ParamName::from_static("x");
+    let x = doc.var_named("x").expect("declared");
 
     let ascending: Vec<f64> = (0..8)
-        .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])
+        .map(|i| sample_offsets(&doc, &analyzed, &config, i).expect("sampleable")[&x])
         .collect();
     let descending: Vec<f64> = (0..8)
         .rev()
-        .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])
+        .map(|i| sample_offsets(&doc, &analyzed, &config, i).expect("sampleable")[&x])
         .collect();
     let mut descending = descending;
     descending.reverse();
@@ -191,7 +191,7 @@ fn a_band_refuses_at_the_draw_door_as_it_does_at_the_run() {
     let config = McConfig::default();
     assert!(
         matches!(
-            sample_offsets(&analyzed, &config, 0),
+            sample_offsets(&doc, &analyzed, &config, 0),
             Err(McRefusal::BandHasNoMeasure(_))
         ),
         "a band has no shape to draw from, at either door"

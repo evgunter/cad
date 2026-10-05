@@ -208,7 +208,9 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }

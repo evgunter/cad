@@ -18,10 +18,10 @@
 use crate::common;
 
 use common::{session_insert, shape};
-use pncad::document::{Dimension, Doc, DocParam, ParamName};
+use pncad::document::{Dimension, Doc, FreeVar, VarName};
 use pncad::document::{
-    DocEdit, EditError, Expr, LoopProgram, Node, ParamEnv, ProfileProgram, RecipeNodeId, SlotId,
-    StepArg, StepId, apply,
+    DocEdit, EditError, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId, StepArg,
+    StepId, apply,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
@@ -260,7 +260,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let held = sketch::held_program(
             pncad::document::SpokenNode::absent(node),
             &program,
-            &ParamEnv::default(),
+            &pncad::document::Doc::empty_derived("held-program", Tol::witness()),
         )
         .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
         let back = lowered(&held, MM);
@@ -446,9 +446,9 @@ fn a_kept_driven_argument_is_not_written_over() {
         steps: square(0.0, 0.01),
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
-    let out = session.perform(SessionOp::CreateParam {
-        name: ParamName::from_static("side"),
-        value: DocParam::continuous(Dimension::Length, 0.01),
+    let out = session.perform(SessionOp::DeclareVar {
+        name: VarName::from_static("side"),
+        value: FreeVar::continuous(Dimension::Length, 0.01),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let driven = SlotId::Profile {
@@ -519,9 +519,9 @@ fn a_driven_argument_refuses_to_load() {
         steps: square(0.0, 0.01),
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
-    let out = session.perform(SessionOp::CreateParam {
-        name: ParamName::from_static("side"),
-        value: DocParam::continuous(Dimension::Length, 0.01),
+    let out = session.perform(SessionOp::DeclareVar {
+        name: VarName::from_static("side"),
+        value: FreeVar::continuous(Dimension::Length, 0.01),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let slot = SlotId::Profile {

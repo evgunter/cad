@@ -39,9 +39,9 @@ use crate::m10_8_harness::{atom_census, distinct_atoms, head};
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeridianEnd, Node, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, UnitSym, evaluate,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    FreeVar, LoopProgram, MeridianEnd, Node, NodeResult, ProfileDoc, ProfileLift, ProfileProgram,
+    RecipeNodeId, RoleSeg, UnitSym, VarName, evaluate,
 };
 use geom_core::{Interval, SymBudget, SymRules, Tol};
 
@@ -102,9 +102,9 @@ fn sym(
 }
 
 fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static(name),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(name),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -112,7 +112,7 @@ fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
 }
 
@@ -127,7 +127,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     ));
-    let w = Expr::param(ParamName::from_static("w"), Dimension::Length);
+    let w = Expr::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Expr::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -211,9 +211,9 @@ fn sym5_tilted_width_parameter_ladder() {
 /// Otherwise the boss sits directly on the tilted authored frame.
 pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("t"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("t"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -221,9 +221,9 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
-    let t = Expr::param(ParamName::from_static("t"), Dimension::Scalar);
+    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
     let base = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -303,7 +303,10 @@ fn sym5_tilted_derived_guided_profiled() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &doc.spoken_var(*name).to_string(),
+        );
     }
     for (label, rules) in [
         ("shipped", SymRules::shipped()),
@@ -727,9 +730,9 @@ enum Place {
 
 fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("t"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("t"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Scalar),
@@ -737,9 +740,9 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
-    let t = Expr::param(ParamName::from_static("t"), Dimension::Scalar);
+    let t = Expr::named(VarName::from_static("t"), Dimension::Scalar);
     let b = base_frame(&mut r, &t, base);
     let on = match place {
         Place::Authored => b,
@@ -886,7 +889,10 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = ParamBox::of(&analyzed);
         for name_ in box_.axes().keys() {
-            name_param(name_.as_str());
+            name_param(
+                geom_core::ParamSymbol::new(name_.0),
+                &doc.spoken_var(*name_).to_string(),
+            );
         }
         let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
         for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
@@ -1454,7 +1460,10 @@ fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
 fn sym12_the_copysign_census_on_the_revolved_cap() {
     use geom_core::sym::report::{name_param, start_shape_report, take_shape_report};
     let doc = r2_document(1.0e-3, Base::TiltV, Place::Revolved);
-    name_param("t");
+    name_param(
+        geom_core::ParamSymbol::new(doc.var_named("t").expect("declared").0),
+        "t",
+    );
     for (label, rules) in [
         ("F-on ", shipped_with_rule_f()),
         ("F-off", SymRules::without_rule_f()),
@@ -1669,7 +1678,10 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = ParamBox::of(&analyzed);
         for name in box_.axes().keys() {
-            name_param(name.as_str());
+            name_param(
+                geom_core::ParamSymbol::new(name.0),
+                &doc.spoken_var(*name).to_string(),
+            );
         }
         for lift in [ProfileLift::Guided, ProfileLift::Pinned] {
             if only_lift

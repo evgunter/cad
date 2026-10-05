@@ -55,8 +55,8 @@ use std::io::Write;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, KProbe, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, UnitSym,
+    Dimension, Distribution, DocEdit, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    UnitSym, VarName,
 };
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
@@ -69,9 +69,9 @@ use fixture::{Recorder, xy_frame};
 /// the certification population are the same population.
 fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("depth"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("depth"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             value: nominal,
@@ -79,7 +79,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -92,7 +92,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: editor_core::Expr::param(ParamName::from_static("depth"), Dimension::Length),
+        distance: editor_core::Expr::named(VarName::from_static("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     r.doc

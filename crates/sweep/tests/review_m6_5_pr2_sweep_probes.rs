@@ -10,9 +10,9 @@
 
 use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations};
+use topo::{AtRestBody, Body, BooleanDeclarations};
 
 /// The unit-side box with its low corner at `x0` on the x axis — the
 /// `x0 + l` arithmetic done once, so a second placement cannot get it
@@ -21,58 +21,69 @@ fn box_at(x0: f64, l: f64) -> Body<f64> {
     brick((x0, x0 + l), (0.0, l), (0.0, l), Tol::witness())
 }
 
-fn filleted_die() -> Body<f64> {
+fn filleted_die() -> AtRestBody<f64> {
     let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    fillet_edges(&cube0, &edges, 0.125, Tol::witness())
+    let die = fillet_edges(&cube0, &edges, 0.125, Tol::witness())
         .expect("the fillet")
-        .body
+        .body;
+    finished("the filleted die", die, Tol::witness())
 }
 
-/// X4: **the frontier this probe named has MOVED, and the probe now
-/// says where to.** Carrying sphere octants was the blocker: the extent
-/// scan refused a trimmed sphere face group on sight, because the
-/// certificate `center ± r` is the whole group's. That certificate is
-/// asked where it is USED now, and a trimmed group is served for every
-/// separation test — so this fixture no longer stops there.
-///
-/// It still stops, at an arm that has nothing to do with trimming and
-/// everything to do with where the fixture puts its operand: a fillet
+/// X4: **a far box on the die's own plane carriers.** Each fillet
 /// corner sphere is TANGENT to the flat faces it blends, and this far
-/// box is axis-aligned on the same y and z ranges as the die, so it
-/// contributes plane CARRIERS the corner spheres touch exactly. That is
-/// the scan's touching-configuration arm, and it is honest.
-///
-/// `x4b` moves the same operand off those carriers and the union
-/// completes — which is the actual measurement of the frontier moving.
+/// box is axis-aligned on the same y and z ranges as the die, so its
+/// plane carriers touch the corner spheres — at points on the die, far
+/// from every face of the box. The extent scan asks the faces at a
+/// touch, finds the touch out of the box's faces, and every op builds
+/// in both operand orders against the rounded cube's closed form
+/// `a³ + 6a²r + 3πar² + 4πr³/3` (`a = 1 − 2r`) and the box's 1.
 #[test]
-fn x4_disjoint_boolean_over_a_filleted_body_meets_the_plane_tangency_arm() {
+fn x4_disjoint_boolean_over_a_filleted_body_builds_past_the_plane_touches() {
+    use core::f64::consts::PI;
     let a = filleted_die();
-    let far = box_at(4.0, 1.0);
-    let out = boolean_op_with(
-        BooleanOp::Union,
-        &a,
-        &far,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    );
-    match out {
-        Err(topo::BooleanError::Escalated {
-            decision: topo::BooleanDecision::Sphere(topo::SphereQuestion::AgainstPlane),
-            diag,
-        }) => {
-            assert_eq!(
-                diag.predicate,
-                Some("bool_sphere_extent_gap"),
-                "the trimmed-group arm has retired; what stops this fixture is the \
-                 plane-carrier tangency the fillet itself creates"
-            );
+    let far = finished("the far box", box_at(4.0, 1.0), Tol::witness());
+    let (r, side) = (0.125_f64, 0.75_f64);
+    let v_die = side.powi(3)
+        + 6.0 * side.powi(2) * r
+        + 3.0 * PI * side * r * r
+        + 4.0 / 3.0 * PI * r.powi(3);
+    for (op, x, y, want) in [
+        (BooleanOp::Union, &a, &far, Some(v_die + 1.0)),
+        (BooleanOp::Union, &far, &a, Some(v_die + 1.0)),
+        (BooleanOp::Intersect, &a, &far, None),
+        (BooleanOp::Intersect, &far, &a, None),
+        (BooleanOp::Subtract, &a, &far, Some(v_die)),
+        (BooleanOp::Subtract, &far, &a, Some(1.0)),
+    ] {
+        let out = boolean_op_with(
+            op,
+            x,
+            y,
+            &BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{op:?}: refused {e:?}"));
+        match (out.body(), want) {
+            (None, None) => {}
+            (Some(b), Some(want)) => {
+                let body = &b.body;
+                assert_eq!(topo::validate(body), Ok(()), "{op:?}: tier 1");
+                assert_eq!(topo::validate_closed(body), Ok(()), "{op:?}: tier 2");
+                assert_eq!(
+                    topo::validate_geometric(body, Tol::witness()),
+                    Ok(()),
+                    "{op:?}: tier 3"
+                );
+                let got = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+                assert!(
+                    (got - want).abs() <= 1e-9 * want,
+                    "{op:?}: {got} against the closed form {want}"
+                );
+            }
+            (got, want) => panic!("{op:?}: {:?} against {want:?}", got.map(|_| "a body")),
         }
-        other => panic!(
-            "expected the sphere's tangency against a plane on a disjoint operand, got: {:?}",
-            other.map(|_| "Ok(..)")
-        ),
     }
 }
 
@@ -90,6 +101,7 @@ fn x4b_a_filleted_body_assembles_with_an_operand_off_its_carriers() {
         Tol::witness(),
     )
     .unwrap();
+    let far = finished("the far box", far, Tol::witness());
     let out = boolean_op_with(
         BooleanOp::Union,
         &a,

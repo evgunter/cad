@@ -21,8 +21,8 @@ use corpus::plate_param::{
 };
 use corpus::{body_of, eval};
 use editor_core::{
-    Dimension, DocEdit, DocParam, EvalOutcome, Node, NodeErrorKind, NodeResult, ParamName,
-    ProfileDoc, RecipeNodeId, SlotId, StepArg, apply,
+    Dimension, DocEdit, EvalOutcome, FreeVar, Node, NodeErrorKind, NodeResult, ProfileDoc,
+    RecipeNodeId, SlotId, StepArg, VarName, apply,
 };
 use geom_core::Tol;
 use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
@@ -43,9 +43,9 @@ fn scene() -> Scene {
     let doc = ProfileDoc::empty_derived("switch_plate_param", Tol::witness());
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static(HOLE_R),
-            value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static(HOLE_R),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -94,18 +94,18 @@ fn scene() -> Scene {
 }
 
 /// Re-point `hole_r` — the edit that must NEVER refuse at the door
-/// (§4d: `SetDocParam` does not refuse for downstream profile breakage).
+/// (§4d: `DefineVar` does not refuse for downstream profile breakage).
 fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
     apply(
         doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static(HOLE_R),
-            value: DocParam::continuous(Dimension::Length, value),
+        &DocEdit::DefineVar {
+            var: VarName::from_static(HOLE_R).into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
-    .expect("SetDocParam never refuses for downstream profile breakage")
+    .expect("DefineVar never refuses for downstream profile breakage")
     .doc
 }
 
@@ -122,7 +122,7 @@ fn node_error(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> Option<String>
 // Row 1 — edit the parameter, re-evaluate, get NEW geometry
 // ------------------------------------------------------------------
 
-/// The switch's headline claim, executed: one `SetDocParam` changes a
+/// The switch's headline claim, executed: one `DefineVar` changes a
 /// profile's geometry, and changes it by the right amount.
 ///
 /// The oracle is exact in the plate term and analytic in the holes: a
@@ -197,7 +197,7 @@ fn one_parameter_drives_both_holes() {
 /// r → 0: the driver refuses `NonpositiveCircleRadius`, and the node's
 /// typed error names the LOOP and the STEP (§7's row, verbatim).
 ///
-/// Note which door this is NOT: `SetDocParam` applies cleanly. A
+/// Note which door this is NOT: `DefineVar` applies cleanly. A
 /// program that refuses under the current binding is legal AT REST
 /// (V1 class 2) — the refusal is the evaluation's, not the edit's.
 #[test]
@@ -295,7 +295,7 @@ fn an_overlapping_radius_refuses_at_validate() {
 /// parameter to the same effective value is NOT — the asymmetry §4d
 /// states and VQ9 ratifies.
 #[test]
-fn the_authoring_door_refuses_but_set_doc_param_does_not() {
+fn the_authoring_door_refuses_but_define_var_does_not() {
     let s = scene();
     let radius_slot = SlotId::Profile {
         loop_: 1,
@@ -365,10 +365,18 @@ fn the_hole_radii_are_addressable_slots() {
             "loop {loop_}'s radius should be addressable"
         );
     }
-    // Sanity: the helper builds the same loop the document carries.
+    // Sanity: the helper builds the same loop the document carries —
+    // its radius authored by name, and stored as a reader of the
+    // variable that name holds.
+    let circle = |lp: &editor_core::LoopProgram| match lp {
+        editor_core::LoopProgram::Circle { centre, radius } => {
+            (centre.clone(), s.doc.unparse(radius))
+        }
+        other => panic!("a hole is a circle, got {other:?}"),
+    };
     assert_eq!(
-        program.loops.get(1),
-        Some(&hole_loop(HOLE_CENTRES[0])),
+        program.loops.get(1).map(circle),
+        Some(circle(&hole_loop(HOLE_CENTRES[0]))),
         "the hole loop is the shared-parameter circle"
     );
 }

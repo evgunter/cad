@@ -839,7 +839,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, tol: Tol) -> Profil
         panic!("a revolve's operand is a profile");
     };
     program
-        .pieces(&doc.param_env::<f64>(), tol)
+        .pieces(&doc.var_env::<f64>(), tol)
         .expect("the meridian replays")
 }
 

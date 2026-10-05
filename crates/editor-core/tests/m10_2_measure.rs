@@ -17,11 +17,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocParam,
-    DocParamValue, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId,
-    SplitHalf, StableName, ValuePayload, apply, evaluate,
+    AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
+    EvalOptions, Evaluation, Expr, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
+    Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName,
+    ValuePayload, VarName, apply, evaluate,
 };
 use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::{Point3, Tol};
@@ -87,14 +87,14 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
     doc = next;
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static(HOLE_R),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static(HOLE_R),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.2,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let outer = LoopProgram::Chain(vec![
@@ -138,7 +138,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                     plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
-                        radius: Expr::param(ParamName::from_static(HOLE_R), Dimension::Length),
+                        radius: Expr::named(VarName::from_static(HOLE_R), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -185,8 +185,8 @@ fn faces_of_kind(
         .collect()
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("m10-2-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("m10-2-noparams", Tol::witness()).var_env::<f64>()
 }
 
 /// One wall per hole, found the way a user finds them: evaluate, then
@@ -355,12 +355,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
     assert_eq!(walls.len(), 2, "two holes, one wall reference each");
-    let r = || {
-        MeasureExpr::value(Expr::param(
-            ParamName::from_static(HOLE_R),
-            Dimension::Length,
-        ))
-    };
+    let r = || MeasureExpr::value(Expr::named(VarName::from_static(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -419,9 +414,9 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
     // which is under the 5e-4 bound and must flip the verdict.
     let doc = push(
         &doc,
-        &DocEdit::SetDocParamValue {
-            name: ParamName::from_static(HOLE_R),
-            value: DocParamValue::Continuous(0.29999),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static(HOLE_R).into(),
+            value: FreeValue::Continuous(0.29999),
         },
     );
     let ev = eval(&doc);
@@ -448,9 +443,9 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
 #[test]
 fn a_violated_assertion_changes_no_downstream_outcome() {
     let (with_assertion, measure, assertion) = plate_with_web();
-    let violating = DocEdit::SetDocParamValue {
-        name: ParamName::from_static(HOLE_R),
-        value: DocParamValue::Continuous(0.29999),
+    let violating = DocEdit::SetVarValue {
+        var: VarName::from_static(HOLE_R).into(),
+        value: FreeValue::Continuous(0.29999),
     };
     let with_assertion = push(&with_assertion, &violating);
     let without = push(
@@ -741,20 +736,20 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-inf"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("s"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("s"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
-            },
+            }),
         },
     );
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
         MeasureExpr::value(len(13.0)),
-        MeasureExpr::value(Expr::param(ParamName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     doc = push(
@@ -801,14 +796,14 @@ fn the_same_division_in_a_slot_has_always_refused() {
     doc = next;
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("s"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("s"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
                 display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
-            },
+            }),
         },
     );
     doc = push(
@@ -832,7 +827,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 profile: disc,
                 distance: Expr::div(
                     len(13.0),
-                    Expr::param(ParamName::from_static("s"), Dimension::Scalar),
+                    Expr::named(VarName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,

@@ -35,19 +35,27 @@
 
 use crate::common;
 
-use common::{brick, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{
-    Body, BooleanBody, BooleanResult, intersect, mass_properties, subtract, union, validate,
+    AtRestBody, BooleanBody, BooleanResult, intersect, mass_properties, subtract, union, validate,
     validate_closed, validate_pseudomanifold,
 };
 
 /// Tube: outer [1,3]², hole [1.5,2.5]², z ∈ [0.5, 3] (cutter strictly
 /// taller so the subtract pierces cleanly).
-fn tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
-    let outer = brick::<T>((1.0, 3.0), (1.0, 3.0), (0.5, 3.0), Tol::witness());
-    let cutter = brick::<T>((1.5, 2.5), (1.5, 2.5), (0.25, 3.25), Tol::witness());
+fn tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> AtRestBody<T> {
+    let outer = finished(
+        "outer",
+        brick::<T>((1.0, 3.0), (1.0, 3.0), (0.5, 3.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let cutter = finished(
+        "cutter",
+        brick::<T>((1.5, 2.5), (1.5, 2.5), (0.25, 3.25), Tol::witness()),
+        Tol::witness(),
+    );
     let BooleanResult::Body(t) = subtract(&outer, &cutter, Tol::witness()).expect("tube") else {
         panic!("tube subtract emptied");
     };
@@ -56,8 +64,12 @@ fn tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T
 
 /// Plate [0,4]² × [0,1] ∪ tube: exact 22.0 (plate 16 + tube walls
 /// above the plate, annulus 3 × 2).
-fn plate_with_tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
-    let plate = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+fn plate_with_tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> AtRestBody<T> {
+    let plate = finished(
+        "plate",
+        brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     let BooleanResult::Body(u1) = union(&plate, &tube::<T>(), Tol::witness()).expect("plate|tube")
     else {
         panic!("plate|tube emptied");
@@ -68,7 +80,7 @@ fn plate_with_tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 /// The f64 lane's `plate_with_tube`, with the exact-volume guard the
 /// interval lane cannot state (Interval has no `PartialEq` oracle by
 /// design — the interval lane checks censuses instead).
-fn plate_with_tube_f64() -> Body<f64> {
+fn plate_with_tube_f64() -> AtRestBody<f64> {
     let u1 = plate_with_tube::<f64>();
     let v = mass_properties(&u1, Tol::witness())
         .expect("u1 mass")
@@ -78,8 +90,12 @@ fn plate_with_tube_f64() -> Body<f64> {
 }
 
 /// The depth-2 chain's final operand: plate ∪ tube ∪ solid pillar.
-fn depth2_chain<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
-    let pillar = brick::<T>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness());
+fn depth2_chain<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> AtRestBody<T> {
+    let pillar = finished(
+        "pillar",
+        brick::<T>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness()),
+        Tol::witness(),
+    );
     let BooleanResult::Body(u2) =
         union(&plate_with_tube::<T>(), &pillar, Tol::witness()).expect("|pillar")
     else {
@@ -90,16 +106,20 @@ fn depth2_chain<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -
 
 /// The depth-3 chain's final operand: plate ∪ tube ∪ hollow pillar ∪
 /// post.
-fn depth3_chain<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
+fn depth3_chain<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> AtRestBody<T> {
     let BooleanResult::Body(u2) =
         union(&plate_with_tube::<T>(), &pillar_tube::<T>(), Tol::witness()).expect("|pillar tube")
     else {
         panic!("|pillar tube emptied");
     };
-    let post = brick::<T>(
-        (1.9375, 2.0625),
-        (1.9375, 2.0625),
-        (0.8125, 2.6875),
+    let post = finished(
+        "post",
+        brick::<T>(
+            (1.9375, 2.0625),
+            (1.9375, 2.0625),
+            (0.8125, 2.6875),
+            Tol::witness(),
+        ),
         Tol::witness(),
     );
     let BooleanResult::Body(u3) = union(&u2.body, &post, Tol::witness()).expect("|post") else {
@@ -111,8 +131,13 @@ fn depth3_chain<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -
 /// Slab across the tube's midriff, z ∈ [1.375, 2.375] — every plane
 /// value distinct from every operand plane (general position, no
 /// declarations involved).
-fn slab<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
-    brick::<T>((-1.0, 5.0), (-1.0, 5.0), (1.375, 2.375), Tol::witness())
+fn slab<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> AtRestBody<T> {
+    let tol = Tol::witness();
+    finished(
+        "slab",
+        brick::<T>((-1.0, 5.0), (-1.0, 5.0), (1.375, 2.375), tol),
+        tol,
+    )
 }
 
 /// Structural census of a boolean result — the ONLY exactness the
@@ -149,7 +174,11 @@ fn tiers<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 /// above plate 0.25×1.75 = 22.4375.
 #[test]
 fn issue105_doubly_nested_union_exact() {
-    let pillar = brick::<f64>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness());
+    let pillar = finished(
+        "pillar",
+        brick::<f64>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness()),
+        Tol::witness(),
+    );
     let BooleanResult::Body(u2) =
         union(&plate_with_tube_f64(), &pillar, Tol::witness()).expect("|pillar")
     else {
@@ -235,12 +264,20 @@ fn depth1_nested_intersect_control_exact() {
 /// 2.75] — the depth-3 probe's middle shell. All plane values dyadic
 /// and distinct from every other plane in the chain (general
 /// position: no coincidence declarations anywhere).
-fn pillar_tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
-    let outer = brick::<T>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness());
-    let cutter = brick::<T>(
-        (1.875, 2.125),
-        (1.875, 2.125),
-        (0.625, 2.875),
+fn pillar_tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> AtRestBody<T> {
+    let outer = finished(
+        "outer",
+        brick::<T>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness()),
+        Tol::witness(),
+    );
+    let cutter = finished(
+        "cutter",
+        brick::<T>(
+            (1.875, 2.125),
+            (1.875, 2.125),
+            (0.625, 2.875),
+            Tol::witness(),
+        ),
         Tol::witness(),
     );
     let BooleanResult::Body(t) = subtract(&outer, &cutter, Tol::witness()).expect("pillar tube")
@@ -358,8 +395,8 @@ mod interval {
 /// hole `(1.5, 2.5)²`: spine `x ∈ [1.625, 1.8125]`, `y ∈ [1.625,
 /// 1.9375]`, three teeth reaching to `x = 2.375`. Area
 /// 0.1875×0.3125 + 3×(0.5625×0.0625) = 21/128 = 0.1640625.
-fn comb<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T> {
-    prism_z::<T>(
+fn comb<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> AtRestBody<T> {
+    let comb = prism_z::<T>(
         &[
             (1.625, 1.625),
             (2.375, 1.625),
@@ -378,7 +415,8 @@ fn comb<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Body<T
         2.75,
         Tol::witness(),
     )
-    .body
+    .body;
+    finished("comb", comb, Tol::witness())
 }
 
 /// Depth-2 with a COMB island (the F4 note's shape). Live outcome as

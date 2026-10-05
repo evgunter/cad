@@ -9,8 +9,8 @@
 //! **canonical prefix encoding of the expression tree** under the
 //! identity of the parameter table it was lowered against: a scope
 //! prefix ([`ParamScope`]), then one tag byte per AST node, operands in
-//! [`Expr::child`] order, literals as their `f64` BITS, parameters as
-//! their names. It is injective — every distinct (scope, expression)
+//! [`Expr::child`] order, literals as their `f64` BITS, variable readers
+//! as their minted ids (a name is not identity, VR8). It is injective — every distinct (scope, expression)
 //! pair has a distinct byte string — so token equality IS expression
 //! equality within one parameter table rather than a claim about it,
 //! and [`invert`] reads a token back to a slot address holding it.
@@ -21,9 +21,9 @@
 //!
 //! # The scope
 //!
-//! A parameter name is scoped to the document that declares it. Two
-//! documents that both call their blend radius `r` hold two
-//! parameters, and the two meet inside ONE evaluation whenever a part
+//! A variable id is scoped to the document that minted it. Two
+//! documents that both hold a blend radius `r` hold two variables,
+//! and their ids can coincide (two documents' mint chains can run alike), and the two meet inside ONE evaluation whenever a part
 //! is instantiated — the referenced document's product is placed with
 //! `transform_rigid`, which carries these records verbatim because a
 //! rigid map cannot change a radius. So the token names the TABLE as
@@ -109,6 +109,7 @@ use verbs::{FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 use crate::eval::KeyHasher;
 use crate::expr::{Dimension, Expr, ExprKind};
 use crate::ident::{DocRef, DocumentId};
+use crate::var::VarId;
 
 // The tag alphabet. Fixed arity per tag is what makes the prefix
 // encoding injective: a reader knows how many operands to expect from
@@ -119,7 +120,7 @@ use crate::ident::{DocRef, DocumentId};
 // of operands than it claims cannot round-trip.
 const T_LITERAL: u8 = 0x01;
 const T_COUNT_LITERAL: u8 = 0x02;
-const T_PARAM: u8 = 0x03;
+const T_VAR: u8 = 0x04;
 const T_ADD: u8 = 0x10;
 const T_SUB: u8 = 0x11;
 const T_NEG: u8 = 0x12;
@@ -187,7 +188,19 @@ fn dim_code(dim: Dimension) -> u8 {
     }
 }
 
-fn encode(expr: &Expr, out: &mut Vec<u8>) {
+/// **A document's definitions, as the encoding reads them**: the
+/// defining expression of a defined variable, `None` for a free one or
+/// one the table does not hold.
+pub(crate) type Definitions<'r, 'e> = &'r dyn Fn(VarId) -> Option<&'e Expr>;
+
+/// The definitions of `doc`'s variable table.
+pub(crate) fn definitions_of<'a, P>(
+    doc: &'a crate::doc::Doc<P>,
+) -> impl Fn(VarId) -> Option<&'a Expr> + 'a {
+    |var| doc.var(var).and_then(|v| v.def().defined())
+}
+
+fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     // EXHAUSTIVE over the AST vocabulary with no wildcard arm (D3): a
     // new expression node cannot reach the kernel as an unlabelled
     // token, it breaks this match first.
@@ -201,45 +214,48 @@ fn encode(expr: &Expr, out: &mut Vec<u8>) {
             out.push(T_COUNT_LITERAL);
             out.extend_from_slice(&n.to_be_bytes());
         }
-        ExprKind::Param(name) => {
-            out.push(T_PARAM);
-            let bytes = name.as_str().as_bytes();
-            // A length prefix, because a name is the one payload with
-            // no fixed width. The width is `u32`, saturating: a name
-            // beyond four gigabytes is not a name any document can
-            // hold, and if one ever arrived the prefix would name the
-            // first `u32::MAX` bytes and the slice would carry exactly
-            // those — still a prefix code, still self-delimiting,
-            // never a panic.
-            let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-            out.extend_from_slice(&len.to_be_bytes());
-            out.extend_from_slice(&bytes[..len as usize]);
-            out.push(dim_code(expr.dim()));
+        // A defined variable is its definition, expanded (VR8): a
+        // reader of `h := 2·w` and a slot spelling `2·w` lower equal.
+        // The doors bound each VARIABLE's expansion
+        // (`DEFINITION_NODE_BOUND`), not a slot's: a slot reading one
+        // `k` times writes up to `k` times that, linear in what was
+        // written, never the exponential a diamond of definitions is.
+        ExprKind::Var(var) if let Some(definition) = defs(*var) => encode(definition, defs, out),
+        // A free variable's identity alone: its kind is fixed (VR3), so
+        // the reader's cached dimension says nothing the id does not,
+        // and a name is not identity (VR8: a rename moves no token).
+        ExprKind::Var(var) => {
+            out.push(T_VAR);
+            out.extend_from_slice(&var.0.to_be_bytes());
         }
-        ExprKind::Add(a, b) => binary(T_ADD, a, b, out),
-        ExprKind::Sub(a, b) => binary(T_SUB, a, b, out),
-        ExprKind::Mul(a, b) => binary(T_MUL, a, b, out),
-        ExprKind::Div(a, b) => binary(T_DIV, a, b, out),
-        ExprKind::Atan2(a, b) => binary(T_ATAN2, a, b, out),
-        ExprKind::Min(a, b) => binary(T_MIN, a, b, out),
-        ExprKind::Max(a, b) => binary(T_MAX, a, b, out),
-        ExprKind::Neg(a) => unary(T_NEG, a, out),
-        ExprKind::Sin(a) => unary(T_SIN, a, out),
-        ExprKind::Cos(a) => unary(T_COS, a, out),
-        ExprKind::Tan(a) => unary(T_TAN, a, out),
-        ExprKind::CountToScalar(a) => unary(T_COUNT_TO_SCALAR, a, out),
+        ExprKind::Name(name) => unreachable!(
+            "the name {name} reached a coincidence token: the edit door lowers every name \
+             leaf, and the load door refuses a snapshot holding one"
+        ),
+        ExprKind::Add(a, b) => binary(T_ADD, a, b, defs, out),
+        ExprKind::Sub(a, b) => binary(T_SUB, a, b, defs, out),
+        ExprKind::Mul(a, b) => binary(T_MUL, a, b, defs, out),
+        ExprKind::Div(a, b) => binary(T_DIV, a, b, defs, out),
+        ExprKind::Atan2(a, b) => binary(T_ATAN2, a, b, defs, out),
+        ExprKind::Min(a, b) => binary(T_MIN, a, b, defs, out),
+        ExprKind::Max(a, b) => binary(T_MAX, a, b, defs, out),
+        ExprKind::Neg(a) => unary(T_NEG, a, defs, out),
+        ExprKind::Sin(a) => unary(T_SIN, a, defs, out),
+        ExprKind::Cos(a) => unary(T_COS, a, defs, out),
+        ExprKind::Tan(a) => unary(T_TAN, a, defs, out),
+        ExprKind::CountToScalar(a) => unary(T_COUNT_TO_SCALAR, a, defs, out),
     }
 }
 
-fn binary(tag: u8, a: &Expr, b: &Expr, out: &mut Vec<u8>) {
+fn binary(tag: u8, a: &Expr, b: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     out.push(tag);
-    encode(a, out);
-    encode(b, out);
+    encode(a, defs, out);
+    encode(b, defs, out);
 }
 
-fn unary(tag: u8, a: &Expr, out: &mut Vec<u8>) {
+fn unary(tag: u8, a: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
     out.push(tag);
-    encode(a, out);
+    encode(a, defs, out);
 }
 
 /// **The lowered identity of one slot expression under one table.**
@@ -249,10 +265,10 @@ fn unary(tag: u8, a: &Expr, out: &mut Vec<u8>) {
 /// offset by the same declared `t`" equal by construction (both are
 /// `r − t`) while `r` and `r − t` differ. Two documents' slots never
 /// do, whatever they spell: the scope prefix differs.
-pub(crate) fn lower(scope: ParamScope, expr: &Expr) -> ParamSource {
+pub(crate) fn lower(scope: ParamScope, defs: Definitions<'_, '_>, expr: &Expr) -> ParamSource {
     let mut bytes = Vec::new();
     scope.encode(&mut bytes);
-    encode(expr, &mut bytes);
+    encode(expr, defs, &mut bytes);
     ParamSource::from_lowered(&bytes)
 }
 
@@ -260,9 +276,9 @@ pub(crate) fn lower(scope: ParamScope, expr: &Expr) -> ParamSource {
 /// key.** Scope-free on purpose: the key is compared against a prior
 /// evaluation of the same document, so the table is a constant of the
 /// comparison and the expression is the input that can move.
-pub(crate) fn feed_content_key(h: &mut KeyHasher, expr: &Expr) {
+pub(crate) fn feed_content_key(h: &mut KeyHasher, defs: Definitions<'_, '_>, expr: &Expr) {
     let mut bytes = Vec::new();
-    encode(expr, &mut bytes);
+    encode(expr, defs, &mut bytes);
     h.write_bytes(&bytes);
 }
 
@@ -337,11 +353,12 @@ pub fn invert<P: crate::ProfilePayload>(
     token: &ParamSource,
 ) -> Option<crate::expr::ExprPath> {
     let scope = ParamScope::Root(doc.id());
+    let defs = definitions_of(doc);
     for &node in doc.order() {
         let Some(n) = doc.node(node) else { continue };
         for slot in n.slots() {
             let Some(expr) = n.expr(slot) else { continue };
-            if lower(scope, expr) == *token {
+            if lower(scope, &defs, expr) == *token {
                 return Some(crate::expr::ExprPath {
                     node,
                     slot,
@@ -563,6 +580,7 @@ pub(crate) fn attach_shell<T: Real>(
 pub(crate) fn profile_radius_tokens<T: Real>(
     profile: &crate::eval::ProfileValue<T>,
     scope: ParamScope,
+    defs: Definitions<'_, '_>,
 ) -> Vec<Vec<Option<ParamSource>>> {
     profile
         .edge_radii
@@ -570,7 +588,7 @@ pub(crate) fn profile_radius_tokens<T: Real>(
         .map(|loop_| {
             loop_
                 .iter()
-                .map(|expr| expr.as_ref().map(|e| lower(scope, e)))
+                .map(|expr| expr.as_ref().map(|e| lower(scope, defs, e)))
                 .collect()
         })
         .collect()
@@ -694,11 +712,16 @@ mod tests {
     use geom_core::{Point3, Vec3};
 
     use super::*;
-    use crate::doc::ParamName;
     use crate::test_support::len;
 
-    fn p(name: &'static str) -> Expr {
-        Expr::param(ParamName::from_static(name), Dimension::Length)
+    /// A table of free variables only: every reader lowers as its id.
+    fn free(_: VarId) -> Option<&'static Expr> {
+        None
+    }
+
+    /// A reader of the length variable `id`.
+    fn p(id: u64) -> Expr {
+        Expr::var(VarId(id), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -711,8 +734,6 @@ mod tests {
     enum Shape {
         /// A leaf with a fixed payload width in bytes.
         Leaf(usize),
-        /// The parameter leaf: a length-prefixed name and a dimension.
-        Name,
         Unary,
         Binary,
     }
@@ -721,7 +742,7 @@ mod tests {
     const ALPHABET: &[(&str, u8, Shape)] = &[
         ("T_LITERAL", T_LITERAL, Shape::Leaf(9)),
         ("T_COUNT_LITERAL", T_COUNT_LITERAL, Shape::Leaf(8)),
-        ("T_PARAM", T_PARAM, Shape::Name),
+        ("T_VAR", T_VAR, Shape::Leaf(8)),
         ("T_ADD", T_ADD, Shape::Binary),
         ("T_SUB", T_SUB, Shape::Binary),
         ("T_NEG", T_NEG, Shape::Unary),
@@ -754,8 +775,8 @@ mod tests {
         }
     }
 
-    /// **The alphabet is the whole encoder**: one row per AST arm plus
-    /// the two scope tags. The match is exhaustive, so a new expression
+    /// **The alphabet is the whole encoder**: one row per stored AST arm
+    /// plus the two scope tags. The match is exhaustive, so a new expression
     /// node fails this file until it is visited, and visiting it means
     /// naming its row.
     #[test]
@@ -763,7 +784,7 @@ mod tests {
         let arms = match ExprKind::Neg(Box::new(len(0.0))) {
             ExprKind::Literal(_)
             | ExprKind::CountLiteral(_)
-            | ExprKind::Param(_)
+            | ExprKind::Var(_)
             | ExprKind::Add(..)
             | ExprKind::Sub(..)
             | ExprKind::Mul(..)
@@ -776,6 +797,9 @@ mod tests {
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
             | ExprKind::CountToScalar(_) => 15,
+            // No row: a name leaf never reaches the encoder, which
+            // refuses it (the edit door lowers every one).
+            ExprKind::Name(_) => 15,
         };
         assert_eq!(
             ALPHABET.len(),
@@ -794,12 +818,6 @@ mod tests {
                 let end = at + 1 + width;
                 (end <= bytes.len()).then_some(end)
             }
-            Shape::Name => {
-                let len_bytes: [u8; 4] = bytes.get(at + 1..at + 5)?.try_into().ok()?;
-                let len = u32::from_be_bytes(len_bytes) as usize;
-                let end = at + 5 + len + 1;
-                (end <= bytes.len()).then_some(end)
-            }
             Shape::Unary => parse_node(bytes, at + 1),
             Shape::Binary => {
                 let mid = parse_node(bytes, at + 1)?;
@@ -812,24 +830,25 @@ mod tests {
     fn parses_whole(scope: ParamScope, expr: &Expr) -> bool {
         let mut bytes = Vec::new();
         scope.encode(&mut bytes);
-        encode(expr, &mut bytes);
+        encode(expr, &free, &mut bytes);
         let after_scope = parse_node(&bytes, 0);
         after_scope.and_then(|at| parse_node(&bytes, at)) == Some(bytes.len())
     }
 
     /// A small expression family: every leaf kind, every operator, two
-    /// levels deep, plus the name-boundary and sign-of-zero pairs. Built
+    /// levels deep, plus ids that differ only in high bytes and the
+    /// sign-of-zero pairs. Built
     /// through the dimension-checked doors, so only well-typed
     /// combinations enter (a length plus an angle is not an expression).
     fn family() -> Vec<Expr> {
         let count = Expr::count(3);
         let leaves = vec![
-            p("a"),
-            p("b"),
-            p("ab"),
-            p("c"),
-            p("bc"),
-            Expr::param(ParamName::from_static("a"), Dimension::Angle),
+            p(1),
+            p(2),
+            p(3),
+            p(1 << 32),
+            p(u64::MAX),
+            Expr::var(VarId(6), Dimension::Angle),
             len(0.0),
             len(-0.0),
             len(1.0),
@@ -849,7 +868,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::param(ParamName::from_static("th"), Dimension::Angle);
+        let angle = Expr::var(VarId(7), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());
@@ -889,13 +908,12 @@ mod tests {
     /// **Token equality is `bit_eq`, over the whole family**: the
     /// injectivity claim executed pairwise rather than asserted. Both
     /// directions — two expressions equal by bits share a token, and
-    /// two that differ do not — with the name-boundary pair
-    /// (`ab + c` vs `a + bc`), operand order, the sign of zero, and a
-    /// name's dimension all inside the family.
+    /// two that differ do not — with ids that differ only in their high
+    /// bytes, operand order and the sign of zero all inside the family.
     #[test]
     fn token_equality_is_expression_equality() {
         let family = family();
-        let tokens: Vec<ParamSource> = family.iter().map(|e| lower(root(), e)).collect();
+        let tokens: Vec<ParamSource> = family.iter().map(|e| lower(root(), &free, e)).collect();
         for (i, x) in family.iter().enumerate() {
             for (j, y) in family.iter().enumerate().skip(i) {
                 assert_eq!(
@@ -915,7 +933,7 @@ mod tests {
         let a = Expr::literal_with_unit(0.125, Dimension::Length, mm).unwrap();
         let b = Expr::literal_with_unit(0.125, Dimension::Length, cm).unwrap();
         assert!(a.bit_eq(&b));
-        assert_eq!(lower(root(), &a), lower(root(), &b));
+        assert_eq!(lower(root(), &free, &a), lower(root(), &free, &b));
     }
 
     /// **Two scopes are two tokens for one expression**, and the part
@@ -926,24 +944,24 @@ mod tests {
         let b = DocumentId::derive("b");
         let pin1 = crate::ident::ContentPin::of_bytes(b"one");
         let pin2 = crate::ident::ContentPin::of_bytes(b"two");
-        let r = p("r");
+        let r = p(1);
         assert_ne!(
-            lower(ParamScope::Root(a), &r),
-            lower(ParamScope::Root(b), &r)
+            lower(ParamScope::Root(a), &free, &r),
+            lower(ParamScope::Root(b), &free, &r)
         );
         assert_ne!(
-            lower(ParamScope::Root(a), &r),
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
+            lower(ParamScope::Root(a), &free, &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
             "a document opened standalone and the same document instantiated are two tables"
         );
         assert_ne!(
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
-            lower(ParamScope::Part(DocRef { id: a, pin: pin2 }), &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin2 }), &free, &r),
             "two pins of one document are two versions of one table"
         );
         assert_eq!(
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
-            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
+            lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &free, &r),
         );
     }
 

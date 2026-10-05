@@ -16,9 +16,8 @@
 //! own doc says which stand outside it and what guards a new
 //! one):
 //! `InsertNode`, `DeleteNode`, `SetParam`,
-//! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
-//! `SetDocParamValue`, `SetDocParamUnit`,
-//! `SetDocParamDistribution`, `Rebind`,
+//! `SetStructuralParam`, `SetExpression`, `DeclareVar`, `DefineVar`,
+//! `SetVarValue`, `SetVarUnit`, `SetVarDistribution`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
 //! `SetTolerance`, `SetAppearanceMeta`, `ClearAppearanceMeta`.
 //!
@@ -38,8 +37,8 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, Distribution, DocEdit,
-    DocParam, DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind,
-    Rgba8, RoleSeg, SlotId, StableName, UnitSym, WitnessDatum,
+    EntityKind, Expr, ExprPath, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8, RoleSeg,
+    SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 
 use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
@@ -52,18 +51,16 @@ pub fn document() -> CorpusDoc {
     // Re-record the ambient ε (a structural edit; see module docs).
     let ambient = r.doc.epsilon();
     r.push(DocEdit::SetTolerance { eps: ambient });
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("h"),
-        value: DocParam::continuous(Dimension::Length, 1.0),
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("h"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
     });
-    // The VALUE door, on the parameter the declaration above just
-    // made: it carries the declaration forward, so `h` keeps its
-    // dimension (and would keep a distribution) while the number
-    // moves. The document's state after this pair is the same
-    // document a single declaration at 1.25 would have produced.
-    r.push(DocEdit::SetDocParamValue {
-        name: ParamName::from_static("h"),
-        value: DocParamValue::Continuous(1.25),
+    // The VALUE door, on the variable the declare above just minted:
+    // it carries the definition forward, so `h` keeps its kind (and
+    // would keep a distribution) while the number moves.
+    r.push(DocEdit::SetVarValue {
+        var: VarName::from_static("h").into(),
+        value: FreeValue::Continuous(1.25),
     });
     // The NOTATION door, the value door's mirror over the other field
     // of the same declaration: `h` is now written in millimetres and
@@ -71,25 +68,31 @@ pub fn document() -> CorpusDoc {
     // edit is invisible to `bit_eq` by ruling (`display_unit` is
     // presentation metadata), so the round-trip rows read it as the
     // same document and the FILE is where it has to survive.
-    r.push(DocEdit::SetDocParamUnit {
-        name: ParamName::from_static("h"),
+    r.push(DocEdit::SetVarUnit {
+        var: VarName::from_static("h").into(),
         unit: UnitSym::from_def(&quantity::MM.def()),
     });
     // The ANNOTATION door, the third field of the same declaration:
     // `h` acquires an E1/E2 tolerance and keeps the millimetres the
-    // edit above wrote. Through create-or-replace this pair reverts
+    // edit above wrote. Through a whole definition this pair reverts
     // the notation, which is the trap the door removes; here the FILE
     // carries both, so the round-trip rows read them back together.
-    r.push(DocEdit::SetDocParamDistribution {
-        name: ParamName::from_static("h"),
+    r.push(DocEdit::SetVarDistribution {
+        var: VarName::from_static("h").into(),
         distribution: Some(Distribution::Band {
             lo: -0.0001,
             hi: 0.0001,
         }),
     });
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::from_static("n"),
-        value: DocParam::Count { value: 3 },
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("n"),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 2 }),
+    });
+    // The DEFINITION door: `n` keeps its identity, its name and its
+    // kind while its definition is replaced whole.
+    r.push(DocEdit::DefineVar {
+        var: VarName::from_static("n").into(),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),
@@ -114,7 +117,7 @@ pub fn document() -> CorpusDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let h = Expr::param(ParamName::from_static("h"), Dimension::Length);
+    let h = Expr::named(VarName::from_static("h"), Dimension::Length);
     let dist =
         Expr::mul(h, Expr::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
     let block_a = r.insert(Node::Extrude {
@@ -212,7 +215,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: linear,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::from_static("n"), Dimension::Count),
+        expr: Expr::named(VarName::from_static("n"), Dimension::Count),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
     // (same dimension, same value — a pure representation edit).
@@ -294,7 +297,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetAppearanceMeta {
         name: body.clone(),
         key: "tool.example/scratch".into(),
-        value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1))]))
+        value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1.into()))]))
             .expect("a shallow value"),
     });
     r.push(DocEdit::ClearAppearanceMeta {
@@ -347,7 +350,7 @@ pub fn document() -> CorpusDoc {
 /// `-0.0` is DATA.
 pub fn meta_tree() -> MetaValue {
     let mut m = BTreeMap::new();
-    m.insert("v".into(), MetaValue::Int(1));
+    m.insert("v".into(), MetaValue::Int(1.into()));
     m.insert("flag".into(), MetaValue::Bool(true));
     m.insert("nothing".into(), MetaValue::Null);
     m.insert("neg_zero".into(), MetaValue::Float(-0.0));
@@ -356,7 +359,8 @@ pub fn meta_tree() -> MetaValue {
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad, 0x00]));
     m.insert(
         "list".into(),
-        MetaValue::list(vec![MetaValue::Int(-7), MetaValue::Float(0.1)]).expect("a shallow value"),
+        MetaValue::list(vec![MetaValue::Int((-7).into()), MetaValue::Float(0.1)])
+            .expect("a shallow value"),
     );
     MetaValue::map(m).expect("a shallow value")
 }

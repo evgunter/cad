@@ -98,9 +98,9 @@ fn the_branch_pin_respells_are_bit_identical_by_differential() {
     }
 }
 
-/// The classify.rs:277 / chord_join select_arc respells are NOT
-/// bit-identical — the old spellings added and subtracted half a
-/// period around `reduce_periodic`, two extra roundings. Witness that
+/// The classify.rs:277 respell is NOT bit-identical — the old spelling
+/// added and subtracted half a period around `reduce_periodic`, two
+/// extra roundings. Witness that
 /// f64 bits genuinely move there (the PR's "0 of 3153 moved" is a
 /// corpus measurement, not an identity).
 #[test]

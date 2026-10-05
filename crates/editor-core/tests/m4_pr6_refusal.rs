@@ -12,8 +12,8 @@ use editor_core::ExtrudeSide;
 use editor_core::expr::DimensionError;
 use editor_core::persist::SnapshotError;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, MetaValue, Node, NodeErrorKind,
-    NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, WitnessDatum, apply, evaluate,
+    CancelToken, Dimension, DocEdit, EvalOptions, Expr, FreeVar, MetaValue, Node, NodeErrorKind,
+    NodeResult, PersistError, ProfileDoc, RecipeNodeId, VarName, WitnessDatum, apply, evaluate,
     load, save,
 };
 use fixture::{insert, len, on_frame, xy_frame};
@@ -249,9 +249,9 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
     // symbol is on the wire beside the expression literals'.
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("bore"),
-            value: DocParam::continuous(Dimension::Length, 0.01),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("bore"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.01)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -471,9 +471,9 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     use editor_core::persist::NonFiniteSite;
     let (doc, _) = small();
     // A NaN smuggled through an UNAPPLIED edit log (a log is data).
-    let nan_edit = DocEdit::SetDocParam {
-        name: ParamName::from_static("bad"),
-        value: DocParam::continuous(Dimension::Length, f64::NAN),
+    let nan_edit = DocEdit::DeclareVar {
+        name: VarName::from_static("bad"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, f64::NAN)),
     };
     match save(&doc, &[nan_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
@@ -497,7 +497,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     );
     // A NaN inside a metadata tree carried by an unapplied edit.
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("x".to_owned(), MetaValue::Float(f64::NAN));
     let meta_edit = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
@@ -595,7 +595,7 @@ fn metadata_convention_doors_refuse_typed() {
     };
     // No "v" field → refused at the edit door (D7 convention).
     let mut m = std::collections::BTreeMap::new();
-    m.insert("x".to_owned(), MetaValue::Int(3));
+    m.insert("x".to_owned(), MetaValue::Int(3.into()));
     let no_v = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {
@@ -616,7 +616,7 @@ fn metadata_convention_doors_refuse_typed() {
         &DocEdit::SetAppearanceMeta {
             name,
             key: "k".into(),
-            value: MetaValue::Int(1),
+            value: MetaValue::Int(1.into()),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -771,7 +771,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     // D7 metadata value without its "v" field.
     let (doc, _) = small();
     let mut m = std::collections::BTreeMap::new();
-    m.insert("x".to_owned(), MetaValue::Int(3));
+    m.insert("x".to_owned(), MetaValue::Int(3.into()));
     let bad = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,

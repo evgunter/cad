@@ -26,9 +26,10 @@ fn rows(label: &str, body: &Body<f64>) {
     for (he, cache) in body.pcurves() {
         n += 1;
         println!(
-            "[r2rows] {label}: he {he:?} params {:?} pcurve {:?}",
+            "[r2rows] {label}: he {he:?} params {:?} pcurve {:?} joint {:?}",
             cache.params(),
-            cache.pcurve()
+            cache.pcurve(),
+            body.joint(he)
         );
     }
     println!("[r2rows] {label}: {n} rows");

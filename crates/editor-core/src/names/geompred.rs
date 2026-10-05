@@ -67,7 +67,7 @@ use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
 use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
-use crate::expr::{Dimension, Expr, ParamEnv};
+use crate::expr::{Dimension, Expr, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
 use crate::names::table::EntityKey;
@@ -505,7 +505,7 @@ pub(crate) enum Prepared<'a, T: Decide> {
 pub(crate) fn prepare<'a, T: Decide>(
     ev: &'a Evaluation<T>,
     geom: &[GeomPred],
-    params: &ParamEnv<T>,
+    params: &VarEnv<T>,
 ) -> Result<Vec<Prepared<'a, T>>, SelectRefusal> {
     geom.iter()
         .map(|atom| match atom {

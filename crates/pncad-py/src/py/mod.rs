@@ -53,7 +53,8 @@ pyo3::create_exception!(
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
      `index` (which of a node's placement frames: a transform's step \
-     or an explicit rule's listed placement), `path`, `value_path` and \
+     or an explicit rule's listed placement), `side` (the mate side \
+     whose frame offset holds that step), `path`, `value_path` and \
      `pin`.\n\n\
      ONE ATTRIBUTE PER CONCEPT. Where two arms name one concept \
      differently the concept's clearest word wins — `expected`/ \
@@ -407,11 +408,8 @@ pyo3::create_exception!(
      (`no_such_name`, `ambiguous`, `wrong_kind`, `whole_body`, the \
      node ladder); the GEOMETRY half reads the carrier and arrives \
      under its own tags, not a wrapper tag (`dangling_entity`, \
-     `dangling_geometry`, `no_canonical_frame`, `no_carrier`).\n\n\
-     The two dangling tags stay apart because they are different \
-     facts about the model: `dangling_entity` is a stale or foreign \
-     handle, `dangling_geometry` is a live entity naming geometry \
-     the body itself no longer has.\n\n\
+     `no_canonical_frame`, `no_carrier`). `dangling_entity` is a \
+     stale or foreign handle.\n\n\
      `ambiguous` is the one to read twice: a tie is a naming success \
      and a referencing failure, and the door refuses rather than \
      picking a candidate. `Evaluation.denotation` is how a caller \

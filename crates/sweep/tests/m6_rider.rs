@@ -16,15 +16,16 @@ use core::f64::consts::PI;
 
 use geom_core::Tol;
 use geom_core::Vec3;
-use sweep::test_support::ball_poled_y;
+use sweep::test_support::{ball_poled_y, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
 
+/// The union's volume under `strategy`, its operands each finished once.
 fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, BooleanError> {
     let out = boolean_op_with(
         BooleanOp::Union,
-        a,
-        b,
+        &finished("operand A", a.clone(), Tol::witness()),
+        &finished("operand B", b.clone(), Tol::witness()),
         &BooleanDeclarations::none(),
         strategy,
         Tol::witness(),
@@ -58,7 +59,7 @@ fn far_disjoint_balls_union_under_both_strategies() {
 /// no one-sided verdict exists, and the circle × sphere roots find the
 /// crossings. The pair's centre line runs along X, across both charts'
 /// polar axis (Y), so the section the join hands each side is tilted
-/// against both charts; the run-side arc rule takes it and the union
+/// against both charts; each chord takes the germs' arc and the union
 /// meets the two-cap closed form.
 #[test]
 fn overlapping_balls_union_through_their_tilted_section() {
@@ -93,7 +94,7 @@ fn in_band_clearance_escalates_through_the_funnel() {
         BooleanError::Escalated { diag, .. } => {
             assert_eq!(
                 diag.predicate,
-                Some("bool_circle_sphere_extreme"),
+                Some("bool_conic_quadric_first_extreme"),
                 "the escalation names the roots' predicate: {diag:?}"
             );
         }

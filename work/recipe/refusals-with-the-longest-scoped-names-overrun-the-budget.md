@@ -5,7 +5,6 @@ title: Refusals forwarding the corpus's longest names overrun the 75-word budget
 status: open
 priority: P2
 cost: M
-needs_ev: true
 opened: 2026-10-03
 ---
 
@@ -37,7 +36,21 @@ The test pins each row as a ratchet (`OVER_BUDGET`): a row that grows fails, and
 - A full-form name says every citation, however deep.
 - `InBand`'s own prose is about 60 words, so any name over about 15 words overruns the budget by itself, and a refusal naming two such names cannot fit at all.
 
-**Open: a design choice on the ruled gate, so it is Ev's.** Three options:
-1. Read the budget per refusal as "the prose plus the names".
-2. Say long names shorter in refusals. For example, a refusal could scope a pair against each other rather than against the table, which #3906 rejected for one-name notices. A name the evaluation no longer holds could be scoped against the table that last held it.
-3. Shrink the prose of `InBand`, `TiedDisagrees` and `Unreadable`.
+## A refusal reads in one pass at a typical name, and a name says only what tells it apart
+
+Measured on PR 3886's build over all 12,490 corpus names: names are long in the middle, not only at the tail. A face said within its table is median 21 words, p90 25, p99 40, max 45; table scoping opens a citation for 187 of 2,618 faces. The length is the fixed core: the modal face (840 of 2,618) is "the side wall over the leg of loop 0 step 2 of Extrude X, cut in at Subtract Y, on Boolean Z", 22 words. With that median name four rows already overrun (in-band ~82, flush pair ~97, pick tie ~85, crossing ~79). And "with the longest scoped names" cannot hold for any two-name refusal under a rule that keeps names distinct: two 45-word names are 90 words with no prose, and names nest without bound. Part of the measurement is also off: the four select rows are never drawn by the viewer (Python writes its own name-free messages for them), the pick tie the viewer draws is `frame::pick_refusal`'s, not the kernel's, and the 263-word vanished row pairs two unrelated names where the second is always embedded in the first.
+
+- **The gate.** Each refusal is measured at the door production says it through, with a payload that can occur and the corpus's 90th-percentile name. A separate ratchet holds the names' own lengths (p50, p99, max). The longest-name tail is reported, not gated. The 75 stands as a prose limit on a typical payload, which is what the refusal standard says.
+- **A refusal about a reference leads with the reference.** A node's resolve failure says which slot: "this fillet's edge 2 is stranded: Boolean aa4f… was deleted. Recourse: rebind it" (about 15 words against 136 today); under D10 the `Face`/`Edge` variable, its name or "the edge Fillet 12 rounds". A name that is the sentence's subject is not repeated (the properties pane's "this face is gone: <the same face>"). The "vanished upstream first" clause says the embedded name by kind. Where there is no reference to lead with (the bare refusal as Python or a log prints it), the name is said once, in full: no production door holds a table that still holds a vanished name.
+- **A name's words carry only what tells it apart.** "the leg of" goes where the leg is its step's only piece (a single-segment step draws one piece; fillet steps keep run-in, arc, run-out). The ", on <node>" phrase names the node that minted the name, not the node whose output holds it, so two Transform copies of one body already say the same holder; which output an entity is in belongs to the sentence (a pick hit's node, a flush query's two nodes, the node a select row is about), and the sentence says it where it is not already fixed. With both trims: median 15, p90 16, p99 24, max 36.
+- **The band refusals' prose** says the band once, drops predicate ids and query-policy explanation, and the pick tie drops "which this refusal lists in full". The forwarded recourse "declare the coincidence" points at a seat D10 retires.
+
+With all four every row is within 75 at the p90 name; a tie between two of the corpus's longest names runs to about 85–90 words, which the name ratchet reports.
+
+Found beside it: Python drops a flush pair's second face (`pncad-py/src/py/select.rs`); `pane/properties.rs` `standing_verdict` speaks `ResolveError` without `.within` and repeats the subject; the `*Resolve` node errors name no slot; `CrossingUnverified` says its part's name by tag outside the speaker; a forwarded `StableName` carries no holding node (`PairInBand`, `Vanished`), so "X and X" for two copies cannot be fixed by words alone.
+
+Weighed by two designers over two reconciliation rounds (fork-log row 69).
+
+## Ruled (Ev, PR 4069, 2026-10-05)
+
+As the section above says ("sounds good!"). PR 3886 builds it in its last fix pass, with the third review's findings.

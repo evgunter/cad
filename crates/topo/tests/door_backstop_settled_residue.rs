@@ -1,6 +1,6 @@
 //! **A declared coincidence the door settles inside the band moves a
 //! correct result's volume, and at a tight bound the volume backstop
-//! refuses it** — a correct body refused, the safe direction, filed as
+//! may refuse it** — a correct body refused, the safe direction, filed as
 //! `work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`.
 //!
 //! The fixture is a block and a parallelepiped cornered on its top face
@@ -17,13 +17,18 @@
 //!   crosses `vol(A) − vol(B)`;
 //! - every other op and tilt builds at the box arithmetic.
 //!
-//! A crossing refuses wherever the interval margin certifies it. Each
-//! row pins the verdict measured at ε = 1e-9, 1e-6 and 1e-12: the sunk
-//! intersect refuses at all three, and the standing union and the sunk
-//! `A ∖ B` (13.5 m³ bodies, whose sums round coarser) refuse down to
-//! 1e-9 and build within the gap at 1e-12.
-//!
-//! Sunk at `±2ε` every op reads as it does at `±1.2ε`.
+//! The row asserts only what the geometry decides. Every op that
+//! builds is within the gap of the box arithmetic, and only an op whose
+//! intended result crosses its bound may refuse, naming that bound.
+//! Whether a crossing refuses is NOT pinned: the crossing (≤ the gap,
+//! 4.6e-12 m³ at ε 1e-9) is smaller than what the stored geometry
+//! itself leaves open. The glued face's loop points stand off its
+//! carrier inside the band, and the re-derived volume that confirms a
+//! crossing (`props::rederive`) moves with that standoff times the face's
+//! area and with the loop point its fan is read from (of order 1e-10 m³
+//! at ε 1e-9),
+//! so the verdict there is read under the representation's own ambiguity
+//! (`work/reach/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
 //!
 //! Oracle: box arithmetic — the block `3 × 4.5 × 1`, the parallelepiped
 //! `sin φ · h` (its base parallelogram's area, whatever the tilt, times
@@ -32,7 +37,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::test_support::{brick, mapped_cube};
+use topo::test_support::{brick, finished, mapped_cube};
 use topo::{
     Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, CarrierDesc,
     FacePairDeclaration, face_carrier,
@@ -65,21 +70,24 @@ fn declared(a: topo::FaceKey, b: topo::FaceKey, class: BooleanCoincidence) -> Bo
 enum Want {
     /// Build at this volume (`0` is empty), within the gap.
     Builds(f64),
-    /// The result crosses this bound by up to the gap. At every ε
-    /// down to the third field the volume backstop refuses it naming
-    /// the bound; below it the crossing is under the interval's own
-    /// rounding and builds within the gap at this volume.
-    Crosses(&'static str, f64, f64),
+    /// The result crosses this bound by up to the gap: the volume
+    /// backstop refuses it naming the bound, or it builds within the gap
+    /// at this volume.
+    Crosses(&'static str, f64),
 }
 
 #[test]
-fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
+fn a_settled_in_band_coincidence_builds_within_its_gap_or_refuses_where_it_crosses() {
     use Want::{Builds, Crosses};
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness band");
     let phi = 5.0_f64.to_radians();
     let p = Point3::new(0.5, 0.2, 1.0);
-    let block = brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
+    let block = finished(
+        "block",
+        brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+        tol,
+    );
     let block_volume = 3.0 * 4.5;
     let wedge = |h: f64| phi.sin() * h;
     let (standing, sunk) = ((1.0, 0.0, -1.0), (0.5, 0.5, 1.0));
@@ -98,7 +106,7 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             standing,
             rest,
             [
-                Crosses(union_cap, block_volume + wedge(1.0), 1e-9),
+                Crosses(union_cap, block_volume + wedge(1.0)),
                 Builds(0.0),
                 Builds(block_volume),
                 Builds(wedge(1.0)),
@@ -135,8 +143,8 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             cont,
             [
                 Builds(block_volume),
-                Crosses(cap, wedge(0.5), 1e-12),
-                Crosses(floor, block_volume - wedge(0.5), 1e-9),
+                Crosses(cap, wedge(0.5)),
+                Crosses(floor, block_volume - wedge(0.5)),
                 Builds(0.0),
             ],
         ),
@@ -159,8 +167,8 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             cont,
             [
                 Builds(block_volume),
-                Crosses(cap, wedge(0.5), 1e-12),
-                Crosses(floor, block_volume - wedge(0.5), 1e-9),
+                Crosses(cap, wedge(0.5)),
+                Crosses(floor, block_volume - wedge(0.5)),
                 Builds(0.0),
             ],
         ),
@@ -172,8 +180,12 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
         );
-        let tool = mapped_cube::<f64>(
-            move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+        let tool = finished(
+            "tool",
+            mapped_cube::<f64>(
+                move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+                tol,
+            ),
             tol,
         );
         let (top, face) = (face_facing(&block, 1.0), face_facing(&tool, facing));
@@ -207,12 +219,10 @@ fn a_settled_in_band_coincidence_refuses_where_it_crosses_a_tight_bound() {
             };
             match (want, out) {
                 (Builds(want), out) => builds(out, want),
-                (Crosses(bound, _, down_to), out) if band.zero() >= down_to => assert!(
-                    matches!(out, Err(BooleanError::ResultVolumeImplausible { which, .. })
-                        if which == bound),
-                    "{label}: refuses {bound}: {out:?}"
-                ),
-                (Crosses(_, want, _), out) => builds(out, want),
+                (Crosses(bound, _), Err(BooleanError::ResultVolumeImplausible { which, .. })) => {
+                    assert_eq!(which, bound, "{label}: refuses the bound it crosses");
+                }
+                (Crosses(_, want), out) => builds(out, want),
             }
         }
     }

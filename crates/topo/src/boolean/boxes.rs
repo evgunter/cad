@@ -150,8 +150,9 @@ use geom::surfaces::nurbs::NurbsSurface;
 use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
 use super::BooleanError;
-use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey, VertexKey};
+use crate::body::{Body, WALKS_CLOSE};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::live::{linked, proven};
 
 /// The sweep's box pad in meters — what candidate generation must add
 /// so pruning can never lose an accepted pair. Derivation (each term
@@ -186,10 +187,6 @@ pub(crate) fn sweep_pad(band: Band) -> f64 {
 /// pure number, levered by the cylinder's radius
 /// ([`UnitVec3::levered`]).
 pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
-
-fn corrupt(what: &'static str) -> BooleanError {
-    BooleanError::ClassificationInvariant { what }
-}
 
 /// One coordinate's ENCLOSURE, in whatever scalar the reading lane
 /// works in — **the form the per-kind extents below are written
@@ -325,22 +322,91 @@ impl<T: Real> SpanBox<T> {
 
 /// The enclosure of a DECIDED unit direction: the [`SpanBox`] of a
 /// [`UnitVec3`], minted only from one, so an extent that takes it
-/// reads a unit axis by type. The census lane takes the witness at its
-/// own scalar ([`UnitSpanBox::exact`]), the bracket lane takes its
-/// `f64` bracket ([`UnitSpanBox::bracketed`]); either way the box
-/// encloses a vector whose length was decided and divided out.
+/// reads a unit axis by type. Two mints: the bracket lane takes the
+/// witness's `f64` bracket ([`UnitSpanBox::bracketed`]); the census
+/// lane takes it at its own scalar, rotated into the frame it reads
+/// ([`BoxFrame::unit`]), which is the witness's components along
+/// orthonormal rows — unit to the rounding of a dot product, as the
+/// witness itself is unit to the rounding of its normalize.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct UnitSpanBox<T>(SpanBox<T>);
 
 impl<T: Real> UnitSpanBox<T> {
-    /// The witness as three degenerate spans.
-    pub(crate) fn exact(u: UnitVec3<T>) -> Self {
-        Self(SpanBox::vector(u.get()))
-    }
-
     /// The enclosure itself.
     pub(crate) fn get(&self) -> &SpanBox<T> {
         &self.0
+    }
+}
+
+/// **The frame a box is read in**: the world's axes, or a rotation of
+/// them whose first axis is a decided unit direction.
+///
+/// Every per-kind extent in this module computes coordinate `i` of its
+/// box from coordinate `i` of its inputs alone
+/// (`every_extent_reads_each_coordinate_from_that_coordinate_alone`
+/// holds each of them to it, bit for bit), and its soundness argument
+/// reads coordinate `i` as the component along a UNIT direction —
+/// never as anything particular to the world's `x̂`, `ŷ` or `ẑ`. An
+/// extent added here owes the same, and a row in that test. So the same extents, fed the components of their inputs
+/// along the rows of any orthonormal frame, box the face in that
+/// frame, and the first coordinate of an [`Aimed`](Self::Aimed) frame's
+/// box is the face's support along its aim. That is a reading that
+/// turns with the body: the world box of a turned face widens by how
+/// it is turned, and the support along a direction fixed to the face
+/// does not.
+///
+/// The aimed frame is the aim with [`UnitVec3::orthonormal_basis`],
+/// in the cyclic order `(aim, b1, b2)` of the right-handed
+/// `(b1, b2, aim)`, so a cross product of two mapped vectors is the
+/// mapped cross product.
+///
+/// **Rounding.** A point is turned about the WORLD origin, so its
+/// coordinate along a row is a dot product rounded by at most
+/// `γ₃·Σ|nᵢpᵢ| ≤ 3u·|p|`, about one and a half ulps of `|p|`
+/// (`the_aimed_frames_rounding_is_a_few_ulps_of_the_point` measures it
+/// out to `|p| = 10⁸` m). The pad every reader adds is `12 ε`, so it
+/// covers that wherever a coordinate of magnitude `|p|` resolves `ε` at
+/// all — and a body placed where `ulp(|p|) > ε` has vertices the band
+/// cannot place either.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum BoxFrame<T: Real> {
+    /// The world's axes: every point and vector read as it is stored.
+    World,
+    /// The rows of a right-handed orthonormal frame whose first row is
+    /// the aim.
+    Aimed([Vec3<T>; 3]),
+}
+
+impl<T: Real> BoxFrame<T> {
+    /// The frame whose first axis is `aim`.
+    pub(crate) fn aimed(aim: UnitVec3<T>) -> Self {
+        let (b1, b2) = aim.orthonormal_basis();
+        Self::Aimed([aim.get(), b1, b2])
+    }
+
+    /// A direction's components along the frame's rows.
+    pub(crate) fn vector(&self, v: Vec3<T>) -> Vec3<T> {
+        match self {
+            Self::World => v,
+            Self::Aimed([a, b, c]) => Vec3::new(a.dot(v), b.dot(v), c.dot(v)),
+        }
+    }
+
+    /// A point's coordinates in the frame, about the world origin.
+    pub(crate) fn point(&self, p: Point3<T>) -> Point3<T> {
+        match self {
+            Self::World => p,
+            Self::Aimed(_) => {
+                let v = self.vector(Vec3::new(p.x, p.y, p.z));
+                Point3::new(v.x, v.y, v.z)
+            }
+        }
+    }
+
+    /// A decided unit direction's components in the frame: a rotation
+    /// of a unit vector is one, so the witness carries.
+    pub(crate) fn unit(&self, u: UnitVec3<T>) -> UnitSpanBox<T> {
+        UnitSpanBox(SpanBox::vector(self.vector(u.get())))
     }
 }
 
@@ -777,10 +843,12 @@ pub(crate) fn meet<T: Real>(a: SpanBox<T>, b: SpanBox<T>) -> SpanBox<T> {
 pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
 
 /// One HALF-EDGE, as the window walk reads it: its stored certified
-/// pcurve cache, and whether the loop traverses it FORWARD (the
-/// `he_plus` side, so the certified span runs `t₀ → t₁`). `None` for a
-/// half-edge with no cache.
-pub(crate) type WindowStep<'a, T> = Option<(&'a geom_brep::PcurveCache<T>, bool)>;
+/// pcurve cache, its image as the loop's lift places it
+/// ([`crate::Body::loop_lift`]), and whether the loop traverses it
+/// FORWARD (the `he_plus` side, so the certified span runs `t₀ → t₁`).
+/// `None` for a half-edge of a loop with no lift.
+pub(crate) type WindowStep<'a, T> =
+    Option<(&'a geom_brep::PcurveCache<T>, geom_brep::Pcurve<T>, bool)>;
 
 /// **A torus face's chart window, from its boundary's stored certified
 /// pcurves — the ONE walk, for every lane.**
@@ -934,13 +1002,13 @@ impl<T: Real> TorusChartWindow<T> {
     /// images are harmonic (a cone-section image certifies on a cone
     /// only), so any other image abandons the window — which widens the
     /// box to the whole tube, never narrows it.
-    pub(crate) fn step(&mut self, step: WindowStep<'_, T>) {
-        let Some((cache, forward)) = step else {
+    pub(crate) fn step(&mut self, step: &WindowStep<'_, T>) {
+        let Some((cache, image, forward)) = step else {
             self.ok = false;
             return;
         };
         let (t0, t1) = cache.params();
-        let Some(b) = cache.pcurve().closed_form_span_box(t0, t1) else {
+        let Some(b) = image.closed_form_span_box(t0, t1) else {
             self.ok = false;
             return;
         };
@@ -952,7 +1020,7 @@ impl<T: Real> TorusChartWindow<T> {
             lo: b.v_min,
             hi: b.v_max,
         };
-        let Some(travel) = harmonic_travel(cache.pcurve(), t0, t1, forward) else {
+        let Some(travel) = harmonic_travel(image, t0, t1, *forward) else {
             self.ok = false;
             return;
         };
@@ -1049,7 +1117,7 @@ pub(crate) fn harmonic_travel<T: Real>(
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
 /// abandons the window on: it carries no chart image.
-pub(crate) fn face_window_steps<T: Real>(
+pub(crate) fn face_window_steps<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Option<Vec<Vec<WindowStep<'_, T>>>> {
@@ -1059,9 +1127,15 @@ pub(crate) fn face_window_steps<T: Real>(
         let l = body.get_loop(lk)?;
         let mut steps = Vec::new();
         if let LoopBoundary::Cycle { first } = l.boundary {
-            for he in body.loop_cycle(first)? {
+            let cycle = body.loop_cycle(first)?;
+            let lifted = crate::pcurves::lifted_images(body, &cycle);
+            for (he, image) in cycle.into_iter().zip(lifted) {
                 let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-                steps.push(body.pcurve(he).map(|c| (c, edge.he_plus == he)));
+                steps.push(
+                    body.pcurve(he)
+                        .zip(image)
+                        .map(|(c, image)| (c, image, edge.he_plus == he)),
+                );
             }
         }
         out.push(steps);
@@ -1081,7 +1155,7 @@ pub(crate) fn torus_chart_window<T: Real>(
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
-        for &step in lp {
+        for step in lp {
             acc.step(step);
         }
         if lp.is_empty() {
@@ -1202,8 +1276,8 @@ pub(crate) fn conic_extent<T: Real>(
 /// side, so a kind added to [`Surface`] cannot acquire a box by
 /// falling through a wildcard, and none can be silently left without
 /// one either. A face whose surface key does not RESOLVE is a
-/// different answer — that is arena corruption, and the callers here
-/// report it as such rather than folding it in here. A box can still
+/// different answer — a torn body, on which the callers here panic
+/// rather than folding it in here. A box can still
 /// come out POISON (an unboxable boundary edge, a poisoned
 /// description); that is the value, not the rule.
 ///
@@ -1281,8 +1355,8 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
 /// The [`FaceBoxRule`] for a surface — the single kind→rule mapping. A
 /// kind added to [`Surface`] gets its arm by being written here, never
 /// by falling through a wildcard in some consumer. Takes a RESOLVED
-/// surface: a missing one is corruption, which is the caller's to
-/// report and not a rule.
+/// surface: a missing one is a torn body, which is the caller's to
+/// meet and not a rule.
 ///
 /// The cylinder's axis is decided here, under [`BOX_CYLINDER_AXIS`]:
 /// [`slab_extent`] reads it as a unit direction and a carrier's axis is
@@ -1361,22 +1435,23 @@ pub(crate) fn face_box_rule<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] when the face's topology
-/// is corrupt (a lost entity, an unwalkable loop). A face whose
-/// surface key does not resolve is corruption, NOT a kind without a
-/// box — the two are separate answers here. So is a cylinder whose
-/// axis has no decided length under `band` ([`face_box_rule`]): a
-/// broken carrier.
+/// [`BooleanError::ClassificationInvariant`] for a cylinder whose axis
+/// has no decided length under `band` ([`face_box_rule`]): a broken
+/// carrier.
+///
+/// # Panics
+///
+/// Where `face`, which the caller read out of `body`, or a record on
+/// the walk from it does not resolve, or a loop walk does not close
+/// (D2 row 4).
 pub(crate) fn face_box<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     pad: f64,
     band: Band,
 ) -> Result<Aabb, BooleanError> {
-    let f = body.get_face(face).ok_or(corrupt("face box: face lost"))?;
-    let surface = body
-        .get_surface(f.surface)
-        .ok_or(corrupt("face box: surface lost"))?;
+    let f = proven(&body.faces, face, EntityId::Face);
+    let surface = body.face_surface_linked(face, f);
     // The axial range over the boundary's own hull. Taking the hull
     // first (rather than each edge box separately) is a superset of
     // every per-edge range because the projection is linear — looser,
@@ -1386,83 +1461,86 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // `f64::min` that ignores it.
     // The axial window from the boundary's OWN locus (per edge), not
     // from the corners of a box around it — see `edge_axial_span`.
-    let axial_window =
-        |axis: Vec3<T>, origin: Point3<T>| -> Result<Option<Span<f64>>, BooleanError> {
-            let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
-            let mut acc: Option<Span<f64>> = None;
-            let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
-            for lk in loops_of(f) {
-                let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
-                match l.boundary {
-                    LoopBoundary::Empty { vertex } => {
-                        let p = bracket_point(vertex_point(body, vertex)?);
+    let axial_window = |axis: Vec3<T>, origin: Point3<T>| -> Option<Span<f64>> {
+        let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
+        let mut acc: Option<Span<f64>> = None;
+        let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
+        for lk in loops_of(f) {
+            let l = linked(
+                &body.loops,
+                lk,
+                EntityId::Loop,
+                EntityId::Face(face),
+                "loop",
+            );
+            match l.boundary {
+                LoopBoundary::Empty { vertex } => {
+                    let p = bracket_point(body.linked_vertex_point(
+                        vertex,
+                        EntityId::Loop(lk),
+                        "vertex",
+                    ));
+                    grow(edge_axial_span(
+                        &origin,
+                        &axis,
+                        &AxialCarrier::Chord,
+                        (&p, &p),
+                    ));
+                }
+                LoopBoundary::Cycle { first } => {
+                    for he in body.loop_walk(first).closed("loop", first) {
+                        let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+                        let e = linked(
+                            &body.edges,
+                            ek,
+                            EntityId::Edge,
+                            EntityId::HalfEdge(he),
+                            "edge",
+                        );
+                        let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
+                        let carrier = body
+                            .get_curve_geom(e.curve)
+                            .and_then(crate::null::CurveGeom::certified)
+                            .map(geom_brep::EdgeCurve::carrier);
+                        let axial = match edge_box_rule(carrier) {
+                            // No axial-span closed form is written
+                            // for the spiric; a box that cannot
+                            // claim is the honest answer.
+                            EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
+                                AxialCarrier::Unclaimable
+                            }
+                            EdgeBoxRule::Chord => AxialCarrier::Chord,
+                            EdgeBoxRule::ConicAmplitude {
+                                center,
+                                axis: c_axis,
+                                semi_u,
+                                semi_v,
+                                u_ref,
+                            } => AxialCarrier::Conic {
+                                center: bracket_point(center),
+                                u_ref: bracket_vector(u_ref),
+                                v_ref: bracket_vector(c_axis.cross(u_ref)),
+                                semi_u: semi_u.hi(),
+                                semi_v: semi_v.hi(),
+                                params: body
+                                    .get_curve_geom(e.curve)
+                                    .and_then(crate::null::CurveGeom::certified)
+                                    .map(geom_brep::EdgeCurve::params)
+                                    .map(|(a, b)| (a.lo(), b.hi())),
+                            },
+                        };
                         grow(edge_axial_span(
                             &origin,
                             &axis,
-                            &AxialCarrier::Chord,
-                            (&p, &p),
+                            &axial,
+                            (&end(e.he_plus, "he_plus"), &end(e.he_minus, "he_minus")),
                         ));
-                    }
-                    LoopBoundary::Cycle { first } => {
-                        for he in body
-                            .loop_cycle(first)
-                            .ok_or(corrupt("face box: unwalkable loop"))?
-                        {
-                            let ek = body
-                                .get_half_edge(he)
-                                .ok_or(corrupt("face box: half-edge lost"))?
-                                .edge;
-                            let e = body.get_edge(ek).ok_or(corrupt("face box: edge lost"))?;
-                            let end = |h| -> Result<SpanBox<f64>, BooleanError> {
-                                let vk = body
-                                    .get_half_edge(h)
-                                    .ok_or(corrupt("face box: half-edge lost"))?
-                                    .start;
-                                Ok(bracket_point(vertex_point(body, vk)?))
-                            };
-                            let carrier = body
-                                .get_curve_geom(e.curve)
-                                .and_then(crate::null::CurveGeom::certified)
-                                .map(geom_brep::EdgeCurve::carrier);
-                            let axial = match edge_box_rule(carrier) {
-                                // No axial-span closed form is written
-                                // for the spiric; a box that cannot
-                                // claim is the honest answer.
-                                EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
-                                    AxialCarrier::Unclaimable
-                                }
-                                EdgeBoxRule::Chord => AxialCarrier::Chord,
-                                EdgeBoxRule::ConicAmplitude {
-                                    center,
-                                    axis: c_axis,
-                                    semi_u,
-                                    semi_v,
-                                    u_ref,
-                                } => AxialCarrier::Conic {
-                                    center: bracket_point(center),
-                                    u_ref: bracket_vector(u_ref),
-                                    v_ref: bracket_vector(c_axis.cross(u_ref)),
-                                    semi_u: semi_u.hi(),
-                                    semi_v: semi_v.hi(),
-                                    params: body
-                                        .get_curve_geom(e.curve)
-                                        .and_then(crate::null::CurveGeom::certified)
-                                        .map(geom_brep::EdgeCurve::params)
-                                        .map(|(a, b)| (a.lo(), b.hi())),
-                                },
-                            };
-                            grow(edge_axial_span(
-                                &origin,
-                                &axis,
-                                &axial,
-                                (&end(e.he_plus)?, &end(e.he_minus)?),
-                            ));
-                        }
                     }
                 }
             }
-            Ok(acc)
-        };
+        }
+        acc
+    };
     // The torus arm's chart window, read through the ONE walk
     // (`face_window_steps` -> `torus_chart_window`) the census lane and
     // the construction rows also enter, so no fail mode can drift
@@ -1472,9 +1550,11 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // this lane's `f64` brackets, each end taken outward
     // (`lo()`/`hi()`), so a bracketed cache widens the window rather
     // than narrowing it.
-    let chart_window = |major: T, minor: T| -> Result<Option<TorusWindowPair<f64>>, BooleanError> {
-        let steps = face_window_steps(body, face).ok_or(corrupt("face box: unwalkable loop"))?;
-        Ok(torus_chart_window(&steps, major, minor).map(|(u, v)| {
+    let chart_window = |major: T, minor: T| -> Option<TorusWindowPair<f64>> {
+        let steps = face_window_steps(body, face).unwrap_or_else(|| {
+            unreachable!("the window walk of {face:?}'s loops does not close: {WALKS_CLOSE}")
+        });
+        torus_chart_window(&steps, major, minor).map(|(u, v)| {
             (
                 Span {
                     lo: u.lo.lo(),
@@ -1485,10 +1565,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     hi: v.hi.hi(),
                 },
             )
-        }))
+        })
     };
-    let rule = face_box_rule(surface, band).map_err(|_| {
-        corrupt("face box: a cylinder's axis has no decided length (a broken cylinder carrier)")
+    let rule = face_box_rule(surface, band).map_err(|_| BooleanError::ClassificationInvariant {
+        what: "face box: a cylinder's axis has no decided length (a broken cylinder carrier)",
     })?;
     let boxed = match rule {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
@@ -1504,7 +1584,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         } => {
             let (c, ax) = (bracket_point(center), bracket_vector(axis));
             let whole = torus_extent(&c, &ax, major_radius.hi(), minor_radius.hi());
-            match chart_window(major_radius, minor_radius)? {
+            match chart_window(major_radius, minor_radius) {
                 None => aabb_of(whole),
                 Some((u, v)) => aabb_of(meet(
                     torus_window_extent(
@@ -1535,7 +1615,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             axis,
             radius,
         } => {
-            let Some(h) = axial_window(axis.get(), origin)? else {
+            let Some(h) = axial_window(axis.get(), origin) else {
                 return Ok(Aabb::poison());
             };
             let slab = aabb_of(slab_extent(
@@ -1549,14 +1629,14 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             // the boundary's own box is what makes the box trim-scoped
             // in azimuth as well as axially — see [`clip_to_boundary`]
             // for why that is sound and why it needs no chart work.
-            clip_to_boundary(slab, boundary_hull(body, f)?)
+            clip_to_boundary(slab, boundary_hull(body, face, f))
         }
         FaceBoxRule::ConeSlab {
             apex,
             axis,
             half_angle,
         } => {
-            let Some(h) = axial_window(axis, apex)? else {
+            let Some(h) = axial_window(axis, apex) else {
                 return Ok(Aabb::poison());
             };
             let axis_span = bracket_vector(axis);
@@ -1574,7 +1654,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 sin.hi() / cos.lo(),
             ))
         }
-        FaceBoxRule::BoundaryHull => boundary_hull(body, f)?.unwrap_or_else(Aabb::poison),
+        FaceBoxRule::BoundaryHull => boundary_hull(body, face, f).unwrap_or_else(Aabb::poison),
     };
     Ok(boxed.padded(pad))
 }
@@ -1677,32 +1757,33 @@ fn loops_of(f: &crate::entity::Face) -> impl Iterator<Item = LoopKey> + '_ {
 /// boundary VERTEX.
 fn boundary_hull<T: Decide + Bounds>(
     body: &Body<T>,
+    face: FaceKey,
     f: &crate::entity::Face,
-) -> Result<Option<Aabb>, BooleanError> {
+) -> Option<Aabb> {
     let mut acc: Option<Aabb> = None;
     let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
     for lk in loops_of(f) {
-        let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
+        let l = linked(
+            &body.loops,
+            lk,
+            EntityId::Loop,
+            EntityId::Face(face),
+            "loop",
+        );
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
-                let p = vertex_point(body, vertex)?;
+                let p = body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex");
                 grow(Aabb::from_points([p]).unwrap_or_else(Aabb::poison));
             }
             LoopBoundary::Cycle { first } => {
-                for he in body
-                    .loop_cycle(first)
-                    .ok_or(corrupt("face box: unwalkable loop"))?
-                {
-                    let ek = body
-                        .get_half_edge(he)
-                        .ok_or(corrupt("face box: half-edge lost"))?
-                        .edge;
-                    grow(edge_box(body, ek, 0.0)?);
+                for he in body.loop_walk(first).closed("loop", first) {
+                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+                    grow(edge_box(body, ek, 0.0));
                 }
             }
         }
     }
-    Ok(acc)
+    acc
 }
 
 /// **The one soundness rule for an edge's box** — [`FaceBoxRule`]'s
@@ -1772,11 +1853,11 @@ fn boundary_hull<T: Decide + Bounds>(
 ///
 ///   **Tightening is a separate obligation from soundness.** A
 ///   tighter box prunes pairs a wider one examined, and pruning is
-///   only sound for kinds the operand gate admits and the crossing
-///   lanes handle — `Line`, `Circle` and `Ellipse` all are
-///   (`reduce::gate_operand_edges`), which is what licensed the exact
-///   form here; the NURBS arm below is where that obligation is
-///   still owed. A correctness fix and a structural one are two
+///   only sound for kinds the crossing lanes handle — `Line`, `Circle`
+///   and `Ellipse` all are, which is what licensed the exact form here
+///   — or refuse at every face the box does meet, as they do a spiric
+///   (`BooleanError::CrossingCarrierUnsupported`); the NURBS arm below
+///   is where that obligation is still owed. A correctness fix and a structural one are two
 ///   halves that separate (the rule S235 stated against #862): a
 ///   deletion of over-width retires with its defect — #862's half —
 ///   while a duplicated construction outlives every fix to either
@@ -1793,7 +1874,7 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   [`FaceBoxRule::ControlNet`] does one dimension up. Taking it
 ///   would TIGHTEN this box — it would start pruning pairs that are
 ///   examined today — and tightening is a different obligation from
-///   soundness: a rung-3 operand gate has to admit the kind first.
+///   soundness: a crossing rung has to read the kind first.
 ///   Claiming nothing is already the conservative answer, so nothing
 ///   is unsound while it waits. (It also carries the same trim ⊆ knot
 ///   domain premise the surface arm states.)
@@ -1822,7 +1903,10 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// `spiric_arc_aabb` door (a C10 superset), hulled with the chord.
     /// No axial projection is written for it (the census lane reads
     /// it as unclaimable); reachable only from its own rows today,
-    /// because the operand gate refuses the kind.
+    /// because the operand gate refuses the kind. Past the gate, the
+    /// sweep's soundness on a spiric edge rests on this box: a face it
+    /// prunes is one the arc cannot reach, and a face it meets sends the
+    /// edge to a crossing arm that refuses it typed.
     Spiric,
 }
 
@@ -1867,31 +1951,23 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeB
 /// instantiation, and therefore a superset of the edge's locus or the
 /// poison box.
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`BooleanError::ClassificationInvariant`] when the edge's topology
-/// is corrupt.
-pub(crate) fn edge_box<T: Decide + Bounds>(
-    body: &Body<T>,
-    edge: EdgeKey,
-    pad: f64,
-) -> Result<Aabb, BooleanError> {
-    let e = body.get_edge(edge).ok_or(corrupt("edge box: edge lost"))?;
-    let start_of = |he| -> Result<Point3<T>, BooleanError> {
-        let vk = body
-            .get_half_edge(he)
-            .ok_or(corrupt("edge box: half-edge lost"))?
-            .start;
-        vertex_point(body, vk)
-    };
-    let (a, b) = (start_of(e.he_plus)?, start_of(e.he_minus)?);
+/// Where `edge`, which the caller read out of `body`, or a record on
+/// the way to its ends does not resolve (D2 row 4).
+pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f64) -> Aabb {
+    let e = proven(&body.edges, edge, EntityId::Edge);
+    let (a, b) = (
+        edge_end_point(body, edge, e.he_plus, "he_plus"),
+        edge_end_point(body, edge, e.he_minus, "he_minus"),
+    );
     let chord = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
     let certified = body
         .get_curve_geom(e.curve)
         .and_then(crate::null::CurveGeom::certified);
     let carrier = certified.map(geom_brep::EdgeCurve::carrier);
     let boxed = match edge_box_rule(carrier) {
-        EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
+        EdgeBoxRule::NoSoundBox => return Aabb::poison(),
         EdgeBoxRule::Chord => chord,
         EdgeBoxRule::Spiric => certified
             .and_then(|curve| {
@@ -1916,10 +1992,7 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
             // `certified` is `Some` here — the rule names this arm only
             // for a certified conic carrier — and the door answers for
             // every conic kind, so the remaining arm is a kernel bug
-            // that says so (D2 addendum row 4). Not `corrupt(..)`: that
-            // refusal names an arena lookup a malformed BODY can fail,
-            // and this state is not a property of any body — it is the
-            // rule↔door pairing inside this file.
+            // that says so (D2 addendum row 4).
             certified
                 .and_then(|curve| {
                     let (t0, t1) = curve.params();
@@ -1933,7 +2006,7 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
                 })
         }
     };
-    Ok(boxed.padded(pad))
+    boxed.padded(pad)
 }
 
 /// The subdivision count [`arc_extent`] and [`edge_axial_span`] use.
@@ -2038,15 +2111,24 @@ pub(crate) fn arc_extent<X: Real>(
     }
 }
 
-/// Either empty lookup means the same thing here — a corrupt body —
-/// so the read-back door's discriminated reference collapses to one
-/// verdict.
-fn vertex_point<T: Decide + Bounds>(
+/// The start point of `edge`'s half `he`, which `edge`'s field `field`
+/// names: every hop is a link.
+#[track_caller]
+fn edge_end_point<T: Real>(
     body: &Body<T>,
-    v: VertexKey,
-) -> Result<Point3<T>, BooleanError> {
-    crate::readback::vertex_point_ref(body, v)
-        .map_err(|_| corrupt("face/edge box: vertex point lost"))
+    edge: EdgeKey,
+    he: HalfEdgeKey,
+    field: &'static str,
+) -> Point3<T> {
+    let start = linked(
+        &body.half_edges,
+        he,
+        EntityId::HalfEdge,
+        EntityId::Edge(edge),
+        field,
+    )
+    .start;
+    body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
 }
 
 #[cfg(test)]
@@ -2331,6 +2413,22 @@ pub(crate) mod tests {
         );
     }
 
+    /// `face` re-labelled onto `surface`, its edges' descriptions as
+    /// they stand.
+    fn relabel(body: &mut Body<f64>, face: FaceKey, surface: Surface<f64>) {
+        // Lifts RechartUnvouched: each box arm reads the surface a face
+        // is labelled with, and the fixture's edges name the chart it
+        // was built on.
+        body.lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(surface, face, true)],
+                &[],
+                Tol::witness(),
+            )
+        })
+        .unwrap();
+    }
+
     /// A cylinder WALL face: the patch `u ∈ [u0, u1] × z ∈ [z0, z1]` on
     /// the radius-`r` cylinder about the z axis, bounded below and
     /// above by circular rims and on the sides by axial lines.
@@ -2446,19 +2544,22 @@ pub(crate) mod tests {
         let he = body
             .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
             .unwrap();
+        // Lifts RechartUnvouched: the top rim names the wall at its own height, which callers re-label the face onto.
         let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
-                FaceSurface::Shared {
-                    key: cyl,
-                    sense: true,
-                },
-                Tol::witness(),
-            )
+            .lifting_rechart_refusals_for_tests(|body| {
+                body.mef(
+                    MefSite::Chords {
+                        he1: he,
+                        he2: e_b.he_plus,
+                    },
+                    EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
+                    FaceSurface::Shared {
+                        key: cyl,
+                        sense: true,
+                    },
+                    Tol::witness(),
+                )
+            })
             .unwrap()
             .face;
         (body, face)
@@ -2502,21 +2603,16 @@ pub(crate) mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let center = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(
-                    Surface::Sphere {
-                        center,
-                        radius: r,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
-                    },
-                    face,
-                    true,
-                )],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(
+                &mut body,
+                face,
+                Surface::Sphere {
+                    center,
+                    radius: r,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+            );
             let b = face_box(&body, face, pad(), witness_band()).unwrap();
             for i in 0..=32 {
                 let theta = core::f64::consts::PI * f64::from(i) / 32.0;
@@ -2556,12 +2652,7 @@ pub(crate) mod tests {
         let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-        body.set_face_surfaces_describing(
-            vec![crate::Rechart::new(surface, face, true)],
-            &[],
-            Tol::witness(),
-        )
-        .unwrap();
+        relabel(&mut body, face, surface);
         (
             body,
             face,
@@ -2914,21 +3005,16 @@ pub(crate) mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let c = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(
-                    Surface::Sphere {
-                        center: c,
-                        radius: r,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
-                    },
-                    face,
-                    true,
-                )],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(
+                &mut body,
+                face,
+                Surface::Sphere {
+                    center: c,
+                    radius: r,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+            );
             let b = face_box(&body, face, pad, witness_band()).unwrap();
             agrees_with_the_rule(
                 &b,
@@ -3018,7 +3104,7 @@ pub(crate) mod tests {
     ///   first read in the body's own frame instead of through a
     ///   placement's affine image, which drops the image step and
     ///   changes nothing about what looseness costs.
-    /// - `census.rs` — `reach_box` and `edge_reach`, this module's
+    /// - `census.rs` — `reach_box` and `edge_reach_in`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
     ///   arm 2 clears for free only on a definitely negative margin
     ///   against a CONTAINING box, so over-width would send a separated
@@ -3164,12 +3250,7 @@ pub(crate) mod tests {
         for s in kinds {
             let kind = s.kind();
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(s, face, true)],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(&mut body, face, s);
             let b = face_box(&body, face, pad(), witness_band()).unwrap();
             assert!(
                 !b.min_x.is_nan(),
@@ -3265,14 +3346,26 @@ pub(crate) mod tests {
             }
         };
         // A MERIDIAN at `u`: the torus cut by the plane through the
-        // axis at that azimuth. Ascending in `v` when `up`.
+        // axis at that azimuth. Ascending in `v` when `up`. The
+        // descending one is the chord `mef` closes the wall with, whose
+        // two faces are the seed and the wall: described as an image in
+        // the torus's chart, which the wall wears, since no face wears
+        // the cutting plane.
         let meridian = |body: &mut Body<f64>, u: f64, up: bool| {
             let spine = center + e(u) * major;
-            let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis.cross(e(u)),
-                u_ref: e(u),
-            });
+            let description = if up {
+                EdgeDescriptionSpec::Intersection {
+                    s1: torus,
+                    s2: body.add_surface(Surface::Plane {
+                        origin: center,
+                        normal: axis.cross(e(u)),
+                        u_ref: e(u),
+                    }),
+                    witness: on(u, (v0 + v1) * 0.5),
+                }
+            } else {
+                EdgeDescriptionSpec::chart(torus)
+            };
             let (carrier, t0, t1) = if up {
                 (
                     Curve3::Circle {
@@ -3297,11 +3390,7 @@ pub(crate) mod tests {
                 )
             };
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: plane,
-                    witness: on(u, (v0 + v1) * 0.5),
-                },
+                description,
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -3376,12 +3465,7 @@ pub(crate) mod tests {
             half_angle: alpha,
             u_ref: Vec3::unit_x(),
         };
-        body.set_face_surfaces_describing(
-            vec![crate::Rechart::new(cone, face, true)],
-            &[],
-            Tol::witness(),
-        )
-        .unwrap();
+        relabel(&mut body, face, cone);
         (body, face)
     }
 
@@ -3507,22 +3591,17 @@ pub(crate) mod tests {
                 let (u_ref, _) = axis.orthonormal_basis();
                 let v_ref = axis.cross(u_ref);
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surfaces_describing(
-                    vec![crate::Rechart::new(
-                        Surface::Torus {
-                            center,
-                            axis,
-                            major_radius: major,
-                            minor_radius: minor,
-                            u_ref,
-                        },
-                        face,
-                        true,
-                    )],
-                    &[],
-                    Tol::witness(),
-                )
-                .unwrap();
+                relabel(
+                    &mut body,
+                    face,
+                    Surface::Torus {
+                        center,
+                        axis,
+                        major_radius: major,
+                        minor_radius: minor,
+                        u_ref,
+                    },
+                );
                 let b = face_box(&body, face, pad(), witness_band()).unwrap();
                 for i in 0..=48 {
                     let theta = 2.0 * core::f64::consts::PI * f64::from(i) / 48.0;
@@ -3558,8 +3637,9 @@ pub(crate) mod tests {
 
     /// A torus face bounded by two LONE full-meridian circles
     /// (outer + ring, no seam parallel) — **the R1 review arm's
-    /// P6 fixture, construction unchanged**, adopted as the row
-    /// for the class it found.
+    /// P6 fixture**, adopted as the row for the class it found; the
+    /// seed takes the torus first, so each circle `mef` mints names
+    /// the two faces it bounds.
     ///
     /// Both orientations give the SAME stored pcurves and the SAME
     /// hull, yet they denote complementary annuli, so that hull
@@ -3582,38 +3662,50 @@ pub(crate) mod tests {
             minor_radius: minor,
             u_ref,
         });
-        let meridian = |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, Surface<f64>) {
-            let spine = center + e(u) * major;
-            let plane = Surface::Plane {
-                origin: center,
-                normal: axis.cross(e(u)),
-                u_ref: e(u),
-            };
-            let pk = body.add_surface(plane.clone());
-            let ax = if forward {
-                e(u).cross(axis)
-            } else {
-                axis.cross(e(u))
-            };
-            (
-                EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
-                        s1: torus,
-                        s2: pk,
-                        witness: on(u, core::f64::consts::PI),
+        // The seed wears the torus before any circle is minted on it:
+        // each circle's description names the torus and its cap's plane,
+        // the two faces `mef` gives it.
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::Shared {
+                key: torus,
+                sense: true,
+            },
+        )
+        .expect("the seed face is the torus annulus");
+        let meridian =
+            |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
+                let spine = center + e(u) * major;
+                let plane = Surface::Plane {
+                    origin: center,
+                    normal: axis.cross(e(u)),
+                    u_ref: e(u),
+                };
+                let pk = body.add_surface(plane);
+                let ax = if forward {
+                    e(u).cross(axis)
+                } else {
+                    axis.cross(e(u))
+                };
+                (
+                    EdgeCurveSpec {
+                        description: EdgeDescriptionSpec::Intersection {
+                            s1: torus,
+                            s2: pk,
+                            witness: on(u, core::f64::consts::PI),
+                        },
+                        carrier: Curve3::Circle {
+                            center: spine,
+                            axis: ax,
+                            radius: minor,
+                            u_ref: e(u),
+                        },
+                        param_start: 0.0,
+                        param_end: core::f64::consts::TAU,
                     },
-                    carrier: Curve3::Circle {
-                        center: spine,
-                        axis: ax,
-                        radius: minor,
-                        u_ref: e(u),
-                    },
-                    param_start: 0.0,
-                    param_end: core::f64::consts::TAU,
-                },
-                plane,
-            )
-        };
+                    pk,
+                )
+            };
         let (m0, cap0_plane) = meridian(&mut body, u0);
         let cap0 = body
             .mef(
@@ -3621,8 +3713,8 @@ pub(crate) mod tests {
                     r#loop: seed.r#loop,
                 },
                 m0,
-                FaceSurface::New {
-                    surface: cap0_plane,
+                FaceSurface::Shared {
+                    key: cap0_plane,
                     sense: true,
                 },
                 Tol::witness(),
@@ -3667,8 +3759,8 @@ pub(crate) mod tests {
                     he2: strut.he_minus,
                 },
                 m1,
-                FaceSurface::New {
-                    surface: cap1_plane,
+                FaceSurface::Shared {
+                    key: cap1_plane,
                     sense: true,
                 },
                 Tol::witness(),
@@ -3676,14 +3768,6 @@ pub(crate) mod tests {
             .expect("mef Chords self-loop: the circular edge at u1");
         body.kemr(strut.he_plus, strut.he_minus)
             .expect("kemr: the strut dies and the u1 circle becomes a ring");
-        body.set_face_surface(
-            seed.face,
-            FaceSurface::Shared {
-                key: torus,
-                sense: true,
-            },
-        )
-        .expect("the seed face is the torus annulus");
         (body, seed.face)
     }
 
@@ -4161,9 +4245,9 @@ pub(crate) mod tests {
             .into_iter()
             .flatten()
             .map(|step| {
-                let (cache, _) = step.expect("every half-edge stores a certified cache");
+                let (cache, image, _) = step.expect("every half-edge stores a certified cache");
                 let (t0, t1) = cache.params();
-                cache.pcurve().chart_box(t0, t1)
+                image.chart_box(t0, t1)
             })
             .reduce(geom_brep::ChartWindow::hull)
             .expect("the face has half-edges");
@@ -4207,22 +4291,17 @@ pub(crate) mod tests {
                 let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
                 let u_ref = axis.orthonormal_basis().0;
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surfaces_describing(
-                    vec![crate::Rechart::new(
-                        Surface::Torus {
-                            center: c,
-                            axis,
-                            major_radius: major,
-                            minor_radius: minor,
-                            u_ref,
-                        },
-                        face,
-                        true,
-                    )],
-                    &[],
-                    Tol::witness(),
-                )
-                .unwrap();
+                relabel(
+                    &mut body,
+                    face,
+                    Surface::Torus {
+                        center: c,
+                        axis,
+                        major_radius: major,
+                        minor_radius: minor,
+                        u_ref,
+                    },
+                );
                 let b = face_box(&body, face, pad, witness_band()).unwrap();
                 let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
                 let (rx, ry, rz) = (reach(axis.x), reach(axis.y), reach(axis.z));
@@ -4338,12 +4417,7 @@ pub(crate) mod tests {
         };
         let relabelled = |s: Surface<f64>| {
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(s, face, true)],
-                &[],
-                Tol::witness(),
-            )
-            .unwrap();
+            relabel(&mut body, face, s);
             (body, face)
         };
         let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();
@@ -4458,7 +4532,7 @@ pub(crate) mod tests {
         };
         let slab = slab_extent(
             &SpanBox::point(Point3::<f64>::origin()),
-            &UnitSpanBox::exact(
+            &BoxFrame::World.unit(
                 UnitVec3::new(Vec3::<f64>::unit_z(), BOX_CYLINDER_AXIS, witness_band()).unwrap(),
             ),
             poison_h,
@@ -4677,7 +4751,7 @@ pub(crate) mod tests {
             .get_curve_geom(body.get_edge(edge).unwrap().curve)
             .and_then(crate::null::CurveGeom::certified)
             .unwrap();
-        let b = edge_box(&body, edge, 0.0).unwrap();
+        let b = edge_box(&body, edge, 0.0);
         let (lo, hi) = crate::census::face_reach(&body, face, witness_band()).unwrap();
         for i in 0..=20_000 {
             let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
@@ -4799,7 +4873,7 @@ pub(crate) mod tests {
     fn the_conic_edge_box_contains_a_dense_sample_of_adversarial_arcs() {
         for (what, body, scale) in adversarial_conic_sectors() {
             let (edge, curve) = conic_edge(&body);
-            let b = edge_box(&body, edge, 0.0).unwrap();
+            let b = edge_box(&body, edge, 0.0);
             let (t0, t1) = curve.params();
             let slack = 1e-12 * (1.0 + scale);
             for i in 0..=20_000 {
@@ -4829,7 +4903,7 @@ pub(crate) mod tests {
     fn the_conic_edge_box_is_the_exact_extremal_construction() {
         for (what, body, scale) in adversarial_conic_sectors() {
             let (edge, curve) = conic_edge(&body);
-            let b = edge_box(&body, edge, 0.0).unwrap();
+            let b = edge_box(&body, edge, 0.0);
             let (t0, t1) = curve.params();
             let (c, p, q) = conic_frame(curve.carrier());
             let tol = 1e-12 * (1.0 + scale);
@@ -5026,6 +5100,175 @@ pub(crate) mod tests {
                 "wrap window: the census box must contain this lane's box by no more than \
                  the charge {charge} at {name}, gap {gap}"
             );
+        }
+    }
+
+    /// **Every extent reads coordinate `i` from coordinate `i` alone** —
+    /// the premise [`BoxFrame`] rests on: an extent that mixed a second
+    /// coordinate into the first would be exact in the world frame and
+    /// unsound in an aimed one, which no world row could see. Each
+    /// extent is run twice on inputs that agree in `x` and disagree in
+    /// `y` and `z`, and its `x` span must not move by a bit.
+    #[test]
+    fn every_extent_reads_each_coordinate_from_that_coordinate_alone() {
+        let v = |x: f64, y: f64, z: f64| SpanBox::vector(Vec3::new(x, y, z));
+        let pt = |x: f64, y: f64, z: f64| SpanBox::point(Point3::new(x, y, z));
+        let same = |what: &str, a: SpanBox<f64>, b: SpanBox<f64>| {
+            assert!(
+                a.x.lo.to_bits() == b.x.lo.to_bits() && a.x.hi.to_bits() == b.x.hi.to_bits(),
+                "{what}: the x span moved with y and z: {:?} vs {:?}",
+                a.x,
+                b.x
+            );
+        };
+        let h = Span { lo: -0.4, hi: 0.9 };
+        // Two readings of the same x components: (0.3, …) etc.
+        for (oy, oz, ay, az) in [(5.0, -2.0, 0.6, 0.1), (-7.0, 3.5, 0.0, 0.95)] {
+            let (o0, o1) = (pt(0.3, 0.2, -0.1), pt(0.3, oy, oz));
+            let (a0, a1) = (v(0.28, 0.5, 0.82), v(0.28, ay, az));
+            let (u0, u1) = (v(0.6, -0.7, 0.2), v(0.6, az, oy));
+            let (w0, w1) = (v(-0.3, 0.1, 0.9), v(-0.3, oz, ay));
+            same(
+                "slab_extent",
+                slab_extent(&o0, &UnitSpanBox(a0), h, 0.7),
+                slab_extent(&o1, &UnitSpanBox(a1), h, 0.7),
+            );
+            same(
+                "cone_frustum_extent",
+                cone_frustum_extent(&o0, &a0, h, 0.4),
+                cone_frustum_extent(&o1, &a1, h, 0.4),
+            );
+            same("ball_extent", ball_extent(&o0, 0.7), ball_extent(&o1, 0.7));
+            same(
+                "torus_extent",
+                torus_extent(&o0, &a0, 0.75, 0.25),
+                torus_extent(&o1, &a1, 0.75, 0.25),
+            );
+            let window = (Span { lo: 0.3, hi: 2.9 }, Span { lo: -1.0, hi: 1.4 });
+            same(
+                "torus_window_extent",
+                torus_window_extent(
+                    &o0,
+                    &a0,
+                    &u0,
+                    &w0,
+                    Span::exact(0.75),
+                    Span::exact(0.25),
+                    window,
+                ),
+                torus_window_extent(
+                    &o1,
+                    &a1,
+                    &u1,
+                    &w1,
+                    Span::exact(0.75),
+                    Span::exact(0.25),
+                    window,
+                ),
+            );
+            same(
+                "conic_extent",
+                conic_extent(&o0, &u0, &w0, 0.9, 0.4),
+                conic_extent(&o1, &u1, &w1, 0.9, 0.4),
+            );
+            same(
+                "arc_extent",
+                arc_extent(&o0, &u0, &w0, Span::exact(0.9), Span::exact(0.4), 0.2, 2.6),
+                arc_extent(&o1, &u1, &w1, Span::exact(0.9), Span::exact(0.4), 0.2, 2.6),
+            );
+        }
+    }
+
+    /// **The aimed frame's rounding, measured.** A point's first
+    /// coordinate is the dot product `n·p`, whose rounding is at most
+    /// `γ₃·Σ|nᵢpᵢ| ≤ 3u·|p|` (about one and a half ulps of `|p|`): against
+    /// an error-free reference (each product split exactly by `mul_add`,
+    /// the sum carried in two parts), at `|p|` from a millimetre to
+    /// `10⁸` m. The pad, `12 ε`, covers it wherever a coordinate of
+    /// magnitude `|p|` resolves `ε` at all (`ulp(|p|) ≤ ε`), which is
+    /// what [`BoxFrame`]'s docs lean on.
+    #[test]
+    fn the_aimed_frames_rounding_is_a_few_ulps_of_the_point() {
+        let two_sum = |a: f64, b: f64| {
+            let s = a + b;
+            let bb = s - a;
+            (s, (a - (s - bb)) + (b - bb))
+        };
+        let exact_dot = |n: Vec3<f64>, p: Point3<f64>| {
+            let (mut hi, mut lo) = (0.0f64, 0.0f64);
+            for (a, b) in [(n.x, p.x), (n.y, p.y), (n.z, p.z)] {
+                let prod = a * b;
+                let err = a.mul_add(b, -prod);
+                let (s, e) = two_sum(hi, prod);
+                hi = s;
+                lo += e + err;
+            }
+            (hi, lo)
+        };
+        let band = witness_band();
+        let mut worst = 0.0f64;
+        for (k, scale) in [1e-3, 1.0, 1e3, 1e6, 1e8].into_iter().enumerate() {
+            for i in 0..200u32 {
+                let t = f64::from(i) * 0.731 + k as f64;
+                let n = UnitVec3::new(
+                    Vec3::new(t.sin(), (1.7 * t).cos(), (0.3 * t).sin() + 0.2),
+                    BOX_CYLINDER_AXIS,
+                    band,
+                )
+                .unwrap();
+                let p = Point3::new(
+                    scale * (2.3 * t).cos(),
+                    scale * (1.1 * t).sin(),
+                    scale * (0.7 * t + 1.0).cos(),
+                );
+                let got = BoxFrame::aimed(n).point(p).x;
+                let (hi, lo) = exact_dot(n.get(), p);
+                let norm = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
+                let err = ((got - hi) - lo).abs();
+                assert!(
+                    err <= 3.0 * f64::EPSILON / 2.0 * norm,
+                    "the aimed coordinate of {p:?} along {n:?} is off by {err}, over 3u·|p| = {}",
+                    3.0 * f64::EPSILON / 2.0 * norm
+                );
+                worst = worst.max(err / norm);
+            }
+        }
+        println!("the aimed frame's worst rounding: {worst:e}·|p|");
+    }
+
+    /// **The spiric edge's reach turns with the frame**: read in frames
+    /// aimed off every world axis, the first coordinate of
+    /// `census::edge_reach_in` holds `n·p` for a dense sample of the
+    /// spiric — the arm the split gate reads a spiric edge through. A
+    /// world-frame row cannot see a component left unrotated here.
+    #[test]
+    fn the_spiric_edge_reach_holds_the_curve_in_an_aimed_frame() {
+        let (body, _, edge) = spiric_sector();
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .unwrap();
+        let band = witness_band();
+        for aim in [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.3, -0.4, 0.87),
+            Vec3::new(-0.8, 0.2, 0.55),
+            Vec3::new(0.6, 0.7, -0.4),
+        ] {
+            let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
+            let (lo, hi) = crate::census::edge_reach_in(&body, edge, &BoxFrame::aimed(n)).unwrap();
+            for i in 0..=20_000 {
+                let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
+                let p = curve.carrier().eval(t);
+                let along = n.get().dot(Vec3::new(p.x, p.y, p.z));
+                assert!(
+                    along >= lo.x - 1e-15 && along <= hi.x + 1e-15,
+                    "along {aim:?}, the spiric point at v = {t} reads {along}, \
+                     outside the reach [{}, {}]",
+                    lo.x,
+                    hi.x
+                );
+            }
         }
     }
 }

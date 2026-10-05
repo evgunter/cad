@@ -1158,7 +1158,7 @@ mod tests {
     //! only mint site for one is an SSI rung-3 branch, and no public
     //! constructor reaches it in this build (the repo's single
     //! certified rung-3 edge is a hand-built scaffold in `topo`'s own
-    //! suite, guarded by a fit-sample budget). The arm exists because
+    //! suite). The arm exists because
     //! the entity is part of the curved subset the plan names and
     //! because the alternative — refusing a carrier the schema can
     //! carry exactly — would be a worse frontier than an untravelled

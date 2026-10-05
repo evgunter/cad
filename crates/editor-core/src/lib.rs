@@ -88,14 +88,15 @@ pub mod step_handle;
 pub mod test_support;
 mod tree;
 pub mod update;
+pub mod var;
 mod verbs;
 pub mod witness;
 
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
     DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
-    SeedScalar, analyzed_box, box_mass, param_env_over, sample_offset, seed_env, std_deviation,
-    tail_mass,
+    SeedScalar, analyzed_box, box_mass, sample_offset, seed_env, std_deviation, tail_mass,
+    var_env_over,
 };
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
@@ -114,7 +115,7 @@ pub use checks::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamField, DocParamValue, ParamName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
@@ -122,9 +123,9 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, MaintenanceNet,
-    Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed, cascade_delete_order,
-    regauge_then_mate,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
+    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed,
+    cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
@@ -137,7 +138,7 @@ pub use eval::{
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, held_by,
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
     node_kind_noun, spoken_by, spoken_within,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
@@ -145,18 +146,18 @@ pub use spoken::{
 // than through the module path.
 pub use eval::entity_door::Found;
 pub use expr::{
-    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
+    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamValue, UnitSym, VarEnv, eval,
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Alignment, AuthoredFrame, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash,
-    ClassAdmission, Coset, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault, MateFrame,
+    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
+    FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    OFFSET_RECOURSE, OffsetCheck, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
-    Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission, gauge_chain,
-    groups, head_face, member_of, member_reading, places, reading_edges,
+    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach,
+    SolvedPoses, Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission,
+    gauge_chain, groups, head_face, member_of, member_reading, places, reading_edges,
     relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
@@ -168,7 +169,7 @@ pub use measure::{
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
     WINDOW_TIGHTENING,
 };
-pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
+pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub(crate) use mint::NodeIdCollides;
 pub use mint::{Mint, Minted};
 pub use names::{
@@ -191,7 +192,7 @@ pub use node::{
     PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId,
     TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
-pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
+pub use parse::{ParseError, VarNameFault, VarNameReason, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
@@ -202,8 +203,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, own_spaces,
-    product, product_named, product_recorded,
+    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
+    own_spaces, product, product_named, product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
@@ -236,6 +237,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
+pub use var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
