@@ -94,7 +94,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopK
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
@@ -2351,9 +2351,11 @@ fn along_edge_spec<T: Decide>(
             let e_end = body
                 .half_edge_end(e.he_plus)
                 .ok_or_else(|| corrupt_he(e.he_plus))?;
-            let tied = null_site(body, &[u1]).map_err(|_| SplitJoinError::SectionInvariant {
-                face,
-                what: "a chord end's site holds a vertex that no longer resolves",
+            let tied = null_site(body, &[u1]).map_err(|StaleSite| {
+                SplitJoinError::SectionInvariant {
+                    face,
+                    what: StaleSite::WHAT,
+                }
             })?;
             let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
                 (true, false) => true,
@@ -2389,31 +2391,24 @@ fn along_edge_spec<T: Decide>(
 /// many null edges it holds. A null edge's two ends are the same point,
 /// so the site is one point held by several vertices.
 ///
-/// Runs on bodies mid-operation. `Err` names a vertex of the site that
-/// does not resolve: one of `from`, the caller's keys, or a copy a null
+/// Runs on bodies mid-operation. [`StaleSite`]: a vertex of the site
+/// does not resolve, one of `from`, the caller's keys, or a copy a null
 /// edge's attribute names, whose currency is the minting and consuming
 /// operators' and no tier-1 rule's ([`crate::null::NullEdge`]), so
-/// neither is proven. Past a vertex that resolves, its orbit, each
-/// member's edge and that edge's curve are links every Euler operator
-/// leaves resolving, and a miss panics.
+/// neither is proven. Past a vertex that resolves, its orbit's edges
+/// ([`Body::edges_of_vertex_linked`]) and their curves are links, and a
+/// miss panics ([`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn null_site<T: Decide>(
     body: &Body<T>,
     from: &[VertexKey],
-) -> Result<Vec<VertexKey>, VertexKey> {
+) -> Result<Vec<VertexKey>, StaleSite> {
     let mut site: Vec<VertexKey> = from.to_vec();
     let mut i = 0;
     while i < site.len() {
         let v = site[i];
-        body.get_vertex(v).ok_or(v)?;
-        for he in body.vertex_orbit_linked(v) {
-            let k = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            let e = linked(
-                &body.edges,
-                k,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
+        body.get_vertex(v).ok_or(StaleSite)?;
+        for k in body.edges_of_vertex_linked(v) {
+            let e = proven(&body.edges, k, EntityId::Edge);
             let Some(attr) = body.edge_curve_linked(k, e).null_scaffold() else {
                 continue;
             };
@@ -2426,6 +2421,19 @@ pub(crate) fn null_site<T: Decide>(
         i += 1;
     }
     Ok(site)
+}
+
+/// A site holds a vertex that does not resolve ([`null_site`]): a key
+/// its caller carried, or a copy a null edge's attribute names. Either
+/// is the minting and consuming operators' bookkeeping, so it is a
+/// kernel bug, refused typed under each caller's invariant kind with
+/// [`StaleSite::WHAT`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StaleSite;
+
+impl StaleSite {
+    /// The refusal text every reader of a site gives it.
+    pub(crate) const WHAT: &'static str = "a null site holds a vertex that no longer resolves";
 }
 
 /// Where one of [`ChordJoiner::join`]'s two chords is minted: the
@@ -3558,8 +3566,7 @@ mod null_site_rows {
     }
 
     /// The root the caller passed, and a copy a null edge's attribute
-    /// names, each answer `Err` naming the vertex when they do not
-    /// resolve; a sound site is the seed and its copy. Read as absent,
+    /// names, each answer `Err` when they do not resolve; a sound site is the seed and its copy. Read as absent,
     /// either would answer a site short of the vertex.
     #[test]
     fn a_site_vertex_that_does_not_resolve_answers_typed() {
@@ -3572,12 +3579,12 @@ mod null_site_rows {
         let data = body.get_vertex(seed).unwrap().clone();
         let stale = body.vertices.insert(data);
         body.vertices.remove(stale);
-        assert_eq!(null_site(&body, &[stale]), Err(stale), "a stale root");
+        assert_eq!(null_site(&body, &[stale]), Err(StaleSite), "a stale root");
         let Some(CurveGeom::NullScaffold(attr)) = body.curves.get_mut(curve) else {
             panic!("the strut's curve is null scaffolding");
         };
         attr.above_end = stale;
-        assert_eq!(null_site(&body, &[seed]), Err(stale), "a stale copy");
+        assert_eq!(null_site(&body, &[seed]), Err(StaleSite), "a stale copy");
     }
 
     /// An edge at a resolved site vertex whose curve does not resolve
@@ -3596,5 +3603,26 @@ mod null_site_rows {
         assert_torn_op_panics("null_site", &mut body, &[&named, ROW_FOUR], |b| {
             null_site(b, &[seed])
         });
+    }
+
+    /// A resolved site vertex whose `emanating` half was dropped panics
+    /// naming it, where a read of the orbit as empty would answer a site
+    /// short of the strut's copy.
+    #[test]
+    fn a_torn_orbit_at_a_site_vertex_panics() {
+        let (mut body, seed, _, _) = strut();
+        let first = body.get_vertex(seed).unwrap().emanating.unwrap();
+        body.half_edges.remove(first);
+        let named = format!(
+            "{}'s emanating names {}",
+            EntityId::Vertex(seed),
+            EntityId::HalfEdge(first)
+        );
+        assert_torn_op_panics(
+            "null_site",
+            &mut body,
+            &[&named, ROW_FOUR, crate::live::OPERATORS_KEEP_LINKS],
+            |b| null_site(b, &[seed]),
+        );
     }
 }

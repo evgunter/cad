@@ -50,6 +50,7 @@ use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
 };
 use crate::body::Body;
+use crate::chord_join::StaleSite;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
@@ -1037,16 +1038,20 @@ fn along<T: Decide>(side: GermSide<'_, T>) -> Result<Option<Along>, BooleanError
     }))
 }
 
-/// The site of `vertex` ([`crate::chord_join::null_site`]). A site
-/// vertex that no longer resolves refuses: `vertex` itself where the
-/// caller carried it across the reduction's surgery, or a copy a null
-/// edge names, an attribute no link rule covers.
+/// The site of `vertex` ([`crate::chord_join::null_site`]), a stale
+/// site vertex refused ([`stale_site`]).
 fn site_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Vec<VertexKey>, BooleanError> {
-    crate::chord_join::null_site(body, &[vertex]).map_err(|_| {
-        BooleanError::ClassificationInvariant {
-            what: "a germ's site holds a vertex that no longer resolves",
-        }
-    })
+    crate::chord_join::null_site(body, &[vertex]).map_err(stale_site)
+}
+
+/// The boolean's refusal of a site vertex that no longer resolves
+/// ([`StaleSite`]): the null edges are the classification's, so a stale
+/// key or copy among them breaks its invariant, wherever the reduction
+/// reads the site.
+pub(super) fn stale_site(_: StaleSite) -> BooleanError {
+    BooleanError::ClassificationInvariant {
+        what: StaleSite::WHAT,
+    }
 }
 
 /// What the reduction recorded at the site of `far`, a vertex of the
@@ -1120,17 +1125,10 @@ fn tangent_face<T: Decide>(
     for c in &contacts.vv {
         let (mine, theirs) = vv_sides(c, side.operand);
         if far_site.contains(&theirs) {
-            far_faces.extend(faces_at(side.body, mine).map_err(|_| {
-                BooleanError::ClassificationInvariant {
-                    what: "a vertex-vertex contact's site holds a vertex that no longer resolves",
-                }
-            })?);
+            far_faces.extend(faces_at(side.body, mine).map_err(stale_site)?);
         }
     }
-    let at_site =
-        faces_at(side.body, side.site).map_err(|_| BooleanError::ClassificationInvariant {
-            what: "a germ's site holds a vertex that no longer resolves",
-        })?;
+    let at_site = faces_at(side.body, side.site).map_err(stale_site)?;
     Ok(sole_common_face(&at_site, &far_faces))
 }
 
@@ -1145,16 +1143,14 @@ pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey
 /// The faces around a site of `body` (every copy null edges tie
 /// `vertex` to), deduplicated, null faces skipped. With no null edges
 /// at the site, the faces around `vertex` itself. An isolated vertex
-/// (a pierce-ring vertex joined to nothing) contributes none. `Err`
-/// names a site vertex that does not resolve
-/// ([`crate::chord_join::null_site`]): callers pass keys they carry
-/// across the operation's surgery, so the root is an argument, and the
-/// copies its null edges name are no links; every hop past a site
-/// vertex that resolves is one.
+/// (a pierce-ring vertex joined to nothing) contributes none.
+/// [`StaleSite`]: a site vertex that does not resolve
+/// ([`crate::chord_join::null_site`]); every hop past a site vertex
+/// that resolves is a link.
 pub(super) fn faces_at<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-) -> Result<Vec<FaceKey>, VertexKey> {
+) -> Result<Vec<FaceKey>, StaleSite> {
     let mut out = Vec::new();
     for v in crate::chord_join::null_site(body, &[vertex])? {
         for he in body.vertex_orbit_linked(v) {
