@@ -3002,8 +3002,8 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
             DEFECT,
         ),
         ContainError::LoopUnreadable(_) => ("its boundary could not be walked".into(), DEFECT),
-        ContainError::Curved(e) => (
-            format!("a curved face's trim could not be read: {e}").into(),
+        ContainError::Curved(_) => (
+            "a curved face's trim is one the check cannot yet read".into(),
             NOT_YET,
         ),
         // The edge is whatever the body's producer made — a shell's or a
