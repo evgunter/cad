@@ -2,11 +2,14 @@
 id: an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for
 kind: issue
 title: an offset door restates a rim described in a held neighbour's chart verbatim, and the describing door refuses the sound curved move it bounds
-status: open
+status: closed
 opened: 2026-10-05
 priority: P2
 cost: M
-refs: [a-listed-spec-cannot-name-a-fresh-chart-a-neighbour-keeps-the-old-key-of, boundary-on-the-new-chart-has-two-homes-in-the-attach-doors, validate-tier3-curved-boundary-containment]
+refs: [a-listed-spec-cannot-name-a-fresh-chart-a-neighbour-keeps-the-old-key-of, boundary-on-the-new-chart-has-two-homes-in-the-attach-doors, validate-tier3-curved-boundary-containment, the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left]
+pr: 4060
+branch: topo/moved-boundary-one-home
+closed: 2026-10-05
 ---
 
 ## What
@@ -73,4 +76,35 @@ the neighbour's own chart, and is right to.
   curved residuals where a band is in hand, as the plane arm does. That
   closes this and the sibling row together.
 
+## Closed 2026-10-05
 
+**The first shape was taken, in both arms, inside PR 4060.** Where the
+chart an image names holds and the edge's other face is re-minted, the
+door states the edge as `Intersection(moving, held)`; its moving key is
+one `Sides::repoint` maps to the minted chart, so the describing door
+vouches for it by key and certifies the section. A declaration rides
+only a chart image, so a declared edge moves into the moving face's own
+chart instead, its declaration re-authored (`offset_axial.rs`) or
+translated (`replace_face.rs`) as before.
+
+- `offset_axial.rs` `restate` (with `beside_reminted`, and
+  `MovedChart::rekeyed`, which the mutation phase's "a chart asked to
+  move nothing keeps its chart" now shares).
+- `replace_face.rs` `plan_edge`'s neighbour-chart arm. That arm kept the
+  image verbatim, so certification refused the move (`ChartResidual`)
+  before the vouch was asked, on `origin/main` too; it now goes through
+  the intersection arm's own route and pose gates
+  (`neighbour_section`).
+
+Witnesses, `crates/sweep/tests/offset_restates_a_neighbour_chart_rim.rs`:
+the drum through `offset_charts_together`, undeclared (the rim comes
+back `Intersection(minted wall, cap)`, the revolve's own form, tier-3
+valid) and declared (an image in the minted wall's chart, its
+`RevolvedPoint` re-authored at the moved corner); the drum through
+`replace_faces_offset` at ±1/64; and a cube's top edge declared in a
+side's chart through `replace_faces_offset` (the declaration translated
+by `d`).
+
+Residue: the planar door's own restate keeps a held neighbour's image
+the same way and refuses at certification, on main as on head. Filed as
+`the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left`.

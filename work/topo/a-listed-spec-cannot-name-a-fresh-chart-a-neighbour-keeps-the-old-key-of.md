@@ -62,9 +62,10 @@ every boundary edge, and a restated spec naming the face's old key
 reaches the minted chart through `Sides::repoint`. They do not reach
 this row's shape: each mints one fresh chart per moved group, and
 `replace_faces_offset` refuses `SharedSurfaceKey` before the door. The
-offset doors' reachable cousin, a restated spec naming a held
-neighbour's chart, is
-`an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for`.
+offset doors' cousin, a restated spec naming a held neighbour's chart,
+was
+`an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for`,
+closed by restating such an edge on the minted chart.
 The join batteries do not move.
 
 ## Shapes a fix could take
