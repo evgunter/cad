@@ -572,16 +572,20 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A branch whose samples are too short for their gaps to be halved
-    /// to the cubic fit's, half of one falling in the band
-    /// (`ssi_refine_halving`).
+    /// A branch too short at this tolerance: samples none of whose gaps
+    /// halves to the cubic fit's, half of each falling in the band
+    /// (`ssi_refine_halving`), or, between known ends, a march refused
+    /// for want of step and a Hermite refused on ends whose distance over
+    /// five falls in the band (`ssi_short_branch`).
     ShortBranchUncertified {
-        /// The branch's length along its samples, in metres.
+        /// The branch's length in metres: along its samples, or between
+        /// its ends.
         length: f64,
         /// The refusal of the Hermite cubic through the branch's two
         /// ends, on the lane that tries one.
         limb: Option<Box<SsiError>>,
-        /// The verdict on half the longest gap that could not be halved.
+        /// The verdict that fell in the band: on half the longest gap
+        /// that could not be halved, or on the ends' distance over five.
         verdict: BandVerdict,
         /// What bounds the branch, whose lever the refusal names.
         bounded_by: BranchBound,
@@ -598,6 +602,21 @@ pub enum SsiError {
         /// The refusal of the Hermite cubic through the branch's two
         /// ends.
         limb: Box<SsiError>,
+    },
+    /// A plane × NURBS branch's samples, short of the cubic fit's four,
+    /// none of whose gaps halves, and not every one because half of it
+    /// falls in the band: some gap's midpoint did not settle onto the
+    /// locus where the surfaces cross clear of the band, or settled
+    /// outside the wall. The march's limit.
+    MarchShortOfFit {
+        /// The samples the march gave.
+        samples: usize,
+        /// Gaps half of which falls in the band.
+        in_band: usize,
+        /// Gaps whose midpoint did not settle onto the locus.
+        unsettled: usize,
+        /// Gaps whose midpoint settled outside the wall, or onto an end.
+        off_domain: usize,
     },
     /// The plane's chart window does not hold the wall's image, so it
     /// would bound the march where the wall does not.
@@ -706,9 +725,10 @@ impl core::fmt::Display for SsiError {
                 ..
             } => write!(
                 f,
-                "ssi: the surfaces meet nearly tangentially along the traced locus \
-                 (sin θ = {sin_theta:e}, arm = {arm:e} m, σ₂ = {sigma_min:e}): the tangency \
-                 regime (TangentIntersection), not a locus to march"
+                "ssi: the surfaces meet nearly tangentially at a state the trace reads, a \
+                 marched state or a refined gap's chord midpoint (sin θ = {sin_theta:e}, \
+                 arm = {arm:e} m, σ₂ = {sigma_min:e}): the tangency regime \
+                 (TangentIntersection), not a locus to march"
             ),
             Self::PairTangent { verdict } => write!(
                 f,
@@ -984,6 +1004,18 @@ impl core::fmt::Display for SsiError {
                      its two ends"
                 )
             }
+            Self::MarchShortOfFit {
+                samples,
+                in_band,
+                unsettled,
+                off_domain,
+            } => write!(
+                f,
+                "ssi: the march gave the branch {samples} samples, short of the cubic fit's four, \
+                 and no gap between them halves ({in_band} within the tolerance, {unsettled} \
+                 not settling where the surfaces cross clearly, {off_domain} settling outside \
+                 the wall)"
+            ),
             Self::MarchStepInBand { verdict, limb } => {
                 let refused = match &**limb {
                     Self::CertificateLimb { limb, .. }
@@ -1284,6 +1316,11 @@ impl SsiError {
             },
             Self::MarchStepInBand { verdict, .. } => {
                 MARCH_STEP_BEND.recourse(verdict.arm(), reading)
+            }
+            // A candidate generator's limit: the march's samples and
+            // every midpoint between them, read as they settled.
+            Self::MarchShortOfFit { .. } => {
+                Unsized::LastResort.recourse(RefusedArm::SignCertain, reading)
             }
             Self::WindowShortOfWall { reach, .. } => format!(
                 "Recourse: name a domain half-extent of at least {reach:e} m, so the plane's \
@@ -1993,7 +2030,9 @@ impl TraceDecision {
                 "the crossing angle's lever arm (the surfaces' curvature radius, or the feature \
                  extent) is a positive length"
             }
-            Self::Transversality => "the surfaces cross at a clear angle along the traced locus",
+            Self::Transversality => {
+                "the surfaces cross at a clear angle at the state the trace reads"
+            }
             Self::StepProgress => "the march's step clears the tolerance band",
             Self::BranchOpenEnd => "the traced branch has left the domain's slab",
             Self::ClosureReturn => "the trace has come back to its start",
@@ -2789,8 +2828,14 @@ fn trace_plane_nurbs_within(
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
     let mut refused = None;
+    // This door returns its last refused triple, so it refines as long
+    // as limbs 1 and 2 locate a refusal: the limb-3 ask, which would end
+    // refinement on a coarser triple, passes here.
     let densified = refine::refine_by_certificate(&sys, states, &ctx, band, |states, limbs| {
         let fitted = ends::fit_states(&sys, states)?;
+        if limbs == certify::Limbs::Tube {
+            return Ok(fitted);
+        }
         match certify::certify_located(
             &fitted.0,
             certify::Lane::AtRest {
@@ -2800,7 +2845,7 @@ fn trace_plane_nurbs_within(
             },
             TubeScale::uniform(domain.extent),
             band,
-            limbs,
+            certify::Limbs::All,
         ) {
             Ok(_) => Ok(fitted),
             Err(verdict) => {
@@ -3443,6 +3488,11 @@ mod ending_tests {
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
+            (
+                "march short of fit",
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
             ("unsupported, side", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "refinement exhausted, step budget, floor",
@@ -3515,7 +3565,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 39;
+    const ARMS: usize = 40;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3561,6 +3611,7 @@ mod ending_tests {
             SsiError::TubeNotOneArc { .. } => 36,
             SsiError::RefinementExhausted { .. } => 37,
             SsiError::MarchStepInBand { .. } => 38,
+            SsiError::MarchShortOfFit { .. } => 39,
         }
     }
 
@@ -3926,6 +3977,15 @@ mod ending_tests {
                     limb: None,
                     verdict: BandVerdict::Refused(zero),
                     bounded_by: super::BranchBound::Slab,
+                },
+            ),
+            (
+                "march short of fit",
+                SsiError::MarchShortOfFit {
+                    samples: 2,
+                    in_band: 0,
+                    unsettled: 1,
+                    off_domain: 0,
                 },
             ),
             (

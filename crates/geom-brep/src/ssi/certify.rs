@@ -128,14 +128,14 @@ use geom_core::{
 
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
-use crate::dihedral::{decide, decide_positive, decide_reported};
-use crate::recourse::Refused;
+use crate::dihedral::{decide, decide_positive};
 
 use super::enclose::{
     Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, one_arc, one_arc_r3};
+use super::section::{BandVerdict, band_verdict};
 use super::{SsiError, SsiOperand, TubeScale};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
@@ -1429,16 +1429,13 @@ fn tube_transversality<T: Decide>(
     band: Band,
 ) -> Result<T, SsiError> {
     let transversality = Margin::levered(T::from_f64(clearance), arm);
-    let decided =
-        decide_reported("ssi_tube_transversality", transversality, band).map_err(|cause| {
-            SsiError::CertificateEscalated {
-                limb: SsiLimb::Tube,
-                cause,
-            }
-        })?;
-    match Refused::of(decided, band) {
-        Some(verdict) => Err(SsiError::TubeStraddles { verdict, boxes }),
+    match band_verdict("ssi_tube_transversality", transversality, band) {
         None => Ok(transversality.value()),
+        Some(BandVerdict::Refused(verdict)) => Err(SsiError::TubeStraddles { verdict, boxes }),
+        Some(BandVerdict::Undecided(cause)) => Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::Tube,
+            cause,
+        }),
     }
 }
 

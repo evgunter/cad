@@ -157,12 +157,17 @@ span meets is halved with one gap on each side of it, the new sample
 settled onto the locus wherever it settles, and the carrier is refitted
 and certified again (`ssi/refine.rs`). A midpoint that does not settle
 is read by the march's transversality decision at the gap's chord
-midpoint: in the band, or undecided, the surfaces are near tangent
-there, and that is the refusal (`SsiError::TransversalityBand`, the
-clearer angle's lever); clear of it, the gap is one refinement cannot
-halve. Where the refused margin stops falling over two rounds, limb 3
-is asked once of the carrier, and its refusal stands: a carrier across
-two branches is one no halving answers. A gap is halved only while half
+midpoint, the state Newton started from: in the band the surfaces are
+near tangent there (`SsiError::TransversalityBand`), undecided the
+decision escalates (`SsiError::Escalated` on `ssi_transversality`), and
+either is the refusal, with the clearer angle's lever; clear of it, the
+gap is one refinement cannot halve. Where the refused margin stops
+falling over two consecutive rounds (two definite margins, the later no
+smaller, or two in the band, whatever their values), limb 3 is asked
+once of the carrier, and its refusal stands: a carrier across two
+branches is one no halving answers. The door that returns an
+uncertified triple does not ask it, and refines as long as limbs 1 and
+2 locate a refusal. A gap is halved only while half
 of it clears the
 band, and no round gives the branch more steps (gaps between samples)
 than the march may take (`SSI_MAX_STEPS`, one wall per branch on its
@@ -246,21 +251,27 @@ samples, so refinement has nothing to halve in it: a refused Hermite is
 marched, and the march's carrier is refined as any is. The fit is given
 the cubic's four samples where the march gave fewer, by halving gaps at
 their midpoints settled onto the locus, read where they do not settle
-as refinement reads them. Where nothing halves, a polyline half of one
-of whose gaps falls in the band is a sized refusal in its length (`SsiError::ShortBranchUncertified`), naming the
-lever of what bounds the branch, the wall or the caller's slab; any
-other stops with nothing to halve, the lane's own limit its refusal.
-Where neither candidate certifies, the march's refusal stands, with
-two exceptions. Where the march's own states were too short to halve,
-their sized refusal carries the Hermite's. Where the march refused for
-want of step, its step in the band, the Hermite's refusal on the
-transversality decision at an end stands where it refused there (the
-march refuses at its own first state as the Hermite does at that end,
-so the Hermite refused at the far end, which the march never reaches);
-otherwise the branch may be long and the step is the short quantity,
-and the refusal is the step's (`SsiError::MarchStepInBand`), carrying
-the Hermite's, its levers the bend and the tolerance below which the
-step clears the band. The extent sizes no realized
+as refinement reads them. Where nothing halves and every gap's half
+falls in the band, the polyline is a sized refusal in its length
+(`SsiError::ShortBranchUncertified`), naming the lever of what bounds
+the branch, the wall or the caller's slab. Otherwise it stops with
+nothing to halve, counting what each gap's midpoint did: on the ℝ³
+lane as `SsiError::RefinementExhausted`, the slab's limit as its
+refusal (`SsiError::TraceUnresolved`), on the plane × NURBS lane as
+`SsiError::MarchShortOfFit`, the march's limit. Where neither candidate
+certifies, the march's refusal stands, with two exceptions. Where the
+march's own states were too short to halve, their sized refusal
+carries the Hermite's. Where the march refused for want of step, its
+step in the band, the Hermite's refusal on the transversality decision
+at an end stands where it refused there (the march refuses at its own
+first state as the Hermite does at that end, so the Hermite refused at
+the far end, which the march never reaches). Otherwise a branch whose
+ends' distance over five falls in the band (`ssi_short_branch`) is the
+sized refusal in that distance, carrying the Hermite's; a longer one
+may be long and the step is the short quantity, and the refusal is the
+step's (`SsiError::MarchStepInBand`), carrying the Hermite's, its
+levers the bend and the tolerance below which the step clears the
+band. The extent sizes no realized
 step; it is the lever arm's clamp, the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of

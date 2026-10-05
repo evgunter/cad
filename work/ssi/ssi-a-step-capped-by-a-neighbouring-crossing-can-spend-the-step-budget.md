@@ -119,7 +119,7 @@ design fork, not a defect fix.
 Two designers weighed it over two rounds. The record is in `docs/DESIGN-FORK-LOG.md`, and the probes are on `analysis/design-fork/neighbour-cap-{a,b}`.
 
 1. **Retire the crossing cap** (`StepCap::Crossing`, its "a fifth", and its ending). Between known crossings the march's step is the curvature's against ε, no longer than the domain's diagonal.
-2. **Keep the candidate order Ev agreed on PR 3862.** The Hermite cubic goes to the nearest unused crossing first, then the march, uncapped, which pairs by its exit. A wrong guess costs one refused certificate: limb 3 (PR 3999) makes every certified candidate's pairing the locus's own, so the order never changes a certified answer. March-first was weighed and withdrawn. It loses a branch whose curvature step falls in the band, such as `a_semicircle_too_tight_to_march_whose_cubic_misses_refuses_by_its_step`, unless it grows a second, nearest-crossing path.
+2. **Keep the candidate order Ev agreed on PR 3862.** The Hermite cubic goes to the nearest unused crossing first, then the march, uncapped, which pairs by its exit. A wrong guess costs one refused certificate: limb 3 (PR 3999) makes every certified candidate's pairing the locus's own, so the order never changes a certified answer. March-first was weighed and withdrawn. It loses a branch whose curvature step falls in the band, such as `a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length`, unless it grows a second, nearest-crossing path.
 3. **The fit's minimum is the fit's.** A polyline with fewer than `SSI_FIT_DEGREE + 1` samples has its gaps halved, each midpoint settled onto the locus, until it has four. Halving stops when half a gap falls in the band (`ssi_refine_halving`). `ShortBranchUncertified` is minted from that stop. The separate `ssi_short_branch` decision and `SHORT_BRANCH_STEPS` retire on this lane.
 4. **Likely, to be confirmed in the build:** the ℝ³ lane's `march_both` re-march at `length/5` (`StepCap::ShortBranch`) is the same class, and the same minimum rule retires it. `Ends::through_seed`, which can hand the fit fewer than four states today, is covered by the same rule.
 
@@ -159,24 +159,31 @@ Two designers weighed it over two rounds. The record is in `docs/DESIGN-FORK-LOG
   the cubic's four samples by halving its longest gap. A midpoint is
   kept wherever it settles inside the domain. One that does not settle
   is read by `ssi_transversality` at the gap's chord midpoint: in the
-  band or undecided it refuses there (`TransversalityBand`, the clearer
-  angle's lever); clear, the gap counts as `unsettled` in
-  `NothingToHalve`, beside `off_domain`. Where nothing halves in
-  `fit_minimum`, a polyline half of one of whose gaps falls in the band is
-  `ShortBranchUncertified`, its bound the lane's (`BranchBound::of_lane`);
-  otherwise `RefinementExhausted`/`NothingToHalve` with the lane's own
-  limit as its refusal. In refinement rounds, limb 3 is asked once
-  (`certify::Limbs::Tube`) where the refused margin stops falling, and
-  its refusal stands: a carrier across two branches fails limbs 1 and
-  2 at a margin no halving lowers.
+  band it refuses there (`TransversalityBand`), undecided it escalates
+  (`Escalated` on it), both with the clearer angle's lever; clear, the
+  gap counts as `unsettled` in `NothingToHalve`, beside `off_domain`.
+  Where nothing halves in `fit_minimum` and every gap's half falls in
+  the band, the polyline is `ShortBranchUncertified`, its bound the
+  lane's (`BranchBound::of_lane`); otherwise, on ℝ³,
+  `RefinementExhausted`/`NothingToHalve` with the slab's limit
+  (`TraceUnresolved`), and on the wall `MarchShortOfFit`. In refinement
+  rounds, limb 3 is asked once (`certify::Limbs::Tube`) where the
+  refused margin stops falling over two rounds (two in the band count,
+  whatever their values), and its refusal stands: a carrier across two
+  branches fails limbs 1 and 2 at a margin no halving lowers. The
+  uncertified door does not ask it.
 - **`neither`** (`ssi/ends.rs`). The march's refusal stands, but where
   its own states were too short to halve (their sized refusal carries
   the Hermite's), and where it refused for want of step: the Hermite's
-  transversality refusal at an end, else `MarchStepInBand`, the step's
-  own refusal with the bend's lever and the step's tolerance, carrying
+  transversality refusal at an end; else, main's gate, the sized
+  refusal in |AB| where |AB| over `SHORT_BRANCH_STEPS` falls in the
+  band (`ssi_short_branch`); else `MarchStepInBand`, the step's own
+  refusal with the bend's lever and the step's tolerance. Each carries
   the Hermite's.
 - Filed: `ssi-match-exit-picks-the-crossing-nearest-a-chord` (P3),
   `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short`
   (closed by this PR) and
   `ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end`
-  (P2).
+  (P2) and
+  `ssi-the-residual-test-samples-a-bent-chart-at-eps-to-the-quarter-along-its-whole-bend`
+  (P3).

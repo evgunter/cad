@@ -4274,22 +4274,26 @@ fn half_cylinder(r: f64) -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, weights).unwrap()
 }
 
-/// **A semicircle too tight to march whose cubic misses it refuses by
-/// its step.** The plane `z = ½` cuts the half cylinder of radius `r` in
-/// a semicircle whose ends, on its two `u` sides, are `2r` apart. The
+/// **A semicircle too short to march whose cubic misses it refuses by
+/// its length.** The plane `z = ½` cuts the half cylinder of radius `r`
+/// in a semicircle whose ends, on its two `u` sides, are `2r` apart. The
 /// Hermite cubic through the ends and their antiparallel tangents runs
 /// half a radius inside the arc at its middle, and limb 1 refuses it or
 /// cannot call it. The march's step is `r/5`, the relative rung
 /// `2·SSI_STEP_RELATIVE/κ` on the carrier. At `r = 1.25Kε` and `r = 2Kε`
 /// it falls in the band, so the march cannot progress either, and the
-/// answer is the march's step in the band, the Hermite's refusal in it,
-/// whose ending names the bend and the tolerance below which the step
-/// clears the band, and no branch length. At `r = 10Kε` the step clears
-/// the band, and the march traces the semicircle in sixteen steps or
-/// more. Every ε.
+/// ends' distance over five, `2r/5`, falls in the band too: the answer is
+/// the sized refusal in the ends' distance `2r`, the Hermite's refusal in
+/// it, whose ending names the wall's lever and the tolerance below which
+/// that fifth clears the band. (A long branch whose march cannot step is
+/// the step's own refusal:
+/// `a_hyperbola_along_its_asymptote_pairs_its_branches_right`.) At
+/// `r = 10Kε` the step clears the band, and the march traces the
+/// semicircle in sixteen steps or more. Every ε.
 #[test]
-fn a_semicircle_too_tight_to_march_whose_cubic_misses_refuses_by_its_step() {
+fn a_semicircle_too_short_to_march_whose_cubic_misses_refuses_by_its_length() {
     use geom_brep::recourse::Reading;
+    use geom_brep::ssi::BranchBound;
     let k_eps = band().escalate();
     let plane = Surface::Plane {
         origin: Point3::new(0.0, 0.0, 0.5),
@@ -4305,9 +4309,21 @@ fn a_semicircle_too_tight_to_march_whose_cubic_misses_refuses_by_its_step() {
     for k in [1.25, 2.0] {
         let at = format!("r = {k}Kε");
         let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(k * k_eps), dom, band());
-        let Err(ref err @ SsiError::MarchStepInBand { ref limb, .. }) = r else {
-            panic!("{at}: expected the march's step in the band, got {r:?}");
+        let Err(
+            ref err @ SsiError::ShortBranchUncertified {
+                length,
+                limb: Some(ref limb),
+                bounded_by: BranchBound::Wall,
+                ..
+            },
+        ) = r
+        else {
+            panic!("{at}: expected the short branch's refusal, got {r:?}");
         };
+        assert!(
+            (length - 2.0 * k * k_eps).abs() <= 1.0e-6 * k_eps,
+            "{at}: the ends' distance {length:e}"
+        );
         assert!(
             matches!(
                 **limb,
@@ -4323,12 +4339,12 @@ fn a_semicircle_too_tight_to_march_whose_cubic_misses_refuses_by_its_step() {
         );
         let shown = err.render(Reading::Build);
         assert!(
-            shown.contains("bends less sharply")
-                && shown.contains("if this bend is intended, tighten the tolerance below")
-                && !shown.contains("longer")
-                && !shown.contains("size range")
-                && !shown.contains("name a domain"),
-            "{at}: the step's levers: {shown}"
+            shown.contains(
+                "Recourse: move the plane or the wall so the branch it clips is longer, or clear \
+                 of the wall"
+            ) && shown.contains("tolerance")
+                && !shown.contains("bends less sharply"),
+            "{at}: the length's lever: {shown}"
         );
     }
     let r = ssi::plane_nurbs_ssi(&plane, &half_cylinder(10.0 * k_eps), dom, band());
@@ -5957,4 +5973,20 @@ fn a_pair_bending_late_refuses_on_limb_3_without_refining_to_the_wall() {
             "{at}: limb 3's refusal, the clearer angle, got {r:?}"
         );
     }
+}
+
+/// **The uncertified door refines as far as limbs 1 and 2 locate a
+/// refusal.** It returns its last refused triple, so refinement's
+/// limb-3 ask, which ends refinement on a certifying door, passes on it.
+/// The late-bend pair of [`bend_pair`] 1e-3 apart, `β = −3`, traced
+/// through `(0.1, 0.5)` at a march tolerance and band of 1e-9: the triple
+/// holds 176 control points, where asking limb 3 would stop it at 173.
+#[test]
+fn the_uncertified_door_refines_past_the_limb_3_ask() {
+    let (plane, dom) = graph_cut();
+    let wall = bend_pair(0.5, -3.0, 0.75, 1e-3);
+    let (carrier, _, _) =
+        ssi::trace_plane_nurbs_uncertified(&plane, &wall, (0.1, 0.5), dom, 1e-9, band_at(1e-9))
+            .unwrap_or_else(|e| panic!("the uncertified trace: {e}"));
+    assert_eq!(carrier.control().len(), 176, "refined past the limb-3 ask");
 }

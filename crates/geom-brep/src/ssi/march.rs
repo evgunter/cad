@@ -140,11 +140,11 @@
 use geom_core::linalg::svd::Svd;
 use geom_core::{Band, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
-use crate::dihedral::{decide, decide_positive, decide_reported};
-use crate::recourse::Refused;
+use crate::dihedral::{decide, decide_positive};
 
 use super::enclose::Box3;
 use super::exhaust::{self, ExhaustLane, UvRect};
+use super::section::{BandVerdict, band_verdict};
 use super::system::LocalSystem;
 use super::{SSI_FIT_DEGREE, SsiError, TraceDecision};
 
@@ -930,17 +930,15 @@ pub(crate) fn decide_transversality<const N: usize>(
     // Zero is the sliver band: a tangential (or in-band tangential)
     // contact along the candidate locus, C7's regime. `sin θ · arm` is a
     // magnitude, so a definite negative cannot arise.
-    match decide_reported("ssi_transversality", transversality, band) {
-        Ok(decided) => match Refused::of(decided, band) {
-            Some(verdict) => Err(SsiError::TransversalityBand {
-                sin_theta,
-                arm,
-                sigma_min: sigma,
-                verdict,
-            }),
-            None => Ok(()),
-        },
-        Err(diag) => Err(TraceDecision::Transversality.escalated(diag)),
+    match band_verdict("ssi_transversality", transversality, band) {
+        None => Ok(()),
+        Some(BandVerdict::Refused(verdict)) => Err(SsiError::TransversalityBand {
+            sin_theta,
+            arm,
+            sigma_min: sigma,
+            verdict,
+        }),
+        Some(BandVerdict::Undecided(diag)) => Err(TraceDecision::Transversality.escalated(diag)),
     }
 }
 
@@ -1125,7 +1123,7 @@ where
                         return false;
                     }
                     let (mut lo, mut hi) = (0.5 * h, h);
-                    for _ in 0..SSI_SLAB_BISECTIONS {
+                    for _ in 0..SSI_LEAVING_BISECTIONS {
                         let m = 0.5 * (lo + hi);
                         if exit.holds(&add(&x, &predict(m)), &ctx) {
                             lo = m;
@@ -1439,6 +1437,13 @@ where
 
 /// Fixed bisection count for the ℝ³ lane's slab-crossing search (D9).
 pub const SSI_SLAB_BISECTIONS: usize = 32;
+
+/// Fixed bisection count for the last predicted state inside the domain
+/// of a step that leaves it, on either lane (D9), from half the step to
+/// the whole. The state found is a selection, not a decision: it is the
+/// one whose residual the step's residual test reads, so the count sets
+/// only how near the boundary that reading is, within `h/2³³` of it.
+pub(crate) const SSI_LEAVING_BISECTIONS: usize = 32;
 
 /// Whether a state is inside the named domain box (a structure test on
 /// the raw coordinates — C6's lane, not a predicate).

@@ -27,10 +27,12 @@
 //! the fit with at least the cubic's four samples, by halving
 //! (`super::refine::fit_minimum`). Where neither candidate certifies,
 //! the march's refusal stands, except where its states were too short to
-//! halve, a sized refusal in the length along them
-//! ([`SsiError::ShortBranchUncertified`]), or it refused for want of
-//! step, the step's refusal ([`SsiError::MarchStepInBand`]); both carry
-//! the Hermite's ([`neither`]).
+//! halve, or it refused for want of step on ends whose distance over
+//! [`SHORT_BRANCH_STEPS`] falls in the band: a sized refusal in that
+//! length ([`SsiError::ShortBranchUncertified`]). A longer branch whose
+//! march refused for want of step is the step's refusal
+//! ([`SsiError::MarchStepInBand`]). Each carries the Hermite's
+//! ([`neither`]).
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::linalg::svd::Svd;
@@ -45,7 +47,8 @@ use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{
-    FittedBranch, SsiBranch, SsiError, SsiOperand, TubeScale, certify, fit_branch, seam_tol,
+    BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, TubeScale, certify, fit_branch,
+    seam_tol,
 };
 
 /// What the branches between known ends read, minted once per call.
@@ -97,21 +100,28 @@ fn close_at<const M: usize, const N: usize, S: LocalSystem<M, N>>(
     states.push(end);
 }
 
-/// The refusal of a branch neither candidate certified.
+/// How many steps a branch between known ends is cut into, for the
+/// Hermite's length to read as short: the fewest odd count that gives
+/// the cubic fit its samples without the two ends. Odd, so no step lands
+/// on an end.
+pub(crate) const SHORT_BRANCH_STEPS: usize = (super::SSI_FIT_DEGREE + 1) | 1;
+
+/// The refusal of a branch neither candidate certified, its ends
+/// `length` apart.
 ///
 /// The march's refusal stands, but for a march too short for the fit.
 /// Where the march's samples were too short to halve, their sized
 /// refusal in the branch's length carries the Hermite's. Where the march
 /// refused for want of step, its step falling in the band (decided, or
-/// undecided on a valid margin), the branch may be long and the step is
-/// the short quantity: the refusal is the step's
+/// undecided on a valid margin), the Hermite's transversality decision
+/// at an end stands first: a march refuses at its own first state as the
+/// Hermite does at that end, so the Hermite refused at the far end,
+/// which a march too short to step never reaches. Then the branch is
+/// short where its ends' distance over [`SHORT_BRANCH_STEPS`] falls in
+/// the band (`ssi_short_branch`): the sized refusal in that distance,
+/// carrying the Hermite's. A longer branch is the step's own refusal
 /// ([`SsiError::MarchStepInBand`]), carrying the Hermite's.
-///
-/// Beside a march that could not step, the Hermite's transversality
-/// decision at an end stands instead. A march refuses at its own first
-/// state as the Hermite does at that end, so the Hermite refused at the
-/// far end, which a march too short to step never reaches.
-fn neither(hermite: SsiError, march: SsiError, band: Band) -> SsiError {
+fn neither(hermite: SsiError, march: SsiError, length: f64, band: Band) -> SsiError {
     let verdict = match march {
         SsiError::ShortBranchUncertified {
             length,
@@ -151,9 +161,18 @@ fn neither(hermite: SsiError, march: SsiError, band: Band) -> SsiError {
     ) {
         return hermite;
     }
-    SsiError::MarchStepInBand {
-        verdict,
-        limb: Box::new(hermite),
+    let step = Margin::of(length / SHORT_BRANCH_STEPS as f64);
+    match band_verdict("ssi_short_branch", step, band) {
+        Some(short) => SsiError::ShortBranchUncertified {
+            length,
+            limb: Some(Box::new(hermite)),
+            verdict: short,
+            bounded_by: BranchBound::Wall,
+        },
+        None => SsiError::MarchStepInBand {
+            verdict,
+            limb: Box::new(hermite),
+        },
     }
 }
 
@@ -255,7 +274,7 @@ impl<'a> Ends<'a> {
                         used[b] = true;
                         branch
                     }
-                    Err(march) => return Err(neither(hermite, march, self.band)),
+                    Err(march) => return Err(neither(hermite, march, near, self.band)),
                 },
             };
             out.push(branch);
@@ -591,17 +610,19 @@ mod tests {
     use crate::ssi::section::BandVerdict;
     use crate::ssi::{BranchBound, SsiError, SsiLimb, TraceDecision};
 
-    /// **A branch neither candidate certifies is short only where the
-    /// march's own states were.** The march's sized refusal carries the
-    /// Hermite's. Beside a march whose step fell in the band, decided or
-    /// undecided, the refusal is the step's, carrying the Hermite's and
-    /// the step's verdict, never a branch length. The
-    /// Hermite's transversality decision at an end stands over a march
-    /// that could not step. Beside a tangency, an undecided
+    /// **A branch neither candidate certifies is short only where its
+    /// length is.** The march's sized refusal carries the Hermite's.
+    /// Beside a march whose step fell in the band, decided or undecided,
+    /// a branch whose ends lie 3e-8 apart, a fifth of which falls in the
+    /// band, is the sized refusal in that distance, carrying the
+    /// Hermite's; one whose ends lie a metre apart is the step's refusal,
+    /// carrying the Hermite's and the step's verdict, never a branch
+    /// length. The Hermite's transversality decision at an end stands
+    /// over a march that could not step. Beside a tangency, an undecided
     /// transversality, an undecided step on a margin that is no number,
     /// or a certificate's refusal, the march's refusal is returned.
     #[test]
-    fn a_branch_is_sized_short_only_where_its_march_states_were() {
+    fn a_branch_is_sized_short_only_where_its_length_is() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let cause = |margin| Indeterminate {
             margin,
@@ -622,11 +643,18 @@ mod tests {
             step_meters: 6e-10,
             speed: 1.0,
         };
+        let march_again = |what: &str| {
+            if what == "the step collapsed" {
+                collapsed()
+            } else {
+                step(MarginDiag::value(6e-9))
+            }
+        };
         for (what, march, refused) in [
             ("the step collapsed", collapsed(), true),
             ("the step undecided", step(MarginDiag::value(6e-9)), false),
         ] {
-            let e = neither(limb(), march, band);
+            let e = neither(limb(), march, 1.0, band);
             let SsiError::MarchStepInBand {
                 limb: ref hermite,
                 ref verdict,
@@ -643,6 +671,19 @@ mod tests {
                 refused,
                 "{what}: the step's verdict {verdict:?}"
             );
+            let e = neither(limb(), march_again(what), 3e-8, band);
+            assert!(
+                matches!(
+                    &e,
+                    SsiError::ShortBranchUncertified {
+                        length,
+                        limb: Some(_),
+                        bounded_by: BranchBound::Wall,
+                        ..
+                    } if *length == 3e-8
+                ),
+                "{what}, ends 3e-8 apart: the sized refusal in their distance, got {e:?}"
+            );
         }
         let marched_short = SsiError::ShortBranchUncertified {
             length: 1.5e-8,
@@ -650,7 +691,7 @@ mod tests {
             verdict: BandVerdict::Undecided(cause(MarginDiag::value(7e-9))),
             bounded_by: BranchBound::Wall,
         };
-        let e = neither(limb(), marched_short, band);
+        let e = neither(limb(), marched_short, 1.0, band);
         assert!(
             matches!(
                 &e,
@@ -683,7 +724,7 @@ mod tests {
             ("an invalid step margin", step(MarginDiag::INVALID)),
             ("a certificate's refusal", limb()),
         ] {
-            let e = neither(limb(), march, band);
+            let e = neither(limb(), march, 1.0, band);
             assert!(
                 !matches!(
                     e,
@@ -696,7 +737,7 @@ mod tests {
             decision: TraceDecision::Transversality,
             cause: cause(MarginDiag::value(5e-9)),
         };
-        let e = neither(far_end, collapsed(), band);
+        let e = neither(far_end, collapsed(), 3e-9, band);
         assert!(
             matches!(
                 e,

@@ -29,7 +29,7 @@ The clipped north loop of
 positions (`probe2_slab_face_sweep` on
 `analysis/neighbour-cap-review/4034-r2`), 423 of which cut the loop:
 
-| ε | main 396e5a8843 | PR 4034 |
+| ε | main (128a6e0c5d; 396e5a8843 alike) | PR 4034 |
 |---|---|---|
 | 1e-6 | 153 escalate | 225 escalate, and 1 `ssi_step_progress` |
 | 1e-9 | 0 | 2 |

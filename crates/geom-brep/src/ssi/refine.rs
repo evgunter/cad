@@ -52,7 +52,7 @@ use geom_core::{Band, Margin, MarginDiag, Point3};
 
 use super::certify::{Limbs, Located, SsiLimb};
 use super::march::{
-    MarchContext, StepperMode, TransversalityData, decide_transversality, newton_refine, within,
+    MarchContext, TransversalityData, decide_transversality, newton_refine, within,
 };
 use super::section::{BandVerdict, band_verdict};
 use super::system::LocalSystem;
@@ -119,10 +119,11 @@ pub(crate) fn limb_reading(error: &SsiError) -> Option<(SsiLimb, RoundMargin)> {
     }
 }
 
-/// Whether the refused margin stopped falling over the last two rounds
-/// of a refinement the step budget stopped: both in the band, or both
-/// definite with the later no smaller. A reading of the numbers the
-/// rounds recorded, for the refusal's ending; it decides nothing.
+/// Whether the refused margin stopped falling over two consecutive
+/// rounds: both in the band, whatever their values, or both definite
+/// with the later no smaller. It decides two things: when refinement
+/// asks limb 3 of the carrier ([`refine_by_certificate`]), and how the
+/// step budget's refusal ends, the arithmetic's floor or the curvature.
 pub(crate) fn stopped_falling(before: Option<RoundMargin>, last: Option<RoundMargin>) -> bool {
     match (before, last) {
         (Some(RoundMargin::InBand(_)), Some(RoundMargin::InBand(_))) => true,
@@ -240,12 +241,12 @@ where
 /// The transversality decision's refusal at a gap's chord midpoint where
 /// the midpoint does not settle and the surfaces are near tangent there.
 /// Where nothing halves: [`SsiError::ShortBranchUncertified`] in the
-/// polyline's length, on the first half gap that falls in the band,
-/// bounded by the lane ([`BranchBound::of_lane`]); otherwise
+/// polyline's length where every gap's half falls in the band, bounded
+/// by the lane ([`BranchBound::of_lane`]). Otherwise, on the ℝ³ lane,
 /// [`SsiError::RefinementExhausted`] stopped with nothing to halve, the
-/// lane's own limit as its refusal: on the ℝ³ lane the slab's
-/// ([`SsiError::TraceUnresolved`]), on the plane × NURBS lane a march
-/// step that will not settle ([`SsiError::StepRefinementFailed`]).
+/// slab's limit as its refusal ([`SsiError::TraceUnresolved`]); on the
+/// plane × NURBS lane, [`SsiError::MarchShortOfFit`], counting what each
+/// gap's midpoint did.
 pub(crate) fn fit_minimum<const M: usize, const N: usize, S>(
     sys: &S,
     mut states: Vec<[f64; N]>,
@@ -265,7 +266,7 @@ where
                 .then(i.cmp(&j))
         });
         let mut in_band = None;
-        let (mut unsettled, mut off_domain) = (0usize, 0usize);
+        let (mut halves_in_band, mut unsettled, mut off_domain) = (0usize, 0usize, 0usize);
         for &i in &gaps {
             match halve(sys, &states[i], &states[i + 1], ctx, band) {
                 Halving::Settled(mid) => {
@@ -273,6 +274,7 @@ where
                     continue 'round;
                 }
                 Halving::InBand(verdict) => {
+                    halves_in_band += 1;
                     in_band.get_or_insert(verdict);
                 }
                 Halving::Unsettled => unsettled += 1,
@@ -280,35 +282,35 @@ where
                 Halving::Tangent(tangent) => return Err(tangent),
             }
         }
-        let length: f64 = gaps.iter().map(|&i| chord(&states, i)).sum();
-        if let Some(verdict) = in_band {
+        // Every gap's half in the band: the branch is short.
+        if let (Some(verdict), 0, 0) = (in_band, unsettled, off_domain) {
             return Err(SsiError::ShortBranchUncertified {
-                length,
+                length: gaps.iter().map(|&i| chord(&states, i)).sum(),
                 limb: None,
                 verdict,
                 bounded_by: BranchBound::of_lane::<N>(),
             });
         }
-        let longest = gaps.first().map_or(0.0, |&i| chord(&states, i));
-        let refusal = match BranchBound::of_lane::<N>() {
-            BranchBound::Slab => SsiError::TraceUnresolved {
+        return Err(match BranchBound::of_lane::<N>() {
+            BranchBound::Slab => SsiError::RefinementExhausted {
+                stop: RefineStop::NothingToHalve {
+                    in_band: halves_in_band,
+                    unsettled,
+                    off_domain,
+                },
                 samples: states.len(),
-                step: longest,
+                refusal: Box::new(SsiError::TraceUnresolved {
+                    samples: states.len(),
+                    step: gaps.first().map_or(0.0, |&i| chord(&states, i)),
+                }),
+                earlier: Vec::new(),
             },
-            BranchBound::Wall => SsiError::StepRefinementFailed {
-                mode: StepperMode::Realized.name(),
-                step_meters: longest,
-            },
-        };
-        return Err(SsiError::RefinementExhausted {
-            stop: RefineStop::NothingToHalve {
-                in_band: 0,
+            BranchBound::Wall => SsiError::MarchShortOfFit {
+                samples: states.len(),
+                in_band: halves_in_band,
                 unsettled,
                 off_domain,
             },
-            samples: states.len(),
-            refusal: Box::new(refusal),
-            earlier: Vec::new(),
         });
     }
     Ok(states)
@@ -853,6 +855,107 @@ mod tests {
         assert!(
             matches!(r, Err(SsiError::TransversalityBand { .. })),
             "refinement across the sliver: {r:?}"
+        );
+    }
+
+    /// The plane × NURBS lane's shape of [`holed`]: the line `a = b = c =
+    /// 0` in a state `(s, a, b, c)`, with a hole for `|s| < 0.1` where the
+    /// residual is no number, and the surfaces crossing at a right angle.
+    struct HoledR4;
+
+    impl LocalSystem<3, 4> for HoledR4 {
+        fn residual(&self, x: &[f64; 4]) -> [f64; 3] {
+            let r = [x[1], x[2], x[3]];
+            if x[0].abs() < 0.1 { [f64::NAN; 3] } else { r }
+        }
+
+        fn jacobian(&self, _x: &[f64; 4]) -> [[f64; 4]; 3] {
+            [
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        }
+
+        fn rhs2(&self, _x: &[f64; 4], _d1: &[f64; 4]) -> [f64; 3] {
+            [0.0; 3]
+        }
+
+        fn rhs3(&self, _x: &[f64; 4], _d1: &[f64; 4], _d2: &[f64; 4]) -> [f64; 3] {
+            [0.0; 3]
+        }
+
+        fn point(&self, x: &[f64; 4]) -> Point3<f64> {
+            Point3::new(x[0], x[1], x[2])
+        }
+
+        fn coordinate_scale(&self, _x: &[f64; 4]) -> [f64; 4] {
+            [1.0; 4]
+        }
+
+        fn tangent_speed(&self, _x: &[f64; 4], d: &[f64; 4]) -> f64 {
+            d[0].abs()
+        }
+
+        fn carrier_jet(
+            &self,
+            _x: &[f64; 4],
+            d1: &[f64; 4],
+            d2: &[f64; 4],
+            d3: &[f64; 4],
+        ) -> [Vec3<f64>; 3] {
+            [*d1, *d2, *d3].map(|d| Vec3::new(d[0], d[1], d[2]))
+        }
+    }
+
+    impl TransversalityData<4> for HoledR4 {
+        fn normals(&self, _x: &[f64; 4]) -> NormalPair {
+            (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
+        }
+
+        fn lever_arm(&self, _x: &[f64; 4]) -> f64 {
+            1.0
+        }
+    }
+
+    /// **On the plane × NURBS lane, a polyline short of the fit's samples
+    /// that nothing halves says what its midpoints did.** Two states
+    /// across the hole of [`HoledR4`], 1 apart: the midpoint does not
+    /// settle, the surfaces crossing at a right angle there, so the
+    /// refusal is the march's samples short of the fit, one gap
+    /// unsettled. Two states the band apart are short: the sized refusal,
+    /// the wall's.
+    #[test]
+    fn a_wall_polyline_short_of_the_fit_says_what_its_midpoints_did() {
+        use super::fit_minimum;
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let ctx = MarchContext::<4> {
+            domain: [[-1.0, 1.0]; 4],
+            extent: 1.0,
+            tol: kernel_ctx(band).tol,
+            max_steps: SSI_MAX_STEPS,
+            spent: Default::default(),
+        };
+        let across = vec![[-0.5, 0.0, 0.0, 0.0], [0.5, 0.0, 0.0, 0.0]];
+        match fit_minimum(&HoledR4, across, &ctx, band) {
+            Err(SsiError::MarchShortOfFit {
+                samples: 2,
+                in_band: 0,
+                unsettled: 1,
+                off_domain: 0,
+            }) => {}
+            other => panic!("across the hole: expected the march short of the fit, got {other:?}"),
+        }
+        let short = vec![[0.5, 0.0, 0.0, 0.0], [0.5 + 2e-9, 0.0, 0.0, 0.0]];
+        assert!(
+            matches!(
+                fit_minimum(&HoledR4, short, &ctx, band),
+                Err(SsiError::ShortBranchUncertified {
+                    bounded_by: BranchBound::Wall,
+                    ..
+                })
+            ),
+            "two states the band apart on the wall: the sized refusal"
         );
     }
 }

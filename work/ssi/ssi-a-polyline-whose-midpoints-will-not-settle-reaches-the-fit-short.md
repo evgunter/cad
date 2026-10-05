@@ -40,12 +40,14 @@ a row shows the case cannot arise.
 `fit_minimum` no longer returns a polyline short. A midpoint that does
 not settle is read by the march's transversality decision at the gap's
 chord midpoint: near tangent, that refusal stands (the clearer angle);
-clear of the band, the gap counts as `unsettled`. Where nothing halves,
-a polyline half of one of whose gaps falls in the band refuses
-sized (`ShortBranchUncertified`), and any other stops with nothing to
-halve (`RefinementExhausted`/`NothingToHalve`), the lane's own limit as
-its refusal: on the ℝ³ lane the slab's (`TraceUnresolved`). So
+clear of the band, the gap counts as `unsettled`. Where nothing halves
+and every gap's half falls in the band, the polyline refuses sized
+(`ShortBranchUncertified`); otherwise it stops with nothing to halve,
+counting what each midpoint did: on the ℝ³ lane
+`RefinementExhausted`/`NothingToHalve` with the slab's limit
+(`TraceUnresolved`), on the plane × NURBS lane `MarchShortOfFit`. So
 `Fit(TooFewPoints)` is unreachable from refinement. Rows:
-`the_fits_minimum_halves_to_four_keeping_every_settled_midpoint` and
+`the_fits_minimum_halves_to_four_keeping_every_settled_midpoint`,
 `a_midpoint_that_does_not_settle_is_read_by_the_transversality_at_its_chord`
+and `a_wall_polyline_short_of_the_fit_says_what_its_midpoints_did`
 (`ssi/refine.rs`).
