@@ -1907,9 +1907,8 @@ mod tests {
     /// F12 at mechanism level: four survivors, two consecutive record
     /// pairs, each a strut in BOTH solids, on real cube vertices but
     /// synthetic sectors. Every germ runs along `+y`, so nothing orders
-    /// the first strut's two germs: its pair shares the vertex with the
-    /// other, and the shared strut's walk order ([`run_ends`]) refuses
-    /// two germs along one direction, before any mint. Four
+    /// two germs in one sector entry: the walk order ([`walk_order`])
+    /// refuses them, before any mint. Four
     /// survivors at one vertex pair in real geometry are
     /// `work/join/four-germ-vertex-pairs-run-b-in-a-order`'s.
     #[test]
@@ -1990,7 +1989,8 @@ mod tests {
             matches!(
                 err,
                 BooleanError::ClassificationInvariant {
-                    what: "a dangling null edge whose two germs lie along one direction"
+                    what: "two crossing germs of a vertex pair lie along one direction in one \
+                           sector entry"
                 }
             ),
             "{err:?}"
