@@ -7161,3 +7161,12 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - `sphere_chart_trim`'s split is noted as the families row's.
   - Its CI run was cancelled (superseded), so I merged main (with PR 4060) into it at `d288f84f` (clean; `cargo check` ok). Waiting for CI.
 - PR 4067: its fix lane is still running. Nothing new on PR 3970.
+
+## 21:35 check-in (2026-10-05)
+
+- **PR 4066:** CI on `d288f84f` failed only because jobs were never acquired by a hosted runner ("The job was not acquired by Runner of type hosted even after multiple attempts"; `test` and `mesh budget` cancelled at 15 min). That is runner loss before any test body ran.
+  - Re-running failed jobs was refused (403: resource not accessible by integration), and I will not push an empty commit.
+  - Plan: the next real main movement with code (PR 4067's merge, which also touches `rest.rs`) is merged into PR 4066, which re-runs CI on the combined code.
+  - The fixes are already checked. `gate ok` and `lint` were green on `d288f84f`.
+- PR 4067: the fix lane is pushing (`66532eff`), with no "fixes pushed" comment yet.
+- Nothing new on PR 3970.
