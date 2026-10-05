@@ -6748,3 +6748,63 @@ Other lanes: unit 1 is still compiling its test lanes (about $55 spent so far; t
 - The R build waits for PR 4029 (both touch `euler_kill.rs`).
 - **Unit 1 opened PR 4029** (about 9k lines, 58 files; every deleted variant's site converted; drivers through `from_driver()`; 11 + 8 editor-core chains closed; no goldens moved). Subscribed. Reviewer `session_01Th9v8RURstDac57y6oVuRv` dispatched; it posts its verdict as a PR comment.
 - Nothing new on PR 3970.
+
+## 12:34 check-in (2026-10-04)
+
+- PR 4030 (sync) merged at `75f8f4a557`.
+- **PR 4029 review: fix first, no blocking defect.** Full topo suite passes. The release corrupt-input filter selects the renamed test. A throwaway probe of 59 public-door calls with dead keys and bad pairings found no panic; every one came back typed under the right role. All findings adopted:
+  1. Two driver wraps bypass `from_driver()` (`boolean/ops.rs:556`, `step-import/adopt.rs:629`).
+  2. `ShellError::Partition` still says "(kernel bug)" though real refusals now reach it, and the chain sample exposes a driver-addressed recourse shown to users. Filed as a hone row by the fix lane.
+  3. About 12 `work/` rows prescribe deleted variants, and two resolved rows were left open.
+  4. The inverted sweeps cannot go red on a typed refusal or a mutation-phase panic. Harden them with a clone compare.
+  5. `describe_at_rest` with a dead chart is not an argument miss.
+  - Style: two panic helpers into one; the premise text hand-copied in about 9 places; `KeyFrom::miss` diverging inside a `Result`; dead `Result`s.
+- Fix lane `session_015ZRAnih51VcqL2q3r1aMjG` dispatched on the PR branch; it reports by PR body and comment. Reviewer and implementer archived (unit 1 cost about $64).
+- Nothing new on PR 3970.
+- 13:26 check-in: fix lane `session_015ZRAnih51VcqL2q3r1aMjG` is still running (mutation-testing the hardened sweeps: both red). PR 4029 head unchanged. Nothing new on PR 3970. The incoming main commit touching work/topo is an empty merge.
+- 13:54: **PR 4029 merged** at `1ef3e52e1a` (CI green on fix head `142ef890`). The fix lane mapped every finding to a commit:
+  - a three-pattern driver re-sweep (one more wrapper found: `AdoptionAttempt`);
+  - "(kernel bug)" dropped from `Partition`, and the recourse leak filed on hone;
+  - 15 rows re-worded and 2 closed;
+  - the sweeps judge on a clone and go red under a hoisted-write mutation (shown), and reverted they are green at 45/45; a SIGABRT in `PanicCapture::drop` fixed on the way;
+  - `KeySource` makes a link miss uncatchable as a typed `Err`;
+  - premise text held in 3 constants; five panic helpers made one.
+
+  The V-notch row now answers `Ok`; it stays open, since the result shape was not checked. Fix lane archived (about $14). **Unit 2 dispatched** (`session_01Joyxfo4vH93BpLf9DyUbqC`): readback `DanglingRef`, `PcurveMint::Corrupt`, `ShellError::Corrupt`, `ReplaceFaceError::Corrupt`, `corrupt_at`, the graft's `JoinDesync` / `VoidInsertError::Corrupt` split, and `TornLoop`'s `Result`. The R build waits for it, because both touch `pcurves.rs` and the rate window shows a warning.
+- 14:50 check-in: unit 2 (`session_01Joyxfo4vH93BpLf9DyUbqC`) is still working on `topo/remaining-torn-body-refusals-unreachable` with sub-lanes; no PR yet; about $49 spent. Nothing new on PR 3970. No topo commits incoming.
+- 15:52 check-in: unit 2 is still running (merging its sub-lane branches, e.g. `lane-c-boolean-graft`); no PR yet; about $83 spent. Nothing new on PR 3970. No topo commits incoming.
+- 16:54: **unit 2 opened PR 4033** (about 8k lines, 175 files; about $83).
+  - It deletes `DanglingRef`, `TornLoop`, `PcurveMintError::Corrupt` (with its family), `ShellError::Corrupt`, `ReplaceFaceError::Corrupt`, `SectorFaceError::Corrupt`, `corrupt_at`/`CorruptOperand` and `VoidInsertError::Corrupt`. A dead destination solid becomes typed `StaleSolid`.
+  - Legal states get honest variants (`NoCarrier`, `EmptyOuter`, `CarrierLaneUnsupported`, `EmptyGroup`).
+  - The pcurve mint becomes derive-then-write, so it is atomic.
+  - `vertex_points()` becomes infallible, and step-import's `VertexWithoutPoint` is deleted.
+  - Python tags `dangling_geometry`, `corrupt` and `corrupt_operand` are removed.
+  - It closes the readback, restfront check-6 and cleave strut-anchor rows. `ContainError::Corrupt` is left typed and filed.
+  - Judgement call: a boolean operand failing tier 1 panics.
+
+  Subscribed. Reviewer `session_012e9PDZ66Hjts93xjCzuE2x` dispatched; the checks it was asked to make: operand-gate reachability (persist, py, step), legal states, atomicity, mutation, and whether any removed Python tag is ratified API. Side branches `lane-a-pcurve`, `lane-b-shell-replace` and `lane-c-boolean-graft` remain on origin, left for Ev.
+
+## 17:51 check-in (2026-10-04)
+
+**PR 4033 review: fix first, no blocking defect.**
+
+The reviewer found these sound: operand-gate reachability (arenas `pub(crate)`, `Body` not `Deserialize`, persist replays recipes, step-import gates tiers 1-3); the legal states; the three `else continue` conversions; `RunMissesEnd`; void-door order; mint derive-then-write; 30 argument/record sites; the step-import `VertexWithoutPoint` deletion. None of the removed Python tags appears in ratified text, so nothing waits for Ev.
+
+All findings adopted:
+1. The mint-atomicity sweep check is vacuous, because the fixtures carry no rows. Mutation shown green.
+2. The cleave strut row is only partly implemented: the `None`-holder arm takes an unproven `next(mate)`.
+3. The `ContainError` split is under-stated.
+4. Stale text in the py census test and two rows.
+5. `axial_frame` reads points outside its scope.
+6. The sectors null-edge `unreachable!` rests on unpinned VF/VV exclusivity.
+- Style: two byte-identical helpers; two `face_cycles` walks; the new orbit helper bypassed, with fallible and panicking twins; dead `Result`s; uneven conversion (`surface_of`, `merge_faces`, `props`, `chord_join`); panic labels.
+
+Fix lane `session_01N5igLbhzJzkJxH6yHgedcy` dispatched. Reviewer (about $11) and implementer (about $93) archived. The seven-day rate warning has cleared (five-hour window, allowed). Nothing new on PR 3970.
+- 18:53 check-in: the PR 4033 fix lane is still working (the style item on panic labels); head unchanged. Nothing new on PR 3970. No topo commits incoming. The R build waits for 4033 (`pcurves.rs`).
+- 19:28: **PR 4033 merged** at `0933bc2662` (CI green on fix head `3937ebf9`).
+  - Every finding mapped. The mint mutation goes red in both entries. A minted cylinder fixture plus a rows-carried floor were added.
+  - The strut arm goes through `orbit_step_at`. VF/VV exclusivity is debug-asserted.
+  - Three face-cycle walks made one. Remaining torn reads converted or named on the families row.
+  - Main's PR 3987 (`AtRestBody`) was merged in.
+
+  Fix lane archived (about $14). **Stale-key row closed** (both units merged; items 1-6 hold for every named variant). The residue row `torn-body-refusal-families-beyond-the-six-doors` gets P3 and M. **R build dispatched** (`session_01Gh7MVn8yRcX5XCDaEt6YQK`; the re-anchor row is `dispatched`). It includes the pole-slit row, takes the in-band-lever row optionally, is accepted on a probe re-run (every kill-kept face byte-equal and tier-3-clean), and may be staged in 2-3 PRs.
