@@ -440,19 +440,22 @@ fn notch343() -> Corner {
     }
 }
 
-/// The square `[−2, 2]²` less the 15° wedge below the ray at 0°: a
-/// 345° corner at `(0, 0, 1)`, fanned into triangles from it.
-fn wedge345() -> Corner {
-    let end = (2.0, -2.0 * 15f64.to_radians().tan());
-    let profile = vec![
-        (0.0, 0.0),
-        (2.0, 0.0),
-        (2.0, 2.0),
-        (-2.0, 2.0),
-        (-2.0, -2.0),
-        (2.0, -2.0),
-        end,
-    ];
+/// The wedge of the square `[−2, 2]²` between the rays at 0 and `alpha`
+/// degrees, counterclockwise: an `alpha`° corner at `(0, 0, 1)`, fanned
+/// into triangles from it.
+fn wedge(alpha: f64) -> Corner {
+    let at = |t: f64| {
+        let t = t.to_radians();
+        let r = 2.0 / t.cos().abs().max(t.sin().abs());
+        (r * t.cos(), r * t.sin())
+    };
+    let mut profile = vec![(0.0, 0.0), at(0.0)];
+    let mut c = 45.0;
+    while c < alpha {
+        profile.push(at(c));
+        c += 90.0;
+    }
+    profile.push(at(alpha));
     let pieces = (1..profile.len() - 1)
         .map(|k| vec![profile[0], profile[k], profile[k + 1]])
         .collect();
@@ -461,6 +464,10 @@ fn wedge345() -> Corner {
         pieces,
         v: [0.0, 0.0, 1.0],
     }
+}
+
+fn wedge345() -> Corner {
+    wedge(345.0)
 }
 
 /// A pose: its name, the corner, the cube's direction and turn, and its
@@ -906,4 +913,219 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
         }
         assert_eq!(at_copies > 0, apart, "{op}: edges meeting at the copies");
     }
+}
+
+/// A half-space `n·x ≤ d`.
+type HalfSpace = ([f64; 3], f64);
+
+/// `c` turned by the frame `f` about its corner and moved to `at`
+/// (local `x ↦ f·(x − c.v) + at`): its body and its pieces' half-spaces.
+fn posed(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> (AtRestBody<f64>, Vec<Vec<HalfSpace>>) {
+    let map = |x: [f64; 3]| {
+        let r = [x[0] - c.v[0], x[1] - c.v[1], x[2] - c.v[2]];
+        [0, 1, 2].map(|t| at[t] + f[0][t] * r[0] + f[1][t] * r[1] + f[2][t] * r[2])
+    };
+    let mut b = Body::<f64>::new();
+    fixtures::prism_ops(
+        &mut b,
+        &c.profile,
+        (0.0, 1.0),
+        |x, y, z| {
+            let p = map([x, y, z]);
+            Point3::new(p[0], p[1], p[2])
+        },
+        fixtures::FaceGeometry::Certified,
+        tol(),
+    );
+    fixtures::describe_as_intersections(&mut b, tol());
+    let turn = |n: [f64; 3]| [0, 1, 2].map(|t| f[0][t] * n[0] + f[1][t] * n[1] + f[2][t] * n[2]);
+    let pieces = c
+        .pieces
+        .iter()
+        .map(|p| {
+            polygon_prism(p)
+                .into_iter()
+                .map(|(n, d)| (turn(n), d - dot(n, c.v) + dot(turn(n), at)))
+                .collect()
+        })
+        .collect();
+    (finished("a posed corner", b), pieces)
+}
+
+/// `a` at rest and `b` posed by `f` with its corner on `a`'s: every op
+/// in both orders, against the two corners' pieces clipped pairwise.
+fn corner_pair_runs(
+    a: &Corner,
+    b: &Corner,
+    f: [[f64; 3]; 3],
+) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+    let x = finished(
+        "a corner",
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
+    );
+    let (y, bp) = posed(b, f, a.v);
+    let ap: Vec<_> = a.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let vol = |ps: &[Vec<([f64; 3], f64)>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
+    let (va, vb) = (vol(&ap), vol(&bp));
+    let common: f64 = ap
+        .iter()
+        .flat_map(|p| {
+            bp.iter().map(move |q| {
+                let mut all = p.clone();
+                all.extend_from_slice(q);
+                convex_volume(&all)
+            })
+        })
+        .sum();
+    let decls = BooleanDeclarations::default();
+    let mut out = Vec::new();
+    for (order, l, r, vl) in [("ab", &x, &y, va), ("ba", &y, &x, vb)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, va + vb - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vl - common),
+        ];
+        for (op, run, want) in ops {
+            out.push((format!("{order} {op}"), run(l, r, &decls, tol()), want));
+        }
+    }
+    out
+}
+
+/// **Two reflex corners crossing eight times nest two deep, and build
+/// every op.** Each pose is a review's (PR 4050's r2 grid
+/// `notch343 vs notch343 i=13 j=8 k=2`, r1's seeded rotation
+/// `n343 n330 k=105`). In B one pair's fan holds a strut that holds
+/// another strut, so the innermost mints at the fan's copy and hangs at
+/// the outer strut's tip there. Every op in both orders is `SOUND` at
+/// the two corners' pieces clipped pairwise. Red as a
+/// `ClassificationInvariant` when a run held only by a strut mints at
+/// the plan's own vertex although a fan further out carried its corner
+/// away, and red when a run's holder is the outermost run that holds it
+/// rather than the innermost.
+#[test]
+fn eight_crossing_corners_nest_two_deep_and_build_every_op() {
+    let r2 = {
+        let theta = std::f64::consts::TAU * 13.11 / 24.0;
+        let phi: f64 = 2.0 * 0.23 + 0.02;
+        let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
+        frame(m, 2.3 * std::f64::consts::TAU / 24.0)
+    };
+    let r1 = [
+        [0.6060175730696241, -0.785797686202516, -0.12355038441694527],
+        [
+            -0.29342602576332566,
+            -0.36520218952479033,
+            0.8834752561170229,
+        ],
+        [
+            -0.7393536829796299,
+            -0.4991486322981075,
+            -0.45189243669194745,
+        ],
+    ];
+    let mut bad = Vec::new();
+    for (pose, a, b, f) in [
+        ("notch343 vs notch343", notch343(), notch343(), r2),
+        ("wedge343 vs wedge330", wedge(343.0), wedge(330.0), r1),
+    ] {
+        for (tag, r, want) in corner_pair_runs(&a, &b, f) {
+            let line = outcome(r, want, tol());
+            if !line.starts_with("OK SOUND") {
+                bad.push(format!("{pose} {tag}: {line}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **A nested pairing at a vertex another crossing pair shares refuses
+/// typed.** [`notch343`] against a pinch of two cubes at its corner,
+/// the sweep's grid direction `i=0 j=0` turned `psi=2.2`: the notch
+/// crosses one cube's corner six times, nested in that cube's walk
+/// order, and the other's as well. With the pinch first, B's vertex is
+/// shared and holds the nested pair: every op refuses
+/// `SharedVertexCrossings`, since turning a nested run to clear the
+/// other pair's cuts would make it hold the rest. With the notch first,
+/// the shared vertex is A's: the intersection builds `SOUND`, and the
+/// union and difference refuse `ClassificationInvariant` "a vertex at a
+/// shared point is the In end of one null edge and the Out end of
+/// another", the class
+/// `work/join/a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another.md`
+/// holds, which main reaches at four crossings too. Red if the shared
+/// vertex's nested plan reaches the reconcile.
+#[test]
+fn a_nested_pairing_at_a_shared_vertex_refuses_typed() {
+    for (tag, r, want) in pinch_runs(direction(0, 0), 2.2) {
+        let what = match &r {
+            Err(BooleanError::SharedVertexCrossings { .. }) => "SharedVertexCrossings".to_owned(),
+            Err(BooleanError::ClassificationInvariant { what }) => (*what).to_owned(),
+            Err(e) => format!("{e:?}"),
+            Ok(_) => outcome(r, want, tol()),
+        };
+        let expected = match tag.as_str() {
+            "ab I" => "OK SOUND",
+            "ab U" | "ab S" => {
+                "a vertex at a shared point is the In end of one null edge and the Out end of another"
+            }
+            _ => "SharedVertexCrossings",
+        };
+        assert!(what.starts_with(expected), "{tag}: {what}");
+    }
+}
+
+/// [`notch343`] at its corner against a pinch: two cubes touching only
+/// at that corner, in opposite octants of the frame, united undeclared.
+/// Every op in both orders, against the pinch's two cubes clipped by
+/// the notch's pieces.
+fn pinch_runs(
+    m: [f64; 3],
+    psi: f64,
+) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+    let c = notch343();
+    let a = finished(
+        "the notch",
+        fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
+    );
+    let f = frame(m, psi);
+    let decls = BooleanDeclarations::default();
+    let (c1, c2) = (
+        finished("a cube", cube_at(c.v, f, [0.0; 3])),
+        finished("a cube", cube_at(c.v, f, [-SIDE; 3])),
+    );
+    let BooleanResult::Body(pinch) = topo::union_with(&c1, &c2, &decls, tol()).unwrap() else {
+        panic!("the pinch is empty");
+    };
+    let b = pinch.body;
+    let clip = |extra: &[([f64; 3], f64)]| -> f64 {
+        c.pieces
+            .iter()
+            .map(|p| {
+                let mut all = polygon_prism(p);
+                all.extend_from_slice(extra);
+                convex_volume(&all)
+            })
+            .sum()
+    };
+    let va = clip(&[]);
+    let vb = 2.0 * SIDE * SIDE * SIDE;
+    let common =
+        clip(&cube_planes_at(c.v, f, [0.0; 3])) + clip(&cube_planes_at(c.v, f, [-SIDE; 3]));
+    let mut out = Vec::new();
+    for (order, x, y, vx) in [("ab", &a, &b, va), ("ba", &b, &a, vb)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union_with, va + vb - common),
+            ("I", topo::intersect_with, common),
+            ("S", topo::subtract_with, vx - common),
+        ];
+        for (op, run, want) in ops {
+            out.push((format!("{order} {op}"), run(x, y, &decls, tol()), want));
+        }
+    }
+    out
 }

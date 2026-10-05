@@ -1,6 +1,6 @@
 //! M3 PR 6a, D8: the saddle fixture obligation for the 15.11 pairing
-//! guard (`PairingMismatch`, `boolean/insert.rs` F12 guards: B-cyclic
-//! adjacency + run-side agreement). PR 4's review noted the guard was
+//! guard (`PairingMismatch`, `boolean/insert.rs` F12 guards: no two pairs
+//! crossing in B's walk order + run-side agreement). PR 4's review noted the guard was
 //! stressed only by planar 4-crossing fixtures and asked for a
 //! saddle-vertex fixture (non-convex neighborhood where A-consecutive
 //! ≠ B-consecutive pairing is geometrically realizable) that either

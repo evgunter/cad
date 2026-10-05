@@ -57,8 +57,9 @@
 //!    (`ssortnulledges` is engineered out). The 15.11
 //!    consecutive-pairing invariant is guarded at runtime (no two pairs
 //!    may cross in either neighborhood, and where one nests another in
-//!    B's the inner mints at the outer's copy) and stressed by the
-//!    four- and six-crossing fixtures (F12).
+//!    B's the inner mints after it, at the copy of the innermost fan
+//!    that holds it) and stressed by the four-, six- and eight-crossing
+//!    fixtures (F12).
 //!
 //! # The 15.7 sign resolution (F3)
 //!
@@ -1979,6 +1980,10 @@ pub enum BooleanError {
     /// edges with one segment, or a null edge both of whose ways round
     /// hold one (`insert::reconcile_shared`). A dangling null edge whose
     /// segment holds another's whole builds: the inner hangs at its tip.
+    /// It also refuses where the shared vertex is B's and B's walk order
+    /// nests one of its pairs' runs inside another's: the reconcile turns
+    /// runs to clear the other pairs' cuts, and a nested run turned would
+    /// hold the rest of its own plan.
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,

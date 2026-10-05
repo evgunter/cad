@@ -96,3 +96,19 @@ either reading.
 across 101 battery jobs. The pin is now
 `join_pierce_runs_sweep::six_crossing_corners_build_every_op`, and
 four mutants of the nested pairing redden it.
+
+**Fix pass (dual review, PR 4050).**
+- A held run mints at the copy of the innermost fan among all that
+  hold it, not just its direct holder. A strut held by a strut that a
+  fan holds now builds: 4 616 n=8 runs in r2's battery.
+- The plan carries this as `SideRun::held` (depth, innermost fan, held
+  by a strut).
+- The strut-in-strut hang is checked against `b_runs`: a disagreement
+  refuses typed.
+- `b_runs` is model-checked as a unit test over every matching to
+  n = 10.
+- New rows pin n = 8 two-deep nesting and the nested
+  `SharedVertexCrossings`.
+- The pinch case's "In end / Out end" refusal is pre-existing, and is
+  filed as
+  `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.

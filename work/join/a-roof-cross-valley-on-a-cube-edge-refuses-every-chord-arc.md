@@ -41,3 +41,13 @@ breadth beyond the everyday shapes, and the refusal is typed.
 Find the first wrong state. This is not the six-crossing class: a
 nested pairing refused `PairingMismatch` before the join on main, and
 these runs reach the join there.
+
+## Possibly the same cause (PR 4050's review r2, NOTE-2)
+
+A 359° wedge against the mirrored 345° notch (r2's `mnotch`) refuses the same
+`JoinDesync` "every chord arc separates a loose scaffolding pair" at
+six crossings with nested plans: 18 runs that were `PairingMismatch`
+on main. Main gives the same refusal on 96 neighbouring poses, so the
+class pre-exists there too. Whether it shares the valley's cause is
+unsure. Probe: `crates/sweep/tests/review_sixx_r2_probes.rs` on branch
+`join/six-crossing-pairing-review-r2`, `SX_SHAPES=w359 SX_OTHERS=mnotch`.
