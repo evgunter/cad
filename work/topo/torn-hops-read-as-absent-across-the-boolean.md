@@ -104,3 +104,26 @@ and `parents_distinct_from` (the carrier-distinctness ladder);
 declared seam or cover machinery; and `vtxfac.rs`' sector/contact
 `surface` closure and the two conformal-lump `map_or(Nurbs, ..)`s.
 This row stays open for them.
+
+## 2026-10-05 — the HOLD criterion, stated
+
+What stays for D10 is a site whose **own logic reads a declaration or a
+coincidence**. A generic geometric helper whose only callers are
+declared or coincidence arms has no such read of its own, so it is
+converted. Two converted sites are helpers of that kind:
+`carrier_cross.rs` `boundary_crossing` (its one caller, `reduce.rs`
+`interior`, is reached only in `edge_covers`' covered arms past
+`on_declared_shared_carrier`) and `reduce.rs`
+`boundary_meets_circle_only_at` (its one caller, `lying_on`, is reached
+only past `parents_distinct_from` on the `LiesOn` arm). Measured against
+the same criterion, `rim_wedge.rs` `face_boundary_arcs` is a helper as
+well, so it is converted now and comes off the held list.
+`mod.rs` `locus_through_plane_face` stays held, because it is part of
+`verify_tangent_declaration` and reads the declared pair's plane face.
+
+A face's outer-then-rings loop links now have one home,
+`Body::face_loops_linked`, whose field names are `outer` and `rings`.
+Two sites still spell the iteration by hand, because they sit in files
+under another open PR: `boolean/rest.rs` `face_witnesses`
+(PR 4067) and `attach.rs` `check_moved_boundary` (PR 4060). Each moves to the helper
+once its PR lands.

@@ -658,7 +658,17 @@ mod crossing_rows {
             ),
             "a face the caller passed that does not resolve refuses typed"
         );
-        // A member's start: no other read of this call passes through it.
+        // A member's start, on a span the circle does not cross the
+        // boundary in: no containment read follows, so the start is the
+        // only read that passes through it.
+        let clear = (0.3, 0.5);
+        assert!(
+            matches!(
+                boundary_crossing(&body, Operand::B, face, &tilted, clear, band),
+                Ok(BoundaryCrossing::Clear)
+            ),
+            "the sound face is clear of the circle there"
+        );
         let mut torn = body.clone();
         let (vertex, _) = torn.vertices().next().expect("the sheet has vertices");
         torn.vertices.remove(vertex);
@@ -667,7 +677,7 @@ mod crossing_rows {
             "boundary_crossing (start)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
+            |b| boundary_crossing(b, Operand::B, face, &tilted, clear, band),
         );
         let (edge, curve) = body
             .edges()

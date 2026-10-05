@@ -144,3 +144,10 @@ each one over a key the caller carries:
 `PointInSolidError::CorruptFace`'s raises in `wall_outline`,
 `torus_chart_windows` and `sphere_chart_trim` are untouched: only the
 curve reads that answered as a kind were converted there.
+The result is that one walk can answer in two ways. In
+`sphere_chart_trim`, a torn loop walk, half-edge, vertex or point
+answers `CorruptFace`, while a torn edge or curve panics. `wall_outline`
+splits the same way, and so does `torus_chart_windows`, where a torn
+edge is also typed. Each site carries a comment that hands its
+`CorruptFace` raises to this row. Once this row's split ("record misses
+panic") lands, each walk answers one way.
