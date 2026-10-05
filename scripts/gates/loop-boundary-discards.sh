@@ -167,7 +167,7 @@ REGISTER=(
   "crates/topo/src/boolean/sphere_region.rs|sphere_face_region||2|audited: a lone-vertex RING holds no edge, so it has no arc for a ray to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace, never passed over"
   "crates/topo/src/boolean/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own chart trim (cylinder_chart_trim, cone_slant_window, sphere_chart_trim, torus_chart_windows), and that walk is where a non-cycle is answered"
   "crates/topo/src/boolean/vtxfac.rs|classify_vertex_on_face||1|unaudited"
-  "crates/topo/src/boolean/zip.rs|zip_seam||1|unaudited"
+  "crates/topo/src/boolean/zip.rs|section_cycle||1|unaudited"
   # The census's one loop walk: an unwalkable loop is handed back as
   # `Err(loop)` and every caller answers it at its own site — snapshot
   # and the hull closures take no vertex from it, `line_bounded` reads
@@ -195,7 +195,6 @@ REGISTER=(
   # and the loop-re-parenting doors' drop all read it, and none of them
   # discards a boundary of its own.
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
-  "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
   "crates/topo/src/review_d18.rs|far_loop||1|audited: the discarded variant is a lone vertex — no half-edge to plant a namer on, and none a kill walks, so the far loop the witness tears must be a cycle"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"

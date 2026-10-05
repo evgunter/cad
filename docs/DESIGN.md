@@ -171,14 +171,13 @@ representation of reversal. Normative consequences:
   normal.
 - Orientation reversal is **exact structure**, never a numeric decide:
   `revert` flips `sense` on every face carried by a non-plane surface,
-  negates the stored normal of `Plane`-carried faces, and moves every
-  loop's cycle anchor to its source predecessor (the anchor is where a
-  periodic chart's loop wrap is reported, and a reversed cycle keeps it
-  at the closure only if the anchor moves with the direction —
-  `topo`'s `LoopBoundary::Cycle`). The two normal encodings are
+  negates the stored normal of `Plane`-carried faces, and inverts every
+  joint element, moving it onto its source predecessor (a joint's
+  element read from the other side is its inverse — `topo`'s
+  `JointElement`); no loop's anchor moves. The two normal encodings are
   exclusive by surface kind, so every outward normal is negated exactly
-  once, the anchor move is a key swap, and `revert ∘ revert` is
-  bit-identical at every scalar backend.
+  once, inverting an element is exact integer arithmetic, and
+  `revert ∘ revert` is bit-identical at every scalar backend.
 - A face's `sense` is decided where its chart is decided. An Euler
   operator minting a face on its parent's chart (`same_chart`: one
   key, or keys sharing one payload) derives the bit from its own

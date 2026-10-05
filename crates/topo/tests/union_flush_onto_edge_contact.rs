@@ -1097,7 +1097,7 @@ fn prism_faces(rays: [[f64; 3]; 3], scale: f64) -> Vec<Vec<[f64; 3]>> {
 }
 
 /// The half-spaces `n·p ≤ d` of the box `lo ≤ p ≤ hi`.
-fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
+pub(crate) fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
     (0..3)
         .flat_map(|k| {
             let e: [f64; 3] = core::array::from_fn(|j| if j == k { 1.0 } else { 0.0 });
@@ -1113,7 +1113,7 @@ fn box_planes(lo: f64, hi: f64) -> Vec<([f64; 3], f64)> {
 /// the mean vertex summed. "On the plane" is exact equality, so a face
 /// counts as lying on a plane only where its coordinates meet it
 /// exactly, as the boxes' and the lenses' zero coordinates do.
-fn clipped_volume(mut faces: Vec<Vec<[f64; 3]>>, planes: &[([f64; 3], f64)]) -> f64 {
+pub(crate) fn clipped_volume(mut faces: Vec<Vec<[f64; 3]>>, planes: &[([f64; 3], f64)]) -> f64 {
     let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     let cross = |a: [f64; 3], b: [f64; 3]| {
@@ -1611,32 +1611,57 @@ fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
     );
 }
 
-/// **A corner crossing the cube's corner four times refuses
-/// `PairingMismatch`**
+/// **A corner crossing the cube's corner four times builds every op**
 /// (`work/cleave/a-corner-crossing-another-four-times-refuses-pairing-mismatch.md`):
 /// a thin trihedral corner at the origin whose cone holds the cube's
 /// z-edge and crosses its bottom face, so the two corners' boundaries
-/// cross four times, in two section-polygon edges. The record pairing's
-/// B-adjacency guard orders two germs in one B sector by their A
-/// sector rather than round the sector, and refuses every op, in both
-/// operand orders: pinned as it stands.
+/// cross four times, in two section-polygon edges. Each solid orders
+/// the germs round its own corner, two in one sector by angle, so the
+/// pairing reads adjacent in both; every op, in both operand orders,
+/// builds at the volume clipping the corner to the cube gives
+/// ([`clipped_volume`]) and passes tier 2, 3′ and the certificate.
+/// Red as `PairingMismatch` when two germs in one sector are ordered by
+/// the other solid's sector, and as `JoinDesync` when the pairing starts
+/// at A's first germ whatever the op keeps of A.
 #[test]
-fn a_corner_crossing_the_cubes_four_times_refuses_pairing_mismatch() {
+fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
     let tol = Tol::witness();
-    let band = corner_prism(
-        [
-            [0.5948, 0.757, -0.2704],
-            [-0.5774, -0.5774, 0.5774],
-            [0.757, 0.5948, -0.2704],
-        ],
-        0.4,
-        tol,
+    let rays = [
+        [0.5948, 0.757, -0.2704],
+        [-0.5774, -0.5774, 0.5774],
+        [0.757, 0.5948, -0.2704],
+    ];
+    let band = corner_prism(rays, 0.4, tol);
+    let y_volume = clipped_volume(prism_faces(rays, 0.4), &[]);
+    let common = clipped_volume(prism_faces(rays, 0.4), &box_planes(0.0, 1.0));
+    assert!(
+        common > 0.0 && common < y_volume,
+        "the corner crosses the cube"
     );
     for (op, got) in against_the_cube(&band, &[], tol) {
+        let want = match op {
+            "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
+            "y ∖ cube" => y_volume - common,
+            "cube ∖ y" => 1.0 - common,
+            _ => common,
+        };
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        let volume = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
-            matches!(got, Err(BooleanError::PairingMismatch { .. })),
-            "{op}: want PairingMismatch, got {:?}",
-            got.map(|_| ())
+            (volume - want).abs() < 1e-9,
+            "{op}: volume {volume}, want {want}"
+        );
+        assert_eq!(topo::validate_closed(&out.body), Ok(()), "{op}: tier 2");
+        assert_eq!(
+            validate_pseudomanifold(&out.body, &out.contacts, tol),
+            Ok(()),
+            "{op}: 3′"
+        );
+        assert!(
+            topo::validate_geometric_certificate(&out.body, tol).is_ok(),
+            "{op}: the certificate"
         );
     }
 }
@@ -1648,8 +1673,12 @@ fn a_corner_crossing_the_cubes_four_times_refuses_pairing_mismatch() {
 /// and the other two in the gaps between, so the pieces' cuts
 /// alternate round the corner. The shared corner's runs reconcile, and
 /// ∪ and ∖ with `y` first and `cube ∩ y` build at volumes that agree
-/// with each other; `y ∩ cube` and `cube ∪ y` refuse `JoinDesync` and
-/// `cube ∖ y` refuses `Euler(SelfLoopEdge)`: pinned as they stand.
+/// with each other. In `y ∩ cube`, `cube ∪ y` and `cube ∖ y` the band's
+/// pair, which crosses the cube's corner four times, has no run in the
+/// cube's corner clear of the other pieces' cuts, both ways round, and
+/// refuses `SharedVertexCrossings`
+/// (`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
+/// pinned as they stand.
 #[test]
 fn three_corners_alternating_round_the_cube_refuse_three_ops() {
     let tol = Tol::witness();
@@ -1685,8 +1714,10 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
     let mut volumes = std::collections::BTreeMap::new();
     for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
         match (op, got) {
-            ("y ∩ cube" | "cube ∪ y", Err(BooleanError::JoinDesync { .. }))
-            | ("cube ∖ y", Err(BooleanError::Euler(_))) => {}
+            (
+                "y ∩ cube" | "cube ∪ y" | "cube ∖ y",
+                Err(BooleanError::SharedVertexCrossings { .. }),
+            ) => {}
             ("y ∪ cube" | "y ∖ cube" | "cube ∩ y", Ok(BooleanResult::Body(out))) => {
                 let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
                 assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());

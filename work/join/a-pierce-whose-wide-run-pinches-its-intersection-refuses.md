@@ -2,11 +2,12 @@
 id: a-pierce-whose-wide-run-pinches-its-intersection-refuses
 kind: issue
 title: A two-run pierce whose second run holds a face's bisector and the -z edge refuses its intersection (derived ring role order)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
+closed: 2026-10-05
 ---
 
 
@@ -51,3 +52,35 @@ Diagnose first. Two questions: which face of the result carries the
 pinch's crossed corner, and whether the zip can be taught a second
 visit of a fused vertex. The zip's second fusion is a zero-length
 self-loop, so the `kev` refuses.
+
+## Built
+
+Branch `join/pierce-pinch-families`.
+
+**First wrong state: the intersection's ring facing, then the zip.**
+Main faced an intersection's ring struts toward the start germ by a
+measured rule. In this family the walk about the pierced face's normal
+reads the end germ, and the join's ring lane refuses the start facing
+("derived ring role order"). With the walk's facing the join completes,
+and the seam is one figure-eight section polygon that both operands
+keep through one vertex at `v`, passed twice. The zip fuses the first
+meeting, and the second would fuse the vertex to itself
+(`Euler(SelfLoopEdge)`). Before the zips, no kept face through `v`
+lies in both cones of the pinch: the cube face's two lobes are two
+faces, and so are the prism top's two sectors. So nothing yet carries
+the crossed corner that keeps two cones on one vertex.
+
+**What changed.**
+- The ring struts face by the walk in every op; the intersection rule
+  is gone (`vtxfac.rs`, step 3).
+- `zip::cross_pinches` runs before the zips. It simulates their fusion
+  order and, where a pair would fuse a vertex to itself, splits the
+  vertex across two corners of kept faces first. Here those are the
+  outer corners of two faces of one surface: `mev` between them, then
+  `kef`, makes them one face whose boundary meets itself at `v`, and
+  that face carries the crossed corner. The zips then fuse a tree.
+- The absorption is recorded (`Descendants`, `BooleanNaming::merge_groups`).
+
+Rows: `join_pierce_strut_facing::a_wide_run_builds_in_every_op` (every
+op, both orders, `SOUND`, the closed-form volume, one vertex at `v`) and
+`a_crossed_pinch_names_the_faces_it_merged`.

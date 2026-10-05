@@ -81,6 +81,7 @@ use crate::entity::{
 };
 use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
@@ -211,12 +212,12 @@ pub struct Body<T: Real> {
     pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
     pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
     // M5 PR 6 pcurve caches (C4): the per-HALF-EDGE certified chart
-    // image of an edge's carrier. Parallel to the half-edge arena
-    // exactly as provenance is — and per half-edge, not per edge and
-    // not per (edge, face), because a SEAM edge's two half-edges lie
-    // on the SAME surface with DIFFERENT pcurves (the u = 0 vs u = 2π
-    // branches), which any coarser key cannot hold (C4, spec §1). A
-    // row is present only where a cache was minted and certified
+    // image of an edge's carrier, a function of the edge and the face's
+    // chart alone. Parallel to the half-edge arena exactly as
+    // provenance is — per half-edge, because a SEAM edge's two
+    // half-edges lie on the SAME surface with one image and two joint
+    // elements (`joints`), which a coarser key cannot hold (C4, spec
+    // §1). A row is present only where a cache was minted and certified
     // (`crate::pcurves`); planar faces store nothing (M2's
     // derive-on-demand status, C4 verbatim), so an all-planar body
     // carries an empty map. On every other chart a row is mandatory at
@@ -225,6 +226,13 @@ pub struct Body<T: Real> {
     // a fitted face at a scalar with no fitted door: C4's exemption,
     // `crate::pcurves`' `not_owed`), which may store none.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
+    // The other half of a pcurve row (C4, `crate::joint`): per
+    // half-edge, the element of the joint INTO it — the deck
+    // transformation carrying its image onto the end of its `prev`'s
+    // image. Present where both images of the joint are stored and the
+    // writer decided or summed it; a door that leaves either side
+    // rowless leaves no element there.
+    pub(crate) joints: SecondaryMap<HalfEdgeKey, JointElement>,
     // Null-face annotations (F9): typed loop-role attributes on null
     // (section-polygon) faces, parallel to the face arena like the
     // provenance maps. A record lives only while its face holds both
@@ -300,6 +308,7 @@ impl<T: Real> Body<T> {
             curves: SlotMap::with_key(),
             surfaces: SlotMap::with_key(),
             pcurves: SecondaryMap::new(),
+            joints: SecondaryMap::new(),
             null_faces: SecondaryMap::new(),
             solid_provenance: SecondaryMap::new(),
             shell_provenance: SecondaryMap::new(),
@@ -1920,12 +1929,92 @@ impl<T: Real> Body<T> {
         self.pcurves.iter()
     }
 
-    /// The stored pcurve cache of `half_edge`, or `None` when the
-    /// half-edge stores none (derive it on demand through
-    /// [`crate::pcurves::pcurve_of`]) or the key is stale;
+    /// The stored pcurve cache of `half_edge` — the edge's IMAGE in the
+    /// face's chart, a function of the edge and the chart alone, which
+    /// a seam's two halves share — or `None` when the half-edge stores
+    /// none (derive it on demand through [`crate::pcurves::pcurve_of`])
+    /// or the key is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    /// Where the face's loop sits in the chart is the lift's
+    /// ([`Body::loop_lift`]).
     pub fn pcurve(&self, half_edge: HalfEdgeKey) -> Option<&PcurveCache<T>> {
         self.pcurves.get(half_edge)
+    }
+
+    /// The element of the joint into `half_edge` (C4,
+    /// [`crate::joint`]): the deck transformation carrying its image
+    /// onto the end of its `prev`'s image, or `None` where the joint
+    /// stores none — a side of it is rowless, or the key is stale.
+    pub fn joint(&self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+        self.joints.get(half_edge).copied()
+    }
+
+    /// Every stored joint element, in half-edge-slot order (D9).
+    pub fn joints(&self) -> impl Iterator<Item = (HalfEdgeKey, JointElement)> + '_ {
+        self.joints.iter().map(|(he, e)| (he, *e))
+    }
+
+    /// **A loop's lift** ([`crate::pcurves::loop_lift`]): each half-edge
+    /// of `r#loop` in cycle order from its `first`, with its image moved
+    /// by the elements summed along the loop — the chain of chart curves
+    /// the loop's readers draw.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pcurves::LiftGap`] naming the first half-edge whose
+    /// image or joint element is missing.
+    ///
+    /// # Panics
+    ///
+    /// [`crate::pcurves::loop_lift`]'s.
+    #[track_caller]
+    pub fn loop_lift(
+        &self,
+        r#loop: crate::entity::LoopKey,
+    ) -> Result<Vec<crate::pcurves::LiftedRow<'_, T>>, crate::pcurves::LiftGap>
+    where
+        T: geom_core::Decide,
+    {
+        crate::pcurves::loop_lift(self, r#loop)
+    }
+
+    /// Writes one row — `half_edge`'s image and the element of the joint
+    /// into it, or no element where the writer decided none.
+    pub(crate) fn write_row(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        image: PcurveCache<T>,
+        element: Option<JointElement>,
+    ) {
+        self.pcurves.insert(half_edge, image);
+        self.write_joint(half_edge, element);
+    }
+
+    /// Writes the element of the joint into `half_edge`: `None` clears
+    /// it.
+    pub(crate) fn write_joint(&mut self, half_edge: HalfEdgeKey, element: Option<JointElement>) {
+        match element {
+            Some(element) => {
+                self.joints.insert(half_edge, element.canonical());
+            }
+            None => {
+                self.joints.remove(half_edge);
+            }
+        }
+    }
+
+    /// Attaches the element of the joint into `half_edge`, returning the
+    /// one it replaced — [`Body::attach_pcurve`]'s companion, under the
+    /// same trust posture: the tier-3 pcurve pass re-decides every joint
+    /// ([`crate::pcurves::validate_pcurves`]). The element is stored in
+    /// its canonical form ([`JointElement::canonical`]: a reset's
+    /// azimuth periods dropped).
+    pub fn attach_joint(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        element: JointElement,
+    ) -> Option<JointElement> {
+        self.joints.insert(half_edge, element.canonical())
     }
 
     /// Attaches a **certified** pcurve cache to `half_edge`, returning
@@ -1958,6 +2047,12 @@ impl<T: Real> Body<T> {
     /// typed on absence; nothing re-derives a branch silently.
     pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
         self.pcurves.remove(half_edge)
+    }
+
+    /// Removes and returns the element of the joint into `half_edge` —
+    /// [`Body::attach_joint`]'s inverse.
+    pub fn detach_joint(&mut self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+        self.joints.remove(half_edge)
     }
 
     /// All null-face annotations (F9 — see [`crate::null`]), in

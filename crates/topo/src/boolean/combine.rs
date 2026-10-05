@@ -755,6 +755,14 @@ fn graft_solids_impl<T: geom_core::Decide>(
         };
         dst.pcurves.insert(dk, cache.clone());
     }
+    // The joint elements go with their half-edges the same way: the
+    // graft copies every link, so each joint is the joint it was.
+    for (k, &element) in src.joints.iter() {
+        let Some(&dk) = half_edges.get(k) else {
+            continue;
+        };
+        dst.joints.insert(dk, element);
+    }
 
     // ---- Description surface-key remap (M3 PR 5, the extrude-operand
     // finding): `Intersection`/`Seam` descriptions reference SURFACE

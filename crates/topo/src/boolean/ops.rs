@@ -100,18 +100,11 @@
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
 //!   ([`Exempt::Rest`]).
-//! - **Four-germ vertex–vertex sites**: where a vertex of the other
-//!   operand coincides with a 315° reflex corner and its wall lies
-//!   flush on the corner's notch wall under a tilted cap, the vertex
-//!   pair keeps four crossing germs, and `insert` runs each pair's null
-//!   edge in B in A's germ order rather than B's: the B runs overlap and
-//!   the op refuses (`Euler(FanStartMismatch)`, `JoinDesync`;
-//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). Some such
-//!   unions are not refused: the declared-REST zip answers them after
-//!   the join's refusal, with a wrong volume
-//!   (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
-//!   The vertex-on-face form of the same corner (the corner piercing a
-//!   cap's interior) is a whole-orbit pierce run and answers exactly.
+//! - **Six-crossing vertex–vertex sites**: where two corners' links
+//!   cross six times, A's consecutive pairing can nest in B's walk
+//!   order, and `insert`'s F12 guard refuses `PairingMismatch`
+//!   (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
+//!   Four crossings pair in both solids' orders and build.
 
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
@@ -251,8 +244,9 @@ pub struct BooleanNaming {
     /// has no result key (translate the kept column through
     /// `graft_vertices`).
     pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
-    /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
-    /// result keys.
+    /// Face absorption groups `(kept, absorbed…)`, result keys: the
+    /// pinch crossings' (`zip::cross_pinches`), then
+    /// `merge_coplanar_faces`'.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
     /// Curved merge groups the output stage did NOT glue, as outside
     /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
@@ -603,6 +597,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
+    let crossed = super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, tol)?;
+    desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
         desc.absorb_zip(&rep);
@@ -657,7 +653,11 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges,
         vertex_merges,
         weld_merges_b: fin.weld_merges_b,
-        merge_groups: merge_rows(&merged),
+        merge_groups: crossed
+            .iter()
+            .map(|&(absorbed, kept)| (kept, vec![absorbed]))
+            .chain(merge_rows(&merged))
+            .collect(),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
         face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
@@ -2562,6 +2562,11 @@ impl Descendants {
             self.fused.insert(dead);
             self.fused.insert(kept);
         }
+    }
+
+    /// Face absorptions `(absorbed, kept)` outside the coplanar merge.
+    pub(super) fn absorb_faces(&mut self, rows: &[(FaceKey, FaceKey)]) {
+        self.faces.extend(rows.iter().copied());
     }
 
     pub(super) fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {

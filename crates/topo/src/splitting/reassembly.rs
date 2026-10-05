@@ -110,23 +110,23 @@ fn reglue_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
     // writeup): pair 0 via mekr (kills the ring loop) + kev; pairs
     // n−1 … 1 via mef + kev + kef(rs[j+1 mod n]); final kef(rs[1]).
     let self_loop = |body: &Body<T>, he| EdgeCurveSpec::self_loop_circle_at(point_of(body, he));
-    let n0 = body
-        .mekr(
-            MekrSite::Cycles {
-                target: ob[0],
-                ring: rs[0],
-            },
-            self_loop(body, ob[0]),
-            tol,
-        )
-        .unwrap();
     // The zip's kills merge a vertex into its coincident copy across a
     // certified closing circle, and the merged fan's chords must still
     // end where they land: the band-taking kill re-certifies each one.
-    body.kev_describing(n0.he_plus, &[], tol).unwrap();
-    for j in (1..n).rev() {
-        let nj = body
-            .mef(
+    for j in crate::boolean::zip::fusion_order(n) {
+        let he_plus = if j == 0 {
+            body.mekr(
+                MekrSite::Cycles {
+                    target: ob[0],
+                    ring: rs[0],
+                },
+                self_loop(body, ob[0]),
+                tol,
+            )
+            .unwrap()
+            .he_plus
+        } else {
+            body.mef(
                 MefSite::Chords {
                     he1: ob[j],
                     he2: rs[j],
@@ -135,9 +135,13 @@ fn reglue_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 FaceSurface::Inherit,
                 tol,
             )
-            .unwrap();
-        body.kev_describing(nj.he_plus, &[], tol).unwrap();
-        body.kef(rs[(j + 1) % n]).unwrap();
+            .unwrap()
+            .he_plus
+        };
+        body.kev_describing(he_plus, &[], tol).unwrap();
+        if j != 0 {
+            body.kef(rs[(j + 1) % n]).unwrap();
+        }
     }
     body.kef(rs[1 % n]).unwrap();
 }

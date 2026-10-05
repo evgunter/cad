@@ -25,18 +25,20 @@
 //! lobes that touch at `v`. The union and the intersection pinch there
 //! (two cones of boundary meet at one point); each difference does
 //! not. Every op, in both orders, builds `SOUND` with one vertex at
-//! `v`. Red as the row was filed: every run refuses, `JoinDesync` or
-//! `Euler(SelfLoopEdge)`. Red too if the ring struts ignore the walk
-//! (`insert::strut_order`), if an intersection's ring copies keep the
-//! Out side (the zip meets the pinch vertex twice on both seams:
-//! `SelfLoopEdge`), or if a union's two copies are left unwelded (the
-//! cube's face runs through both).
+//! `v`. Red if the ring struts ignore the walk (`insert::strut_order`),
+//! if a union's two copies are left unwelded (the cube's face runs
+//! through both), or if the zips fuse the pinch to itself
+//! (`zip::cross_pinches`): the intersection keeps one vertex at `v` in
+//! both operands, and only the cube face's two lobes, made one face,
+//! cross between the cones there.
 //!
-//! Two neighbouring families build in part, and the rest refuses typed
-//! (filed): a second run holding the x = 1 face's bisector too
-//! (`WIDE_RUN`) refuses its intersection, and two runs that are each a
-//! lone edge (`EDGE_RUNS`) refuse cube ∖ prism; their prism ∖ cube
-//! keeps the two copies apart on one point, where no face meets both.
+//! Two neighbouring families pinch too, and build in every op. A
+//! second run holding the x = 1 face's bisector as well (`WIDE_RUN`)
+//! pinches its intersection, crossed as the two-run one is. Two runs
+//! that are each a lone edge (`EDGE_RUNS`) pinch cube ∖ prism over two
+//! seams, crossed by the cube face, whose two holes meet at `v`; their
+//! prism ∖ cube keeps the two copies apart on one point, where no face
+//! meets both.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -158,14 +160,13 @@ type Op = fn(
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
 
-/// Builds every op in both operand orders but those `refused` names.
+/// Builds every op in both operand orders.
 /// Each body is `SOUND` by [`outcome`] (tiers 2 and 3′, the
 /// certificate, a legal operand, its volume), passes tier 3, holds the
 /// prism's cut by the plane to 1e-9, and holds the pierce point as one
 /// vertex wherever a face meets it: its vertices there share one point,
-/// and no face runs through two of them. Each `(order, op)` in
-/// `refused` refuses typed.
-fn assert_pose(pose: &str, m: [f64; 3], refused: &[(&str, &str)]) {
+/// and no face runs through two of them.
+fn assert_pose(pose: &str, m: [f64; 3]) {
     let prism = finished(
         "the prism",
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
@@ -185,11 +186,6 @@ fn assert_pose(pose: &str, m: [f64; 3], refused: &[(&str, &str)]) {
         ];
         for (op, run, want) in ops {
             let what = format!("{pose}: {order} {op}");
-            if refused.contains(&(order, op)) {
-                let r = run(x, y, &decls, tol());
-                assert!(r.is_err(), "{what}: {}", outcome(r, want, tol()));
-                continue;
-            }
             let line = outcome(run(x, y, &decls, tol()), want, tol());
             assert!(line.starts_with("OK SOUND"), "{what}: {line}");
             let Ok(BooleanResult::Body(bb)) = run(x, y, &decls, tol()) else {
@@ -241,14 +237,14 @@ fn assert_pose(pose: &str, m: [f64; 3], refused: &[(&str, &str)]) {
 /// arrival edge meets first, so `he_plus` faces it.
 #[test]
 fn a_bare_bisector_strut_faces_its_start_germ_with_he_plus() {
-    assert_pose("bare", BARE, &[]);
+    assert_pose("bare", BARE);
 }
 
 /// The whole-orbit run: the start germ is the one the walk meets last,
 /// so `he_minus` faces it.
 #[test]
 fn a_whole_orbit_strut_faces_its_start_germ_with_he_minus() {
-    assert_pose("whole orbit", BARE.map(|c| -c), &[]);
+    assert_pose("whole orbit", BARE.map(|c| -c));
 }
 
 /// Two Out runs at the corner, the bisector alone and the −z edge
@@ -256,35 +252,72 @@ fn a_whole_orbit_strut_faces_its_start_germ_with_he_minus() {
 #[test]
 fn two_out_runs_at_the_corner_build_in_every_op() {
     for m in TWO_RUNS {
-        assert_pose(&format!("two runs {m:?}"), m, &[]);
+        assert_pose(&format!("two runs {m:?}"), m);
     }
 }
 
 /// The −z edge's run holding the x = 1 face's bisector too, tilted far
-/// toward x: the union and the difference build, and the intersection
-/// still refuses (`a-pierce-whose-wide-run-pinches-its-intersection-refuses`).
+/// toward x: every op builds, the intersection pinched at `v`.
 #[test]
-fn a_wide_run_builds_its_union_and_difference() {
+fn a_wide_run_builds_in_every_op() {
     for m in WIDE_RUN {
-        assert_pose(
-            &format!("wide run {m:?}"),
-            m,
-            &[("prism-cube", "intersect"), ("cube-prism", "intersect")],
-        );
+        assert_pose(&format!("wide run {m:?}"), m);
     }
 }
 
-/// The +x and +y edges alone read Out, two fans: the union, the
-/// intersection and prism ∖ cube build, and cube ∖ prism, which
-/// pinches, still refuses
-/// (`a-pierce-whose-difference-pinches-at-two-edge-runs-refuses`).
+/// The +x and +y edges alone read Out, two fans: every op builds, cube
+/// ∖ prism pinched at `v` across two seams.
 #[test]
-fn two_edge_runs_build_their_union_and_intersection() {
+fn two_edge_runs_build_in_every_op() {
     for m in EDGE_RUNS {
-        assert_pose(
-            &format!("edge runs {m:?}"),
-            m,
-            &[("cube-prism", "subtract")],
+        assert_pose(&format!("edge runs {m:?}"), m);
+    }
+}
+
+/// **A crossed pinch names the faces it made one.** The two-run
+/// intersection pinches at `v`, and the face that crosses between its
+/// cones there is two coplanar faces made one (`zip::cross_pinches`):
+/// the result's naming holds that absorption as a merge group, its kept
+/// face live and running through `v` twice, its absorbed face dead.
+#[test]
+fn a_crossed_pinch_names_the_faces_it_merged() {
+    let prism = finished(
+        "the prism",
+        fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
+    );
+    let cube = finished("the cube", cube_beyond(TWO_RUNS[0]));
+    let decls = BooleanDeclarations::default();
+    for (order, x, y) in [("prism-cube", &prism, &cube), ("cube-prism", &cube, &prism)] {
+        let Ok(BooleanResult::Body(bb)) = topo::intersect_with(x, y, &decls, tol()) else {
+            panic!("{order}: the intersection did not build");
+        };
+        let body = &bb.body;
+        let corners_at_v = |face| {
+            let f = body.get_face(face).unwrap();
+            std::iter::once(&f.outer)
+                .chain(&f.rings)
+                .filter_map(|&l| match body.get_loop(l).unwrap().boundary {
+                    LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+                    LoopBoundary::Empty { .. } => None,
+                })
+                .flatten()
+                .filter(|&he| {
+                    let v = body.get_half_edge(he).unwrap().start;
+                    let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                    [p.x, p.y, p.z] == V
+                })
+                .count()
+        };
+        let crossed = bb.naming.merge_groups.iter().any(|(kept, absorbed)| {
+            body.get_face(*kept).is_some()
+                && corners_at_v(*kept) == 2
+                && !absorbed.is_empty()
+                && absorbed.iter().all(|&f| body.get_face(f).is_none())
+        });
+        assert!(
+            crossed,
+            "{order}: no merge group names the face crossing the pinch: {:?}",
+            bb.naming.merge_groups
         );
     }
 }

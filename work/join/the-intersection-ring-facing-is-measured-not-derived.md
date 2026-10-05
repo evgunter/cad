@@ -2,11 +2,12 @@
 id: the-intersection-ring-facing-is-measured-not-derived
 kind: issue
 title: An intersection's ring struts face their start germ by a measured rule: the walk reads the end germ in half the two-run poses, and nothing derives why the start builds
-status: open
+status: closed
 opened: 2026-10-04
 priority: P1
 cost: H
 refs: [a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
+closed: 2026-10-05
 ---
 
 
@@ -51,3 +52,7 @@ Derive which face the pinch's crossed corner belongs to in an
 intersection, from the germs' geometry or the sense algebra. Then check
 the derivation against the START/END split above. If it confirms the
 rule, the claim site cites it; if not, the rule changes with the row.
+
+## Built
+
+PR 4038 (2026-10-05). The measured ∩ start rule is gone, and the ring struts face by the walk in every op. That is right once `zip::cross_pinches` crosses the pinch the rule had been dodging. Both dual reviewers built every two-run face ∩ SOUND: r2 350/350 over 8 corners, r1 340 per order on the original five corners plus its new ones, notch307 and shallow200 included. The rule's mutant turns 2 rows red.
