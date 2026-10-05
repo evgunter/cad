@@ -2,7 +2,7 @@
 id: the-site-mints-plan-reads-the-rewired-loop-whole-on-every-op
 kind: issue
 title: The site mint's plan still reads the rewired loop whole on every op (presence, chart box, element), so N ops on one face cost O(N²) reads
-status: dispatched
+status: open
 opened: 2026-10-04
 priority: P3
 cost: M
