@@ -1,7 +1,7 @@
 ---
 id: movefac-roundtrip-re-make-is-unbuilt
 kind: issue
-title: seqgen's roundtrip skips every movefac choice: its kfmrh + mfkrh re-make is unbuilt, and the catalog row's pointer to it named a row about something else
+title: "seqgen's roundtrip skips every movefac choice: its kfmrh + mfkrh re-make is unbuilt, and the catalog row's pointer to it named a row about something else"
 status: closed
 opened: 2026-09-30
 refs: [movefac-row-skips-three-component-shells]

@@ -148,7 +148,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey};
 use crate::euler::{MefSite, MevSite};
 use crate::euler_kill::MergedMember;
-use crate::euler_ring::MekrSite;
+use crate::euler_ring::{KemrResult, MekrSite};
 use crate::iso::canonical_form;
 use crate::readback::{EulerCounts, euler_counts};
 
@@ -161,7 +161,7 @@ pub(crate) enum OpChoice {
     MevFan(HalfEdgeKey, HalfEdgeKey),
     MefChords(HalfEdgeKey, HalfEdgeKey),
     MefLone(LoopKey),
-    Kemr(HalfEdgeKey, HalfEdgeKey),
+    Kemr(HalfEdgeKey, HalfEdgeKey, Door),
     Mekr(MekrSite),
     Kfmrh(FaceKey, FaceKey, Door),
     /// `kfmrh`'s **shell-fusion** form: `f1` and `f2` lie in DIFFERENT
@@ -197,7 +197,7 @@ pub(crate) enum OpChoice {
     Movefac(ShellKey),
 }
 
-/// Which of a loop-moving operator's two doors a choice runs: the
+/// Which of an operator's two doors a choice runs: the
 /// keys-only door, or its `_minting` twin at the walk's band. A
 /// generated body stores no pcurve row, so the two plan nothing and
 /// agree on every site; each candidate is offered through both, so the
@@ -256,6 +256,21 @@ fn kef_by(body: &mut Body<f64>, he: HalfEdgeKey, door: Door, tol: Tol) {
         Door::Minting => body.kef_minting(he, tol),
     }
     .unwrap();
+}
+
+/// `kemr(he1, he2)` through `door`.
+fn kemr_by(
+    body: &mut Body<f64>,
+    he1: HalfEdgeKey,
+    he2: HalfEdgeKey,
+    door: Door,
+    tol: Tol,
+) -> KemrResult {
+    match door {
+        Door::KeysOnly => body.kemr(he1, he2),
+        Door::Minting => body.kemr_minting(he1, he2, tol),
+    }
+    .unwrap()
 }
 
 /// `ring_move(ring, to_face)` through `door`.
@@ -722,8 +737,9 @@ fn kemr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
         let minus = body.get_half_edge(edge.he_minus).expect("half resolves");
         if plus.parent_loop == minus.parent_loop {
             // Both argument orders: the side association differs.
-            out.push(OpChoice::Kemr(edge.he_plus, edge.he_minus));
-            out.push(OpChoice::Kemr(edge.he_minus, edge.he_plus));
+            for (he1, he2) in [(edge.he_plus, edge.he_minus), (edge.he_minus, edge.he_plus)] {
+                out.extend(Door::BOTH.map(|door| OpChoice::Kemr(he1, he2, door)));
+            }
         }
     }
     out
@@ -1403,8 +1419,8 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
         OpChoice::MefLone(l) => {
             body.mef_chord(MefSite::Lone { r#loop: l }, tol).unwrap();
         }
-        OpChoice::Kemr(he1, he2) => {
-            body.kemr(he1, he2).unwrap();
+        OpChoice::Kemr(he1, he2, door) => {
+            kemr_by(body, he1, he2, door, tol);
         }
         OpChoice::Mekr(site) => {
             body.mekr_chord(site, tol).unwrap();
@@ -1542,13 +1558,13 @@ pub(crate) fn roundtrip(
                 .unwrap();
         }
         // ---- kill ∘ make: the re-make site is derived pre-kill. ----
-        OpChoice::Kemr(he1, he2) => {
+        OpChoice::Kemr(he1, he2, door) => {
             let he1_next = body.get_half_edge(he1).expect("resolves").next;
             let he2_next = body.get_half_edge(he2).expect("resolves").next;
             let old_loop = body.get_half_edge(he1).expect("resolves").parent_loop;
             let ring_side_empty = he1_next == he2;
             let old_side_empty = he2_next == he1;
-            let result = body.kemr(he1, he2).unwrap();
+            let result = kemr_by(body, he1, he2, door, tol);
             let site = match (ring_side_empty, old_side_empty) {
                 (false, false) => MekrSite::Cycles {
                     target: he2_next,
@@ -1746,8 +1762,8 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             body.kev_describing(he, &chords, tol).unwrap();
             continue;
         }
-        if let Some(OpChoice::Kemr(he1, he2)) = kemr_candidates(body, tol).first().copied() {
-            body.kemr(he1, he2).unwrap();
+        if let Some(OpChoice::Kemr(he1, he2, door)) = kemr_candidates(body, tol).first().copied() {
+            kemr_by(body, he1, he2, door, tol);
             continue;
         }
         // Cycle rings: promote to a face (kef will consume it next).
@@ -2130,7 +2146,7 @@ mod tests {
     /// never adjust a filter to bring the old number back.
     #[test]
     fn selection_is_pinned_over_a_fixed_stream_set() {
-        const FINGERPRINT: u64 = 10_871_328_829_263_095_025;
+        const FINGERPRINT: u64 = 12_351_788_739_244_568_152;
         let mut hash = 0xcbf2_9ce4_8422_2325_u64;
         let mut fold = |bytes: &[u8]| {
             for b in bytes {
