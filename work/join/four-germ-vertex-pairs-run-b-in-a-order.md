@@ -2,12 +2,12 @@
 id: four-germ-vertex-pairs-run-b-in-a-order
 kind: issue
 title: A vertex pair with four crossing germs runs its B null edges in A's germ order: 41 reflex-probe poses refuse and one union ships a wrong body
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
 refs: [a-flush-declared-reflex-union-ships-the-wrong-volume, reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+closed: 2026-10-05
 ---
 
 
@@ -131,5 +131,21 @@ a`, at sqQ1 −20°, dLeft 190°, dDown 100°, dRight 7° and 33°, eBot
 −20°, eLeft 0° and 33° (every other op at those poses refuses
 `JoinDesync` on both heads). This row's fix (each solid's own run
 order) should make that refusal unreachable; pinned by
-`join_rc_probes::a_strut_whose_corner_an_earlier_run_moved_refuses_typed`,
+`join_rc_probes::a_strut_beside_its_pairs_fan_builds_every_op`,
 which flips when it lands.
+
+## Built (branch `join/reflex-corner-vertex-vertex`)
+
+The run-order fix above is built there (`insert::run_order`, each
+solid from its own walk order), with three companions it needed: two
+germs in one sector ordered round the sector (`walk_order`); the struts
+of a pair crossing more than twice minted before its fans
+(`SideRun::shared`); and the pairing started where A's runs lie on the
+side the op keeps of A. The four downstream stops this row lists were
+the last two. `join1_r1_reflex_battery`: the probe's 120 sheared
+∩/∪/`a ∖ b` runs at `sx < 0` on `sqQ1`, `dRight`, `eBot` and `eLeft`
+are 120 `SOUND` (main 78), and 0 runs move from a refusal to a wrong
+body. The REST-zip wrong volume this row waited on does not reappear:
+the join now builds those unions itself. The addendum's strut form is
+the third companion's: on the branch its 56 `b ∖ a` poses build `SOUND`,
+and its pin flips to a build.

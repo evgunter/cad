@@ -100,19 +100,11 @@
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
 //!   ([`Exempt::Rest`]).
-//! - **Four-germ vertex–vertex sites**: where a vertex of the other
-//!   operand coincides with a 315° reflex corner and its wall lies
-//!   flush on the corner's notch wall under a tilted cap, the vertex
-//!   pair keeps four crossing germs, and `insert` runs each pair's null
-//!   edge in B in A's germ order rather than B's: the B runs overlap and
-//!   the op refuses (`Euler(FanStartMismatch)`, a strut's moved corner's
-//!   `ClassificationInvariant`, `JoinDesync`;
-//!   `work/join/four-germ-vertex-pairs-run-b-in-a-order`). Some such
-//!   unions are not refused: the declared-REST zip answers them after
-//!   the join's refusal, with a wrong volume
-//!   (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
-//!   The vertex-on-face form of the same corner (the corner piercing a
-//!   cap's interior) is a whole-orbit pierce run and answers exactly.
+//! - **Six-crossing vertex–vertex sites**: where two corners' links
+//!   cross six times, A's consecutive pairing can nest in B's walk
+//!   order, and `insert`'s F12 guard refuses `PairingMismatch`
+//!   (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
+//!   Four crossings pair in both solids' orders and build.
 
 use geom_core::interval::Interval;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};

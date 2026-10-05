@@ -16,30 +16,34 @@
 //!    That lane reads the L-prism's reflex wedge by its extent and
 //!    builds the union (pinned below); no silent mispair exists in the
 //!    right-prism corpus.
-//! 2. **Tilted planar operands: guard unwitnessed (swept).** With a
-//!    linearly-mapped (tilted — no vertical edges) cube corner placed
-//!    on an L-prism's reflex wedge edge interior and reflex cap
-//!    corner, a 24-case tilt sweep produced only clean `Seamed`
-//!    successes (internally gated by tier 1–2 + the volume backstop)
-//!    — every realized crossing set paired B-adjacent. The
-//!    non-convex-link interleaving the guard defends against did not
-//!    materialize on this corpus.
-//! 3. **Nearest non-success (pinned).** One tilt family refuses typed
-//!    deeper in the pipeline (`JoinDesync`: "pair B edge has not
-//!    exactly one surviving end") — loud, operands untouched, never a
-//!    wrong body; pinned below as the guard-adjacent frontier of the
-//!    M3 envelope (a saddle-class configuration the join does not yet
-//!    realize).
+//! 2. **Tilted planar operands (swept).** With a linearly-mapped
+//!    (tilted — no vertical edges) cube corner placed on an L-prism's
+//!    reflex wedge edge interior and reflex cap corner, a 24-case tilt
+//!    sweep ends every union in a gated success or a typed refusal
+//!    other than the guard's.
+//! 3. **A four-germ saddle corner (pinned).** One tilt crosses the
+//!    reflex corner four times. It builds every op, in both operand
+//!    orders, at the volume clipping the tilted cube to the L-prism's
+//!    two boxes gives.
 //!
-//! The guard is NOT proved unreachable for arbitrary tier-2 planar
-//! operands — it stays armed, and this file is the standing hunt
-//! fixture (any future firing lands here).
+//! At four crossings the guard cannot fire on distinct germs: each
+//! solid's link round its vertex is a simple closed curve, and both
+//! non-crossing matchings of four points fix one cyclic order on both
+//! (`insert`'s module docs). At six a nested matching is legal and the
+//! guard refuses; that class has its own witness and row
+//! (`join_pierce_runs_sweep::a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs`,
+//! `work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`). The hunts here stop on any `PairingMismatch` so that it is
+//! read: a six-crossing pose goes on that row, and a four-crossing one
+//! is a bug.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::common;
 use common::{finished, mapped_cube, prism_z};
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Point3, Vec3};
-use topo::{AtRestBody, BooleanError, union};
+use topo::{
+    AtRestBody, BooleanDeclarations, BooleanError, BooleanResult, intersect_with, mass_properties,
+    subtract_with, union, union_with,
+};
 
 /// The L-prism with its reflex wedge edge along z at (2, 2).
 fn l_prism() -> AtRestBody<f64> {
@@ -99,38 +103,88 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
     assert!((v - 40.0 / 3.0).abs() < 1e-9, "volume {v}");
 }
 
-/// Part 3's pin: the tilted saddle-class corner that the join does
-/// not yet realize refuses typed (JoinDesync), operands untouched —
-/// the nearest reachable non-success to the pairing guard.
+/// Part 3's pin: the tilted saddle corner crosses the L-prism's reflex
+/// corner four times. Every op, in both operand orders, builds at the
+/// volume clipping the tilted cube to the L-prism's two boxes gives
+/// (`union_flush_onto_edge_contact::clipped_volume`), passing tiers 2
+/// and 3′ and the certificate, operands untouched. Red as
+/// `PairingMismatch` when two germs in one sector are ordered by the
+/// other solid's sector, as a `ClassificationInvariant` when B runs a
+/// null edge forward in A's order, and as `Euler(SelfLoopEdge)` when
+/// the pairing starts at A's first germ whatever the op keeps of A.
 #[test]
-fn tilted_saddle_corner_refuses_typed() {
+fn tilted_saddle_corner_builds_every_op() {
+    let tol = Tol::witness();
     let a = l_prism();
+    let (e1, e2, e3) = ([0.9, -0.6, 0.5], [0.7, 0.8, -0.55], [-0.45, 0.5, 0.9]);
+    let at = |x: f64, y: f64, z: f64| -> [f64; 3] {
+        core::array::from_fn(|k| [2.0, 2.0, 0.5][k] + x * e1[k] + y * e2[k] + z * e3[k])
+    };
     let b = mapped_cube(
         |x, y, z| {
-            let (e1, e2, e3) = (
-                Vec3::new(0.9, -0.6, 0.5),
-                Vec3::new(0.7, 0.8, -0.55),
-                Vec3::new(-0.45, 0.5, 0.9),
-            );
-            Point3::new(
-                2.0 + x * e1.x + y * e2.x + z * e3.x,
-                2.0 + x * e1.y + y * e2.y + z * e3.y,
-                0.5 + x * e1.z + y * e2.z + z * e3.z,
-            )
+            let p = at(x, y, z);
+            Point3::new(p[0], p[1], p[2])
         },
-        Tol::witness(),
+        tol,
     );
-    let b = finished("the tilted cube", b, Tol::witness());
+    let b = finished("the tilted cube", b, tol);
+    // The tilted cube's six faces as vertex loops, and its volume.
+    let mut faces = Vec::new();
+    for (u, v, w) in [(0, 1, 2), (1, 2, 0), (2, 0, 1)] {
+        for side in [0.0, 1.0] {
+            let p = |s: f64, t: f64| {
+                let mut c = [0.0; 3];
+                (c[u], c[v], c[w]) = (side, s, t);
+                at(c[0], c[1], c[2])
+            };
+            faces.push(vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)]);
+        }
+    }
+    let clip = crate::union_flush_onto_edge_contact::clipped_volume;
+    let vb = clip(faces.clone(), &[]);
+    let common: f64 = [
+        ([0.0, 0.0, 0.0], [4.0, 2.0, 1.0]),
+        ([0.0, 2.0, 0.0], [2.0, 4.0, 1.0]),
+    ]
+    .into_iter()
+    .map(|(lo, hi): ([f64; 3], [f64; 3])| {
+        let planes: Vec<([f64; 3], f64)> = (0..3)
+            .flat_map(|k| {
+                let e: [f64; 3] = core::array::from_fn(|j| if j == k { 1.0 } else { 0.0 });
+                [(e, hi[k]), (e.map(|x| -x), -lo[k])]
+            })
+            .collect();
+        clip(faces.clone(), &planes)
+    })
+    .sum();
+    let va = 12.0;
+    assert!(common > 0.0 && common < vb, "the cube crosses the corner");
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let err = union(&a, &b, Tol::witness()).unwrap_err();
-    // JoinDesync ONLY (review tightening): the frontier is known to be
-    // JoinDesync; accepting PairingMismatch here would mask the D8
-    // witness this suite exists to hunt — if the guard ever fires,
-    // this assert must FAIL so the witness is noticed.
-    assert!(
-        matches!(err, BooleanError::JoinDesync { .. }),
-        "saddle frontier moved (D8 witness? see m3_pr6_saddle docs), got {err:?}"
-    );
+    let d = BooleanDeclarations::default();
+    for (op, got, want) in [
+        ("a ∪ b", union_with(&a, &b, &d, tol), va + vb - common),
+        ("a ∩ b", intersect_with(&a, &b, &d, tol), common),
+        ("a ∖ b", subtract_with(&a, &b, &d, tol), va - common),
+        ("b ∪ a", union_with(&b, &a, &d, tol), va + vb - common),
+        ("b ∩ a", intersect_with(&b, &a, &d, tol), common),
+        ("b ∖ a", subtract_with(&b, &a, &d, tol), vb - common),
+    ] {
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        let v = mass_properties(&out.body, tol).unwrap().volume;
+        assert!((v - want).abs() < 1e-9, "{op}: volume {v}, want {want}");
+        assert_eq!(topo::validate_closed(&out.body), Ok(()), "{op}: tier 2");
+        assert_eq!(
+            topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+            Ok(()),
+            "{op}: 3′"
+        );
+        assert!(
+            topo::validate_geometric_certificate(&out.body, tol).is_ok(),
+            "{op}: the certificate"
+        );
+    }
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
 }
@@ -139,8 +193,8 @@ fn tilted_saddle_corner_refuses_typed() {
 /// (zc = 0.5 — the v-on-e site the reduction refines to v-v) and the
 /// reflex cap corner (zc = 1.0 — the direct v-v site), 24 tilts.
 /// Every case must end in a clean gated success or a typed refusal —
-/// no silent wrongness; a `PairingMismatch` appearing here would be
-/// the D8 witness (none has materialized on this corpus).
+/// no silent wrongness. A `PairingMismatch` stops the sweep to be
+/// read (module docs): none has materialized on this corpus.
 #[test]
 fn tilt_sweep_no_silent_mispair() {
     let a = l_prism();
@@ -170,8 +224,8 @@ fn tilt_sweep_no_silent_mispair() {
                 Ok(_) => {}
                 Err(BooleanError::PairingMismatch { .. }) => {
                     panic!(
-                        "D8 witness found at zc={zc} k={k}: promote this \
-                         tilt to a named firing fixture"
+                        "PairingMismatch at zc={zc} k={k}: six crossings belong \
+                         on the six-crossing row, four are a bug"
                     );
                 }
                 // Any other refusal is typed and loud — acceptable.

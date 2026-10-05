@@ -6562,7 +6562,7 @@ mod tests {
         assert_eq!(body.vertex_orbit_of(v), Some(vec![a, c]), "b is stranded");
         for (he1, he2) in [(a, c), (c, a), (a, a), (c, c)] {
             let mut trial = body.clone();
-            let mut scope = trial.begin_surgery();
+            let mut scope = trial.begin_surgery_on_a_torn_body();
             let site = MevSite::Fan { he1, he2 };
             let created = scope
                 .mev_null(site, crate::NewVertexSide::Above)

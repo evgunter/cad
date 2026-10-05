@@ -317,7 +317,9 @@ fn pierce_point_finding(body: &Body<f64>, at: [f64; 3]) -> Option<String> {
 /// direction of the edge and corner placements at their first turn. No
 /// pose ships a body that is not `SOUND` by [`outcome`], and in the
 /// face placement every body holds `v` as one vertex wherever a face
-/// meets it. Refusals pass: the residue is the filed rows'.
+/// meets it. In the face placement refusals pass: the residue is the
+/// filed rows'. The edge and corner placements reach `v` through the
+/// vertex-vertex lane, where every run builds `SOUND`.
 #[test]
 fn the_sweep_subset_ships_no_bad_body() {
     let mut bad = Vec::new();
@@ -333,7 +335,9 @@ fn the_sweep_subset_ships_no_bad_body() {
                         _ => None,
                     };
                     let line = outcome(r, want, tol());
-                    if line.starts_with("OK") && !line.starts_with("OK SOUND")
+                    let sound = line.starts_with("OK SOUND") || line.starts_with("EMPTY ok");
+                    if place != "face" && !sound
+                        || line.starts_with("OK") && !line.starts_with("OK SOUND")
                         || line.starts_with("EMPTY WRONG")
                     {
                         bad.push(format!("{tag}: {line}"));
@@ -351,6 +355,91 @@ fn the_sweep_subset_ships_no_bad_body() {
         bad.len(),
         bad.join("\n")
     );
+}
+
+/// **A reflex corner crossing a cube's edge or corner four times builds
+/// every op**, in both operand orders, `SOUND` by [`outcome`] against
+/// the clipping oracle. One pose per way the vertex-vertex lane used to
+/// stop there (`boolean/insert.rs`):
+/// - `corner i=0 j=0 psi=2.2`: two germs in one sector of each solid.
+///   Red as `PairingMismatch` when they are ordered by the other solid's
+///   sector rather than round their own. Union and difference are red
+///   as `JoinDesync` or `Euler(SelfLoopEdge)` when the pairing starts
+///   at A's first germ whatever the op keeps of A: a kept vertex of A
+///   then holds both null edges.
+/// - `edge i=2 j=0 psi=1`: a fan and a strut in the two entries of one
+///   physical sector of the cube's edge vertex. Red as `JoinDesync`
+///   "B senses agree" when the fan mints first and moves the half the
+///   strut anchors on, and as a `ClassificationInvariant` when B runs a
+///   null edge forward in A's order, the long way round.
+/// - `edge i=6 j=0 psi=0`: `PairingMismatch` in both orders on the
+///   other solid's sector order.
+#[test]
+fn four_germ_vertex_pairs_build_every_op() {
+    let mut bad = Vec::new();
+    for (place, pose) in [
+        ("corner", (0, 0, 2.2)),
+        ("edge", (2, 0, 1.0)),
+        ("edge", (6, 0, 0.0)),
+    ] {
+        let lo = PLACEMENTS.iter().find(|p| p.0 == place).unwrap().1;
+        for (tag, r, want) in pose_runs((place, lo), pose) {
+            let line = outcome(r, want, tol());
+            if !line.starts_with("OK SOUND") {
+                bad.push(format!("{tag}: {line}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **The F12 adjacency guard fires on six distinct germs.** A 343°
+/// notch's reflex corner at `v` on the cube's edge (the grid's `i=3
+/// j=0 psi=1`) crosses the cube six times. A's walk order pairs
+/// `(0, 3) (2, 4) (5, 1)`, and B reads them at `(2, 5) (0, 1) (4, 3)` of
+/// six: a nested, non-crossing matching, so `(0, 3)` is not adjacent in
+/// B and every op in both orders refuses `PairingMismatch`
+/// (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
+/// Red when a pair not adjacent in B falls to the run-swallowing test
+/// instead (the run's In and Out ends then meet at one vertex), and red,
+/// as it should be, when the nested pairing builds.
+#[test]
+fn a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs() {
+    let notch = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 0.85),
+        (1.0, 1.0),
+        (2.0, 1.15),
+        (2.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let notch = finished("the notch", fixtures::prism::<f64>(&notch, 1.0, tol()).body);
+    let cube = finished(
+        "the cube",
+        cube(frame(direction(3, 0), 1.0), PLACEMENTS[1].1),
+    );
+    let decls = BooleanDeclarations::default();
+    for (order, x, y) in [("nc", &notch, &cube), ("cn", &cube, &notch)] {
+        let ops: [(&str, Op); 3] = [
+            ("U", topo::union_with),
+            ("I", topo::intersect_with),
+            ("S", topo::subtract_with),
+        ];
+        for (op, run) in ops {
+            let r = run(x, y, &decls, tol());
+            assert!(
+                matches!(r, Err(BooleanError::PairingMismatch { .. })),
+                "{order} {op}: {:?}",
+                r.map(|_| ())
+            );
+        }
+    }
 }
 
 /// The staircase prism: reflex corners at `(2, 1, 1)` and `(1, 2, 1)`,
@@ -479,26 +568,25 @@ fn a_pinch_split_on_the_second_operands_side_builds() {
     assert_eq!(finding, None, "cube ∪ prism");
 }
 
-/// **A pinch no kept face can cross refuses typed.** With `v` on the
-/// cube's edge (direction `i = 6, j = 1`), cube ∖ prism pinches at `v`
-/// over two seams, and each cube face through `v` passes it twice on
-/// its outer loop, round a notch the prism cuts: crossing either would
-/// leave a ring meeting the outer loop. So the zips' second fusion of
-/// the point has no face to cross it, and the op refuses
-/// `PinchUncrossed` rather than fuse the vertex to itself
-/// (`a-pinch-no-kept-face-can-cross-refuses`).
+/// **A vertex-vertex pinch the pairing start avoids.** With `v` on the
+/// cube's edge (direction `i = 6, j = 1`), cube ∖ prism used to pinch at
+/// `v` over two seams: each cube face through `v` passes it twice on its
+/// outer loop, round a notch the prism cuts, so no kept face could cross
+/// the pinch and the op refused `PinchUncrossed`
+/// (`a-pinch-no-kept-face-can-cross-refuses`). The vertex pair crosses
+/// four times, and its pairing starts where A's runs lie on the side the
+/// op keeps of A (`insert::pairing_start_turns`): each run A keeps is a
+/// copy of its own, and the result needs no crossing at `v`. Every op in
+/// both orders builds `SOUND` at the clipping oracle. Red when the
+/// pairing starts at A's first germ (`JoinDesync` "conflicting seam
+/// vertex correspondence" in prism ∩ cube, the first run checked).
 #[test]
-fn a_pinch_no_kept_face_can_cross_refuses_typed() {
+fn a_four_germ_pinch_the_pairing_start_avoids_builds_every_op() {
     let (place, lo, psis) = PLACEMENTS[1];
-    let (tag, r, _) = pose_runs((place, lo), (6, 1, psis[0]))
-        .into_iter()
-        .find(|(tag, ..)| tag.ends_with("cp S"))
-        .expect("the pose runs cube ∖ prism");
-    assert!(
-        matches!(r, Err(BooleanError::PinchUncrossed { .. })),
-        "{tag}: {}",
-        outcome(r, f64::NAN, tol())
-    );
+    for (tag, r, want) in pose_runs((place, lo), (6, 1, psis[0])) {
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+    }
 }
 
 /// The oracle against the kernel-free closed form the strut-facing row

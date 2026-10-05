@@ -3966,7 +3966,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .iter()
         .map(|(c, a_sectors, b_sectors, records, raw, _)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
