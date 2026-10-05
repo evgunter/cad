@@ -6833,3 +6833,14 @@ It confirmed: the acceptance table reproduces (`kef`/`kef_minting` exact, the sn
 
 The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupted and archived** mid-chaintol fix. It could not receive the review, and a second lane on the same branch would collide; it might also have self-merged with the blockers open. Reviewer archived (about $7). **Fix lane `session_01M66dcYc3UYLm1j7WJ4WNsJ` takes over both PRs**: all findings on 4037, then carry 4039 (merge 4037 in, the same test strictness, zero complete-to-incomplete transitions). It merges nothing; the orchestrator merges. Nothing new on PR 3970.
 - 23:27 check-in: the R fix lane (`session_01M66dcYc3UYLm1j7WJ4WNsJ`) reports items 2 and 5-9 green, items 3 and 4 witnesses done, and is now re-baselining goldens. Nothing pushed yet: 4037 is still `843fcb69`, 4039 still `d71cb6b1`. Nothing new on PR 3970. No topo commits incoming.
+
+## 00:33 check-in (2026-10-05)
+
+- **P0 on the slate** (filed by JOIN from PR 4031's fix pass): `rc-wide-battery-panics-at-the-orbit-step-unreachable`.
+  - A public boolean aborts in 8 of 84 shards of the nightly `rc_wide_battery`, at `insert.rs` `orbit_step_at`'s `unreachable!`. Main `45dc18f9` (before 4029 and 4033) answered every pose.
+  - The site is the `None`-holder strut arm that PR 4033's review finding 2 asked for. Its tier-1 premise does not hold mid-insertion.
+  - **Our regression.** It was missed because the battery is `#[ignore]`d and nightly-only; no lane ran it.
+  - P0 lane `session_01Md9o53Bne536g8T24SKSq2` dispatched: repro, root-cause (insertion bug vs legitimate mid-op state), all 84 shards clean with the base's line set, and an audit of the other mid-op premise sites.
+  - **Lesson:** a brief that converts boolean sites must run the `join_rc` batteries.
+- Also filed on the slate: `torn-body-rows-are-red-under-per-op-postcondition` (4 rows red under `--features per-op-postcondition`), set to P3 and E; it waits.
+- R fix lane: 4037 head moved to `e57bfa67` (not yet green); 4039 is unchanged and dirty. Nothing new on PR 3970.
