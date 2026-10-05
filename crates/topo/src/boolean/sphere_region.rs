@@ -75,7 +75,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, first_harmonic_roots, rounding_charge,
+    CircleRoots, FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band, rounding_charge,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -397,7 +397,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         let (cos_part, sin_part) = (arc.radius * g.dot(arc.u_ref), arc.radius * g.dot(v_ref));
         let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
         let noise = rounding_charge(offset.norm() + arc.radius);
-        first_harmonic_roots(
+        first_harmonic_roots_in_band(
             &FirstHarmonic {
                 lo: d - amplitude,
                 hi: d + amplitude,
@@ -413,9 +413,5 @@ impl<T: Decide> SphereFaceRegion<T> {
             &ROOT_ROWS,
             band,
         )
-        .map_err(|e| match e {
-            super::BooleanError::Escalated { diag, .. } => diag,
-            other => unreachable!("the first-harmonic door raises only escalations: {other:?}"),
-        })
     }
 }

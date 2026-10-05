@@ -70,6 +70,9 @@
 //!   test). On a plane, an in-band elevation refuses only where `q`'s
 //!   foot on the plane is not definitely outside the face: a point in
 //!   band of a carrier far from its face is off that face.
+//! - **`bool_point_in_solid_sphere`**: the same pre-pass question on a
+//!   sphere face, the linearized radial residual `(|q − c|² − r²)/2r`
+//!   (metres).
 //! - **`bool_point_in_solid_denom`**: the parallel-ray gate, a length:
 //!   `d·n` per planar face, and a wall's `|d⊥|`, each levered by how far
 //!   from `q` the selection reaches (`selection_reach`), so the margin is
@@ -247,10 +250,10 @@ pub enum PointInSolidError {
     /// being classified against, so it needs a ray×surface crossing
     /// count per kind: `Plane` (its in-face walk), `Cylinder` (its wall
     /// outline, [`wall_outline`]), `Cone` (its chart trim), `Sphere` (a
-    /// closed group, or a face its chart
-    /// rectangle expresses) and `Torus` (a closed group, or a face its
-    /// two chart windows express) have one; `Nurbs` and `Approx` do
-    /// not.
+    /// closed group, or a trimmed face whose every edge is a certified
+    /// circle arc, [`super::sphere_region`]) and `Torus` (a closed group,
+    /// or a face its two chart windows express) have one; `Nurbs` and
+    /// `Approx` do not.
     ///
     /// **This door is BOX-BLIND on purpose and that is why the kind
     /// still matters here.** The operand gate is pair-scoped — a face
@@ -288,9 +291,9 @@ pub enum PointInSolidError {
     /// A trimmed sphere face is read from its boundary arcs
     /// ([`super::sphere_region`]): every crossing of a great circle with
     /// a circle arc is the root of a first harmonic. An edge on any other
-    /// carrier — a spline, or the spiric a torus or a cylinder off the
-    /// sphere's centre leaves — has no such crossing here, and neither
-    /// has an edge with no certified carrier.
+    /// carrier — a spline, or the quartic a torus, a cylinder or a cone
+    /// whose axis misses the sphere's centre leaves on it — has no such
+    /// crossing here, and neither has an edge with no certified carrier.
     PartialSphereFace {
         /// The sphere face whose outline the region reading cannot cross.
         face: FaceKey,
@@ -3755,7 +3758,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                 }
                 let elev =
                     ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
                     return Ok(SolidContainment::OnBoundary);
@@ -3773,7 +3776,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
             } => {
                 let elev =
                     ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
                     match region.contains(face, q, band)? {

@@ -196,6 +196,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
         "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
         "bool_point_in_solid_clearance" => {
             "how far a point lies off the carrier of a face a ray runs along"
@@ -248,12 +249,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_iso_rim"
         | "bool_torus_trim_major_period"
         | "bool_torus_trim_minor_period"
-        | "bool_sphere_trim"
         | "bool_sphere_trim_antipode"
         | "bool_sphere_trim_latitude"
         | "bool_sphere_trim_meridian_span"
         | "bool_sphere_trim_period"
-        | "bool_sphere_trim_pole"
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"
         | "bool_sphere_region_arm"

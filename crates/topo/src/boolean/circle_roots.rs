@@ -867,12 +867,29 @@ pub(super) fn first_harmonic_roots<T: Decide>(
     rows: &FirstHarmonicRows,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
-    let decide = |row, m, band| {
-        decide(row, m, band).map_err(|diag| BooleanError::Escalated {
+    first_harmonic_roots_in_band(h, speed, t0, t1, rows, band).map_err(|diag| {
+        BooleanError::Escalated {
             decision: rows.decision,
             diag,
-        })
-    };
+        }
+    })
+}
+
+/// [`first_harmonic_roots`] with its one refusal left as the in-band
+/// reading itself, for a caller that is not the boolean's and names no
+/// [`BooleanDecision`] (`rows.decision` is not read).
+///
+/// # Errors
+///
+/// As [`first_harmonic_roots`], as the bare [`Indeterminate`].
+pub(super) fn first_harmonic_roots_in_band<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    t0: T,
+    t1: T,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<CircleRoots<T>, Indeterminate> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -892,12 +909,7 @@ pub(super) fn first_harmonic_roots<T: Decide>(
     }
     let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
-        return constant_residual_roots(c0, a1 + noise, rows.extreme, band).map_err(|diag| {
-            BooleanError::Escalated {
-                decision: rows.decision,
-                diag,
-            }
-        });
+        return constant_residual_roots(c0, a1 + noise, rows.extreme, band);
     }
     let lo = decide(rows.extreme, Margin::of(lo_value), band)?;
     if lo == Sign::Positive {
