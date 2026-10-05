@@ -2,10 +2,11 @@
 id: a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch
 kind: issue
 title: A vertex pair whose links cross six times pairs them nested, not adjacent in B, and refuses PairingMismatch every op
-status: open
+status: closed
 opened: 2026-10-05
 priority: P0
 cost: H
+closed: 2026-10-05
 ---
 
 

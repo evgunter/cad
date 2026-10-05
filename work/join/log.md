@@ -755,3 +755,37 @@ turns refusals into gated SOUND bodies, and it is reversible. The `[ev]`
 PR follows.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4050: a six-crossing vertex pair nests its pairing in B
+
+At six or more crossings, B's link pairs nested rather than adjacent.
+- `insert::b_runs` reads B's runs as intervals, each holding whole pairs,
+  and refuses only a pairing that crosses.
+- Nested runs are minted outer before inner, at the copy of their
+  innermost fan holder. The held chain (depth, fan holder, held directly
+  by a strut) is carried in the plan.
+- A nested plan at a shared vertex refuses `SharedVertexCrossings`.
+
+Measured, main vs head:
+- On every battery, the only lines that moved were `PairingMismatch` →
+  SOUND (e.g. r2's n ≥ 8 grid: 13 614, 0 `ClassificationInvariant`).
+- pierce, both reflex batteries and all 84 `rc_wide` shards are
+  byte-identical.
+- The reviewers found 1 187 near-tangent `PairingMismatch` → BAD, all
+  census-escalated with exact volume, so on the near-tangent P0, and
+  no definite refusal→BAD.
+
+**Review tier: DUAL, H / TRICKY (DR-83).** R1 APPROVE-WITH-FIXES 0/3/4,
+R2 0/5/2; tally 0.
+- Both found that a strut held by a strut held by a fan minted at the
+  original vertex (`ClassificationInvariant`). It is fixed and pinned by
+  an eight-crossing row.
+- The innermost holder is now pinned, and the matching model is
+  committed as a unit test to n = 10.
+- R1's pinch-operand "In end / Out end" refusal is pre-existing (149
+  non-nested runs on main) and is filed as
+  `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.
+
+The six-crossing row is closed.
+
+Signed (JOIN orchestrator).
