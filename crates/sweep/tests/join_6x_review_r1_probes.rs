@@ -606,3 +606,75 @@ fn r1x_oracle_matches_the_kernel_volumes() {
         assert!((kv - ov).abs() < 1e-9, "{name}: oracle {ov} kernel {kv}");
     }
 }
+
+/// **A nested plan at a shared vertex.** A pinch operand: two cubes
+/// touching only at their corners `v`, opposite octants of one frame,
+/// united undeclared; the 343° notch's corner at `v`. Where the notch
+/// nests its pairing against one cube's corner and also crosses the
+/// other's, the notch's vertex is shared by two crossing plans. Prints
+/// one line per run; the pinch's own records are not carried, so its
+/// 3′ column is read as information only.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r1x_shared_vertex() {
+    let a = local("p343");
+    let v = [1.0, 1.0, 1.0];
+    let id: M3 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    let pa = moved(&a.pieces, &id, v);
+    let ab = finished(
+        "notch",
+        (a.build)(&|x| [x[0] + v[0], x[1] + v[1], x[2] + v[2]]),
+    );
+    let d = BooleanDeclarations::default();
+    let mut tally = std::collections::BTreeMap::new();
+    for i in 0..12 {
+        for j in 0..7 {
+            for k in 0..6 {
+                let psi = f64::from(k) * 1.05 + 0.1;
+                let f = frame(direction(i, j), psi);
+                let (c1, c2) = (cube("c1", [0.0; 3]), cube("c2", [-SIDE; 3]));
+                let at = |x: V3| {
+                    let y = apply(&f, x);
+                    [y[0] + v[0], y[1] + v[1], y[2] + v[2]]
+                };
+                let (b1, b2) = (
+                    finished("c1", (c1.build)(&at)),
+                    finished("c2", (c2.build)(&at)),
+                );
+                let pinch = match topo::union_with(&b1, &b2, &d, tol()) {
+                    Ok(r) => match r.body() {
+                        Some(bb) => bb.body.clone(),
+                        None => continue,
+                    },
+                    Err(e) => {
+                        println!("i={i} j={j} k={k}: PINCH UNBUILT {e:?}");
+                        continue;
+                    }
+                };
+                let pb: Vec<(f64, Vec<Half>)> = moved(&c1.pieces, &f, v)
+                    .into_iter()
+                    .chain(moved(&c2.pieces, &f, v))
+                    .collect();
+                let (va, vb) = (self_volume(&pa), self_volume(&pb));
+                let common = pair_volume(&pa, &pb);
+                for (order, x, y, vx) in [("ab", &ab, &pinch, va), ("ba", &pinch, &ab, vb)] {
+                    let ops: [(&str, Op, f64); 3] = [
+                        ("U", topo::union_with, va + vb - common),
+                        ("I", topo::intersect_with, common),
+                        ("S", topo::subtract_with, vx - common),
+                    ];
+                    for (op, run, want) in ops {
+                        let tag = format!("p343 pinch i={i} j={j} k={k} {order} {op}");
+                        eprintln!("R1XRUN {tag}");
+                        let line = outcome(run(x, y, &d, tol()), want, tol());
+                        let key: String =
+                            line.split([' ', '{']).take(2).collect::<Vec<_>>().join(" ");
+                        *tally.entry(key).or_insert(0) += 1;
+                        println!("{tag}: {line}");
+                    }
+                }
+            }
+        }
+    }
+    println!("TALLY {tally:?}");
+}
