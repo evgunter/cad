@@ -156,7 +156,7 @@ retires `Refusal::ParamNotANumber`.
 
 Filed: `viewer-value-doors-read-a-defined-variable-as-absent`.
 
-## 2026-10-05 — INTENT-LITERALS PR B, authored Formula and stored Expr (`intent/literals-b`)
+## 2026-10-05 — INTENT-LITERALS PR B, authored Formula and stored Expr (`intent/literals-b`, PR 4072)
 
 One tree, `ExprTree<L>`, serves two forms: the stored `Expr` reads
 every variable by id, and the authored `Formula` may also write a name.

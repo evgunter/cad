@@ -5,6 +5,7 @@ title: Python's ParamName, DocParam and DocParamValue name a variable by the ret
 status: closed
 opened: 2026-10-04
 closed: 2026-10-05
+pr: 4072
 branch: intent/literals-b
 ---
 
