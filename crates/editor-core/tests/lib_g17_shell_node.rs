@@ -33,6 +33,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::corpus;
 use crate::fixture;
 
@@ -371,7 +372,7 @@ fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
 
 /// A cup document whose shell node is replaced by `shell`.
 fn cup_with(
-    shell: impl FnOnce(RecipeNodeId) -> Node<ProfileProgram>,
+    shell: impl FnOnce(RecipeNodeId) -> AuthoredNode,
 ) -> (ProfileDoc, RecipeNodeId) {
     let d = cup::document();
     let blank = blank_of(&d.doc);
@@ -474,7 +475,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
     let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0).into()));
     let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1).into()));
-    let node: Node<ProfileProgram> = Node::shell(
+    let node: AuthoredNode = Node::shell(
         RecipeNodeId(1),
         fixture::len(0.1),
         vec![b.clone(), a.clone(), b.clone(), a.clone()],

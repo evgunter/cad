@@ -2750,10 +2750,10 @@ mod tests {
         for id in [2u64, 3] {
             doc.nodes.insert(
                 RecipeNodeId(id),
-                Node::Datum(crate::node::Datum::Plane {
+                crate::test_support::stored(&Node::Datum(crate::node::Datum::Plane {
                     origin: [0.0; 3].map(crate::test_support::len),
                     normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
-                }),
+                })),
             );
         }
         for (id, derived) in [(0u64, 50u64), (1, 60)] {

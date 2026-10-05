@@ -32,6 +32,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -46,7 +47,7 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    CapEnd, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::k_stats::decide;
@@ -93,7 +94,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     });
 }
 
-fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, dx: Formula, dy: Formula, dz: Formula) -> AuthoredNode {
     Node::transform(
         input,
         editor_core::Step::Rigid {

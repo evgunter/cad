@@ -10,7 +10,7 @@ use crate::fixture::{Recorder, ang, len, scl};
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Expr, Node,
+    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Formula, Node,
     NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
     RoleSeg, SplitHalf, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
 };

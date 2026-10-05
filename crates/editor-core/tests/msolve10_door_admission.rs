@@ -26,6 +26,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
+use editor_core::AuthoredNode;
 use crate::fixture;
 use crate::wire;
 use editor_core::ExtrudeSide;
@@ -86,7 +88,7 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
     (doc, ids, with_resolver(store), body)
 }
 
-fn frame(origin: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(
         origin,
         [0.0, 0.0, 1.0],
@@ -102,8 +104,8 @@ fn mate(
     body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     mate_across((a, body), (b, body), alignment)
 }
 
@@ -112,8 +114,8 @@ fn mate(
 fn mate_across(
     (a, a_body): (RecipeNodeId, RecipeNodeId),
     (b, b_body): (RecipeNodeId, RecipeNodeId),
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(in_part(a, a_body, CapEnd::End)),
         b: fixture::head(in_part(b, b_body, CapEnd::Start)),
@@ -124,9 +126,9 @@ fn mate_across(
 
 /// `node` with its `b` head replaced.
 fn with_b(
-    mut node: Node<editor_core::ProfileProgram>,
+    mut node: AuthoredNode,
     head: editor_core::SitedFace,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     if let Node::Mate { b, .. } = &mut node {
         *b = head;
     }
@@ -135,9 +137,9 @@ fn with_b(
 
 /// `node` with its `a` head replaced.
 fn with_a(
-    mut node: Node<editor_core::ProfileProgram>,
+    mut node: AuthoredNode,
     head: editor_core::SitedFace,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     if let Node::Mate { a, .. } = &mut node {
         *a = head;
     }
@@ -146,9 +148,9 @@ fn with_a(
 
 /// `node` with its class replaced.
 fn with_class(
-    mut node: Node<editor_core::ProfileProgram>,
+    mut node: AuthoredNode,
     class: ContactClass,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     if let Node::Mate { class: c, .. } = &mut node {
         *c = class;
     }
@@ -157,7 +159,7 @@ fn with_class(
 
 /// A frame coincidence seating `b` a unit up `a`, with `clocking` as
 /// the rider.
-fn seat(clocking: Option<f64>) -> Alignment {
+fn seat(clocking: Option<f64>) -> Alignment<Formula> {
     Alignment {
         a: frame([0.0, 0.0, 1.0]),
         b: frame([0.0; 3]),
@@ -209,7 +211,7 @@ fn lever_of(
     doc: &editor_core::ProfileDoc,
     opts: &EvalOptions,
     ids: &[RecipeNodeId],
-    a: &Alignment,
+    a: &Alignment<Formula>,
 ) -> f64 {
     let reach = mate_reach::<f64>(opts, Tol::witness());
     let mut arm = fixture::datum_lever(a);
@@ -353,7 +355,7 @@ fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
 #[test]
 fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
     assert!(matches!(
-        MateFrame::authored(
+        MateFrame::<Formula>::authored(
             [0.0; 3],
             [0.0; 3],
             [1.0, 0.0, 0.0],
@@ -557,7 +559,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
 
     // The hand-edited entry: a rider on a planar rest, spliced in as
     // a bare entry at index 1.
-    let gap = DocEdit::InsertNode {
+    let gap: DocEdit<editor_core::ProfileProgram> = DocEdit::InsertNode {
         node: Box::new(mate(
             body,
             ids[0],
@@ -595,7 +597,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
 
     // A contradictory rider, hand-edited in, replays: no reach, no
     // decision, and the evaluation's solve refuses it as before.
-    let contradictory = DocEdit::InsertNode {
+    let contradictory: DocEdit<editor_core::ProfileProgram> = DocEdit::InsertNode {
         node: Box::new(mate(
             body,
             ids[0],
@@ -685,7 +687,7 @@ fn a3_a_doctored_snapshot_carrying_a_table_gap_loads_and_the_solve_refuses_it() 
         "{fault:?}"
     );
     assert_eq!(poses.role(mate_id), Some(MateRole::Refused));
-    let twin = loaded.doc.node(mate_id).expect("live").clone();
+    let twin = loaded.doc.node(mate_id).expect("live").authored();
     let (named, door) =
         at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the twin");
     assert_eq!(
@@ -791,7 +793,7 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
             "{label}: the fold never reads this pair, so the solve records nothing"
         );
         assert_eq!(poses.role(mate_id), Some(MateRole::Declaring), "{label}");
-        let twin = loaded.doc.node(mate_id).expect("live").clone();
+        let twin = loaded.doc.node(mate_id).expect("live").authored();
         let (_, fault) =
             at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the datum");
         match expect {
@@ -982,7 +984,7 @@ type Row = (&'static str, ProfileDoc, EvalOptions);
 /// rider a hand-edited log carried in.
 fn corpus() -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::new();
-    let pair = |label: &'static str, alignment: Alignment| -> Row {
+    let pair = |label: &'static str, alignment: Alignment<Formula>| -> Row {
         let (doc, ids, opts, body) = instances(label, 2);
         let reach = mate_reach::<f64>(&opts, Tol::witness());
         let (doc, _) = step_with(
@@ -1206,7 +1208,7 @@ fn corpus() -> Vec<Row> {
         // The mate joins the two instances' groups, and replay applies
         // the edit through the same door, which re-decides nothing it
         // levers through a reach.
-        let entry = DocEdit::InsertNode {
+        let entry: DocEdit<editor_core::ProfileProgram> = DocEdit::InsertNode {
             node: Box::new(mate(
                 body,
                 ids[0],
@@ -1253,7 +1255,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 continue;
             }
             mates += 1;
-            let twin = at_the_door(&doc, &reach, node.clone());
+            let twin = at_the_door(&doc, &reach, node.authored());
             match poses.fault(id) {
                 None => {
                     assert!(

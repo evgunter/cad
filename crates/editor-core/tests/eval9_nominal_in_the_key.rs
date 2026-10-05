@@ -27,7 +27,7 @@ use crate::fixture;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Axis3, CancelToken, Datum, Dimension, DocEdit, EvalOptions, Expr, FreeVar, Node, NodeErrorKind,
+    Axis3, CancelToken, Datum, Dimension, DocEdit, EvalOptions, Formula, FreeVar, Node, NodeErrorKind,
     NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use geom_core::Tol;
@@ -56,7 +56,7 @@ fn var(doc: &ProfileDoc) -> editor_core::VarId {
 /// square profile drawn on it. The profile's own program holds no
 /// parameter, so everything that moves in these rows moves through the
 /// frame.
-fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
+fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("eval9_nominal_in_the_key", Tol::witness());
     let doc = doc
         .apply(
@@ -285,7 +285,7 @@ mod over_a_param_box {
 #[test]
 fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
     let doc = doc_with(0.0, |param| {
-        Expr::div(fixture::scl(1.0), param).expect("scalar over scalar")
+        Formula::div(fixture::scl(1.0), param).expect("scalar over scalar")
     });
     let ev = evaluate::<f64>(
         &doc,

@@ -24,6 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
@@ -479,7 +480,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 // A mate: a head is a name, an operand is not.
 // ---------------------------------------------------------------------
 
-fn mate_frame() -> MateFrame {
+fn mate_frame() -> MateFrame<Formula> {
     MateFrame::authored(
         [0.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],

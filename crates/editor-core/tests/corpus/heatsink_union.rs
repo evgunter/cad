@@ -48,7 +48,7 @@
 //! `lib_placedunion.rs` pins.
 
 use editor_core::ExtrudeSide;
-use editor_core::{Dimension, DocEdit, Expr, FreeVar, Node, PatternKind, SlotId, VarName};
+use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
 
 use crate::fixture::{len, scl};
 

@@ -19,7 +19,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::expr::DimensionError;
-use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, SlotId, load, save};
+use editor_core::{Dimension, Formula, Node, PersistError, ProfileDoc, SlotId, load, save};
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
 

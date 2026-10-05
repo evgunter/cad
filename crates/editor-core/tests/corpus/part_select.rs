@@ -26,7 +26,7 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, EntityKind, Expr, FreeVar, Node, PartSelect, PatternKind,
+    BooleanOp, Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind,
     RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 

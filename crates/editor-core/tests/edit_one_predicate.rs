@@ -39,6 +39,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -46,7 +47,7 @@ use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
-    EntityKind, Expr, FaceName, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
+    EntityKind, Formula, FaceName, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
     MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId,
     RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
 };
@@ -83,7 +84,7 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, measure)
 }
 
-fn assertion(measure: RecipeNodeId, bound: Expr) -> Node<ProfileProgram> {
+fn assertion(measure: RecipeNodeId, bound: Formula) -> AuthoredNode {
     Node::Assertion {
         measure,
         bound,
@@ -172,7 +173,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
 fn saved_assertion(
     doc: &editor_core::ProfileDoc,
     measure: RecipeNodeId,
-    bound: Expr,
+    bound: Formula,
 ) -> (String, RecipeNodeId) {
     let applied = apply(
         doc,
@@ -301,7 +302,7 @@ fn mate(
     a: RecipeNodeId,
     b: RecipeNodeId,
     origin: [f64; 3],
-) -> Node<ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),

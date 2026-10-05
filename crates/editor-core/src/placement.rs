@@ -644,30 +644,7 @@ impl<S> Placement<S> {
     }
 }
 
-impl Placement {
-    /// **This placement re-authored**: every rigid step's components a
-    /// formula reading what they read ([`crate::Formula::from`]).
-    #[must_use]
-    pub fn authored(&self) -> Placement<crate::Formula> {
-        let Ok(authored) = self.try_map_slots(&mut |e| {
-            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
-        });
-        authored
-    }
-
-    /// The first literal step [`Frame::admission_fault`] refuses at
-    /// `tol`, with its index in the chain.
-    #[must_use]
-    pub fn frame_fault(&self, tol: geom_core::Tol) -> Option<(usize, FrameFault)> {
-        self.steps
-            .iter()
-            .enumerate()
-            .find_map(|(k, step)| match step {
-                Step::Literal(frame) => Some((k, frame.admission_fault(tol)?)),
-                Step::Rigid { .. } => None,
-            })
-    }
-
+impl<L: crate::expr::LeafSet> Placement<crate::expr::ExprTree<L>> {
     /// Bit-semantic equality (D7): a rigid step's expressions through
     /// [`Expr::bit_eq`], a literal step's coordinates through
     /// [`Frame::bit_eq`], so `0.0` and `-0.0` are different
@@ -703,6 +680,32 @@ impl Placement {
                     | (Step::Literal(_), Step::Rigid { .. }) => false,
                 })
     }
+}
+
+impl Placement {
+    /// **This placement re-authored**: every rigid step's components a
+    /// formula reading what they read ([`crate::Formula::from`]).
+    #[must_use]
+    pub fn authored(&self) -> Placement<crate::Formula> {
+        let Ok(authored) = self.try_map_slots(&mut |e| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
+        });
+        authored
+    }
+
+    /// The first literal step [`Frame::admission_fault`] refuses at
+    /// `tol`, with its index in the chain.
+    #[must_use]
+    pub fn frame_fault(&self, tol: geom_core::Tol) -> Option<(usize, FrameFault)> {
+        self.steps
+            .iter()
+            .enumerate()
+            .find_map(|(k, step)| match step {
+                Step::Literal(frame) => Some((k, frame.admission_fault(tol)?)),
+                Step::Rigid { .. } => None,
+            })
+    }
+
 
     /// **The rigid motion this placement denotes, at `env`** — every
     /// rigid step's expressions evaluated through the evaluation's one
@@ -1081,7 +1084,9 @@ mod tests {
                 translation: t.map(len),
                 axis: axis.map(scl),
                 angle: ang(angle),
-            });
+            })
+            .try_map_slots(&mut |f| Expr::try_from(f))
+            .expect("literals lower");
             let got = placement
                 .eval::<f64>(&VarEnv::default(), band())
                 .expect("a rigid step evaluates");

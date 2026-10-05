@@ -220,7 +220,7 @@ fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     use editor_core::{
-        Dimension, DocEdit, Expr, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
+        Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, RefusingReach, VarName,
     };
     let h = VarName::from_static("h");
     let mut r = fixture::Recorder::new();
@@ -304,7 +304,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             &editor_core::DocEdit::SetParam {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
-                expr: editor_core::Expr::div(
+                expr: editor_core::Formula::div(
                     editor_core::Formula::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
@@ -330,7 +330,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                     assert_eq!(*slot, SlotId::Distance);
                     assert_eq!(*source, editor_core::EvalError::NonFiniteResult);
                 }
-                other => panic!("expected Expr error, got {other:?}"),
+                other => panic!("expected Formula error, got {other:?}"),
             }
         }
         other => panic!("expected Failed, got {other:?}"),

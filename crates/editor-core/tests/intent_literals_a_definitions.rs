@@ -22,7 +22,7 @@ use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
-    EvalError, EvalOptions, Evaluation, Expr, ExtrudeSide, FreeValue, FreeVar, Maintenance,
+    EvalError, EvalOptions, Evaluation, Formula, ExtrudeSide, FreeValue, FreeVar, Maintenance,
     MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
     inline, load, save, split, var_env_over,
@@ -38,17 +38,17 @@ fn n(name: &'static str) -> VarName {
     VarName::from_static(name)
 }
 
-fn named(name: &'static str) -> Expr {
+fn named(name: &'static str) -> Formula {
     Formula::named(n(name), Dimension::Length)
 }
 
-fn scalar(value: f64) -> Expr {
+fn scalar(value: f64) -> Formula {
     Formula::literal(value, Dimension::Scalar).unwrap()
 }
 
 /// `k · name`.
-fn times(k: f64, name: &'static str) -> Expr {
-    Expr::mul(scalar(k), named(name)).unwrap()
+fn times(k: f64, name: &'static str) -> Formula {
+    Formula::mul(scalar(k), named(name)).unwrap()
 }
 
 fn try_step(
@@ -83,7 +83,7 @@ fn w_and_h(seed: &str) -> ProfileDoc {
 
 /// A unit square at `cx` extruded by `depth`: the frame, the profile
 /// and the extrude.
-fn block(doc: ProfileDoc, cx: f64, depth: Expr) -> (ProfileDoc, [RecipeNodeId; 3]) {
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -104,7 +104,7 @@ fn block(doc: ProfileDoc, cx: f64, depth: Expr) -> (ProfileDoc, [RecipeNodeId; 3
 }
 
 /// A unit cube at `cx` with every edge blended by `radius`: the blend.
-fn filleted(doc: ProfileDoc, cx: f64, radius: Expr) -> (ProfileDoc, RecipeNodeId) {
+fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
     let (doc, [_, _, cube]) = block(doc, cx, len(1.0));
     let edges = prism_edges(&doc, cube, 4);
     insert(doc, Node::fillet(cube, radius, edges))
@@ -158,7 +158,7 @@ fn wire_var(var: VarId, dim: &str) -> serde_json::Value {
 fn a_definition_reading_itself_back_refuses_as_a_cycle() {
     let doc = w_and_h("intent-literals-a-cycle");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    let plus = Expr::add(named("h"), len(0.001)).unwrap();
+    let plus = Formula::add(named("h"), len(0.001)).unwrap();
     let err = try_step(
         &doc,
         DocEdit::DefineVar {
@@ -179,13 +179,13 @@ fn a_definition_reading_itself_back_refuses_as_a_cycle() {
     assert!(doc.free(w).is_some(), "w is still free");
 
     // A declare reading the id it would mint.
-    let decl = VarDecl::defined(Expr::var(
+    let decl = VarDecl::defined(Formula::var(
         doc.spoken_declare(&n("s"), &free(1.0)).id(),
         Dimension::Length,
     ));
     let would = doc.spoken_declare(&n("s"), &decl).id();
     let selfish =
-        VarDecl::defined(Expr::add(Expr::var(would, Dimension::Length), len(1.0)).unwrap());
+        VarDecl::defined(Formula::add(Formula::var(would, Dimension::Length), len(1.0)).unwrap());
     match try_step(
         &doc,
         DocEdit::DeclareVar {
@@ -328,7 +328,7 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
         &doc,
         DocEdit::DefineVar {
             var: n("h").into(),
-            def: VarDecl::defined(Expr::add(named("w"), named("w")).unwrap()),
+            def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
         },
     )
     .doc;
@@ -337,7 +337,7 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
     let (fresh, by_sum) = filleted(
         w_and_h("intent-literals-a-key"),
         0.0,
-        Expr::add(named("w"), named("w")).unwrap(),
+        Formula::add(named("w"), named("w")).unwrap(),
     );
     let cold = eval_after(&fresh, None);
     assert_eq!(
@@ -353,7 +353,7 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
 /// formula's token.
 #[test]
 fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
-    let disc = |doc: ProfileDoc, radius: Expr| {
+    let disc = |doc: ProfileDoc, radius: Formula| {
         let (doc, plane) = insert(
             doc,
             crate::fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
@@ -385,7 +385,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
         &doc,
         DocEdit::DefineVar {
             var: n("h").into(),
-            def: VarDecl::defined(Expr::add(named("w"), named("w")).unwrap()),
+            def: VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
         },
     )
     .doc;
@@ -393,7 +393,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
     assert_eq!(again.recomputed, 2, "the profile and its sweep re-run");
     let (fresh, by_sum) = disc(
         w_and_h("intent-literals-a-carrier"),
-        Expr::add(named("w"), named("w")).unwrap(),
+        Formula::add(named("w"), named("w")).unwrap(),
     );
     let cold = eval_after(&fresh, None);
     assert_eq!(
@@ -458,7 +458,7 @@ fn a_definition_reads_only_what_the_document_holds() {
         },
     )
     .doc;
-    let declare_in = |doc: &ProfileDoc, expr: Expr| {
+    let declare_in = |doc: &ProfileDoc, expr: Formula| {
         try_step(
             doc,
             DocEdit::DeclareVar {
@@ -471,17 +471,17 @@ fn a_definition_reads_only_what_the_document_holds() {
         Err(EditError::DefinitionUnknownVarName { name, .. }) => assert_eq!(name, n("nope")),
         other => panic!("an unheld name, got {other:?}"),
     }
-    match declare_in(&doc, Expr::var(VarId(0x5eed), Dimension::Length)) {
+    match declare_in(&doc, Formula::var(VarId(0x5eed), Dimension::Length)) {
         Err(EditError::DefinitionUnresolvedVar { read, .. }) => {
             assert_eq!(read.id(), VarId(0x5eed))
         }
         other => panic!("an unminted id, got {other:?}"),
     }
-    match declare_in(&gone, Expr::var(gone_id, Dimension::Length)) {
+    match declare_in(&gone, Formula::var(gone_id, Dimension::Length)) {
         Err(EditError::DefinitionUnresolvedVar { read, .. }) => assert_eq!(read.id(), gone_id),
         other => panic!("a deleted variable, got {other:?}"),
     }
-    match declare_in(&doc, Expr::var(w, Dimension::Angle)) {
+    match declare_in(&doc, Formula::var(w, Dimension::Angle)) {
         Err(EditError::DefinitionVarKind {
             read,
             declared,
@@ -514,7 +514,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
         doc = declare(
             &doc,
             name,
-            VarDecl::defined(Expr::add(named(prev), named(prev)).unwrap()),
+            VarDecl::defined(Formula::add(named(prev), named(prev)).unwrap()),
         );
         prev = name;
     }
@@ -522,7 +522,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
         &doc,
         DocEdit::DeclareVar {
             name: n(NAMES[11]),
-            def: VarDecl::defined(Expr::add(named("h11"), named("h11")).unwrap()),
+            def: VarDecl::defined(Formula::add(named("h11"), named("h11")).unwrap()),
         },
     ) {
         Err(EditError::DefinitionTooLarge { nodes, .. }) => {
@@ -534,7 +534,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
         &doc,
         DocEdit::DefineVar {
             var: n("w").into(),
-            def: VarDecl::defined(Expr::add(named("v"), named("v")).unwrap()),
+            def: VarDecl::defined(Formula::add(named("v"), named("v")).unwrap()),
         },
     ) {
         Err(EditError::DefinitionTooLarge { var, .. }) => {
@@ -733,7 +733,7 @@ fn split_and_inline_carry_definitions() {
     let (part_w, part_h) = (id(&out.part, "w"), id(&out.part, "h"));
     assert_eq!(
         out.part.var(part_h).and_then(|v| v.def().defined()),
-        Some(&Expr::mul(scalar(2.0), Expr::var(part_w, Dimension::Length)).unwrap()),
+        Some(&editor_core::Expr::mul(editor_core::test_support::stored_expr(&scalar(2.0)), editor_core::Expr::var(part_w, Dimension::Length)).unwrap()),
         "h reads the part's w"
     );
     let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
@@ -753,7 +753,7 @@ fn split_and_inline_carry_definitions() {
     let (host_w, host_h) = (id(&inlined.doc, "w"), id(&inlined.doc, "h"));
     assert_eq!(
         inlined.doc.var(host_h).and_then(|v| v.def().defined()),
-        Some(&Expr::mul(scalar(2.0), Expr::var(host_w, Dimension::Length)).unwrap())
+        Some(&editor_core::Expr::mul(editor_core::test_support::stored_expr(&scalar(2.0)), editor_core::Expr::var(host_w, Dimension::Length)).unwrap())
     );
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
@@ -783,8 +783,9 @@ fn a_definition_round_trips_through_snapshot_and_log() {
     assert!(loaded.doc.bit_eq(&r.doc), "the log replays to the document");
 }
 
-/// The definition walk's arms: a definition holding a name, reading an
-/// id never minted, or reading a live variable at another kind.
+/// A definition no door wrote refuses at load: one holding a name is
+/// unreadable, and the definition walk refuses one reading an id never
+/// minted or a live variable at another kind.
 #[test]
 fn a_definition_no_door_wrote_refuses_at_load() {
     let doc = w_and_h("intent-literals-a-load-reads");
@@ -798,8 +799,10 @@ fn a_definition_no_door_wrote_refuses_at_load() {
             serde_json::json!({ "Name": { "name": "w", "dim": "Length" } }),
         );
     });
+    // The stored expression has no name leaf, so the wire refuses the
+    // variant itself.
     assert!(
-        matches!(&err, PersistError::Snapshot(SnapshotError::NamedReaderInDefinition { var }) if var.id() == h),
+        matches!(&err, PersistError::Unreadable { detail, .. } if detail.contains("unknown variant `Name`")),
         "{err:?}"
     );
     let err = load_doctored(&doc, |snap| def(snap, wire_var(VarId(0x5eed), "Length")));
@@ -845,7 +848,7 @@ fn a_file_past_the_expansion_bound_refuses_at_load() {
         doc = declare(
             &doc,
             name,
-            VarDecl::defined(Expr::add(named(prev), named(prev)).unwrap()),
+            VarDecl::defined(Formula::add(named(prev), named(prev)).unwrap()),
         );
         prev = name;
     }

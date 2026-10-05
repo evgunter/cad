@@ -24,6 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -756,7 +757,7 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     let out = inline(&stated, i, &store);
     assert_eq!(
         offset_of(&out.doc, out.node_map[&part_base]),
-        Some(checked),
+        Some(editor_core::test_support::stored_placement(&checked)),
         "the root carries the checked offset"
     );
 
@@ -998,7 +999,7 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
         .iter()
         .find(|&&id| matches!(block.node(id), Some(Node::Datum(_))))
         .expect("the block's frame");
-    let (with_datum, spare) = insert(block.clone(), block.node(frame).cloned().expect("live"));
+    let (with_datum, spare) = insert(block.clone(), block.node(frame).map(Node::authored).expect("live"));
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),
         (&chain, vec![k, k2], k, "a gauge chain"),
@@ -1231,7 +1232,7 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
     let p = parts("r1-every");
     let o = p.opts();
     let empty = |label: &str| ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement| {
+    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement<Formula>| {
         let (doc, base) = insert(doc, Node::instantiate_part(p.base));
         let doc = set_gauge(doc, base, gauge);
         let doc = set_offset(doc, base, Some(at));

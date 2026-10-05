@@ -12,7 +12,7 @@
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use editor_core::{
-    BooleanOp, Dimension, Distribution, DocEdit, DocumentId, EditError, Expr, FreeVar, Node,
+    BooleanOp, Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node,
     PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause,
     VarKind, VarName, apply,
 };

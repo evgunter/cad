@@ -22,6 +22,8 @@
 //!         loud on some arm, never a silent pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -85,7 +87,7 @@ fn vanished(instance: RecipeNodeId) -> StableName {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -95,7 +97,7 @@ fn mate_node(
     b: StableName,
     class: ContactClass,
     seat: f64,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),

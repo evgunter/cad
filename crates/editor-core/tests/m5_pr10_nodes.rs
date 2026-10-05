@@ -17,7 +17,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SlotId, evaluate, load, save,
 };
 use fixture::{insert, len, on_frame};
@@ -25,7 +25,7 @@ use geom_core::Tol;
 
 /// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
 /// `Dimension::Count` on purpose (Count literals are integers).
-fn count(v: i64) -> Expr {
+fn count(v: i64) -> Formula {
     Formula::count(v)
 }
 

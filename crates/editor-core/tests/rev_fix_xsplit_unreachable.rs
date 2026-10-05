@@ -14,13 +14,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Expr, MateFrame,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Formula, MateFrame,
     MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, content_pin,
     derivation_nodes, split,
 };
@@ -55,7 +56,7 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
     (DocRef { id: doc.id(), pin }, body)
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame {
+fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(
         origin,
         [0.0, 0.0, 1.0],
@@ -65,7 +66,7 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
     .expect("a definite frame")
 }
 
-fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
+fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -80,7 +81,7 @@ fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     }
 }
 
-fn linear(spacing: f64) -> PatternKind {
+fn linear(spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: [scl(1.0), scl(0.0), scl(0.0)],
         spacing: len(spacing),

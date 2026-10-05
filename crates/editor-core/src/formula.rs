@@ -225,6 +225,22 @@ impl From<Expr> for Formula {
     }
 }
 
+/// **A stored expression equals the formula that re-authors it**: the
+/// same tree, reading the same variables by id and holding no name.
+/// The comparison `PartialEq` makes within either form (IEEE on
+/// literals, display units unread).
+impl PartialEq<Formula> for Expr {
+    fn eq(&self, formula: &Formula) -> bool {
+        Formula::from(self) == *formula
+    }
+}
+
+impl PartialEq<Expr> for Formula {
+    fn eq(&self, stored: &Expr) -> bool {
+        stored == self
+    }
+}
+
 /// A formula with no name leaf is already stored: the lowering in a
 /// scope that holds no name.
 impl TryFrom<&Formula> for Expr {

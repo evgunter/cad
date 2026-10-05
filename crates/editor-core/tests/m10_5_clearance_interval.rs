@@ -117,6 +117,7 @@
 //! certified scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -131,7 +132,7 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
     RecipeNodeId, VarName,
 };
 use geom_core::{Sign, Tol};
@@ -184,7 +185,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
 /// A rigid translation along +x — identity rotation, so every stored
 /// direction passes through exactly and the placed body's charts are as
 /// clean as the literal one's.
-fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, by: Formula) -> AuthoredNode {
     Node::transform(
         input,
         editor_core::Step::Rigid {
@@ -338,7 +339,7 @@ fn facing_blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let by = Expr::add(len(1.0), Formula::named(name("gap"), Dimension::Length))
+    let by = Formula::add(len(1.0), Formula::named(name("gap"), Dimension::Length))
         .expect("1 m + a length is a length");
     let b = r.insert(translated(a, by));
     (r.doc, a, b)

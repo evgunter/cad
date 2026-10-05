@@ -26,6 +26,8 @@
 //! refusal (row 3).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
@@ -102,7 +104,7 @@ fn kiss_part(label: &str) -> ProfileDoc {
     doc
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -123,7 +125,7 @@ fn rest_mate(
     a: RecipeNodeId,
     b: RecipeNodeId,
     seat: f64,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::End)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
@@ -147,7 +149,7 @@ fn rest_mate_at(
     a: RecipeNodeId,
     b: RecipeNodeId,
     origin: [f64; 3],
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::End)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),

@@ -47,7 +47,7 @@ use editor_core::stackup::{
 };
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    EvalOptions, Evaluation, Expr, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
     Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, ValuePayload,
     VarName, evaluate,
 };
@@ -105,7 +105,7 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str, dim: Dimension) -> Expr {
+fn param(n: &'static str, dim: Dimension) -> Formula {
     Formula::named(name(n), dim)
 }
 

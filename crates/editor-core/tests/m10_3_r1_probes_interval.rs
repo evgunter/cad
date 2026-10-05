@@ -48,7 +48,7 @@ use editor_core::drive::{
     BudgetKind, DriveConfig, MeasureAccounting, ReasonClass, RefusalReason, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node,
     NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, VarName, evaluate,
 };
 use geom_core::Tol;
@@ -70,7 +70,7 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
@@ -141,7 +141,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p2,
-        distance: Expr::sub(len(c), Formula::named(name("q"), Dimension::Length))
+        distance: Formula::sub(len(c), Formula::named(name("q"), Dimension::Length))
             .expect("length minus length"),
         side: ExtrudeSide::Along,
     });

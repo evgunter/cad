@@ -13,12 +13,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Expr, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind,
+    Formula, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName,
     member_of, product,
 };
@@ -121,7 +122,7 @@ fn seat_with(
     b: SitedFace,
     primitive: MatePrimitive,
     clocking: Option<f64>,
-) -> Node<ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -148,12 +149,12 @@ fn seat_with(
     }
 }
 
-fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     seat_with(a, b, MatePrimitive::FrameCoincidence, None)
 }
 
 /// Insert `mate` and answer its id.
-fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = step(
         doc,
         DocEdit::InsertNode {

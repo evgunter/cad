@@ -15,7 +15,7 @@ use crate::fixture;
 
 use crate::fixture::len;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node, ProfileDoc,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
     ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, VarName,
     evaluate,
 };

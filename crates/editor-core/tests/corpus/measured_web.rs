@@ -29,7 +29,7 @@
 use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, Dimension, DocEdit, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
+    AssertionDir, Dimension, DocEdit, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
     Node, ProfileProgram, SitedRef, VarName,
 };
 use geom_core::Tol;

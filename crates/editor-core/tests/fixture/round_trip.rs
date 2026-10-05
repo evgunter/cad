@@ -39,6 +39,7 @@
 //! A refactoring's round trip composes its two outcomes' maps
 //! ([`composed`]).
 
+use editor_core::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{InlineOutcome, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap};
@@ -132,8 +133,8 @@ fn renamed(text: &str, ids: &BTreeMap<u64, u64>, steps: &BTreeMap<u64, u64>) -> 
 /// field (gauge references, offsets, placements, alignments, heads,
 /// a profile's step ids); the first disagreement is reported in context.
 fn same_payload(
-    a: &Node<editor_core::ProfileProgram>,
-    b: &Node<editor_core::ProfileProgram>,
+    a: &editor_core::Node<editor_core::ProfileProgram>,
+    b: &editor_core::Node<editor_core::ProfileProgram>,
     ids: &BTreeMap<u64, u64>,
     steps: &BTreeMap<u64, u64>,
     out: &mut Vec<String>,

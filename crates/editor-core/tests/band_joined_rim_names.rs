@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -89,7 +90,7 @@ fn a_joined_band_is_named_by_its_chains_edge_set() {
 /// union edges, and one plain band per unsplit edge.
 fn assert_named(
     doc: &ProfileDoc,
-    node: Node<editor_core::ProfileProgram>,
+    node: AuthoredNode,
     edges: &[editor_core::StableName],
     chamfer: bool,
 ) {

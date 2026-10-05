@@ -208,7 +208,7 @@ pub use product::{
     own_spaces, product, product_named, product_recorded,
 };
 pub use program::{
-    LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
+    LoopProgram, ProfileDoc, ProfilePayload, SlotPayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepIdFault,
     StepSegmentsError, resolve_loops,
 };

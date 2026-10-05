@@ -34,7 +34,7 @@
 //! suite (`sweep/tests/m6_loft_body.rs`), where the derivation above
 //! is asserted against the certified enclosure.
 
-use editor_core::{DocEdit, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
+use editor_core::{DocEdit, Formula, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 
 use super::super::fixture::frame;

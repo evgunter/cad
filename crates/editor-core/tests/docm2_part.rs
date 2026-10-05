@@ -21,7 +21,7 @@ use crate::fixture::{Recorder, ang, len, scl};
 
 use editor_core::{
     BooleanOp, CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Evaluation, Expr, Node, NodeError, NodeErrorKind, NodeResult, PartSelect,
+    EvalOptions, Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, PartSelect,
     PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
     StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
@@ -65,15 +65,15 @@ fn plane_z(r: &mut Recorder, z: f64) -> RecipeNodeId {
     }))
 }
 
-fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect) -> RecipeNodeId {
+fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect<Formula>) -> RecipeNodeId {
     r.insert(Node::Part { of, select })
 }
 
-fn half(h: SplitHalf) -> PartSelect {
+fn half(h: SplitHalf) -> PartSelect<Formula> {
     PartSelect::SplitHalf(h)
 }
 
-fn instance(i: i64) -> PartSelect {
+fn instance(i: i64) -> PartSelect<Formula> {
     PartSelect::Instance(Formula::count(i))
 }
 

@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation, Expr,
+    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation, Formula,
     Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileLift,
     ProfileProgram, RecipeNodeId, VarName, evaluate,
 };
@@ -663,7 +663,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
     );
     let (doc, plane) = insert(doc, xy_frame());
     let over = || {
-        Expr::div(len(1.0), Formula::named(divisor.clone(), Dimension::Scalar))
+        Formula::div(len(1.0), Formula::named(divisor.clone(), Dimension::Scalar))
             .expect("a length over a scalar")
     };
     let program = ProfileProgram {

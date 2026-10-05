@@ -30,7 +30,7 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, FreeVar, MeasureExpr, Node, PatternKind, PersistError,
+    Dimension, DocEdit, EditError, Formula, FreeVar, MeasureExpr, Node, PatternKind, PersistError,
     ProfileDoc, RecipeNodeId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};

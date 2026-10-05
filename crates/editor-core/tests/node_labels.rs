@@ -5,6 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -1123,7 +1124,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     );
     assert!(
         pick.spoken(&doc).starts_with(&format!(
-            "pick: Datum frame \"sketch plane\" ({f})'s value is not body-denoting"
+            "pick: Datum<Formula> frame \"sketch plane\" ({f})'s value is not body-denoting"
         )),
         "{}",
         pick.spoken(&doc)
@@ -1131,7 +1132,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let renamed = set_label(doc.clone(), frame, Some("top plane"));
     assert!(
         pick.spoken(&renamed)
-            .starts_with(&format!("pick: Datum frame \"top plane\" ({f})'s")),
+            .starts_with(&format!("pick: Datum<Formula> frame \"top plane\" ({f})'s")),
         "a refusal raised before a rename speaks the label as it stands: {}",
         pick.spoken(&renamed)
     );
@@ -1139,7 +1140,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let from_extrude = [editor_core::GeomPred::DatumDistance {
         datum: extrude,
         cmp: Cmp::Approx,
-        value: fixture::len(0.0),
+        value: editor_core::test_support::stored_expr(&fixture::len(0.0)),
     }];
     let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
     let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.var_env(), tol)

@@ -20,7 +20,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
     MeasureExpr, MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
     UnitSym, ValuePayload, VarName, evaluate,
 };

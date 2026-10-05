@@ -25,7 +25,7 @@ use crate::fixture;
 use editor_core::analysis::{BoxAxis, ParamBox};
 
 use editor_core::{
-    CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, EvalOptions, Expr, FramePlacement,
+    CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, EvalOptions, Formula, FramePlacement,
     FreeVar, Node, ProfileDoc, RecipeNodeId, ValuePayload, VarName, evaluate,
 };
 use geom_core::{OrthoFrame, Tol};

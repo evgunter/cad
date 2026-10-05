@@ -12,13 +12,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Expr, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
     Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName,
     ValuePayload, VarName, apply, evaluate,
@@ -53,7 +54,7 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
 /// Inserts a node and returns the document beside the minted id — the
 /// [`push`] shape for a node whose id the caller needs, which a frame
 /// datum's is: every profile drawn on it names it.
-fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -825,7 +826,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: disc,
-                distance: Expr::div(
+                distance: Formula::div(
                     len(13.0),
                     Formula::named(VarName::from_static("s"), Dimension::Scalar),
                 )
@@ -1199,7 +1200,7 @@ fn the_measurement_nodes_carry_no_slots() {
 /// The lune: the lip between the internally tangent circles (0,1) r 1
 /// and (0,2) r 2, `ProgramStep::Cusp` at the kiss — a crescent whose
 /// extrude sweeps one strut at material wedge 0.
-fn cusp_lune() -> LoopProgram {
+fn cusp_lune() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(4.0)]),
         ProgramStep::Angle(ang(-std::f64::consts::FRAC_PI_2)),

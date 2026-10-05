@@ -20,7 +20,7 @@ test_utils::gated_to![
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Dimension, DimensionError, Expr, ParseError, VarEnv, VarName, eval, eval_count, parse_formula,
+    Dimension, DimensionError, Formula, ParseError, VarEnv, VarName, eval, eval_count, parse_formula,
     unparse,
 };
 use proptest::prelude::*;
@@ -30,7 +30,7 @@ fn no_params() -> BTreeMap<VarName, Dimension> {
     BTreeMap::new()
 }
 
-fn p(src: &str) -> Expr {
+fn p(src: &str) -> Formula {
     parse_formula(src, &no_params()).expect(src)
 }
 
@@ -38,14 +38,14 @@ fn perr(src: &str) -> ParseError {
     parse_formula(src, &no_params()).expect_err(src)
 }
 
-fn bits(e: &Expr) -> Vec<u64> {
+fn bits(e: &Formula) -> Vec<u64> {
     let mut out = Vec::new();
     e.literal_bits(&mut out);
     out
 }
 
-fn ev(e: &Expr) -> f64 {
-    eval::<f64>(e, &VarEnv::default()).expect("finite eval")
+fn ev(e: &Formula) -> f64 {
+    eval::<f64>(&editor_core::test_support::stored_expr(e), &VarEnv::default()).expect("finite eval")
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn unit_suffixed_literals_land_in_canonical_units() {
 fn bare_integers_are_counts_and_bare_reals_are_scalars() {
     let five = p("5");
     assert_eq!(five.dim(), Dimension::Count);
-    assert_eq!(eval_count(&five, &VarEnv::<f64>::default()), Ok(5));
+    assert_eq!(eval_count(&editor_core::test_support::stored_expr(&five), &VarEnv::<f64>::default()), Ok(5));
     for src in ["5.0", "5.", "1e3", "2.5e-3", "0.5"] {
         assert_eq!(p(src).dim(), Dimension::Scalar, "{src}");
     }
@@ -390,7 +390,7 @@ proptest! {
         let text = text.unwrap();
         let e = parse_formula(&text, &no_params()).expect(&text);
         prop_assert_eq!(e.dim(), dim, "{}", &text);
-        let back = eval::<f64>(&e, &VarEnv::default()).expect(&text);
+        let back = eval::<f64>(&editor_core::test_support::stored_expr(&e), &VarEnv::default()).expect(&text);
         prop_assert_eq!(back.to_bits(), value.to_bits(), "{}", &text);
     }
 }
@@ -515,12 +515,12 @@ fn rt_params() -> BTreeMap<VarName, Dimension> {
     .collect()
 }
 
-fn rp(src: &str) -> Expr {
+fn rp(src: &str) -> Formula {
     parse_formula(src, &rt_params()).expect(src)
 }
 
 /// `e`'s source text, checked to read back as `e` itself.
-fn round_trip(e: &Expr) -> String {
+fn round_trip(e: &Formula) -> String {
     let text = unparse(e, &|_| None);
     let back = parse_formula(&text, &rt_params()).expect(&text);
     assert!(
@@ -701,18 +701,18 @@ fn a_sign_before_a_number_is_the_literals_own() {
         ("a negative length", length(-0.025), "-0.025 m"),
         (
             "a negated length",
-            Expr::neg(length(0.025)).expect("shallow"),
+            Formula::neg(length(0.025)).expect("shallow"),
             "-(0.025 m)",
         ),
         (
             "a negated negative length",
-            Expr::neg(length(-0.025)).expect("shallow"),
+            Formula::neg(length(-0.025)).expect("shallow"),
             "--0.025 m",
         ),
         ("a negative count", Formula::count(-7), "-7"),
         (
             "a negated count",
-            Expr::neg(Formula::count(7)).expect("shallow"),
+            Formula::neg(Formula::count(7)).expect("shallow"),
             "-(7)",
         ),
         (
@@ -727,7 +727,7 @@ fn a_sign_before_a_number_is_the_literals_own() {
         ),
         (
             "a sign after an operator",
-            Expr::sub(length(0.5), length(-0.25)).expect("same dimension"),
+            Formula::sub(length(0.5), length(-0.25)).expect("same dimension"),
             "0.5 m - -0.25 m",
         ),
     ] {
@@ -751,7 +751,7 @@ fn a_sign_before_a_number_is_the_literals_own() {
 /// A literal of `dim` drawn from `rng`: either sign, zero of either sign
 /// included, in a unit the dimension's table rows offer, or one of the
 /// declared parameters.
-fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Expr {
+fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Formula {
     let magnitude = match rng.below(4) {
         0 => 0.0,
         1 => rng.range(0.0, 2.0),
@@ -795,13 +795,13 @@ fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Expr {
 
 /// An operand of `dim` nesting at most two levels: a leaf, its negation,
 /// or a call over one (`sin` of an angle, `scalar` of a count).
-fn random_atom(rng: &mut fuzz::Rng, dim: Dimension, leaf_only: bool) -> Expr {
+fn random_atom(rng: &mut fuzz::Rng, dim: Dimension, leaf_only: bool) -> Formula {
     let pick = if leaf_only { 0 } else { rng.below(4) };
     match (dim, pick) {
-        (_, 1) => Expr::neg(random_leaf(rng, dim)).expect("shallow"),
-        (Dimension::Scalar, 2) => Expr::sin(random_leaf(rng, Dimension::Angle)).expect("an angle"),
+        (_, 1) => Formula::neg(random_leaf(rng, dim)).expect("shallow"),
+        (Dimension::Scalar, 2) => Formula::sin(random_leaf(rng, Dimension::Angle)).expect("an angle"),
         (Dimension::Scalar, 3) => {
-            Expr::count_to_scalar(random_leaf(rng, Dimension::Count)).expect("a count")
+            Formula::count_to_scalar(random_leaf(rng, Dimension::Count)).expect("a count")
         }
         _ => random_leaf(rng, dim),
     }
@@ -810,46 +810,46 @@ fn random_atom(rng: &mut fuzz::Rng, dim: Dimension, leaf_only: bool) -> Expr {
 /// A tree of `dim` nesting exactly `levels`: each step puts one operator
 /// over the tree so far and, for a binary one, an operand at most as
 /// deep beside it on either side.
-fn random_tree(rng: &mut fuzz::Rng, dim: Dimension, levels: usize) -> Expr {
+fn random_tree(rng: &mut fuzz::Rng, dim: Dimension, levels: usize) -> Formula {
     let mut tree = random_leaf(rng, dim);
     for step in 1..levels {
         // An operand nesting two levels only once the tree does.
         let other = |rng: &mut fuzz::Rng, dim| random_atom(rng, dim, step == 1);
         let left = rng.below(2) == 0;
-        let pair = |tree: Expr, other: Expr| if left { (tree, other) } else { (other, tree) };
+        let pair = |tree: Formula, other: Formula| if left { (tree, other) } else { (other, tree) };
         tree = match (dim, rng.below(7)) {
-            (_, 0) => Expr::neg(tree),
+            (_, 0) => Formula::neg(tree),
             (_, 1) => {
                 let (a, b) = pair(tree, other(rng, dim));
-                Expr::add(a, b)
+                Formula::add(a, b)
             }
             (_, 2) => {
                 let (a, b) = pair(tree, other(rng, dim));
-                Expr::sub(a, b)
+                Formula::sub(a, b)
             }
             (_, 3) => {
                 let (a, b) = pair(tree, other(rng, dim));
-                Expr::min(a, b)
+                Formula::min(a, b)
             }
             (_, 4) => {
                 let (a, b) = pair(tree, other(rng, dim));
-                Expr::max(a, b)
+                Formula::max(a, b)
             }
             (Dimension::Count, _) => {
                 let (a, b) = pair(tree, other(rng, dim));
-                Expr::mul(a, b)
+                Formula::mul(a, b)
             }
             (_, 5) => {
                 let (a, b) = pair(tree, other(rng, Dimension::Scalar));
-                Expr::mul(a, b)
+                Formula::mul(a, b)
             }
             // The divisor is a scalar, so a tree of another dimension
             // stays on the left.
             (Dimension::Scalar, _) => {
                 let (a, b) = pair(tree, other(rng, dim));
-                Expr::div(a, b)
+                Formula::div(a, b)
             }
-            (_, _) => Expr::div(tree, other(rng, Dimension::Scalar)),
+            (_, _) => Formula::div(tree, other(rng, Dimension::Scalar)),
         }
         .unwrap_or_else(|err| panic!("step {step} builds: {err} — {}", fuzz::replay()));
     }

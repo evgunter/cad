@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -73,9 +74,9 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
 fn messages(
     blend: fn(
         RecipeNodeId,
-        editor_core::Expr,
+        editor_core::Formula,
         Vec<editor_core::StableName>,
-    ) -> Node<ProfileProgram>,
+    ) -> AuthoredNode,
 ) -> Vec<(&'static str, String)> {
     let size = fixture::len(0.1);
     let mut out = Vec::new();

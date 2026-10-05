@@ -16,6 +16,8 @@
 //! across a document boundary.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -86,7 +88,7 @@ fn in_part_in_part(
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -95,7 +97,7 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// seating `b` at height `seat` by frame coincidence. `seat = 1.0`
 /// puts `b`'s bottom exactly on `a`'s top (the unit cube is z ∈ [0,1]);
 /// anything larger leaves a definite gap and the declaration is FALSE.
-fn rest_mate(a: StableName, b: StableName, seat: f64) -> Node<editor_core::ProfileProgram> {
+fn rest_mate(a: StableName, b: StableName, seat: f64) -> AuthoredNode {
     classed_mate(a, b, seat, ContactClass::Rest)
 }
 
@@ -106,7 +108,7 @@ fn classed_mate(
     b: StableName,
     seat: f64,
     class: ContactClass,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),

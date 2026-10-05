@@ -570,6 +570,18 @@ impl<S: Slot> MeasureExpr<S> {
     }
 }
 
+impl MeasureExpr {
+    /// **This measure re-authored**: every value leaf a formula reading
+    /// what it read ([`crate::Formula::from`]).
+    #[must_use]
+    pub fn authored(&self) -> MeasureExpr<crate::Formula> {
+        let Ok(authored) = self.try_map_values(&mut |e| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
+        });
+        authored
+    }
+}
+
 impl MeasureExpr<crate::Formula> {
     /// The names this expression's value leaves read
     /// ([`crate::Formula::named_reads`] lifted to this language).

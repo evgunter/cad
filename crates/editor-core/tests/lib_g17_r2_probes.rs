@@ -3,6 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::corpus::{self, body_of, cup, eval, failures};
 use crate::fixture;
 use editor_core::ExtrudeSide;
@@ -130,7 +131,7 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     }
     // And the construction door, handed the same list, keeps the first
     // occurrence — the repair the refusal's text names.
-    let Node::Shell { open, .. }: Node<ProfileProgram> = Node::shell(
+    let Node::Shell { open, .. }: AuthoredNode = Node::shell(
         blank,
         fixture::len(cup::T),
         vec![cup::top(blank), cup::bottom(blank), cup::top(blank)],
@@ -237,7 +238,7 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
 #[test]
 fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
     use editor_core::analysis::{BoxAxis, ParamBox};
-    use editor_core::{Dimension, Expr, FreeVar, UnitSym, VarName};
+    use editor_core::{Dimension, Formula, FreeVar, UnitSym, VarName};
     use geom_core::Interval;
     use std::collections::BTreeMap;
     use std::sync::Arc;

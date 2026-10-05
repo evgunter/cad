@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
@@ -15,7 +16,7 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
     Node, NodeErrorKind, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace, SlotId,
     StableName, Step, ValuePayload, VarName, evaluate, root_of,
 };
@@ -90,12 +91,12 @@ impl Parts {
     }
 }
 
-fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
 
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -110,7 +111,7 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
@@ -291,7 +292,7 @@ fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement<Formula>>) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
@@ -1110,7 +1111,7 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     // By id, so the stored offset compares to it as written.
     let lift_id = doc.var_named(lift().as_str()).expect("lift is declared");
     let offset = Placement::from(Step::Rigid {
-        translation: [Expr::var(lift_id, Dimension::Length), len(0.0), len(0.0)],
+        translation: [Formula::var(lift_id, Dimension::Length), len(0.0), len(0.0)],
         axis: [0.0, 0.0, 1.0].map(scl),
         angle: ang(0.0),
     });
@@ -1144,7 +1145,7 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     let k = k.expect("the promote mints its gauge");
     let out = split(&doc).expect("the promoted offset stays in the host");
     assert!(
-        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&offset)),
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&editor_core::test_support::stored_placement(&offset))),
         "the promoted gauge holds the parametric offset"
     );
     assert_eq!(

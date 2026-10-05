@@ -27,7 +27,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    Attr, CancelToken, Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Expr, FreeVar,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar,
     LoopProgram, MetaValue, Node, NodeResult, PersistError, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, VarName, WitnessDatum,
     apply, evaluate, load, save,

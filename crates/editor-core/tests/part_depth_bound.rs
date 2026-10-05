@@ -22,6 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -397,7 +398,7 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
     );
 }
 
-fn frame(origin: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(
         origin,
         [0.0, 0.0, 1.0],

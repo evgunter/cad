@@ -12,6 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use crate::wire::doctored;
 use editor_core::ExtrudeSide;
@@ -19,7 +20,7 @@ use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
-    EntityKind, EvalOptions, Evaluation, Expr, FreeValue, FreeVar, GeomPred, LoopProgram,
+    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
     ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
     SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
@@ -111,7 +112,7 @@ fn edges_of_kind(
 /// unchanged.
 fn with_measure(
     doc: &ProfileDoc,
-    expr: MeasureExpr,
+    expr: MeasureExpr<Formula>,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
@@ -821,7 +822,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
 
     // Every op that takes a body, pointed at each sink.
     for victim in [measure, assertion] {
-        let attempts: Vec<(&str, Node<ProfileProgram>)> = vec![
+        let attempts: Vec<(&str, AuthoredNode)> = vec![
             (
                 "boolean-a",
                 Node::Boolean {
@@ -1445,7 +1446,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: d1.order()[1],
-                distance: Expr::div(
+                distance: Formula::div(
                     len(13.0),
                     Formula::named(VarName::from_static("s"), Dimension::Scalar),
                 )

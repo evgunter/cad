@@ -30,7 +30,7 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, Expr, FreeVar, Node, PatternKind, SlotId, VarName,
+    BooleanOp, Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName,
 };
 
 use crate::fixture::{ang, len, scl};

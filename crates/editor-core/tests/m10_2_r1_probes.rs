@@ -12,13 +12,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EditError,
-    EntityKind, EvalOptions, Evaluation, Expr, FreeValue, FreeVar, GeomPred, LoopProgram,
+    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
     ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
     SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
@@ -43,7 +44,7 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
         .doc
 }
 
-fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {

@@ -17,12 +17,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Expr, MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc,
+    Evaluation, Formula, MateFrame, MatePrimitive, Node, NodeResult, PatternKind, ProfileDoc,
     ProfileProgram, RecipeNodeId, SitedFace, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -134,7 +135,7 @@ impl Scene {
     }
 
     /// Inserts `node` through the door, levered by the scene's parts.
-    fn add(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
+    fn add(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let reach = editor_core::mate_reach::<f64>(&self.opts, Tol::witness());
         let (doc, id) = fixture::step_with(
             self.doc.clone(),
@@ -196,7 +197,7 @@ fn seat(
     (x, y): (f64, f64),
     primitive: MatePrimitive,
     clocking: Option<f64>,
-) -> Node<ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -510,8 +511,8 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
         },
     );
     s.doc = doc;
-    let index = Expr::add(
-        Expr::mul(
+    let index = Formula::add(
+        Formula::mul(
             Formula::named(k.clone(), Dimension::Count),
             Formula::count(i64::MAX),
         )
@@ -782,8 +783,8 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
         },
     );
     s.doc = doc;
-    let index = Expr::add(
-        Expr::mul(
+    let index = Formula::add(
+        Formula::mul(
             Formula::named(k.clone(), Dimension::Count),
             Formula::count(i64::MAX),
         )

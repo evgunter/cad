@@ -15,6 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use crate::docm7_union_declare::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
@@ -91,7 +92,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     );
 }
 
-fn mate_frame() -> MateFrame {
+fn mate_frame() -> MateFrame<Formula> {
     MateFrame::authored(
         [0.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],

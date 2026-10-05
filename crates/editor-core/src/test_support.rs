@@ -26,7 +26,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Datum, Dimension, DocEdit, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Datum, Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach,
 };
 
@@ -67,6 +67,63 @@ pub fn scl(value: f64) -> Formula {
 /// If either coordinate is not finite.
 pub fn len2(v: [f64; 2]) -> [Formula; 2] {
     [len(v[0]), len(v[1])]
+}
+
+// --- the stored form ------------------------------------------------
+
+/// The stored node `node` lowers to where no name is held: what the
+/// edit door would write for it, for a row that places a node in a
+/// document by hand.
+///
+/// # Panics
+///
+/// If `node` reads a variable by name.
+pub fn stored(node: &crate::AuthoredNode) -> Node<ProfileProgram> {
+    use crate::ProfilePayload;
+    node.try_map_slots(|p, f| ProfileProgram::lower(p, f), &mut |f| Expr::try_from(f))
+        .expect("a node with no name leaf lowers in any scope")
+}
+
+/// The stored expression `formula` lowers to where no name is held.
+///
+/// # Panics
+///
+/// If `formula` reads a variable by name.
+pub fn stored_expr(formula: &Formula) -> Expr {
+    Expr::try_from(formula).expect("a formula with no name leaf lowers in any scope")
+}
+
+/// The stored program `program` lowers to where no name is held.
+///
+/// # Panics
+///
+/// If `program` reads a variable by name.
+pub fn stored_program(program: &ProfileProgram<Formula>) -> ProfileProgram {
+    program
+        .try_map_slots(&mut |f| Expr::try_from(f))
+        .expect("a program with no name leaf lowers in any scope")
+}
+
+/// The stored loop `program` lowers to where no name is held.
+///
+/// # Panics
+///
+/// If `program` reads a variable by name.
+pub fn stored_loop(program: &LoopProgram<Formula>) -> LoopProgram {
+    program
+        .try_map_slots(&mut |f| Expr::try_from(f))
+        .expect("a loop with no name leaf lowers in any scope")
+}
+
+/// The stored placement `placement` lowers to where no name is held.
+///
+/// # Panics
+///
+/// If `placement` reads a variable by name.
+pub fn stored_placement(placement: &crate::Placement<Formula>) -> crate::Placement {
+    placement
+        .try_map_slots(&mut |f| Expr::try_from(f))
+        .expect("a placement with no name leaf lowers in any scope")
 }
 
 // --- the frame a sketch is drawn on ---------------------------------
@@ -304,9 +361,9 @@ pub fn bracket_depth(text: &str) -> usize {
 ///
 /// Carries no oracle: it IS the mint's draw, with no document around
 /// it, so a shape whose inputs name no live node still draws.
-pub fn first_node_id(node: &Node<ProfileProgram>) -> RecipeNodeId {
+pub fn first_node_id(node: &crate::AuthoredNode) -> RecipeNodeId {
     crate::Mint::empty()
-        .insert(node)
+        .insert(&stored(node))
         .expect("an empty log holds no id")
 }
 

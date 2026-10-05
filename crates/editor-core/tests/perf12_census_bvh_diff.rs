@@ -42,7 +42,7 @@ use editor_core::ExtrudeSide;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    Datum, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
+    Datum, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
     VarName, apply, product_recorded,
 };
 use fixture::{Recorder, band, frame, len, scl, xy_frame};

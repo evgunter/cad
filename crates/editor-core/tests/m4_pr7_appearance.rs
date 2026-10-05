@@ -11,7 +11,7 @@ use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
-    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, FreeVar, Node, PatternKind,
+    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, PatternKind,
     ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
@@ -268,13 +268,13 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(plane).unwrap().clone()),
+            node: Box::new(doc3.node(plane).unwrap().authored()),
         },
         DocEdit::InsertNode {
             node: Box::new(crate::fixture::as_authored(doc3.node(p).unwrap())),
         },
         DocEdit::InsertNode {
-            node: Box::new(doc3.node(ext).unwrap().clone()),
+            node: Box::new(doc3.node(ext).unwrap().authored()),
         },
         DocEdit::SetAppearance {
             name: cap,

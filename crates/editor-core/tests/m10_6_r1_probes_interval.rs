@@ -60,7 +60,7 @@ use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_k
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    EvalOptions, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
     ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason,
     UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -140,7 +140,7 @@ fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distributio
     });
 }
 
-fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeId {
+fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNodeId {
     r.insert(Node::transform(
         input,
         editor_core::Step::Rigid {
@@ -1045,9 +1045,9 @@ fn bracket(
         [
             Formula::named(name("offset"), Dimension::Length),
             len(0.0),
-            Expr::sub(
+            Formula::sub(
                 len(1.0),
-                Expr::neg(Formula::named(name("lift"), Dimension::Length))
+                Formula::neg(Formula::named(name("lift"), Dimension::Length))
                     .expect("a shallow negation"),
             )
             .expect("length"),
@@ -1337,7 +1337,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
-    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
+    let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -1354,7 +1354,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     };
     let hole_a = hole(
         &mut r,
-        Expr::sub(
+        Formula::sub(
             len(0.0),
             Formula::named(name("half_spacing"), Dimension::Length),
         )

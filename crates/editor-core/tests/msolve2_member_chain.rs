@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -26,7 +27,7 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
-    DocEdit, DocumentId, EvalOptions, Expr, FreeValue, FreeVar, MateFault, MateFrame,
+    DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, VarName, groups,
     member_of, product,
@@ -75,7 +76,7 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// physical seat: the block stands ON the slab. `a_origin` moves the
 /// declared contact point across the slab, which is how a second mate
 /// declares the seat a sibling copy actually lands in.
-fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> Node<ProfileProgram> {
+fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -174,7 +175,7 @@ fn control_seat(label: &str) -> Affine3<f64> {
 }
 
 /// A linear pattern node over `input`.
-fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Node<ProfileProgram> {
+fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
         input,
         count: Formula::count(count),
@@ -187,7 +188,7 @@ fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> Node<
 
 /// A `Part` selecting instance `i` of `of` — the identity-transparent
 /// projection a nested pattern is built through.
-fn part_of(of: RecipeNodeId, i: i64) -> Node<ProfileProgram> {
+fn part_of(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
         of,
         select: PartSelect::Instance(Formula::count(i)),

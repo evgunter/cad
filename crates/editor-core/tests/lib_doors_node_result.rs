@@ -9,19 +9,20 @@
 //! `NodeError`) needs the distinction, so this suite pins it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use crate::fixture::len;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Expr, LoopProgram, Node, NodeResult,
+    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Formula, LoopProgram, Node, NodeResult,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
 
 /// A square profile `[0,s]²` on `plane`, as a loop program.
-fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
+fn square(plane: RecipeNodeId, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![

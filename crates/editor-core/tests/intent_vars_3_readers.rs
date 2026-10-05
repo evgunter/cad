@@ -24,7 +24,7 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalError, EvalOptions,
-    Evaluation, Expr, ExtrudeSide, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
+    Evaluation, Formula, ExtrudeSide, FreeVar, InlineError, Maintenance, Node, NodeErrorKind,
     NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
     VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
 };
@@ -40,7 +40,7 @@ fn n(name: &'static str) -> VarName {
     VarName::from_static(name)
 }
 
-fn named(name: &'static str) -> Expr {
+fn named(name: &'static str) -> Formula {
     Formula::named(n(name), Dimension::Length)
 }
 
@@ -72,7 +72,7 @@ fn id(doc: &ProfileDoc, name: &str) -> VarId {
 
 /// A unit cube at `cx` with every edge blended by `radius`: the cube's
 /// id and the blend's.
-fn filleted(doc: ProfileDoc, cx: f64, radius: Expr) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -142,7 +142,7 @@ fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
 }
 
 /// The slot expression `node` holds at `slot`.
-fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> &Expr {
+fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> &editor_core::Expr {
     doc.node(node)
         .and_then(|n| n.expr(slot))
         .expect("the slot is there")
@@ -221,7 +221,7 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert!(doc.has_minted_var(old), "the log keeps the id");
     assert_eq!(
         slot(&doc, blend, SlotId::Radius),
-        &Expr::var(old, Dimension::Length),
+        &Formula::var(old, Dimension::Length),
         "the reader is untouched"
     );
 
@@ -246,7 +246,7 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert_ne!(new, old, "a re-declare mints a new identity");
     assert_eq!(
         slot(&redeclared, blend, SlotId::Radius),
-        &Expr::var(old, Dimension::Length),
+        &Formula::var(old, Dimension::Length),
         "the reader stays on the deleted variable"
     );
 
@@ -404,7 +404,7 @@ fn the_door_lowers_names_before_it_mints() {
         panic!("a fillet");
     };
     let by_name = Node::fillet(target, named("w"), selection.clone());
-    let by_id = Node::fillet(target, Expr::var(w, Dimension::Length), selection.clone());
+    let by_id = Node::fillet(target, Formula::var(w, Dimension::Length), selection.clone());
     let a = step(
         &doc,
         DocEdit::InsertNode {
@@ -488,7 +488,7 @@ fn the_door_lowers_names_before_it_mints() {
     );
     let frame = next.order()[0];
     log.push(DocEdit::InsertNode {
-        node: Box::new(next.node(frame).unwrap().clone()),
+        node: Box::new(next.node(frame).unwrap().authored()),
     });
     log.push(DocEdit::InsertNode {
         node: Box::new(Node::Profile(desc(frame, vec![square(0.0, 0.0, 0.5)]))),
@@ -625,9 +625,10 @@ fn readers_round_trip_and_a_stored_name_refuses() {
         );
         *radius = serde_json::json!({ "Name": { "name": "nameless", "dim": "Length" } });
     });
+    // A stored expression has no name leaf: the wire refuses the variant.
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::NamedReaderInSnapshot { node })) => {
-            assert_eq!(node.id(), by_nameless);
+        Err(PersistError::Unreadable { detail, .. }) => {
+            assert!(detail.contains("unknown variant `Name`"), "{detail}");
         }
         other => panic!("a stored name refuses, got {other:?}"),
     }
@@ -679,7 +680,7 @@ fn analysis_keeps_its_ids_across_a_rename() {
 
 /// A frame, a square and an extrude of depth `depth`, at `cx`: the
 /// three ids.
-fn block(doc: ProfileDoc, cx: f64, depth: Expr) -> (ProfileDoc, [RecipeNodeId; 3]) {
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -723,7 +724,7 @@ fn split_and_inline_carry_readers_by_id() {
     let extrude = *out.part.order().last().expect("the carried extrude");
     assert_eq!(
         slot(&out.part, extrude, SlotId::Distance),
-        &Expr::var(part_h, Dimension::Length),
+        &Formula::var(part_h, Dimension::Length),
         "the carried reader reads the part's id"
     );
     let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
@@ -873,7 +874,7 @@ fn split_and_inline_declare_in_declaration_order() {
         "the fixture's premise: declaration order is not id order"
     );
     let sum = ["q", "r", "s"].into_iter().fold(named("p"), |sum, name| {
-        Expr::add(sum, named(name)).expect("lengths add")
+        Formula::add(sum, named(name)).expect("lengths add")
     });
     let (doc, cut) = block(doc, 0.0, sum);
     let (doc, _) = block(doc, 10.0, len(1.0));
@@ -1031,7 +1032,7 @@ fn recording_insert_lowers_as_apply_does() {
     assert!(recording.doc().bit_eq(&by_apply.doc));
     assert_eq!(
         slot(recording.doc(), minted, SlotId::Distance),
-        &Expr::var(id(&doc, "w"), Dimension::Length)
+        &Formula::var(id(&doc, "w"), Dimension::Length)
     );
 }
 
@@ -1054,7 +1055,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
             DocEdit::SetParam {
                 node: extrude,
                 slot: SlotId::Distance,
-                expr: Expr::var(var, Dimension::Length),
+                expr: Formula::var(var, Dimension::Length),
             },
         ) {
             Err(EditError::SlotUnresolvedVar {
@@ -1073,7 +1074,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
             &gone,
             DocEdit::InsertNode {
                 node: Box::new(Node::Measure {
-                    expr: editor_core::MeasureExpr::value(Expr::var(var, Dimension::Length)),
+                    expr: editor_core::MeasureExpr::value(Formula::var(var, Dimension::Length)),
                     refs: Vec::new(),
                 }),
             },
@@ -1131,7 +1132,7 @@ fn a_respoken_refusal_says_the_variables_new_name() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: Expr::var(id(&doc, "ang_old"), Dimension::Length),
+            expr: Formula::var(id(&doc, "ang_old"), Dimension::Length),
         },
     )
     .expect_err("a reader at the wrong kind refuses");

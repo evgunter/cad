@@ -16,7 +16,7 @@ use crate::fixture::{self, Recorder, ang, len, scl};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeVar, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId,
     RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };

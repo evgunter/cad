@@ -46,6 +46,7 @@
 //! (`sweep/tests/m6_surgery.rs`) meters the composed volume against
 //! its derived closed form at a stated relative tolerance.
 
+use editor_core::Formula;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Axis3, BooleanOp, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef,
@@ -308,7 +309,7 @@ pub fn document() -> CorpusDoc {
 }
 
 /// The half-disc loop PROGRAM (die_pips' twin).
-fn half_disc_program() -> LoopProgram {
+fn half_disc_program() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {

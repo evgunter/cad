@@ -3268,6 +3268,28 @@ pub fn declare_continuation(pairs: Vec<(SitedRef, SitedRef)>) -> Vec<DeclaredPai
 impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
     row_readers!(pub(crate) node_rows -> SlotId, S);
 
+    /// The expression slots this node actually carries, deterministic
+    /// order — the domain of [`Node::expr`]. Profile nodes enumerate
+    /// their PROGRAM's slots (LIB-SWITCH §4c behavior delta 3: the
+    /// formerly slot-free payload now carries one slot per continuous
+    /// step argument), through the payload's own [`crate::ProfilePayload`]
+    /// rows.
+    pub fn slots(&self) -> Vec<SlotId> {
+        self.rows().into_iter().map(|(slot, _)| slot).collect()
+    }
+
+    /// The expression in a named slot, `None` if this node type does
+    /// not carry that slot (named access only, spec D5).
+    pub fn expr(&self, slot: SlotId) -> Option<&S> {
+        find_row(self.rows(), slot)
+    }
+
+    /// Mutable access to a named slot's expression (the edit layer's
+    /// substrate; all validation lives in `apply`, spec D6).
+    pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut S> {
+        find_row(self.rows_mut(), slot)
+    }
+
     /// **Every expression this node carries**: its slot rows, or a
     /// payload carrier's expressions ([`payload_exprs`]) — the one walk
     /// the edit door lowers and checks, a document's read queries ask,
@@ -3714,37 +3736,6 @@ impl<P> Node<P> {
         }
     }
 
-    /// The expression slots this node actually carries, deterministic
-    /// order — the domain of [`Node::expr`]. Profile nodes enumerate
-    /// their PROGRAM's slots (LIB-SWITCH §4c behavior delta 3: the
-    /// formerly slot-free payload now carries one slot per continuous
-    /// step argument), through the payload's own [`crate::ProfilePayload`]
-    /// rows.
-    pub fn slots(&self) -> Vec<SlotId>
-    where
-        P: crate::ProfilePayload,
-    {
-        self.rows().into_iter().map(|(slot, _)| slot).collect()
-    }
-
-    /// The expression in a named slot, `None` if this node type does
-    /// not carry that slot (named access only, spec D5).
-    pub fn expr(&self, slot: SlotId) -> Option<&Expr>
-    where
-        P: crate::ProfilePayload,
-    {
-        find_row(self.rows(), slot)
-    }
-
-    /// Mutable access to a named slot's expression (the edit layer's
-    /// substrate; all validation lives in `apply`, spec D6).
-    pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr>
-    where
-        P: crate::ProfilePayload,
-    {
-        find_row(self.rows_mut(), slot)
-    }
-
     /// Rewrites every payload reference EXACTLY equal to `from` into
     /// `to`, returning how many it rewrote — the substrate of `Rebind`,
     /// N5's one repair. A set-shaped payload re-canonicalizes, because
@@ -3980,106 +3971,6 @@ impl<P> Node<P> {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => None,
-        }
-    }
-
-    /// What is wrong with this node's placement rule, if anything, with
-    /// its frames admitted at `tol` — the ONE door the edit gate, the
-    /// persist re-check and the evaluation backstop all read, so the
-    /// three can never diverge on what a usable rule is. `None` for
-    /// every non-placement node.
-    pub fn placement_rule_fault(&self, tol: geom_core::Tol) -> Option<PlacementRuleFault> {
-        if let Some(shape) = self.count_mismatch() {
-            return Some(PlacementRuleFault::CountSpelling { shape });
-        }
-        // A stepped rule with its count has nothing more to check.
-        let frames = self.placement_rule()?.1.placements()?;
-        // The list IS the count, so an EMPTY list is the explicit
-        // rule's `count < 1` — refused for the same reason
-        // `NonPositiveCount` refuses a stepped rule's zero, rather
-        // than quietly denoting an empty body (LIB-PLACEDUNION review
-        // MAJOR-1).
-        if frames.is_empty() {
-            return Some(PlacementRuleFault::NoPlacements);
-        }
-        // A6 parity: a listed frame is held to exactly what a
-        // placement's literal step is held to, because it is held to
-        // it by the same predicate — `Frame::admission_fault`, whose
-        // home is the frame. This arm says only WHICH frame in the list
-        // answered. Checked HERE so the refusal lands at the edit door
-        // with the best diagnostics, not at the kernel's rigidity
-        // re-check downstream.
-        frames
-            .iter()
-            .enumerate()
-            .find_map(|(index, frame)| match frame.admission_fault(tol)? {
-                crate::placement::FrameFault::NonFinite => {
-                    Some(PlacementRuleFault::NonFiniteFrame { index })
-                }
-                crate::placement::FrameFault::Improper { determinant } => {
-                    Some(PlacementRuleFault::ImproperFrame { index, determinant })
-                }
-                crate::placement::FrameFault::NotRigid { check } => {
-                    Some(PlacementRuleFault::NonRigidFrame { index, check })
-                }
-            })
-    }
-
-    /// Which answer to "how many placements" this node gives twice, if
-    /// it gives one twice. `None` for every non-placement node.
-    fn count_mismatch(&self) -> Option<CountMismatch> {
-        let (slot, kind) = self.placement_rule()?;
-        match (slot, kind.placements().is_some()) {
-            (CountSlot::Field, true) => Some(CountMismatch::ListedOnPattern),
-            (CountSlot::Optional { present: true }, true) => Some(CountMismatch::ListedWithCount),
-            (CountSlot::Optional { present: false }, false) => {
-                Some(CountMismatch::SteppedWithoutCount)
-            }
-            (CountSlot::Field | CountSlot::Optional { present: true }, false)
-            | (CountSlot::Optional { present: false }, true) => None,
-        }
-    }
-
-    /// Where this node keeps its count, and its rule, if it is a
-    /// placement-rule node.
-    fn placement_rule(&self) -> Option<(CountSlot, &PatternKind)> {
-        match self {
-            // Pattern's count is a non-optional field, so it always
-            // "has" one — which is why an explicit list there is
-            // always a second answer to the same question.
-            Node::Pattern { kind, .. } => Some((CountSlot::Field, kind)),
-            Node::PlacedUnion { count, kind, .. } => Some((
-                CountSlot::Optional {
-                    present: count.is_some(),
-                },
-                kind,
-            )),
-            // EXHAUSTIVE on purpose: a future node kind carrying a
-            // placement rule must be classified here or the compile
-            // breaks, rather than defaulting to "has no rule" and
-            // slipping past all three doors this function is the one
-            // answer for.
-            Node::Datum(..)
-            | Node::Profile(..)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. }
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Transform { .. }
-            | Node::Part { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
@@ -4473,6 +4364,106 @@ impl<P: crate::ProfilePayload> Node<P> {
 /// The construction doors, in either slot form: a node built from
 /// authored formulas is what an edit carries, and the door lowers it.
 impl<P, S: Slot> Node<P, S> {
+    /// What is wrong with this node's placement rule, if anything, with
+    /// its frames admitted at `tol` — the ONE door the edit gate, the
+    /// persist re-check and the evaluation backstop all read, so the
+    /// three can never diverge on what a usable rule is. `None` for
+    /// every non-placement node.
+    pub fn placement_rule_fault(&self, tol: geom_core::Tol) -> Option<PlacementRuleFault> {
+        if let Some(shape) = self.count_mismatch() {
+            return Some(PlacementRuleFault::CountSpelling { shape });
+        }
+        // A stepped rule with its count has nothing more to check.
+        let frames = self.placement_rule()?.1.placements()?;
+        // The list IS the count, so an EMPTY list is the explicit
+        // rule's `count < 1` — refused for the same reason
+        // `NonPositiveCount` refuses a stepped rule's zero, rather
+        // than quietly denoting an empty body (LIB-PLACEDUNION review
+        // MAJOR-1).
+        if frames.is_empty() {
+            return Some(PlacementRuleFault::NoPlacements);
+        }
+        // A6 parity: a listed frame is held to exactly what a
+        // placement's literal step is held to, because it is held to
+        // it by the same predicate — `Frame::admission_fault`, whose
+        // home is the frame. This arm says only WHICH frame in the list
+        // answered. Checked HERE so the refusal lands at the edit door
+        // with the best diagnostics, not at the kernel's rigidity
+        // re-check downstream.
+        frames
+            .iter()
+            .enumerate()
+            .find_map(|(index, frame)| match frame.admission_fault(tol)? {
+                crate::placement::FrameFault::NonFinite => {
+                    Some(PlacementRuleFault::NonFiniteFrame { index })
+                }
+                crate::placement::FrameFault::Improper { determinant } => {
+                    Some(PlacementRuleFault::ImproperFrame { index, determinant })
+                }
+                crate::placement::FrameFault::NotRigid { check } => {
+                    Some(PlacementRuleFault::NonRigidFrame { index, check })
+                }
+            })
+    }
+
+    /// Which answer to "how many placements" this node gives twice, if
+    /// it gives one twice. `None` for every non-placement node.
+    fn count_mismatch(&self) -> Option<CountMismatch> {
+        let (slot, kind) = self.placement_rule()?;
+        match (slot, kind.placements().is_some()) {
+            (CountSlot::Field, true) => Some(CountMismatch::ListedOnPattern),
+            (CountSlot::Optional { present: true }, true) => Some(CountMismatch::ListedWithCount),
+            (CountSlot::Optional { present: false }, false) => {
+                Some(CountMismatch::SteppedWithoutCount)
+            }
+            (CountSlot::Field | CountSlot::Optional { present: true }, false)
+            | (CountSlot::Optional { present: false }, true) => None,
+        }
+    }
+
+    /// Where this node keeps its count, and its rule, if it is a
+    /// placement-rule node.
+    fn placement_rule(&self) -> Option<(CountSlot, &PatternKind<S>)> {
+        match self {
+            // Pattern's count is a non-optional field, so it always
+            // "has" one — which is why an explicit list there is
+            // always a second answer to the same question.
+            Node::Pattern { kind, .. } => Some((CountSlot::Field, kind)),
+            Node::PlacedUnion { count, kind, .. } => Some((
+                CountSlot::Optional {
+                    present: count.is_some(),
+                },
+                kind,
+            )),
+            // EXHAUSTIVE on purpose: a future node kind carrying a
+            // placement rule must be classified here or the compile
+            // breaks, rather than defaulting to "has no rule" and
+            // slipping past all three doors this function is the one
+            // answer for.
+            Node::Datum(..)
+            | Node::Profile(..)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Transform { .. }
+            | Node::Part { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Gauge { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
     /// The [`StableName`]s this payload REFERENCES — declared pairs, a
     /// blend's selection, a shell's open list, a derived frame's face, a
     /// measure's references, a mate's two heads, an instance's interface
@@ -4856,17 +4847,20 @@ impl<P, S: Slot> Node<P, S> {
     }
 }
 
-impl<P: PartialEq> Node<P> {
+impl<P, L> Node<P, crate::expr::ExprTree<L>>
+where
+    P: PartialEq + crate::program::SlotPayload<crate::expr::ExprTree<L>>,
+    L: crate::expr::LeafSet,
+    crate::expr::ExprTree<L>: Slot,
+    crate::measure::MeasureExpr<crate::expr::ExprTree<L>>: PartialEq,
+{
     /// Bit-semantic payload equality (spec D7's comparison substrate):
     /// `PartialEq` for structure plus BIT comparison of every slot
     /// expression's float literals — `0.0` vs `-0.0` differ here. The
     /// opaque profile payload `P` is compared by its own `PartialEq`
     /// (its float semantics are PR 2's contract when `P` is
     /// instantiated).
-    pub fn bit_eq(&self, other: &Node<P>) -> bool
-    where
-        P: crate::ProfilePayload,
-    {
+    pub fn bit_eq(&self, other: &Self) -> bool {
         if self != other {
             return false;
         }

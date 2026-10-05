@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    DimensionError, DocEdit, EditError, EvalOptions, Expr, ExprPath, LoopProgram, MeasureExpr,
+    DimensionError, DocEdit, EditError, EvalOptions, Formula, ExprPath, LoopProgram, MeasureExpr,
     Node, NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval,
     eval_count, parse_formula, unparse,
@@ -40,26 +40,26 @@ const BOUND: usize = 128;
 /// `metres` as a length `levels` deep: `metres + 0 + … + 0`, nested to
 /// the left as the text door nests a sum, so it evaluates to `metres`
 /// exactly.
-fn deep_length(metres: f64, levels: usize) -> Expr {
-    (1..levels).fold(len(metres), |e, _| Expr::add(e, len(0.0)).unwrap())
+fn deep_length(metres: f64, levels: usize) -> Formula {
+    (1..levels).fold(len(metres), |e, _| Formula::add(e, len(0.0)).unwrap())
 }
 
 /// `levels - 1` negations over `metres`.
-fn negations(metres: f64, levels: usize) -> Expr {
-    (1..levels).fold(len(metres), |e, _| Expr::neg(e).unwrap())
+fn negations(metres: f64, levels: usize) -> Formula {
+    (1..levels).fold(len(metres), |e, _| Formula::neg(e).unwrap())
 }
 
 /// A count `levels` deep: `start + 1 + … + 1`.
-fn deep_count(start: i64, levels: usize) -> Expr {
+fn deep_count(start: i64, levels: usize) -> Formula {
     (1..levels).fold(Formula::count(start), |e, _| {
-        Expr::add(e, Formula::count(1)).unwrap()
+        Formula::add(e, Formula::count(1)).unwrap()
     })
 }
 
 /// A measurement `levels` deep: `measure_levels` nested sums over value
 /// leaves, the first holding `metres` as an expression nested the rest
 /// of the way, so it evaluates to `metres + 0.25 · (measure_levels - 1)`.
-fn deep_measure(metres: f64, levels: usize, measure_levels: usize) -> MeasureExpr {
+fn deep_measure(metres: f64, levels: usize, measure_levels: usize) -> MeasureExpr<Formula> {
     let first = MeasureExpr::value(deep_length(metres, levels - measure_levels + 1));
     (1..measure_levels).fold(first, |m, _| {
         MeasureExpr::add(m, MeasureExpr::value(len(0.25))).unwrap()
@@ -108,7 +108,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
 
 /// A document whose one expression of note is an extrude's distance,
 /// `distance`, and the extrude.
-fn extrude_document(distance: Expr) -> (Recorder, RecipeNodeId) {
+fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     let mut r = Recorder::new();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(fixture::desc(
@@ -215,9 +215,9 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             ),
             ("a chain of negations", negations(0.5, BOUND), -0.5),
         ] {
-            assert_eq!(eval(&e, &env), Ok(value), "{label} evaluates at f64");
+            assert_eq!(eval(&editor_core::test_support::stored_expr(&e), &env), Ok(value), "{label} evaluates at f64");
             assert!(
-                eval(&e, &VarEnv::<Interval>::default()).is_ok(),
+                eval(&editor_core::test_support::stored_expr(&e), &VarEnv::<Interval>::default()).is_ok(),
                 "{label} evaluates at Interval"
             );
             let copy = e.clone();
@@ -229,7 +229,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             assert!(back.bit_eq(&e), "{label} round-trips through its text");
         }
         assert_eq!(
-            eval_count(&deep_count(1, BOUND), &env),
+            eval_count(&editor_core::test_support::stored_expr(&deep_count(1, BOUND)), &env),
             Ok(i64::try_from(BOUND).unwrap()),
             "a count sum at the bound evaluates exactly"
         );
@@ -243,7 +243,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         for (label, text) in [("calls", calls), ("signs", signs), ("terms", terms)] {
             let e = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} nested to the bound parse: {err}"));
-            assert!(eval_count(&e, &env).is_ok(), "{label} evaluate");
+            assert!(eval_count(&editor_core::test_support::stored_expr(&e), &env).is_ok(), "{label} evaluate");
         }
 
         // A document holding the bound in its deepest slots.
@@ -292,7 +292,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
 fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
     on_the_smallest_stack(|| {
         let at = deep_length(0.5, BOUND);
-        let error = Expr::add(at.clone(), len(0.0)).expect_err("a sum one past the bound");
+        let error = Formula::add(at.clone(), len(0.0)).expect_err("a sum one past the bound");
         assert_eq!(
             refused_bound(&error),
             BOUND,
@@ -307,16 +307,16 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
         assert!(problems.is_empty(), "{problems:#?}");
 
         for (label, refused) in [
-            ("neg", Expr::neg(at.clone()).err()),
-            ("mul", Expr::mul(at.clone(), scl(1.0)).err()),
-            ("min", Expr::min(len(0.0), at.clone()).err()),
+            ("neg", Formula::neg(at.clone()).err()),
+            ("mul", Formula::mul(at.clone(), scl(1.0)).err()),
+            ("min", Formula::min(len(0.0), at.clone()).err()),
             (
                 "sin",
-                Expr::sin((1..BOUND).fold(fixture::ang(0.5), |e, _| Expr::neg(e).unwrap())).err(),
+                Formula::sin((1..BOUND).fold(fixture::ang(0.5), |e, _| Formula::neg(e).unwrap())).err(),
             ),
             (
                 "count_to_scalar",
-                Expr::count_to_scalar(deep_count(1, BOUND)).err(),
+                Formula::count_to_scalar(deep_count(1, BOUND)).err(),
             ),
             (
                 "measure neg",
@@ -359,7 +359,7 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
                 slot: SlotId::Distance,
                 path: vec![0; BOUND - 1],
             },
-            expr: Expr::neg(len(0.5)).unwrap(),
+            expr: Formula::neg(len(0.5)).unwrap(),
         };
         match editor_core::apply(&r.doc, &edit, Tol::witness(), &editor_core::RefusingReach) {
             Err(EditError::Dimension(error)) => assert_eq!(refused_bound(&error), BOUND),

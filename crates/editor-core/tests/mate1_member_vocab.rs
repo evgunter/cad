@@ -14,12 +14,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
-    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
+    Formula, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
     RoleSeg, StableName, assemble, groups,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -62,7 +63,7 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -75,7 +76,7 @@ fn seat_mate(
     b: StableName,
     origin: [f64; 3],
     sense: AxisSense,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -463,7 +464,7 @@ fn mates_never_solve_pattern_parameters() {
         panic!("the pattern is live");
     };
     assert!(
-        spacing.bit_eq(&len(3.0)),
+        spacing.bit_eq(&editor_core::test_support::stored_expr(&len(3.0))),
         "the spacing expression is untouched: {spacing:?}"
     );
 

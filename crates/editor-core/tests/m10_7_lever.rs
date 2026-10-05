@@ -37,6 +37,7 @@
 //! rows instead of silently re-aiming them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -68,7 +69,7 @@ fn arm_of(half: f64) -> f64 {
     2.0 * std::f64::consts::SQRT_2 * half + SEPARATION
 }
 
-fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {

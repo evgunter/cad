@@ -58,7 +58,7 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ProfileDoc,
     ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
@@ -261,7 +261,7 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
-            centre: [Expr::neg(hs.clone()).expect("a shallow negation"), len(0.0)],
+            centre: [Formula::neg(hs.clone()).expect("a shallow negation"), len(0.0)],
             radius: Formula::named(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),

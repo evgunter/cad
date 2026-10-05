@@ -28,7 +28,7 @@ use editor_core::mc::{McConfig, McRefusal, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, MeasureExpr,
+    AssertionDir, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, MeasureExpr,
     MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, VarName,
     save,
 };

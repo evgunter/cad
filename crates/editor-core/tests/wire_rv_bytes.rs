@@ -15,15 +15,15 @@
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Dimension, Expr, LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    Dimension, Formula, LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     VarName,
 };
 
-fn point(x: f64, y: f64) -> ProgramTarget {
+fn point(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
 
-fn every_spec() -> Vec<ProgramArcData> {
+fn every_spec() -> Vec<ProgramArcData<Formula>> {
     let mut out = Vec::new();
     for side in [profile::ArcSide::Left, profile::ArcSide::Right] {
         out.push(ProgramArcData::Radius { r: len(2.0), side });
@@ -62,7 +62,7 @@ fn every_spec() -> Vec<ProgramArcData> {
     out
 }
 
-fn steps() -> Vec<ProgramStep> {
+fn steps() -> Vec<ProgramStep<Formula>> {
     // The compound expressions ride the four steps whose argument
     // dimensions they match. Every other slot stays a bare literal:
     // the expression wire is one tree shape wherever it appears, so
@@ -118,7 +118,7 @@ fn steps() -> Vec<ProgramStep> {
     steps
 }
 
-fn program() -> ProfileProgram {
+fn program() -> ProfileProgram<Formula> {
     ProfileProgram {
         plane: editor_core::RecipeNodeId(0),
         loops: vec![
@@ -145,46 +145,46 @@ fn program() -> ProfileProgram {
 /// wire is one the authoring API would actually produce.
 struct Exprs {
     /// Length: `Add`, `Sub`, `Neg`, `Mul`, `Div`, `Min`, `Max`, `Param`.
-    length: Expr,
+    length: Formula,
     /// Angle: `Atan2` over two lengths.
-    angle: Expr,
+    angle: Formula,
     /// Scalar: `Sin`, `Cos`, `Tan`.
-    scalar: Expr,
+    scalar: Formula,
     /// Scalar: `CountToScalar` over `Count` — the exact-integer leaf and
     /// its one promotion, which no other slot on this wire reaches.
-    counted: Expr,
+    counted: Formula,
     /// Length, authored in millimetres: the `unit` field carrying a
     /// symbol other than the canonical one.
-    millimetres: Expr,
+    millimetres: Formula,
 }
 
 fn exprs() -> Exprs {
-    let length = Expr::max(
-        Expr::min(
-            Expr::add(
-                Expr::sub(Expr::neg(len(3.0)).expect("a shallow negation"), len(0.5)).unwrap(),
-                Expr::mul(len(2.0), scl(1.5)).unwrap(),
+    let length = Formula::max(
+        Formula::min(
+            Formula::add(
+                Formula::sub(Formula::neg(len(3.0)).expect("a shallow negation"), len(0.5)).unwrap(),
+                Formula::mul(len(2.0), scl(1.5)).unwrap(),
             )
             .unwrap(),
-            Expr::div(len(8.0), scl(4.0)).unwrap(),
+            Formula::div(len(8.0), scl(4.0)).unwrap(),
         )
         .unwrap(),
         // A stored reader and an authored name: a program in a
         // document holds the first, an edit log can hold the second.
-        Expr::add(
-            Expr::var(editor_core::VarId(0x3fa9_c1d2_a0b1_0001), Dimension::Length),
+        Formula::add(
+            Formula::var(editor_core::VarId(0x3fa9_c1d2_a0b1_0001), Dimension::Length),
             Formula::named(VarName::from_static("width"), Dimension::Length),
         )
         .unwrap(),
     )
     .unwrap();
-    let angle = Expr::atan2(len(1.0), len(2.0)).unwrap();
-    let scalar = Expr::mul(
-        Expr::sin(ang(0.3)).unwrap(),
-        Expr::mul(Expr::cos(ang(0.4)).unwrap(), Expr::tan(ang(0.5)).unwrap()).unwrap(),
+    let angle = Formula::atan2(len(1.0), len(2.0)).unwrap();
+    let scalar = Formula::mul(
+        Formula::sin(ang(0.3)).unwrap(),
+        Formula::mul(Formula::cos(ang(0.4)).unwrap(), Formula::tan(ang(0.5)).unwrap()).unwrap(),
     )
     .unwrap();
-    let counted = Expr::count_to_scalar(Formula::count(7)).unwrap();
+    let counted = Formula::count_to_scalar(Formula::count(7)).unwrap();
     let mm = quantity::unit_by_symbol("mm").expect("mm is a table row");
     let millimetres = Formula::literal_with_unit(0.012, Dimension::Length, mm).unwrap();
     Exprs {
@@ -244,7 +244,7 @@ const FILE: &str = "tests/corpus/wire_rv_bytes.json";
 #[test]
 fn wire_rv_the_bytes_of_every_variant_are_pinned() {
     let text = serde_json::to_string_pretty(&program()).expect("serializes");
-    let back: ProfileProgram = serde_json::from_str(&text).expect("deserializes");
+    let back: ProfileProgram<Formula> = serde_json::from_str(&text).expect("deserializes");
     assert_eq!(back, program(), "round trip");
 
     // The subject is asserted rich before the comparison: bytes that

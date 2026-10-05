@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -28,7 +29,7 @@ use crate::wire::doctored;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
-    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateFrame,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateFrame,
     MatePrimitive, MateRole, MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, PartResolver,
     PersistError, Placement, ProfileDoc, RecipeNodeId, RefusingReach, SitedFace, SitedRef,
     StableName, Step, Unplaced, ValuePayload, VarName, apply, apply_replayed, evaluate, groups,
@@ -113,7 +114,7 @@ impl Parts {
     }
 }
 
-pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -121,7 +122,7 @@ pub(crate) fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// **"Mate the top to the base"**: the top block's bottom cap (the
 /// FIRST operand, which moves) seated on the base's top cap at
 /// `(1, 1)`, outward normals opposed.
-pub(crate) fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
@@ -131,7 +132,7 @@ pub(crate) fn seat_on(
     mover: SitedFace,
     onto: SitedFace,
     at: [f64; 3],
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -155,7 +156,7 @@ pub(crate) fn lift() -> VarName {
 pub(crate) fn lifting_gauge(
     parent: Option<RecipeNodeId>,
     angle: f64,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::gauge(
         parent,
         Step::Rigid {
@@ -166,7 +167,7 @@ pub(crate) fn lifting_gauge(
     )
 }
 
-pub(crate) fn literal(t: [f64; 3]) -> Placement {
+pub(crate) fn literal<S: Clone>(t: [f64; 3]) -> Placement<S> {
     Placement::literal(&Frame::translation(t))
 }
 
@@ -203,7 +204,7 @@ pub(crate) fn set_gauge(
 pub(crate) fn set_offset(
     doc: ProfileDoc,
     instance: RecipeNodeId,
-    offset: Option<Placement>,
+    offset: Option<Placement<Formula>>,
 ) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
@@ -1035,7 +1036,7 @@ fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
     let out = split(&checked, &[base, top, mate]).expect("a checked member crosses");
     assert_eq!(
         offset_of(&out.part, out.node_map[&top]),
-        Some(solved),
+        Some(editor_core::test_support::stored_placement(&solved)),
         "the member's checked offset, verbatim"
     );
 
@@ -1431,7 +1432,7 @@ fn a_cut_of_two_placed_groups_moves_verbatim() {
 /// the document, `[base, top, mate, second]` and the top's offset.
 fn checked_pair_beside_a_base(
     label: &str,
-) -> (Parts, ProfileDoc, [RecipeNodeId; 4], Option<Placement>) {
+) -> (Parts, ProfileDoc, [RecipeNodeId; 4], Option<Placement<Formula>>) {
     let (p, doc, [base, top, mate]) = placed_pair(label);
     let solved = solve(&doc, &p.opts(), Tol::witness())
         .placement(&doc, top)
@@ -1505,7 +1506,7 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
     );
     assert_eq!(
         offset_of(&out.part, out.node_map[&ids[1]]),
-        checked,
+        checked.as_ref().map(editor_core::test_support::stored_placement),
         "the top's checked offset survives the carry"
     );
     for (source, part) in offsets_through(&doc, |id| out.node_map[&id], &out.part) {
@@ -1534,7 +1535,7 @@ fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
     let through = |id: RecipeNodeId| back.node_map[&id];
     assert_eq!(
         offset_of(&back.doc, through(ids[1])),
-        checked,
+        checked.as_ref().map(editor_core::test_support::stored_placement),
         "the top's checked offset survives the splice"
     );
     for (source, spliced) in offsets_through(&part, through, &back.doc) {
@@ -1617,7 +1618,7 @@ fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
     let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-replay");
     assert_eq!(
         offset_of(&back.doc, back.node_map[&out.node_map[&ids[1]]]),
-        checked,
+        checked.as_ref().map(editor_core::test_support::stored_placement),
         "the round trip holds the checked offset"
     );
 }
@@ -1672,9 +1673,9 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
     for (what, i, want) in [("T", t, t_pose), ("X", x, x_pose), ("Y", y, None)] {
         assert_eq!(
             offset_of(&out.part, out.node_map[&i]),
-            want,
+            want.as_ref().map(editor_core::test_support::stored_placement),
             "{what} in the part"
         );
-        assert_eq!(offset_of(&back.doc, host(i)), want, "{what} in the host");
+        assert_eq!(offset_of(&back.doc, host(i)), want.as_ref().map(editor_core::test_support::stored_placement), "{what} in the host");
     }
 }

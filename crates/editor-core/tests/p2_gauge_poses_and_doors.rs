@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame, MatePrimitive,
     MateRole, Node, ParamBox, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace, SlotId,
     StableName, Step, ValuePayload, VarName, evaluate, regauge_then_mate, root_of,
 };
@@ -92,12 +93,12 @@ impl Parts {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
 
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -112,7 +113,7 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
@@ -124,11 +125,11 @@ fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement<Formula>>) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
-fn literal(m: &M) -> Placement {
+fn literal<S: Clone>(m: &M) -> Placement<S> {
     Placement::literal(&m.frame())
 }
 

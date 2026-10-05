@@ -8,7 +8,7 @@
 //! only in display units are the same expression.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{Dimension, DimensionError, Expr, parse_formula};
+use editor_core::{Dimension, DimensionError, Formula, parse_formula};
 
 fn no_params() -> std::collections::BTreeMap<editor_core::VarName, Dimension> {
     std::collections::BTreeMap::new()
@@ -46,7 +46,7 @@ fn twenty_five_mm_round_trips_value_and_unit() {
         json.contains("\"unit\":\"mm\""),
         "the symbol is on the wire: {json}"
     );
-    let back: Expr = serde_json::from_str(&json).unwrap();
+    let back: Formula = serde_json::from_str(&json).unwrap();
     assert_eq!(back.literal_value().unwrap().to_bits(), 0.025_f64.to_bits());
     let back_unit = back.display_unit().expect("unit survives the load door");
     assert_eq!(back_unit.symbol(), "mm");
@@ -77,7 +77,7 @@ fn display_units_never_enter_expression_identity() {
     assert_eq!(plain, with_mm);
     assert!(plain.bit_eq(&with_mm), "bit_eq is display-unit-blind (D7)");
     assert!(with_mm.bit_eq(&with_cm));
-    let bits = |e: &Expr| {
+    let bits = |e: &Formula| {
         let mut out = Vec::new();
         e.literal_bits(&mut out);
         out
@@ -130,18 +130,18 @@ fn mismatched_display_unit_refuses_at_construction() {
 #[test]
 fn wire_door_refuses_unknown_units_and_writes_every_one() {
     let bad_symbol = r#"{"Literal":{"value":0.025,"dim":"Length","unit":"furlong"}}"#;
-    let err = serde_json::from_str::<Expr>(bad_symbol).unwrap_err();
+    let err = serde_json::from_str::<Formula>(bad_symbol).unwrap_err();
     assert!(
         err.to_string().contains("furlong"),
         "unknown symbol names itself: {err}"
     );
     let bad_field = r#"{"Literal":{"value":0.025,"dim":"Length","units":"mm"}}"#;
-    assert!(serde_json::from_str::<Expr>(bad_field).is_err());
+    assert!(serde_json::from_str::<Formula>(bad_field).is_err());
     // A MISSING unit refuses too: it is a v19 spelling, and the field
     // is no longer optional.
     let absent = r#"{"Literal":{"value":0.025,"dim":"Length"}}"#;
     assert!(
-        serde_json::from_str::<Expr>(absent).is_err(),
+        serde_json::from_str::<Formula>(absent).is_err(),
         "a literal with no unit is a pre-v20 spelling and has no meaning now"
     );
 
@@ -150,7 +150,7 @@ fn wire_door_refuses_unknown_units_and_writes_every_one() {
     let plain = Formula::literal(0.025, Dimension::Length).unwrap();
     let json = serde_json::to_string(&plain).unwrap();
     assert!(json.contains(r#""unit":"m""#), "canonical is named: {json}");
-    let back: Expr = serde_json::from_str(&json).unwrap();
+    let back: Formula = serde_json::from_str(&json).unwrap();
     assert_eq!(back.display_unit().map(|u| u.symbol()), Some("m"));
 
     // Including the dimensionless one, whose symbol is empty.
@@ -160,7 +160,7 @@ fn wire_door_refuses_unknown_units_and_writes_every_one() {
         json.contains(r#""unit":"""#),
         "dimensionless is named: {json}"
     );
-    let back: Expr = serde_json::from_str(&json).unwrap();
+    let back: Formula = serde_json::from_str(&json).unwrap();
     assert_eq!(back.display_unit().map(|u| u.symbol()), Some(""));
 }
 
@@ -200,7 +200,7 @@ fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
             "scalar",
         ),
     ] {
-        let err = serde_json::from_str::<Expr>(json)
+        let err = serde_json::from_str::<Formula>(json)
             .expect_err("a tabled unit on the wrong dimension must refuse");
         let text = err.to_string();
         assert!(
@@ -230,7 +230,7 @@ fn units_survive_inside_compound_expressions() {
     let params = no_params();
     let a = parse_formula("25 mm + 1 in", &params).unwrap();
     let json = serde_json::to_string(&a).unwrap();
-    let back: Expr = serde_json::from_str(&json).unwrap();
+    let back: Formula = serde_json::from_str(&json).unwrap();
     assert!(a.bit_eq(&back));
     // The two leaves kept their units through the round-trip.
     let left = back.descend(&[0]).unwrap();
@@ -324,7 +324,7 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
         // The load door resolves the symbol back to the same row, and
         // re-serializes to the same bytes: a fixed point, not a
         // one-way match.
-        let back: Expr = serde_json::from_slice(&bytes).expect("the load door accepts them");
+        let back: Formula = serde_json::from_slice(&bytes).expect("the load door accepts them");
         assert_eq!(
             back.display_unit().expect("unit survives the load door"),
             row,

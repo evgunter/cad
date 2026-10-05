@@ -15,7 +15,7 @@ use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
-use editor_core::{Expr, Frame, Node, PatternKind, load, save};
+use editor_core::{Formula, Frame, Node, PatternKind, load, save};
 use fixture::{len, scl};
 use geom_core::Tol;
 

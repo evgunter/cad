@@ -64,7 +64,7 @@ use editor_core::drive::{
     RefusalReason, SymbolicDials, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
     LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
     ProfileProgram, VarName, evaluate,
 };
@@ -80,7 +80,7 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str) -> Expr {
+fn param(n: &'static str) -> Formula {
     Formula::named(name(n), Dimension::Length)
 }
 
@@ -95,7 +95,7 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
@@ -152,7 +152,7 @@ pub(crate) fn notch(nominal: f64, half: f64) -> ProfileDoc {
 
 /// [`notch`] with the parameter's distribution and the vertex's
 /// height expression given.
-pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Expr) -> ProfileDoc {
+pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("height"),

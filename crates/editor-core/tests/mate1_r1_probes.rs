@@ -10,11 +10,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame, MateFrame,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Formula, Frame, MateFrame,
     MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, groups,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -52,7 +53,7 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-fn mate_frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn mate_frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -62,7 +63,7 @@ fn seat_mate(
     b: StableName,
     origin: [f64; 3],
     sense: AxisSense,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),

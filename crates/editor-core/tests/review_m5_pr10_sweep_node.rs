@@ -13,7 +13,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,
+    CancelToken, EvalOptions, Formula, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
@@ -26,7 +26,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
     // is unreachable from the recipe layer.
     // The loops alone: the plane each rides on is a node now, minted
     // per iteration alongside the document it goes into.
-    let paths: Vec<(&str, Vec<editor_core::LoopProgram>)> = vec![
+    let paths: Vec<(&str, Vec<editor_core::LoopProgram<Formula>>)> = vec![
         (
             "rectangle path",
             vec![

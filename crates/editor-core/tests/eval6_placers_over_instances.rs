@@ -22,6 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
@@ -61,7 +62,7 @@ pub(crate) fn linear(
     dir: [f64; 3],
     spacing: f64,
     count: i64,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Pattern {
         input,
         count: editor_core::Formula::count(count),
@@ -73,7 +74,7 @@ pub(crate) fn linear(
 }
 
 /// `Part(Instance(i))` of `of`.
-pub(crate) fn part(of: RecipeNodeId, i: i64) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn part(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
         of,
         select: PartSelect::Instance(editor_core::Formula::count(i)),
@@ -82,7 +83,7 @@ pub(crate) fn part(of: RecipeNodeId, i: i64) -> Node<editor_core::ProfileProgram
 
 /// A transform that both rotates and translates, so a transform-of-
 /// pattern and a pattern-of-transform are different placements.
-pub(crate) fn skew(input: RecipeNodeId) -> Node<editor_core::ProfileProgram> {
+pub(crate) fn skew(input: RecipeNodeId) -> AuthoredNode {
     fixture::xform(input, [1.0, 2.0, 3.0], [1.0, 1.0, 1.0], 0.7)
 }
 

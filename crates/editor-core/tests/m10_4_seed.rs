@@ -32,7 +32,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
     MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc,
     ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError, SitedRef,
     ValuePayload, VarName, evaluate, seed_env,
@@ -53,7 +53,7 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str) -> Expr {
+fn param(n: &'static str) -> Formula {
     Formula::named(name(n), Dimension::Length)
 }
 
@@ -156,7 +156,8 @@ fn two_param_web() -> ProfileDoc {
     let Some(Node::Measure { expr, refs }) = doc.node(old).cloned() else {
         panic!("the corpus web is a measure")
     };
-    let with_depth = MeasureExpr::add(expr, MeasureExpr::value(param("depth"))).expect("Length");
+    let with_depth =
+        MeasureExpr::add(expr.authored(), MeasureExpr::value(param("depth"))).expect("Length");
     // Replace the measure: the assertion depends on the old node, so
     // it goes first (cascade), then the new measure is inserted.
     let assertion = doc

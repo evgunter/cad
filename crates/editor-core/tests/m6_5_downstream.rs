@@ -35,6 +35,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -57,7 +58,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
-fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let a = apply(
         doc,
         &DocEdit::InsertNode {

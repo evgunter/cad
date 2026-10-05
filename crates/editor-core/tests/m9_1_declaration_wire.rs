@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanCoincidence, BooleanOp, CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save,
@@ -86,7 +87,7 @@ fn every_coincidence_round_trips_under_its_own_spelling() {
     let applied = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Box::new(Node::<editor_core::ProfileProgram>::Boolean {
+                node: Box::new(Node::<editor_core::ProfileProgram<editor_core::Formula>, editor_core::Formula>::Boolean {
                     op: BooleanOp::Union,
                     a,
                     b,
@@ -120,7 +121,7 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
     let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
-    let node: Node<editor_core::ProfileProgram> = Node::Boolean {
+    let node: AuthoredNode = Node::Boolean {
         op: BooleanOp::Union,
         a,
         b,

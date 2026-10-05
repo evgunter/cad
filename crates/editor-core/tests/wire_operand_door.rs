@@ -41,11 +41,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionDir, Datum, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, PartSelect, PatternKind,
+    AssertionDir, Datum, DocEdit, EvalOptions, Formula, Node, NodeErrorKind, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, SplitHalf, TubeWindow,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
@@ -139,7 +140,7 @@ fn wired() -> (
                rows: &mut Vec<Row>,
                what: &'static str,
                owes: Owes,
-               node: Node<ProfileProgram>,
+               node: AuthoredNode,
                input: RecipeNodeId|
      -> ProfileDoc {
         match d.apply(

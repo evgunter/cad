@@ -23,7 +23,7 @@ use std::collections::BTreeSet;
 use crate::docm7_union_declare::block;
 
 use editor_core::{
-    DocEdit, DocumentId, EvalOptions, Expr, FreeVar, InlineError, Node, ProfileDoc, RecipeNodeId,
+    DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc, RecipeNodeId,
     ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin, inline, load,
     product_named, save, split,
 };
@@ -1728,7 +1728,7 @@ fn reshaped_component(
         doc,
         DocEdit::SetProgram {
             node: p2,
-            loops: program.loops.clone(),
+            loops: program.loops.iter().map(editor_core::LoopProgram::authored).collect(),
             ids,
         },
     );

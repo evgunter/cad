@@ -31,7 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{len, len2};
-use editor_core::{Dimension, Expr, LoopProgram, ProgramStep, ProgramTarget, VarName};
+use editor_core::{Dimension, Formula, LoopProgram, ProgramStep, ProgramTarget, VarName};
 
 const CORNERS: [(f64, f64); 4] = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)];
 

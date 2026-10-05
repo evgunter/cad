@@ -30,9 +30,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::{BooleanOp, Node, ProfileProgram, RecipeNodeId};
 
-fn boolean(op: BooleanOp) -> Node<ProfileProgram> {
+fn boolean(op: BooleanOp) -> AuthoredNode {
     Node::Boolean {
         op,
         a: RecipeNodeId(1),
@@ -69,7 +70,7 @@ fn every_operation_round_trips() {
     for &op in BooleanOp::ALL {
         let node = boolean(op);
         let text = serde_json::to_string(&node).unwrap();
-        let back: Node<ProfileProgram> = serde_json::from_str(&text).unwrap();
+        let back: AuthoredNode = serde_json::from_str(&text).unwrap();
         assert_eq!(back, node, "{op:?} did not survive the round trip");
     }
 }
@@ -79,7 +80,7 @@ fn every_operation_round_trips() {
 #[test]
 fn an_unknown_operation_spelling_refuses() {
     let text = r#"{"Boolean":{"op":"Xor","a":1,"b":2,"declare":[]}}"#;
-    let err = serde_json::from_str::<Node<ProfileProgram>>(text)
+    let err = serde_json::from_str::<AuthoredNode>(text)
         .expect_err("an unknown operation spelling must refuse");
     assert!(
         err.to_string().contains("Xor"),
@@ -95,6 +96,6 @@ fn an_unknown_operation_spelling_refuses() {
 #[test]
 fn the_map_form_of_a_variant_is_refused() {
     let text = r#"{"Boolean":{"op":{"Union":null},"a":1,"b":2,"declare":[]}}"#;
-    serde_json::from_str::<Node<ProfileProgram>>(text)
+    serde_json::from_str::<AuthoredNode>(text)
         .expect_err("the operation rides the wire as a string, never as a one-key map");
 }

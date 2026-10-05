@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use crate::fixture;
 
 use editor_core::{
@@ -27,7 +28,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 /// XY-plane revolve about the y datum axis, from loop programs.
-fn revolve_programs(loops: Vec<LoopProgram>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
+fn revolve_programs(loops: Vec<LoopProgram<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r2_probes", Tol::witness());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
@@ -55,7 +56,7 @@ fn revolve_programs(loops: Vec<LoopProgram>, angle: f64) -> (ProfileDoc, RecipeN
     )
 }
 
-fn semicircle(r: f64) -> LoopProgram {
+fn semicircle(r: f64) -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, -r])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {

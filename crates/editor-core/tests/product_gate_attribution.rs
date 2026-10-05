@@ -21,7 +21,7 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, Datum, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, Frame,
+    BooleanValue, CancelToken, Datum, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame,
     Node, NodeResult, PatternKind, ProductError, ProfileDoc, RecipeNodeId, SourceFinding,
     SplitHalf, SplitSide, ValuePayload, evaluate, product_recorded,
 };

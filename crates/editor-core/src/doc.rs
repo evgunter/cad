@@ -1337,7 +1337,7 @@ impl<P> Doc<P> {
 
     /// **The text of `expr`**, its readers written by the names this
     /// document holds ([`crate::unparse`]).
-    pub fn unparse(&self, expr: &Expr) -> String {
+    pub fn unparse<L: crate::expr::LeafSet>(&self, expr: &crate::expr::ExprTree<L>) -> String {
         crate::expr::unparse(expr, &|id| self.var_names.get(&id))
     }
 

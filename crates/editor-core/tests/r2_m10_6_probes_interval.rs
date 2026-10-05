@@ -60,7 +60,7 @@ use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
-    EvalOptions, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
     ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload,
     VarName, evaluate,
 };

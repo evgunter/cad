@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -71,7 +72,7 @@ fn edge(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
 /// A hand-built `Node::Fillet` over the prism's END-cap rims, by
 /// profile segment — the shape `Node::fillet` would have
 /// canonicalized, handed to a door raw.
-fn raw_fillet(doc: &ProfileDoc, solid: RecipeNodeId, segments: &[u32]) -> Node<ProfileProgram> {
+fn raw_fillet(doc: &ProfileDoc, solid: RecipeNodeId, segments: &[u32]) -> AuthoredNode {
     Node::Fillet {
         target: solid,
         radius: fixture::len(0.0625),
@@ -157,7 +158,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
 #[test]
 fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
-    let raw: Node<ProfileProgram> = Node::Chamfer {
+    let raw: AuthoredNode = Node::Chamfer {
         target: solid,
         distance: fixture::len(0.0625),
         selection: vec![edge(&doc, solid, 2), edge(&doc, solid, 0)],
@@ -246,19 +247,19 @@ fn the_construction_doors_canonicalize() {
     ];
     let canonical = vec![edge(&doc, solid, 0), edge(&doc, solid, 2)];
 
-    let fillet: Node<ProfileProgram> = Node::fillet(solid, fixture::len(0.0625), unruly.clone());
+    let fillet: AuthoredNode = Node::fillet(solid, fixture::len(0.0625), unruly.clone());
     let Node::Fillet { selection, .. } = &fillet else {
         panic!("the door builds a fillet")
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
-    assert!(fillet.input_fault().is_none(), "and therefore canonical");
+    assert!(editor_core::test_support::stored(&fillet).input_fault().is_none(), "and therefore canonical");
 
-    let chamfer: Node<ProfileProgram> = Node::chamfer(solid, fixture::len(0.0625), unruly);
+    let chamfer: AuthoredNode = Node::chamfer(solid, fixture::len(0.0625), unruly);
     let Node::Chamfer { selection, .. } = &chamfer else {
         panic!("the door builds a chamfer")
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
-    assert!(chamfer.input_fault().is_none(), "and therefore canonical");
+    assert!(editor_core::test_support::stored(&chamfer).input_fault().is_none(), "and therefore canonical");
 }
 
 /// **An EMPTY selection is canonical**, and stays a different refusal:
@@ -270,12 +271,12 @@ fn the_construction_doors_canonicalize() {
 #[test]
 fn an_empty_selection_is_canonical() {
     let (doc, solid) = prism();
-    let empty: Node<ProfileProgram> = Node::Fillet {
+    let empty: AuthoredNode = Node::Fillet {
         target: solid,
         radius: fixture::len(0.0625),
         selection: Vec::new(),
     };
-    assert!(empty.input_fault().is_none());
+    assert!(editor_core::test_support::stored(&empty).input_fault().is_none());
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -377,7 +378,7 @@ fn at_names_each_position() {
         ("repeat at 0 + swap at 2", vec![0, 0, 4, 2], Some(0)),
     ];
     for (what, segs, want) in cases {
-        let got = match raw_fillet(&doc, solid, segs).input_fault() {
+        let got = match editor_core::test_support::stored(&raw_fillet(&doc, solid, segs)).input_fault() {
             Some(InputFault::SelectionNotCanonical { at }) => Some(at),
             None => None,
             other => panic!("{what}: unexpected fault {other:?}"),

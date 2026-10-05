@@ -15,12 +15,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId,
-    EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame, MatePrimitive,
+    EditError, EntityKind, EvalOptions, Evaluation, Formula, MateFault, MateFrame, MatePrimitive,
     MateRole, MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace,
     StableName, load, product, save,
 };
@@ -75,7 +76,7 @@ fn block(label: &str, h: f64) -> (ProfileDoc, RecipeNodeId) {
 
 /// The `a` frame: a point ON the base's top cap, axis along that
 /// cap's OUTWARD normal.
-fn a_frame() -> MateFrame {
+fn a_frame() -> MateFrame<Formula> {
     MateFrame::authored(
         [1.0, 1.0, BASE_HEIGHT],
         [0.0, 0.0, 1.0],
@@ -95,7 +96,7 @@ fn a_frame() -> MateFrame {
 /// block THROUGH the base — a solve the at-rest gate then refuses for
 /// every document, transform or none, which is a fixture that cannot
 /// tell a correct seat from a wrong one.
-fn b_frame() -> MateFrame {
+fn b_frame() -> MateFrame<Formula> {
     MateFrame::authored(
         [0.0, 0.0, 0.0],
         [0.0, 0.0, -1.0],
@@ -107,7 +108,7 @@ fn b_frame() -> MateFrame {
 
 /// A `Rest` mate seating `b`'s bottom cap onto `a`'s top cap, both
 /// frames authored in their member's own part coordinates.
-fn seat(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     seat_with(a, b, MatePrimitive::FrameCoincidence, None)
 }
 
@@ -116,7 +117,7 @@ fn seat_with(
     b: SitedFace,
     primitive: MatePrimitive,
     clocking: Option<f64>,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a,
         b,

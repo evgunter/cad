@@ -14,7 +14,7 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, Doc, DocEdit, Expr, FreeVar, Node, NodeChange, RecipeNodeId, VarName, eval,
+    Dimension, Doc, DocEdit, Formula, FreeVar, Node, NodeChange, RecipeNodeId, VarName, eval,
 };
 use geom_core::Tol;
 
@@ -22,7 +22,19 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
+impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored(&self) -> Self {
+        self.clone()
+    }
     fn drawn_pieces(
         &self,
         _env: &editor_core::VarEnv<f64>,
@@ -106,7 +118,7 @@ fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNod
     (applied.doc, applied.record.minted)
 }
 
-fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<FakeProfile> {
+fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<FakeProfile, Formula> {
     let (t, r, a) = p;
     Node::transform(
         pip,
@@ -118,7 +130,7 @@ fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<Fake
     )
 }
 
-fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile> {
+fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile, Formula> {
     Node::Boolean {
         op: editor_core::BooleanOp::Subtract,
         a,

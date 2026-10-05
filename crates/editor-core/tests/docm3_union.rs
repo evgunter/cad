@@ -4,6 +4,8 @@
 //! doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
@@ -226,7 +228,7 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
 fn insert_refuses_a_node_that_takes_one_input_twice() {
     let (doc, boxes, _) = three_boxes([0, 1, 2]);
     let x = boxes[0];
-    let shapes: Vec<Node<editor_core::ProfileProgram>> = vec![
+    let shapes: Vec<AuthoredNode> = vec![
         Node::Boolean {
             op: BooleanOp::Union,
             a: x,
@@ -715,7 +717,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .doc;
         let (edited, rim) = insert(
             edited,
-            Node::fillet(rim_target, rim_radius.clone(), kept_rims.clone()),
+            Node::fillet(rim_target, Formula::from(&rim_radius), kept_rims.clone()),
         );
         let after = evaluate::<f64>(
             &edited,

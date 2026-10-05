@@ -199,9 +199,9 @@ pub struct MateFrame<S = crate::Expr> {
     pub offset: Placement<S>,
 }
 
-impl MateFrame {
+impl<S: Clone> MateFrame<S> {
     /// The part base composed with `offset`.
-    pub fn on_part(offset: impl Into<Placement>) -> Self {
+    pub fn on_part(offset: impl Into<Placement<S>>) -> Self {
         Self {
             base: FrameBase::Part,
             offset: offset.into(),
@@ -217,18 +217,11 @@ impl MateFrame {
     /// The side's own head face composed with `offset`, written in the
     /// face's frame (origin on the face, +Z along its chart axis, +Y
     /// along its reference direction).
-    pub fn on_face(offset: impl Into<Placement>) -> Self {
+    pub fn on_face(offset: impl Into<Placement<S>>) -> Self {
         Self {
             base: FrameBase::Face,
             offset: offset.into(),
         }
-    }
-
-    /// Bit-semantic equality (D7): the same base, and offsets equal by
-    /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
-    #[must_use]
-    pub fn bit_eq(&self, other: &Self) -> bool {
-        self.base == other.base && self.offset.bit_eq(&other.offset)
     }
 
     /// **Three authored vectors as a frame**: the part base with one
@@ -261,6 +254,15 @@ impl MateFrame {
         Ok(Self::on_part(Placement::literal(
             &crate::placement::Frame::from_affine(frame.to_affine()),
         )))
+    }
+}
+
+impl<L: crate::expr::LeafSet> MateFrame<crate::expr::ExprTree<L>> {
+    /// Bit-semantic equality (D7): the same base, and offsets equal by
+    /// [`Placement::bit_eq`], so `0.0` and `-0.0` are different frames.
+    #[must_use]
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        self.base == other.base && self.offset.bit_eq(&other.offset)
     }
 }
 
@@ -412,9 +414,7 @@ impl<S> Alignment<S> {
             clocking: *clocking,
         })
     }
-}
 
-impl Alignment {
     /// **The datum's own contribution to the lever** this mate's angular
     /// decisions turn on: both mate frames' distances from their parts'
     /// origins, plus every length the primitive authors, all summed.
@@ -463,6 +463,24 @@ impl Alignment {
             .fold(a_origin + b_origin, |lever, length| lever + length.abs())
     }
 
+    /// Whether every number the alignment holds outside its frames is
+    /// finite — the rider and the primitive's lengths, the edit door's
+    /// admission test (a non-finite alignment could never decide
+    /// anything). A frame's offset is a placement, whose literal steps
+    /// the frame rule holds ([`crate::Node::placement_frame_fault`])
+    /// and whose expressions are slots.
+    pub fn is_finite(&self) -> bool {
+        self.clocking.is_none_or(f64::is_finite)
+            && self
+                .primitive
+                .authored_lengths()
+                .into_iter()
+                .flatten()
+                .all(f64::is_finite)
+    }
+}
+
+impl<L: crate::expr::LeafSet> Alignment<crate::expr::ExprTree<L>> {
     /// **Bit-semantic equality** (D7), the one comparator every reader
     /// of an alignment's equality asks: both frames by
     /// [`MateFrame::bit_eq`], the primitive's lengths and the rider by
@@ -482,22 +500,6 @@ impl Alignment {
                 .all(|(x, y)| bits(x) == bits(y))
             && self.sense == other.sense
             && bits(self.clocking) == bits(other.clocking)
-    }
-
-    /// Whether every number the alignment holds outside its frames is
-    /// finite — the rider and the primitive's lengths, the edit door's
-    /// admission test (a non-finite alignment could never decide
-    /// anything). A frame's offset is a placement, whose literal steps
-    /// the frame rule holds ([`crate::Node::placement_frame_fault`])
-    /// and whose expressions are slots.
-    pub fn is_finite(&self) -> bool {
-        self.clocking.is_none_or(f64::is_finite)
-            && self
-                .primitive
-                .authored_lengths()
-                .into_iter()
-                .flatten()
-                .all(f64::is_finite)
     }
 }
 

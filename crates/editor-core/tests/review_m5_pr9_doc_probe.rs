@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture::{frame, len, len2, xy_frame};
 use editor_core::ExtrudeSide;
 use editor_core::{
@@ -35,7 +36,7 @@ impl Rec {
             edits: Vec::new(),
         }
     }
-    fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
+    fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let edit = DocEdit::InsertNode {
             node: Box::new(node),
         };

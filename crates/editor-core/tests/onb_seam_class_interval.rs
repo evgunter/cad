@@ -38,7 +38,7 @@ use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{ClearanceVerdict, Selection, clearance};
 use editor_core::{
-    Dimension, Distribution, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
     RecipeNodeId, VarName,
 };
 use geom::Surface;

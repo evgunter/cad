@@ -23,7 +23,7 @@ use editor_core::analysis::{
 use editor_core::drive::{DriveConfig, RefusalReason, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,

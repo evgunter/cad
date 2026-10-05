@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
     ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
@@ -47,7 +47,7 @@ use crate::fixture::{Recorder, len, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
-fn plen(n: &'static str) -> Expr {
+fn plen(n: &'static str) -> Formula {
     Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
@@ -121,7 +121,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
 
     let plane = r.insert(xy_frame());
 
-    let neg_w = Expr::neg(plen("half_w")).expect("a shallow negation");
+    let neg_w = Formula::neg(plen("half_w")).expect("a shallow negation");
     // The chain's own idiom for a tangent arc between two tangent legs:
     // `.tangent()` before the arc and before the leg out of it, the
     // leg out authored as a LENGTH since it rides the inherited

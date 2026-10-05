@@ -45,7 +45,7 @@ use crate::m10_8_harness::head;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeVar, Node, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, VarName,
     evaluate,
 };

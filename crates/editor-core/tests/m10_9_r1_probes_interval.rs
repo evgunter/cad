@@ -18,7 +18,7 @@ use std::time::Instant;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, EntityKind, Expr, FreeVar, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
     Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
@@ -201,7 +201,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         },
     );
     let plane = r.insert(xy_frame());
-    let thickness = Expr::div(plen("outer_r"), scl(4.0)).expect("Length / Scalar");
+    let thickness = Formula::div(plen("outer_r"), scl(4.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {

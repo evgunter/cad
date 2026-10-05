@@ -32,7 +32,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Expr, NameTable, Node,
+    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Formula, NameTable, Node,
     PatternKind, ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
 };
 use fixture::{ang, insert, len, on_frame, scl, table};

@@ -29,7 +29,7 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, FreeVar, MeasureExpr, Node, PersistError, ProfileDoc,
+    Dimension, DocEdit, EditError, Formula, FreeVar, MeasureExpr, Node, PersistError, ProfileDoc,
     RecipeNodeId, SlotId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{insert, len, on_frame, square};

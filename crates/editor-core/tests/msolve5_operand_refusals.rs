@@ -36,12 +36,13 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
-    EntityKind, Entry, EvalOptions, Evaluation, Expr, LeverRefusal, MateFault, MateFrame,
+    EntityKind, Entry, EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
     PartSelect, PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef,
     RoleSeg, SitedFace, StableName, product,
@@ -213,7 +214,7 @@ fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (Stab
 /// A `Rest` mate seating `b`'s bottom cap on `a`'s top cap by frame
 /// coincidence, both frames in their member's own part coordinates
 /// and both axes outward, so the block stands ON the slab.
-fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -241,7 +242,7 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
 }
 
 /// Insert `mate` and answer its id.
-fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = step(
         doc,
         DocEdit::InsertNode {

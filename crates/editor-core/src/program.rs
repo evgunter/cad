@@ -528,8 +528,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<Expr> {
         + Clone
         + core::fmt::Debug
         + PartialEq
-        + serde::Serialize
-        + for<'de> serde::Deserialize<'de>;
+        + serde::Serialize;
     /// **The stored payload `authored` lowers to**: every slot through
     /// `f`, everything else kept.
     ///
@@ -1336,6 +1335,20 @@ fn radius_arg_of(role: profile::RadiusRole) -> StepArg {
 }
 
 impl LoopProgram {
+    /// **This loop re-authored**: every argument a formula reading what
+    /// it read ([`crate::Formula::from`]).
+    #[must_use]
+    pub fn authored(&self) -> LoopProgram<crate::Formula> {
+        let Ok(authored) = self.try_map_slots(&mut |e| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::from(e))
+        });
+        authored
+    }
+}
+
+impl<S> LoopProgram<S> {
+    row_readers!(pub(crate) loop_roles -> (u32, StepArg), S);
+
     /// **How many authored steps this loop has** — the length of the
     /// step axis of `SlotId::Profile { loop_, step, .. }`.
     ///
@@ -1374,7 +1387,7 @@ impl LoopProgram {
     /// this hands back the expression that slot holds, which is what a
     /// lowering needs to lower.
     #[must_use]
-    pub fn carrier_radius(&self) -> Option<&Expr> {
+    pub fn carrier_radius(&self) -> Option<&S> {
         match self {
             LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
                 Some(radius)
@@ -1411,7 +1424,7 @@ impl LoopProgram {
     /// the attach stamps that one, and a spelling that reaches a wall
     /// has therefore always reached the key.
     #[must_use]
-    pub fn step_radii(&self) -> Vec<(u32, &Expr)> {
+    pub fn step_radii(&self) -> Vec<(u32, &S)> {
         self.rows()
             .into_iter()
             .filter(|((_, arg), _)| arg.is_radius())
@@ -1434,9 +1447,8 @@ impl LoopProgram {
             .collect()
     }
 
-
     /// Every expression the loop holds, exclusive.
-    pub(crate) fn exprs_mut(&mut self) -> Vec<&mut Expr> {
+    pub(crate) fn exprs_mut(&mut self) -> Vec<&mut S> {
         self.rows_mut().into_iter().map(|(_, expr)| expr).collect()
     }
 }
@@ -2472,10 +2484,6 @@ impl ProfilePayload for ProfileProgram {
         self.ids = mint.steps_of_insert(&every_new)?;
         Ok(())
     }
-}
-
-impl<S> LoopProgram<S> {
-    row_readers!(pub(crate) loop_roles -> (u32, StepArg), S);
 }
 
 // ------------------------------------------------------------------

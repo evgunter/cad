@@ -9,12 +9,14 @@
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Expr;
+use editor_core::AuthoredNode;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Expr, ExprPath, Frame,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Formula, ExprPath, Frame,
     FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
     NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
@@ -141,7 +143,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = circle_doc(0.5);
     // Replace the radius with (0.5 + 0.25), then re-point its LEFT
     // literal via a sub-path edit.
-    let sum = Expr::add(len(0.5), len(0.25)).unwrap();
+    let sum = Formula::add(len(0.5), len(0.25)).unwrap();
     let doc = doc
         .apply(
             &DocEdit::SetParam {
@@ -393,7 +395,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
 
     // (incoming spec, arrival spec, incoming role, arrival role, the
     // arrival argument's authored value, a replacement for it).
-    let rows: Vec<(ProgramArcData, ProgramArcData, StepArg, StepArg, f64, Expr)> = vec![
+    let rows: Vec<(ProgramArcData<Formula>, ProgramArcData<Formula>, StepArg, StepArg, f64, Formula)> = vec![
         (
             sweep(0.25),
             sweep(0.6),
@@ -466,7 +468,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // …and the arrival role addresses the ARRIVAL spec's argument,
         // which is the whole of issue #829.
         assert_eq!(
-            program.expr(fused).and_then(Expr::literal_value),
+            program.expr(fused).and_then(Formula::literal_value),
             Some(authored),
             "{arrival:?} addresses the arrival spec's argument"
         );
@@ -481,12 +483,12 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 step: 1,
                 arg: incoming,
             })
-            .and_then(Expr::literal_value);
+            .and_then(Formula::literal_value);
         *program
             .expr_mut(fused)
             .expect("the arrival role is writable") = replacement.clone();
         assert_eq!(
-            program.expr(fused).and_then(Expr::literal_value),
+            program.expr(fused).and_then(Formula::literal_value),
             replacement.literal_value()
         );
         assert_eq!(
@@ -496,7 +498,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                     step: 1,
                     arg: incoming,
                 })
-                .and_then(Expr::literal_value),
+                .and_then(Formula::literal_value),
             incoming_before,
             "writing the arrival argument moved the incoming one"
         );
@@ -568,13 +570,13 @@ test_utils::f6_variants! {
     const DATUM_KIND: Datum = [Plane, Axis, Point, AxisInPlane, Frame, FaceFrame];
 }
 
-type ProfileNode = Node<ProfileProgram>;
+type ProfileNode = AuthoredNode;
 
 fn nid(n: u64) -> RecipeNodeId {
     RecipeNodeId(n)
 }
 
-fn datum_shapes() -> Vec<Datum> {
+fn datum_shapes() -> Vec<Datum<Formula>> {
     vec![
         Datum::Plane {
             origin: [len(0.0), len(0.0), len(0.0)],
@@ -998,7 +1000,7 @@ fn every_node_shapes_slot_table_is_pinned() {
     let mut text = String::new();
     for node in one_of_every_node_shape() {
         let slots = node.slots();
-        let tags: Vec<Expr> = (0..slots.len()).map(|i| scl(1000.0 + i as f64)).collect();
+        let tags: Vec<Formula> = (0..slots.len()).map(|i| scl(1000.0 + i as f64)).collect();
         let mut tagged = node.clone();
         for (&slot, tag) in slots.iter().zip(&tags) {
             *tagged

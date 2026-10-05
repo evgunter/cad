@@ -996,8 +996,8 @@ mod tests {
                     // The innermost sign is the literal's own.
                     (format!("{}1", "-".repeat(MAX_NESTING)), MAX_NESTING),
                 ] {
-                    let parsed = parse_expr(&text, &BTreeMap::new());
-                    assert_eq!(parsed.map(|e| e.nesting()), Ok(nesting));
+                    let parsed = parse_formula(&text, &BTreeMap::new());
+                    assert_eq!(parsed.map(|e| crate::Slot::nesting(&e)), Ok(nesting));
                 }
             })
             .expect("the thread starts")

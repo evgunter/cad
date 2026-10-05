@@ -959,7 +959,7 @@ mod tests {
     const DANGLING: RecipeNodeId = RecipeNodeId(40);
     const MATE: RecipeNodeId = RecipeNodeId(50);
 
-    fn xf(input: RecipeNodeId) -> Node<ProfileProgram> {
+    fn xf(input: RecipeNodeId) -> crate::AuthoredNode {
         Node::transform(
             input,
             crate::Step::Rigid {
@@ -969,7 +969,7 @@ mod tests {
             },
         )
     }
-    fn axis_datum_node() -> Node<ProfileProgram> {
+    fn axis_datum_node() -> crate::AuthoredNode {
         Node::Datum(Datum::Axis {
             origin: [len(0.0), len(0.0), len(0.0)],
             direction: [scl(0.0), scl(0.0), scl(1.0)],
@@ -992,7 +992,7 @@ mod tests {
     /// `T2 = xf(T1)`, and `PATTERN`, circular over the body with
     /// `axis_operand` as its rule's axis.
     fn build(seed: &str, t1_in: Src, axis_operand: Src) -> (ProfileDoc, RecipeNodeId) {
-        let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
+        let ins = |doc: ProfileDoc, node: crate::AuthoredNode| {
             let a = crate::apply(
                 &doc,
                 &DocEdit::InsertNode {
@@ -1032,8 +1032,8 @@ mod tests {
             Src::T2 => T2,
             Src::Dangling => DANGLING,
         };
-        let mut push = |id: RecipeNodeId, node: Node<ProfileProgram>| {
-            doc.nodes.insert(id, node);
+        let mut push = |id: RecipeNodeId, node: crate::AuthoredNode| {
+            doc.nodes.insert(id, crate::test_support::stored(&node));
             doc.order.push(id);
         };
         push(AXIS, axis_datum_node());
@@ -1044,7 +1044,7 @@ mod tests {
             PATTERN,
             Node::Pattern {
                 input: body,
-                count: Expr::count(4),
+                count: crate::Formula::count(4),
                 kind: PatternKind::Circular {
                     axis: id(axis_operand),
                     step: ang(0.5),

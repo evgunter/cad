@@ -16,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
@@ -24,7 +25,7 @@ use crate::fixture::{ang, len};
 use editor_core::persist::{load, save};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Expr, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
+    EvalOptions, Formula, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, ResolveError, RoleSeg, SlotId, StableName, ValuePayload,
     all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
     face_frame,
@@ -449,7 +450,7 @@ fn name_of_key(
         .expect("every face of a corpus body is named")
 }
 
-fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> Node<ProfileProgram> {
+fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNode {
     Node::Datum(Datum::FaceFrame {
         at,
         face,
@@ -588,7 +589,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
     assert_eq!(node.slots(), vec![SlotId::Spin]);
     assert_eq!(SlotId::Spin.dimension(), Dimension::Angle);
     assert!(!SlotId::Spin.is_structural());
-    let set = |expr: Expr| {
+    let set = |expr: Formula| {
         apply(
             &doc,
             &DocEdit::SetParam {

@@ -62,6 +62,10 @@ use geom_core::Tol;
 /// typed [`EditError`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(bound(
+    serialize = "P::Authored: serde::Serialize",
+    deserialize = "P::Authored: serde::Deserialize<'de>"
+))]
 pub enum DocEdit<P: crate::ProfilePayload> {
     /// Insert a node; the new [`RecipeNodeId`] is minted from the
     /// document's mint chain ([`crate::Mint`]) and returned in the
@@ -6484,7 +6488,7 @@ mod tests {
             DocEdit::SetStructuralParam {
                 node: id,
                 slot: crate::node::SlotId::Count,
-                expr: crate::expr::Expr::count(1),
+                expr: crate::Formula::count(1),
             },
             DocEdit::SetParam {
                 node: id,

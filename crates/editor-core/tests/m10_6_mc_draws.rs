@@ -33,7 +33,7 @@ use geom_core::Tol;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo, sample_offsets};
 use editor_core::{
-    Dimension, Distribution, DocEdit, Expr, FreeVar, MeasureExpr, Node, ProfileDoc, RecipeNodeId,
+    Dimension, Distribution, DocEdit, Formula, FreeVar, MeasureExpr, Node, ProfileDoc, RecipeNodeId,
     UnitSym, VarName, apply,
 };
 
