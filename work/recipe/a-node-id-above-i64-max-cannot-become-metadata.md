@@ -2,12 +2,13 @@
 id: a-node-id-above-i64-max-cannot-become-metadata
 kind: issue
 title: meta::to_value refuses IntOutOfRange for any name whose node id is above i64::MAX, about half of minted ids, at any depth
-status: review
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
 branch: recipe/meta-u64-ids
 pr: 4071
+closed: 2026-10-05
 ---
 
 
