@@ -41,7 +41,7 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AxisSense, BoxAxis, CancelToken, CapEnd, ContactClass, Dimension, DocEdit, DocRef,
     DocumentId, EvalOptions, Evaluation, Formula, FreeVar, MateFrame, MatePrimitive, Node, NodeResult,
-    ParamBox, PatternKind, Placement, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId,
+    ParamBox, PatternKind, Placement, ProfileDoc, ProfileLift, RecipeNodeId,
     SitedFace, StableName, Step, ValuePayload, VarName, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

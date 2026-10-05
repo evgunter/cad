@@ -119,8 +119,8 @@ use std::collections::BTreeSet;
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Formula, LoopProgram, Node, ProfilePayload, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, SlotId, StepArg, VarEnv, VarName,
+    Formula, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, SlotId, StepArg, VarEnv,
 };
 use profile::{ArcMode, TargetKind, Verb};
 

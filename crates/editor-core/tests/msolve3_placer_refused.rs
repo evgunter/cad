@@ -30,7 +30,7 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
     EvalOptions, Formula, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass,
-    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, SlotId,
     StableName,
 };
 use fixture::resolver::{PartStore, in_part};

@@ -20,7 +20,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
     Formula, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName,
+    ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName,
     member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

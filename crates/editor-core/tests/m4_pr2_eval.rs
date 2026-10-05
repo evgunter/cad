@@ -330,7 +330,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                     assert_eq!(*slot, SlotId::Distance);
                     assert_eq!(*source, editor_core::EvalError::NonFiniteResult);
                 }
-                other => panic!("expected Formula error, got {other:?}"),
+                other => panic!("expected Expr error, got {other:?}"),
             }
         }
         other => panic!("expected Failed, got {other:?}"),

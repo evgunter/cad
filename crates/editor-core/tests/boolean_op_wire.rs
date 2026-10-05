@@ -31,7 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::AuthoredNode;
-use editor_core::{BooleanOp, Node, ProfileProgram, RecipeNodeId};
+use editor_core::{BooleanOp, Node, RecipeNodeId};
 
 fn boolean(op: BooleanOp) -> AuthoredNode {
     Node::Boolean {

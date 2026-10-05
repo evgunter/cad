@@ -21,7 +21,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
 use editor_core::ExtrudeSide;
 use editor_core::NodeStanding;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
@@ -230,14 +229,14 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "DerivedFrameSection",
     "EmptyHalf",
     "EmptyOperand",
-    "Formula",
-    "Formula/ContinuousExprInCountEval",
-    "Formula/CountExprInContinuousEval",
-    "Formula/CountOverflow",
-    "Formula/CountToScalarOutOfRange",
-    "Formula/NonFiniteResult",
-    "Formula/UnresolvedVar",
-    "Formula/VarKindMismatch",
+    "Expr",
+    "Expr/ContinuousExprInCountEval",
+    "Expr/CountExprInContinuousEval",
+    "Expr/CountOverflow",
+    "Expr/CountToScalarOutOfRange",
+    "Expr/NonFiniteResult",
+    "Expr/UnresolvedVar",
+    "Expr/VarKindMismatch",
     "FaceFrameKind",
     "FaceFrameNotPlanar",
     "FaceFrameReadback/Dangling",
@@ -976,7 +975,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     vec![
         row(
-            "Formula",
+            "Expr",
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
                 source: EvalError::UnresolvedVar {
@@ -3103,7 +3102,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     let mut rows: Vec<(String, NodeErrorKind)> = Vec::new();
     for (n, e) in eval {
         rows.push(row(
-            &format!("Formula/{n}"),
+            &format!("Expr/{n}"),
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
                 source: e,

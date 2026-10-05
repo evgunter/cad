@@ -48,7 +48,7 @@ use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
     EntityKind, Formula, FaceName, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
-    MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId,
+    MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, RecipeNodeId,
     RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};

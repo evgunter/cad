@@ -28,8 +28,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, VarName, groups,
+    MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, VarName, groups,
     member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

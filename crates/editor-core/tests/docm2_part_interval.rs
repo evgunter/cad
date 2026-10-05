@@ -14,7 +14,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::AuthoredNode;
 use std::sync::Arc;
 
 use crate::corpus;

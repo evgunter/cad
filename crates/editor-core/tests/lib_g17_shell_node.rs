@@ -40,7 +40,7 @@ use crate::fixture;
 use corpus::{body_of, cup, eval, failures, vessel};
 use editor_core::{
     CancelToken, DocEdit, EntityKind, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SlotId, StableName, apply,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, apply,
     evaluate, load, save,
 };
 use geom_core::{Dual64, Tol};

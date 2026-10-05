@@ -999,8 +999,11 @@ fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;
     let mut text = String::new();
     for node in one_of_every_node_shape() {
+        let node = editor_core::test_support::stored(&node);
         let slots = node.slots();
-        let tags: Vec<Formula> = (0..slots.len()).map(|i| scl(1000.0 + i as f64)).collect();
+        let tags: Vec<editor_core::Expr> = (0..slots.len())
+            .map(|i| editor_core::test_support::stored_expr(&scl(1000.0 + i as f64)))
+            .collect();
         let mut tagged = node.clone();
         for (&slot, tag) in slots.iter().zip(&tags) {
             *tagged

@@ -44,7 +44,7 @@ use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
     EntityKind, Entry, EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
-    PartSelect, PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef,
+    PartSelect, PatternKind, ProductError, ProfileDoc, RecipeNodeId, RefusedRef,
     RoleSeg, SitedFace, StableName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

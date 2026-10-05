@@ -39,8 +39,7 @@ use editor_core::ExtrudeSide;
 
 use corpus::{body_of, die_chamfer, eval, failures};
 use editor_core::{
-    CancelToken, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SlotId, StableName, evaluate,
+    CancelToken, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, StableName, evaluate,
 };
 use geom_core::Tol;
 

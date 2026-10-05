@@ -34,7 +34,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use editor_core::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{

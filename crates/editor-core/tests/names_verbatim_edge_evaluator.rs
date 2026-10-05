@@ -60,7 +60,7 @@ use crate::fixture;
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocumentId, EvalOptions, MateFrame, MatePrimitive,
-    Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName,
+    Node, ProfileDoc, RecipeNodeId, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, step};

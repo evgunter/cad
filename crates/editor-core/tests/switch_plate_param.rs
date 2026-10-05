@@ -11,7 +11,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::Formula;
 use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
@@ -377,7 +376,13 @@ fn the_hole_radii_are_addressable_slots() {
     };
     assert_eq!(
         program.loops.get(1).map(circle),
-        Some(circle(&editor_core::test_support::stored_loop(&hole_loop(HOLE_CENTRES[0])))),
+        Some(match hole_loop(HOLE_CENTRES[0]) {
+            editor_core::LoopProgram::Circle { centre, radius } => (
+                centre.map(|c| editor_core::test_support::stored_expr(&c)),
+                s.doc.unparse(&radius),
+            ),
+            other => panic!("a hole is a circle, got {other:?}"),
+        }),
         "the hole loop is the shared-parameter circle"
     );
 }

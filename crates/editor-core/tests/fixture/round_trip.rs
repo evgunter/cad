@@ -39,7 +39,6 @@
 //! A refactoring's round trip composes its two outcomes' maps
 //! ([`composed`]).
 
-use editor_core::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{InlineOutcome, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap};

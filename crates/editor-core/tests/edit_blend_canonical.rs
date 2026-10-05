@@ -20,7 +20,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, ListFault, Node,
-    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    NodeErrorKind, NodeResult, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
     SnapshotError, StableName, apply, evaluate, load, save,
 };
 use geom_core::Tol;

@@ -34,7 +34,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
     FaceName, InterfaceCrossing, InterfaceRecord, Maintenance, MateFrame, MatePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SplitError, StableName, apply, content_pin,
+    ProfileDoc, RecipeNodeId, RoleSeg, SplitError, StableName, apply, content_pin,
     inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
