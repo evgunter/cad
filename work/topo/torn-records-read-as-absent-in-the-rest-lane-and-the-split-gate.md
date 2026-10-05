@@ -2,11 +2,13 @@
 id: torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate
 kind: issue
 title: The REST lane, the split gate and null_site read a torn record as absent
-status: dispatched
+status: closed
 priority: P3
 cost: M
 refs: [torn-body-refusal-families-beyond-the-six-doors, public-body-option-getters-answer-none-for-a-torn-record]
 opened: 2026-10-05
+closed: 2026-10-05
+pr: 4056
 ---
 
 ## What
@@ -42,3 +44,14 @@ caller carries keeps an honest typed or `None` answer that states the
 fact. The REST lane and the split run mid-operation, so a site there
 needs its own proven premise before it panics.
 
+## Closed 2026-10-05 (PR 4056)
+
+Every listed site is converted: record hops panic through `linked` /
+`proven` / `face_surface_linked` / `edge_curve_linked` /
+`face_of_linked`, with the premise stated at the site (link
+resolution, which the operators keep mid-operation); keys the caller
+carries stay typed or a documented `None`. `null_site` answers `Err`
+naming a site vertex that does not resolve, since a null edge's
+attribute is no link. The sweep's other hits are filed as
+`torn-hops-read-as-absent-across-the-boolean` and
+`torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`.
