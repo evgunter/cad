@@ -188,12 +188,12 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 let end_edge = he_edge(&red.body, end)?;
                 let mate = red.body.mate(end).ok_or_else(|| corrupt_he(end))?;
                 if !st.is_loose(mate) {
-                    st.cut(&mut red.body, end_edge)?;
+                    st.cut(&mut red.body, end_edge, tol)?;
                 }
             }
         }
         if joined[0] && joined[1] {
-            st.cut(&mut red.body, record.edge)?;
+            st.cut(&mut red.body, record.edge, tol)?;
         }
     }
 
@@ -650,8 +650,8 @@ impl<T: Decide> Sweep<T> {
 impl<T: Decide> Sweep<T> {
     /// `cut` with the split lane's role resolution, area certification,
     /// and F9 record-keeping layered on the shared core.
-    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey) -> Result<(), SplitJoinError> {
-        match self.joiner.cut_core(body, edge)? {
+    fn cut(&mut self, body: &mut Body<T>, edge: EdgeKey, tol: Tol) -> Result<(), SplitJoinError> {
+        match self.joiner.cut_core(body, edge, tol)? {
             CutOutcome::Merged => Ok(()),
             CutOutcome::Completed { face, ring } => {
                 let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;

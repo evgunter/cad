@@ -2,8 +2,11 @@
 id: a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps
 kind: issue
 title: A kill that takes the last null edge off a minted loop leaves the rows the loop missed while it was held open
-status: dispatched
+status: closed
 opened: 2026-09-30
+pr: 4052
+branch: topo/kill-release-band-twin
+closed: 2026-10-05
 priority: P3
 cost: M
 ---
@@ -63,3 +66,15 @@ as a second door rather than a signature change. Neither runs it where
 the remnant's rows stand, so a kill of a null edge whose remnant
 carries its rows still leaves a released loop's gaps; `kemr` and `kev`
 have no band door for it.
+
+## Closed (2026-10-05, PR 4052)
+
+Re-measured after PRs 4037 and 4039: 147 null-edge kills in sweep's
+`ci` profile released a minted loop with gaps, all `cut_core`'s
+`kemr`. The band twins (`kev_describing`, `kef_minting`, new
+`kemr_minting`) now run the site mint over such a loop
+(`Body::plan_released_rows`, gated by `pcurves::releases_a_gap`); the
+keys-only kills refuse `KeysOnly` there, as `kef` already did on a
+rowless remnant. `cut_core` and `undo_struts` call the twins. After:
+0 released with gaps (87 faces complete, 60 cleared where the
+closed-form lane cannot mint). Witnesses in `topo::null`'s tests.

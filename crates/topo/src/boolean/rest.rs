@@ -191,7 +191,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 
     // ---- 2. Segments: the join's matching of the germ records. ----
-    let Some(segments) = read_segments(&mut red, band)? else {
+    let Some(segments) = read_segments(&mut red, band, tol)? else {
         return Ok(None);
     };
 
@@ -504,9 +504,10 @@ fn patch_discards<T: Decide>(
 /// stand; the null-edge scaffolding is then undone (step 3), so the
 /// segments' edges and host faces are the operands' own. `None`: the
 /// matching left germs loose, so the join's refusal stands.
-fn read_segments<T: Decide>(
+fn read_segments<T: Decide + crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Option<Vec<Segment>>, BooleanError> {
     let matched = super::join::section_segments(red, band)?;
     if matched.len() != red.null_pairs.len() {
@@ -538,7 +539,7 @@ fn read_segments<T: Decide>(
             }
         })
         .collect();
-    undo_struts(red)?;
+    undo_struts(red, tol)?;
     Ok(Some(segments))
 }
 
@@ -856,10 +857,14 @@ fn rest_surfaces<T: Decide>(
 // 3. Scaffolding undo.
 // ---------------------------------------------------------------
 
-/// Removes every classification-minted null-edge strut (`kev`,
-/// reverse mint order), fusing the site copies back into the original
-/// vertices. Sweep splits and pierce-ring vertices remain.
-fn undo_struts<T: Decide>(red: &mut BooleanReduction<T>) -> Result<(), BooleanError> {
+/// Removes every classification-minted null-edge strut (the band
+/// `kev`, `kev_describing`, so a loop a strut's kill releases is minted
+/// whole; reverse mint order), fusing the site copies back into the
+/// original vertices. Sweep splits and pierce-ring vertices remain.
+fn undo_struts<T: Decide + crate::props::AtRestPolicy>(
+    red: &mut BooleanReduction<T>,
+    tol: Tol,
+) -> Result<(), BooleanError> {
     for r in red.null_edges.iter().rev() {
         let body = match r.operand {
             Operand::A => &mut red.a,
@@ -883,7 +888,7 @@ fn undo_struts<T: Decide>(red: &mut BooleanReduction<T>) -> Result<(), BooleanEr
         } else {
             return Err(desync("REST lane: strut halves do not reach the copy"));
         };
-        body.kev(he)
+        body.kev_describing(he, &[], tol)
             .map_err(|_| desync("REST lane: strut undo kev refused"))?;
     }
     Ok(())
@@ -1685,6 +1690,12 @@ fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
 /// own transient face (`mfkrh`) and zipped by the same folded-loop
 /// zipper that finishes the outer cycle — the genus drop of closing a
 /// band lives in those promotions, never in ad-hoc surgery.
+///
+/// **Every edge it kills is certified**: the operands arrive at rest,
+/// where tier 2 admits no null edge, and [`undo_struts`] has killed
+/// every null edge the reduction minted. So the keys-only `kev` and
+/// `kemr` here release no loop a null edge held open, and never refuse
+/// `KeysOnly`.
 fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     fa: FaceKey,

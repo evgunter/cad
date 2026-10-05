@@ -1,5 +1,6 @@
-//! Ring/genus Euler operators — [`Body::kemr`], [`Body::mekr`],
-//! [`Body::kfmrh`] (with its band twin [`Body::kfmrh_minting`]) — plus
+//! Ring/genus Euler operators — [`Body::kemr`] (with its band twin
+//! [`Body::kemr_minting`]), [`Body::mekr`], [`Body::kfmrh`] (with its
+//! band twin [`Body::kfmrh_minting`]) — plus
 //! the [`Body::ring_move`] helper (with [`Body::ring_move_minting`])
 //! (M1 PR 3).
 //!
@@ -385,6 +386,15 @@ pub struct KfmrhResult {
     pub killed_shell: Option<ShellKey>,
 }
 
+/// [`Body::kemr`]'s arena delta, shared by both doors.
+#[cfg(debug_assertions)]
+const KEMR_DELTA: ArenaDelta = ArenaDelta {
+    loops: 1,
+    half_edges: -2,
+    edges: -1,
+    ..ArenaDelta::ZERO
+};
+
 /// What [`Body::kfmrh`]'s precondition phase proved and decided, for
 /// its surgery to write.
 struct KfmrhPlan<T: geom_core::Real> {
@@ -441,7 +451,12 @@ impl<T: Decide> Body<T> {
     ///
     /// `he1` resolves, then `he2` (`BadArgument::Stale`); they are the
     /// two halves of one edge ([`BadArgument::NotMates`]); same parent
-    /// loop ([`EulerOpError::NotSameLoop`]).
+    /// loop ([`EulerOpError::NotSameLoop`]). Last, where the edge is a
+    /// null edge, the face is not left with a loop the kill releases
+    /// missing a row on a face the site mint selects
+    /// ([`Body::plan_released_rows`]: [`EulerOpError::PcurveMint`] with
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] naming the face —
+    /// this door takes no band to mint it; [`Body::kemr_minting`] does).
     ///
     /// # Errors
     ///
@@ -459,7 +474,47 @@ impl<T: Decide> Body<T> {
     pub fn kemr(&mut self, he1: HalfEdgeKey, he2: HalfEdgeKey) -> Result<KemrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let killed = self.kemr_with(he1, he2, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEMR_DELTA, "kemr");
+        Ok(killed)
+    }
 
+    /// [`Body::kemr`] with a band: where `kemr` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the killed edge is
+    /// a null edge, and the loop's two sides, as the kill leaves them,
+    /// run through no null edge and miss rows the loop missed while it
+    /// was held open — the face is re-minted at `tol`'s band over those
+    /// sides ([`Body::plan_released_rows`]); everywhere else it is
+    /// `kemr`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::kemr`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_released_rows`]').
+    pub fn kemr_minting(
+        &mut self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+        tol: Tol,
+    ) -> Result<KemrResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let killed = self.kemr_with(he1, he2, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEMR_DELTA, "kemr_minting");
+        Ok(killed)
+    }
+
+    /// [`Body::kemr`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn kemr_with(
+        &mut self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+        tol: Option<Tol>,
+    ) -> Result<KemrResult, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let he1_data = self.resolve_half_edge(he1, Arg("he1"))?;
         let he2_data = self.resolve_half_edge(he2, Arg("he2"))?;
@@ -591,6 +646,27 @@ impl<T: Decide> Body<T> {
                 links: &links,
             },
         );
+        // The two sides as the kill leaves them: the old loop from its
+        // new anchor, then the ring.
+        let made: Vec<(HalfEdgeKey, Option<JointElement>)> = links
+            .iter()
+            .zip(&elements)
+            .map(|(&(_, first), &element)| (first.key(), element))
+            .collect();
+        let rows = self.plan_released_rows(
+            edge,
+            &made,
+            &[face_key],
+            |body, face| {
+                let walk = |side: &[Live]| -> Vec<SiteHalf> {
+                    side.iter().map(|h| SiteHalf::Existing(h.key())).collect()
+                };
+                let mut site = body.site_face(face, &[(loop_key, walk(&old_side))], None);
+                site.loops.push(SiteLoop::Rewired(walk(&ring_side)));
+                site
+            },
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): the ring loop only.
@@ -627,6 +703,7 @@ impl<T: Decide> Body<T> {
             unreachable!("kemr: the face resolved in the plan phase")
         };
         face.rings.push(ring);
+        crate::pcurves::apply_site_rows(self, rows, None);
         // Kills, with their provenance entries (kill order documented
         // above).
         self.half_edges.remove(he1);
@@ -648,18 +725,6 @@ impl<T: Decide> Body<T> {
             unreachable!("kemr: `w` resolved in the plan phase")
         };
         vertex.emanating = w_anchor.key();
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                loops: 1,
-                half_edges: -2,
-                edges: -1,
-                ..ArenaDelta::ZERO
-            },
-            "kemr",
-        );
         Ok(KemrResult {
             ring,
             killed_edge: edge,
