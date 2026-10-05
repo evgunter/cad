@@ -39,7 +39,10 @@ enums.
 pattern's count or index, a profile step's argument, a placement step,
 an assertion's bound — holds one variable id and nothing else. A slot
 showing `w * 2` holds an anonymous defined variable; a slot showing
-`5 mm` an anonymous free one. Formulas have one home: definitions.
+`5 mm` an anonymous free one. Formulas have one home: definitions. The
+exception is a `Measure`'s arithmetic over measured primitives, which
+stays a formula in the node until stage 2 makes `Measure` an operation;
+its value leaves and an assertion's bound are slots.
 
 **VR5 — `Expr` holds no float.** Its leaves are `Var(VarId)` (caching
 the kind, which cannot change), exact rational constants (`Scalar`,
@@ -56,7 +59,10 @@ anonymous free variable for each written quantity, so `w + 5 mm` stores
 `w + v` with `v` editable, nameable and offerable. The spelling decides
 the meaning: `90 deg` is a value from a continuous family and becomes a
 variable; `turn/4` is the exact constant. The document's types cannot
-hold a written quantity.
+hold a written quantity. A lone number at a slot's root is a typed value too:
+`3` in a count slot mints a free `Count`, `0.5` a free `Scalar`. A
+number inside an operator tree is a constant, and `turn/4` alone is a
+formula, so a constant.
 
 **VR7 — Lifecycle.** An anonymous variable is read by something: the
 edit that detaches its last reader removes it. Deleting a named
