@@ -49,6 +49,25 @@ the rest are this one — e.g. at ε 1e-9 a unit circle tilted 6e-5 m
 against a unit wall (`A₂ = 0.9·zero`), crossing at `θ ≈ ±1.98`: the
 ladder certified both roots on the wall, the arm refused.
 
+The review of PR 4042 (`analysis/reach-review/4042`, `review.md`,
+NOTE-1) measured that the losses are not only shallow crossings. The
+arm's slack is `ρ·(noise + A₂)/√(−lo·hi)`, so with `A₂ = 0.5·ε` at
+`ρ = 1 m` a crossing 1 cm deep each way already reads about `50·ε` and
+refuses. Its band-edge sweep (`review_arm_edge`: `A₂` at 0.5–0.999·ε,
+crossings 10.5–1e3·ε deep, 2,880 poses per ε) certified 0 of the 2,880
+at ε 1e-9, deep crossings included; on every pose the ladder answered,
+its answer was true of the geometry.
+
+## Open question
+
+Should the arm yield to the ladder whenever the ladder certifies? The
+arm is required for a constant residual and for a tangency (the door's
+module docs); for a definite crossing the ladder places roots the arm
+refuses. Weigh it against the ladder's own misplacement along the
+carrier (`hone/degree-2-subdivision-doors-carry-no-root-slack-meter`,
+the PR 4042 measurements): a ladder answer is on the surface, not
+necessarily near the true root.
+
 ## The shape of a fix
 
 A design question. Two shapes: charge the dropped harmonic at the

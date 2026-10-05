@@ -44,6 +44,25 @@ The degree-2 doors bisect the same way on the same kind of residual, so
 the same grazes should misplace their roots there too; that is
 estimated, NOT measured on them.
 
+## Measured on the conic × quadric door (review of PR 4042)
+
+The single full review of PR 4042 (branch `analysis/reach-review/4042`,
+`review.md`, NOTE-2, probes `probes/door_fuzz.rs`) measured the
+ladder's certified roots on this door, against a double-double
+true-distance oracle. The roots read ON the surface (to ≤ 0.15·ε), but
+lie far along the carrier from the true root:
+
+- the fuzz (2,000 seeded poses per ε, circles and ellipses against
+  spheres and walls): up to 1.65e-5 m (16,481·ε) at ε 1e-9, and
+  2.7e-4 m at 1e-12;
+- the band-edge sweep (`review_arm_edge`, `A₂` 0.5–0.999·ε): up to
+  0.0195 m at 1e-12, on an `A₂ = 0.99·ε` pose at r = 100 m that lands
+  in the band's gap and so takes the ladder.
+
+The counts are identical on main (the old circle × cylinder and ellipse
+doors) and on PR 4042's head: the misplacement is the ladder's, not the
+arm switch's. The degree-2 estimate above is therefore measured here.
+
 ## What a fix needs
 
 Each door supplies its residual with a running bound
