@@ -1690,6 +1690,12 @@ fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
 /// own transient face (`mfkrh`) and zipped by the same folded-loop
 /// zipper that finishes the outer cycle — the genus drop of closing a
 /// band lives in those promotions, never in ad-hoc surgery.
+///
+/// **Every edge it kills is certified**: the operands arrive at rest,
+/// where tier 2 admits no null edge, and [`undo_struts`] has killed
+/// every null edge the reduction minted. So the keys-only `kev` and
+/// `kemr` here release no loop a null edge held open, and never refuse
+/// `KeysOnly`.
 fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     fa: FaceKey,

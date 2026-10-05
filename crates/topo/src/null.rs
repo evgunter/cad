@@ -1572,6 +1572,62 @@ mod tests {
     /// The ruling cut made: the wall in two, the strut holding one piece
     /// open. Returns the body, the held piece, and the chord's half on
     /// it.
+    /// A kill of a null edge's two halves, by one door.
+    type Kill = fn(&mut Body<f64>, crate::MevCreated) -> Result<(), crate::EulerOpError>;
+
+    /// The four doors that kill a null edge: each, and whether it takes
+    /// a band.
+    const KILL_DOORS: [(&str, Kill, bool); 4] = [
+        ("kev", |b, null| b.kev(null.he_plus).map(drop), false),
+        (
+            "kev_describing",
+            |b, null| {
+                b.kev_describing(null.he_plus, &[], Tol::witness())
+                    .map(drop)
+            },
+            true,
+        ),
+        (
+            "kemr",
+            |b, null| b.kemr(null.he_plus, null.he_minus).map(drop),
+            false,
+        ),
+        (
+            "kemr_minting",
+            |b, null| {
+                b.kemr_minting(null.he_plus, null.he_minus, Tol::witness())
+                    .map(drop)
+            },
+            true,
+        ),
+    ];
+
+    /// The half-edge of `face`'s outer loop that starts at `v`.
+    fn leaving(
+        body: &Body<f64>,
+        face: FaceKey,
+        v: crate::entity::VertexKey,
+    ) -> crate::entity::HalfEdgeKey {
+        let outer = body.get_face(face).unwrap().outer;
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the face is bounded by a cycle")
+        };
+        body.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .find(|&he| body.get_half_edge(he).unwrap().start == v)
+            .unwrap()
+    }
+
+    /// A null strut hung at the start of `at`.
+    fn strut(body: &mut Body<f64>, at: crate::entity::HalfEdgeKey) -> crate::MevCreated {
+        body.mev_null(
+            crate::MevSite::Fan { he1: at, he2: at },
+            NewVertexSide::Above,
+        )
+        .unwrap()
+    }
+
     fn ruling_cut_made() -> (RulingCut, FaceKey, crate::entity::HalfEdgeKey) {
         let mut cut = ruling_cut();
         let made = cut
@@ -1605,32 +1661,7 @@ mod tests {
     /// elements alike, are the minting pass's, byte for byte.
     #[test]
     fn a_kill_that_releases_a_held_piece_refuses_keys_only_and_mints_it_with_a_band() {
-        type Kill = fn(&mut Body<f64>, crate::MevCreated) -> Result<(), crate::EulerOpError>;
-        let doors: [(&str, Kill, bool); 4] = [
-            ("kev", |b, null| b.kev(null.he_plus).map(drop), false),
-            (
-                "kev_describing",
-                |b, null| {
-                    b.kev_describing(null.he_plus, &[], Tol::witness())
-                        .map(drop)
-                },
-                true,
-            ),
-            (
-                "kemr",
-                |b, null| b.kemr(null.he_plus, null.he_minus).map(drop),
-                false,
-            ),
-            (
-                "kemr_minting",
-                |b, null| {
-                    b.kemr_minting(null.he_plus, null.he_minus, Tol::witness())
-                        .map(drop)
-                },
-                true,
-            ),
-        ];
-        for (door, kill, band) in doors {
+        for (door, kill, band) in KILL_DOORS {
             let (RulingCut { mut body, null, .. }, held, chord_on_held) = ruling_cut_made();
             let mut held_open = vec![null.he_plus, null.he_minus, chord_on_held];
             held_open.sort();
@@ -1781,5 +1812,160 @@ mod tests {
                 assert_eq!(deep_snapshot(&body), before, "the refusal moves nothing");
             }
         }
+    }
+
+    /// **A kill that releases a complete loop succeeds keys-only.** On
+    /// the complete wall, a null strut hung at the bottom of the ruling
+    /// and killed straight away leaves the wall's loop exactly as it was
+    /// before the strut: complete, so there is nothing for a band to
+    /// mint. Every door returns `Ok`, the wall's rows — images and joint
+    /// elements — are the ones it stored before the strut, and each
+    /// keys-only door leaves the body its band twin leaves.
+    #[test]
+    fn a_kill_that_releases_a_complete_loop_succeeds_keys_only() {
+        let mut after: Vec<(&str, Vec<String>)> = Vec::new();
+        for (door, kill, _) in KILL_DOORS {
+            let (mut body, wall, bottom, _) = ruled_wall();
+            let rows = face_rows(&body, wall);
+            let at = leaving(&body, wall, bottom);
+            let null = strut(&mut body, at);
+            assert_eq!(
+                missing_rows(&body),
+                {
+                    let mut held = vec![null.he_plus, null.he_minus];
+                    held.sort();
+                    held
+                },
+                "{door}: the strut holds the wall open"
+            );
+            kill(&mut body, null).unwrap_or_else(|e| panic!("{door}: the kill succeeds: {e:?}"));
+            assert_eq!(
+                missing_rows(&body),
+                vec![],
+                "{door}: the wall leaves complete"
+            );
+            assert_eq!(
+                face_rows(&body, wall),
+                rows,
+                "{door}: the wall's rows are the ones it stored before the strut"
+            );
+            after.push((door, deep_snapshot(&body)));
+        }
+        for pair in after.chunks(2) {
+            assert_eq!(
+                pair[0].1, pair[1].1,
+                "{} leaves the body {} leaves",
+                pair[0].0, pair[1].0
+            );
+        }
+    }
+
+    /// **A kill that leaves its loop held open by a second null edge
+    /// succeeds keys-only.** Struts hung at both ends of the ruling;
+    /// killing the bottom one leaves the wall's loop running through the
+    /// top one, so it is not released and its gaps — the top strut's two
+    /// rows — are not the kill's to mint. Every door returns `Ok`, the
+    /// wall misses exactly the top strut's rows, and each keys-only door
+    /// leaves the body its band twin leaves.
+    #[test]
+    fn a_kill_that_leaves_its_loop_held_open_succeeds_keys_only() {
+        let mut after: Vec<(&str, Vec<String>)> = Vec::new();
+        for (door, kill, _) in KILL_DOORS {
+            let (mut body, wall, bottom, top) = ruled_wall();
+            let at = leaving(&body, wall, bottom);
+            let low = strut(&mut body, at);
+            let at = leaving(&body, wall, top);
+            let high = strut(&mut body, at);
+            kill(&mut body, low).unwrap_or_else(|e| panic!("{door}: the kill succeeds: {e:?}"));
+            let mut held = vec![high.he_plus, high.he_minus];
+            held.sort();
+            assert_eq!(
+                missing_rows(&body),
+                held,
+                "{door}: the wall misses only the strut still holding it open"
+            );
+            after.push((door, deep_snapshot(&body)));
+        }
+        for pair in after.chunks(2) {
+            assert_eq!(
+                pair[0].1, pair[1].1,
+                "{} leaves the body {} leaves",
+                pair[0].0, pair[1].0
+            );
+        }
+    }
+
+    /// **A `kemr` that splits off a held ring and releases a complete
+    /// loop succeeds keys-only, deciding each side by the joint it
+    /// makes.** A null strut `n` hung at the bottom of the ruling, a
+    /// second null strut at its tip, and a spur from its tip into the
+    /// wall, spliced just before `n`'s returning half — so the joint
+    /// into that half, from the rowless spur, has no element, while the
+    /// joint into `n`'s outgoing half keeps the identity. `kemr` of
+    /// `n`'s halves splits the tip's fan off as a ring the second strut
+    /// holds open, and closes the wall's loop through the outgoing
+    /// half's element: complete. Each side's joint takes the killed half
+    /// that side's path enters, so the wall's loop has no gap and the
+    /// ring is not released; both doors return `Ok` and leave one body.
+    #[test]
+    fn a_kemr_that_splits_off_a_held_ring_succeeds_keys_only() {
+        use crate::test_support_fixtures::CylFrame;
+        let tol = Tol::witness();
+        let mut after: Vec<(&str, Vec<String>)> = Vec::new();
+        for (door, band) in [("kemr", false), ("kemr_minting", true)] {
+            let (mut body, wall, bottom, _) = ruled_wall();
+            let at = leaving(&body, wall, bottom);
+            let n = strut(&mut body, at);
+            let tip = strut(&mut body, n.he_minus);
+            let spur = body
+                .mev_line(
+                    crate::MevSite::Fan {
+                        he1: n.he_minus,
+                        he2: n.he_minus,
+                    },
+                    CylFrame::canonical(1.0).at(0.8, 0.5),
+                    tol,
+                )
+                .unwrap();
+            assert_eq!(
+                (
+                    body.joint(n.he_plus).is_some(),
+                    body.joint(n.he_minus).is_some()
+                ),
+                (true, false),
+                "{door}: the joint into the outgoing half has an element, the one into the \
+                 returning half none"
+            );
+            let killed = if band {
+                body.kemr_minting(n.he_plus, n.he_minus, tol)
+            } else {
+                body.kemr(n.he_plus, n.he_minus)
+            };
+            let ring = killed
+                .unwrap_or_else(|e| panic!("{door}: the kill succeeds: {e:?}"))
+                .ring;
+            let mut held = vec![tip.he_plus, tip.he_minus, spur.he_plus, spur.he_minus];
+            held.sort();
+            assert_eq!(
+                missing_rows(&body),
+                held,
+                "{door}: only the held ring misses rows"
+            );
+            assert_eq!(
+                face_of(&body, spur.he_plus),
+                wall,
+                "{door}: the ring stays on the wall"
+            );
+            assert_eq!(
+                body.get_half_edge(spur.he_plus).unwrap().parent_loop,
+                ring,
+                "{door}: the spur is on the ring"
+            );
+            after.push((door, deep_snapshot(&body)));
+        }
+        assert_eq!(
+            after[0].1, after[1].1,
+            "kemr leaves the body kemr_minting leaves"
+        );
     }
 }

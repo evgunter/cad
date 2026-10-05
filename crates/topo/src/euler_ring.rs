@@ -648,9 +648,14 @@ impl<T: Decide> Body<T> {
         );
         // The two sides as the kill leaves them: the old loop from its
         // new anchor, then the ring.
+        let made: Vec<(HalfEdgeKey, Option<JointElement>)> = links
+            .iter()
+            .zip(&elements)
+            .map(|(&(_, first), &element)| (first.key(), element))
+            .collect();
         let rows = self.plan_released_rows(
             edge,
-            [he1, he2],
+            &made,
             &[face_key],
             |body, face| {
                 let walk = |side: &[Live]| -> Vec<SiteHalf> {

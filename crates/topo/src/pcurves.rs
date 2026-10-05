@@ -2240,6 +2240,19 @@ fn face_loop_cycles<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<(LoopKey, V
         .collect()
 }
 
+/// **Whether `he` misses a row** ([`StoredRows::gaps`]): it stores no
+/// image, or the joint into it from `before`, its predecessor, has no
+/// element (`element` false) where `before` stores an image — a joint
+/// between two stored images owes its element.
+fn misses_a_row<T: Real>(
+    body: &Body<T>,
+    before: HalfEdgeKey,
+    he: HalfEdgeKey,
+    element: bool,
+) -> bool {
+    body.pcurve(he).is_none() || (body.pcurve(before).is_some() && !element)
+}
+
 /// [`StoredRows`] for `face`, a face of the body: its loops walked
 /// once.
 ///
@@ -2255,16 +2268,11 @@ pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: FaceKey) -> StoredRow
         let mut boxes: Vec<ChartWindow<T>> = Vec::new();
         for (i, &he) in cycle.iter().enumerate() {
             let before = cycle[(i + cycle.len() - 1) % cycle.len()];
-            let gap = match body.pcurve(he) {
-                Some(row) => {
-                    let (t0, t1) = row.params();
-                    boxes.push(row.pcurve().chart_box(t0, t1));
-                    // A joint between two stored images owes its element.
-                    body.pcurve(before).is_some() && body.joint(he).is_none()
-                }
-                None => true,
-            };
-            if gap {
+            if let Some(row) = body.pcurve(he) {
+                let (t0, t1) = row.params();
+                boxes.push(row.pcurve().chart_box(t0, t1));
+            }
+            if misses_a_row(body, before, he, body.joint(he).is_some()) {
                 gaps.push(RowGap {
                     half_edge: he,
                     r#loop: *lk,
@@ -3213,14 +3221,15 @@ pub(crate) fn site_rows_owed<T: Decide>(
 
 /// **Whether a null-edge kill leaves a loop it releases with a gap**:
 /// a loop of `face`, as the kill leaves it, that runs through no null
-/// edge and has a half-edge with no image, or with no element on the
-/// joint into it from a predecessor that stores one — the gaps
+/// edge and has a half-edge that [`misses_a_row`] — the gaps
 /// [`StoredRows::gaps`] reads, taken on the loop the kill leaves.
-/// `killed` are the killed edge's halves: a null edge's halves carry
-/// the identity, so the element the kill writes onto a joint it makes
-/// by bridging them is the survivor's own, and is missing where that
-/// or a killed half's is. Band-free; the band kills' site mint runs
-/// only where this holds ([`crate::Body::plan_released_rows`]).
+/// `made` are the joints the kill writes, each keyed by the half-edge
+/// it is into, with the element it writes there; every other joint
+/// keeps its element. Band-free; the band kills' site mint runs only
+/// where this holds ([`crate::Body::plan_released_rows`]).
+///
+/// A loop a null edge still holds open is not the kill's to release,
+/// and its gaps do not count: the site mint cannot walk it.
 ///
 /// # Panics
 ///
@@ -3230,9 +3239,13 @@ pub(crate) fn site_rows_owed<T: Decide>(
 pub(crate) fn releases_a_gap<T: Decide>(
     body: &Body<T>,
     face: &SiteFace<T>,
-    killed: [HalfEdgeKey; 2],
+    made: &[(HalfEdgeKey, Option<JointElement>)],
 ) -> bool {
-    let bridged = killed.iter().all(|&he| body.joint(he).is_some());
+    let element = |he: HalfEdgeKey| {
+        made.iter()
+            .find(|&&(into, _)| into == he)
+            .map_or(body.joint(he).is_some(), |(_, element)| element.is_some())
+    };
     face.loops.iter().any(|lp| {
         let SiteLoop::Rewired(halves) = lp else {
             return false;
@@ -3250,9 +3263,7 @@ pub(crate) fn releases_a_gap<T: Decide>(
         let n = cycle.len();
         (0..n).any(|i| {
             let (before, he) = (cycle[(i + n - 1) % n], cycle[i]);
-            let element =
-                body.joint(he).is_some() && (bridged || half_edge_record(body, he).prev == before);
-            body.pcurve(he).is_none() || (body.pcurve(before).is_some() && !element)
+            misses_a_row(body, before, he, element(he))
         })
     })
 }
@@ -4857,18 +4868,15 @@ pub(crate) mod staleness_posture {
              row, it refuses `KeysOnly` before mutating",
             ),
             (
-                "kemr_minting",
-                Maintains,
-                "`kemr` with a band: where `kemr` refuses `KeysOnly`, the two sides it leaves \
-             are walked and what they miss is minted (`Body::plan_released_rows`)",
-            ),
-            (
                 "kev",
                 Neither,
                 "kill op: the joint it makes takes the sum of the elements it bridges; where \
              it kills a null edge and the loop it releases would miss a row, it refuses \
              `KeysOnly` before mutating",
             ),
+            ("kvfs", Neither, "kill op"),
+            // ---- The kills' band twins: each mints what a loop its
+            // killed null edge releases misses. ----
             (
                 "kev_describing",
                 Completes,
@@ -4880,7 +4888,12 @@ pub(crate) mod staleness_posture {
              a killed null edge releases misses on every other face it is on \
              (`Body::plan_released_rows`)",
             ),
-            ("kvfs", Neither, "kill op"),
+            (
+                "kemr_minting",
+                Maintains,
+                "`kemr` with a band: where `kemr` refuses `KeysOnly`, the two sides it leaves \
+             are walked and what they miss is minted (`Body::plan_released_rows`)",
+            ),
             // ---- Maintains: the half-edge-minting Euler operators,
             // whose re-mint is the site mint, not a pass call. ----
             (

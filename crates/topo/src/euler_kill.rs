@@ -1388,9 +1388,20 @@ impl<T: Decide> Body<T> {
             .into_iter()
             .map(|(lk, cycle)| (lk, cycle.into_iter().map(SiteHalf::Existing).collect()))
             .collect();
+        let [_, b, _, d] = plan.links;
+        let made: Vec<(HalfEdgeKey, Option<JointElement>)> = plan
+            .unsplice
+            .links(plan.links)
+            .into_iter()
+            .zip(plan.unsplice.elements(
+                [plan.he, plan.m, b.key(), d.key()].map(|half| self.joint(half)),
+                plan.turns,
+            ))
+            .map(|((_, to), element)| (to.key(), element))
+            .collect();
         self.plan_released_rows(
             plan.edge,
-            [plan.he, plan.m],
+            &made,
             &read,
             |body, face| body.site_face(face, &after, None),
             tol,
@@ -1656,7 +1667,8 @@ impl<T: Decide> Body<T> {
     /// faces its halves are on that the kill keeps — that a loop it
     /// releases leaves with a gap ([`crate::pcurves::releases_a_gap`]),
     /// `site` describing the face as the kill leaves it, its rewired
-    /// loops without the killed halves. A face the site mint selects
+    /// loops without the killed halves, and `made` the joints the kill
+    /// writes, each into its half-edge with its element. A face the site mint selects
     /// ([`crate::pcurves::StoredRows::remints`]) has the rows those loops
     /// missed while they were held open minted with the rest of what is
     /// missing there; every other face is left as found. Empty where the
@@ -1674,7 +1686,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn plan_released_rows(
         &self,
         edge: EdgeKey,
-        killed: [HalfEdgeKey; 2],
+        made: &[(HalfEdgeKey, Option<JointElement>)],
         read: &[FaceKey],
         site: impl Fn(&Self, FaceKey) -> SiteFace<T>,
         tol: Option<Tol>,
@@ -1693,7 +1705,7 @@ impl<T: Decide> Body<T> {
                 Ok(minted
                     .iter()
                     .map(|&(face, _)| site(body, face))
-                    .filter(|face| crate::pcurves::releases_a_gap(body, face, killed))
+                    .filter(|face| crate::pcurves::releases_a_gap(body, face, made))
                     .collect())
             },
             crate::pcurves::SiteCarriers::Existing,
@@ -1909,16 +1921,32 @@ impl<T: Decide> Body<T> {
             |body| Ok(surviving(body, true)),
             tol,
         )?;
+        // Each joint the splice makes bridges the killed edge, and its
+        // element is the sum of the elements it bridges, read before the
+        // drop (`Body::bridged_joint`). A remnant changing chart has no
+        // image on the surviving face, so neither joint has an element;
+        // the band door's site mint, written after the splice, re-mints
+        // the surviving face where it is owed.
+        let links = splice.links(a, [c, d]);
+        let elements: Vec<Option<JointElement>> = splice
+            .bridges(he, m, d.key())
+            .iter()
+            .map(|path| {
+                (!remnant_changes_chart)
+                    .then(|| self.bridged_joint(path))
+                    .flatten()
+            })
+            .collect();
         // Where the remnant's rows stand, a null edge's kill can still
         // release the surviving loop with gaps.
         if rows.is_empty() {
-            rows = self.plan_released_rows(
-                edge,
-                [he, m],
-                &[f2],
-                |body, _| surviving(body, false),
-                tol,
-            )?;
+            let made: Vec<(HalfEdgeKey, Option<JointElement>)> = links
+                .iter()
+                .zip(&elements)
+                .map(|(&(_, to), &element)| (to.key(), element))
+                .collect();
+            rows =
+                self.plan_released_rows(edge, &made, &[f2], |body, _| surviving(body, false), tol)?;
         }
 
         // ---- Mutation (infallible from here on). ----
@@ -1939,27 +1967,12 @@ impl<T: Decide> Body<T> {
         // (`pcurves::loop_rows`) attributes to the moved half-edges
         // once spliced: that loop is its own survivors plus the
         // remnant, and its own rows are not this op's to touch.
-        //
-        // Each joint the splice makes bridges the killed edge, and its
-        // element is the sum of the elements it bridges, read before the
-        // drop (`Body::bridged_joint`). A remnant changing chart has no
-        // image on the surviving face, so neither joint has an element;
-        // the band door's site mint, written after the splice, re-mints
-        // the surviving face where it is owed.
-        let elements: Vec<Option<JointElement>> = splice
-            .bridges(he, m, d.key())
-            .iter()
-            .map(|path| {
-                (!remnant_changes_chart)
-                    .then(|| self.bridged_joint(path))
-                    .flatten()
-            })
-            .collect();
+
         if remnant_changes_chart {
             self.drop_rows(remnant.iter().map(|moved| moved.key()));
         }
         // Splice (derived as mef's exact inverse — module docs diagram).
-        for ((from, to), element) in splice.links(a, [c, d]).into_iter().zip(elements) {
+        for ((from, to), element) in links.into_iter().zip(elements) {
             self.link_half_edges(from, to, element);
         }
         crate::pcurves::apply_site_rows(self, rows, None);
