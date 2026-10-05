@@ -3218,7 +3218,12 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // window that reads a whole turn on a face that does not wrap alone
     // has a gap the window cannot see (a zone merged with half a cap),
     // and one wider than a period is a walk that wrapped more than once.
-    // Both are out of the class.
+    // Both are out of the class. The gate is also what keeps the
+    // LATITUDE window sound: latitude's only critical points are the
+    // poles, so the boundary's levels bound the face unless it encloses
+    // one, and a loop of rims and meridians that steps around a pole is
+    // exactly a walk reading a whole turn on a face that does not wrap
+    // alone.
     if wrap_rims(
         body,
         face,
