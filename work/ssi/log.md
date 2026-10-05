@@ -181,3 +181,26 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Why it does not go to Ev.** No Ev-ratified text changes: the C3 refinement sentences are PR 3998's description of code. If Ev wants the wall derived, that needs a stated envelope (largest model, curvature, finest ε); recorded here.
   - **Sequencing.** The banded-solve unit is building now (`ssi/banded-fit`, closing the flux row). The retirement unit follows it, because banded storage is a precondition at n ≳ 15k: the probes died of memory at 23–25k with dense storage.
   - **Off-question notes.** A floor detector inside limb 2 is the parked `plane-nurbs-certificate-bound-does-not-refine-with-eps`'s question. `SSI_STEP_DEVIATION` = 0.02 samples about 5× denser than interpolation needs; a constant factor, not filed. (SSI orchestrator)
+
+- 2026-10-04 — **PR 4019 merged** (d51af4c69f): the curved dome re-measured on current main; its loop and oblique arc are pinned at the run's ε. At 1e-12 every curved cut refused only `FitSampleBudget`, which opened the fit-budget fork above.
+- 2026-10-04 — **PR 4023 merged** (f0abee07b5): the collocation fit solves its banded system banded, with one factorisation for every right-hand side (crate-private `geom/src/curves/banded.rs` behind `Collocation`). The flux banded-fit row is closed.
+- 2026-10-04 — **PR 4028 merged** (76958b8b25): `SSI_MAX_FIT_SAMPLES` retired. The one per-branch step wall `SSI_MAX_STEPS` now counts inserted samples. The refusal is `RefinementExhausted { stop, rounds }`, and the floor clause is conditional on `refine::stopped_falling`. The curved-dome row is closed.
+- 2026-10-04 — **Correction on `[ev]` PR 3862.** I had told Ev that the step caps were "the fit's minimum sample count, not a guess". That was wrong. A correction comment is posted on 3862. The retirements in 3998 and 4028 answer it.
+- 2026-10-04 — **`[ev]` PR 4012 (limb 3 at rest) built, reviewed and fixed.**
+  - **Dual review, DR-77 on the branch.** Two MAJORs.
+    - The side-cover arm proved that the locus lies within ε of a side, but not that the locus reaches it. Three declared edges certified where the search door reads the side as clear.
+    - A stretch-sup regression on cone and twisted walls.
+  - **Fix.** The side arm now reads the boundary pass's own clear test (`boundary::clears`, `SectionReader`, `side_stretch`), so the two doors cannot disagree.
+  - **Delta review.** Its MINORs are fixed: the end clause is restored to Ev's form, each door has one recourse sentence, and an overrun is typed `Short`.
+  - **Tally.** 1 (A's stretch-sup regression).
+  - **State.** Green; waiting on Ev's OK of the final C2 text. Main's DR-77 is now #3987, so the row renumbers at merge.
+  - **Filed:** `limb3-ladder-stops-on-a-certified-second-arc` (P3, answering Ev's question on miss cost), `limb3-carrier-ends-read-at-f64-points` (P3), `ssi-loose-side-hull-reports-a-region-on-an-empty-locus` (P2), `d4-placement-carrier-to-locus-within-eps` (P2, design).
+- 2026-10-04 — **Neighbour-cap fork, `[ev]` PR 4034** (`ssi/neighbour-cap`; fork-log row 67; byte 93 on `analysis/design-fork/neighbour-cap`).
+  - **Converged design.** The crossing march's step reads only its own branch's curvature and the domain diagonal, and the cap set by the neighbouring crossing retires.
+  - **Review: NOT-MERGEABLE.**
+    - MAJOR 1: without the cap, a far-field step can overshoot or jump to another branch. The cap was a hidden far-field step bound.
+    - MAJOR 2: the `Fit(TooFewPoints)` defect ending is reachable.
+  - **Status.** Ev was asked to hold the ruling, and the question went back to the designers for round 3: a fixed, own-branch far-field step rule.
+  - **Measured so far.** A corrector acceptance test (k·δ·ε) turns the review's failures into `TubeStraddles` or `Escalated(StepProgress)`, not Ok, at k = 1, 10 or 100.
+  - **Filed on the branch:** `ssi-match-exit-picks-the-crossing-nearest-a-chord` and `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short` (both P3).
+- 2026-10-04 — **Process fix: blinding.** Reviewers in a pair could see each other's lane names through the shared scratchpad, and one fork's mapping file sat there. Mapping files now live outside the scratchpad, where no lane reads them. (SSI orchestrator)
