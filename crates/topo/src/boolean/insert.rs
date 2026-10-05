@@ -319,15 +319,19 @@ pub(super) fn plan_null_pairs<T: Decide>(
     } else {
         ((0..n).collect(), (0..n).collect())
     };
-    let mut b_pos = vec![0; n];
-    for (p, &i) in b_order.iter().enumerate() {
-        b_pos[i] = p;
-    }
     // Pair consecutively in A's walk order, from the start
     // [`pairing_start_turns`] picks.
     if n > 2 && pairing_start_turns(survivors[a_order[0]].sa.0, op) {
         a_order.rotate_left(1);
     }
+    let positions = |order: &[usize]| {
+        let mut pos = vec![0; n];
+        for (p, &i) in order.iter().enumerate() {
+            pos[i] = p;
+        }
+        pos
+    };
+    let (a_pos, b_pos) = (positions(&a_order), positions(&b_order));
     // F12 guard 1: the pairs do not cross in B's walk order either
     // ([`b_runs`]), checked for every pair before the first mint.
     let pairs: Vec<(usize, usize)> = a_order.chunks(2).map(|c| (c[0], c[1])).collect();
@@ -335,23 +339,22 @@ pub(super) fn plan_null_pairs<T: Decide>(
         a_vertex: contact.a,
         b_vertex: contact.b,
     })?;
-    // A's pairs are consecutive in its own walk order, so each runs
-    // forward, but for two survivors, which run either way.
-    let a_run = (n > 2).then_some(false);
     let shared = pairs.len() > 1;
     for (&(i0, i1), &(b_run, _)) in pairs.iter().zip(&b_runs) {
+        // A's pairs are consecutive in its own walk order, so each runs
+        // forward, but for two survivors, which run either way.
+        let a_run = walk_run(n, a_pos[i0], a_pos[i1]);
         let (r0, r1) = (survivors[i0], survivors[i1]);
         let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
         let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
-        // Which way round each solid runs is its own walk order's: in A
-        // from the germ the other follows, so the run holds no third
-        // germ; in B as [`b_runs`] reads it, so a nested pair's run holds
-        // other pairs' runs whole. Two survivors follow each other both
-        // ways, and the run that
-        // swallows the entire orbit — impossible for the true wedge,
-        // whose far side the complementary germ bounds — is the
-        // reverse of the one minted. The run-side agreement guard runs
-        // against whichever direction is chosen.
+        // Which way round each solid runs is its own walk order's
+        // ([`walk_run`]): in A the run that holds no third germ, in B a
+        // nested pair's run holds other pairs' runs whole. Two survivors
+        // follow each other both ways, and the run that swallows the
+        // entire orbit — impossible for the true wedge, whose far side
+        // the complementary germ bounds — is the reverse of the one
+        // minted. The run-side agreement guard runs against whichever
+        // direction is chosen.
         let side = |sectors: &[BoolSector<T>],
                     body: &Body<T>,
                     order: Option<bool>,
@@ -431,6 +434,16 @@ fn run_order(n: usize, p0: usize, p1: usize) -> Option<Option<bool>> {
     }
 }
 
+/// **Which way round a solid runs the pair at its walk positions `p0`
+/// and `p1` of `n`**, for both solids and every survivor count: as
+/// [`run_order`] says where the two are adjacent, so the run holds no
+/// third germ, `None` where either way does (two survivors); else
+/// forward from the earlier position to the later, so the run is an
+/// interval of the walk read from its first entry ([`b_runs`]).
+fn walk_run(n: usize, p0: usize, p1: usize) -> Option<bool> {
+    run_order(n, p0, p1).unwrap_or(Some(p1 < p0))
+}
+
 /// **B's run for each of A's `pairs`, and the pair whose run holds it.**
 /// `b_pos` is each survivor's position in B's walk order. Each pair
 /// joins the ends of one of A's runs, and A's runs on one side of B's
@@ -438,10 +451,9 @@ fn run_order(n: usize, p0: usize, p1: usize) -> Option<Option<bool>> {
 /// the sphere round the vertex, so the pairs cannot cross in B's walk
 /// order. At four crossings that makes each pair adjacent in B too; at
 /// six or more a pair may hold others between its two germs either way
-/// round (a nested matching). A pair adjacent in B runs as
-/// [`run_order`] says; any other runs forward from its earlier position
-/// to its later, so the runs are intervals of B's walk read from its
-/// first entry: disjoint or nested. A pair whose run holds another's
+/// round (a nested matching). Each runs as [`walk_run`] says, so the
+/// runs are intervals of B's walk read from its first entry: disjoint
+/// or nested. A pair whose run holds another's
 /// mints first, and the one it holds mints at its copy ([`mint_plans`]).
 /// `None`: two pairs cross, and the walks are not two simple links'.
 fn b_runs(
@@ -462,10 +474,7 @@ fn b_runs(
     }
     let runs: Vec<Option<bool>> = pairs
         .iter()
-        .map(|&(i0, i1)| {
-            let (p0, p1) = (b_pos[i0], b_pos[i1]);
-            run_order(n, p0, p1).unwrap_or(Some(p1 < p0))
-        })
+        .map(|&(i0, i1)| walk_run(n, b_pos[i0], b_pos[i1]))
         .collect();
     // A run's interval: positions it walks past, from its from-germ.
     let interval = |k: usize| {
@@ -496,10 +505,10 @@ fn b_runs(
     )
 }
 
-/// The survivors' walk order round one solid's orbit: by their sector
-/// `entries`, and within one entry round the sector ([`walks_after`], on
-/// their directions `dirs`). Nothing orders two germs along one direction
-/// in one entry, so they refuse.
+/// The survivors' walk order round one solid's orbit, read from its
+/// first entry ([`walks_before`]) at their sector `entries` and
+/// directions `dirs`. Nothing orders two germs along one direction in
+/// one entry, so they refuse.
 fn walk_order<T: Decide>(
     sectors: &[BoolSector<T>],
     entries: &[usize],
@@ -510,18 +519,17 @@ fn walk_order<T: Decide>(
     for i in 0..entries.len() {
         let mut at = order.len();
         for (p, &j) in order.iter().enumerate() {
-            let before = match entries[i].cmp(&entries[j]) {
-                std::cmp::Ordering::Less => true,
-                std::cmp::Ordering::Greater => false,
-                std::cmp::Ordering::Equal => {
-                    walks_after(&sectors[entries[i]], dirs[i], dirs[j], band)?.ok_or(
-                        BooleanError::ClassificationInvariant {
-                            what: "two crossing germs of a vertex pair lie along one direction \
-                                   in one sector entry",
-                        },
-                    )?
-                }
-            };
+            let before = walks_before(
+                sectors,
+                0,
+                (entries[i], dirs[i]),
+                (entries[j], dirs[j]),
+                band,
+            )?
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "two crossing germs of a vertex pair lie along one direction in one \
+                           sector entry",
+            })?;
             if before {
                 at = p;
                 break;
@@ -895,6 +903,8 @@ fn reconcile_pass<T: Decide>(
                 let mut blocker = None;
                 let mut chosen = None;
                 for run in [current, current.reversed()] {
+                    // Not the run rule ([`walk_run`]): whether this way
+                    // round can mint at all.
                     if run_degenerates(body, secs, run.from.0, run.to.0)? {
                         continue;
                     }
@@ -976,41 +986,31 @@ fn held_cut<T: Decide>(
     cuts: &[OtherCut<T>],
     band: Band,
 ) -> Result<Option<usize>, BooleanError> {
-    let n = secs.len();
     let (lo, hi) = run_ends(secs, run, band)?;
     let strut = run_fan(secs, lo.0, hi.0)?.is_empty();
-    let rel = |k: usize| (k + n - lo.0) % n;
+    // A strut's cuts are read through its one physical sector, a fan's
+    // from its first end's entry: either way, round the orbit from
+    // before `lo` ([`walks_before`]).
+    let before = |p: Cut<T>, q: Cut<T>| {
+        if strut {
+            precedes(secs, p, q, band)
+        } else {
+            walks_before(secs, lo.0, p, q, band)
+        }
+    };
     for &cut in cuts {
-        let (j, d) = cut.at;
-        let held = if strut {
-            if secs[j].he != secs[lo.0].he || nested(secs, (lo, hi), cut, band)? {
+        let at = cut.at;
+        let held =
+            if strut && (secs[at.0].he != secs[lo.0].he || nested(secs, (lo, hi), cut, band)?) {
                 false
             } else {
-                match (
-                    precedes(secs, lo, (j, d), band)?,
-                    precedes(secs, (j, d), hi, band)?,
-                ) {
+                match (before(lo, at)?, before(at, hi)?) {
                     (Some(false), _) | (_, Some(false)) => false,
                     (None, _) => tied_held(secs, (lo, true), hi, cut, band)?,
                     (_, None) => tied_held(secs, (hi, false), lo, cut, band)?,
                     (Some(true), Some(true)) => true,
                 }
-            }
-        } else if rel(j) == 0 {
-            match walks_after(&secs[lo.0], lo.1, d, band)? {
-                Some(after) => after,
-                None => tied_held(secs, (lo, true), hi, cut, band)?,
-            }
-        } else if rel(j) < rel(hi.0) {
-            true
-        } else if rel(j) == rel(hi.0) {
-            match walks_after(&secs[hi.0], d, hi.1, band)? {
-                Some(before) => before,
-                None => tied_held(secs, (hi, false), lo, cut, band)?,
-            }
-        } else {
-            false
-        };
+            };
         if held {
             return Ok(Some(cut.owner));
         }
@@ -1065,6 +1065,28 @@ fn tied_held<T: Decide>(
         return Ok(false);
     }
     Ok(cut.mate.0 == far.0 && walks_after(&secs[far.0], far.1, cut.mate.1, band)?.is_none())
+}
+
+/// **A vertex orbit's one position order**: whether cut `p` comes before
+/// cut `q` walking the orbit forward from entry `origin`, by their
+/// entries counted from `origin` and within one entry round the sector
+/// ([`walks_after`]). `None`: one entry, along one direction. The walk
+/// order reads it from the orbit's first entry ([`walk_order`]), a run's
+/// held cuts from the run's first entry ([`held_cut`]) and two cuts of
+/// one physical sector from that sector's first ([`precedes`]).
+fn walks_before<T: Decide>(
+    sectors: &[BoolSector<T>],
+    origin: usize,
+    p: Cut<T>,
+    q: Cut<T>,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    if p.0 == q.0 {
+        return walks_after(&sectors[p.0], p.1, q.1, band);
+    }
+    let n = sectors.len();
+    let rel = |e: usize| (e + n - origin) % n;
+    Ok(Some(rel(p.0) < rel(q.0)))
 }
 
 /// Whether `y` lies after `x` walking the convex sector `s` forward,
@@ -1452,9 +1474,9 @@ fn strut_anchor<T: Decide>(
 }
 
 /// Whether cut `p` comes before cut `q` walking forward through their
-/// one physical sector (`None`: the two lie along one direction). Two
-/// cuts in one entry are ordered by [`walks_after`], which agrees with
-/// the strut order there ([`walk_faces_first`]).
+/// one physical sector, read from its first entry ([`walks_before`];
+/// `None`: the two lie along one direction). Within one entry this
+/// agrees with the strut order ([`walk_faces_first`]).
 fn precedes<T: Decide>(
     sectors: &[BoolSector<T>],
     p: Cut<T>,
@@ -1462,7 +1484,7 @@ fn precedes<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     if p.0 == q.0 {
-        return walks_after(&sectors[p.0], p.1, q.1, band);
+        return walks_before(sectors, p.0, p, q, band);
     }
     let n = sectors.len();
     let mut first = p.0;
@@ -1474,8 +1496,7 @@ fn precedes<T: Decide>(
             });
         }
     }
-    let rel = |e: usize| (e + n - first) % n;
-    Ok(Some(rel(p.0) < rel(q.0)))
+    walks_before(sectors, first, p, q, band)
 }
 
 /// The edge of `operand`'s own solid a germ runs along, if its locus
@@ -2126,6 +2147,120 @@ mod tests {
         assert_eq!(run_order(4, 0, 3), Some(Some(true)), "backward, wrapping");
         assert_eq!(run_order(2, 0, 1), Some(None), "two survivors");
         assert_eq!(run_order(4, 0, 2), None, "interleaved");
+    }
+
+    /// **One run rule, both solids, every survivor count** ([`walk_run`]):
+    /// adjacent germs run the way that holds no third, either way for
+    /// two survivors, and a pair adjacent neither way runs from its
+    /// earlier position to its later, wrapping or not.
+    #[test]
+    fn walk_run_is_adjacency_then_the_interval() {
+        assert_eq!(walk_run(2, 0, 1), None, "two survivors");
+        assert_eq!(walk_run(2, 1, 0), None, "two survivors, swapped");
+        assert_eq!(walk_run(6, 2, 3), Some(false), "adjacent forward");
+        assert_eq!(walk_run(6, 3, 2), Some(true), "adjacent backward");
+        assert_eq!(walk_run(6, 5, 0), Some(false), "adjacent across the origin");
+        assert_eq!(
+            walk_run(6, 0, 5),
+            Some(true),
+            "adjacent across the origin, swapped"
+        );
+        assert_eq!(walk_run(6, 1, 4), Some(false), "nested, earlier first");
+        assert_eq!(walk_run(6, 4, 1), Some(true), "nested, later first");
+        // A's pairs are consecutive in its walk order from either start.
+        for n in [4usize, 6, 8] {
+            for k in 0..n / 2 {
+                assert_eq!(walk_run(n, 2 * k, 2 * k + 1), Some(false), "n={n} k={k}");
+                let (p0, p1) = ((2 * k + 1) % n, (2 * k + 2) % n);
+                assert_eq!(
+                    walk_run(n, p0, p1),
+                    Some(false),
+                    "n={n} k={k}, turned start"
+                );
+            }
+        }
+    }
+
+    /// **One position order round a vertex** ([`walks_before`]), read
+    /// from the origin each caller names. Four entries, the second a
+    /// bisected twin of the first: across entries the order counts from
+    /// the origin, so [`precedes`] (from the physical sector's first
+    /// entry) and a run's reading from its own first entry disagree on
+    /// one pair; within an entry it is the turn about the sector's
+    /// normal, one direction refusing in [`walk_order`].
+    #[test]
+    fn walks_before_reads_one_order_from_each_origin() {
+        use super::super::sectors::Reach;
+        use geom_core::Vec3;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let sector = |end_reach| BoolSector {
+            he: HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Extent(1.0),
+            end_reach,
+            face: FaceKey::default(),
+            normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            arm: 1.0,
+        };
+        let secs = vec![
+            sector(Reach::Extent(1.0)),
+            sector(Reach::Bisector(1.0)),
+            sector(Reach::Extent(1.0)),
+            sector(Reach::Extent(1.0)),
+        ];
+        let at = |e: usize, d: Vec3<f64>| (e, d);
+        // Across entries: counted from the origin.
+        assert_eq!(
+            walks_before(&secs, 0, at(1, x), at(0, x), band).unwrap(),
+            Some(false)
+        );
+        assert_eq!(
+            walks_before(&secs, 1, at(1, x), at(0, x), band).unwrap(),
+            Some(true)
+        );
+        assert_eq!(
+            walks_before(&secs, 3, at(0, x), at(2, x), band).unwrap(),
+            Some(true)
+        );
+        assert_eq!(
+            walks_before(&secs, 3, at(3, x), at(0, x), band).unwrap(),
+            Some(true)
+        );
+        // The physical sector's first entry is 0, the twin's too.
+        assert_eq!(
+            precedes(&secs, at(1, x), at(0, x), band).unwrap(),
+            Some(false)
+        );
+        assert_eq!(
+            precedes(&secs, at(0, x), at(1, x), band).unwrap(),
+            Some(true)
+        );
+        // Within an entry: y walks before x, and one direction is no order.
+        for origin in 0..4 {
+            assert_eq!(
+                walks_before(&secs, origin, at(2, y), at(2, x), band).unwrap(),
+                Some(true)
+            );
+            assert_eq!(
+                walks_before(&secs, origin, at(2, x), at(2, y), band).unwrap(),
+                Some(false)
+            );
+            assert_eq!(
+                walks_before(&secs, origin, at(2, x), at(2, x), band).unwrap(),
+                None
+            );
+        }
+        // The walk order reads it from entry 0.
+        assert_eq!(
+            walk_order(&secs, &[3, 0, 0], &[x, x, y], band).unwrap(),
+            vec![2, 1, 0]
+        );
+        assert!(matches!(
+            walk_order(&secs, &[2, 2], &[x, x], band),
+            Err(BooleanError::ClassificationInvariant { .. })
+        ));
     }
 
     /// **F12 guard 1 over six survivors.** Review r1's trace of the
