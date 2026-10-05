@@ -65,3 +65,18 @@ chain hung off a cylinder wall into its far end, listing the remaining
 arc with the arc to the merged end; `validate_pcurves` reports
 `RowInterval` on both of that arc's halves and nothing else. The row pins
 that state, so closing this item turns its first assertion red.
+
+## Later operators no longer repair it (PR 4039)
+
+Until PR 4039 the site mint re-derived every image of a loop it rewired,
+so a later `mev` or `mef` on the far face incidentally re-minted the
+stale rows. It now keeps every image the door does not create
+(`pcurves::site_rows`), so the stale rows outlive later operators, and
+their stale interval enters the joints those operators decide beside
+them. Tier 3 still reports them at rest.
+
+A `debug_assert!` that a kept image's interval is its edge's
+(`cache.params()` against the edge's) was considered there and not
+added: this row is a reachable state in which the two differ, so the
+assertion would panic a debug build where the posture hands the state
+to tier 3. Closing this row makes it sound.

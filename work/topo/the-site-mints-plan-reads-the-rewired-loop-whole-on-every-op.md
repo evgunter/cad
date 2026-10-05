@@ -4,7 +4,7 @@ kind: issue
 title: The site mint's plan still reads the rewired loop whole on every op (presence, chart box, element), so N ops on one face cost O(N²) reads
 status: open
 opened: 2026-10-04
-priority: P4
+priority: P3
 cost: M
 refs: [euler-site-mint-re-walks-the-rewired-loop-on-every-op]
 ---
@@ -25,6 +25,9 @@ O(N²) reads. Measured on `cyl_wall_sheet` with N struts after N rim
 splits (debug build, shared box): 0.008 / 0.025 / 0.086 / 0.351 s at
 N = 25 / 50 / 100 / 200. That is roughly ×4 per doubling, at a third of
 the cost before the change.
+
+It keeps the P3 of the row it replaces: the reads are cheaper, but the
+asymptotics that row's title named are unchanged.
 
 A fix would keep a face's window and a loop's winding as data that an
 operator updates by its delta rather than re-reads. The window is the
