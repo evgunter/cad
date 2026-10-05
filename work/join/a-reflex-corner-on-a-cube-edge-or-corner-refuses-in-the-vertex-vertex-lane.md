@@ -79,9 +79,13 @@ some of the 526:
   pairing ordered those in one A sector by their B sector (cleave's
   `a-corner-crossing-another-four-times-refuses-pairing-mismatch`). Each
   solid now walks its own orbit (`walk_order`): by sector entry, and
-  round the entry by `walks_after`. Each link is a simple closed curve
-  on the sphere, and two cannot interleave four crossings, so the guard
-  holds on distinct germs. It stays armed for the germs that tie.
+  round the entry by `walks_after`; two germs along one direction in
+  one entry refuse typed. Each link is a simple closed curve on the
+  sphere, and at four crossings both non-crossing matchings fix one
+  cyclic order on both, so the guard cannot fire there on distinct
+  germs. At six a nested matching is legal and it does fire, as on
+  main (both reviews' notch poses; filed as
+  `a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`).
 - **B ran forward in A's order** (`four-germ-vertex-pairs-run-b-in-a-order`):
   each solid now runs a null edge from the germ the other follows in
   its own walk order (`run_order`). That row's fix, built here; its
@@ -103,5 +107,8 @@ some of the 526:
   (`finish::kept_side`).
 
 Rows: `join_pierce_runs_sweep.rs` `four_germ_vertex_pairs_build_every_op`
-(red under each of the four mutants), and its subset row now asks
-`SOUND` of every edge and corner run.
+(red under each of the four mutants), its subset row now asks `SOUND`
+of every edge and corner run, and
+`a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs`
+drives the planner into the guard (red when a non-adjacent pair falls
+to the run-swallowing test instead).

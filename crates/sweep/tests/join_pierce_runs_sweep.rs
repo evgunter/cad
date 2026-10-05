@@ -398,6 +398,50 @@ fn four_germ_vertex_pairs_build_every_op() {
     );
 }
 
+/// **The F12 adjacency guard fires on six distinct germs.** A 343°
+/// notch's reflex corner at `v` on the cube's edge (the grid's `i=3
+/// j=0 psi=1`) crosses the cube six times. A's walk order pairs
+/// `(0, 3) (2, 4) (5, 1)`, and B reads them at `(2, 5) (0, 1) (4, 3)` of
+/// six: a nested, non-crossing matching, so `(0, 3)` is not adjacent in
+/// B and every op in both orders refuses `PairingMismatch`
+/// (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
+/// Red when a pair not adjacent in B falls to the run-swallowing test
+/// instead (the run's In and Out ends then meet at one vertex), and red,
+/// as it should be, when the nested pairing builds.
+#[test]
+fn a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs() {
+    let notch = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 0.85),
+        (1.0, 1.0),
+        (2.0, 1.15),
+        (2.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let notch = finished("the notch", fixtures::prism::<f64>(&notch, 1.0, tol()).body);
+    let cube = finished(
+        "the cube",
+        cube(frame(direction(3, 0), 1.0), PLACEMENTS[1].1),
+    );
+    let decls = BooleanDeclarations::default();
+    for (order, x, y) in [("nc", &notch, &cube), ("cn", &cube, &notch)] {
+        let ops: [(&str, Op); 3] = [
+            ("U", topo::union_with),
+            ("I", topo::intersect_with),
+            ("S", topo::subtract_with),
+        ];
+        for (op, run) in ops {
+            let r = run(x, y, &decls, tol());
+            assert!(
+                matches!(r, Err(BooleanError::PairingMismatch { .. })),
+                "{order} {op}: {:?}",
+                r.map(|_| ())
+            );
+        }
+    }
+}
+
 /// The oracle against the kernel-free closed form the strut-facing row
 /// reads: a face placement at the bare tilt holds the prism's cut by
 /// the plane through `v`, and the empty and whole cases read 0 and 3.

@@ -26,12 +26,15 @@
 //!    orders, at the volume clipping the tilted cube to the L-prism's
 //!    two boxes gives.
 //!
-//! Each solid's link round its vertex is a simple closed curve, and two
-//! such curves cannot interleave their crossings without one crossing
-//! itself, so the guard holds wherever each solid reads the germs in
-//! its own walk order (`insert`'s module docs). The guard stays armed,
-//! and this file is the standing hunt fixture (any future firing lands
-//! here).
+//! At four crossings the guard cannot fire on distinct germs: each
+//! solid's link round its vertex is a simple closed curve, and both
+//! non-crossing matchings of four points fix one cyclic order on both
+//! (`insert`'s module docs). At six a nested matching is legal and the
+//! guard refuses; that class has its own witness and row
+//! (`join_pierce_runs_sweep::a_six_crossing_notch_corner_refuses_pairing_mismatch_on_distinct_germs`,
+//! `work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`). The hunts here stop on any `PairingMismatch` so that it is
+//! read: a six-crossing pose goes on that row, and a four-crossing one
+//! is a bug.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::common;
 use common::{finished, mapped_cube, prism_z};
@@ -190,8 +193,8 @@ fn tilted_saddle_corner_builds_every_op() {
 /// (zc = 0.5 — the v-on-e site the reduction refines to v-v) and the
 /// reflex cap corner (zc = 1.0 — the direct v-v site), 24 tilts.
 /// Every case must end in a clean gated success or a typed refusal —
-/// no silent wrongness; a `PairingMismatch` appearing here would be
-/// the D8 witness (none has materialized on this corpus).
+/// no silent wrongness. A `PairingMismatch` stops the sweep to be
+/// read (module docs): none has materialized on this corpus.
 #[test]
 fn tilt_sweep_no_silent_mispair() {
     let a = l_prism();
@@ -221,8 +224,8 @@ fn tilt_sweep_no_silent_mispair() {
                 Ok(_) => {}
                 Err(BooleanError::PairingMismatch { .. }) => {
                     panic!(
-                        "D8 witness found at zc={zc} k={k}: promote this \
-                         tilt to a named firing fixture"
+                        "PairingMismatch at zc={zc} k={k}: six crossings belong \
+                         on the six-crossing row, four are a bug"
                     );
                 }
                 // Any other refusal is typed and loud — acceptable.

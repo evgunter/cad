@@ -69,7 +69,7 @@
 //!    An edge-edge germ's record may pair two COPLANAR flankers (each
 //!    solid's own fold flanker, `recl::place_germ`), where `nA×nB` is
 //!    zero and names no line: there the germ line is the common edge
-//!    itself (`insert::plan_null_pairs`' `record_dir` takes the bound
+//!    itself (`insert::plan_null_pairs`' `dirs` take the bound
 //!    read On of a germ along an edge, the A flanker's where both solids
 //!    hold the edge, and `fn germ_dir`'s normal cross everywhere else),
 //!    and the loops' direction along it is the region boundaries' as

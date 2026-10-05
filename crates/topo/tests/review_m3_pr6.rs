@@ -372,8 +372,8 @@ fn r2_inscribed_diamond_vertices_on_edges() {
 }
 
 // =================================================================
-// R4 — the saddle frontier (D8): pin what JoinDesync is, and stress
-// tilt families the 24-sweep missed, with a volume-identity oracle
+// R4 — the saddle frontier (D8): stress tilt families the 24-sweep
+// missed, with a volume-identity oracle
 // (vol(A∪B) = vol(A)+vol(B)−vol(A∩B); vol(A∖B) = vol(A)−vol(A∩B))
 // that detects WRONG-RESULT outcomes the internal gates cannot.
 // =================================================================
@@ -397,8 +397,9 @@ fn l_prism() -> topo::AtRestBody<f64> {
 }
 
 /// Volume of a boolean outcome: `Some(v)` when it closed (Empty = 0),
-/// `None` on a typed refusal. Panics only on `PairingMismatch` — the
-/// D8 witness this hunt exists for.
+/// `None` on a typed refusal. Panics on `PairingMismatch` so that it is
+/// read (`m3_pr6_saddle`'s module docs): six crossings belong on the
+/// six-crossing row, four are a bug.
 fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64> {
     match r {
         Ok(BooleanResult::Body(b)) => {
@@ -406,7 +407,9 @@ fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64>
         }
         Ok(BooleanResult::Empty) => Some(0.0),
         Err(BooleanError::PairingMismatch { .. }) => {
-            panic!("D8 WITNESS: PairingMismatch at {ctx}")
+            panic!(
+                "PairingMismatch at {ctx}: six crossings belong on the six-crossing row, four are a bug"
+            )
         }
         Err(_) => None,
     }

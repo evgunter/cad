@@ -48,3 +48,23 @@ aborted. Now a public `union`, `intersect` or `subtract` aborts the
 process on them. Under the fail-loud rule that is a typed refusal to
 restore, or an invariant to prove at the site. Which commit in the
 range moved the walk here was not bisected.
+
+## Removed by JOIN's PR 4036 (branch `join/reflex-corner-vertex-vertex`)
+
+The panicking poses are four-germ vertex pairs. A fan minted first
+moves the half-edge that the pair's strut, in the other entry of the
+same physical sector, anchors on. The anchor read
+(`insert::mint_directed`'s unshared strut `orbit_step_at`) then finds
+the half at the fan's copy.
+
+PR 4036 marks a multi-run pair's runs `shared`, so its struts mint
+before its fans, anchored off the sectors. On that branch, after
+merging main, `rc_wide_battery`, `pierce_runs_battery` and both reflex
+batteries run to the end with no panic. r1 and r2 report the same:
+525 of r1's probe runs panic at the merge-base, and head builds 513 of
+them SOUND and refuses 12 typed.
+
+Without the shared marking (review mutants M3, M3x) the panic returns.
+The read stays a panic, not a typed refusal. Whether it should become a
+typed refusal is TOPO's question; this note only records that the
+reachable path is gone.
