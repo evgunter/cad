@@ -2,10 +2,11 @@
 id: a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times
 kind: issue
 title: insert.rs spells a vertex orbit's walk order three times and the run that holds no third germ twice
-status: open
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
+closed: 2026-10-05
 ---
 
 
