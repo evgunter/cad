@@ -389,3 +389,56 @@ fn a_face_whose_only_edge_is_a_seam_is_the_whole_sphere() {
         );
     }
 }
+
+/// **The region is read at the `Interval` scalar too.** The lens union
+/// built from enclosures answers the item's four queries as the `f64`
+/// body does. At ε 1e-12 the union itself does not build at this scalar
+/// (`tilted_sphere_pair`'s interval row pins the mint's escalation), so
+/// nothing is asked there.
+#[test]
+fn the_lens_union_classifies_points_at_the_interval_scalar() {
+    use crate::common::interval::iv;
+    use geom_core::Interval;
+    let tol = Tol::witness();
+    if tol.eps() < 1e-10 {
+        test_utils::vacuity::stood_down(
+            "the interval lens union at this ε",
+            "the union does not build at the Interval scalar at 1e-12, so its region is not read",
+        );
+        return;
+    }
+    let ball_iv = |c: Vec3<f64>| -> AtRestBody<Interval> {
+        let b = sweep::test_support::revolved_about_y_at::<Interval>(
+            vec![
+                (Point2::new(iv(0.0), iv(-1.0)), iv(1.0)),
+                (Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
+            ],
+            Revolution::Full,
+            tol,
+        );
+        let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
+        finished(
+            "the ball",
+            topo::transform_rigid(&b, &Affine3::translation(to), tol).unwrap(),
+            tol,
+        )
+    };
+    let u = topo::boolean::union(&ball_iv(A), &ball_iv(B), tol)
+        .unwrap()
+        .body()
+        .unwrap()
+        .body
+        .clone();
+    let band = Band::linear(tol).unwrap();
+    for ((x, y, z), want) in [
+        ((2.7, 2.0, 0.5), SolidContainment::In),
+        ((2.7, 2.0, 1.4), SolidContainment::Out),
+        ((4.3, 2.0, 0.5), SolidContainment::In),
+        ((2.7, 2.6, 0.5), SolidContainment::In),
+    ] {
+        let q = Point3::new(iv(x), iv(y), iv(z));
+        let got = point_in_solid(&u, q, band, tol)
+            .unwrap_or_else(|e| panic!("({x}, {y}, {z}) refused: {e:?}"));
+        assert_eq!(got, want, "({x}, {y}, {z})");
+    }
+}
