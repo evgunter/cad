@@ -2823,11 +2823,13 @@ impl ChordJoiner {
 
     /// `cut` (module docs): retire a fully-joined null edge. The
     /// completion outcome comes back unresolved — the caller assigns
-    /// roles from its own side data.
+    /// roles from its own side data. The kill is the band door, so a
+    /// loop it releases from its last null edge is minted at `tol`.
     pub(crate) fn cut_core<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         edge: EdgeKey,
+        tol: Tol,
     ) -> Result<CutOutcome, SplitJoinError> {
         let edge_data = body
             .get_edge(edge)
@@ -2848,7 +2850,7 @@ impl ChordJoiner {
                 .get_loop(l_plus)
                 .ok_or_else(|| corrupt_loop(l_plus))?
                 .face;
-            let result = body.kemr(edge_data.he_plus, edge_data.he_minus)?;
+            let result = body.kemr_minting(edge_data.he_plus, edge_data.he_minus, tol)?;
             Ok(CutOutcome::Completed {
                 face,
                 ring: result.ring,
@@ -2872,7 +2874,7 @@ impl ChordJoiner {
             } else {
                 return Err(SplitJoinError::CutInvariant { edge });
             };
-            let killed = body.kef(victim)?;
+            let killed = body.kef_minting(victim, tol)?;
             self.slivers.remove(killed.killed_face);
             Ok(CutOutcome::Merged)
         }

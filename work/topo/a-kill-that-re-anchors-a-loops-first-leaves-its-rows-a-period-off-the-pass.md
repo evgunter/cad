@@ -48,8 +48,9 @@ one loop of such a face from its `first` puts that loop on the pass's
 branch and leaves the others where they are.
 
 Shapes: a kill that moves a minted loop's `first` re-mints that loop
-(it needs a band, as `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`
-says of the kills), or the pass pins a loop's branch from something a
+(it needs a band: the band twins `kev_describing`, `kef_minting` and
+`kemr_minting` carry one, and already run the site mint over a loop a
+null edge's kill releases), or the pass pins a loop's branch from something a
 kill does not move. The first is local to the kills; the second changes
 every minted row's derivation and wants its own measurement.
 
