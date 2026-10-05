@@ -6854,3 +6854,4 @@ The implementer (`session_01Gh7MVn8yRcX5XCDaEt6YQK`, about $43) was **interrupte
   - I merged main into `claude/rcw-orbit-step` (the row conflict: kept `closed`) and re-worded the message and doc to name the real premise (the `mint_directed` corner check, the strut-first `keyed` sort). Pushed `9d2e4b1d06`; `cargo check -p topo` and fmt are clean. Merge on green.
   - Reviewer (about $1.6) and P0 implementer (about $3.2) archived.
   - Style notes left for the parked four-germ row's owner: three spellings of one refusal, and the `reconcile_shared` caveat.
+- 01:55: **P0 PR 4043 merged** at `d01d8ae1fe` (CI green on `9d2e4b1d06`); unsubscribed. A public boolean no longer aborts in `rc_wide_battery`: 84/84 shards complete, 40,320 lines, with 56 downstream `JoinDesync` refusals now answered at the stale-corner step. The row is closed with the PR.
