@@ -1948,17 +1948,17 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         else {
             return Err(desync("REST lane: slit loop emptied mid-zip"));
         };
-        let cycle = cycle(body, first);
+        let walk = cycle(body, first);
         let edge_in = |he| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        if cycle.len() == 2 {
+        if walk.len() == 2 {
             // The last coincident pair: kef the b copy from inside the
             // face (the face dies with it; the a copy survives as the
             // seam edge).
-            let (e0, e1) = (edge_in(cycle[0]), edge_in(cycle[1]));
+            let (e0, e1) = (edge_in(walk[0]), edge_in(walk[1]));
             let b_half = if b_edges.contains_key(e0) && a_edges.contains_key(e1) {
-                cycle[0]
+                walk[0]
             } else if b_edges.contains_key(e1) && a_edges.contains_key(e0) {
-                cycle[1]
+                walk[1]
             } else {
                 return Err(corr("slit-zip final pair is not one copy per side"));
             };
@@ -1971,9 +1971,9 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         }
         // Find the fold: an a-side half followed by a b-side half.
         let mut fold = None;
-        for (i, &he) in cycle.iter().enumerate() {
+        for (i, &he) in walk.iter().enumerate() {
             let e = edge_in(he);
-            let next = cycle[(i + 1) % cycle.len()];
+            let next = walk[(i + 1) % walk.len()];
             let en = edge_in(next);
             if a_edges.contains_key(e) && b_edges.contains_key(en) {
                 fold = Some((he, next));
