@@ -104,7 +104,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    the caps: an undeclared continuation, refused at the same door
 ///    for the same reason.
 /// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall,
-///    and the circle × cylinder root lane (`topo::boolean::circle_cylinder`)
+///    and the conic × quadric root door (`topo::boolean::conic_quadric`)
 ///    certifies where. Both operands span one height, so their cap
 ///    discs overlap in the planes `z = 0` and `z = 2`: an undeclared
 ///    coincidence, refused at `UndeclaredCoincidence` and moved by a

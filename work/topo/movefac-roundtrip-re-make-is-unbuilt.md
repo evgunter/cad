@@ -2,11 +2,14 @@
 id: movefac-roundtrip-re-make-is-unbuilt
 kind: issue
 title: "seqgen's roundtrip skips every movefac choice: its kfmrh + mfkrh re-make is unbuilt, and the catalog row's pointer to it named a row about something else"
-status: dispatched
+status: closed
 opened: 2026-09-30
 refs: [movefac-row-skips-three-component-shells]
 priority: P3
 cost: M
+closed: 2026-10-05
+branch: topo/movefac-roundtrip-remake
+pr: 4053
 ---
 
 ## What
@@ -39,3 +42,19 @@ limits) decides which order they must run in.
 partition and runs the partition, the fusions and the promotions,
 skipping only where the search fails; `OpChoice::may_skip_roundtrip`
 narrows to that site the way the `Kev` arm's does.
+
+## Closed
+
+`roundtrip`'s `Movefac` arm runs the re-make: `movefac_remake_sites`
+reads `f1` (the seed of the component that stays) and one ring-free
+`f2` per moved component before the partition, and the arm fuses
+each minted shell back into `shell` and re-promotes. It skips only
+where a moved component has no ring-free face, and
+`OpChoice::may_skip_roundtrip_at` admits exactly that site. Any
+fusion order restores the shell list, since every fusion keeps
+`shell` and removes one minted shell (all appended last) from the
+solid's list;
+`seqgen::tests::movefac_roundtrip_restores_the_partitioned_shell`
+pins a three-component shell and a two-component one ahead of
+another shell, the second the case a fusion that kept the minted
+shell would fail on.

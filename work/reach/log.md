@@ -811,3 +811,21 @@ coincidence is now a margined verdict (no declarations), checked by the
 
 PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's ruling arm now carries the datum too). Its state sync closed only the unit item. Four items it answered stayed at `review`, and they close now: the planar side's arc cue, the run-side rule (retired), TANG's tilted pierce ring and TANG's collar wedge (all 48 poses build). Wave 2 is three units: the carved-sphere body, the trimmed-sphere escape and the conic × quadric door. None touches what the D10 hold covers.
 — (REACH orchestrator)
+
+## 2026-10-05 — a carved sphere body is classified and reused (PR 4046)
+
+- **The change.** One module, `topo::boolean::sphere_region`, reads a trimmed sphere face without a chart rectangle. It casts a geodesic ray, takes the closest boundary crossing, and reads leave or enter against the arc's traversal. The ray is cast both ways, and every graze abandons the ray. The point classifier and the pierce arm's face door both read through it. That retires `PartialSphereFace` for every circle-bounded face and `CurvedPierceUnsupported` for the lens-centre ball. The lane chose this over a signed combination of caps by measurement: 2 of 16 trimmed faces in the row bodies have a reflex vertex, where a per-circle combination is wrong.
+- **Tier.** Dual review (H / TRICKY). A wrong In/Out ships a wrong body.
+- **Review.** Dual review frozen at `b793623189`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR, so nothing enters the tally. Bilaterally: the seam exclusion was pinned only at 1e-12. Unilaterally: no answer when a face vertex sits at the query's antipode; the strut row and the tilted-cut row could not see a flipped heading; and a stale filing.
+- **The last pass.** It added a default-ε seam row and reverse rays for the antipode, and made both rows read a region. It corrected the filing, renamed the sphere residual's decision, and filed a JOIN item (`SpheresMeet` off every edge) and a CLEAVE item (three closest-crossing readers). Then it merged main through #3339b7b20d's typed `ContainError`.
+- **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in 52,500 random queries plus both reviewers' probes at three ε, and the mutant table reproduced. The azimuth period gate `sphere_chart_trim` keeps is defensive only: no public boolean builds the pole-circling loop it guards.
+— (REACH orchestrator)
+
+## 2026-10-05 — one conic × quadric door decides its arm on A₂ (PR 4042)
+
+- **The change.** The circle × cylinder, circle × sphere and ellipse × sphere/wall root doors are one door, `conic_quadric_roots`. It takes the first-harmonic arm when the second harmonic's amplitude `A₂` reads zero and charges `A₂` to the noise. The tilt predicate retires. The ellipse × torus arm keeps its own door (degree four).
+- **Tier.** Single full review (M). A consolidation over one algebra, backed by a 0-diff differential, with correctness claims on the arm's charge and its losses.
+- **Review.** APPROVE-WITH-FIXES, 0/1/4. There were no wrong answers in 2,000 fuzzed poses per ε, and 6,479 suite door calls were identical on main and head. The MINOR: no row guarded the arm's `A₂` charge on a circle; a mutant that drops it ships `OnSurface` for a circle 1.62ε off its wall.
+- **The last pass.** It added the circle row (the only red under that mutant, at three ε), measured the coefficient rounding against the charge, gave the test oracles one home with extremum refinement, and carried the review's notes to the filed items. One near-copy helper is left in `circle_wall_rows.rs:102`.
+- **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in the fuzz at three ε, and the mutant table holds. The single charge covers the rounding with about 3× room (max 0.316 of it, not the 0.19 the PR first quoted).
+— (REACH orchestrator)

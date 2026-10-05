@@ -42,3 +42,21 @@ The island winding of a ring lane on a sphere face's chart, or a
 chart-free statement of it (the side of the section plane the island
 lies on, read from the germs), with this probe's pose under every op
 against its closed form.
+
+## Evidence (2026-10-05, PR 4046's dual review)
+
+PR 4046 lets a carved sphere body (one with a face bounded by a tilted
+circle) be a later boolean's operand. Wherever a new operand's edge then
+crosses a sphere face, the join stops here. Measured on
+`reach/carved-sphere-classify`, every case under ∪:
+
+- the lens union `ball(1, (2, 2, 0.5)) ∪ ball(1, (3.4, 2, 0.5))` against
+  `ball(0.5, (2.7, 2, 1.3))` refuses
+  `Join(RingOffCylinderChart { face: FaceKey(4v1), kind: Sphere })`;
+- `ball(1, origin)` against the box `[0.3, 2] × [0.2, 2] × [0.1, 2]`
+  (a corner inside) and against `[−0.2, 2] × [−2, 2] × [0.4, 2]` (an edge
+  through) both refuse `Join(RingOffCylinderChart { face: FaceKey(1v1), kind: Sphere })`;
+- `ball(1, origin) ∪ ball(0.6, 1.2·(0.6, 0, 0.8))` refuses the same.
+
+The reviewers report the box cases under every op
+(`analysis/reach-dual/4046-r1`, NOTE 4; `-r2`, NOTE 9).

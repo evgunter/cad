@@ -64,9 +64,13 @@ parks):
   (its poses are declared-flush).
 
 Still startable, because they are undeclared booleans or join topology
-alone: the residue of the pierce families: `a-pinch-no-kept-face-can-cross-refuses`
-(PR 4038's) and `a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`
-(PR 4036's). The pinch families landed in PR 4038, and the vertex-vertex
+alone: the residue of the pierce families, `a-pinch-no-kept-face-can-cross-refuses`
+(PR 4038's; its island sub-family built in PR 4051, the nested residue a
+design fork going to Ev). The six-crossing row
+(`a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`,
+PR 4036's) closed with PR 4050; its pinch-operand residue is
+`a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.
+The pinch families landed in PR 4038, and the vertex-vertex
 lane in PR 4036 (with the four-germ row and the reflex vertex's B
 senses). Parked on
 `d10-one-way-to-say-intent-is-unbuilt` on 2026-10-04, on a closer

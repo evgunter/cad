@@ -398,8 +398,8 @@ fn l_prism() -> topo::AtRestBody<f64> {
 
 /// Volume of a boolean outcome: `Some(v)` when it closed (Empty = 0),
 /// `None` on a typed refusal. Panics on `PairingMismatch` so that it is
-/// read (`m3_pr6_saddle`'s module docs): six crossings belong on the
-/// six-crossing row, four are a bug.
+/// read (`m3_pr6_saddle`'s module docs): a bug at any number of
+/// crossings.
 fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64> {
     match r {
         Ok(BooleanResult::Body(b)) => {
@@ -407,9 +407,7 @@ fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64>
         }
         Ok(BooleanResult::Empty) => Some(0.0),
         Err(BooleanError::PairingMismatch { .. }) => {
-            panic!(
-                "PairingMismatch at {ctx}: six crossings belong on the six-crossing row, four are a bug"
-            )
+            panic!("PairingMismatch at {ctx}: a bug at any number of crossings")
         }
         Err(_) => None,
     }

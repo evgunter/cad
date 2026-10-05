@@ -723,3 +723,69 @@ So the row is closed as built, not as a ruling on held ground. If Ev reads it ot
 - evidence on the near-tangent P0
 
 Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4051: the island pinched to its hole's ring crosses by `kef`
+
+`zip::split_across`'s two-face crossing now asks only that one of the two
+faces be ringless; that face dies into the other.
+- The holed block's 18 cube ∖ block lines go refusal→SOUND.
+- Review r2's 5 cylinder lines go refusal→refusal (`RingOnCurvedFace`).
+- The reviewer measured 130 more lines on new island families going
+  refusal→SOUND (deeper and shallower holes, two islands, a U hole
+  pinched twice). No other line moved in pierce, `rc_wide`, or any pinch
+  battery.
+- The bow-tie sub-family is the nested shape misread, so the residue is
+  one shape: a face crossed on its outer loop.
+
+**Review tier: single FULL.** The change is a contained guard relaxation,
+and the fork is stated, not built. APPROVE-WITH-FIXES, MAJOR 0, MINOR 1.
+- The MINOR: which face `kef` kills was unpinned (the `PX_KILLPLUS` mutant
+  survived). It is now pinned at `u2tip mid side=12 psi=0 th54`.
+- Notes and style were taken: the dying face is carried out of the
+  search, the sweep helpers are folded, the bow-tie count is 48 and not
+  49, and the hole-weld row says the split direction now builds the
+  island shape.
+
+**The row stays open as a design fork.** Two designers weighed the nested
+residue, and they recommend the same final state: one vertex per cone on
+one point key, so no face crosses between cones. Under that state the
+crossing pre-pass, the pinch welds and `PinchUncrossed` all retire, and
+this PR's island `kef` is undone. It lands as an interim step anyway: it
+turns refusals into gated SOUND bodies, and it is reversible. The `[ev]`
+PR follows.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-05 — PR 4050: a six-crossing vertex pair nests its pairing in B
+
+At six or more crossings, B's link pairs nested rather than adjacent.
+- `insert::b_runs` reads B's runs as intervals, each holding whole pairs,
+  and refuses only a pairing that crosses.
+- Nested runs are minted outer before inner, at the copy of their
+  innermost fan holder. The held chain (depth, fan holder, held directly
+  by a strut) is carried in the plan.
+- A nested plan at a shared vertex refuses `SharedVertexCrossings`.
+
+Measured, main vs head:
+- On every battery, the only lines that moved were `PairingMismatch` →
+  SOUND (e.g. r2's n ≥ 8 grid: 13 614, 0 `ClassificationInvariant`).
+- pierce, both reflex batteries and all 84 `rc_wide` shards are
+  byte-identical.
+- The reviewers found 1 187 near-tangent `PairingMismatch` → BAD, all
+  census-escalated with exact volume, so on the near-tangent P0, and
+  no definite refusal→BAD.
+
+**Review tier: DUAL, H / TRICKY (DR-84).** R1 APPROVE-WITH-FIXES 0/3/4,
+R2 0/5/2; tally 0.
+- Both found that a strut held by a strut held by a fan minted at the
+  original vertex (`ClassificationInvariant`). It is fixed and pinned by
+  an eight-crossing row.
+- The innermost holder is now pinned, and the matching model is
+  committed as a unit test to n = 10.
+- R1's pinch-operand "In end / Out end" refusal is pre-existing (149
+  non-nested runs on main) and is filed as
+  `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`.
+
+The six-crossing row is closed.
+
+Signed (JOIN orchestrator).

@@ -179,11 +179,13 @@ fn the_multi_spike_corner_meet_passes_tier_3() {
 /// refuses `JoinDesync` ("every chord arc separates a loose scaffolding
 /// pair"). Bound right, every op in either order builds: the shared
 /// volume is the half ball below `z = 0` less the half of its cap beyond
-/// `x = 0.25`, `π/12 − πh²(3r − h)/6` at `r = ½`, `h = ¼`. A result
-/// carrying a sphere face bounded by the tilted circle `x = 0.25` is no
-/// operand for the next boolean yet: point classification cannot read
-/// that face
-/// (`work/reach/carved-sphere-body-cannot-be-classified-or-reused-as-an-operand.md`).
+/// `x = 0.25`, `π/12 − πh²(3r − h)/6` at `r = ½`, `h = ¼`. Each result,
+/// whose sphere faces the tilted circle `x = 0.25` bounds, is the next
+/// boolean's operand: its union with a far box, which only point
+/// classification places, adds the box's volume. And each answers
+/// points just inside and just outside the sphere, all round it, against
+/// the ball's and the box's own tests, where the carved sphere faces are
+/// what the solid door's rays meet first.
 #[test]
 fn a_pole_struts_halves_face_their_own_meridians() {
     use core::f64::consts::PI;
@@ -197,29 +199,49 @@ fn a_pole_struts_halves_face_their_own_meridians() {
     let (r, h) = (0.5f64, 0.25f64);
     let shared = PI / 12.0 - PI * h * h * (3.0 * r - h) / 6.0;
     let (v_ball, v_box) = (4.0 / 3.0 * PI * r.powi(3), 1.25 * 2.0);
-    for (what, res, want) in [
+    // Each result's signed depth from the ball's and the box's own:
+    // `max` for ∪, `min` for ∩, and a difference negates its subtrahend.
+    let union: fn(f64, f64) -> f64 = |b, x| b.max(x);
+    let common: fn(f64, f64) -> f64 = |b, x| b.min(x);
+    let ball_less: fn(f64, f64) -> f64 = |b, x| b.min(-x);
+    let box_less: fn(f64, f64) -> f64 = |b, x| x.min(-b);
+    for (what, res, want, depth) in [
         (
             "ball ∪ box",
             topo::union(&ball, &b, tol()),
             v_ball + v_box - shared,
+            union,
         ),
         (
             "box ∪ ball",
             topo::union(&b, &ball, tol()),
             v_ball + v_box - shared,
+            union,
         ),
         (
             "ball ∖ box",
             topo::subtract(&ball, &b, tol()),
             v_ball - shared,
+            ball_less,
         ),
         (
             "box ∖ ball",
             topo::subtract(&b, &ball, tol()),
             v_box - shared,
+            box_less,
         ),
-        ("ball ∩ box", topo::intersect(&ball, &b, tol()), shared),
-        ("box ∩ ball", topo::intersect(&b, &ball, tol()), shared),
+        (
+            "ball ∩ box",
+            topo::intersect(&ball, &b, tol()),
+            shared,
+            common,
+        ),
+        (
+            "box ∩ ball",
+            topo::intersect(&b, &ball, tol()),
+            shared,
+            common,
+        ),
     ] {
         let res = res.unwrap_or_else(|e| panic!("{what}: {e:?}"));
         let bb = res.body().unwrap_or_else(|| panic!("{what}: empty"));
@@ -232,15 +254,48 @@ fn a_pole_struts_halves_face_their_own_meridians() {
         assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
         let far = finished(
             "the far box",
-            brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+            brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
             tol(),
         );
-        match topo::union(&bb.body, &far, tol()) {
-            Ok(_)
-            | Err(topo::BooleanError::Containment(topo::PointInSolidError::PartialSphereFace {
-                ..
-            })) => {}
-            Err(e) => panic!("{what}: as an operand, {e:?}"),
+        assert_sound(
+            &format!("{what}, then ∪ a far box"),
+            topo::union(&bb.body, &far, tol()),
+            want + 1.0,
+        );
+        // Points just inside and just outside the sphere, all round it,
+        // where the carved sphere faces are what a ray from them meets
+        // first: each against the ball's and the box's own tests.
+        let band = geom_core::Band::linear(tol()).unwrap();
+        let (mut ins, mut outs) = (0, 0);
+        for k in 0..60 {
+            let t = (f64::from(k) + 0.5) / 60.0;
+            let (y, ring) = (1.0 - 2.0 * t, (1.0 - (1.0 - 2.0 * t).powi(2)).sqrt());
+            let phi = f64::from(k) * PI * (3.0 - 5f64.sqrt());
+            let dir = geom_core::Vec3::new(ring * phi.cos(), y, ring * phi.sin());
+            for radius in [r - 2e-3, r + 2e-3] {
+                let q = geom_core::Point3::origin() + dir * radius;
+                let in_box = (q.x + 1.0)
+                    .min(0.25 - q.x)
+                    .min(q.y + 1.0)
+                    .min(1.0 - q.y)
+                    .min(q.z + 1.0)
+                    .min(-q.z);
+                let d = depth(r - radius, in_box);
+                if d.abs() < 1e-3 {
+                    continue;
+                }
+                let want = if d > 0.0 {
+                    ins += 1;
+                    topo::SolidContainment::In
+                } else {
+                    outs += 1;
+                    topo::SolidContainment::Out
+                };
+                let got = topo::point_in_solid(&bb.body, q, band, tol())
+                    .unwrap_or_else(|e| panic!("{what}: {q:?} refused: {e:?}"));
+                assert_eq!(got, want, "{what}: {q:?}");
+            }
         }
+        assert!(ins > 10 && outs > 10, "{what}: {ins} in, {outs} out");
     }
 }
