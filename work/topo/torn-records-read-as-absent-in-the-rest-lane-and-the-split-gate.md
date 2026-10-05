@@ -2,7 +2,7 @@
 id: torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate
 kind: issue
 title: The REST lane, the split gate and null_site read a torn record as absent
-status: open
+status: dispatched
 priority: P3
 cost: M
 refs: [torn-body-refusal-families-beyond-the-six-doors, public-body-option-getters-answer-none-for-a-torn-record]

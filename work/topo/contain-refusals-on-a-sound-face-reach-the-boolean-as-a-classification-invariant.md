@@ -2,7 +2,7 @@
 id: contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant
 kind: issue
 title: The boolean answers ContainError's reachable refusals as ClassificationInvariant
-status: open
+status: dispatched
 priority: P2
 cost: E
 refs: [torn-body-refusal-families-beyond-the-six-doors]
