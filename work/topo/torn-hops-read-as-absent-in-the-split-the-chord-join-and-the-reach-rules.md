@@ -44,3 +44,15 @@ Per site, as the closing PR of
 goes through `edge_curve_linked` / `face_surface_linked` / `linked`,
 with the at-rest or mid-operation premise stated at the site.
 
+
+## 2026-10-05 — what the boolean folds a chord-join refusal into
+
+`boolean/solid_contain.rs` reads `chord_join::face_azimuth_window` and
+`face_azimuth_images` through `.ok()` into `CorruptFace`, and through
+`Err(_) => unsupported()` (`wall_outline`) or `Err(_) => Ok(None)` into
+the honest remainder. So a torn hop inside those walks reaches the
+boolean today as a corrupt face or as "no class". Once this row's
+chord-join hops panic, those arms fold only the geometric refusals.
+Measured by the boolean record-hop unit: with `wall_outline`'s own
+curve read restored to its old reading, its torn-curve witness still
+panics, because `face_azimuth_images` reads the curve first.
