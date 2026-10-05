@@ -137,19 +137,22 @@ impl Walk {
     /// The members of a walk a tier-1-valid body closes: the `what` walk
     /// from `first`, which every public door keeps closing (each `next`
     /// and mate resolves, an orbit stays at its vertex, and a cycle is no
-    /// longer than its arena), so a walk that does not is a kernel bug
-    /// and panics naming the hop.
+    /// longer than its arena) and every operator mid-operation keeps
+    /// closing ([`crate::live::OPERATORS_KEEP_LINKS`]), so a walk that does not is a
+    /// kernel bug and panics naming the hop and both premises.
     #[track_caller]
     pub(crate) fn closed(self, what: &str, first: HalfEdgeKey) -> Vec<HalfEdgeKey> {
         match self {
             Self::Closed(members) => members,
             Self::Broken { at } => unreachable!(
                 "the {what} walk from {first:?} breaks at {at:?}: its step from there does not \
-                 resolve or leaves the walk, and {WALKS_CLOSE}"
+                 resolve or leaves the walk, and {WALKS_CLOSE}; {}",
+                crate::live::OPERATORS_KEEP_LINKS
             ),
             Self::Overrun => unreachable!(
                 "the {what} walk from {first:?} does not close within the half-edge arena's \
-                 length, and {WALKS_CLOSE}"
+                 length, and {WALKS_CLOSE}; {}",
+                crate::live::OPERATORS_KEEP_LINKS
             ),
         }
     }
