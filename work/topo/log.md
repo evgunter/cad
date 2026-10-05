@@ -6887,3 +6887,8 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - Dispatched two lanes (both rows now `dispatched`):
   - `session_01DbT7iaUmiEzfBXActEdZSR`: `torn-body-rows-are-red-under-per-op-postcondition` (E).
   - `session_016cnJLHrxZC86vFUEVjxVGE`: `torn-body-refusal-families-beyond-the-six-doors` (M). Its brief carries the P0 lesson: say at-rest vs mid-op at every site, and run every `#[ignore]`d boolean/split battery with zero panics and an unchanged line set.
+- 04:50: **PR 4047 merged** at `d3beaa6f67`, reviewed by the orchestrator (an E unit with a small, `cfg(test)`-only diff). It adds a `begin_surgery_on_a_torn_body` scope that the `per-op-postcondition` scalpel leaves unswept.
+  - The 4 red rows are fixed, and the 3 sweeps that tolerated the scalpel through `through_the_scalpel` and `SWEEP` now read the real answer; those hacks are deleted.
+  - topo `--all-features` 2310 green; sweep with the feature 2113 green. A mutation reds the scope row.
+  - Closed the row and its duplicate. Lane archived (about $2.7).
+- The families lane (`session_016cnJLHrxZC86vFUEVjxVGE`) is still running (88 `rest.rs` sites audited). Disk 28G free.
