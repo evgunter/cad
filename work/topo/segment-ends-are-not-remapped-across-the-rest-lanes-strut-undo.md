@@ -2,7 +2,7 @@
 id: segment-ends-are-not-remapped-across-the-rest-lanes-strut-undo
 kind: issue
 title: The REST lane's segment ends are not remapped to the surviving vertex across undo_struts
-status: dispatched
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
