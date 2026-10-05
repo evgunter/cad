@@ -6953,3 +6953,19 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Their files are disjoint. Both briefs carry the at-rest/mid-op rule and the full battery requirement.
 - `torn-body-refusal-families-beyond-the-six-doors` goes back to `open`: no lane holds its residue since PR 4048 merged.
 - Nothing new on PR 3970.
+
+## 10:30 check-in (2026-10-05)
+
+- PR 4054 (sync) merged at `589daf99`.
+- **PR 4053 review: fix first.** The re-make is sound: the labelling matches, the shell order holds, and no input the reviewer built broke it. But the PR's one new skip condition is untested: mutations M4 (drop the ring-free filter) and M6 (never admit the skip) stay green.
+  - NITs: the `None` doc overstates; two policies in `may_skip_roundtrip_at` (Kev answers, Movefac panics); the `sense = true` assumption is unstated; "retains" reads as keeps.
+  - Style: seqgen now copies `movefac`'s labelling (a fourth consumer for the walks row); a stale fuzz sample.
+  - Fix lane `session_01RRXbYXC7cR1PXifta7fcwW` dispatched for all of it except Q7 (door threading: taste, declined). Reviewer (about $2.1) and implementer (about $3.4) archived.
+- **The contain lane opened PR 4055** (+254/-69, 11 files). It measured first: none of the routed arms is reachable on a gated operand, and the batteries move 0 lines.
+  - `esc` (mid-op) routes `Curved` → `Containment`, and the others → the new `PointInFaceRefused`.
+  - The extent scan (at rest) keeps `EmptyLoop` as an invariant, premised on tier 2.
+  - `Containment`'s `Display` loses "the solids do not cross", which was already false at two raisers.
+  - It conflicted with main on its own row's status line; I merged main in and kept `closed` (`700d0ed3`).
+  - Subscribed. Reviewer `session_01N4kLf3CaQuwaYs326CpQWW` dispatched (FULL). It checks the at-rest premise of the extent scan's inputs, and whether a ratified clause states the old `Display` meaning.
+- **Dispatched** `boundary-on-the-new-chart-has-two-homes-in-the-attach-doors` (P3, M; `attach.rs`; no overlap) → `session_01LKocsNRnizpgjZhDr8YckW`. `kef`/`kfmrh` are excluded (PR 3970's question). The lane stops and asks on a ratified clause or a real fork.
+- Torn-reads lane: no PR yet. Nothing new on PR 3970.
