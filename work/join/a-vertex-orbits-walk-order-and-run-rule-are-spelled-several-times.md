@@ -2,10 +2,11 @@
 id: a-vertex-orbits-walk-order-and-run-rule-are-spelled-several-times
 kind: issue
 title: insert.rs spells a vertex orbit's walk order three times and the run that holds no third germ twice
-status: open
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
+closed: 2026-10-05
 ---
 
 
@@ -50,3 +51,36 @@ holds another pair's run whole (a nested matching, six crossings or
 more). So "the run that holds no third germ" now holds only in A, and
 in B only for adjacent pairs. The one position type should carry the
 nesting too: an interval of the walk, read from one origin.
+
+## Built
+
+- **One position order, `insert::walks_before`.** It counts entries from
+  an origin entry, then uses `walks_after` within one entry. Each former
+  spelling now reads it, and differs only in the origin it names:
+  - `walk_order` reads from the orbit's first entry;
+  - `held_cut` reads from the run's first entry, strut or fan, through
+    one between-test;
+  - `precedes` reads from its physical sector's first entry, which
+    `edge_bound_entry` finds, the same walk as `next_edge_bound`'s.
+
+  The hold predicates (`nests`, `holds_whole`, `nested`, `run_ends`,
+  `strut_anchor`) read it through `precedes`. `holds_whole` keeps its
+  own between-test, and a comment says why: a tie counts inside there,
+  and reading from `lo` would wrap.
+- **One run rule, `insert::walk_run`.** A and B read it alike, for every
+  survivor count. Adjacent germs run the way that holds no third
+  (`run_order`). For two survivors either way is a run, and
+  `run_degenerates` breaks that tie. Other pairs run as an interval of the
+  walk. Strut-ness is one helper, `is_strut`.
+- **What stays, and why:**
+  - `run_degenerates` in `reconcile_pass` asks whether a way round can
+    mint at all, not which way to run.
+  - `walk_faces_first` orders two germs in one entry by `strut_order`
+    from the arrival edge; a unit row checks that it agrees with
+    `walks_after`.
+- **Not done:** one fixed origin, and `b_runs`' nesting read as an
+  interval of the same walk. Both are filed as
+  `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin`.
+- **Behaviour:** byte-identical between main and head on
+  `pierce_runs_battery`, both reflex batteries, all 84 `rc_wide` shards,
+  `pinch_runs_battery` and `corner_pairs_battery`.
