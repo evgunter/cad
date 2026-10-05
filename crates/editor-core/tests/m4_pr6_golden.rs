@@ -69,7 +69,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("depth"),
-            def: editor_core::VarDef::Free(FreeVar::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -87,7 +87,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("clearance"),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 0.001)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
     );
     // Every sketch in this fixture is drawn on the world xy plane, so

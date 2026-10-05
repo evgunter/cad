@@ -177,7 +177,7 @@ fn declare(doc: ProfileDoc, name: VarName, v: f64, dim: Dimension) -> ProfileDoc
         doc,
         DocEdit::DeclareVar {
             name,
-            def: editor_core::VarDef::Free(FreeVar::continuous(dim, v)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(dim, v)),
         },
     )
     .0

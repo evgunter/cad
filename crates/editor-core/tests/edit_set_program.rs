@@ -1359,7 +1359,7 @@ fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
         ProfileDoc::empty_derived(label, tol()),
         DocEdit::DeclareVar {
             name: VarName::from_static(name),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, v)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, v)),
         },
     );
     doc

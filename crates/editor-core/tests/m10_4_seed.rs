@@ -131,7 +131,7 @@ fn two_param_web() -> ProfileDoc {
         &doc,
         DocEdit::DeclareVar {
             name: name("depth"),
-            def: editor_core::VarDef::Free(continuous(0.1)),
+            def: editor_core::VarDecl::Free(continuous(0.1)),
         },
     );
     // The plate is the corpus web's extrude; its distance becomes the
@@ -186,7 +186,7 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
-        def: editor_core::VarDef::Free(continuous(w)),
+        def: editor_core::VarDecl::Free(continuous(w)),
     });
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -224,7 +224,7 @@ fn with_count() -> ProfileDoc {
         &doc,
         &DocEdit::DeclareVar {
             name: name("n"),
-            def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

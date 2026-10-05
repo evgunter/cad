@@ -53,7 +53,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetTolerance { eps: ambient });
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("h"),
-        def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
     });
     // The VALUE door, on the variable the declare above just minted:
     // it carries the definition forward, so `h` keeps its kind (and
@@ -86,13 +86,13 @@ pub fn document() -> CorpusDoc {
     });
     r.push(DocEdit::DeclareVar {
         name: VarName::from_static("n"),
-        def: editor_core::VarDef::Free(FreeVar::Count { value: 2 }),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 2 }),
     });
     // The DEFINITION door: `n` keeps its identity, its name and its
     // kind while its definition is replaced whole.
     r.push(DocEdit::DefineVar {
         var: VarName::from_static("n").into(),
-        def: editor_core::VarDef::Free(FreeVar::Count { value: 3 }),
+        def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),

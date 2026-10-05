@@ -186,7 +186,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
         &doc,
         &DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
                 Dimension::Length,
                 1.0,
             )),
@@ -265,7 +265,10 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         &doc,
         &DocEdit::DefineVar {
             var: name.clone().into(),
-            def: editor_core::VarDef::Free(editor_core::FreeVar::continuous(Dimension::Angle, 1.0)),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                Dimension::Angle,
+                1.0,
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

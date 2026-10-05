@@ -169,7 +169,7 @@ fn build_doc(tol: Tol) -> Recipe {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("blades"),
-            def: pncad::document::VarDef::Free(FreeVar::Count { value: COUNTS[0] }),
+            def: pncad::document::VarDecl::Free(FreeVar::Count { value: COUNTS[0] }),
         },
         tol,
         &RefusingReach,

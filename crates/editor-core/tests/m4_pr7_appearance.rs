@@ -330,7 +330,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
         doc,
         DocEdit::DefineVar {
             var: VarName::from_static("pip_depth").into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
         },
     );
     let ev2 = rerun(&doc2, &ev1);

@@ -47,7 +47,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
         .apply(
             &DocEdit::DeclareVar {
                 name: p(),
-                def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, nominal)),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, nominal)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

@@ -109,7 +109,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -156,7 +156,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Expr) -> Prof
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("height"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -195,7 +195,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("hole_r"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.25,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -204,7 +204,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     });
     r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.5,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -247,7 +247,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("axis"),
-        def: editor_core::VarDef::Free(FreeVar::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Scalar,
             value: 20.0 * eps(),
             display_unit: UnitSym::canonical_for(Dimension::Scalar),

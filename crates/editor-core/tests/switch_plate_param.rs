@@ -45,7 +45,7 @@ fn scene() -> Scene {
         &doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static(HOLE_R),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, HOLE_R_VALUE)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -100,7 +100,7 @@ fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         &DocEdit::DefineVar {
             var: VarName::from_static(HOLE_R).into(),
-            def: editor_core::VarDef::Free(FreeVar::continuous(Dimension::Length, value)),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

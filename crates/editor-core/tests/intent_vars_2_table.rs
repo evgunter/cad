@@ -25,7 +25,7 @@ use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     Dimension, Distribution, DocEdit, EditError, Expr, FreeValue, FreeVar, MeasureExpr, Node,
-    ParamBox, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, VarDef, VarId,
+    ParamBox, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, VarDecl, VarId,
     VarKind, VarName, apply, load, save, var_env_over,
 };
 use geom_core::Tol;
@@ -39,8 +39,8 @@ fn n(name: &'static str) -> VarName {
 }
 
 /// A length of `VALUE` metres, annotated so the analysis varies it.
-fn law_def() -> VarDef {
-    VarDef::Free(FreeVar::Continuous {
+fn law_def() -> VarDecl {
+    VarDecl::Free(FreeVar::Continuous {
         dim: Dimension::Length,
         value: VALUE,
         display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -52,7 +52,7 @@ fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> Result<ProfileDoc, E
     apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
 }
 
-fn declare(doc: &ProfileDoc, name: &'static str, def: VarDef) -> ProfileDoc {
+fn declare(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc {
     step(doc, DocEdit::DeclareVar { name: n(name), def }).expect("the declare applies")
 }
 
@@ -99,7 +99,7 @@ fn a_declare_of_a_taken_name_refuses_naming_the_holder() {
         &doc,
         DocEdit::DeclareVar {
             name: n("w"),
-            def: VarDef::Free(FreeVar::Count { value: 3 }),
+            def: VarDecl::Free(FreeVar::Count { value: 3 }),
         },
     )
     .unwrap_err();
@@ -134,7 +134,7 @@ fn equal_definitions_are_two_variables_and_the_name_is_not_minted() {
     let moved = declare(
         &empty,
         "w",
-        VarDef::Free(FreeVar::continuous(Dimension::Length, 2.0 * VALUE)),
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0 * VALUE)),
     );
     assert_eq!(
         moved.var_named("w"),
@@ -144,7 +144,7 @@ fn equal_definitions_are_two_variables_and_the_name_is_not_minted() {
     let angle = declare(
         &empty,
         "w",
-        VarDef::Free(FreeVar::continuous(Dimension::Angle, VALUE)),
+        VarDecl::Free(FreeVar::continuous(Dimension::Angle, VALUE)),
     );
     assert_ne!(angle.var_named("w"), Some(w), "the kind is");
 }
@@ -257,7 +257,7 @@ fn a_kind_is_fixed() {
         &doc,
         DocEdit::DefineVar {
             var: w.into(),
-            def: VarDef::Free(FreeVar::Count { value: 3 }),
+            def: VarDecl::Free(FreeVar::Count { value: 3 }),
         },
     )
     .unwrap_err();
@@ -268,7 +268,7 @@ fn a_kind_is_fixed() {
         (var.id(), kind, offered),
         (w, VarKind::Length, VarKind::Count)
     );
-    let angle = VarDef::Free(FreeVar::continuous(Dimension::Angle, VALUE));
+    let angle = VarDecl::Free(FreeVar::continuous(Dimension::Angle, VALUE));
     assert!(matches!(
         step(
             &doc,
@@ -283,7 +283,7 @@ fn a_kind_is_fixed() {
             ..
         })
     ));
-    let same_kind = VarDef::Free(FreeVar::continuous(Dimension::Length, 0.007));
+    let same_kind = VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.007));
     let defined = step(
         &doc,
         DocEdit::DefineVar {
@@ -293,7 +293,7 @@ fn a_kind_is_fixed() {
     )
     .expect("a definition of the variable's kind applies");
     assert_eq!(defined.var_named("w"), Some(w), "and keeps the id");
-    assert!(defined.var(w).unwrap().def().bit_eq(&same_kind));
+    assert!(defined.var(w).unwrap().def().bit_eq(&same_kind.stored()));
 }
 
 // -------------------------------------------------------------- row 10

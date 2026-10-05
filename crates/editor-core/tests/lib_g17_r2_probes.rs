@@ -250,7 +250,7 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
             &d.doc,
             &DocEdit::DeclareVar {
                 name: VarName::from_static("t"),
-                def: editor_core::VarDef::Free(FreeVar::Continuous {
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),

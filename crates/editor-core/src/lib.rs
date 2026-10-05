@@ -123,9 +123,9 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, MaintenanceNet,
-    Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed, cascade_delete_order,
-    regauge_then_mate,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
+    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed,
+    cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
@@ -236,7 +236,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use var::{Var, VarDef, VarId, VarKind, VarRef};
+pub use var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
