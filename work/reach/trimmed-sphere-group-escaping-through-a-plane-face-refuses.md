@@ -4,6 +4,7 @@ kind: issue
 title: A trimmed sphere face group that a plane face cuts with no edge crossing refuses: the escape re-chart serves only closed groups
 status: review
 branch: reach/trimmed-sphere-escape
+pr: 4044
 opened: 2026-10-02
 priority: P1
 cost: H
