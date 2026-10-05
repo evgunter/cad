@@ -29,7 +29,7 @@ not read as coverage.
 - **A parameter driving the frame's carrier.** "Raise the body and the
   sketch rides up with it" is the derived frame's headline, and the
   only mutation Python can aim at a continuous slot today is
-  re-authoring: no node constructor takes an `Expr`, and
+  re-authoring: no node constructor takes an `Formula`, and
   `DocEdit.bind_count_param` is narrowed to structural counts on
   purpose. So `TestTheFrameIsRead` shows the dependence by building
   two plates rather than by moving one, and the DAG edge itself is
@@ -50,7 +50,7 @@ from pncad import (
     EditError,
     EntityKind,
     EvaluationError,
-    Expr,
+    Formula,
     Node,
     NodeId,
     Pose,
@@ -63,17 +63,17 @@ from pncad import (
 )
 
 SQUARE = [
-    (Expr.length_in(0, m), Expr.length_in(0, m)),
-    (Expr.length_in(1, m), Expr.length_in(0, m)),
-    (Expr.length_in(1, m), Expr.length_in(1, m)),
-    (Expr.length_in(0, m), Expr.length_in(1, m)),
+    (Formula.length_in(0, m), Formula.length_in(0, m)),
+    (Formula.length_in(1, m), Formula.length_in(0, m)),
+    (Formula.length_in(1, m), Formula.length_in(1, m)),
+    (Formula.length_in(0, m), Formula.length_in(1, m)),
 ]
 
 
 def plate(doc, thickness):
     """A 1 m x 1 m plate `thickness` thick, standing on the ground."""
     square = doc.insert(Node.polygon(SQUARE, plane=doc.sketch_frame()))
-    return doc.insert(Node.extrude(square, Expr.literal(thickness)))
+    return doc.insert(Node.extrude(square, Formula.literal(thickness)))
 
 
 def top_face(ev, node, height):
@@ -92,16 +92,16 @@ def ring(doc):
     """A solid ring torus about the world z axis — a CURVED carrier,
     which is what a non-planar refusal needs."""
     spine = doc.insert(Node.datum_axis((
-        Expr.length_in(0, m),
-        Expr.length_in(0, m),
-        Expr.length_in(0, m),
+        Formula.length_in(0, m),
+        Formula.length_in(0, m),
+        Formula.length_in(0, m),
     ), (
-        Expr.literal(0.0),
-        Expr.literal(0.0),
-        Expr.literal(1.0),
+        Formula.literal(0.0),
+        Formula.literal(0.0),
+        Formula.literal(1.0),
     )))
     return doc.insert(
-        Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(1, m), TubeWindow.full(), Expr.length_in(0.3, m))
+        Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m))
     )
 
 
@@ -205,17 +205,17 @@ class TestTheOrientationSense(unittest.TestCase):
         Four faces, two of them inner."""
         doc = Doc()
         spine = doc.insert(Node.datum_axis((
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         )))
         tube = doc.insert(
             Node.hollow_tube(
-                spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(1, m), TubeWindow.full(), Expr.length_in(0.3, m), Expr.length_in(0.1, m)
+                spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1, m), TubeWindow.full(), Formula.length_in(0.3, m), Formula.length_in(0.1, m)
             )
         )
         ev = evaluate(doc)
@@ -259,7 +259,7 @@ class TestTheDerivedFrame(unittest.TestCase):
         self.pose = ev.face_frame(self.plate, self.top)
 
     def frame_datum(self, spin):
-        node = self.doc.insert(Node.datum_face_frame(self.plate, self.top, Expr.literal(spin)))
+        node = self.doc.insert(Node.datum_face_frame(self.plate, self.top, Formula.literal(spin)))
         return node, evaluate(self.doc).value(node).datum()
 
     def outward(self):
@@ -339,22 +339,22 @@ class TestTheDerivedFrame(unittest.TestCase):
         the top face, sketch on it, extrude. The boss starts at the
         plate's top and grows away from the material — which is what
         the outward normal buys."""
-        frame = self.doc.insert(Node.datum_face_frame(self.plate, self.top, Expr.angle_in(0, rad)))
+        frame = self.doc.insert(Node.datum_face_frame(self.plate, self.top, Formula.angle_in(0, rad)))
         # The sketch's coordinates are the FRAME's, and the frame's
         # origin is the carrier's distinguished point — the plate's
         # centre, not its corner — so the pad is written about zero.
         pad = self.doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(-0.3, m), Expr.length_in(-0.3, m)),
-                    (Expr.length_in(0.3, m), Expr.length_in(-0.3, m)),
-                    (Expr.length_in(0.3, m), Expr.length_in(0.3, m)),
-                    (Expr.length_in(-0.3, m), Expr.length_in(0.3, m)),
+                    (Formula.length_in(-0.3, m), Formula.length_in(-0.3, m)),
+                    (Formula.length_in(0.3, m), Formula.length_in(-0.3, m)),
+                    (Formula.length_in(0.3, m), Formula.length_in(0.3, m)),
+                    (Formula.length_in(-0.3, m), Formula.length_in(0.3, m)),
                 ],
                 plane=frame,
             )
         )
-        boss = self.doc.insert(Node.extrude(pad, Expr.length_in(0.3, m)))
+        boss = self.doc.insert(Node.extrude(pad, Formula.length_in(0.3, m)))
         ev = evaluate(self.doc)
         zs = [ev.vertex_position(boss, v)[2].meters for v in ev.all_vertices(boss)]
         self.assertAlmostEqual(min(zs), 0.2, delta=1e-12)
@@ -386,7 +386,7 @@ class TestTheFrameIsRead(unittest.TestCase):
                 node = plate(doc, thickness * m)
                 ev = evaluate(doc)
                 face = top_face(ev, node, thickness)
-                frame = doc.insert(Node.datum_face_frame(node, face, Expr.angle_in(0, rad)))
+                frame = doc.insert(Node.datum_face_frame(node, face, Formula.angle_in(0, rad)))
                 origin = evaluate(doc).value(frame).datum().origin
                 self.assertAlmostEqual(origin[2].meters, thickness, delta=1e-12)
 
@@ -398,7 +398,7 @@ class TestTheFrameIsRead(unittest.TestCase):
         node = plate(doc, 0.2 * m)
         ev = evaluate(doc)
         frame = doc.insert(
-            Node.datum_face_frame(node, top_face(ev, node, 0.2), Expr.angle_in(0, rad))
+            Node.datum_face_frame(node, top_face(ev, node, 0.2), Formula.angle_in(0, rad))
         )
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.delete_node(node))
@@ -428,12 +428,12 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         """An edge name builds a `Node` and inserts, and fails where
         every other selection failure does."""
         edge = self.ev.all_edges(self.plate)[0]
-        node = Node.datum_face_frame(self.plate, edge, Expr.angle_in(0, rad))
+        node = Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad))
         self.assertIsInstance(self.doc.insert(node), NodeId)
 
     def test_an_edge_name_refuses_face_frame_kind(self):
         edge = self.ev.all_edges(self.plate)[0]
-        node = self.doc.insert(Node.datum_face_frame(self.plate, edge, Expr.angle_in(0, rad)))
+        node = self.doc.insert(Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad)))
         err = self.kind_of(node)
         self.assertEqual(err.kind, "face_frame_kind")
         self.assertEqual(err.node, node)
@@ -446,7 +446,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         torus = ring(self.doc)
         ev = evaluate(self.doc)
         face = ev.all_faces(torus)[0]
-        node = self.doc.insert(Node.datum_face_frame(torus, face, Expr.angle_in(0, rad)))
+        node = self.doc.insert(Node.datum_face_frame(torus, face, Formula.angle_in(0, rad)))
         err = self.kind_of(node)
         self.assertEqual(err.kind, "face_frame_not_planar")
         self.assertIn("torus", str(err))
@@ -457,7 +457,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         READ: a transcribed frame could not fail this way. The repair
         is a rebind, not an edit of nine numbers."""
         second = plate(self.doc, 0.2 * m)
-        node = self.doc.insert(Node.datum_face_frame(second, self.top, Expr.angle_in(0, rad)))
+        node = self.doc.insert(Node.datum_face_frame(second, self.top, Formula.angle_in(0, rad)))
         self.assertEqual(self.kind_of(node).kind, "face_frame_resolve")
 
     def test_a_failed_frame_poisons_the_sketch_above_it(self):
@@ -465,7 +465,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
         a frame that cannot be built is poisoned rather than placed on
         a fabricated plane, and `through` names the frame."""
         edge = self.ev.all_edges(self.plate)[0]
-        frame = self.doc.insert(Node.datum_face_frame(self.plate, edge, Expr.angle_in(0, rad)))
+        frame = self.doc.insert(Node.datum_face_frame(self.plate, edge, Formula.angle_in(0, rad)))
         pad = self.doc.insert(Node.polygon(SQUARE, plane=frame))
         err = self.kind_of(pad)
         self.assertEqual(err.reason, "poisoned")
@@ -474,7 +474,7 @@ class TestTheDerivedFrameRefuses(unittest.TestCase):
 
     def test_text_that_is_no_name_at_all_is_a_boundary_refusal(self):
         with self.assertRaises(ValueError):
-            Node.datum_face_frame(self.plate, "the top one", Expr.angle_in(0, rad))
+            Node.datum_face_frame(self.plate, "the top one", Formula.angle_in(0, rad))
 
 
 if __name__ == "__main__":

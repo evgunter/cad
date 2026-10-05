@@ -30,7 +30,7 @@ use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
 use crate::py::doc::{NodeId, name_from_text, name_text};
-use crate::py::expr::Expr;
+use crate::py::expr::{Formula, name_fault_err};
 use crate::py::step::Piece;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
@@ -688,7 +688,7 @@ impl GeomPred {
     }
 
     /// DECIDED: the entity's distance to a datum node, compared
-    /// against a stated length `Expr` — signed against a datum plane
+    /// against a stated length `Formula` — signed against a datum plane
     /// (along its normal), unsigned to an axis or point. The datum is
     /// a node reference like every other input, which is what keeps
     /// the rule equivariant: move the datum with the part and the
@@ -700,13 +700,19 @@ impl GeomPred {
     /// (`SelectRefusal::NotALength`, reaching Python as
     /// `SelectRefusal` with reason `not_a_length`), where the
     /// predicate is prepared.
+    ///
+    /// Nor is there a document to read a name against: the value is
+    /// lowered with none in scope, so a formula that writes a name
+    /// refuses here, `EvalError` with variant `unlowered_name`.
     #[staticmethod]
-    fn datum_distance(datum: &NodeId, cmp: Cmp, value: &Expr) -> Self {
-        Self(s::GeomPred::DatumDistance {
+    fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: &Formula) -> PyResult<Self> {
+        let value = pncad::document::Expr::try_from(&value.0)
+            .map_err(|fault| name_fault_err(py, &fault, None))?;
+        Ok(Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),
-            value: value.0.clone(),
-        })
+            value,
+        }))
     }
 
     fn __repr__(&self) -> String {

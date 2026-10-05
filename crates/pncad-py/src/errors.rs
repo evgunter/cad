@@ -278,7 +278,7 @@ pub enum ErrorClass {
     /// constructor refuses over two operands' DIMENSIONS, and there is
     /// no single float to name.
     Literal,
-    /// The expression TEXT door refused: `parse_expr` could not read
+    /// The expression TEXT door refused: `parse_formula` could not read
     /// the source as an expression. The Python class keeps the Rust
     /// type's own name, `ParseError`.
     ///
@@ -525,7 +525,7 @@ pub enum ErrorClass {
 /// | literal construction | `LiteralError` | `kind` |
 /// | measurement arithmetic | `LiteralError` | `kind` |
 /// | the recorded-program lift | `LiteralError` | `variant` |
-/// | `Doc.parse_expr` | `ParseError` | `kind` |
+/// | `Doc.parse_formula` | `ParseError` | `kind` |
 /// | `Doc.apply` | `EditError` | `inner_variant` |
 /// | `load` | `PersistError` | `inner_variant` |
 ///

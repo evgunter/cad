@@ -1475,7 +1475,7 @@ fn circle_split(
 /// literal authoring helpers): one seam between the two authoring
 /// surfaces, shared by both host languages. Only the refusal mapping
 /// is binding work.
-pub(crate) fn loop_program(py: Python<'_>, closed: &ClosedLoop) -> PyResult<d::LoopProgram> {
+pub(crate) fn loop_program(py: Python<'_>, closed: &ClosedLoop) -> PyResult<d::LoopProgram<d::Formula>> {
     d::LoopProgram::from_recorded(&closed.0.program).map_err(|err| {
         typed_err(
             py,

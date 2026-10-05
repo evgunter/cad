@@ -19,14 +19,14 @@ from pncad import (
     CapEnd,
     Doc,
     DocEdit,
-    DocParam,
-    DocParamValue,
+    FreeVar,
+    FreeValue,
     EditError,
     EntityKind,
-    Expr,
+    Formula,
     NamePat,
     Node,
-    ParamName,
+    VarName,
     PatternKind,
     SegPat,
     SegTag,
@@ -45,15 +45,15 @@ def blank(doc, side=L, height=H):
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.length_in(side, m), Expr.length_in(0, m)),
-                (Expr.length_in(side, m), Expr.length_in(side, m)),
-                (Expr.length_in(0, m), Expr.length_in(side, m)),
+                (Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.length_in(side, m), Formula.length_in(0, m)),
+                (Formula.length_in(side, m), Formula.length_in(side, m)),
+                (Formula.length_in(0, m), Formula.length_in(side, m)),
             ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(square, Expr.length_in(height, m)))
+    return doc.insert(Node.extrude(square, Formula.length_in(height, m)))
 
 
 FACES = NamePat.of_kind(EntityKind.Face)
@@ -85,7 +85,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
 
     def cup(self, doc):
         box = blank(doc)
-        return box, doc.insert(Node.shell(box, Expr.length_in(T, m), [top_of(doc, box)]))
+        return box, doc.insert(Node.shell(box, Formula.length_in(T, m), [top_of(doc, box)]))
 
     def test_a_minted_literal_moves_and_the_body_follows(self):
         """The constructors take numbers, so a node arrives holding
@@ -95,7 +95,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         box = blank(doc)
         # L x L x H.
         self.assertEqual(volume(doc, box), L * L * H)
-        doc.apply(DocEdit.set_param(box, "distance", doc.parse_expr("3 m")))
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_formula("3 m")))
         self.assertEqual(volume(doc, box), L * L * 3.0)
 
     def test_a_slot_driven_by_a_document_parameter_moves_with_it(self):
@@ -108,11 +108,11 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         inner = L - 2 * T
         self.assertEqual(volume(doc, hollow), L * L * H - inner * inner * (H - T))
 
-        doc.apply(DocEdit.declare_var(ParamName("wall"), DocParam.length(T * m)))
-        doc.apply(DocEdit.set_param(hollow, "shell_thickness", doc.parse_expr("wall")))
+        doc.apply(DocEdit.declare_var(VarName("wall"), FreeVar.length(T * m)))
+        doc.apply(DocEdit.set_param(hollow, "shell_thickness", doc.parse_formula("wall")))
         self.assertEqual(volume(doc, hollow), L * L * H - inner * inner * (H - T))
 
-        doc.apply(DocEdit.set_var_value(ParamName("wall"), DocParamValue.length(0.375 * m)))
+        doc.apply(DocEdit.set_var_value(VarName("wall"), FreeValue.length(0.375 * m)))
         thick = L - 2 * 0.375
         self.assertEqual(
             volume(doc, hollow), L * L * H - thick * thick * (H - 0.375)
@@ -125,13 +125,13 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         doc = Doc()
         box, hollow = self.cup(doc)
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_param(box, "shell_thickness", doc.parse_expr("1 m")))
+            doc.apply(DocEdit.set_param(box, "shell_thickness", doc.parse_formula("1 m")))
         refusal = caught.exception
         self.assertEqual(refusal.variant, "unknown_slot")
         self.assertEqual(refusal.node, box)
         self.assertEqual(refusal.slot, "shell_thickness")
         # The same word, at the node that does carry the slot.
-        doc.apply(DocEdit.set_param(hollow, refusal.slot, doc.parse_expr("0.375 m")))
+        doc.apply(DocEdit.set_param(hollow, refusal.slot, doc.parse_formula("0.375 m")))
         thick = L - 2 * 0.375
         self.assertEqual(
             volume(doc, hollow), L * L * H - thick * thick * (H - 0.375)
@@ -144,18 +144,18 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         for _ in range(3):
             stray = blank(other)
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_param(stray, "distance", doc.parse_expr("1 m")))
+            doc.apply(DocEdit.set_param(stray, "distance", doc.parse_formula("1 m")))
         self.assertEqual(caught.exception.variant, "unknown_node")
         self.assertEqual(caught.exception.node, stray)
         self.assertIsNone(caught.exception.slot)
 
     def test_an_expression_of_the_wrong_dimension_carries_the_pair(self):
         """A slot's dimension is the slot's, and the refusal says both
-        halves in the alphabet `Expr.dimension` answers in."""
+        halves in the alphabet `Formula.dimension` answers in."""
         doc = Doc()
         box = blank(doc)
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_param(box, "distance", doc.parse_expr("1 rad")))
+            doc.apply(DocEdit.set_param(box, "distance", doc.parse_formula("1 rad")))
         refusal = caught.exception
         self.assertEqual(refusal.variant, "slot_dimension_mismatch")
         self.assertEqual(refusal.slot, "distance")
@@ -169,21 +169,21 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         doc = Doc()
         box = blank(doc)
         pattern = doc.insert(
-            Node.pattern(box, Expr.count(3), PatternKind.linear((
-                Expr.literal(1.0),
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-            ), Expr.length_in(2, m)))
+            Node.pattern(box, Formula.count(3), PatternKind.linear((
+                Formula.literal(1.0),
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+            ), Formula.length_in(2, m)))
         )
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_param(pattern, "count", doc.parse_expr("4")))
+            doc.apply(DocEdit.set_param(pattern, "count", doc.parse_formula("4")))
         refusal = caught.exception
         self.assertEqual(refusal.variant, "structural_slot_needs_structural_edit")
         self.assertEqual(refusal.slot, "count")
         self.assertIsNone(refusal.node)
         # And the door that IS this slot's still works on the node.
-        doc.apply(DocEdit.declare_var(ParamName("copies"), DocParam.count(4)))
-        doc.apply(DocEdit.bind_count_param(pattern, ParamName("copies")))
+        doc.apply(DocEdit.declare_var(VarName("copies"), FreeVar.count(4)))
+        doc.apply(DocEdit.bind_count_param(pattern, VarName("copies")))
 
     def test_a_parameter_reference_is_checked_at_the_edit_door(self):
         """An expression parsed against one document and applied to
@@ -192,8 +192,8 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         one does."""
         declared = Doc(seed="declares-the-wall")
         blank(declared)
-        declared.apply(DocEdit.declare_var(ParamName("wall"), DocParam.length(T * m)))
-        expr = declared.parse_expr("wall")
+        declared.apply(DocEdit.declare_var(VarName("wall"), FreeVar.length(T * m)))
+        expr = declared.parse_formula("wall")
 
         doc = Doc(seed="declares-nothing")
         box = blank(doc)
@@ -214,7 +214,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         box = blank(doc)
         for junk in ["", "Distance", "origin", "distance ", "count_x"]:
             with self.assertRaises(ValueError, msg=junk):
-                DocEdit.set_param(box, junk, doc.parse_expr("1 m"))
+                DocEdit.set_param(box, junk, doc.parse_formula("1 m"))
 
     def test_a_profile_programs_expression_is_not_addressable_by_word(self):
         """`profile` is a word of the alphabet with no slot to read
@@ -224,7 +224,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         doc = Doc()
         box = blank(doc)
         with self.assertRaises(ValueError) as caught:
-            DocEdit.set_param(box, "profile", doc.parse_expr("1 m"))
+            DocEdit.set_param(box, "profile", doc.parse_formula("1 m"))
         self.assertIn("profile program", str(caught.exception))
 
 
@@ -237,7 +237,7 @@ class TestTheNameRepair(unittest.TestCase):
         references that name, which is what a repair rewrites."""
         box = blank(doc)
         top = top_of(doc, box)
-        return box, top, doc.insert(Node.shell(box, Expr.length_in(T, m), [top]))
+        return box, top, doc.insert(Node.shell(box, Formula.length_in(T, m), [top]))
 
     def test_the_repair_rewrites_the_site_and_the_body_follows(self):
         """A shell's open list is a name-carrying payload, so saying

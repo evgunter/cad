@@ -5,11 +5,11 @@ at the multiply, which is what the kernel below wants and what makes
 the arithmetic closed — and it is wrong for exactly one thing:
 recording what a person TYPED, so a document reads back the way it was
 written. `WrittenLength` and `WrittenAngle` are that record, and
-`DocParam.written_length` / `written_angle` are the doors that put one
+`FreeVar.written_length` / `written_angle` are the doors that put one
 into a document.
 
 THE MEASUREMENT THIS FILE EXISTS TO PIN. Before this unit,
-`DocParam.length(25 * mm)` saved `"display_unit": "m"` — the canonical
+`FreeVar.length(25 * mm)` saved `"display_unit": "m"` — the canonical
 row, whatever the caller wrote. `test_the_saved_row_names_the_authored_
 unit` is that byte, now reading `mm`, and
 `test_the_erasing_door_still_erases` is the other half: `length` is
@@ -34,15 +34,15 @@ two arms, the off-table symbol refusing earlier and differently. The
 static half of the unrepresentability claim is `ty_fixtures/illegal.py`.
 
 NODE SLOTS RECORD IT TOO, and through the same two doors one
-vocabulary over: every dimensioned slot takes an `Expr`, and
-`Expr.written_length` is what puts the notation in the slot where
-`Expr.literal` records the canonical row.
+vocabulary over: every dimensioned slot takes an `Formula`, and
+`Formula.written_length` is what puts the notation in the slot where
+`Formula.literal` records the canonical row.
 `TestANodeSlotRecordsTheAuthoredNotation` is the pair of bytes, and
 it is the same measurement as `test_the_saved_row_names_the_authored_
 unit` with a node in place of a parameter.
 
-ONE CALL AT AN AUTHORED NUMBER. `Expr.length_in(25, mm)` is sugar for
-`Expr.written_length(WrittenLength.in_unit(25, mm))` and nothing else,
+ONE CALL AT AN AUTHORED NUMBER. `Formula.length_in(25, mm)` is sugar for
+`Formula.written_length(WrittenLength.in_unit(25, mm))` and nothing else,
 which is what `TestTheOneCallIsTheComposition` holds: the same
 expression, the same bytes in the file, and the same typed refusal.
 The two doors underneath stay, for a `WrittenLength` already in hand.
@@ -55,15 +55,15 @@ from pncad import (
     AngleUnit,
     Doc,
     DocEdit,
-    DocParam,
-    DocParamValue,
+    FreeVar,
+    FreeValue,
     EditError,
-    Expr,
+    Formula,
     Length,
     LengthUnit,
     LiteralError,
     Node,
-    ParamName,
+    VarName,
     PatternKind,
     PersistError,
     WrittenAngle,
@@ -78,7 +78,7 @@ from pncad import (
     rad,
 )
 
-WIDTH = ParamName("width")
+WIDTH = VarName("width")
 
 
 def saved_params(doc):
@@ -164,7 +164,7 @@ class TestTheAuthoredPair(unittest.TestCase):
         self.assertEqual(pair[WrittenLength.in_unit(25.0, mm)], "b")
 
     def test_the_two_spellings_of_zero_are_one_authoring(self):
-        # `DocParam`'s already-settled shape, not `Length`'s: the
+        # `FreeVar`'s already-settled shape, not `Length`'s: the
         # equality is IEEE, so the hash folds to match it.
         self.assertEqual(WrittenLength.in_unit(-0.0, mm),
                          WrittenLength.in_unit(0.0, mm))
@@ -226,21 +226,21 @@ class TestAParameterRemembersItsNotation(unittest.TestCase):
     def test_the_saved_row_names_the_authored_unit(self):
         # The byte this family exists for. Before this unit the same
         # authoring saved `"display_unit": "m"`.
-        doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
+        doc = doc_with(WIDTH, FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))
         row = saved_params(doc)["width"]["Continuous"]
         self.assertEqual(row["display_unit"], "mm")
         self.assertEqual(row["dim"], "Length")
         self.assertEqual(row["value"], 0.025)
 
     def test_metres_stay_metres(self):
-        doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(2.0, m)))
+        doc = doc_with(WIDTH, FreeVar.written_length(WrittenLength.in_unit(2.0, m)))
         row = saved_params(doc)["width"]["Continuous"]
         self.assertEqual(row["display_unit"], "m")
         self.assertEqual(row["value"], 2.0)
 
     def test_an_angle_in_degrees(self):
-        spin = ParamName("spin")
-        doc = doc_with(spin, DocParam.written_angle(WrittenAngle.in_unit(90.0, deg)))
+        spin = VarName("spin")
+        doc = doc_with(spin, FreeVar.written_angle(WrittenAngle.in_unit(90.0, deg)))
         row = saved_params(doc)["spin"]["Continuous"]
         self.assertEqual(row["display_unit"], "deg")
         self.assertEqual(row["dim"], "Angle")
@@ -250,35 +250,35 @@ class TestAParameterRemembersItsNotation(unittest.TestCase):
         # `length` is not deprecated by `written_length` and does not
         # guess: a caller with a number and no notation says so, and
         # the document records the canonical row.
-        doc = doc_with(WIDTH, DocParam.length(25 * mm))
+        doc = doc_with(WIDTH, FreeVar.length(25 * mm))
         self.assertEqual(saved_params(doc)["width"]["Continuous"]["display_unit"], "m")
 
     def test_the_notation_survives_a_save_and_load(self):
-        doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
+        doc = doc_with(WIDTH, FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))
         back = load(doc.save()).doc
         self.assertEqual(back.params[WIDTH].unit, "mm")
         self.assertEqual(back.params[WIDTH],
-                         DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
+                         FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))
 
     def test_two_notations_of_one_magnitude_are_two_parameters(self):
-        # `DocParam`'s equality includes the notation, which is what
+        # `FreeVar`'s equality includes the notation, which is what
         # makes the round trip above a real check rather than a
         # comparison of numbers.
         self.assertNotEqual(
-            DocParam.written_length(WrittenLength.in_unit(25.0, mm)),
-            DocParam.written_length(WrittenLength.in_unit(0.025, m)),
+            FreeVar.written_length(WrittenLength.in_unit(25.0, mm)),
+            FreeVar.written_length(WrittenLength.in_unit(0.025, m)),
         )
 
 
 class TestTheReadDoor(unittest.TestCase):
-    """`Doc.params` and `DocParam.unit` — the half that had no door."""
+    """`Doc.params` and `FreeVar.unit` — the half that had no door."""
 
     def test_the_map_answers_every_declared_parameter(self):
         doc = Doc()
         doc.apply(DocEdit.declare_var(
-            WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm))))
+            WIDTH, FreeVar.written_length(WrittenLength.in_unit(25.0, mm))))
         doc.apply(DocEdit.declare_var(
-            ParamName("holes"), DocParam.count(4)))
+            VarName("holes"), FreeVar.count(4)))
         self.assertEqual(sorted(n.name for n in doc.params),
                          ["holes", "width"])
         self.assertEqual(doc.params[WIDTH].unit, "mm")
@@ -287,7 +287,7 @@ class TestTheReadDoor(unittest.TestCase):
         self.assertEqual(Doc().params, {})
 
     def test_the_map_is_a_snapshot(self):
-        doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
+        doc = doc_with(WIDTH, FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))
         taken = doc.params
         taken.clear()
         self.assertEqual(doc.params[WIDTH].unit, "mm")
@@ -295,20 +295,20 @@ class TestTheReadDoor(unittest.TestCase):
     def test_a_scalar_names_the_dimensionless_row(self):
         # The empty symbol, which reads as the absence it is — and is
         # NOT the absence a count reports.
-        doc = doc_with(ParamName("k"), DocParam.scalar(2.0))
-        self.assertEqual(doc.params[ParamName("k")].unit, "")
+        doc = doc_with(VarName("k"), FreeVar.scalar(2.0))
+        self.assertEqual(doc.params[VarName("k")].unit, "")
 
     def test_a_count_has_no_notation_at_all(self):
-        doc = doc_with(ParamName("holes"), DocParam.count(4))
-        self.assertIsNone(doc.params[ParamName("holes")].unit)
+        doc = doc_with(VarName("holes"), FreeVar.count(4))
+        self.assertIsNone(doc.params[VarName("holes")].unit)
 
 
 class TestTheValueDoorLeavesTheNotationAlone(unittest.TestCase):
     """The unit rides with the DECLARATION, not with the number."""
 
     def test_a_value_edit_keeps_the_authored_unit(self):
-        doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
-        doc.apply(DocEdit.set_var_value(WIDTH, DocParamValue.length(30 * mm)))
+        doc = doc_with(WIDTH, FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))
+        doc.apply(DocEdit.set_var_value(WIDTH, FreeValue.length(30 * mm)))
         row = saved_params(doc)["width"]["Continuous"]
         self.assertEqual(row["display_unit"], "mm")
         self.assertEqual(row["value"], 0.03)
@@ -317,17 +317,17 @@ class TestTheValueDoorLeavesTheNotationAlone(unittest.TestCase):
         # `define_var` replaces the whole definition, so it restates the
         # notation along with everything else. That is not a bug in
         # the value door; it is why the value door exists.
-        doc = doc_with(WIDTH, DocParam.written_length(WrittenLength.in_unit(25.0, mm)))
-        doc.apply(DocEdit.define_var(WIDTH, DocParam.length(30 * mm)))
+        doc = doc_with(WIDTH, FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))
+        doc.apply(DocEdit.define_var(WIDTH, FreeVar.length(30 * mm)))
         self.assertEqual(saved_params(doc)["width"]["Continuous"]["display_unit"], "m")
 
 
 class TestTheTextDoorAlreadyCarriesIt(unittest.TestCase):
-    """`Expr::written_length` needs no binding of its own.
+    """`Formula::written_length` needs no binding of its own.
 
-    `Doc.parse_expr` is the checking parser: it does the one multiply
+    `Doc.parse_formula` is the checking parser: it does the one multiply
     and calls `literal_with_unit`, so the notation crosses on the way
-    in and `Expr.text` reads it back. Binding a written-literal
+    in and `Formula.text` reads it back. Binding a written-literal
     constructor would be a second spelling of one grammar, which
     `py/expr.rs` already rules out for the whole builder set.
     """
@@ -336,14 +336,14 @@ class TestTheTextDoorAlreadyCarriesIt(unittest.TestCase):
         doc = Doc()
         for source, canonical in (("25 mm", 0.025), ("2 m", 2.0)):
             with self.subTest(source=source):
-                expr = doc.parse_expr(source)
+                expr = doc.parse_formula(source)
                 self.assertEqual(expr.text, source)
                 self.assertEqual(expr.literal_value, canonical)
 
     def test_the_two_spellings_of_a_quarter_turn_stay_apart(self):
         doc = Doc()
-        by_deg = doc.parse_expr("90 deg")
-        by_pi = doc.parse_expr("0.5 pi rad")
+        by_deg = doc.parse_formula("90 deg")
+        by_pi = doc.parse_formula("0.5 pi rad")
         self.assertEqual(by_deg.text, "90 deg")
         self.assertEqual(by_pi.text, "0.5 pi rad")
         self.assertAlmostEqual(by_deg.literal_value, by_pi.literal_value)
@@ -353,15 +353,15 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
     """The pairing the authoring doors cannot mint, arriving from a file.
 
     `written_length` is total — a `WrittenLength` holds a length unit,
-    so the dimension cannot disagree — and the `DocParam` payload is
+    so the dimension cannot disagree — and the `FreeVar` payload is
     not reachable from Python at all. The one way in is a hand-edited
     file, and the shared save/load validator is where the document
     invariant is checked.
     """
 
     def tampered(self, symbol):
-        doc = doc_with(ParamName("spin"),
-                       DocParam.written_angle(WrittenAngle.in_unit(90.0, deg)))
+        doc = doc_with(VarName("spin"),
+                       FreeVar.written_angle(WrittenAngle.in_unit(90.0, deg)))
         header, body = doc.save().split("\n", 1)
         parsed = json.loads(body)
         snapshot = parsed["snapshot"]
@@ -410,7 +410,7 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
 
 
 class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
-    """A slot takes an `Expr`, and which constructor built it is what
+    """A slot takes an `Formula`, and which constructor built it is what
     decides whether the document remembers the unit.
 
     The parameter family's two rows, one vocabulary over: the written
@@ -420,10 +420,10 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
 
     def square(self, doc):
         corner = [
-            (Expr.literal(0 * mm), Expr.literal(0 * mm)),
-            (Expr.literal(10 * mm), Expr.literal(0 * mm)),
-            (Expr.literal(10 * mm), Expr.literal(10 * mm)),
-            (Expr.literal(0 * mm), Expr.literal(10 * mm)),
+            (Formula.literal(0 * mm), Formula.literal(0 * mm)),
+            (Formula.literal(10 * mm), Formula.literal(0 * mm)),
+            (Formula.literal(10 * mm), Formula.literal(10 * mm)),
+            (Formula.literal(0 * mm), Formula.literal(10 * mm)),
         ]
         return doc.insert(Node.polygon(corner, plane=doc.sketch_frame()))
 
@@ -435,14 +435,14 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
 
     def test_the_written_door_records_the_unit_the_author_wrote(self):
         doc = Doc()
-        written = Expr.length_in(25, mm)
+        written = Formula.length_in(25, mm)
         doc.insert(Node.extrude(self.square(doc), written))
         self.assertEqual(self.distance_of(doc)["unit"], "mm")
         self.assertEqual(self.distance_of(doc)["value"], 0.025)
 
     def test_the_erasing_door_records_the_canonical_row(self):
         doc = Doc()
-        doc.insert(Node.extrude(self.square(doc), Expr.literal(25 * mm)))
+        doc.insert(Node.extrude(self.square(doc), Formula.literal(25 * mm)))
         self.assertEqual(self.distance_of(doc)["unit"], "m")
         self.assertEqual(self.distance_of(doc)["value"], 0.025)
 
@@ -451,24 +451,24 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
         now mints the value: typed, with the kernel's own tag and the
         offending number."""
         with self.assertRaises(LiteralError) as raised:
-            Expr.literal(float("nan") * mm)
+            Formula.literal(float("nan") * mm)
         self.assertEqual(raised.exception.kind, "non_finite")
 
     def test_a_count_is_not_a_continuous_literal(self):
         """A count is exact, so it has its own constructor and the
-        continuous one cannot stand in: `Expr.literal(2)` is a Scalar,
+        continuous one cannot stand in: `Formula.literal(2)` is a Scalar,
         and the count slot says so with the kernel's own words."""
-        self.assertEqual(Expr.literal(2).dimension, "scalar")
-        self.assertEqual(Expr.count(2).dimension, "count")
+        self.assertEqual(Formula.literal(2).dimension, "scalar")
+        self.assertEqual(Formula.count(2).dimension, "count")
         doc = Doc()
-        solid = doc.insert(Node.extrude(self.square(doc), Expr.literal(1 * mm)))
+        solid = doc.insert(Node.extrude(self.square(doc), Formula.literal(1 * mm)))
         with self.assertRaises(EditError) as raised:
             Node.pattern(
                 solid,
-                Expr.literal(2),
+                Formula.literal(2),
                 PatternKind.linear(
-                    (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-                    Expr.length_in(5, mm),
+                    (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                    Formula.length_in(5, mm),
                 ),
             )
         self.assertEqual(raised.exception.variant, "slot_dimension_mismatch")
@@ -479,7 +479,7 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
         at the door rather than restated, so the refusal an insert
         would raise arrives at authoring with the same words."""
         doc = Doc()
-        turn = Expr.angle_in(90, deg)
+        turn = Formula.angle_in(90, deg)
         with self.assertRaises(EditError) as raised:
             Node.extrude(self.square(doc), turn)
         refusal = raised.exception
@@ -490,35 +490,35 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
 
 
 class TestTheOneCallIsTheComposition(unittest.TestCase):
-    """`Expr.length_in` and `Expr.angle_in` are their composition and
+    """`Formula.length_in` and `Formula.angle_in` are their composition and
     add nothing: the same expression, the same recorded notation, the
     same refusal."""
 
     def test_the_length_helper_equals_the_two_calls(self):
         self.assertEqual(
-            Expr.length_in(25, mm),
-            Expr.written_length(WrittenLength.in_unit(25, mm)),
+            Formula.length_in(25, mm),
+            Formula.written_length(WrittenLength.in_unit(25, mm)),
         )
 
     def test_the_angle_helper_equals_the_two_calls(self):
         self.assertEqual(
-            Expr.angle_in(90, deg),
-            Expr.written_angle(WrittenAngle.in_unit(90, deg)),
+            Formula.angle_in(90, deg),
+            Formula.written_angle(WrittenAngle.in_unit(90, deg)),
         )
 
     def test_the_helper_records_the_notation_in_the_file(self):
         """The same bytes `test_the_written_door_records_the_unit_the_
         author_wrote` reads, reached through the one call."""
         doc = Doc()
-        doc.apply(DocEdit.declare_var(WIDTH, DocParam.length(25 * mm)))
+        doc.apply(DocEdit.declare_var(WIDTH, FreeVar.length(25 * mm)))
         square = [
-            (Expr.length_in(0, mm), Expr.length_in(0, mm)),
-            (Expr.length_in(10, mm), Expr.length_in(0, mm)),
-            (Expr.length_in(10, mm), Expr.length_in(10, mm)),
-            (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+            (Formula.length_in(0, mm), Formula.length_in(0, mm)),
+            (Formula.length_in(10, mm), Formula.length_in(0, mm)),
+            (Formula.length_in(10, mm), Formula.length_in(10, mm)),
+            (Formula.length_in(0, mm), Formula.length_in(10, mm)),
         ]
         profile = doc.insert(Node.polygon(square, plane=doc.sketch_frame()))
-        doc.insert(Node.extrude(profile, Expr.length_in(25, mm)))
+        doc.insert(Node.extrude(profile, Formula.length_in(25, mm)))
         extrudes = [n["Extrude"] for n in saved_nodes(doc).values() if "Extrude" in n]
         self.assertEqual(len(extrudes), 1)
         stored = extrudes[0]["distance"]["Literal"]
@@ -528,10 +528,10 @@ class TestTheOneCallIsTheComposition(unittest.TestCase):
     def test_a_non_finite_value_refuses_through_the_helper(self):
         """`written_length`'s own refusal, typed, at the one call."""
         with self.assertRaises(LiteralError) as raised:
-            Expr.length_in(float("nan"), mm)
+            Formula.length_in(float("nan"), mm)
         self.assertEqual(raised.exception.kind, "non_finite")
         with self.assertRaises(LiteralError) as raised:
-            Expr.angle_in(float("inf"), deg)
+            Formula.angle_in(float("inf"), deg)
         self.assertEqual(raised.exception.kind, "non_finite")
 
 

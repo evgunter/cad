@@ -12,7 +12,7 @@
 //! [`MeasureExpr`] is `Expr`'s arithmetic over two leaf kinds — an
 //! ordinary document expression, and a [`MeasurePrimitive`] naming a
 //! closed-form measurement of entities the NODE references. The
-//! ordinary expression enters through `Doc.parse_expr`, the one text
+//! ordinary expression enters through `Doc.parse_formula`, the one text
 //! door this surface has: there is no second spelling of the grammar
 //! here, exactly as `py/expr.rs` rules for the builders it leaves out.
 //!
@@ -348,7 +348,7 @@ const fn _binds_every_kernel_direction(kernel: d::AssertionDir) -> AssertionDir 
 /// second.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct MeasureExpr(pub(crate) d::MeasureExpr);
+pub(crate) struct MeasureExpr(pub(crate) d::MeasureExpr<d::Formula>);
 
 #[pymethods]
 impl MeasureExpr {
@@ -362,12 +362,12 @@ impl MeasureExpr {
     /// An ordinary document expression as a leaf — a literal bound, a
     /// parameter, a whole arithmetic subtree of them.
     ///
-    /// `Doc.parse_expr` is where one comes from, and it is the only
+    /// `Doc.parse_formula` is where one comes from, and it is the only
     /// door: the checking parser reaches the whole algebra through a
     /// single call, and a second spelling of that grammar is what
     /// `py/expr.rs` already rules out.
     #[staticmethod]
-    fn value(e: &super::expr::Expr) -> Self {
+    fn value(e: &super::expr::Formula) -> Self {
         Self(d::MeasureExpr::value(e.0.clone()))
     }
 

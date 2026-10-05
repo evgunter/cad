@@ -384,7 +384,7 @@ LIB-PYSEL bound the selector.)
 ```python
 import math
 
-from pncad import Doc, Expr, Node, deg, evaluate, m
+from pncad import Doc, Formula, Node, deg, evaluate, m
 
 poly = [
     (1.0, 0.0), (1.75, 0.0), (1.75, 0.625), (1.5625, 0.625),
@@ -393,17 +393,17 @@ poly = [
 
 doc = Doc()
 frame = doc.sketch_frame()
-profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in poly], plane=frame))
+profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
 # The axis in the sketch's own coordinates: the frame's v is world
 # +y, so the world y axis IS its own +y through (0, 0).
 axis = doc.insert(Node.datum_axis_in_plane(frame, (
-    Expr.length_in(0, m),
-    Expr.length_in(0, m),
+    Formula.length_in(0, m),
+    Formula.length_in(0, m),
 ), (
-    Expr.literal(0.0),
-    Expr.literal(1.0),
+    Formula.literal(0.0),
+    Formula.literal(1.0),
 )))
-chute = doc.insert(Node.revolve(profile, axis, Expr.angle_in(270, deg)))
+chute = doc.insert(Node.revolve(profile, axis, Formula.angle_in(270, deg)))
 
 body = evaluate(doc).value(chute).body()
 body.validate()
@@ -423,7 +423,7 @@ letterform prisms and two intersects, and each letter is a polygon on
 its own plane extruded along that plane's normal:
 
 ```python
-from pncad import Doc, Expr, Node, SketchPlane, evaluate, m
+from pncad import Doc, Formula, Node, SketchPlane, evaluate, m
 
 # The scene's "T": a yz sketch through the origin, extruded +x by 2 —
 # the plane's normal is u x v = y x z = +x, so the plane IS the axis.
@@ -434,9 +434,9 @@ T = [
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(Expr.length_in(a, m), Expr.length_in(b, m)) for a, b in T], plane=doc.sketch_frame(plane=SketchPlane.yz()))
+    Node.polygon([(Formula.length_in(a, m), Formula.length_in(b, m)) for a, b in T], plane=doc.sketch_frame(plane=SketchPlane.yz()))
 )
-prism = doc.insert(Node.extrude(sketch, Expr.length_in(2.0, m)))
+prism = doc.insert(Node.extrude(sketch, Formula.length_in(2.0, m)))
 
 # Area = stem 0.5*2.5 + bar 3*0.5 = 2.75; times the 2 extrusion, 5.5
 # exactly.

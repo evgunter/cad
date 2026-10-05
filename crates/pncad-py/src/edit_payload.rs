@@ -523,11 +523,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: var.name(),
             ..none
         },
-        EditError::NameLeafWritten { node, name } => EditPayload {
-            node: Some(node.id()),
-            param: Some(name),
-            ..none
-        },
         EditError::VarNameUnchanged { var }
         | EditError::AnonymousVarUnread { var }
         | EditError::DeleteAnonymousVar { var } => EditPayload {
