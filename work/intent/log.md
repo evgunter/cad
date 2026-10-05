@@ -139,3 +139,19 @@ Both elaborate D10 and change no ratified text. The spec found that C
 makes separately typed equal radii lose their declared evidence; a
 fixture that relied on it shares one variable instead. Ev has said to
 proceed through the plan without asking.
+
+## 2026-10-05 — INTENT-LITERALS PR A, definitions (`intent/literals-a`)
+
+A variable may be defined by an `Expr` over other variables
+(`VarDef::Defined`), authored as `VarDecl` and lowered at the edit door.
+The doors refuse a definition cycle, a read the document does not
+answer, and an expansion past `DEFINITION_NODE_BOUND` (4096 nodes); the
+load door refuses the same in two new walks. The environments bind
+definitions over their inputs in definition order, so a defined
+variable carries its inputs' enclosure, tangent or symbol; the seed door
+refuses one. Coincidence tokens and content keys expand definitions,
+`DocDiff::vars` closes over them, and the anonymous lifecycle cascades
+through them. The viewer's parameter text door defines a variable, and
+retires `Refusal::ParamNotANumber`.
+
+Filed: `viewer-value-doors-read-a-defined-variable-as-absent`.
