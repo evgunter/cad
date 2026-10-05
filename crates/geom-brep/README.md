@@ -138,39 +138,44 @@ stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
 (`SsiError::StepUnusable`), or one that collapses into the band
-(`StepCollapsed`) refuses naming the speed. The step is the
-curvature's against ε, and no extent caps it. Each step's first try is
-at most twice the last step kept, and a try is kept where its predicted
-state's residual is at most ε plus the settling residual its start
-state carries; a try whose end leaves the domain (the wall's rectangle,
-or the caller's ℝ³ slab) has its midpoint inside the domain and kept
-instead. Otherwise the step halves and predicts again, down to the
-band, where `ssi_step_progress` refuses. Every try, kept or halved,
-counts against `SSI_MAX_STEPS`. The certificate decides
-how many samples a carrier gets: where limb 1 or 2 refuses the fitted
+(`StepCollapsed`) refuses naming the speed. The step's rungs read the
+curvature at the step's start against ε, and no extent caps them. Each
+step's first try is at most twice the last step kept, and a try is kept
+where its predicted state's residual is at most ε plus the settle
+tolerance; a try whose end leaves the domain (the wall's rectangle, or
+the caller's ℝ³ slab) has its midpoint, and its last predicted state
+inside the domain, on the locus to the same reach instead. Otherwise
+the step halves and predicts again, down to the band, where
+`ssi_step_progress` refuses. Every try, kept or halved, counts against
+`SSI_MAX_STEPS`, and a step whose halving would pass it refuses there.
+The residual test and the restart set how many samples the march gives,
+with the rungs; the certificate decides how many more a carrier gets:
+where limb 1 or 2 refuses the fitted
 carrier, definitely or in band, on a margin that is not poisoned, it
 names the spans it refused, every gap between samples that a refused
 span meets is halved with one gap on each side of it, the new sample
-settled onto the locus, and the carrier is refitted and certified again
-(`ssi/refine.rs`). A refined midpoint must settle onto the locus within half its gap and
-the settling residual of the gap's chord midpoint: an arc turning by at
-most π lies within half its chord of the chord's midpoint, and the
-curvature rungs keep each step's turn far below π. One that settles
-farther, or does not settle, means the gap does not hold one arc, and
-the polyline refuses (`SsiError::PolylineNotOneArc`), the march's
-limit. A gap is halved only while half of it clears the
+settled onto the locus wherever it settles, and the carrier is refitted
+and certified again (`ssi/refine.rs`). A midpoint that does not settle
+is read by the march's transversality decision at the gap's chord
+midpoint: in the band, or undecided, the surfaces are near tangent
+there, and that is the refusal (`SsiError::TransversalityBand`, the
+clearer angle's lever); clear of it, the gap is one refinement cannot
+halve. Where the refused margin stops falling over two rounds, limb 3
+is asked once of the carrier, and its refusal stands: a carrier across
+two branches is one no halving answers. A gap is halved only while half
+of it clears the
 band, and no round gives the branch more steps (gaps between samples)
 than the march may take (`SSI_MAX_STEPS`, one wall per branch on its
 steps, whether marched or split by refinement: a named resource wall
 like the cell budget, not a derivation); where refinement can go no
 further, the certificate's refusal stands, naming where refinement
-stopped and the limb and margin each earlier round refused
-(`SsiError::RefinementExhausted`). At the wall, a margin that stopped
-falling over the last two rounds ends in the tolerance as the
-arithmetic's floor; one still falling ends as the curvature-held
-march's does.
-A straight branch so takes the fewest samples its fit needs, and a
-curved one more only where its certificate refused. Before any march, the
+stopped (gaps whose half falls in the band, midpoints that did not
+settle, midpoints that settled outside the domain) and the limb and
+margin each earlier round refused (`SsiError::RefinementExhausted`). At
+the wall, a margin that stopped falling over the last two rounds ends
+in the tolerance as the arithmetic's floor; one still falling ends as
+the curvature-held march's does.
+Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
 (`geom_brep::boundary_section`: plane × one boundary curve of the
@@ -224,7 +229,7 @@ certificate), a march runs from the crossing to the unused
 crossing on the side it leaves, the one nearest where its last step
 meets that side, its step the curvature's against ε, the carrier's and
 the bend of the branch's own chart path alike, kept by its residual as
-every step is, so nothing it reads belongs to another branch; a
+every step is; a
 march that leaves where no crossing matches refuses as the march's
 limit (`SsiError::CrossingUnmatched`). The plane's window must hold the
 wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
@@ -240,15 +245,23 @@ tube, which limb 3 refuses. The Hermite is one span, not a polyline of
 samples, so refinement has nothing to halve in it: a refused Hermite is
 marched, and the march's carrier is refined as any is. The fit is given
 the cubic's four samples where the march gave fewer, by halving gaps at
-their midpoints settled onto the locus; nothing else sets a sample count
-but the curvature and the certificate. Where neither candidate
-certifies, the march's refusal stands, except on a branch whose march
-refused for want of step, which is a sized refusal in the distance
-between its ends carrying the Hermite's refusal, and on one too short
-for its gaps to be halved, half of one falling in the band, which is a
-sized refusal in its length (`SsiError::ShortBranchUncertified`). The
-sized refusal names the lever of what bounds the branch: the wall, or
-the caller's slab. The extent sizes no realized
+their midpoints settled onto the locus, read where they do not settle
+as refinement reads them. Where nothing halves, a polyline half of one
+of whose gaps, or half of whose length, falls in the band is a sized
+refusal in its length (`SsiError::ShortBranchUncertified`), naming the
+lever of what bounds the branch, the wall or the caller's slab; any
+other stops with nothing to halve, the lane's own limit its refusal.
+Where neither candidate certifies, the march's refusal stands, with
+two exceptions. Where the march's own states were too short to halve,
+their sized refusal carries the Hermite's. Where the march refused for
+want of step, its step in the band, the Hermite's refusal on the
+transversality decision at an end stands where it refused there (the
+march refuses at its own first state as the Hermite does at that end,
+so the Hermite refused at the far end, which the march never reaches);
+otherwise the branch may be long and the step is the short quantity,
+and the refusal is the step's (`SsiError::MarchStepInBand`), carrying
+the Hermite's, its levers the bend and the tolerance below which the
+step clears the band. The extent sizes no realized
 step; it is the lever arm's clamp, the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of

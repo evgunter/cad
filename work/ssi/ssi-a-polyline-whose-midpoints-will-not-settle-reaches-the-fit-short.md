@@ -37,16 +37,15 @@ a row shows the case cannot arise.
 
 ## Closed (2026-10-05, PR 4034)
 
-Refinement's one-arc stop replaces the short exit. `refine.rs::halve`
-keeps a midpoint only where it settles within half its gap and the
-settling residual of the gap's chord midpoint, the most an arc turning
-by at most π lies from it. A midpoint that settles farther, or does
-not settle, refuses the polyline as not one arc
-(`SsiError::PolylineNotOneArc`, the march's limit, one recourse); in
-`fit_minimum`, so does a polyline none of whose midpoints settles
-inside the domain and none of whose half gaps falls in the band. Every
-other exit of `fit_minimum` is the sized refusal, so `Fit(TooFewPoints)`
-is unreachable from refinement. Rows:
-`the_fits_minimum_halves_to_four_and_stops_at_a_gap_of_more_than_one_arc`
-and `refinement_stops_at_a_gap_that_does_not_hold_one_arc`
+`fit_minimum` no longer returns a polyline short. A midpoint that does
+not settle is read by the march's transversality decision at the gap's
+chord midpoint: near tangent, that refusal stands (the clearer angle);
+clear of the band, the gap counts as `unsettled`. Where nothing halves,
+a polyline half of a gap or of whose length falls in the band refuses
+sized (`ShortBranchUncertified`), and any other stops with nothing to
+halve (`RefinementExhausted`/`NothingToHalve`), the lane's own limit as
+its refusal: on the ℝ³ lane the slab's (`TraceUnresolved`). So
+`Fit(TooFewPoints)` is unreachable from refinement. Rows:
+`the_fits_minimum_halves_to_four_keeping_every_settled_midpoint` and
+`a_midpoint_that_does_not_settle_is_read_by_the_transversality_at_its_chord`
 (`ssi/refine.rs`).

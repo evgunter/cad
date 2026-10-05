@@ -1812,6 +1812,48 @@ pub(crate) mod tests {
         }
     }
 
+    /// **No march holds more tries than its budget.** The `x` axis
+    /// marched from `x = ½` in the unit context: the first try, the
+    /// domain's diagonal, and its half leave the box with their midpoints
+    /// outside it too, so the march keeps its third try, which leaves the
+    /// box with its midpoint inside, and the trace ends on its first kept
+    /// step, three tries in. Under budgets of one and two tries the march
+    /// refuses naming the budget, rather than overrunning it inside one
+    /// step's halvings; from three it traces.
+    #[test]
+    fn no_march_holds_more_tries_than_its_budget() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let sys = FixedSpeedR3::at_speed(1.0);
+        let run = |max_steps| {
+            let ctx = MarchContext {
+                max_steps,
+                ..unit_ctx(band)
+            };
+            march(
+                &sys,
+                &super::SlabExit,
+                [0.5, 0.0, 0.0],
+                ctx,
+                StepperMode::Realized,
+                1.0,
+                band,
+            )
+        };
+        for budget in 1..=4 {
+            match run(budget) {
+                Ok(trace) => {
+                    assert!(budget >= 3, "traced under {budget}");
+                    assert_eq!(trace.steps, 3, "three tries under {budget}");
+                }
+                Err(SsiError::StepBudget { budget: named, .. }) => {
+                    assert!(budget < 3, "refused under {budget}");
+                    assert_eq!(named, budget);
+                }
+                Err(e) => panic!("under {budget}: {e}"),
+            }
+        }
+    }
+
     /// **A branch marched both ways from its seed spends one step
     /// budget.** The idealized stepper crosses the unit context's domain
     /// from its centre in about a thousand steps each way. Under a budget

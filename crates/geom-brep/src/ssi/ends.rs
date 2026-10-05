@@ -14,10 +14,8 @@
 //!   chart lane, whose limb 3 proves the tube holds one arc.
 //! - Where the certificate refuses it, the march leaves `A` inward, its
 //!   step the curvature's against ε, kept only where its predicted state
-//!   lies on the locus (`super::march`), so nothing it reads belongs to
-//!   another branch. It stops at
-//!   its first state outside the rectangle, and that step is matched to
-//!   the unused
+//!   lies on the locus (`super::march`). It stops at its first state
+//!   outside the rectangle, and that step is matched to the unused
 //!   crossing on the side it left within the step's reach, the one
 //!   nearest where the step's chord meets the side where two are
 //!   (branches converging on a side). A march that leaves where no
@@ -28,9 +26,11 @@
 //! for nothing; C2's three limbs decide either. The march's states reach
 //! the fit with at least the cubic's four samples, by halving
 //! (`super::refine::fit_minimum`). Where neither candidate certifies,
-//! the march's refusal stands, except where the march refused for want
-//! of step or its states were too short to halve: a sized refusal in the
-//! branch's length ([`SsiError::ShortBranchUncertified`], [`neither`]).
+//! the march's refusal stands, except where its states were too short to
+//! halve, a sized refusal in the length along them
+//! ([`SsiError::ShortBranchUncertified`]), or it refused for want of
+//! step, the step's refusal ([`SsiError::MarchStepInBand`]); both carry
+//! the Hermite's ([`neither`]).
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::linalg::svd::Svd;
@@ -601,7 +601,7 @@ mod tests {
     /// transversality, an undecided step on a margin that is no number,
     /// or a certificate's refusal, the march's refusal is returned.
     #[test]
-    fn a_short_branchs_sized_refusal_masks_no_more_specific_march_refusal() {
+    fn a_branch_is_sized_short_only_where_its_march_states_were() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let cause = |margin| Indeterminate {
             margin,

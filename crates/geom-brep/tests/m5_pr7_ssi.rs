@@ -4471,8 +4471,8 @@ fn a_wall_corner_outside_the_planes_window_refuses() {
 /// `(0.0378125, −0.08046875, 0.9944375)` on the loop about 0.1 mm above
 /// the face. That seed is no branch. A seed further in marches the arc
 /// below the face, which certifies as the one branch, ending on the
-/// boundary, but at ε 1e-6, where the march's last state lands in the
-/// band outside the face and the open end escalates.
+/// boundary, but at ε 1e-6, where a march state lands in the band of
+/// the face and the open end escalates.
 #[test]
 fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
     let d = SsiDomain {
@@ -4497,8 +4497,8 @@ fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
         }) if eps() == 1e-6 => {
             vacuity::stood_down(
                 "ε 1e-6",
-                "the march's last state lands 2.8e-6 m outside the face, in the band, and the \
-                 open end escalates (work/ssi/ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end.md)",
+                "a march state lands within the band of the face, and the open end escalates \
+                 (work/ssi/ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end.md)",
             );
             assert!(
                 !cause.margin.is_invalid(),
@@ -4668,10 +4668,13 @@ fn a_curved_domes_level_loop_certifies_at_every_eps() {
         };
         let at = format!("d = {d}, ε {:e}", eps());
         let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, b);
-        let samples = match eps() {
-            1.0e-6 => 180..205,
-            1.0e-9 => 1000..1150,
-            1.0e-12 => 5700..6450,
+        let samples = match (d == 1.0, eps()) {
+            (true, 1.0e-6) => 180..190,
+            (true, 1.0e-9) => 1000..1060,
+            (true, 1.0e-12) => 5700..5900,
+            (false, 1.0e-6) => 195..205,
+            (false, 1.0e-9) => 1100..1165,
+            (false, 1.0e-12) => 6250..6500,
             _ => {
                 vacuity::stood_down(
                     &at,

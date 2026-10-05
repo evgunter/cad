@@ -572,21 +572,17 @@ pub enum SsiError {
         /// traced through an interior seed.
         from: Option<BoundaryPoint>,
     },
-    /// A branch too short at this tolerance for any candidate: between
-    /// known ends, its march refused for want of step and its Hermite
-    /// was refused; or its samples are too short for their gaps to be
-    /// halved to the cubic fit's, half of one falling in the band
-    /// (`ssi_refine_halving`).
+    /// A branch whose samples are too short for their gaps to be halved
+    /// to the cubic fit's, half of a gap or of the whole falling in the
+    /// band (`ssi_refine_halving`).
     ShortBranchUncertified {
-        /// The branch's length in metres: between its ends where its
-        /// march could not step, along its samples where they could not
-        /// be halved.
+        /// The branch's length along its samples, in metres.
         length: f64,
         /// The refusal of the Hermite cubic through the branch's two
         /// ends, on the lane that tries one.
         limb: Option<Box<SsiError>>,
-        /// The verdict that fell in the band: on the march's step, or on
-        /// half the longest gap that could not be halved.
+        /// The verdict that fell in the band: on half a gap, or on half
+        /// the polyline's length.
         verdict: BandVerdict,
         /// What bounds the branch, whose lever the refusal names.
         bounded_by: BranchBound,
@@ -2106,7 +2102,8 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
 /// that collapses into the band, overflows, or does not move the state
 /// comes from operands outside the model's size range, or from a slab
 /// whose diagonal caps the step. Between a plane × NURBS branch's known
-/// ends, a march refused for want of step is a short branch instead.
+/// ends, a march refused for want of step is the step's own refusal
+/// ([`SsiError::MarchStepInBand`]) instead.
 const STEP_SCALE: SizedDecision = SizedDecision {
     lever: "bring the operands within the model's size range, or name a domain that holds more \
             of the intersection",

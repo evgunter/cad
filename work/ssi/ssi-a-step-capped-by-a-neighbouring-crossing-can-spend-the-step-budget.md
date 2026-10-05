@@ -138,26 +138,45 @@ Two designers weighed it over two rounds. The record is in `docs/DESIGN-FORK-LOG
 - `match_exit` picks the nearest crossing to the chord's meeting point. Uncapped chords make it worth settling by identity (Newton the exit onto the side).
 - The march's per-state transversality lever reads the chart, not the geometry. This is covered by `ssi-transversality-at-a-point-is-spelled-three-ways`.
 
-## Built (PR 4034, 2026-10-04)
+## Built (PR 4034)
 
 - `StepCap::Crossing` and its ending retire; so do the ℝ³ lane's
-  short-branch re-march (`StepCap::ShortBranch`, `SHORT_BRANCH_STEPS`),
-  which was the same class, and the march's `cap` parameter: the caps
-  left are the domain's diagonal and the idealized step.
-- `refine::fit_minimum` gives every polyline the cubic's four samples,
-  halving its longest gap whose midpoint settles, before any certificate
-  (inside `refine_by_certificate`, so `Ends::finish`, the at-rest door
-  through `Ends::through_seed`, and `finish_r3`). Where half a gap falls
-  in the band it stops, and that stop is `ShortBranchUncertified`
-  (`ssi_short_branch` retires); `neither` asks it of the branch's two
-  ends where the march refused for want of step.
-- Found in the build: with the cap gone, a straight carrier on a chart
-  that bends (a rational flat wall) was predicted a domain diagonal
-  ahead in state space and lost (`CrossingUnmatched`). The carrier rungs
-  do not read the chart's bending, and the cap had been bounding the
-  predictor. The march now also bounds its step by Hoffmann's relative
-  heuristic on the state it advances (`h·‖d₂‖ ≤ 2ρ`,
-  `h²·‖d₃‖ ≤ 6ρ`), which reads only the branch's own chart.
-- Filed: `ssi-match-exit-picks-the-crossing-nearest-a-chord` (P3) and
+  short-branch re-march (`StepCap::ShortBranch`, `SHORT_BRANCH_STEPS`)
+  and the march's `cap` parameter: the caps left are the domain's
+  diagonal and the idealized step.
+- **The step rule** (`ssi/march.rs`). The rungs read the curvature at
+  the step's start, on the carrier and on the state the step advances
+  (Hoffmann's relative heuristic, `h·‖d₂‖ ≤ 2ρ`, `h²·‖d₃‖ ≤ 6ρ`, which
+  reads the wall chart's bending a straight carrier hides). Each step's
+  first try is at most twice the last kept. A try is kept where its
+  predicted state's residual is at most ε plus the settle tolerance; a
+  try that leaves the domain needs its midpoint and its last predicted
+  state inside (a fixed bisection) on the locus instead. Otherwise it
+  halves, down to the band, where `ssi_step_progress` refuses. Every
+  try counts against `SSI_MAX_STEPS`, and the halving stops at the
+  budget.
+- **Refinement** (`ssi/refine.rs`). `fit_minimum` gives every polyline
+  the cubic's four samples by halving its longest gap. A midpoint is
+  kept wherever it settles inside the domain. One that does not settle
+  is read by `ssi_transversality` at the gap's chord midpoint: in the
+  band or undecided it refuses there (`TransversalityBand`, the clearer
+  angle's lever); clear, the gap counts as `unsettled` in
+  `NothingToHalve`, beside `off_domain`. Where nothing halves in
+  `fit_minimum`, a gap or the polyline whose half falls in the band is
+  `ShortBranchUncertified`, its bound the lane's (`BranchBound::of_lane`);
+  otherwise `RefinementExhausted`/`NothingToHalve` with the lane's own
+  limit as its refusal. In refinement rounds, limb 3 is asked once
+  (`certify::Limbs::Tube`) where the refused margin stops falling, and
+  its refusal stands: a carrier across two branches fails limbs 1 and
+  2 at a margin no halving lowers.
+- **`neither`** (`ssi/ends.rs`). The march's refusal stands, but where
+  its own states were too short to halve (their sized refusal carries
+  the Hermite's), and where it refused for want of step: the Hermite's
+  transversality refusal at an end, else `MarchStepInBand`, the step's
+  own refusal with the bend's lever and the step's tolerance, carrying
+  the Hermite's.
+- Filed: `ssi-match-exit-picks-the-crossing-nearest-a-chord` (P3),
   `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short`
-  (P3).
+  (closed by this PR) and
+  `ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end`
+  (P2).
