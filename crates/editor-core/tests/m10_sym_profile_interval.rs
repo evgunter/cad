@@ -459,15 +459,22 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   variables sort differently inside the forms: the five digests of
 ///   lines that build forms move, and every count — calls, forms,
 ///   frozen — holds.
+/// - **The joint elements (the re-anchor ruling, PR 4024).** A loop's
+///   walk decides its closure joint as every other joint, between two
+///   images, and reads the winding off the integer elements, so the
+///   closure margins go and the closure joints' branch, pole-lever and
+///   continuity margins come: `Assertion` calls +14 on every walk and
+///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
+///   −31. Every digest moves; the freezes hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16623 frozen 696 digest afb580cdb4139c0a6f4fb7bb0c06af69\n\
-     Plain/Assertion calls 650 forms 3921 frozen 372 digest 9d1c4740eb9b7b59755169027c7cf610\n\
+     Plain/Decision calls 1143 forms 16596 frozen 696 digest 552c90e3f81bbc1b4c60c2c582b61a1a\n\
+     Plain/Assertion calls 664 forms 3944 frozen 372 digest 3fc3c1d6ccf7251c60ae7b7ad0cd5f7d\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 432 forms 9430 frozen 8 digest 08d72e9b1d5a29e9b1850786b2949e74\n\
-     Early/Assertion calls 650 forms 4837 frozen 0 digest 540b584b451d915249a8652baa5d90a9\n\
+     Early/Decision calls 432 forms 9399 frozen 8 digest 7804ce3c229e1f27e2ec128de098ae55\n\
+     Early/Assertion calls 664 forms 4860 frozen 0 digest da899654fa4aca546b0c78ee005e679c\n\
      Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 582 forms 13610 frozen 0 digest 9b2cc009a86dc94a74a1e5bd3b29a160\n\
-     Door/Assertion calls 394 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Door/Decision calls 596 forms 13624 frozen 0 digest 97586c9dae132defdcb8611d00243c26\n\
+     Door/Assertion calls 408 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

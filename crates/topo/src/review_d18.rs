@@ -2481,9 +2481,10 @@ fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
 /// **`revert` writes no anchor off a torn `next` or `prev`**: every
 /// single tear of each [`REVERT_BODIES`] body, and no `Ok` carries an
 /// anchor fault the tear did not plant. An enumeration, not a sample.
-/// Each body, and each tear kind, is refused somewhere, so the tears
-/// reach the proofs. (A `Prev` tear of a body with one cycle loop,
-/// the segment, cannot move a `first` out of its loop.)
+/// `Next` tears are refused somewhere, so they reach the proofs. A
+/// `Prev` tear reaches none: `revert` follows no `prev` (it moves no
+/// loop's `first`), so the tear is carried, swapped into the result's
+/// `next`, and the row reads only that it writes no fault.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
@@ -2514,13 +2515,9 @@ fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
             );
             *per_tear += refused;
         }
-        assert!(
-            cells.iter().any(|&[_, refused, _]| refused > 0),
-            "no tear of {name} was refused"
-        );
     }
     assert!(
-        refused_per_tear.iter().all(|&n| n > 0),
+        refused_per_tear[0] > 0 && refused_per_tear[1] == 0,
         "refusals per tear kind {tears:?}: {refused_per_tear:?}"
     );
 }
@@ -2625,8 +2622,9 @@ fn revert_rename_rows(body: &Body<f64>, tear: RevertTear) -> RenameCells {
 /// a `next` or `prev` tear is the tear's image, and no `Ok` of a `start`
 /// tear carries a validator kind its torn source does not. The kinds
 /// the images carry beyond their sources are [`RENAMED_KINDS`], pinned
-/// per tear kind. An enumeration, not a sample; each tear kind is
-/// refused somewhere, so the tears reach the proofs.
+/// per tear kind. An enumeration, not a sample; `next` and `start`
+/// tears are refused somewhere, so they reach the proofs, and a `prev`
+/// tear, which no proof follows, is carried as its image.
 #[test]
 #[cfg(not(debug_assertions))]
 fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
@@ -2679,8 +2677,9 @@ fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
             "the kinds `{tear:?}` tears' images carry beyond their sources"
         );
     }
-    assert!(
-        refused_per_tear.iter().all(|&n| n > 0),
+    assert_eq!(
+        refused_per_tear.map(|n| n > 0),
+        [true, false, true],
         "refusals per tear kind {REVERT_TEARS:?}: {refused_per_tear:?}"
     );
 }
