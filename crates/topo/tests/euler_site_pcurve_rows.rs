@@ -1438,7 +1438,7 @@ fn a_kev_strut_writes_the_sum_of_two_periods() {
 /// halves and the bridged joint is read against the pass alone.
 #[test]
 fn a_kev_mirror_writes_the_sum_of_two_periods() {
-    let (mut body, face, s_q, q_t) = arc_chain_over_the_jump();
+    let (mut body, _, s_q, q_t) = arc_chain_over_the_jump();
     let members = body.kev_merged_members(q_t[1]).unwrap();
     let edge = body.get_half_edge(s_q[0]).unwrap().edge;
     assert_eq!(
