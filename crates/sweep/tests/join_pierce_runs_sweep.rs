@@ -1314,6 +1314,35 @@ fn a_nested_pairing_at_a_shared_vertex_refuses_typed() {
     }
 }
 
+/// **A fan at a shared vertex reads the other pair's cuts from its own
+/// first entry.** [`notch343`] against the corner pinch at the pinch
+/// battery's poses `i=0 j=3 k=2` and `i=1 j=5 k=2`. With the pinch first
+/// the notch's vertex is B's and shared; a fan's run there is weighed
+/// against the other pair's cuts, which lie in its first and last
+/// entries. Every op in both orders builds `SOUND`. Red as
+/// `ClassificationInvariant` ("a vertex at a shared point is the In end
+/// of one null edge and the Out end of another") when the run's cuts are
+/// read from the orbit's first entry instead (`insert::held_cut`).
+#[test]
+fn a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry() {
+    let mut bad = Vec::new();
+    for (i, j, k) in [(0, 3, 2), (1, 5, 2)] {
+        let psi = f64::from(k) * 1.05 + 0.1;
+        for (tag, r, want) in pinch_runs(direction(i, j), psi) {
+            let line = outcome(r, want, tol());
+            if !line.starts_with("OK SOUND") {
+                bad.push(format!("i={i} j={j} k={k} {tag}: {line}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
 /// **The pinch battery**: [`notch343`] against [`pinch_runs`]' two-cube
 /// corner pinch over the sweep's 84 directions, each turned
 /// `psi = 1.05 k + 0.1` for six `k`, every op in both orders. Prints one
@@ -1382,4 +1411,70 @@ fn pinch_runs(
         }
     }
     out
+}
+
+/// A named pair of corners.
+type CornerPair = (&'static str, fn() -> Corner, fn() -> Corner);
+
+/// **The corner-pairs battery**: reflex corner pairs at one vertex over
+/// the sweep's grid plus axis-aligned turns and exact-tie turns
+/// (ψ ∈ {0, π/2, π}), every op in both orders. One [`outcome`] line
+/// per run, for a diff between two trees.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn corner_pairs_battery() {
+    let pairs: [CornerPair; 5] = [
+        ("n343-n343", notch343, notch343),
+        ("w343-w330", || wedge(343.0), || wedge(330.0)),
+        ("w345-n343", wedge345, notch343),
+        ("w300-w270", || wedge(300.0), || wedge(270.0)),
+        ("w350-w200", || wedge(350.0), || wedge(200.0)),
+    ];
+    let mut dirs: Vec<(String, [f64; 3])> = Vec::new();
+    for i in 0..12 {
+        for j in 0..7 {
+            dirs.push((format!("i={i} j={j}"), direction(i, j)));
+        }
+    }
+    for (name, m) in [
+        ("z", [0.0, 0.0, 1.0]),
+        ("-z", [0.0, 0.0, -1.0]),
+        ("x", [1.0, 0.0, 0.0]),
+        ("y", [0.0, 1.0, 0.0]),
+        ("xy", [1.0, 1.0, 0.0]),
+        ("xyz", [1.0, 1.0, 1.0]),
+        ("-xyz", [-1.0, -1.0, 1.0]),
+    ] {
+        dirs.push((name.to_owned(), m));
+    }
+    let psis = [
+        0.0,
+        0.7,
+        2.3,
+        std::f64::consts::FRAC_PI_2,
+        std::f64::consts::PI,
+        4.4,
+    ];
+    for (pname, a, b) in pairs {
+        let (a, b) = (a(), b());
+        for (dname, m) in &dirs {
+            for psi in psis {
+                let f = frame(*m, psi);
+                let runs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    corner_pair_runs(&a, &b, f)
+                        .into_iter()
+                        .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, tol())))
+                        .collect::<Vec<_>>()
+                }));
+                match runs {
+                    Ok(lines) => {
+                        for l in lines {
+                            println!("{pname} {dname} psi={psi:.4} {l}");
+                        }
+                    }
+                    Err(_) => println!("{pname} {dname} psi={psi:.4} PANIC"),
+                }
+            }
+        }
+    }
 }
