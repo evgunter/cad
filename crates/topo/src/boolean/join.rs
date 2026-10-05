@@ -1333,7 +1333,8 @@ fn locus_at_site<T: Decide>(
             body.half_edge_end(he)
                 .ok_or(desync("germ half no longer resolves"))?,
         ],
-    );
+    )
+    .map_err(|_| desync("a germ's site holds a vertex that no longer resolves"))?;
     let (u, v) = body
         .edge_vertices(edge)
         .ok_or(desync("an OnEdge germ's edge no longer resolves"))?;

@@ -94,6 +94,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopK
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
+use crate::live::{linked, proven};
 use crate::null::CurveGeom;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
@@ -2350,7 +2351,10 @@ fn along_edge_spec<T: Decide>(
             let e_end = body
                 .half_edge_end(e.he_plus)
                 .ok_or_else(|| corrupt_he(e.he_plus))?;
-            let tied = null_site(body, &[u1]);
+            let tied = null_site(body, &[u1]).map_err(|_| SplitJoinError::SectionInvariant {
+                face,
+                what: "a chord end's site holds a vertex that no longer resolves",
+            })?;
             let forward = match (tied.contains(&e_start), tied.contains(&e_end)) {
                 (true, false) => true,
                 (false, true) => false,
@@ -2384,17 +2388,33 @@ fn along_edge_spec<T: Decide>(
 /// included — the copies one crossing site was split into, however
 /// many null edges it holds. A null edge's two ends are the same point,
 /// so the site is one point held by several vertices.
-pub(crate) fn null_site<T: Decide>(body: &Body<T>, from: &[VertexKey]) -> Vec<VertexKey> {
+///
+/// Runs on bodies mid-operation. `Err` names a vertex of the site that
+/// does not resolve: one of `from`, the caller's keys, or a copy a null
+/// edge's attribute names, whose currency is the minting and consuming
+/// operators' and no tier-1 rule's ([`crate::null::NullEdge`]), so
+/// neither is proven. Past a vertex that resolves, its orbit, each
+/// member's edge and that edge's curve are links every Euler operator
+/// leaves resolving, and a miss panics.
+pub(crate) fn null_site<T: Decide>(
+    body: &Body<T>,
+    from: &[VertexKey],
+) -> Result<Vec<VertexKey>, VertexKey> {
     let mut site: Vec<VertexKey> = from.to_vec();
     let mut i = 0;
     while i < site.len() {
         let v = site[i];
-        for k in body.edges_of_vertex(v).unwrap_or_default() {
-            let Some(attr) = body
-                .get_edge(k)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(CurveGeom::null_scaffold)
-            else {
+        body.get_vertex(v).ok_or(v)?;
+        for he in body.vertex_orbit_linked(v) {
+            let k = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let e = linked(
+                &body.edges,
+                k,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            let Some(attr) = body.edge_curve_linked(k, e).null_scaffold() else {
                 continue;
             };
             for w in [attr.below_end, attr.above_end] {
@@ -2405,7 +2425,7 @@ pub(crate) fn null_site<T: Decide>(body: &Body<T>, from: &[VertexKey]) -> Vec<Ve
         }
         i += 1;
     }
-    site
+    Ok(site)
 }
 
 /// Where one of [`ChordJoiner::join`]'s two chords is minted: the
@@ -3509,5 +3529,72 @@ mod section_case_pair_tests {
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),
         }
+    }
+}
+
+/// **[`null_site`] answers a site vertex that does not resolve typed,
+/// and panics on a torn link past one that does.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod null_site_rows {
+    use super::*;
+    use crate::null::NewVertexSide;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    /// A declined cube with one null strut at its seed vertex: the
+    /// body, the seed, the strut's copy and its curve.
+    fn strut() -> (Body<f64>, VertexKey, VertexKey, crate::geometry::CurveKey) {
+        let cube = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness());
+        let mut body = cube.body;
+        let seed = cube.seed.vertex;
+        let he = body.get_vertex(seed).unwrap().emanating.unwrap();
+        let created = body
+            .mev_null(
+                crate::MevSite::Fan { he1: he, he2: he },
+                NewVertexSide::Above,
+            )
+            .unwrap();
+        (body, seed, created.vertex, created.curve)
+    }
+
+    /// The root the caller passed, and a copy a null edge's attribute
+    /// names, each answer `Err` naming the vertex when they do not
+    /// resolve; a sound site is the seed and its copy. Read as absent,
+    /// either would answer a site short of the vertex.
+    #[test]
+    fn a_site_vertex_that_does_not_resolve_answers_typed() {
+        let (mut body, seed, copy, curve) = strut();
+        assert_eq!(
+            null_site(&body, &[seed]),
+            Ok(vec![seed, copy]),
+            "sound site"
+        );
+        let data = body.get_vertex(seed).unwrap().clone();
+        let stale = body.vertices.insert(data);
+        body.vertices.remove(stale);
+        assert_eq!(null_site(&body, &[stale]), Err(stale), "a stale root");
+        let Some(CurveGeom::NullScaffold(attr)) = body.curves.get_mut(curve) else {
+            panic!("the strut's curve is null scaffolding");
+        };
+        attr.above_end = stale;
+        assert_eq!(null_site(&body, &[seed]), Err(stale), "a stale copy");
+    }
+
+    /// An edge at a resolved site vertex whose curve does not resolve
+    /// panics naming it, where the read skipped it as no strut.
+    #[test]
+    fn a_torn_curve_at_a_site_vertex_panics() {
+        let (mut body, seed, _, strut_curve) = strut();
+        let (edge, curve) = body
+            .edges_of_vertex_linked(seed)
+            .into_iter()
+            .map(|e| (e, body.get_edge(e).unwrap().curve))
+            .find(|&(_, c)| c != strut_curve)
+            .unwrap();
+        body.curves.remove(curve);
+        let named = format!("{}'s curve names", EntityId::Edge(edge));
+        assert_torn_op_panics("null_site", &mut body, &[&named, ROW_FOUR], |b| {
+            null_site(b, &[seed])
+        });
     }
 }

@@ -38,8 +38,9 @@ use crate::validate::decide;
 ///
 /// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
 /// `Nurbs` carrier refuses typed only when the plane may meet it
-/// ([`edge_clears`]). A face whose surface key does not resolve is a
-/// torn body and panics; null scaffolding refuses as ever.
+/// ([`edge_clears`]). A face whose surface key, or an edge whose curve
+/// key, does not resolve is a torn body and panics (the operand is a
+/// public body, at rest); null scaffolding refuses as ever.
 pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -65,8 +66,8 @@ pub(super) fn gate_operand<T: Decide>(
         }
     }
     for (edge_key, edge) in body.edges() {
-        match body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(curve)) => match curve.carrier() {
+        match body.edge_curve_linked(edge_key, edge) {
+            CurveGeom::Certified(curve) => match curve.carrier() {
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
@@ -89,6 +90,13 @@ pub(super) fn gate_operand<T: Decide>(
 /// sound box of its own (`EdgeBoxRule::NoSoundBox`), so its faces'
 /// reaches are what clear it. `frame` is the plane's
 /// ([`BoxFrame::aimed`] at its normal).
+///
+/// `edge` is one this call's caller read out of the body: the gate's
+/// arena walk over the at-rest operand, or `insert_crossings`' snapshot
+/// of it, where only `split_edge`s of other snapshot edges stand
+/// between, and they remove no edge and rewrite no other edge's halves.
+/// So `edge` is proven, and its halves and their faces are links, which
+/// panic on a miss.
 fn edge_clears<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -96,15 +104,12 @@ fn edge_clears<T: Decide>(
     band: Band,
     frame: &BoxFrame<T>,
 ) -> bool {
-    let bounding = body
-        .get_edge(edge)
-        .map(|e| [e.he_plus, e.he_minus].map(|he| body.face_of_half_edge(he)));
+    let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
     reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
-        || bounding
-            .into_iter()
-            .flatten()
-            .flatten()
-            .any(|face| reach_clears(gate_face_reach(body, face, band, frame), plane, band))
+        || [e.he_plus, e.he_minus].into_iter().any(|he| {
+            let face = body.face_of_linked(he);
+            reach_clears(gate_face_reach(body, face, band, frame), plane, band)
+        })
 }
 
 /// K name: a sphere face's polar axis, read as a unit direction for
@@ -126,14 +131,19 @@ const SPLIT_GATE_TORUS_RING: &str = "split_gate_torus_ring";
 /// cylinder would refuse every cut of the cylinder; its box for a torus
 /// samples the rectangle and pays a subdivision charge that reaches
 /// thousandths of the radii.
+///
+/// `face` is read out of the body by the caller (the gate's arena walk,
+/// or a half's face in [`edge_clears`]), so it is proven, and its
+/// surface is a link: either miss panics. `None` is the reach's own:
+/// no claim to make.
 fn gate_face_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
     frame: &BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    let f = body.get_face(face)?;
-    let patch = match body.get_surface(f.surface)? {
+    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+    let patch = match body.face_surface_linked(face, f) {
         surface @ geom::Surface::Sphere { .. } => {
             sphere_zone_reach(body, face, f, surface, band, frame)
         }
@@ -815,9 +825,14 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         };
         let u = start(body, edge.he_plus, "he_plus");
         let v = start(body, edge.he_minus, "he_minus");
-        let curve = match body.get_curve_geom(edge.curve) {
-            Some(CurveGeom::Certified(c)) => c.clone(),
-            _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
+        // The snapshot's record is the live one: no `split_edge` before
+        // this one touched this edge, and none removes a curve an edge
+        // still names, so the curve is a link and its miss panics.
+        let curve = match body.edge_curve_linked(edge_key, &edge) {
+            CurveGeom::Certified(c) => c.clone(),
+            CurveGeom::NullScaffold(_) => {
+                return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key });
+            }
         };
         let (t0, t1) = curve.params();
         let roots: Vec<T> = match plane_crossing_lane(
@@ -1297,5 +1312,40 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+/// **A torn curve panics at the split gate and at the crossing
+/// insertion**, where a read that took the miss for scaffolding refused
+/// it as `ScaffoldingOperand` (real scaffolding keeps that refusal:
+/// `review_m3_pr2`'s gate row).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::entity::EntityId;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn a_torn_curve_panics_at_the_gate_and_the_crossing_insertion() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::unit_z(),
+            tol,
+        );
+        let (edge, curve) = body.edges().next().map(|(k, e)| (k, e.curve)).unwrap();
+        let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
+        body.curves.remove(curve);
+        let named = format!("{}'s curve names", EntityId::Edge(edge));
+        assert_torn_op_panics("gate_operand", &mut body, &[&named, ROW_FOUR], |b| {
+            super::gate_operand(b, &plane, band)
+        });
+        assert_torn_op_panics("insert_crossings", &mut body, &[&named, ROW_FOUR], |b| {
+            super::insert_crossings(b, &plane, &mut sides, &mut on, tol)
+        });
     }
 }

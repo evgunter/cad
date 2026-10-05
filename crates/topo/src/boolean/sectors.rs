@@ -871,7 +871,7 @@ pub(super) fn germ_locus<T: Decide>(
 ) -> Result<super::Locus, BooleanError> {
     let in_face = super::Locus::InFace(side.sector.face);
     Ok(match along(side)? {
-        Some(e) if touch(side, e.far, contacts) != Touch::Apart => super::Locus::OnEdge(e.edge),
+        Some(e) if touch(side, e.far, contacts)? != Touch::Apart => super::Locus::OnEdge(e.edge),
         _ => in_face,
     })
 }
@@ -898,10 +898,7 @@ pub(super) fn germ_loci<T: Decide>(
     let (Some(ea), Some(eb)) = (along(a)?, along(b)?) else {
         return Ok((germ_locus(a, contacts)?, germ_locus(b, contacts)?));
     };
-    let (far_a, far_b) = (
-        crate::chord_join::null_site(a.body, &[ea.far]),
-        crate::chord_join::null_site(b.body, &[eb.far]),
-    );
+    let (far_a, far_b) = (site_of(a.body, ea.far)?, site_of(b.body, eb.far)?);
     let paired = contacts
         .vv
         .iter()
@@ -914,7 +911,7 @@ pub(super) fn germ_loci<T: Decide>(
             tangent_face(side, partner, e.edge, contacts)?.unwrap_or(side.sector.face),
         ))
     };
-    let (ta, tb) = (touch(a, ea.far, contacts), touch(b, eb.far, contacts));
+    let (ta, tb) = (touch(a, ea.far, contacts)?, touch(b, eb.far, contacts)?);
     Ok(match ta.cmp(&tb) {
         core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)?),
         core::cmp::Ordering::Less => (tangent(a, b, eb)?, OnEdge(eb.edge)),
@@ -1040,28 +1037,42 @@ fn along<T: Decide>(side: GermSide<'_, T>) -> Result<Option<Along>, BooleanError
     }))
 }
 
+/// The site of `vertex` ([`crate::chord_join::null_site`]). A site
+/// vertex that no longer resolves refuses: `vertex` itself where the
+/// caller carried it across the reduction's surgery, or a copy a null
+/// edge names, an attribute no link rule covers.
+fn site_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Vec<VertexKey>, BooleanError> {
+    crate::chord_join::null_site(body, &[vertex]).map_err(|_| {
+        BooleanError::ClassificationInvariant {
+            what: "a germ's site holds a vertex that no longer resolves",
+        }
+    })
+}
+
 /// What the reduction recorded at the site of `far`, a vertex of the
 /// germ side's operand, against the partner.
 fn touch<T: Decide>(
     side: GermSide<'_, T>,
     far: VertexKey,
     contacts: &super::ContactRecords,
-) -> Touch {
-    let site = crate::chord_join::null_site(side.body, &[far]);
-    if on_faces(contacts, side.operand)
-        .iter()
-        .any(|c| site.contains(&c.vertex))
-    {
-        Touch::Face
-    } else if contacts
-        .vv
-        .iter()
-        .any(|c| site.contains(&vv_sides(c, side.operand).0))
-    {
-        Touch::Boundary
-    } else {
-        Touch::Apart
-    }
+) -> Result<Touch, BooleanError> {
+    let site = site_of(side.body, far)?;
+    Ok(
+        if on_faces(contacts, side.operand)
+            .iter()
+            .any(|c| site.contains(&c.vertex))
+        {
+            Touch::Face
+        } else if contacts
+            .vv
+            .iter()
+            .any(|c| site.contains(&vv_sides(c, side.operand).0))
+        {
+            Touch::Boundary
+        } else {
+            Touch::Apart
+        },
+    )
 }
 
 /// The recorded contacts of `operand`'s vertices on the partner's faces.
@@ -1096,11 +1107,11 @@ fn tangent_face<T: Decide>(
         proven(&partner.body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
         proven(&partner.body.half_edges, edge.he_minus, EntityId::HalfEdge).start,
     );
-    let near = crate::chord_join::null_site(partner.body, &[partner.site]);
+    let near = site_of(partner.body, partner.site)?;
     let Some(far) = [u, v].into_iter().find(|w| !near.contains(w)) else {
         return Ok(None);
     };
-    let far_site = crate::chord_join::null_site(partner.body, &[far]);
+    let far_site = site_of(partner.body, far)?;
     let mut far_faces: Vec<FaceKey> = on_faces(contacts, partner.operand)
         .iter()
         .filter(|c| far_site.contains(&c.vertex))
@@ -1109,16 +1120,17 @@ fn tangent_face<T: Decide>(
     for c in &contacts.vv {
         let (mine, theirs) = vv_sides(c, side.operand);
         if far_site.contains(&theirs) {
-            far_faces.extend(faces_at(side.body, mine).ok_or(
+            far_faces.extend(faces_at(side.body, mine).map_err(|_| {
                 BooleanError::ClassificationInvariant {
-                    what: "a vertex-vertex contact names a vertex that no longer resolves",
-                },
-            )?);
+                    what: "a vertex-vertex contact's site holds a vertex that no longer resolves",
+                }
+            })?);
         }
     }
-    let at_site = faces_at(side.body, side.site).ok_or(BooleanError::ClassificationInvariant {
-        what: "a germ's site vertex no longer resolves",
-    })?;
+    let at_site =
+        faces_at(side.body, side.site).map_err(|_| BooleanError::ClassificationInvariant {
+            what: "a germ's site holds a vertex that no longer resolves",
+        })?;
     Ok(sole_common_face(&at_site, &far_faces))
 }
 
@@ -1133,14 +1145,18 @@ pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey
 /// The faces around a site of `body` (every copy null edges tie
 /// `vertex` to), deduplicated, null faces skipped. With no null edges
 /// at the site, the faces around `vertex` itself. An isolated vertex
-/// (a pierce-ring vertex joined to nothing) contributes none. `None`
-/// when `vertex` does not resolve: callers pass keys they carry across
-/// the operation's surgery, so the root is an argument; the copies its
-/// null edges name, and every hop past them, are links.
-pub(super) fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<FaceKey>> {
-    body.get_vertex(vertex)?;
+/// (a pierce-ring vertex joined to nothing) contributes none. `Err`
+/// names a site vertex that does not resolve
+/// ([`crate::chord_join::null_site`]): callers pass keys they carry
+/// across the operation's surgery, so the root is an argument, and the
+/// copies its null edges name are no links; every hop past a site
+/// vertex that resolves is one.
+pub(super) fn faces_at<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+) -> Result<Vec<FaceKey>, VertexKey> {
     let mut out = Vec::new();
-    for v in crate::chord_join::null_site(body, &[vertex]) {
+    for v in crate::chord_join::null_site(body, &[vertex])? {
         for he in body.vertex_orbit_linked(v) {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
             let data = linked(
@@ -1159,7 +1175,7 @@ pub(super) fn faces_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<V
             }
         }
     }
-    Some(out)
+    Ok(out)
 }
 
 /// Whether `dir`, coplanar with `s`, runs into its face: within the
