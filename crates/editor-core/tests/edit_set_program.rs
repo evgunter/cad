@@ -477,9 +477,9 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
         applied.maintenance,
         vec![Maintenance::Strand {
             node: r.doc.spoken(fillet),
-            name: r.doc.spoken_name(&crease),
+            name: r.doc.spoken_name(&crease).steps_respoken(&applied.doc),
         }],
-        "the crease's name strands, spelled as it was"
+        "the crease's name strands, its dropped step said by its tag"
     );
     assert_eq!(selection_of(&applied.doc, fillet), vec![crease.clone()]);
     assert_ne!(
@@ -572,7 +572,7 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::StrandedAppearance {
-            name: doc.spoken_name(&arc)
+            name: doc.spoken_name(&arc).steps_respoken(&applied.doc)
         }],
         "the paint on the dropped step's arc strands"
     );
@@ -671,10 +671,10 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
         vec![
             Maintenance::Strand {
                 node: doc.spoken(frame),
-                name: doc.spoken_name(&right),
+                name: doc.spoken_name(&right).steps_respoken(&applied.doc),
             },
             Maintenance::StrandedAppearance {
-                name: doc.spoken_name(&right)
+                name: doc.spoken_name(&right).steps_respoken(&applied.doc)
             },
         ]
     );
@@ -2440,15 +2440,15 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
         .iter()
         .flat_map(|[_, seam, rim]| [seam.clone(), rim.clone()]);
     let (doc, blend) = insert(doc, Node::fillet(loft, len(0.05), edges.collect()));
-    let report = |n: &StableName| {
+    let report = |n: &StableName, after: &ProfileDoc| {
         if n.kind == EntityKind::Face {
             Maintenance::StrandedAppearance {
-                name: doc.spoken_name(n),
+                name: doc.spoken_name(n).steps_respoken(after),
             }
         } else {
             Maintenance::Strand {
                 node: doc.spoken(blend),
-                name: doc.spoken_name(n),
+                name: doc.spoken_name(n).steps_respoken(after),
             }
         }
     };
@@ -2485,7 +2485,7 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let is_live = live(&applied.doc);
     for (k, group) in names.iter().enumerate() {
         for n in group {
-            let reported = applied.maintenance.contains(&report(n));
+            let reported = applied.maintenance.contains(&report(n, &applied.doc));
             assert_eq!(
                 reported,
                 k == 1,

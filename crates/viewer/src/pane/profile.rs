@@ -1349,9 +1349,19 @@ mod tests {
         let before = session.committed_doc().clone();
         let out = session.perform(op.clone());
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        // The removed step is said by its tag: its old row is now
+        // another step's, and the line is read with the new program on
+        // screen.
+        let name = before
+            .spoken_name(&wall)
+            .steps_respoken(session.committed_doc());
+        assert!(
+            name.to_string().contains("the profile step "),
+            "a removed step is said by its tag: {name}"
+        );
         let expected = vec![Maintenance::Strand {
             node: before.spoken(carrier),
-            name: before.spoken_name(&wall),
+            name,
         }];
         assert_eq!(out.maintenance, expected, "the door reports the strand");
         let line: Vec<String> = crate::frame::outcome_notices(&out)
