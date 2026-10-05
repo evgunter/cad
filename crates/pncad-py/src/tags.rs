@@ -1604,6 +1604,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
+        BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",

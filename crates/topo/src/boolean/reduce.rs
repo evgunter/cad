@@ -1349,8 +1349,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     Some(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
                             let p = curve.carrier().eval(t);
-                            let containment =
-                                contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
+                            let containment = contfp(y, face, plane.normal, p, band)
+                                .map_err(|e| esc(e, x_is.other(), face))?;
                             if !matches!(containment, FaceContainment::Out)
                                 && let Some(tr) = trace.as_deref_mut()
                             {
@@ -1432,8 +1432,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     let d2 = (pv - plane.origin).dot(plane.normal);
                     let t = t0 + (t1 - t0) * (d1 / (d1 - d2));
                     let p = curve.carrier().eval(t);
-                    let containment =
-                        contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
+                    let containment = contfp(y, face, plane.normal, p, band)
+                        .map_err(|e| esc(e, x_is.other(), face))?;
                     if !matches!(containment, FaceContainment::Out)
                         && let Some(tr) = trace.as_deref_mut()
                     {
@@ -3506,7 +3506,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(Placement, Option<VertexKey>), BooleanError> {
     let placement = super::contain::curved_face_placement(y, face, px, band)
-        .map_err(|e| esc(e, x_is.other()))?;
+        .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
         CurvedPlacement::OffCarrier => None,
@@ -3575,27 +3575,28 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
     ))
 }
 
-pub(super) fn esc(e: ContainError, operand: Operand) -> BooleanError {
+/// A containment read of `face`, a face of `operand`, refused. The body
+/// is MID-OPERATION — a working copy the reduction has been splitting —
+/// so the operand gate's at-rest verdict does not bind it, and every
+/// arm but the stale face answers typed: a refusal the face door owns
+/// is carried whole with the face it read.
+pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanError {
     match e {
         ContainError::Escalated(diag) => BooleanError::Escalated {
             decision: BooleanDecision::Containment,
             diag,
         },
-        ContainError::RayExhausted => BooleanError::ClassificationInvariant {
-            what: "contfp ray schedule exhausted",
-        },
         ContainError::Uncrossable(cause) => {
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
         ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
-        ContainError::EmptyLoop(_) => BooleanError::ClassificationInvariant {
-            what: "a containment read met a lone-vertex loop on an operand face",
-        },
-        ContainError::LoopUnreadable(_) => BooleanError::ClassificationInvariant {
-            what: "a containment read could not walk a loop of an operand face",
-        },
-        ContainError::Curved(_) => BooleanError::ClassificationInvariant {
-            what: "a containment read of a curved operand face refused its chart read",
+        refusal @ (ContainError::RayExhausted
+        | ContainError::EmptyLoop(_)
+        | ContainError::LoopUnreadable(_)
+        | ContainError::Curved(_)) => BooleanError::PointInFaceRefused {
+            operand,
+            face,
+            refusal,
         },
     }
 }
@@ -3636,7 +3637,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other()))? {
+    match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other(), face))? {
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {
@@ -5678,5 +5679,83 @@ mod neighbour_extent_rows {
             GeomRef::Curve(curve)
         );
         assert!(report.contains(&want), "{report}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod esc_tests {
+    use super::{BooleanError, ContactAcc, Operand, esc, vertex_on_face};
+    use crate::Body;
+    use crate::boolean::contain::ContainError;
+    use crate::boolean::plane_eq::PlaneDesc;
+    use crate::boolean::solid_contain::PointInSolidError;
+    use crate::entity::{FaceKey, LoopKey, VertexKey};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **The reduction answers `ContainError`'s refusals typed on a
+    /// working copy.** Mid-operation the gate's at-rest verdict does not
+    /// bind, so every refusal the face door owns — the lone-vertex loop
+    /// included — is carried whole with the face and its operand.
+    #[test]
+    fn esc_carries_the_face_doors_refusal_whole() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let (face, lk) = (FaceKey::from(key(7)), LoopKey::from(key(9)));
+        for e in [
+            ContainError::EmptyLoop(lk),
+            ContainError::LoopUnreadable(lk),
+            ContainError::RayExhausted,
+            ContainError::Curved(PointInSolidError::CorruptFace { face }),
+        ] {
+            let got = esc(e.clone(), Operand::B, face);
+            assert!(
+                matches!(
+                    &got,
+                    BooleanError::PointInFaceRefused { operand: Operand::B, face: f, refusal }
+                        if *f == face && *refusal == e
+                ),
+                "{e:?} answered {got:?}"
+            );
+        }
+    }
+
+    /// **`vertex_on_face` names the operand that owns the face**, not
+    /// the vertex's: a vertex of A read against a face of B whose loop
+    /// is a lone vertex (the `mvfs` seed) refuses on B.
+    #[test]
+    fn vertex_on_face_refuses_on_the_faces_operand() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let at = Point3::new(0.0, 0.0, 0.0);
+        let mut y = Body::<f64>::new();
+        let seed = y.mvfs(at, true).expect("the seed state");
+        let plane = PlaneDesc {
+            origin: at,
+            normal: Vec3::unit_z(),
+        };
+        for (x_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
+            let got = vertex_on_face(
+                x_is,
+                &mut y,
+                VertexKey::default(),
+                Point3::new(1.0, 0.0, 0.0),
+                seed.face,
+                &plane,
+                &mut ContactAcc::default(),
+                band,
+                tol,
+            );
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::PointInFaceRefused {
+                        operand,
+                        face,
+                        refusal: ContainError::EmptyLoop(lk),
+                    }) if *operand == face_is && *face == seed.face && *lk == seed.r#loop
+                ),
+                "a vertex of {x_is:?} answered {got:?}"
+            );
+        }
     }
 }
