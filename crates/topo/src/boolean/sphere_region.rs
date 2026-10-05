@@ -31,8 +31,8 @@
 //! ringed face needs no case of its own. An edge both of whose sides are
 //! the face (both its half-edges in the face's loops, a seam) is no
 //! boundary of it and is left out of the region, so a face whose every
-//! edge is a seam covers the sphere. A pole is no point of interest,
-//! because nothing is read in the chart.
+//! edge is a seam covers the sphere. Nothing is read in the chart, so a
+//! pole is a point like any other.
 //!
 //! # Which rays
 //!
@@ -41,7 +41,11 @@
 //! the fixed schedule's directions projected onto the tangent plane at
 //! `p` (`splitting::containment::SCHEDULE`), for the points where every
 //! aimed ray runs along an arc: a point a hair off a vertex sees every
-//! arc through that vertex nearly edge-on.
+//! arc through that vertex nearly edge-on. Each direction is cast both
+//! ways. Every great circle through `p` passes `p`'s antipode, so a
+//! vertex there is a crossing at `s = π` on every ray, and it is the
+//! closest one on every ray whose forward half meets nothing else; the
+//! reverse ray reaches the arcs behind `p` first.
 //!
 //! # Grazing
 //!
@@ -250,13 +254,22 @@ impl<T: Decide> SphereFaceRegion<T> {
         }
         let w = p - self.center;
         let a = w / w.norm();
-        let aimed = self.arcs.iter().flat_map(|arc| {
-            TARGET_SHARES
-                .map(|share| arc.at(arc.t0 + (arc.t1 - arc.t0) * T::from_f64(share)) - self.center)
-        });
-        let scheduled = SCHEDULE.iter().map(|r| r.map(T::from_f64));
+        let aimed: Vec<Vec3<T>> = self
+            .arcs
+            .iter()
+            .flat_map(|arc| {
+                TARGET_SHARES.map(|share| {
+                    arc.at(arc.t0 + (arc.t1 - arc.t0) * T::from_f64(share)) - self.center
+                })
+            })
+            .collect();
+        let scheduled: Vec<Vec3<T>> = SCHEDULE.iter().map(|r| r.map(T::from_f64)).collect();
+        let both_ways = |dirs: Vec<Vec3<T>>| {
+            let back: Vec<Vec3<T>> = dirs.iter().map(|&d| -d).collect();
+            dirs.into_iter().chain(back)
+        };
         let mut first_diag = None;
-        for toward in aimed.chain(scheduled) {
+        for toward in both_ways(aimed).chain(both_ways(scheduled)) {
             let raw = toward - a * a.dot(toward);
             let arm = Margin::levered(raw.norm() / toward.norm(), self.radius);
             let read = match decide("bool_sphere_region_arm", arm, band) {

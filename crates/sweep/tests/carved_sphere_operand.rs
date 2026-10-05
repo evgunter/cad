@@ -260,3 +260,43 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
         assert_every_op(pose, &cut, v_cut, &ball(r, c), ball_volume(r), shared);
     }
 }
+
+/// **A point a hair off a pole whose antipode is a vertex of the face is
+/// read.** The union of the unit ball at `(2, 2, 0.5)` and a ball of r 0.5
+/// one unit along `(0.3, 0.9, 0.3)`: the point 1e-9 from A's `+y` pole is
+/// 0.063 deep inside B, so in the union. One of A's faces there has a
+/// vertex at A's `−y` pole, the point's antipode, which every great
+/// circle through the point meets at `s = π`; the arcs a ray can decide
+/// on lie behind the point. Asked at the unit scale and at ×1e3.
+#[test]
+fn a_point_whose_antipode_is_a_face_vertex_is_read() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    for scale in [1.0, 1e3] {
+        if scale > 1.0 && tol.eps() < 1e-10 {
+            test_utils::vacuity::stood_down(
+                "the ×1e3 antipodal pose at this ε",
+                "a revolved ball of radius 1e3 is not finished at 1e-12, so this pose is not read",
+            );
+            continue;
+        }
+        let d = Vec3::new(0.3, 0.9, 0.3);
+        let a = Vec3::new(2.0, 2.0, 0.5) * scale;
+        let b = a + d * (scale / d.norm());
+        let u = run(BooleanOp::Union, &ball(scale, a), &ball(0.5 * scale, b))
+            .unwrap()
+            .body()
+            .unwrap()
+            .body
+            .clone();
+        let pole = Point3::new(a.x, a.y + scale, a.z);
+        let q = pole + Vec3::new(-0.916_549_5, 0.0, -0.399_921_1) * (1e-9 * scale);
+        assert!(
+            dist(q, b) < 0.5 * scale - 0.06 * scale,
+            "the point is deep in B at ×{scale}"
+        );
+        let got = point_in_solid(&u, q, band, tol)
+            .unwrap_or_else(|e| panic!("×{scale}: {q:?} refused: {e:?}"));
+        assert_eq!(got, SolidContainment::In, "×{scale}");
+    }
+}
