@@ -2674,8 +2674,9 @@ impl<T: geom_core::Real> Interior<T> {
 /// The declared arms' interior question, asked only of an edge the
 /// carrier-identity rung puts ON `face`'s carrier (`on_carrier`): where
 /// it crosses `face`'s boundary strictly inside its span
-/// ([`super::carrier_cross`]). A carrier pair with no closed form keeps
-/// the frontier door.
+/// ([`super::carrier_cross`]), over line and circle boundary edges only:
+/// an ellipse on the boundary keeps the frontier door, as does any other
+/// carrier pair with no closed form.
 fn interior<T: Decide>(
     on_carrier: bool,
     y: &Body<T>,
@@ -2685,11 +2686,20 @@ fn interior<T: Decide>(
     band: Band,
     frontier: impl Fn() -> BooleanError,
 ) -> Result<Interior<T>, BooleanError> {
-    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
+    use super::carrier_cross::{BoundaryCrossing, BoundaryReads, boundary_crossing};
     if !on_carrier {
         return Ok(Interior::Unseen);
     }
-    match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+    let reads = BoundaryReads::LinesAndCircles;
+    match boundary_crossing(
+        y,
+        x_is.other(),
+        face,
+        curve.carrier(),
+        curve.params(),
+        reads,
+        band,
+    )? {
         BoundaryCrossing::At { t, p, at } => {
             Ok(Interior::Crossing(CurvedEvent::Pierce { t, p, at }))
         }
@@ -2844,9 +2854,18 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
             }
         }
     }
-    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
+    use super::carrier_cross::{BoundaryCrossing, BoundaryReads, boundary_crossing};
+    let reads = BoundaryReads::WithEllipses;
     Ok(
-        match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
+        match boundary_crossing(
+            y,
+            x_is.other(),
+            face,
+            curve.carrier(),
+            curve.params(),
+            reads,
+            band,
+        )? {
             BoundaryCrossing::At { t, p, at } => Some(CurvedEvent::Pierce { t, p, at }),
             BoundaryCrossing::Clear => interior_clear(),
             BoundaryCrossing::Unread => None,

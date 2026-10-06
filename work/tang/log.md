@@ -576,6 +576,7 @@ confirms a v-f record on a curved face (CONTACT's ground, announced in
 the PR). The turned sunk dome, on a two-face and a four-face tube,
 builds every op in both member orders at tiers 3 and 3′. Filed:
 `a-line-edge-lying-on-a-wall-keeps-the-door` (P1).
+
 ## 2026-10-06 — a ruling lying on a wall is an ON event (TANG implementer)
 
 `a-line-edge-lying-on-a-wall-keeps-the-door` (P1) closes. The
@@ -588,5 +589,6 @@ on both seam rulings, inside a wall face and across the rim, at tiers
 3 and 3′. A line in band of the wall but not on it escalates or keeps
 the door. `carrier_cross::meetings` now meets a boundary ellipse at its
 plane; its two fixtures, the turned dome and the prism on the slanted
-tube, build every op at their closed forms. Filed:
-`an-ellipse-lying-on-a-wall-keeps-the-door` (P1).
+tube, build every op at their closed forms; the declared one-carrier
+arms do not read ellipses, so the D10 hold leaves their reach where it
+was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).

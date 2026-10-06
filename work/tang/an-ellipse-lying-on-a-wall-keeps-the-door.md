@@ -4,7 +4,7 @@ kind: issue
 title: An ellipse edge lying on a partner's wall keeps the door: the lying-on lane reads arcs and rulings only
 status: open
 opened: 2026-10-06
-priority: P1
+priority: P2
 cost: M
 refs: [a-line-edge-lying-on-a-wall-keeps-the-door]
 ---

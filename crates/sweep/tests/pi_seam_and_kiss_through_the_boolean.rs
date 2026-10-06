@@ -2300,8 +2300,8 @@ fn slanted_tube() -> AtRestBody<f64> {
 /// the dome's split, the censuses and the records are the two-face
 /// rows of
 /// [`a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`].
-/// Volumes are read to `max(1e-8, 10·ε)`: the wall's ellipse trim is
-/// measured by quadrature, whose reach follows the band.
+/// The wall's ellipse trim is measured by certified quadrature, so each
+/// volume is read to the enclosure's own half-width.
 #[test]
 fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -2309,7 +2309,6 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
     let tube = slanted_tube();
     let rho = 2.0_f64.sqrt() * R;
     let t = PI * R * R * (H - 0.5);
-    let reach = 1e-8_f64.max(10.0 * Band::linear(tol).unwrap().zero());
     for dz in [-1e-3, -0.3] {
         let above = cap_volume(rho, rho - R + dz);
         let inside = cap_volume(rho, rho - R) - above;
@@ -2369,10 +2368,16 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 ),
             ] {
                 let label = format!("dz = {dz}, turn {turn}: {op}");
+                let pad = match &r {
+                    Ok(BooleanResult::Body(bb)) => {
+                        topo::mass_properties(&bb.body, tol).unwrap().volume_pad
+                    }
+                    _ => 0.0,
+                };
                 let (v, c, k) = built(&label, r);
                 assert!(
-                    (v - want).abs() <= reach,
-                    "{label}: the closed form: {v} vs {want}"
+                    (v - want).abs() <= pad + 1e-12,
+                    "{label}: the closed form: {v} ± {pad} vs {want}"
                 );
                 assert_eq!(c, census, "{label}: F, E, V, shells");
                 assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");

@@ -68,6 +68,29 @@ fn square(turn: f64, z0: f64, h: f64) -> AtRestBody<f64> {
     finished("the prism", prism_at(corners(&pts), z0, h, tol), tol)
 }
 
+/// [`rod_z`]'s tube from `z = −1` to [`H`], its bottom cut by the plane
+/// `z = 0.5 + 0.2·x`: each wall face is bounded below by an ellipse arc.
+fn slanted_tube() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -(0.2_f64).atan());
+    let under = topo::transform_rigid(
+        &brick((-3.0, 3.0), (-3.0, 3.0), (-5.0, 0.0), tol),
+        &tilt,
+        tol,
+    )
+    .unwrap();
+    let under = finished(
+        "the slab under the plane",
+        topo::transform_rigid(&under, &Affine3::translation(Vec3::new(0.0, 0.0, 0.5)), tol)
+            .unwrap(),
+        tol,
+    );
+    match topo::subtract(&rod_z(-1.0, H + 1.0), &under, tol) {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("the slanted tube builds: {other:?}"),
+    }
+}
+
 /// The six ops of `t` and `b`, labelled.
 fn six(
     t: &AtRestBody<f64>,
@@ -275,31 +298,14 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
 /// plane and is split there. The tube holds `π·R²·1.5`; the prism above
 /// the plane holds `A·(0.5 − 0.2·x̄)`, `x̄ = 0.6·cos turn` its
 /// centroid's `x`. `t ∖ b` is a notch whose edge runs up the wall from
-/// the ellipse, its upper end recorded on the wall face. Volumes are
-/// read to `max(1e-8, 10·ε)`: the wall's ellipse trim is measured by
-/// quadrature, whose reach follows the band.
+/// the ellipse, its upper end recorded on the wall face. The wall's
+/// ellipse trim is measured by certified quadrature, so each volume is
+/// read to the enclosure's own half-width.
 #[test]
 fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
     let tol = Tol::witness();
-    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -(0.2_f64).atan());
-    let under = topo::transform_rigid(
-        &brick((-3.0, 3.0), (-3.0, 3.0), (-5.0, 0.0), tol),
-        &tilt,
-        tol,
-    )
-    .unwrap();
-    let under = finished(
-        "the slab under the plane",
-        topo::transform_rigid(&under, &Affine3::translation(Vec3::new(0.0, 0.0, 0.5)), tol)
-            .unwrap(),
-        tol,
-    );
-    let t = match topo::subtract(&rod_z(-1.0, H + 1.0), &under, tol) {
-        Ok(BooleanResult::Body(b)) => b.body,
-        other => panic!("the slanted tube builds: {other:?}"),
-    };
+    let t = slanted_tube();
     let tube = PI * R * R * 1.5;
-    let reach = 1e-8_f64.max(10.0 * geom_core::Band::linear(tol).unwrap().zero());
     let (whole, prism) = ((9, 19, 12, 1), (6, 12, 8, 1));
     for turn in [0.3, 0.5_f64] {
         let common = AREA * (0.5 - 0.2 * 0.6 * turn.cos());
@@ -323,10 +329,12 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
                 .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
             topo::validate_pseudomanifold(body, &bb.contacts, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-            let v = topo::mass_properties(body, tol).unwrap().volume;
+            let m = topo::mass_properties(body, tol).unwrap();
             assert!(
-                (v - volume).abs() <= reach,
-                "{label}: the closed form: {v} vs {volume}"
+                (m.volume - volume).abs() <= m.volume_pad + 1e-12,
+                "{label}: the closed form: {} ± {} vs {volume}",
+                m.volume,
+                m.volume_pad
             );
             assert_eq!(
                 (
@@ -350,5 +358,99 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
                 "{label}: [v-v, v-f, curve, patch] records"
             );
         }
+    }
+}
+
+/// **A ruling whose own face shares the wall's carrier keeps the door.**
+/// A long tube `t` (`z ∈ [0, 4]`) and a coaxial tube `b` of the same
+/// radius (`z ∈ [1, 3]`, turned `0.4` rad so no seam ruling of one lies
+/// on the other's), their caps apart. `t`'s seam rulings lie on `b`'s
+/// wall, and so does each of its wall faces: the ruling is not a curve
+/// where two carriers meet, and the lying-on lane does not take it.
+/// Swept first, `t`'s edges reach `b`'s wall only through the rulings
+/// (its rims lie beyond `b`), so every op with `t` first refuses on a
+/// fragment of a ruling of `t`. With `b` first, `b`'s rim, which lies
+/// on `t`'s wall the same way, refuses first.
+#[test]
+fn a_ruling_whose_face_shares_the_walls_carrier_keeps_the_door() {
+    let tol = Tol::witness();
+    let t = rod_z(0.0, 4.0);
+    let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.4);
+    let b = finished(
+        "the short tube",
+        topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
+        tol,
+    );
+    for (op, r) in six(&t, &b) {
+        let Err(BooleanError::CurvedPierceUnsupported { operand, .. }) = r else {
+            panic!("{op}: the crossing layer's door: {r:?}");
+        };
+        assert_eq!(
+            operand,
+            topo::Operand::A,
+            "{op}: on the first member's edge (t's ruling, or b's rim)"
+        );
+    }
+}
+
+/// **The declared one-carrier arms keep their reach.** The slanted tube
+/// and a coaxial rod of the same radius (`z ∈ [1, 3]`, turned `0.4`
+/// rad), every pair of their wall faces declared a continuation: the
+/// rod's lower rim lies on the tube's wall faces, which an ellipse
+/// bounds. The declared arms' interior question reads lines and circles
+/// only, so every op refuses on that rim, against a wall face of the
+/// tube, as it did before the lying-on lane read ellipses.
+#[test]
+fn a_declared_continuation_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
+    let tol = Tol::witness();
+    let t = slanted_tube();
+    let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.4);
+    let r = finished(
+        "the rod",
+        topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
+        tol,
+    );
+    let walls = |b: &AtRestBody<f64>| -> Vec<topo::FaceKey> {
+        b.faces()
+            .filter(|(_, f)| {
+                matches!(
+                    b.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { .. })
+                )
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
+    let continued = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
+        let mut d = BooleanDeclarations::none();
+        for fa in walls(x) {
+            for fb in walls(y) {
+                d.coincident_faces.push(topo::FacePairDeclaration::new(
+                    fa,
+                    fb,
+                    topo::BooleanCoincidence::Continuation,
+                ));
+            }
+        }
+        d
+    };
+    let (tr, rt) = (continued(&t, &r), continued(&r, &t));
+    let (a, b) = (topo::Operand::A, topo::Operand::B);
+    for (op, res, rod_is) in [
+        ("t ∪ r", topo::union_with(&t, &r, &tr, tol), b),
+        ("r ∪ t", topo::union_with(&r, &t, &rt, tol), a),
+        ("t ∖ r", topo::subtract_with(&t, &r, &tr, tol), b),
+        ("r ∖ t", topo::subtract_with(&r, &t, &rt, tol), a),
+        ("t ∩ r", topo::intersect_with(&t, &r, &tr, tol), b),
+        ("r ∩ t", topo::intersect_with(&r, &t, &rt, tol), a),
+    ] {
+        let Err(BooleanError::CurvedPierceUnsupported { operand, face, .. }) = res else {
+            panic!("{op}: the crossing layer's door: {res:?}");
+        };
+        assert_eq!(operand, rod_is, "{op}: on the rod's edge");
+        assert!(
+            walls(&t).contains(&face),
+            "{op}: against a wall of the tube"
+        );
     }
 }
