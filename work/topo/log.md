@@ -7547,3 +7547,22 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
 - 18:46 check-in:
   - The PR 4165 fix lane has pushed `db8b742e` and is running the release battery against main. It has not yet reported its review fixes.
   - PR 3702 ("the coplanar merge returns no stranded description") is **merged**, so agreed part 1 of PR 3970 is already done. The build unit covers privacy plus the vouch, the kill refusals and twins, tier 1, chartless transients and the scope-close assertion.
+
+## 19:50 (2026-10-06): PR 4165 fixes adjudicated
+
+- The fix lane (about $7.5, archived) took the **simple rule**: every certified description re-mints. `description_moves` and `Remints` are deleted.
+  - B3: the boolean's two fallback finishes now close with `mint_pcurves`. M7 and M8 each red their own witness.
+  - Cost is not material: sweep CI runs 228–233 s against main's 225–231 s; about 21k extra face plans per run.
+  - B1's spline probe is committed (`a_spline_rim_moved_between_its_quarters_keeps_no_row`), red under the measured rule.
+  - Editor-core pins are back to main's.
+  - Batteries: 0 moved lines.
+  - Filed `work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`.
+- The branch had code conflicts with main: FUSE's `join_stage` landed at the same spot in both fallback finishes, and `replace_faces_offset`'s loop gained `unwound`.
+  - Resolved at `09dfd0f6`, with the mint after `join_stage`, matching the main output stage's order.
+  - `-p topo -p sweep --profile ci`: 4675/4675. Clippy and fmt clean.
+  - Merge once CI is green.
+- **For PCERT:** PR 4165 changes `crates/topo/src/pcurves.rs` only in docs and one assert:
+  - the module doc's "Completes the map" paragraph;
+  - the `debug_assert!` in `site_rows`' kept-image arm;
+  - `staleness_posture::Completes` and the `DECLARED` notes (`set_edge_curve`, `set_face_surfaces_describing`, `describe_at_rest`).
+  - Nothing in `joint.rs` or `pcurve_cache.rs`. `topo/tests/loop_reparenting_pcurve_rows.rs` will conflict with PCERT's re-pin of `a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides`.
