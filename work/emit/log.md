@@ -1870,3 +1870,35 @@ the Python bindings and the census read.
 
 The node-labels unit has no open actionable rows left. The verdict-nodes
 row is parked on #1324.
+
+## 2026-10-06 — the union member-order row re-measured, and parked on D10
+
+Re-measured `union-refuses-in-some-member-orders-and-publishes-in-others`
+on main (`35e4ac1829`). One class is left: `DeclareResolve` (`Vanished`,
+`ConsumedByFold { Split | FragmentedMerge }`) in 22 cases; `RayExhausted`
+left with PR 3655 and `UndeclaredContact` is uniform. Five more
+order-mixed unions of the same class sit outside the row's old scope
+(`near`, the declared `(a, h)` and `{a, b, h}` variants, and
+`wire_legal_union_refusals`' two fixtures). Root cause: `look_through_fold`
+refuses a split name at the step `route_declarations` sends it to, so
+member order decides whether the face is already split (ratified DM4).
+
+- **Parked** both the row and
+  `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`
+  on `d10-one-way-to-say-intent-is-unbuilt`: declared pairs are held
+  ground, and INTENT's stage 4 retires them, which removes the class by
+  construction. The design row's stale `r4trig` pin is now
+  `DeclareResolve:12`.
+- **Fan-out evidence for stage 4** (scratch, not built: it changes DM4
+  on held ground): feeding a refused pair to every face descending from
+  the name made all 22 cases fuse in every order, with no name rebinds.
+- **What that uncovers**, noted on its owners' rows with no status
+  change: the seam-vertex parentage residue `Emission` (WIRE's
+  `a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`,
+  2 → 8 orders on `row`/`rowids` and on `emit_seam_junction`), and
+  `SeamVertexParentage` on `near` (WIRE's
+  `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`,
+  FUSE's `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made`).
+- Two test comments citing GATHER's deleted look-through row now cite
+  the union row; recorded, with three more dead GATHER citations found
+  by the sweep, in `dead-work-citations-from-shipped-code-and-docs`.
