@@ -48,19 +48,24 @@ use super::doc::{Doc, NodeId, name_text};
 use super::mate::MateSide;
 use super::value::{Body, Evaluation};
 
-/// **The document a row's `__str__` speaks its nodes from**: the
-/// evaluated document for this document's own rows and for the first
-/// instance of a carried row's route, and none for the rest of a row
-/// carried up from a document below, whose ids are that document's and
-/// are said by tag.
-#[derive(Clone, Default)]
-struct SpokenFrom(Option<Arc<d::ProfileDoc>>);
+/// **What a row's `__str__` speaks its nodes from**: the evaluated
+/// document for this document's own rows and for the first instance of
+/// a carried row's route, and the nodes a carried row holds of the
+/// document below it came from, for that row's own body.
+#[derive(Clone)]
+enum SpokenFrom {
+    /// The evaluated document, as it holds its nodes now.
+    Doc(Arc<d::ProfileDoc>),
+    /// A carried row's nodes, as the document they are numbered in
+    /// held them.
+    Held(Arc<d::HeldNodes>),
+}
 
 impl SpokenFrom {
-    fn say<T: d::Say + core::fmt::Display>(&self, value: &T) -> String {
-        match &self.0 {
-            Some(doc) => d::spoken_by(value, doc),
-            None => value.to_string(),
+    fn say<T: d::Say>(&self, value: &T) -> String {
+        match self {
+            Self::Doc(doc) => d::spoken_by(value, doc),
+            Self::Held(held) => d::Said(value, d::Speaker::held(held)).to_string(),
         }
     }
 }
@@ -381,7 +386,7 @@ pub(crate) struct Attribution(d::Attribution, SpokenFrom);
 fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
     let of = PyString::new(py, &route.of.to_string()).unbind().into_any();
     let via = core::iter::once(route.through)
-        .chain(route.via.iter().copied())
+        .chain(route.via.iter().map(d::SpokenNode::id))
         .map(NodeId)
         .collect::<Vec<_>>()
         .into_pyobject(py)
@@ -563,8 +568,12 @@ impl CarriedRefusal {
     /// The inner document's own refusal, its `mate` a node of `of`.
     #[getter]
     fn refusal(&self) -> MintRefusal {
-        // The row is the part's, spelled in its ids: said by tag.
-        MintRefusal(self.0.refusal.clone(), SpokenFrom::default())
+        // The row is the part's, spelled in its ids: said as the part
+        // holds them.
+        MintRefusal(
+            self.0.refusal.clone(),
+            SpokenFrom::Held(Arc::clone(&self.0.held)),
+        )
     }
 
     /// The instantiating node OF THIS DOCUMENT the row came through.
@@ -701,7 +710,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
     // still raises on THIS class — the door they called was the gate.
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
-    let from = SpokenFrom(Some(Arc::clone(&doc)));
+    let from = SpokenFrom::Doc(Arc::clone(&doc));
     let mut node = none();
     let (refusals, findings) = match err {
         // The group is the subject; the space's own gather refusal is

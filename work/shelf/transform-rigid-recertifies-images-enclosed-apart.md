@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-02
 priority: P2
 refs: [SYM-15]
+cost: H
+design: true
 ---
 
 
