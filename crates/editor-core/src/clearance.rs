@@ -805,9 +805,10 @@ impl crate::spoken::Say for SelectionRefusal {
             Self::AcrossSpaces { group, cause } => write!(
                 f,
                 "the two selections live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {cause}, and nothing outside an \
+                 group rooted at {}, unplaced because {}, and nothing outside an \
                  unplaced group is compared with it. {}",
                 by.node(*group),
+                crate::spoken::Said(cause, by),
                 crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
         }
