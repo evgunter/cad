@@ -176,10 +176,11 @@ fn tilt<T: Real>(b: Vec3<T>, a: Vec3<T>) -> T {
         .sqrt()
 }
 
-/// `±1` where the sign of `x` is decided, `0` where it is not. A bound
+/// `±1` where the sign of `x` is decided past the bracket, `0` where it
+/// is not. A bound
 /// scaled by an undecided sign is `≡ 0`, which clears no cell, excuses
 /// none and places no point inside a core: vacuous, never wrong.
-fn sign<T: Bounds>(x: T) -> T {
+fn sign<T: Decide + Bounds>(x: T) -> T {
     if x.lo() > 0.0 {
         T::one()
     } else if x.hi() < 0.0 {
@@ -321,7 +322,7 @@ fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
     [(rc - across).max(T::zero()), top, zc - dz, zc + dz]
 }
 
-impl<T: Bounds> Bound<T> {
+impl<T: Real> Bound<T> {
     /// `g(x)`.
     fn at(&self, x: Point3<T>) -> T {
         match self {
@@ -422,21 +423,16 @@ impl<T: Bounds> Bound<T> {
     }
 }
 
-/// Whether a torus is decided a ring torus (`R > r`). A stored face's
-/// is (tier 3 refuses a horn or spindle at rest as `DegenerateTorus`),
-/// and so is a band's (predicate 3: the spine's radius exceeds the
-/// ball's); on a spindle `|(ρ − R, z)| − r` is no distance off the
-/// lemon part, so a torus not decided ring has no closed form here.
-fn ring<T: Bounds>(major: T, minor: T) -> bool {
-    (major - minor).lo() > 0.0
-}
-
 /// **A surface's own signed distance**, 1-Lipschitz and zero on the
 /// surface: exact for a plane, a cylinder, a sphere and a ring torus;
 /// for a cone, `ρ·cos α − |z|·sin α`, zero on both nappes. `None` for a
-/// surface with no closed form here (NURBS, an approximating surface,
-/// a torus not decided ring).
-fn surface_distance<T: Bounds>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
+/// surface with no closed form here (NURBS, an approximating surface).
+///
+/// Every torus read here is a ring torus (`R > r`): a stored face's by
+/// tier 3, which refuses a horn or spindle at rest (`DegenerateTorus`),
+/// and a band's by predicate 3 (the spine's radius exceeds the ball's).
+/// On a spindle `|(ρ − R, z)| − r` would be no distance off the lemon.
+fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
         Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
         Surface::Cylinder {
@@ -461,11 +457,11 @@ fn surface_distance<T: Bounds>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             major_radius,
             minor_radius,
             ..
-        } if ring(*major_radius, *minor_radius) => {
+        } => {
             let (rho, z) = sheet_of(*center, axis.normalize(), x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
-        Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
+        Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
 
@@ -475,7 +471,7 @@ fn surface_distance<T: Bounds>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
 /// that one encloses a residual rather than a 1-Lipschitz distance,
 /// refuses cones and tori, and runs only at a certified scalar, where
 /// this meter replays at every `T`.
-fn surface_range<T: Bounds>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
+fn surface_range<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
     Some(match s {
         Surface::Plane { normal, .. } => {
             let f = surface_distance(s, cell.c)?;
@@ -495,7 +491,7 @@ fn surface_range<T: Bounds>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
 
 /// A cylinder's, a cone's or a torus's own distance as a sheet function
 /// about its own axis, with that axis.
-fn sheet_fn_own<T: Bounds>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<T>)> {
+fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<T>)> {
     let one = T::one();
     match s {
         Surface::Cylinder {
@@ -533,7 +529,7 @@ fn sheet_fn_own<T: Bounds>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec
             major_radius,
             minor_radius,
             ..
-        } if ring(*major_radius, *minor_radius) => Some((
+        } => Some((
             SheetFn::Circle {
                 p: *major_radius,
                 q: T::zero(),
@@ -556,7 +552,7 @@ fn sheet_fn_own<T: Bounds>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec
 /// distance from the axis, and its own axis's tilt (the chord
 /// `|â − ±a|`) levered over that reach. `None` for a surface with no
 /// closed form here.
-fn sheet_fn<T: Bounds>(
+fn sheet_fn<T: Decide + Bounds>(
     s: &Surface<T>,
     o: Point3<T>,
     a: Vec3<T>,
@@ -629,7 +625,7 @@ fn sheet_fn<T: Bounds>(
             major_radius,
             minor_radius,
             ..
-        } if ring(*major_radius, *minor_radius) => {
+        } => {
             let (rho, z) = off_axis(*center);
             (
                 SheetFn::Circle {
@@ -641,14 +637,14 @@ fn sheet_fn<T: Bounds>(
                 rho + tilt(*axis) * *major_radius,
             )
         }
-        Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        Surface::Nurbs(_) | Surface::Approx(_) => return None,
     })
 }
 
 /// A lower bound over `cell` of the distance from a face's surface: no
 /// point of the surface lies in the cell when it is positive. `None`
 /// with no closed form.
-fn off_surface<T: Bounds>(s: &Surface<T>, cell: &Cell<T>) -> Option<T> {
+fn off_surface<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<T> {
     let (lo, hi) = surface_range(s, cell)?;
     Some(lo.max(-hi))
 }
@@ -768,7 +764,7 @@ fn centroid<T: Real>(pts: &[Point3<T>]) -> Point3<T> {
 /// The side bound of one support in space: its signed distance, signed
 /// so that the reference point `q` (inside the band's cross-section) is
 /// on the inside. A plane's is affine, so it is exact over a cell.
-fn side<T: Bounds>(s: &Surface<T>, q: Point3<T>) -> Option<Bound<T>> {
+fn side<T: Decide + Bounds>(s: &Surface<T>, q: Point3<T>) -> Option<Bound<T>> {
     let fq = surface_distance(s, q)?;
     let w = -sign(fq);
     Some(match s {
@@ -785,7 +781,7 @@ fn side<T: Bounds>(s: &Surface<T>, q: Point3<T>) -> Option<Bound<T>> {
 
 /// The half-space through `o` normal to `n`, positive on the side away
 /// from `inside`.
-fn half_space<T: Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -> Bound<T> {
+fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -> Bound<T> {
     let n = n.normalize();
     let n = n * -sign((inside - o).dot(n));
     Bound::Affine {
@@ -1618,14 +1614,16 @@ fn sheet_clip<T: Decide + Bounds>(
                             image[2].max(zs - d_lat),
                             image[3].min(zs + d_lat),
                         ];
-                        // `|dot| ≥ 1/√2` on this arm; an undecided sign
-                        // hulls to `[−1, 1]`, which no winding test passes.
-                        (
-                            T::one().copysign(dot) * dt,
-                            e,
-                            (z.abs() + d_lat) * e + d_lat * dt.abs(),
-                            z,
-                        )
+                        // `|dot| ≥ 1/√2` on this arm, so its sign is
+                        // decided; were it not, no clip is read.
+                        let along = if dot.lo() > 0.0 {
+                            dt
+                        } else if dot.hi() < 0.0 {
+                            -dt
+                        } else {
+                            return None;
+                        };
+                        (along, e, (z.abs() + d_lat) * e + d_lat * dt.abs(), z)
                     } else {
                         // A meridian edge clear of the axis: no turn,
                         // within the same bound about the meridian it
@@ -1789,7 +1787,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
 /// The point of a face's boundary deepest in a reach's core: the most
 /// negative strict bound ([`Bound::at_strict`]) over [`EDGE_SAMPLES`]
 /// places along each boundary edge, ends included.
-fn deepest_boundary_point<T: Decide + Bounds>(
+fn deepest_boundary_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     core: &[Bound<T>],
