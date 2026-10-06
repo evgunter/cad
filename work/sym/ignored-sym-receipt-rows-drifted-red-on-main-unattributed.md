@@ -71,6 +71,40 @@ build, ε = 1e-9, both rows in one process, the past-the-ceiling row's
 receipt assertion disabled so that a moved document does not hide the
 ones after it. `sign_gated` was 0 everywhere in the window.
 
+### The re-take at `main` (`07ddd620a2`), three ε
+
+The lane head is `07ddd620a2`, plus this item's text. Release build,
+both rows, the past-the-ceiling row's receipt assertion disabled so
+that all five documents print. As `[symbolic_zero, registered,
+numeric, frozen]`, the stored row's own columns:
+
+| row | document / dial | stored | ε = 1e-6 | ε = 1e-9 | ε = 1e-12 |
+| --- | --- | --- | --- | --- | --- |
+| `PAST_THE_CEILING` | two_hole_plate | `[803, 140, 470, 1044]` | `[955, 148, 704, 1068]` | same | same |
+| ″ | r1_annulus | `[328, 140, 209, 1056]` | `[440, 148, 451, 1080]` | same | same |
+| ″ | r2_link | `[214, 76, 175, 556]` | `[286, 84, 296, 568]` | same | same |
+| ″ | r2_filleted_bracket | `[429, 141, 342, 1096]` | `[548, 149, 574, 1113]` | same | same |
+| ″ | r2_rounded_pad | `[885, 128, 1058, 2750]` | `[1016, 152, 1186, 2587]` | same | same |
+| `m10_9_the_pad_at_both_rule_f_dials` (`symbolic_zero, sign_gated, registered, numeric, frozen`) | rule F shut | `(1036, 2, 152, 1188, 2587)` | `(1016, 2, 152, 1186, 2587)` | `(1040, 2, 152, 1194, 2587)` | `(1016, 2, 152, 1186, 2587)` |
+| ″ | shipped | equal to rule F shut | equal | equal | equal |
+
+`sign_gated`, which the past-the-ceiling row does not pin, reads 0, 32,
+0, 37 and 2 down the five documents at every ε. Past the ceiling, the
+link and the bracket refuse at the extrude's attachment gate
+(`carrier_matches_mapped_source`), as they did in the window, and the
+pad refuses at `pcurve_envelope` (since #3759). The plate and the
+annulus replay whole. `registrations_contradicted` and
+`theorems_disputed` are 0 on every document at every ε, so no
+contradiction fired.
+
+**The receipts past the ceiling are still ε-independent. The pad's
+rule-F row is not.** At its certifying scale the pad refuses at
+`pcurve_envelope` under both dials, and the replay stops after a
+longer prefix at 1e-9 than at 1e-6 or 1e-12. `measured_studies` pins
+that dependence per ε row since #3759 (`Study::symbolic_zero`,
+`[1016, 1040, 1016]`). The rule-F row's single tuple holds at one ε
+only. The dials still agree at every ε, which is the row's claim.
+
 ### The line bisected
 
 `main`, first parent. The two rows lived on `main` through the whole
