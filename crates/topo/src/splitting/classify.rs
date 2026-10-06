@@ -15,7 +15,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 
-/// **The operand gate, scoped to what the plane can reach** (C12.1:
+/// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
 ///
 /// A face passes if the split pipeline executes its `(kind × plane)`
@@ -40,8 +40,10 @@ use crate::validate::decide;
 /// `Nurbs` carrier refuses typed only when the plane may meet it
 /// ([`edge_clears`]). A face whose surface key, or an edge whose curve
 /// key, does not resolve is a torn body and panics (the operand is a
-/// public body, at rest); null scaffolding refuses as ever.
-pub(super) fn gate_operand<T: Decide>(
+/// public body, at rest), and so does a null edge: every door that
+/// reaches here holds its body tier-2 clean first (a finished operand,
+/// or a test-support door's own read), and tier 2 refuses one.
+pub(super) fn carrier_gate<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
@@ -78,7 +80,10 @@ pub(super) fn gate_operand<T: Decide>(
                     }
                 }
             },
-            _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
+            CurveGeom::NullScaffold(_) => unreachable!(
+                "{edge_key:?} is a null edge, and every door reaching here holds its body tier-2 \
+                 clean, which refuses a null edge at rest"
+            ),
         }
     }
     Ok(())
@@ -861,7 +866,7 @@ fn conic_plane_meet<T: Decide>(
 ///   span).
 /// - **Spiric and spline carriers** have no crossing lane. One passes
 ///   uncut only where [`edge_clears`] certifies its whole locus on one
-///   side of the plane, the operand gate's own test; any other refuses
+///   side of the plane, the carrier gate's own test; any other refuses
 ///   [`SplitReduceError::CurvedEdgeUnsupported`]. Same-side endpoints
 ///   are not enough: a spline's belly can cross between them.
 ///
@@ -900,9 +905,10 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         // miss panics (`live::OPERATORS_KEEP_LINKS`).
         let curve = match body.edge_curve_linked(edge_key, &edge) {
             CurveGeom::Certified(c) => c.clone(),
-            CurveGeom::NullScaffold(_) => {
-                return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key });
-            }
+            CurveGeom::NullScaffold(_) => unreachable!(
+                "{edge_key:?} is a null edge, and every door reaching here holds its body tier-2 \
+                 clean, which refuses a null edge at rest"
+            ),
         };
         let (t0, t1) = curve.params();
         let roots: Vec<T> = match plane_crossing_lane(
@@ -1387,8 +1393,7 @@ mod tests {
 
 /// **A torn curve panics at the split gate and at the crossing
 /// insertion**, where a read that took the miss for scaffolding refused
-/// it as `ScaffoldingOperand` (real scaffolding keeps that refusal:
-/// `review_m3_pr2`'s gate row).
+/// it as `ScaffoldingOperand`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_rows {
@@ -1411,8 +1416,8 @@ mod torn_rows {
         let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
         body.curves.remove(curve);
         let named = format!("{}'s curve names", EntityId::Edge(edge));
-        assert_torn_op_panics("gate_operand", &mut body, &[&named, ROW_FOUR], |b| {
-            super::gate_operand(b, &plane, band)
+        assert_torn_op_panics("carrier_gate", &mut body, &[&named, ROW_FOUR], |b| {
+            super::carrier_gate(b, &plane, band)
         });
         assert_torn_op_panics("insert_crossings", &mut body, &[&named, ROW_FOUR], |b| {
             super::insert_crossings(b, &plane, &mut sides, &mut on, tol)

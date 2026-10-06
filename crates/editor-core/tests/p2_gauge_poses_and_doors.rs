@@ -805,7 +805,10 @@ fn the_gate_checks_own_spaces_whatever_the_world_holds() {
 /// outer product holds the base's material alone and the outer gate
 /// certifies it; the outer evaluation names the top, routed through
 /// the instance it arrived by (`Evaluation::unplaced_below`), on the
-/// instance and on a transform consuming it.
+/// instance and on a transform consuming it. The outer document's first
+/// node is the deleted gauge's twin, labelled, so it holds the cause's
+/// id as a live gauge: the row says the cause as the sub-assembly
+/// holds it, which is not at all.
 #[test]
 fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     let p = parts("r2-seam");
@@ -827,12 +830,47 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
     let mut store = p.store.clone();
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
+    let (outer, twin) = insert(
+        outer,
+        Node::gauge(
+            None,
+            Placement::literal(&Frame::translation([0.0, 0.0, 50.0])),
+        ),
+    );
+    assert_eq!(twin, g, "both documents mint from the zero chain");
+    let (outer, _) = step(
+        outer,
+        DocEdit::SetLabel {
+            node: twin,
+            label: Some(editor_core::Label::new("outer gauge").expect("a valid label")),
+        },
+    );
     let (outer, inst) = insert(outer, Node::instantiate_part(sub_ref));
     let (outer, moved) = insert(
         outer,
         fixture::xform(inst, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
     );
     let ev = run(&outer, &with_resolver(store));
+    let below = ev.all_unplaced_below();
+    let [row] = below.as_slice() else {
+        panic!("one group below: {below:?}");
+    };
+    assert_eq!(
+        (row.held.spoken(top), row.held.spoken(g)),
+        (sub.spoken(top), sub.spoken(g)),
+        "the row holds its group and its cause's gauge as the sub-assembly does"
+    );
+    let cause = format!(
+        "its gauge chain names node {}, which was deleted",
+        test_utils::refusal::tag(g.0)
+    );
+    for said in [editor_core::spoken_by(row, &outer), row.to_string()] {
+        assert!(
+            said.contains(&cause) && !said.contains("outer gauge"),
+            "the cause names the sub-assembly's deleted gauge, never the outer document's \
+             node of its id: {said}"
+        );
+    }
     let expected = editor_core::CarriedUnplaced {
         route: editor_core::Route {
             through: inst,
@@ -841,6 +879,7 @@ fn an_unplaced_group_below_crosses_the_seam_as_a_named_fact() {
         },
         group: top,
         cause: editor_core::Unplaced::DeadGauge { gauge: g },
+        held: std::sync::Arc::clone(&row.held),
     };
     assert_eq!(ev.unplaced_below.get(&inst), Some(&vec![expected.clone()]));
     assert_eq!(ev.unplaced_below.get(&moved), Some(&vec![expected.clone()]));

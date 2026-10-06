@@ -5,8 +5,9 @@ title: transform_rigid admits a map whose columns are off unit by up to ~eps, di
 status: open
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
 refs: [3238]
+design: true
 ---
 
 

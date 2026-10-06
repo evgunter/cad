@@ -9170,12 +9170,13 @@ mod tests {
         ];
         let tol = Tol::witness();
         let fx = crate::test_support_fixtures::prism::<f64>(&notched, 1.0, tol);
+        let operand = crate::test_support::finished("the fixture", fx.body.clone(), tol);
         let plane = crate::test_support_fixtures::split_plane(
             Point3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             tol,
         );
-        let result = crate::split(&fx.body, &plane, tol).expect("the notched block splits");
+        let result = crate::split(&operand, &plane, tol).expect("the notched block splits");
         let mut above = result.above.body().expect("above has material").clone();
         let tip = Point3::new(4.0, 1.0, 0.0);
         let copies: Vec<VertexKey> = above

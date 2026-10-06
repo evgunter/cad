@@ -73,7 +73,6 @@ use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
-use crate::props::AtRestOutcome;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -356,9 +355,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// planar-only gate retires PER C5 TABLE ARM, never wholesale).
 ///
 /// First, each operand passes [`gate_operand`]: a closed solid at rest
-/// by the validator's own verdict, with supported edge carriers, and
-/// no solid inside-out. Then two rules, with different scopes on
-/// purpose:
+/// by the validator's own verdict, with supported edge carriers. Then
+/// two rules, with different scopes on purpose:
 ///
 /// - **Faces**: a kind with no wired arm ([`boolean_arm_exists`])
 ///   disqualifies the operation only through a PAIR it could enter
@@ -423,14 +421,8 @@ pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     operand: Operand,
 ) -> Result<(), BooleanError> {
-    let (broken, scaffolding) = crate::validate::closed_by_tier(body);
-    if let Some(first) = broken.first() {
-        unreachable!(
-            "operand {operand:?} fails tier 1 ({} findings, the first {first:?}): every public \
-             door keeps the body tier-1-valid",
-            broken.len()
-        );
-    }
+    let scaffolding =
+        crate::validate::operand_scaffolding(body, format_args!("operand {operand:?}"));
     if !scaffolding.is_empty() {
         return Err(BooleanError::ScaffoldingOperand {
             operand,
@@ -441,35 +433,21 @@ pub(super) fn gate_operand<T: Decide>(
     Ok(())
 }
 
-/// **The operand gate where no at-rest gate ran** — an operand whose
-/// scalar's policy answers [`AtRestOutcome::NotRunAtThisScalar`] (a
-/// dual) carries no verdict, so the door owes it what it owes every
-/// operand without the type: [`gate_operand`], then orientation —
-/// tier 3's check 7, per solid, at the scalar's lane
-/// ([`crate::AtRestPolicy::quad_lane`]). A solid it decides definitely
-/// negative refuses [`BooleanError::InsideOutOperand`]; one whose sign
-/// it leaves open passes, as check 7 passes it. A `Validated` operand
-/// passes untouched: its verdict already holds both.
-///
-/// The subject of the orientation read is the solid: a body's total
-/// hides a sign, so this runs before the pipeline reads a several-solid
-/// operand as one solid (`ops::one_solid`).
+/// **The operand gate where no at-rest gate ran**: what the finished-body
+/// type promises, read on an operand that carries no verdict (a dual's,
+/// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
+/// same), refused as [`BooleanError::ScaffoldingOperand`] or
+/// [`BooleanError::InsideOutOperand`]. It runs before the pipeline reads
+/// a several-solid operand as one solid (`ops::one_solid`), since the
+/// orientation read's subjects are the solid and, within it, the shell.
 pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
     body: &crate::AtRestBody<T>,
     operand: Operand,
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    if body.outcome() == AtRestOutcome::Validated {
-        return Ok(());
-    }
-    gate_operand(body, operand)?;
-    if let Some(&solid) =
-        crate::validate::inside_out_solids(body, band, tol, T::quad_lane()).first()
-    {
-        return Err(BooleanError::InsideOutOperand { operand, solid });
-    }
-    Ok(())
+    body.gate_unverdicted(format_args!("operand {operand:?}"), band, tol)
+        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))
 }
 
 /// [`gate_operand`]'s edge carriers.

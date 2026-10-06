@@ -179,6 +179,7 @@ fn split_cylinder_half() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.0),
         Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),

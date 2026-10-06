@@ -44,3 +44,13 @@ the tour and the wild corpus) and nothing re-runs it; what guards the
 claim afterwards is every row that validates a verb's output and asserts
 `Ok`, which goes red if the arms start refusing it. Priority P3 (latent unsoundness), cost H (a conic/spline
 meeting-point row, or a chart-space loop-crossing walk).
+
+## Note from SHELL (2026-10-06)
+
+`validate::ring_outer_contact`'s edge-pair arm reads a plane normal
+and returns `None` on a curved face, so check 9's contact half is
+blind there. Today that matters for boolean pierce rings. Once
+`shell_open` builds ring-form rims on curved windows
+(`work/shell/shell-open-refuses-a-curved-designated-face`), it matters
+for shell too; shell's own clearance gate shields it, but its spec
+will name this row rather than inherit the gap. (SHELL orchestrator)

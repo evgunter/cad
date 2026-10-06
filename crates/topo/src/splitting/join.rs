@@ -172,6 +172,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
+                joiner.place_pending(&mut red.body, (end, half))?;
                 let plan = joiner.plan(&red.body, (end, half), SegmentEdge::InPlane(section))?;
                 let lane = JoinLane::Split(section);
                 if let Some(curve) = joiner.segment_curve(&mut red.body, &plan, lane, leave)? {
@@ -197,6 +198,7 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
             count: st.ends.len(),
         });
     }
+    st.joiner.finish(&red.body)?;
     let fragments = st.joiner.take_fragments();
     Ok((st.completed, fragments))
 }
@@ -991,7 +993,10 @@ mod torn_hop_rows {
     fn reduced(body: &Body<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> SplitReduction<f64> {
         let tol = Tol::witness();
         let plane = crate::test_support_fixtures::split_plane(origin, normal, tol);
-        crate::splitting::split_reduce(body, &plane, tol).unwrap()
+        let mut described = body.clone();
+        crate::test_support_fixtures::describe_as_intersections(&mut described, tol);
+        let operand = crate::test_support::finished("the operand", described, tol);
+        crate::splitting::split_reduce(&operand, &plane, tol).unwrap()
     }
 
     fn above_set(red: &SplitReduction<f64>) -> SecondaryMap<VertexKey, ()> {
