@@ -3166,14 +3166,17 @@ pub(crate) mod tests {
         // driver builds its padded boxes (`boxes::face_box`/`edge_box`
         // at `pad`) and hands them in as closures, and the scan's own
         // calls through those closure parameters match the same text.
-        // So are one of `boolean/ops.rs`'s three and `pieces.rs`'s one:
+        // So are one of `boolean/ops.rs`'s four and `pieces.rs`'s one:
         // the boolean's exit builds the face-box closure the piece
-        // sort's screen calls. `boolean/torn_hop_rows.rs`' four are not
+        // sort's screen calls. Another of `ops.rs`'s four is not a door:
+        // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
+        // its bricks' faces to hand the arm's question what the scan
+        // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
         const PINNED: [(&str, usize); 7] = [
             ("boolean/mod.rs", 2),
-            ("boolean/ops.rs", 3),
+            ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 8),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
