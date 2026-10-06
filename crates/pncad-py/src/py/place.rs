@@ -467,11 +467,11 @@ impl PatternKind {
     fn linear(
         py: Python<'_>,
         direction: (Formula, Formula, Formula),
-        spacing: &Formula,
+        spacing: SlotArg,
     ) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
             direction: super::doc::direction_expr(py, d::VectorSlot::Direction, &direction)?,
-            spacing: super::doc::slot_expr(py, d::SlotId::Spacing, spacing)?,
+            spacing: super::doc::slot_expr(py, d::SlotId::Spacing, &spacing)?,
         }))
     }
 
@@ -486,7 +486,7 @@ impl PatternKind {
     fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Formula) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.0,
-            step: super::doc::slot_expr(py, d::SlotId::Step, step)?,
+            step: super::doc::slot_expr(py, d::SlotId::Step, &step)?,
         }))
     }
 
@@ -537,7 +537,7 @@ impl Placement {
     pub(crate) fn rigid(
         translation: (Formula, Formula, Formula),
         axis: (Formula, Formula, Formula),
-        angle: &Formula,
+        angle: SlotArg,
     ) -> Self {
         Self(
             d::Step::Rigid {

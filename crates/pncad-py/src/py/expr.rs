@@ -331,6 +331,57 @@ impl Formula {
     }
 }
 
+/// **What a slot takes** (VARIABLES-DESIGN VR9; INTENT-LITERALS Q9): a
+/// variable the document holds, read by every slot handed it — which
+/// is how two slots share one; a [`Formula`]; or a value, written
+/// (`WrittenLength`, `WrittenAngle`, which keep their unit) or bare (a
+/// `Length` or an `Angle` in the canonical unit, a `float` as a
+/// dimensionless number, an `int` as a count). A value or a formula
+/// mints the slot's own anonymous variable at the edit door; a `Var`
+/// is the variable itself.
+#[derive(FromPyObject)]
+pub(crate) enum SlotArg {
+    /// A variable the document holds.
+    Var(super::doc::Var),
+    /// A formula.
+    Formula(Formula),
+    /// A length and the unit it was written in.
+    WrittenLength(super::quantity::WrittenLength),
+    /// An angle and the unit it was written in.
+    WrittenAngle(super::quantity::WrittenAngle),
+    /// A length, canonical.
+    Length(super::quantity::Length),
+    /// An angle, canonical.
+    Angle(super::quantity::Angle),
+    /// A count. Before `Scalar`: a Python `int` is also a `float`.
+    Count(i64),
+    /// A dimensionless number.
+    Scalar(f64),
+}
+
+impl SlotArg {
+    /// The formula this argument is, at a slot that reads `dim`: a
+    /// variable is read at the slot's own dimension (the edit door
+    /// refuses one whose kind is another), a value is the literal of
+    /// its own dimension.
+    pub(crate) fn formula(&self, py: Python<'_>, dim: d::Dimension) -> PyResult<d::Formula> {
+        match self {
+            Self::Var(var) => Ok(d::Formula::var(var.0, dim)),
+            Self::Formula(formula) => Ok(formula.0.clone()),
+            Self::WrittenLength(w) => {
+                d::Formula::written_length(w.0).map_err(|err| literal_err(py, w.0.meters(), &err))
+            }
+            Self::WrittenAngle(w) => {
+                d::Formula::written_angle(w.0).map_err(|err| literal_err(py, w.0.radians(), &err))
+            }
+            Self::Length(l) => literal(py, l.0.meters(), d::Dimension::Length),
+            Self::Angle(a) => literal(py, a.0.radians(), d::Dimension::Angle),
+            Self::Count(n) => Ok(d::Formula::count(*n)),
+            Self::Scalar(x) => literal(py, *x, d::Dimension::Scalar),
+        }
+    }
+}
+
 /// **A stored expression** — what a document holds once the edit door
 /// has lowered a [`Formula`]: every variable it reads, read by id.
 ///

@@ -636,12 +636,13 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 pub(crate) fn slot_expr(
     py: Python<'_>,
     slot: d::SlotId,
-    expr: &super::expr::Formula,
+    expr: &super::expr::SlotArg,
 ) -> PyResult<d::Formula> {
-    let found = expr.0.dim();
     let expected = slot.dimension();
+    let formula = expr.formula(py, expected)?;
+    let found = formula.dim();
     if found == expected {
-        return Ok(expr.0.clone());
+        return Ok(formula);
     }
     Err(edit_err(
         py,
@@ -1391,7 +1392,7 @@ impl Doc {
         &mut self,
         py: Python<'_>,
         plane: Option<SketchPlane>,
-        elevation: Option<super::expr::Formula>,
+        elevation: Option<super::expr::SlotArg>,
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
@@ -2203,10 +2204,10 @@ impl Node {
     fn extrude(
         py: Python<'_>,
         profile: &NodeId,
-        distance: &super::expr::Formula,
+        distance: super::expr::SlotArg,
         side: ExtrudeSide,
     ) -> PyResult<Self> {
-        let distance = slot_expr(py, d::SlotId::Distance, distance)?;
+        let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
         Ok(Self {
             inner: d::Node::Extrude {
                 profile: profile.0,
@@ -2226,9 +2227,9 @@ impl Node {
         py: Python<'_>,
         profile: &NodeId,
         axis: &NodeId,
-        angle: &super::expr::Formula,
+        angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
-        let angle = slot_expr(py, d::SlotId::RevolveAngle, angle)?;
+        let angle = slot_expr(py, d::SlotId::RevolveAngle, &angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
                 profile: profile.0,
@@ -2286,17 +2287,17 @@ impl Node {
             super::expr::Formula,
             super::expr::Formula,
         ),
-        major_radius: &super::expr::Formula,
+        major_radius: super::expr::SlotArg,
         window: &TubeWindow,
-        minor_radius: &super::expr::Formula,
+        minor_radius: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Tube {
                 spine: spine.0,
                 u_ref: u_ref_expr(py, u_ref)?,
-                major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, major_radius)?,
+                major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
-                minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, minor_radius)?,
+                minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
             },
         })
     }
@@ -2337,19 +2338,19 @@ impl Node {
             super::expr::Formula,
             super::expr::Formula,
         ),
-        major_radius: &super::expr::Formula,
+        major_radius: super::expr::SlotArg,
         window: &TubeWindow,
-        minor_radius: &super::expr::Formula,
-        wall: &super::expr::Formula,
+        minor_radius: super::expr::SlotArg,
+        wall: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::HollowTube {
                 spine: spine.0,
                 u_ref: u_ref_expr(py, u_ref)?,
-                major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, major_radius)?,
+                major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
-                minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, minor_radius)?,
-                wall: slot_expr(py, d::SlotId::TubeWall, wall)?,
+                minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
+                wall: slot_expr(py, d::SlotId::TubeWall, &wall)?,
             },
         })
     }
@@ -2382,12 +2383,12 @@ impl Node {
     fn loft(
         py: Python<'_>,
         profiles: Vec<NodeId>,
-        v_degree: &super::expr::Formula,
+        v_degree: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
                 profiles: profiles.iter().map(|p| p.0).collect(),
-                v_degree: slot_expr(py, d::SlotId::VDegree, v_degree)?,
+                v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
             },
         })
     }
@@ -2411,7 +2412,7 @@ impl Node {
     fn sketch_frame(
         py: Python<'_>,
         plane: Option<SketchPlane>,
-        elevation: Option<super::expr::Formula>,
+        elevation: Option<super::expr::SlotArg>,
     ) -> PyResult<Self> {
         // `elevation` is the one AUTHORED number this door takes, and
         // it is the frame's own origin z: the xy-plane that far up.
@@ -2538,9 +2539,9 @@ impl Node {
         py: Python<'_>,
         at: &NodeId,
         face: &str,
-        spin: &super::expr::Formula,
+        spin: super::expr::SlotArg,
     ) -> PyResult<Self> {
-        let spin = slot_expr(py, d::SlotId::Spin, spin)?;
+        let spin = slot_expr(py, d::SlotId::Spin, &spin)?;
         Ok(Self {
             inner: d::Node::Datum(d::Datum::FaceFrame {
                 at: at.0,
@@ -2702,10 +2703,10 @@ impl Node {
     fn fillet(
         py: Python<'_>,
         target: &NodeId,
-        radius: &super::expr::Formula,
+        radius: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
-        let radius = slot_expr(py, d::SlotId::Radius, radius)?;
+        let radius = slot_expr(py, d::SlotId::Radius, &radius)?;
         let selection = selection
             .iter()
             .map(|text| name_from_text(text))
@@ -2745,10 +2746,10 @@ impl Node {
     fn chamfer(
         py: Python<'_>,
         target: &NodeId,
-        distance: &super::expr::Formula,
+        distance: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
-        let distance = slot_expr(py, d::SlotId::ChamferDistance, distance)?;
+        let distance = slot_expr(py, d::SlotId::ChamferDistance, &distance)?;
         let selection = selection
             .iter()
             .map(|text| name_from_text(text))
@@ -2797,10 +2798,10 @@ impl Node {
     fn shell(
         py: Python<'_>,
         target: &NodeId,
-        thickness: &super::expr::Formula,
+        thickness: super::expr::SlotArg,
         open: Vec<String>,
     ) -> PyResult<Self> {
-        let thickness = slot_expr(py, d::SlotId::ShellThickness, thickness)?;
+        let thickness = slot_expr(py, d::SlotId::ShellThickness, &thickness)?;
         let open = open
             .iter()
             .map(|text| name_from_text(text))
@@ -2856,7 +2857,7 @@ impl Node {
             super::expr::Formula,
             super::expr::Formula,
         ),
-        rotation_angle: &super::expr::Formula,
+        rotation_angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Self::transform_by(
             py,
@@ -2881,7 +2882,11 @@ impl Node {
         let inner = d::Node::transform(input.0, placement.0.clone());
         for slot in inner.slots() {
             if let Some(expr) = inner.expr(slot) {
-                slot_expr(py, slot, &super::expr::Formula(expr.clone()))?;
+                slot_expr(
+                    py,
+                    slot,
+                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
+                )?;
             }
         }
         Ok(Self { inner })
@@ -2986,13 +2991,13 @@ impl Node {
     fn pattern(
         py: Python<'_>,
         input: &NodeId,
-        count: &super::expr::Formula,
+        count: super::expr::SlotArg,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Pattern {
                 input: input.0,
-                count: slot_expr(py, d::SlotId::Count, count)?,
+                count: slot_expr(py, d::SlotId::Count, &count)?,
                 kind: kind.0.clone(),
             },
         })
@@ -3060,10 +3065,10 @@ impl Node {
     fn placed_union(
         py: Python<'_>,
         input: &NodeId,
-        count: &super::expr::Formula,
+        count: super::expr::SlotArg,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
-        let count = slot_expr(py, d::SlotId::Count, count)?;
+        let count = slot_expr(py, d::SlotId::Count, &count)?;
         let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
@@ -3147,7 +3152,11 @@ impl Node {
         let inner = d::Node::gauge(parent.map(|p| p.0), placement.0.clone());
         for slot in inner.slots() {
             if let Some(expr) = inner.expr(slot) {
-                slot_expr(py, slot, &super::expr::Formula(expr.clone()))?;
+                slot_expr(
+                    py,
+                    slot,
+                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
+                )?;
             }
         }
         Ok(Self { inner })
@@ -3307,7 +3316,7 @@ impl Node {
     fn assertion(
         measure: &NodeId,
         dir: super::measure::AssertionDir,
-        bound: &super::expr::Formula,
+        bound: super::expr::SlotArg,
     ) -> Self {
         Self {
             inner: d::Node::Assertion {
@@ -4735,11 +4744,11 @@ impl TubeWindow {
     /// span reaching one full period (which must say `full()`), are
     /// the kernel's own typed refusals at `evaluate`.
     #[staticmethod]
-    fn arc(py: Python<'_>, t0: &super::expr::Formula, t1: &super::expr::Formula) -> PyResult<Self> {
+    fn arc(py: Python<'_>, t0: super::expr::SlotArg, t1: &super::expr::Formula) -> PyResult<Self> {
         Ok(Self {
             inner: d::TubeWindow::Arc {
-                t0: slot_expr(py, d::SlotId::TubeWindowStart, t0)?,
-                t1: slot_expr(py, d::SlotId::TubeWindowEnd, t1)?,
+                t0: slot_expr(py, d::SlotId::TubeWindowStart, &t0)?,
+                t1: slot_expr(py, d::SlotId::TubeWindowEnd, &t1)?,
             },
         })
     }
