@@ -1457,6 +1457,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "TangencyUnsupported",
             R::TangencyUnsupported { face, vertex },
         ),
+        ("ConcaveGraze", R::ConcaveGraze { face, vertex }),
         ("ScaffoldingOperand", R::ScaffoldingOperand { edge }),
         (
             "SliverVertex",

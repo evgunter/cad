@@ -260,6 +260,22 @@ pub enum SplitReduceError {
         /// The ON vertex where the contact was classified.
         vertex: VertexKey,
     },
+    /// The split plane grazes a curved wall from inside the material
+    /// at an ON vertex: tangent there, with the material across the
+    /// plane and the wall bending away from it (a hole's wall touched
+    /// from inside). The piece on the wall's side meets the cut face
+    /// tangentially along the contact, so it would taper to a knife
+    /// edge, and a split has no channel to declare one. Rule (b) reads
+    /// the graze (`rules::wall_graze`), and refuses it there, before
+    /// any section is built: the same knife edge
+    /// [`SplitFinishError::SectionCusp`] refuses where it is found on
+    /// a section's boundary instead.
+    ConcaveGraze {
+        /// The grazed wall.
+        face: FaceKey,
+        /// The ON vertex where the graze was read.
+        vertex: VertexKey,
+    },
     /// The operand already contains null-edge scaffolding — it is a
     /// mid-surgery body, not a splittable operand.
     ScaffoldingOperand {
@@ -431,6 +447,12 @@ impl core::fmt::Display for SplitReduceError {
                 f,
                 "the split plane is tangent to a curved face at a vertex, and a tangent \
                  cut is not supported yet. Recourse: move the split plane off the tangency"
+            ),
+            Self::ConcaveGraze { .. } => write!(
+                f,
+                "the split plane is tangent to a curved face from inside the material, so a \
+                 piece would taper to a knife edge nobody asked for. Recourse: move the split \
+                 plane off the tangency"
             ),
             Self::ScaffoldingOperand { edge } => write!(
                 f,
@@ -735,31 +757,23 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
 ///
-/// **The rerun also receives concave grazes of curved faces.** A plane
-/// tangent to a hole's wall from inside closes a zero-area polygon too,
-/// and the refusal cannot say which of the two it is, so the mirrored
-/// run is tried for both. (A plane tangent along a convex edge, or to a
-/// convex wall, never gets here: rule (b) classifies the entry with its
-/// material.) A graze alone refuses again there. A graze whose contact
-/// meets a real section elsewhere would, in the mirrored run, join that
-/// contact into the real section's loop as a zero-width spur of
-/// positive net area — a success with a slit in both halves — and the
-/// join refuses it ([`SplitJoinError::SectionSpur`]), so the direct
-/// run's `DegenerateSection` surfaces. A graze whose mirrored run
-/// completes the join and then refuses
+/// **A knife edge the mirrored run finds is the refusal.** A mirrored
+/// run that completes the join and then refuses
 /// [`SplitFinishError::SectionCusp`] surfaces THAT refusal: the mirror
 /// resolved the direct run's degenerate polygon, so the knife edge is
 /// why the cut cannot be made. A both-sided pinch never takes this path
-/// — it refuses at the join in both directions.
+/// — it refuses at the join in both directions. A plane grazing a
+/// curved wall never reaches the rerun: rule (b) lands a convex graze
+/// with its material and refuses a concave one
+/// ([`SplitReduceError::ConcaveGraze`]) in the reduction.
 /// The result's section-face normals still follow THIS
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.
 ///
 /// # Errors
 ///
-/// [`SplitError`], each stage's typed refusals passed through whole —
-/// including the degenerate section/side refusals of a curved face's
-/// concave graze (no degenerate body is ever emitted), and
+/// [`SplitError`], each stage's typed refusals passed through whole (no
+/// degenerate body is ever emitted), and
 /// [`SplitFinishError::SectionCusp`] from either run. Each run gates
 /// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
 /// mirrored run whose side is not a closed solid surfaces the direct

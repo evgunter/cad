@@ -408,20 +408,21 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // taken before the re-chart and stated with it.
         let ring_sense = section_sense(&body, section.face, ring, normal_of(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, normal_of(other_side), band)?;
+        // Each face of the null pair moves onto its section plane with
+        // the edges still described against the chart it leaves,
+        // restated in that plane, which every section boundary edge
+        // lies in; the boundary pass below gives each its honest class.
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        let restated = section_plane_restatements(&body, promoted.face)?;
         body.set_face_surfaces_describing(
             vec![Rechart::new(
                 plane_for(ring_side),
                 promoted.face,
                 ring_sense,
             )],
-            &[],
+            &restated,
             tol,
         )?;
-        // The face the null pair leaves on its old chart moves last, and
-        // the edges still described against that chart move with it,
-        // restated in the section plane every section boundary edge lies
-        // in; the boundary pass below gives each its honest class.
         let restated = section_plane_restatements(&body, section.face)?;
         body.set_face_surfaces_describing(
             vec![Rechart::new(

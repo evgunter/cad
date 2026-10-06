@@ -50,10 +50,9 @@
 //! resolves them by membership of the minted above-copy vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon (a below-side pinch, or a curved face's concave graze)
-//! is refused typed, [`SplitJoinError::DegenerateSection`] — refuses
-//! a positive-area polygon carrying a grazing contact as a zero-width
-//! spur
+//! polygon (a below-side pinch) is refused typed,
+//! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
+//! polygon carrying a touching contact as a zero-width spur
 //! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
 //! `Sweep::refuse_section_spur`), and writes the F9 record.
 
@@ -703,7 +702,7 @@ impl<T: Decide> Sweep<T> {
     /// Certify the completed polygon's area definitely positive
     /// (margin 2·|A|/P — mean width in meters, profile's
     /// `loop_orientation` lever-arm story); Zero ⇒ the degenerate
-    /// section of a pinch or a curved face's graze, refused typed.
+    /// section of a pinch, refused typed.
     ///
     /// **Conic boundary edges (M5 PR 5)**: the vertex shoelace below is
     /// exact for straight chords and stays BIT-IDENTICAL for all-planar
@@ -806,21 +805,20 @@ impl<T: Decide> Sweep<T> {
     /// so the vertex before it and the vertex after it coincide
     /// ([`SplitJoinError::SectionSpur`]).
     ///
-    /// Where it comes from: a concave graze of a curved face (a plane
-    /// tangent to a hole's wall along a ruling) mints a contact.
-    /// When the graze is on the run's above side, the contact closes a
-    /// polygon of its own, zero-area, and [`Self::certify_section_area`]
-    /// refuses it ([`SplitJoinError::DegenerateSection`]).
-    /// [`super::split`] reads that refusal as a below-side pinch and
-    /// reruns under the mirrored plane. If the plane also cuts the solid
-    /// somewhere the contact reaches, the mirrored run joins the contact
-    /// into that real section's loop as an out-and-back excursion. Its
-    /// net area is the real section's, positive, and the area test
-    /// passes it. This refuses that excursion, so the graze stays
-    /// refused (the public `split` then surfaces the direct run's
-    /// `DegenerateSection`). A plane tangent along a convex edge, or to
-    /// a convex wall, never gets here: rule (b) classifies the entry
-    /// with its material.
+    /// Where it comes from: a contact the plane only touches, on the
+    /// run's above side, closes a polygon of its own, zero-area, and
+    /// [`Self::certify_section_area`] refuses it
+    /// ([`SplitJoinError::DegenerateSection`]). [`super::split`] reads
+    /// that refusal as a below-side pinch and reruns under the mirrored
+    /// plane. If the plane also cuts the solid somewhere the contact
+    /// reaches, the mirrored run joins the contact into that real
+    /// section's loop as an out-and-back excursion. Its net area is the
+    /// real section's, positive, and the area test passes it. This
+    /// refuses that excursion (the public `split` then surfaces the
+    /// direct run's `DegenerateSection`). A plane tangent to a curved
+    /// wall never gets here: rule (b) lands a convex graze with its
+    /// material and refuses a concave one in the reduction
+    /// ([`crate::SplitReduceError::ConcaveGraze`]).
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).

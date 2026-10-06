@@ -67,3 +67,84 @@ text. `Finish(Corrupt)` comes from one of `finish.rs`'s
 ## Found by
 
 `cleave/convex-graze`'s measurement of the concave guards.
+
+## Built (branch cleave/concave-graze)
+
+**Re-measured on main (9d03eda), default ε.** Every pose of this row and
+of DR-51's concave rows, both normals: the round hole (both loop
+orientations) at the ten azimuths of `THETAS`, the conical socket and the
+counterbore at the same ten, and the filleted hole at φ ∈ {0, 0.3, π/4,
+1.2, π/2}, 90 poses in all. Each run of the pipeline was instrumented: the
+direct run, the mirrored rerun and the third run that surfaces the direct
+refusal, each wrong payload's raising site by backtrace, and rule (b)'s
+concave verdicts. Main has moved since the row was written:
+
+- the socket's seam pose (u = +x, s = −1) no longer refuses on the cone's
+  half-angle. It refuses
+  `Join(Euler(Certification { IntervalNotForward }))`, and so do 16
+  other poses, all with s = −1 (the holes at θ ∈ {3π/2, 4, 5.5}, seven socket
+  and four counterbore poses);
+- the socket at θ = 2, s = +1: `Join(UnpairedLooseEnds { count: 2 })`;
+- the socket at θ = 0.3: `Reduce(SliverSector)`.
+
+The 90 on main: `SectionCusp` 10 (the hole's seams, the filleted flats
+with s = −1), `DegenerateSection` 22, `SectionInvariant` 20,
+`IntervalNotForward` 17, `Corrupt` 14, `SliverSector` 4,
+`RechartUndescribed` 2, `UnpairedLooseEnds` 1.
+
+**Where each wrong payload is raised.** Every pose of the hole, the socket
+and the counterbore passed through rule (b)'s concave verdict
+(`rules::wall_graze`, `(false, OutOfMaterial)`): 2 or 4 per run. That
+verdict sent the entry opposite `S`, minting a null edge for a contact the
+section has no polygon for, and the join then misread it:
+
+- `Join(DegenerateSection)` at `Sweep::certify_section_area`: the contact
+  closed a zero-area polygon. The public error is the direct run's, after
+  the mirror refused differently;
+- `Join(SectionInvariant { "tangent section chord endpoints coincide
+  along the ruling" })` at `chord_spec`'s tangent lane
+  (`split_tangent_chord_forward` decided Zero). The join asked for a chord
+  along the ruling between two vertices at one point;
+- `Join(Euler(Certification { IntervalNotForward }))` while certifying
+  such a chord;
+- `Finish(Corrupt)`, all 14 poses (socket and counterbore, s = +1), at
+  one site: `below_chord_u_ref`'s `chord_u_ref(..).ok_or(Corrupt)`. The
+  join had completed a "section" whose loop was the hole's rim circle, one
+  vertex, one half-edge. Its area passed (the circle's excess) and the
+  finish found no first chord. The operand was valid; the join's polygon
+  was wrong.
+
+The filleted hole's flat poses (φ = 0, π/2) never reach rule (b), because
+the flat's sector is rule (a)'s. With s = −1 they refuse `SectionCusp`
+honestly. With s = +1 they refused `Finish(Euler(RechartUndescribed))` at
+the section promotion: the ring loop's face was re-charted onto the
+section plane with no restatements (`&[]`), while the outer loop's face
+got `section_plane_restatements`. The smooth flat/corner edge, still
+described in the chart the face left, was stranded whenever it fell on
+the ring side.
+
+**What landed.**
+
+- `SplitReduceError::ConcaveGraze { face, vertex }`: rule (b) refuses a
+  concave graze where it reads it, before any section is built, naming
+  the grazed wall. It is the same knife edge `SectionCusp` refuses at a
+  section boundary. No verdict sends the contact downstream any more.
+- The promoted ring face is re-charted with its own restatements, as the
+  outer face already was. The flat poses with s = +1 now reach the knife
+  edge, as `Finish(SectionCusp)`.
+
+**After.** At default ε: 84 `ConcaveGraze` and 4 `SectionCusp` (the
+filleted flats, both normals). The remaining 2 are the filleted hole at
+φ = 1.2, `Reduce(SliverSector)`, the band artifact of
+`a-convex-graze-of-a-cone-refuses-at-some-azimuths` (its evidence is added
+there). At 1e-6 all 86 non-flat poses give `ConcaveGraze`. At 1e-12, φ = 1.2
+gives a certification refusal and every other pose is as at default ε.
+Pinned by `split_tangent_edge_curved::{a_concave_graze_of_a_round_hole_refuses,
+a_concave_graze_of_a_revolved_hole_refuses,
+a_concave_graze_of_a_filleted_hole_refuses}` (exact payload, and the
+refusal names the wall) and by
+`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
+(the seam graze is now `ConcaveGraze`).
+
+No concave graze can build: each one is a knife edge, which D10 holds
+undeclarable for a split. Nothing here declares contact.

@@ -163,21 +163,16 @@ pub enum SplitJoinError {
     /// A completed section polygon bounds zero area: no degenerate body
     /// is ever emitted.
     ///
-    /// A run reaches it two ways: a below-side PINCH (pieces meeting
-    /// at a tip line on the NEGATIVE side of the run's plane normal,
-    /// where the ch. 14 insertion mints no vertex copies), and a
-    /// concave GRAZE of a curved face (the plane tangent to a hole's
-    /// wall from inside, whose contact closes a polygon of its own). A
-    /// plane tangent along a convex edge or to a convex wall does not
-    /// reach it: rule (b) classifies that entry with its material, and
-    /// the contact mints nothing. Since M3 PR 6a (D7) the public
-    /// [`crate::splitting::split`] consumes this refusal as the pinch
-    /// trigger and reruns under the mirrored plane — where pinched
-    /// fans are ABOVE runs and mint their copies — so a pinch's
-    /// success is orientation-independent. The rerun cannot tell a
-    /// graze from a pinch, so it reruns a graze too; a graze alone
-    /// refuses again there, and one whose contact meets a real section
-    /// refuses [`Self::SectionSpur`]. The error surfaces from
+    /// A run reaches it at a below-side PINCH (pieces meeting at a tip
+    /// line on the NEGATIVE side of the run's plane normal, where the
+    /// ch. 14 insertion mints no vertex copies). A plane tangent to a
+    /// curved wall does not reach it: rule (b) classifies a convex
+    /// graze with its material, and refuses a concave one in the
+    /// reduction ([`crate::SplitReduceError::ConcaveGraze`]). Since M3
+    /// PR 6a (D7) the public [`crate::splitting::split`] consumes this
+    /// refusal as the pinch trigger and reruns under the mirrored plane
+    /// — where pinched fans are ABOVE runs and mint their copies — so a
+    /// pinch's success is orientation-independent. The error surfaces from
     /// [`crate::splitting::split`] when the mirror run also refuses,
     /// and from the join lane directly (e.g.
     /// [`crate::splitting::plane_section`], which has no sides to
@@ -188,12 +183,10 @@ pub enum SplitJoinError {
     },
     /// A completed section polygon of positive area carries a SPUR: its
     /// loop runs out along a straight edge the plane only touches and
-    /// straight back. The spur is a concave graze's contact joined
-    /// into a real section's polygon instead of closing one of its own;
-    /// it would leave a zero-width slit in both halves, with two copies
-    /// of every vertex along it on one side. Refused, as the graze
-    /// standing alone is ([`Self::DegenerateSection`]); no degenerate
-    /// body is ever emitted.
+    /// straight back: a contact joined into a real section's polygon
+    /// instead of closing one of its own. It would leave a zero-width
+    /// slit in both halves, with two copies of every vertex along it on
+    /// one side. Refused; no degenerate body is ever emitted.
     SectionSpur {
         /// The completed null face.
         face: FaceKey,
@@ -408,9 +401,8 @@ impl SplitJoinError {
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
-                "a section is degenerate: it bounds zero area, where the plane only \
-                 grazes a hole's wall from inside or pinches the solid. Recourse: \
-                 {recourse}"
+                "a section is degenerate: it bounds zero area, where the plane pinches \
+                 the solid. Recourse: {recourse}"
             ),
             Self::SectionSpur { .. } => write!(
                 f,

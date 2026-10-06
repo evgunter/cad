@@ -41,6 +41,28 @@ slab. The allowance is not an exact pin, because it varies with ε.
 Fixing this row means removing the allowance. The full cone is not
 pinned.
 
+The concave twin of the slab pose stops at the same door. The
+rounded outline as a hole in a 10 × 8 plate, grazed from inside along
+its NE corner wall at φ = 1.2, both normals
+(`a_concave_graze_of_a_filleted_hole_refuses`, measured 2026-10-06 by
+`cleave/concave-graze`):
+
+- default ε: `Reduce(SliverSector)`, margin ≈ 3.9e-9, at the graze
+  vertex before rule (b) reads the wall;
+- `CAD_TOLERANCE_EPS=1e-6`: `Reduce(ConcaveGraze)`, the graze read and
+  refused as it should be;
+- `CAD_TOLERANCE_EPS=1e-12`: the plane is read as cutting the wall
+  rather than grazing it, and the join refuses
+  `Euler(Certification { ResidualExceeded { check: EndpointStart } })`.
+
+At 1e-12 the 3.9e-9 departure is outside the band, so the plane passes
+through two roots ~4e-9 apart and the chord between them does not
+certify. That is a near-graze cut refused at certification, not a band
+refusal. The pin there only asks that the pose refuses. The conical
+socket at θ = 0.3, which refused `SliverSector` at default ε on main, now
+refuses `ConcaveGraze` instead, because rule (b) reads the graze at an
+earlier vertex.
+
 ## Where to look
 
 `split_conic_departure` is the first-order departure trilean of a rim

@@ -56,7 +56,7 @@
 //! | `S`-ON-`S` | convex edge | `S` |
 //! | `S`-ON-`S` | reflex edge | opposite `S` |
 //! | `S`-ON-`S` | smooth edge or duplicate, convex graze | `S` |
-//! | `S`-ON-`S` | smooth edge or duplicate, concave graze | opposite `S` |
+//! | `S`-ON-`S` | smooth edge or duplicate, concave graze | refused, [`SplitReduceError::ConcaveGraze`] |
 //! | `S`-ON-`S` | smooth edge or duplicate, no graze | opposite `S` (a safety default) |
 //! | `A`-ON-`B`, `B`-ON-`A` | any | `Below` |
 //! | | in the band | refused, [`SplitReduceError::SliverSector`] |
@@ -111,15 +111,19 @@
 //!   socket touched from inside. Material lies on both sides, and the
 //!   piece on `S` meets the cut face tangentially along the contact:
 //!   two crescents vanishing to a knife edge that the split, having no
-//!   declaration channel, refuses. The entry goes opposite `S`, which
-//!   mints the null edge, and the graze refuses
+//!   declaration channel, refuses. It refuses here, where the graze is
+//!   read ([`SplitReduceError::ConcaveGraze`]): no verdict sends the
+//!   entry anywhere a section could be built from it
 //!   (`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
-//!   pins the knife edge's refusal, and
-//!   `split_tangent_edge_curved.rs`'s concave rows pin it at every
-//!   azimuth). Sending it to `S` instead returns the true volumes with
-//!   the hole's wall touching the cut face's interior along the
-//!   contact, with no edge for it, and tier 3 passes that
+//!   and `split_tangent_edge_curved.rs`'s concave rows pin the
+//!   refusal at every azimuth). Sending it to `S` instead returns the
+//!   true volumes with the hole's wall touching the cut face's
+//!   interior along the contact, with no edge for it, and tier 3
+//!   passes that
 //!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
+//!   Sending it opposite `S` mints a null edge for a contact the
+//!   section has no polygon for, and the join and the finish then
+//!   misread what they are handed.
 //! - A wall's first- and second-order reads that disagree contradict
 //!   the `S`-ON-`S` neighbours, which are curves on the same wall, and
 //!   refuse as a sliver; a wall that osculates its tangent plane is
@@ -130,7 +134,7 @@
 //! mints the null edge, so the configuration is cut or refuses, never
 //! answered wrongly. The rows are
 //! `sweep/tests/split_tangent_edge_curved.rs` (convex grazes of a
-//! cylinder and a cone answered, concave ones guarded).
+//! cylinder and a cone answered, concave ones refused).
 //!
 //! **Mixed** neighbours are a free convention: either side yields
 //! manifold results; `Below` is kept for both witnesses' agreement and
@@ -387,7 +391,8 @@ fn edge_wedge<T: Decide>(
 /// orbit half-edges of both its faces' sectors), each with rule (a)'s
 /// verdict on whether the plane grazes that face. Each face is read
 /// over its face extent, the arm rule (a) reads it over (ledger F11);
-/// every face must give the same verdict, or the reading refuses.
+/// every face must give the same verdict, or the reading refuses. A
+/// concave graze among them refuses ([`SplitReduceError::ConcaveGraze`]).
 fn wall_graze<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -403,6 +408,7 @@ fn wall_graze<T: Decide>(
         -plane.normal.get()
     };
     let mut verdict = None;
+    let mut concave = None;
     for &(he, tangent) in sectors {
         let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
@@ -429,7 +435,10 @@ fn wall_graze<T: Decide>(
                     })?;
                 match (material_on_side, bend) {
                     (true, WallBend::IntoMaterial) => side,
-                    (false, WallBend::OutOfMaterial) => side.opposite(),
+                    (false, WallBend::OutOfMaterial) => {
+                        concave = Some(face);
+                        side.opposite()
+                    }
                     (_, WallBend::Flat) => {
                         return Err(SplitReduceError::TangencyUnsupported { face, vertex });
                     }
@@ -442,6 +451,9 @@ fn wall_graze<T: Decide>(
             Some(v) if v != this => return Err(contradiction("wall_bend_order2")),
             _ => verdict = Some(this),
         }
+    }
+    if let Some(face) = concave {
+        return Err(SplitReduceError::ConcaveGraze { face, vertex });
     }
     Ok(verdict.unwrap_or_else(|| unreachable!("rule (b) hands wall_graze at least one sector")))
 }

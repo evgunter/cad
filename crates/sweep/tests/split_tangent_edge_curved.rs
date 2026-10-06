@@ -2,32 +2,39 @@
 //! between a plane and a cylinder (convex on a D-shaped bar, reflex on a
 //! D-shaped hole); the convex graze of a cylinder and of a cone, which
 //! lands the body whole on its material's side; and the concave graze
-//! of a round hole and of a conical socket, whose refusal is correct
-//! only so long as it is not replaced by an answer that puts the hole
-//! on the wrong side.
+//! of a round hole, a conical socket, a counterbore and a filleted
+//! hole, which refuses the knife edge it would mint.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::SurfaceKind;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
-use topo::{Body, mass_properties, validate_closed};
+use topo::{
+    Body, SplitError, SplitFinishError, SplitReduceError, mass_properties, validate_closed,
+};
 
 type Loop = Vec<((f64, f64), f64)>;
 
 fn extruded(loops: Vec<Loop>) -> Body<f64> {
-    let lps = loops
-        .into_iter()
-        .map(|l| {
-            bulge_loop(
-                l.into_iter()
-                    .map(|((x, y), b)| (Point2::new(x, y), b))
-                    .collect(),
-            )
-        })
-        .collect();
-    let vp = Profile::new(SketchPlane::xy(), lps)
+    extruded_loops(
+        loops
+            .into_iter()
+            .map(|l| {
+                bulge_loop(
+                    l.into_iter()
+                        .map(|((x, y), b)| (Point2::new(x, y), b))
+                        .collect(),
+                )
+            })
+            .collect(),
+    )
+}
+
+fn extruded_loops(loops: Vec<profile::ProfileLoop<f64>>) -> Body<f64> {
+    let vp = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .unwrap();
     extrude(
@@ -146,15 +153,29 @@ fn unit(t: f64) -> (f64, f64) {
 /// A concave graze has material on both sides of the plane, and the
 /// hole's piece would meet the cut face tangentially along the contact:
 /// a knife edge the split, having no declaration channel, cannot make.
-/// It must refuse. An answer here is wrong whatever its volumes, and
+/// Rule (b) reads the graze and refuses it there, naming the wall
+/// (`ConcaveGraze`). An answer here is wrong whatever its volumes, and
 /// it need not even carry an edge for the contact: sent with its
 /// material, the graze answers the true volumes with the hole's wall
 /// touching the cut face's interior along the ruling, which tier 3
 /// passes.
-fn concave_graze_refuses(label: &str, body: &Body<f64>, p: &SplitPlane<f64>) {
-    if let Ok(r) = split(body, p, Tol::witness()) {
-        let got = (volume(label, &r.above), volume(label, &r.below));
-        panic!("{label}: answered {got:?}");
+fn concave_graze_refuses(label: &str, body: &Body<f64>, p: &SplitPlane<f64>, wall: SurfaceKind) {
+    match split(body, p, Tol::witness()) {
+        Err(SplitError::Reduce(SplitReduceError::ConcaveGraze { face, .. })) => {
+            let named = body
+                .get_face(face)
+                .and_then(|f| body.get_surface(f.surface));
+            assert_eq!(
+                named.map(geom::Surface::kind),
+                Some(wall),
+                "{label}: the refusal names the grazed wall"
+            );
+        }
+        Ok(r) => {
+            let got = (volume(label, &r.above), volume(label, &r.below));
+            panic!("{label}: answered {got:?}");
+        }
+        Err(e) => panic!("{label}: refused {e:?}, not the graze's knife edge"),
     }
 }
 
@@ -176,6 +197,7 @@ fn a_concave_graze_of_a_round_hole_refuses() {
                     &label,
                     &b,
                     &plane((0.5 * u.0, 0.5 * u.1), (s * u.0, s * u.1)),
+                    SurfaceKind::Cylinder,
                 );
             }
         }
@@ -472,19 +494,14 @@ fn a_convex_graze_of_a_boss_on_a_step_cuts_only_the_step() {
     }
 }
 
-/// A 6 × 4 slab whose corners are rounded r = 0.5 through the fillet
-/// door (declared tangent joints, smooth edges between each flat and
-/// its corner wall), grazed along its NE corner wall at angle φ and
-/// coplanar with the flats the corner continues (φ = 0, π/2): the slab
-/// lands whole on the material side. φ = 1.2 may refuse before rule (b)
-/// (`split_conic_departure` at the default ε, filed with the cone's
-/// refusals).
-#[test]
-fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
+/// The 6 × 4 rectangle on `[0, 6] × [0, 4]` with its corners rounded
+/// r = 0.5 through the fillet door (declared tangent joints: smooth
+/// edges between each flat and its corner wall). Its NE corner wall is
+/// centred at (5.5, 3.5).
+fn rounded_outline() -> profile::ProfileLoop<f64> {
     use profile::{Open, Start};
     let (w, h, r, t) = (6.0, 4.0, 0.5, Tol::witness());
-    let lp: profile::ProfileLoop<f64> = Open
-        .at(Point2::new(w / 2.0, 0.0))
+    Open.at(Point2::new(w / 2.0, 0.0))
         .toward(1.0, 0.0, t)
         .unwrap()
         .fillet(r, t)
@@ -509,20 +526,20 @@ fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
         .unwrap()
         .to(Start, t)
         .unwrap()
-        .into();
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(t)
-        .unwrap();
-    let body = extrude(
-        &vp,
-        Extrusion::Distance {
-            depth: 1.0,
-            side: ExtrudeSide::Along,
-        },
-        t,
-    )
-    .unwrap()
-    .body;
+        .into()
+}
+
+/// A 6 × 4 slab whose corners are rounded r = 0.5 through the fillet
+/// door (declared tangent joints, smooth edges between each flat and
+/// its corner wall), grazed along its NE corner wall at angle φ and
+/// coplanar with the flats the corner continues (φ = 0, π/2): the slab
+/// lands whole on the material side. φ = 1.2 may refuse before rule (b)
+/// (`split_conic_departure` at the default ε, filed with the cone's
+/// refusals).
+#[test]
+fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
+    let (w, h, r, t) = (6.0, 4.0, 0.5, Tol::witness());
+    let body = extruded_loops(vec![rounded_outline()]);
     let v = w * h - (4.0 - std::f64::consts::PI) * r * r;
     let c = (w - r, h - r);
     for phi in [
@@ -576,9 +593,63 @@ fn a_concave_graze_of_a_revolved_hole_refuses() {
     for t in THETAS {
         for s in [1.0, -1.0] {
             let label = format!("socket, θ = {t}, s = {s}");
-            concave_graze_refuses(&label, &socket, &cone_tangent(1.0, -0.5, unit(t), s));
+            let p = cone_tangent(1.0, -0.5, unit(t), s);
+            concave_graze_refuses(&label, &socket, &p, SurfaceKind::Cone);
             let label = format!("counterbore, θ = {t}, s = {s}");
-            concave_graze_refuses(&label, &bore, &step_tangent(t, s));
+            concave_graze_refuses(&label, &bore, &step_tangent(t, s), SurfaceKind::Cylinder);
+        }
+    }
+}
+
+/// [`rounded_outline`] as a hole in a 10 × 8 plate, grazed from inside
+/// along its NE corner wall at the convex slab's angles. At the
+/// interior angles rule (b) reads the graze and refuses it
+/// ([`concave_graze_refuses`]). Coplanar with a flat the corner
+/// continues (φ = 0, π/2), the flat's sector is rule (a)'s, and the
+/// knife edge is found on the section's boundary instead, at the smooth
+/// edge between the flat and the corner wall: `SectionCusp`, naming the
+/// wall, under either normal. φ = 1.2 refuses before rule (b) reads the
+/// wall, as the slab's φ = 1.2 does
+/// (`work/cleave/a-convex-graze-of-a-cone-refuses-at-some-azimuths.md`).
+#[test]
+fn a_concave_graze_of_a_filleted_hole_refuses() {
+    use profile::RawLoop;
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+    let plate = profile::ProfileLoop::polygon([
+        Point2::new(-2.0, -2.0),
+        Point2::new(8.0, -2.0),
+        Point2::new(8.0, 6.0),
+        Point2::new(-2.0, 6.0),
+    ]);
+    let body = extruded_loops(vec![plate, rounded_outline()]);
+    let (r, c) = (0.5, (5.5, 3.5));
+    for phi in [0.0f64, 0.3, FRAC_PI_4, 1.2, FRAC_PI_2] {
+        let n = unit(phi);
+        for s in [1.0, -1.0] {
+            let label = format!("φ = {phi}, s = {s}");
+            let p = plane((c.0 + r * n.0, c.1 + r * n.1), (s * n.0, s * n.1));
+            if phi == 0.0 || phi == FRAC_PI_2 {
+                match split(&body, &p, Tol::witness()) {
+                    Err(SplitError::Finish(SplitFinishError::SectionCusp { face, .. })) => {
+                        let named = body
+                            .get_face(face)
+                            .and_then(|f| body.get_surface(f.surface));
+                        assert_eq!(
+                            named.map(geom::Surface::kind),
+                            Some(SurfaceKind::Cylinder),
+                            "{label}: the refusal names the corner wall"
+                        );
+                    }
+                    other => panic!("{label}: expected SectionCusp, got {other:?}"),
+                }
+            } else if phi == 1.2 {
+                assert!(
+                    split(&body, &p, Tol::witness()).is_err(),
+                    "{label}: answered"
+                );
+            } else {
+                concave_graze_refuses(&label, &body, &p, SurfaceKind::Cylinder);
+            }
         }
     }
 }

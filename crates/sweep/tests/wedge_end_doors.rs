@@ -1,5 +1,5 @@
 //! **The wedge-end doors that need a curved body** (D1 tier 3): the
-//! split's `SectionCusp` refusal and its counter-rows, the curved
+//! split's knife-edge refusal and its counter-rows, the curved
 //! boolean's refusals of an undeclared kiss, and the blend and shell
 //! consumers of a declared cusp body. A cusp or slit is legal at rest
 //! iff jet-determinate, so tier 3 no longer refuses one nobody
@@ -26,7 +26,7 @@ use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{brick, finished, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
 use topo::{
-    Body, BooleanErrorKind, ContactMark, EdgeKey, ShellError, SplitError, SplitFinishError,
+    Body, BooleanErrorKind, ContactMark, EdgeKey, ShellError, SplitError, SplitReduceError,
 };
 
 fn tol() -> Tol {
@@ -126,9 +126,10 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 /// the hole's side of `x = 1` the material near the tangent line is two
 /// crescents between the cut face and the wall, each vanishing to a
 /// knife edge (a doubled cusp): jet-determinate, so tier 3 would pass
-/// it, and nothing declared it. Both orientations of the plane, since
-/// the side that carries the crescents is `below` in one and `above`
-/// in the other.
+/// it, and nothing declared it. The reduction reads the graze and
+/// refuses it there. Both orientations of the plane, since the side
+/// that carries the crescents is `below` in one and `above` in the
+/// other.
 #[test]
 fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
     let body = plate_with_hole();
@@ -139,8 +140,8 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
             geom_core::Tol::witness(),
         );
         match topo::split(&body, &plane, tol()) {
-            Err(SplitError::Finish(SplitFinishError::SectionCusp { .. })) => {}
-            other => panic!("normal {normal}: expected SectionCusp, got {other:?}"),
+            Err(SplitError::Reduce(SplitReduceError::ConcaveGraze { .. })) => {}
+            other => panic!("normal {normal}: expected ConcaveGraze, got {other:?}"),
         }
     }
 }
