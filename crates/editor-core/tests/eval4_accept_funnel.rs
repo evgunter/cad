@@ -275,7 +275,7 @@ fn placed_pair(
         std::sync::Arc::new(store),
         [a, b, joint],
         editor_core::test_support::stored_placement(
-            &mut editor_core::test_support::scratch(),
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
             &offset,
         ),
     )

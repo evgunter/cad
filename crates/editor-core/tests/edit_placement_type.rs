@@ -90,7 +90,7 @@ fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
 }
 
 fn motion(p: &Placement<Formula>) -> Affine3<f64> {
-    let mut doc = editor_core::test_support::scratch();
+    let mut doc = editor_core::test_support::scratch(geom_core::Tol::witness());
     editor_core::test_support::stored_placement(&mut doc, p)
         .eval::<f64>(&doc.var_env(), band())
         .expect("the placement evaluates")

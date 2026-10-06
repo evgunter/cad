@@ -73,8 +73,8 @@ pub fn len2(v: [f64; 2]) -> [Formula; 2] {
 
 /// **A document to lower into and throw away**, for a row that asks a
 /// stored form something its variables' values do not answer.
-pub fn scratch() -> ProfileDoc {
-    ProfileDoc::empty_derived("scratch", geom_core::Tol::witness())
+pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
+    ProfileDoc::empty_derived("scratch", tol)
 }
 
 /// The stored node `node` lowers to in `doc`: what the edit door would
@@ -383,8 +383,8 @@ pub fn bracket_depth(text: &str) -> usize {
 ///
 /// Carries no oracle: it IS the mint's draw, with no door around it, so
 /// a shape whose inputs name no live node still draws.
-pub fn first_node_id(node: &crate::AuthoredNode) -> RecipeNodeId {
-    let mut doc = ProfileDoc::empty_derived("first_node_id", geom_core::Tol::witness());
+pub fn first_node_id(node: &crate::AuthoredNode, tol: geom_core::Tol) -> RecipeNodeId {
+    let mut doc = ProfileDoc::empty_derived("first_node_id", tol);
     let node = stored(&mut doc, node);
     doc.mint
         .insert(&node)

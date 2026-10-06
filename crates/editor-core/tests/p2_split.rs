@@ -758,7 +758,7 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     assert_eq!(
         offset_of(&out.doc, out.node_map[&part_base]),
         Some(editor_core::test_support::stored_placement(
-            &mut editor_core::test_support::scratch(),
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
             &checked
         )),
         "the root carries the checked offset"

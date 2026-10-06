@@ -1704,7 +1704,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1762,7 +1762,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1778,6 +1778,7 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
     expr: len(1.0),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
@@ -1865,7 +1866,7 @@ doc = apply(&doc, &DocEdit::DeclareVar {
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1943,6 +1944,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union

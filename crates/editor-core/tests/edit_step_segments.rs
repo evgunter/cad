@@ -3284,7 +3284,7 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
                 },
             ),
         ] {
-            let mut written = editor_core::test_support::scratch();
+            let mut written = editor_core::test_support::scratch(geom_core::Tol::witness());
             let resolved = editor_core::test_support::stored_loop(
                 &mut written,
                 &LoopProgram::Chain(vec![step]),

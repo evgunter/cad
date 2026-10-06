@@ -217,14 +217,17 @@ let applied = apply(&doc, &DocEdit::InsertNode {
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
     })),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() })),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along }),
+    fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);

@@ -310,7 +310,7 @@ fn corpus() -> ProfileProgram {
 /// A program lowered as the door lowers it, and the environment its
 /// variables evaluate in.
 fn lowered(program: &ProfileProgram<Formula>) -> (ProfileProgram, VarEnv<f64>) {
-    let mut doc = editor_core::test_support::scratch();
+    let mut doc = editor_core::test_support::scratch(geom_core::Tol::witness());
     let program = editor_core::test_support::stored_program(&mut doc, program);
     (program, doc.var_env())
 }

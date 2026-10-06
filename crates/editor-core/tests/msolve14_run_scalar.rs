@@ -649,7 +649,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let opts = p.opts();
     let poses = solve(&doc, &opts, Tol::witness());
     let world = |id| poses.placement(&doc, id).expect("posed").affine::<f64>();
-    let mut written = editor_core::test_support::scratch();
+    let mut written = editor_core::test_support::scratch(geom_core::Tol::witness());
     let root_offset = editor_core::test_support::stored_placement(
         &mut written,
         &editor_core::Placement::from(Step::Rigid {

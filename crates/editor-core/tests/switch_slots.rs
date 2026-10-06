@@ -974,7 +974,7 @@ fn every_node_shapes_mint_is_pinned() {
     use std::fmt::Write as _;
     let mut text = String::new();
     for node in one_of_every_node_shape() {
-        let id = editor_core::test_support::first_node_id(&node);
+        let id = editor_core::test_support::first_node_id(&node, Tol::witness());
         let kind = test_utils::f6::variant_identifier(&node);
         writeln!(text, "{kind} {}", id.0).unwrap();
     }
@@ -1013,8 +1013,10 @@ fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;
     let mut text = String::new();
     for node in one_of_every_node_shape() {
-        let node =
-            editor_core::test_support::stored(&mut editor_core::test_support::scratch(), &node);
+        let node = editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &node,
+        );
         let slots = node.slots();
         let tags: Vec<editor_core::VarId> = (0..slots.len())
             .map(|i| editor_core::VarId(1000 + i as u64))

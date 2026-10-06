@@ -1765,11 +1765,10 @@ pub enum WrittenLoopFault {
 /// argument that does not resolve.
 pub fn resolve_written_loops(
     loops: &[LoopProgram<crate::Formula>],
+    tol: geom_core::Tol,
 ) -> Result<Vec<Vec<Step<f64>>>, WrittenLoopFault> {
-    let mut scratch: crate::ProfileDoc = crate::Doc::empty(
-        crate::DocumentId::derive("written-loops"),
-        geom_core::Tol::witness(),
-    );
+    let mut scratch: crate::ProfileDoc =
+        crate::Doc::empty(crate::DocumentId::derive("written-loops"), tol);
     let stored = loops
         .iter()
         .map(|lp| {

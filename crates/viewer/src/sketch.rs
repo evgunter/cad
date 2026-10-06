@@ -1099,7 +1099,7 @@ pub fn preview(
     // from the frame the form is pointed at. Nor a document: each
     // number the form wrote is the variable the insert door would mint
     // for it, in a scratch document of the resolver's own.
-    let resolved = resolve_written_loops(&programs).map_err(|fault| match fault {
+    let resolved = resolve_written_loops(&programs, tol).map_err(|fault| match fault {
         WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
         // A form writes numbers, never a name.
         WrittenLoopFault::Refused(refusal) => {

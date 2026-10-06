@@ -213,13 +213,19 @@ fn the_two_kinds_share_every_slot_but_the_wall() {
 
     // One DAG edge each: the spine. A tube has no profile operand.
     assert_eq!(
-        editor_core::test_support::stored(&mut editor_core::test_support::scratch(), &solid)
-            .inputs(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &solid
+        )
+        .inputs(),
         vec![RecipeNodeId(0)]
     );
     assert_eq!(
-        editor_core::test_support::stored(&mut editor_core::test_support::scratch(), &hollow)
-            .inputs(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &hollow
+        )
+        .inputs(),
         vec![RecipeNodeId(0)]
     );
     // And no payload names: a tube references no stable name, so a

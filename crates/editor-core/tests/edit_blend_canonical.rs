@@ -258,9 +258,12 @@ fn the_construction_doors_canonicalize() {
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
     assert!(
-        editor_core::test_support::stored(&mut editor_core::test_support::scratch(), &fillet)
-            .input_fault()
-            .is_none(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &fillet
+        )
+        .input_fault()
+        .is_none(),
         "and therefore canonical"
     );
 
@@ -270,9 +273,12 @@ fn the_construction_doors_canonicalize() {
     };
     assert_eq!(selection, &canonical, "sorted and deduplicated");
     assert!(
-        editor_core::test_support::stored(&mut editor_core::test_support::scratch(), &chamfer)
-            .input_fault()
-            .is_none(),
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &chamfer
+        )
+        .input_fault()
+        .is_none(),
         "and therefore canonical"
     );
 }
@@ -292,9 +298,12 @@ fn an_empty_selection_is_canonical() {
         selection: Vec::new(),
     };
     assert!(
-        editor_core::test_support::stored(&mut editor_core::test_support::scratch(), &empty)
-            .input_fault()
-            .is_none()
+        editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &empty
+        )
+        .input_fault()
+        .is_none()
     );
     let doc = apply(
         &doc,
@@ -400,7 +409,7 @@ fn at_names_each_position() {
     ];
     for (what, segs, want) in cases {
         let got = match editor_core::test_support::stored(
-            &mut editor_core::test_support::scratch(),
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
             &raw_fillet(&doc, solid, segs),
         )
         .input_fault()

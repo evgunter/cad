@@ -1046,7 +1046,7 @@ fn a_cut_of_one_group_moves_as_selected_and_the_frame_rule_at_a_split() {
     assert_eq!(
         offset_of(&out.part, out.node_map[&top]),
         Some(editor_core::test_support::stored_placement(
-            &mut editor_core::test_support::scratch(),
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
             &solved
         )),
         "the member's checked offset, verbatim"
@@ -1527,7 +1527,7 @@ fn a_verbatim_split_keeps_a_carried_members_checked_offset() {
         checked
             .as_ref()
             .map(|p| editor_core::test_support::stored_placement(
-                &mut editor_core::test_support::scratch(),
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
                 p
             )),
         "the top's checked offset survives the carry"
@@ -1561,7 +1561,7 @@ fn an_empty_offset_inline_keeps_a_carried_members_checked_offset() {
         checked
             .as_ref()
             .map(|p| editor_core::test_support::stored_placement(
-                &mut editor_core::test_support::scratch(),
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
                 p
             )),
         "the top's checked offset survives the splice"
@@ -1649,7 +1649,7 @@ fn a_carry_keeping_a_checked_offset_replays_without_a_solve() {
         checked
             .as_ref()
             .map(|p| editor_core::test_support::stored_placement(
-                &mut editor_core::test_support::scratch(),
+                &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
                 p
             )),
         "the round trip holds the checked offset"
@@ -1708,7 +1708,7 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
             offset_of(&out.part, out.node_map[&i]),
             want.as_ref()
                 .map(|p| editor_core::test_support::stored_placement(
-                    &mut editor_core::test_support::scratch(),
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
                     p
                 )),
             "{what} in the part"
@@ -1717,7 +1717,7 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
             offset_of(&back.doc, host(i)),
             want.as_ref()
                 .map(|p| editor_core::test_support::stored_placement(
-                    &mut editor_core::test_support::scratch(),
+                    &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
                     p
                 )),
             "{what} in the host"
