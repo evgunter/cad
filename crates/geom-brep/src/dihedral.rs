@@ -362,13 +362,13 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 ///
 /// `crate::certify` reaches it through [`tangent_second_order`], the
 /// smooth-join constructors through [`must_carry_over_edge`], which
-/// composes it, and `topo::boolean::contact_verify` directly. One
-/// copy is still spelled in place: `crate::ssi::march`'s transversality
-/// gate folds the extent onto its system's arm
-/// (`Real::min(sys.lever_arm(x), extent)`, the arm itself
-/// `pair_lever_arm`'s). `contact_verify`'s `contact_tangent_opposed` is
-/// also [`classify_material_pairing`]'s own twin — the same C1 lemma
-/// between bodies rather than within one. Both are issue 1439's work.
+/// composes it, and `topo::boolean::contact_verify` directly. The SSI
+/// point decisions do not read it: their arm is
+/// `crate::ssi::point_arm`'s, from the surfaces' largest principal
+/// curvature, which this fold's [`curvature_lever_arm`] is not on a
+/// cone or a torus. `contact_verify`'s `contact_tangent_opposed` is
+/// [`classify_material_pairing`]'s own twin — the same C1 lemma
+/// between bodies rather than within one, issue 1439's work.
 /// A new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
@@ -376,37 +376,10 @@ pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>,
 }
 
 /// The two curvature arms of [`folded_lever_arm`] folded without the
-/// extent, for a caller that applies its own extent once at the point
-/// of use (the SSI march's arm guard). An arm
-/// [`curvature_lever_arm`] cannot state (a NURBS or approximated
-/// carrier) makes the pair's arm poison.
-pub(crate) fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T {
+/// extent. An arm [`curvature_lever_arm`] cannot state (a NURBS or
+/// approximated carrier) makes the pair's arm poison.
+fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T {
     curvature_lever_arm(s1, p).min(curvature_lever_arm(s2, p))
-}
-
-/// **The largest principal curvature of a surface at a chart jet**, in
-/// reciprocal metres: the shape operator's spectral radius
-/// `|H| + √(H² − K)`, read from the first and second fundamental forms.
-/// It is the surface's, not the chart's: any regular reparameterisation
-/// of the same surface reads the same number, where a parameter line's
-/// own acceleration does not. Its reciprocal is the spline counterpart
-/// of [`curvature_lever_arm`], which has no closed form for a spline.
-/// Zero where the surface is flat at the jet; poison where the jet is,
-/// or where the chart is singular (`S_u × S_v = 0`).
-pub(crate) fn max_principal_curvature<T: Real>(j: &geom::SurfaceJet<T>) -> T {
-    let n = j.du.cross(j.dv);
-    let area = n.norm();
-    let (e, f, g) = (j.du.dot(j.du), j.du.dot(j.dv), j.dv.dot(j.dv));
-    let (l, m, nn) = (
-        n.dot(j.duu) / area,
-        n.dot(j.duv) / area,
-        n.dot(j.dvv) / area,
-    );
-    let det = area.powi(2);
-    let two = T::from_f64(2.0);
-    let gauss = (l * nn - m.powi(2)) / det;
-    let mean = (e * nn - two * f * m + g * l) / (two * det);
-    mean.abs() + (mean.powi(2) - gauss).max(T::zero()).sqrt()
 }
 
 /// **`tangent_second_order`** — the must-carry rule's one metered

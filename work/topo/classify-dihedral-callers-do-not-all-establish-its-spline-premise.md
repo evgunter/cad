@@ -62,11 +62,14 @@ flux row above, and the choice there is a design one.
 
 ## Note (2026-10-06, `ssi/transversality-lever`)
 
-A spline's curvature lever now exists at a point:
-`geom_brep::dihedral::max_principal_curvature` (crate-private) reads
-the largest principal curvature from a chart jet's shape operator, and
-the SSI point decisions and `plane_nurbs_limbs` lever by its
-reciprocal. It is a point reading, not a certified bound over a
-region, so it answers `curvature_lever_arm`'s spline gap only for a
-caller that reads at a point; whether `classify_dihedral` should take
-it for a spline face is this row's design choice.
+A spline's largest principal curvature can now be read at a point:
+`geom_brep::shape_operator::max_principal_curvature` (crate-private)
+reads it from a chart jet's first and second fundamental forms. It is
+the chart-side twin of `implicit_max_normal_curvature`, not of
+`curvature_lever_arm`, which is a kind's own length scale and not a
+curvature bound on a cone or a torus. The SSI point decisions and
+`plane_nurbs_limbs` lever by its reciprocal. It is a point reading,
+not a certified bound over a region, and whether `classify_dihedral`
+should lever a spline face by it (and its analytic faces by the true
+curvature rather than `curvature_lever_arm`) is this row's design
+choice.

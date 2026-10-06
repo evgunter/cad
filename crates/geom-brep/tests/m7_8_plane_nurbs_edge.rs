@@ -29,6 +29,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
+use geom_brep::ssi::PointLever;
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal,
     plane_nurbs_limbs,
@@ -198,7 +199,12 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
     };
     let carrier = segment(Point3::new(rho, 0.0, 0.0), Point3::new(rho, 0.0, 1.0));
     match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
-        Err(PlaneNurbsRefusal::NotTransverse { verdict, .. }) => {
+        Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
+            assert_eq!(
+                lever,
+                PointLever::CurvatureRadius,
+                "the lever the refusal names"
+            );
             let m = verdict.margin().diagnostic_f64_for_error_text().value();
             assert!(
                 m.is_some_and(|m| m <= eps),
@@ -206,6 +212,48 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
             );
         }
         other => panic!("a plane ε from tangent to a 1 mm wall must refuse: {other:?}"),
+    }
+}
+
+/// **A plane near tangent to a flat wall refuses at the edge's
+/// extent.** The flat wall `x = 0` over `y, z ∈ [0, 1]`, cut along its
+/// `y = 0` side by a plane turned from it by `sin θ = ε/2`: the wall's
+/// curvature is zero, so the per-sample transversality reads
+/// `sin θ · E` with `E` the edge's extent of 1 m, ε/2, inside the band,
+/// and the refusal names the extent.
+#[test]
+fn a_plane_near_tangent_to_a_flat_wall_refuses_at_the_edges_extent() {
+    let eps = band().zero();
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let wall = NurbsSurface::new(
+        k.clone(),
+        k,
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let sin = eps / 2.0;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let carrier = segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+        Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
+            assert_eq!(lever, PointLever::Extent, "the lever the refusal names");
+            let m = verdict.margin().diagnostic_f64_for_error_text().value();
+            assert!(
+                m.is_some_and(|m| m <= eps && m > 0.0),
+                "the margin is sin θ times the extent, ε/2: {m:?}"
+            );
+        }
+        other => panic!("a plane ε/2 from tangent to a flat wall must refuse: {other:?}"),
     }
 }
 

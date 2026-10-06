@@ -31,10 +31,11 @@ established, is the f64 read of the carrier's ends
 within ε of a rounded end point, and at 1e-12 on a 1e-6 slope that
 rounding is a sizeable part of ε.
 
-The row stands down on this one configuration, naming this file.
+The row runs `μ` 0.2 only, which answers at every ε below 1e-6; `μ` 0.1
+reproduces this refusal with `bent_path_flat_wall(1e-6, 0.01, 0.8, 0.1)`.
 
 ## Repair shape
 
 Find which end check fails (`one_arc::reaches_end` in
-`crates/geom-brep/src/ssi/certify.rs`), and whether enclosing the end
-cures it; then lift the row's stand-down.
+`crates/geom-brep/src/ssi/one_arc.rs` ~640), and whether enclosing the end
+cures it; then add `μ` 0.1 back to the row.

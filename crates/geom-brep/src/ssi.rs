@@ -222,32 +222,10 @@ impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
     }
 }
 
-/// The feature extent a rung-3 certificate is stated over: the length
-/// limb 3's certified transversality clearance is levered by, and the
-/// tube ladder's widest rung. The clearance is a region's, already the
-/// least sine over the tube, so no curvature radius levers it.
-#[derive(Clone, Copy, Debug)]
-pub struct TubeScale<T> {
-    /// The feature extent, in meters.
-    pub(crate) extent: T,
-}
-
-impl<T: geom_core::Bounds> TubeScale<T> {
-    /// The caller's named feature extent.
-    #[must_use]
-    pub fn uniform(extent: T) -> Self {
-        Self { extent }
-    }
-
-    /// The ladder's widest rung, in meters: the extent's upper end.
-    pub(crate) fn widest(&self) -> f64 {
-        geom_core::Bounds::hi(self.extent)
-    }
-}
-
 /// Which length levers the transversality decision at a point
-/// ([`SsiError::TransversalityBand`]): the shorter of the surfaces'
-/// curvature radius there and the feature extent.
+/// ([`SsiError::TransversalityBand`],
+/// [`crate::PlaneNurbsRefusal::NotTransverse`]): the shorter of the
+/// surfaces' curvature radius there and the feature extent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PointLever {
     /// The surfaces' curvature radius at the point: the reciprocal of
@@ -258,14 +236,28 @@ pub enum PointLever {
 }
 
 impl PointLever {
-    /// The lever of an arm read as `min(radius, extent)`.
-    pub(crate) fn of(radius: f64, extent: f64) -> Self {
-        if radius < extent {
+    /// The lever [`point_arm`] chose, from its `reach` `κ·E`: the
+    /// curvature radius where it is the shorter, `κ·E > 1`.
+    pub(crate) fn of(reach: f64) -> Self {
+        if reach > 1.0 {
             Self::CurvatureRadius
         } else {
             Self::Extent
         }
     }
+}
+
+/// **The arm of a point transversality decision**, `min(1/κ, E)` with
+/// `κ` the larger principal curvature of either surface at the point
+/// and `E` the feature extent, spelled `E / max(1, κ·E)` so a flat pair
+/// (`κ = 0`) reads `E` and poison stays poison. Returns the arm and its
+/// reach `κ·E`, which names the lever ([`PointLever::of`]). Every point
+/// decision reads its arm here: the march's states, the Hermite's ends,
+/// refinement's chord midpoint ([`march::decide_transversality`]) and
+/// the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]).
+pub(crate) fn point_arm<T: Real>(kappa: T, extent: T) -> (T, T) {
+    let reach = kappa * extent;
+    (extent / T::one().max(reach), reach)
 }
 
 impl core::fmt::Display for PointLever {
@@ -477,7 +469,7 @@ pub enum SsiError {
     /// (`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
     TubeLadderEmpty {
         /// The extent the ladder was scaled from (meters): the caller's
-        /// [`TubeScale`] extent at [`certify_rung3`], the domain's
+        /// extent at [`certify_rung3`], the domain's
         /// feature extent at the marched doors.
         extent: f64,
         /// The floor every rung fell below (meters).
@@ -2433,7 +2425,7 @@ fn finish_r3(
                     pair: (a, b),
                     slab: domain.slab(),
                 },
-                TubeScale::uniform(domain.extent),
+                domain.extent,
                 band,
                 limbs,
             )?;
@@ -2875,7 +2867,7 @@ fn trace_plane_nurbs_within(
                 b: &wall_op,
                 pcurve_b: fitted.2.as_ref(),
             },
-            TubeScale::uniform(domain.extent),
+            domain.extent,
             band,
             certify::Limbs::All,
         ) {
@@ -2928,13 +2920,13 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
     b: &SsiOperand<'_, T>,
-    scale: TubeScale<T>,
+    extent: T,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
     certify::certify_branch(
         carrier,
         certify::Lane::AtRest { a, b, pcurve_b },
-        scale,
+        extent,
         band,
         certify::Limbs::All,
         &mut Vec::new(),
@@ -3042,13 +3034,19 @@ mod ending_tests {
 
     /// **A point's transversality refusal names the length its arm is.**
     /// The arm is the shorter of the surfaces' curvature radius and the
-    /// extent; a tie, or a flat pair's `f64::MAX`, is the extent.
+    /// extent; a tie, or a flat pair, is the extent.
     #[test]
     fn a_transversality_refusal_names_its_arms_length() {
-        use crate::ssi::PointLever;
-        assert_eq!(PointLever::of(0.25, 1.0), PointLever::CurvatureRadius);
-        assert_eq!(PointLever::of(1.0, 1.0), PointLever::Extent);
-        assert_eq!(PointLever::of(f64::MAX, 1.0), PointLever::Extent);
+        use crate::ssi::{PointLever, point_arm};
+        for (kappa, arm, lever) in [
+            (4.0, 0.25, PointLever::CurvatureRadius),
+            (1.0, 1.0, PointLever::Extent),
+            (0.5, 1.0, PointLever::Extent),
+            (0.0, 1.0, PointLever::Extent),
+        ] {
+            let (got, reach) = point_arm(kappa, 1.0);
+            assert_eq!((got, PointLever::of(reach)), (arm, lever), "κ {kappa}");
+        }
         let band = Band::new(1e-9, 1e-8).unwrap();
         for (lever, words) in [
             (

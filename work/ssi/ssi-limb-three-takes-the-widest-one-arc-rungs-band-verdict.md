@@ -29,7 +29,8 @@ typed, never a retry loop").
 ## Witness
 
 The near-degenerate hyperbola (`m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right`,
-its `c = −1e-4` chart) at ε 1e-6, with the tube levered by the wall's
+its `c = +1e-4` near-degenerate chart, the case
+`m5_pr7_ssi::the_near_degenerate_hyperbola_answers_at_a_coarse_eps` runs) at ε 1e-6, with the tube levered by the wall's
 curvature radius (2.2 mm) instead of the extent: the widest one-arc
 rung (7.8 mm) has a clearance of 8.8e-5, enclosure slack (the true
 sine on the locus is about 0.4), and it refuses `TubeStraddles`; the

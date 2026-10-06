@@ -1,7 +1,7 @@
 ---
 id: ssi-the-chart-lane-has-no-near-tangent-pose-decision
 kind: issue
-title: ssi: the plane x NURBS lane has no decision for a pose within the band of tangent away from any marched state, so it ends in the cell budget
+title: ssi: the plane x NURBS lane has no decision for a pose within the band of tangent away from any marched state, so it ends in whatever other refusal reaches it first
 status: open
 opened: 2026-10-06
 priority: P2
@@ -25,7 +25,7 @@ where no branch is marched. The ℝ³ lane has one for its cylinder ×
 sphere door (`SsiError::PairTangent`, `ssi_cs_tangency`); the chart
 lane does not, and the sweep (`crates/geom-brep/src/ssi/exhaust.rs`,
 `sweep`, the `SsiError::CellBudget` arm ~856) spends its budget there
-instead of refusing.
+instead of refusing as a tangency.
 
 ## Witnesses (ε 1e-9)
 
@@ -37,6 +37,13 @@ instead of refusing.
 - `leverb_near_tangent_cylinder`: the wall `z = x²/2` (radius 1 m at
   the crest), cut at `sin θ` 1e-4, the pose 5e-9 m = 5ε from tangent.
   It also ends in the cell budget.
+
+Sub-ε poses also end in other refusals, none of them about the pose
+(review of PR 4190, lanes r1 and r2, probes on `analysis/review-4190/r1`
+and `analysis/review-4190/r2`): `TubeStraddles` on a dome whose chart
+bunches at its apex (ε 1e-9), and `BoundaryGraze` where the pose sits at
+a sphere octant's pole on the wall's side. The answer is a refusal every
+time, but the refusal does not name the tangency.
 
 ## What a decision there must read
 

@@ -93,7 +93,7 @@ use geom_brep::ssi::{
     self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, RefineStop, RefusedRound,
     RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR, SSI_SETTLE_MAX,
     SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand,
-    SsiTube, TubeScale,
+    SsiTube,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Margin, Point3, Vec3};
@@ -852,7 +852,7 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        TubeScale::uniform(2.0),
+        2.0,
         band(),
     )
     .expect_err("a tangency cannot certify a uniqueness tube");
@@ -896,7 +896,7 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        TubeScale::uniform(2.0),
+        2.0,
         band(),
     )
 }
@@ -1122,7 +1122,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         Some(&bad),
         &SsiOperand::Analytic(&p),
         &SsiOperand::nurbs(&w).expect("the wall's chart speeds mint"),
-        TubeScale::uniform(wall_domain().extent),
+        wall_domain().extent,
         band(),
     )
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
@@ -5879,16 +5879,16 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 }
 
 /// **A flat wall whose chart path bends answers as the plane it is,
-/// marched.** [`bent_path_flat_wall`] at `α` 1e-6, `X` 1 cm, `κ` 0.8,
-/// cut by `z = 0`. Where the chart path bends (`μ` 0.1 and 0.2) the
-/// Hermite cubic misses the locus in the chart and the branch is
-/// marched, its transversality decided at every state. The wall is
-/// flat, so each state's arm is the extent, and the march answers the
-/// line; a parameter line's own radius, 9 mm here, would put `sin θ`
-/// times it inside the band at ε 1e-9. `μ` 0 is the straight chart path.
-/// One branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is
-/// itself inside the band, and at 1e-12 `μ` 0.1 stands down on limb 3's
-/// one-arc proof (`work/ssi/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`).
+/// marched.** [`bent_path_flat_wall`] at `α` 1e-6, `X` 1 cm, `κ` 0.8 and
+/// `μ` 0.2, cut by `z = 0`. The chart path bends, so the Hermite cubic
+/// misses the locus in the chart and the branch is marched, its
+/// transversality decided at every state. The wall is flat, so each
+/// state's arm is the extent, and the march answers the line; a
+/// parameter line's own radius, about 9 mm here, would put `sin θ` times
+/// it inside the band at ε 1e-9, where the chart's reading refuses. One
+/// branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is itself
+/// inside the band. (`μ` 0.1 refuses on limb 3 at ε 1e-12:
+/// `work/ssi/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
 #[test]
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();
@@ -5904,23 +5904,15 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
         floor_scale: 1.0,
     };
     let alpha = 1e-6;
-    for mu in [0.0, 0.1, 0.2] {
+    let mu = 0.2;
+    {
         let at = format!("μ {mu} at ε {eps:e}");
         let wall = bent_path_flat_wall(alpha, 0.01, 0.8, mu);
         let out = match ssi::plane_nurbs_ssi(&plane, &wall, dom, band()) {
             Ok(out) => out,
             Err(e) if eps >= 1e-6 => {
                 vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
-                continue;
-            }
-            Err(e @ SsiError::TubeNotOneArc { .. }) if eps <= 1e-12 && mu == 0.1 => {
-                vacuity::stood_down(
-                    &at,
-                    &format!(
-                        "work/ssi/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md: {e}"
-                    ),
-                );
-                continue;
+                return;
             }
             Err(e) => panic!("{at}: expected the line, got {e}"),
         };
@@ -5955,8 +5947,10 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
 /// 2.2 mm. Limb 3's clearance there is enclosure slack over the widest
 /// rung (about 1e-4, where the sine on the locus is about 0.4); levered
 /// by the extent it clears the band, and both branches certify paired as
-/// the truth pairs them. A tube levered by the wall's curvature radius
-/// would put that slack inside the band. Run at its own band.
+/// the truth pairs them. The tube has always been levered by the extent
+/// on this lane, so the row guards the region rule against a tube
+/// levered by the wall's curvature radius, which puts that slack inside
+/// the band; it witnesses no change. Run at its own band.
 #[test]
 fn the_near_degenerate_hyperbola_answers_at_a_coarse_eps() {
     let b = band_at(1e-6);

@@ -314,18 +314,20 @@ subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
 configurations refuse toward C7, each decision by what it reads. A
-decision at a point (each marched state, a Hermite candidate's two
-ends, refinement's unsettled chord midpoint, and the at-rest
-certifier's per-sample check in `plane_nurbs_limbs`) reads
-`sin θ · min(ρ, E)`: `ρ` the surfaces' curvature radius there, the
-reciprocal of the larger principal curvature of either operand, read
-from its shape operator (a plane's is infinite) and never from a
-chart's parameter lines, and `E` the extent. A decision over a region
-(the boundary strip, and limb 3's tube on both lanes) reads the
-certified least `sin θ` over it, levered by `E` alone: its enclosure
-has already turned the normals across the region, so no curvature
-radius levers it. A refusal at a point names which of the two lengths
-its arm was (`PointLever`).
+decision at a point reads `sin θ · min(ρ, E)`, its arm from
+`ssi::point_arm`: `E` the extent, and `ρ` the reciprocal of the larger
+principal curvature of either surface there, read on the plane × NURBS
+lane from each chart's first and second fundamental forms
+(`shape_operator`) and on the ℝ³ lane from each implicit form's
+Hessian (`implicit_max_normal_curvature`), a plane's being zero; no
+chart's parameter lines enter it. The point decisions are the march's
+states, a Hermite candidate's two ends and refinement's unsettled chord
+midpoint, which refuse `SsiError::TransversalityBand`, and the at-rest
+per-sample check in `plane_nurbs_limbs`, which refuses
+`PlaneNurbsRefusal::NotTransverse`; each names which of `ρ` and `E`
+its arm was (`PointLever`). A decision over a region (the boundary
+strip, and limb 3's tube on both lanes) reads the certified least
+`sin θ` over it, levered by `E` alone.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.

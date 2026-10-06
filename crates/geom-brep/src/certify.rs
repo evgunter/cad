@@ -408,6 +408,11 @@ pub enum CertifyError {
     NotTransverse {
         /// The interior sample index.
         sample: u32,
+        /// Which length levered the angle, on the plane × NURBS lane
+        /// ([`crate::PlaneNurbsRefusal::NotTransverse`]). `None` on the
+        /// analytic lane, whose arm is the dihedral's folded one
+        /// ([`crate::folded_lever_arm`]).
+        lever: Option<crate::ssi::PointLever>,
         /// The verdict on the levered angle, with its reporting margin.
         verdict: Refused,
     },
@@ -553,11 +558,13 @@ impl core::fmt::Display for CertifyError {
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
-            Self::NotTransverse { sample, .. } => write!(
-                f,
-                "the faces meet tangentially at sample {sample}, where the \
-                 edge's description says they cross"
-            ),
+            Self::NotTransverse { sample, lever, .. } => {
+                write!(f, "the faces meet tangentially at sample {sample}")?;
+                if let Some(lever) = lever {
+                    write!(f, ", their angle levered by {lever}")?;
+                }
+                write!(f, ", where the edge's description says they cross")
+            }
             Self::NotSecondOrderSeparated { sample, .. } => write!(
                 f,
                 "the faces agree to second order at sample {sample}, so they \
@@ -2006,13 +2013,22 @@ fn check_residual<T: Decide>(
 }
 
 /// The plane × NURBS lane's refusal in this module's vocabulary: a
-/// per-sample transversality refusal keeps its sample, and a limb's
+/// per-sample transversality refusal or escalation keeps its sample, and a limb's
 /// escalation or the poisoned aggregate, which no schedule point
-/// carries, names none ([`NOT_A_SAMPLE`]).
+/// carries, names none ([`NOT_A_SAMPLE`]). The per-sample refusal keeps
+/// its sample and the length that levered its angle.
 fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
     match e {
-        P::NotTransverse { sample, verdict } => CertifyError::NotTransverse { sample, verdict },
+        P::NotTransverse {
+            sample,
+            lever,
+            verdict,
+        } => CertifyError::NotTransverse {
+            sample,
+            lever: Some(lever),
+            verdict,
+        },
         P::TransversalityEscalated { sample, cause } => CertifyError::Escalated {
             check: CertCheck::Transversality,
             sample,
@@ -2475,7 +2491,11 @@ fn run_checks<T: Decide>(
                         Ok((DihedralClass::Transverse, _)) => {}
                         Ok((DihedralClass::Smooth, margin)) => {
                             let verdict = Refused::Zero(Classified { margin, band });
-                            return Err(CertifyError::NotTransverse { sample: i, verdict });
+                            return Err(CertifyError::NotTransverse {
+                                sample: i,
+                                lever: None,
+                                verdict,
+                            });
                         }
                         Err(WedgeEscalation::Lever(crate::LeverEscalation {
                             rung,
@@ -4305,6 +4325,7 @@ mod tests {
         assert_eq!(
             EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap_err(),
             CertifyError::NotTransverse {
+                lever: None,
                 sample: 1,
                 verdict: Refused::Zero(Classified {
                     margin: MarginDiag::value(0.0),
@@ -4487,6 +4508,7 @@ mod tests {
                 (
                     CertCheck::Transversality,
                     end(CertifyError::NotTransverse {
+                        lever: None,
                         sample: 1,
                         verdict: zero,
                     }),
@@ -4498,6 +4520,7 @@ mod tests {
                     CertCheck::Transversality,
                     lane(P::NotTransverse {
                         sample: 1,
+                        lever: crate::ssi::PointLever::Extent,
                         verdict: zero,
                     }),
                     lane(P::TransversalityEscalated { sample: 1, cause }),

@@ -294,6 +294,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         },
         PlaneNurbsRefusal::NotTransverse {
             sample: 3,
+            lever: geom_brep::ssi::PointLever::CurvatureRadius,
             verdict: zero_verdict(0.0),
         },
         PlaneNurbsRefusal::PcurveFit,
@@ -391,6 +392,7 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: 4,
         },
         CertifyError::NotTransverse {
+            lever: None,
             sample: 4,
             verdict: zero_verdict(5e-10),
         },

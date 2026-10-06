@@ -134,7 +134,7 @@ use super::enclose::{
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
 use super::section::{BandVerdict, band_verdict};
-use super::{SsiError, SsiOperand, TubeScale};
+use super::{SsiError, SsiOperand};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
 /// named extent. The ladder halves from here.
@@ -1115,21 +1115,21 @@ impl core::fmt::Display for OneArcRefusal {
 ///
 /// A narrower rung is the more specific reading of the same carrier, so
 /// it speaks over every wider one.
-fn limb_three<T: Decide>(
-    extent: f64,
-    arm: T,
+fn limb_three<T: Decide + Bounds>(
+    extent: T,
     band: Band,
     mut probe: impl FnMut(f64) -> Result<Option<Rung>, SsiError>,
 ) -> Result<(Rung, T), SsiError> {
+    let widest = Bounds::hi(extent);
     // The ladder is materialised so its EMPTINESS is a distinguishable
     // outcome. An empty ladder means every rung fell below the floor —
     // a structural fact about extent against ε, decided before any box
     // is probed — and it must refuse as itself rather than fall through
     // to the no-rung-answered path below with a manufactured margin.
-    let ladder: Vec<f64> = tube_ladder(extent, band).collect();
+    let ladder: Vec<f64> = tube_ladder(widest, band).collect();
     if ladder.is_empty() {
         return Err(SsiError::TubeLadderEmpty {
-            extent,
+            extent: widest,
             floor: SSI_TUBE_RADIUS * band.zero(),
         });
     }
@@ -1141,7 +1141,7 @@ fn limb_three<T: Decide>(
         };
         match (rung.margin > 0.0, rung.one_arc) {
             (true, Some(Ok(()))) => {
-                let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+                let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
                 return Ok((rung, t));
             }
             // A graph whose proof did not run never reads as proved.
@@ -1163,7 +1163,7 @@ fn limb_three<T: Decide>(
         (true, Some(Err(shortfall))) => shortfall,
         (true, _) => Shortfall::Undecided,
         (false, _) => {
-            let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+            let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
             return Ok((rung, t));
         }
     };
@@ -1301,12 +1301,12 @@ impl From<SsiError> for Located {
 pub(crate) fn certify_located(
     carrier: &NurbsCurve3<f64>,
     lane: Lane<'_, f64>,
-    scale: TubeScale<f64>,
+    extent: f64,
     band: Band,
     limbs: Limbs,
 ) -> Result<SsiCertificate<f64>, Located> {
     let mut spans = Vec::new();
-    certify_branch(carrier, lane, scale, band, limbs, &mut spans).map_err(|error| {
+    certify_branch(carrier, lane, extent, band, limbs, &mut spans).map_err(|error| {
         let at = match super::refine::limb_reading(&error) {
             Some((limb, margin)) if !spans.is_empty() => Some(Box::new(Spans {
                 limb,
@@ -1333,7 +1333,7 @@ pub(crate) fn certify_located(
 /// converge, [`SsiError::CertificateEscalated`] naming the limb whose trilean
 /// escalated.
 ///
-/// `scale` is the caller's named feature extent, which levers limb 3's
+/// `extent` is the caller's named feature extent, which levers limb 3's
 /// transversality clearance and sets the tube ladder's widest rung.
 ///
 /// The tolerance is `band`'s and only `band`'s. A linear band's
@@ -1347,7 +1347,7 @@ pub(crate) fn certify_located(
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     lane: Lane<'_, T>,
-    scale: TubeScale<T>,
+    extent: T,
     band: Band,
     limbs: Limbs,
     at: &mut Vec<RefusedSpan>,
@@ -1410,11 +1410,10 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             z: Interval::from_certified(p.z),
         }
     });
-    let (arm, extent) = (scale.extent, scale.widest());
     let three = match (a, b) {
         (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
             let chain = box_chain(carrier);
-            limb_three(extent, arm, band, |radius| {
+            limb_three(extent, band, |radius| {
                 Ok(probe_tube_analytic(
                     &chain,
                     s1,
@@ -1436,7 +1435,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            limb_three(extent, arm, band, |radius| {
+            limb_three(extent, band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
                 // speed along that axis. The padded windows are the
                 // proved region and the certificate records them; the
@@ -2148,7 +2147,7 @@ mod tests {
         use super::{Rung, SsiTube, limb_three};
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let mut widest = true;
-        limb_three(1.0, 1.0, band, |radius| {
+        limb_three(1.0, band, |radius| {
             let (margin, one_arc) = if widest { first } else { rest };
             widest = false;
             Ok(Some(Rung {
@@ -2251,7 +2250,7 @@ mod tests {
         use geom_core::{Band, Point2, Point3, Vec3};
 
         use super::{Lane, certify_located};
-        use crate::ssi::{ChartedNurbs, SsiError, TubeScale};
+        use crate::ssi::{ChartedNurbs, SsiError};
 
         let beta = 0.5e-9;
         let c = 1600.0 * beta;
@@ -2298,13 +2297,7 @@ mod tests {
             pcurve: &pcurve,
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let Err(refused) = certify_located(
-            &carrier,
-            lane,
-            TubeScale::uniform(1.0),
-            band,
-            super::Limbs::All,
-        ) else {
+        let Err(refused) = certify_located(&carrier, lane, 1.0, band, super::Limbs::All) else {
             panic!("the carrier across the gap certified on the search's lane");
         };
         assert!(

@@ -47,8 +47,7 @@ use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{
-    BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, TubeScale, certify, fit_branch,
-    seam_tol,
+    BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
 };
 
 /// What the branches between known ends read, minted once per call.
@@ -473,7 +472,7 @@ impl<'a> Ends<'a> {
                         wall: *wall,
                         pcurve,
                     },
-                    TubeScale::uniform(self.ctx.extent),
+                    self.ctx.extent,
                     self.band,
                     limbs,
                 )?;
@@ -504,7 +503,7 @@ impl<'a> Ends<'a> {
                 wall: *wall,
                 pcurve,
             },
-            TubeScale::uniform(self.ctx.extent),
+            self.ctx.extent,
             self.band,
             certify::Limbs::All,
             &mut Vec::new(),
