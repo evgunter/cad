@@ -124,28 +124,39 @@ got `section_plane_restatements`. The smooth flat/corner edge, still
 described in the chart the face left, was stranded whenever it fell on
 the ring side.
 
-**What landed.**
+**What landed** (after the DR-4098 fix pass).
 
-- `SplitReduceError::ConcaveGraze { face, vertex }`: rule (b) refuses a
-  concave graze where it reads it, before any section is built, naming
-  the grazed wall. It is the same knife edge `SectionCusp` refuses at a
-  section boundary. No verdict sends the contact downstream any more.
-- The promoted ring face is re-charted with its own restatements, as the
-  outer face already was. The flat poses with s = +1 now reach the knife
-  edge, as `Finish(SectionCusp)`.
+- One knife-edge refusal, `KnifeEdge { wall, at }` (`at` names the edge
+  along the contact, or the vertex where the contact crosses a rim). It is
+  carried by `SplitReduceError::KnifeEdge` and by
+  `SplitFinishError::KnifeEdge`, which replaces `SectionCusp`. It has one
+  Display, and `SplitError::knife_edge` reads either.
+  `plane_section` refuses the same contact as
+  `SectionError::KnifeEdge`, with its own text.
+- Rule (a) reads every wall it finds tangent at an ON vertex, and refuses
+  one that bends away from its material. That covers the off-seam
+  duplicates, the seams, and the walls beside a face in the plane (the
+  filleted flats, a declared cove, a notch's end), before any section is
+  built. Rule (b) holds only convex grazes.
+- Both faces of a promoted null pair are re-charted in one call, with
+  both faces' restatements.
 
-**After.** At default ε: 84 `ConcaveGraze` and 4 `SectionCusp` (the
-filleted flats, both normals). The remaining 2 are the filleted hole at
-φ = 1.2, `Reduce(SliverSector)`, the band artifact of
+**After.** At default ε, 88 of the 90 poses give `Reduce(KnifeEdge)`. The
+filleted flats give it along their flat/wall edge, and the seams along the
+seam. The remaining 2 are the filleted hole at φ = 1.2,
+`Reduce(SliverSector)`, the band artifact of
 `a-convex-graze-of-a-cone-refuses-at-some-azimuths` (its evidence is added
-there). At 1e-6 all 86 non-flat poses give `ConcaveGraze`. At 1e-12, φ = 1.2
-gives a certification refusal and every other pose is as at default ε.
-Pinned by `split_tangent_edge_curved::{a_concave_graze_of_a_round_hole_refuses,
+there). At 1e-6 φ = 1.2 gives the knife edge too. At 1e-12 it gives a
+certification refusal. These are pinned by
+`split_tangent_edge_curved::{a_concave_graze_of_a_round_hole_refuses,
 a_concave_graze_of_a_revolved_hole_refuses,
-a_concave_graze_of_a_filleted_hole_refuses}` (exact payload, and the
-refusal names the wall) and by
-`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
-(the seam graze is now `ConcaveGraze`).
+a_concave_graze_of_a_filleted_hole_refuses}` and by
+`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`.
+The pins check the payload, the wall's kind, and the contact edge lying in
+the plane.
+
+The poses of this subject that still refuse for another reason are filed:
+`an-in-band-concave-graze-refuses-at-certification-on-one-side-of-tangency`.
 
 No concave graze can build: each one is a knife edge, which D10 holds
 undeclarable for a split. Nothing here declares contact.

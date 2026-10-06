@@ -841,7 +841,8 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ConicCrossingsCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord,
+    ConicCrossingsCase, ConicRootFault, CrossingDecision, KnifeEdge, KnifeEdgeSite,
+    LoopContainment, NullEdgeRecord,
     OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge, SectionError,
     SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SplitError, SplitFinishError,
     SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult,

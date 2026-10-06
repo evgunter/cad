@@ -51,10 +51,9 @@
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
 //! polygon (a below-side pinch) is refused typed,
-//! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
-//! polygon carrying a touching contact as a zero-width spur
-//! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
-//! `Sweep::refuse_section_spur`), and writes the F9 record.
+//! [`SplitJoinError::DegenerateSection`] — holds a positive-area
+//! polygon to carrying no zero-width spur (`split_section_spur`;
+//! `Sweep::assert_no_spur`), and writes the F9 record.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
@@ -739,7 +738,7 @@ impl<T: Decide> Sweep<T> {
     ///
     /// The join's body is mid-operation, and an edge's curve is a link
     /// there ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one panics,
-    /// where null scaffolding is skipped. [`Self::refuse_section_spur`]
+    /// where null scaffolding is skipped. [`Self::assert_no_spur`]
     /// reads the kinds this walk read.
     fn certify_section_area(
         &self,
@@ -826,7 +825,7 @@ impl<T: Decide> Sweep<T> {
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             // A positive NET area can still carry a zero-area spur.
-            Ok(Sign::Positive) => self.refuse_section_spur(body, face, &hes, &straight),
+            Ok(Sign::Positive) => self.assert_no_spur(body, face, &hes, &straight),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),
             Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
         }
@@ -834,40 +833,32 @@ impl<T: Decide> Sweep<T> {
 }
 
 impl<T: Decide> Sweep<T> {
-    /// Refuse a completed polygon that carries a **spur**: a vertex at
-    /// which the loop runs out along a straight edge and straight back,
-    /// so the vertex before it and the vertex after it coincide
-    /// ([`SplitJoinError::SectionSpur`]).
-    ///
-    /// Where it comes from: a contact the plane only touches, on the
-    /// run's above side, closes a polygon of its own, zero-area, and
-    /// [`Self::certify_section_area`] refuses it
-    /// ([`SplitJoinError::DegenerateSection`]). [`super::split`] reads
-    /// that refusal as a below-side pinch and reruns under the mirrored
-    /// plane. If the plane also cuts the solid somewhere the contact
-    /// reaches, the mirrored run joins the contact into that real
-    /// section's loop as an out-and-back excursion. Its net area is the
-    /// real section's, positive, and the area test passes it. This
-    /// refuses that excursion (the public `split` then surfaces the
-    /// direct run's `DegenerateSection`). A plane tangent to a curved
-    /// wall never gets here: rule (b) lands a convex graze with its
-    /// material and refuses a concave one in the reduction
-    /// ([`crate::SplitReduceError::ConcaveGraze`]).
+    /// A completed polygon of positive area carries no **spur**: no
+    /// vertex at which the loop runs out along a straight edge and
+    /// straight back, so the vertex before it and the vertex after it
+    /// coincide. A spur is a contact the plane only touches joined into
+    /// a real section's loop, and it would leave a zero-width slit in
+    /// both halves. None reaches the join: rule (b) sends an edge the
+    /// plane only touches with its material, and rule (a) refuses a
+    /// wall that bends away from its material
+    /// ([`crate::SplitReduceError::KnifeEdge`]), so a contact never
+    /// mints a null edge of its own. An exact spur is that invariant
+    /// broken, and panics; one the band cannot tell from a corner
+    /// escalates.
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).
-    /// **Only straight tips are decided.** A curved out-and-back — the
+    /// **Only straight tips are read.** A curved out-and-back — the
     /// loop running out along an arc and back along the same arc — is
     /// a spur too (its two excesses cancel; it bounds nothing), but
     /// telling it from two DIFFERENT arcs between one pair of points,
     /// which do bound area, needs a carrier comparison this check does
-    /// not make. That gap is filed as
-    /// `work/hone/split-section-spur-guard-skips-curved-spurs.md`.
+    /// not make (`work/hone/split-section-spur-guard-skips-curved-spurs.md`).
     ///
     /// `hes` is the below loop's cycle, and `straight` whether each
     /// member's curve is a line, as [`Self::certify_section_area`] read
     /// them.
-    fn refuse_section_spur(
+    fn assert_no_spur(
         &self,
         body: &Body<T>,
         face: FaceKey,
@@ -895,7 +886,10 @@ impl<T: Decide> Sweep<T> {
                 Margin::norm3(after - before),
                 self.band,
             ) {
-                Ok(Sign::Zero) => return Err(SplitJoinError::SectionSpur { face }),
+                Ok(Sign::Zero) => unreachable!(
+                    "section polygon {face:?} runs out along a touching edge and back: a \
+                     contact minted a null edge of its own, which rules (a) and (b) rule out"
+                ),
                 Ok(_) => {}
                 Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
             }

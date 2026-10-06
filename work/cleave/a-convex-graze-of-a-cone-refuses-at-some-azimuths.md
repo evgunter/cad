@@ -49,7 +49,7 @@ its NE corner wall at φ = 1.2, both normals
 
 - default ε: `Reduce(SliverSector)`, margin ≈ 3.9e-9, at the graze
   vertex before rule (b) reads the wall;
-- `CAD_TOLERANCE_EPS=1e-6`: `Reduce(ConcaveGraze)`, the graze read and
+- `CAD_TOLERANCE_EPS=1e-6`: `Reduce(KnifeEdge)`, the graze read and
   refused as it should be;
 - `CAD_TOLERANCE_EPS=1e-12`: the plane is read as cutting the wall
   rather than grazing it, and the join refuses
@@ -60,8 +60,10 @@ through two roots ~4e-9 apart and the chord between them does not
 certify. That is a near-graze cut refused at certification, not a band
 refusal. The pin there only asks that the pose refuses. The conical
 socket at θ = 0.3, which refused `SliverSector` at default ε on main, now
-refuses `ConcaveGraze` instead, because rule (b) reads the graze at an
-earlier vertex.
+refuses the knife edge (`Reduce(KnifeEdge)`) instead, because the
+wall is read at an earlier vertex. CLEAVE DR-4098's L-bracket with a
+declared concave cove (r = 0.5) stops at the same door at φ = 4.2:
+`Reduce(SliverSector)`, margin ≈ 5.3e-9, both normals.
 
 ## Where to look
 

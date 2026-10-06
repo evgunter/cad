@@ -165,10 +165,13 @@ pub enum SplitJoinError {
     ///
     /// A run reaches it at a below-side PINCH (pieces meeting at a tip
     /// line on the NEGATIVE side of the run's plane normal, where the
-    /// ch. 14 insertion mints no vertex copies). A plane tangent to a
-    /// curved wall does not reach it: rule (b) classifies a convex
-    /// graze with its material, and refuses a concave one in the
-    /// reduction ([`crate::SplitReduceError::ConcaveGraze`]). Since M3
+    /// ch. 14 insertion mints no vertex copies), and at a section loop
+    /// that closes on one vertex, which bounds nothing however large
+    /// the section it should be
+    /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
+    /// A plane tangent to a curved wall does not reach it: rule (b)
+    /// classifies a convex graze with its material, and rule (a)
+    /// refuses a concave one ([`crate::SplitReduceError::KnifeEdge`]). Since M3
     /// PR 6a (D7) the public [`crate::splitting::split`] consumes this
     /// refusal as the pinch trigger and reruns under the mirrored plane
     /// — where pinched fans are ABOVE runs and mint their copies — so a
@@ -178,16 +181,6 @@ pub enum SplitJoinError {
     /// [`crate::splitting::plane_section`], which has no sides to
     /// swap).
     DegenerateSection {
-        /// The completed null face.
-        face: FaceKey,
-    },
-    /// A completed section polygon of positive area carries a SPUR: its
-    /// loop runs out along a straight edge the plane only touches and
-    /// straight back: a contact joined into a real section's polygon
-    /// instead of closing one of its own. It would leave a zero-width
-    /// slit in both halves, with two copies of every vertex along it on
-    /// one side. Refused; no degenerate body is ever emitted.
-    SectionSpur {
         /// The completed null face.
         face: FaceKey,
     },
@@ -401,14 +394,7 @@ impl SplitJoinError {
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
-                "a section is degenerate: it bounds zero area, where the plane pinches \
-                 the solid. Recourse: {recourse}"
-            ),
-            Self::SectionSpur { .. } => write!(
-                f,
-                "the plane only touches the solid along a line while cutting it elsewhere, \
-                 and the section would run out along that line and back. Recourse: \
-                 {recourse}"
+                "a section is degenerate: it bounds zero area. Recourse: {recourse}"
             ),
             Self::RingHoming(e) => match e {
                 crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
@@ -3415,13 +3401,6 @@ mod tests {
         let msg = SplitJoinError::DegenerateSection { face }.to_string();
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
-
-        // The spur arm carries the same recourse, and it does not claim
-        // the zero area its section does not have.
-        let msg = SplitJoinError::SectionSpur { face }.to_string();
-        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
-        assert!(!msg.contains("declare"), "{msg}");
-        assert!(!msg.contains("zero area"), "{msg}");
 
         let msg = SplitJoinError::Escalated {
             face,

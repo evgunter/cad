@@ -1452,7 +1452,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "TangencyUnsupported",
             R::TangencyUnsupported { face, vertex },
         ),
-        ("ConcaveGraze", R::ConcaveGraze { face, vertex }),
+        (
+            "KnifeEdge",
+            R::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Vertex(vertex),
+            }),
+        ),
         (
             "ScaffoldingOperand",
             R::ScaffoldingOperand {
@@ -1635,7 +1641,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
         ),
-        ("SectionCusp", F::SectionCusp { edge, face }),
+        (
+            "KnifeEdge",
+            F::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Edge(edge),
+            }),
+        ),
         (
             "SectionWindingUndecided",
             F::SectionWindingUndecided {

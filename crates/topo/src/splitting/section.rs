@@ -21,7 +21,7 @@
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 
 use super::section_loops::{self, NestFault, SenseFault};
-use super::{PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
+use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{LoopBoundary, LoopKey};
 use crate::loop_winding::{ConicFrame, chord_bulge};
@@ -152,8 +152,14 @@ pub struct Section<T: Real> {
 #[derive(Debug)]
 pub enum SectionError<T: Real> {
     /// The reduce or join stage refused, exactly as it does for
-    /// [`super::split`] (a curved face's concave graze included).
+    /// [`super::split`].
     Split(SplitError),
+    /// The plane is tangent to a curved wall that bends away from its
+    /// material ([`KnifeEdge`]): the wall touches the section along a
+    /// line, a contact of zero width that a region list cannot state.
+    /// The split refuses the same contact as the knife edge it would
+    /// mint.
+    KnifeEdge(KnifeEdge),
     /// Whether a section polygon is an outline or a hole cannot be
     /// read: its winding is in the band (`diag`), or (`None`) zero, or
     /// unread because the polygon carries a spiric or NURBS edge.
@@ -185,7 +191,10 @@ pub enum SectionError<T: Real> {
 
 impl<T: Real> From<SplitError> for SectionError<T> {
     fn from(e: SplitError) -> Self {
-        Self::Split(e)
+        match e.knife_edge() {
+            Some(&knife) => Self::KnifeEdge(knife),
+            None => Self::Split(e),
+        }
     }
 }
 
@@ -193,6 +202,12 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Split(e) => write!(f, "{e}"),
+            Self::KnifeEdge(_) => write!(
+                f,
+                "the section plane is tangent to a curved face from inside the material, so \
+                 the face only touches the section along a line. Recourse: move the section \
+                 plane off the tangency"
+            ),
             Self::WindingUndecided {
                 diag: Some(diag), ..
             } => write!(
@@ -255,10 +270,10 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// # Errors
 ///
 /// [`SectionError`]: [`SectionError::Split`] passes the reduce and join
-/// stages' refusals through unchanged — in particular a curved face's
-/// concave graze REFUSES (`ConcaveGraze`, exactly as [`super::split`]
-/// does) rather than reporting a trace with the contact in it; an
-/// operand that carries no verdict and is not what a finished body
+/// stages' refusals through unchanged, save a curved wall's knife-edge
+/// contact, which refuses as [`SectionError::KnifeEdge`] rather than
+/// reporting a trace with the contact in it; an operand that carries
+/// no verdict and is not what a finished body
 /// promises refuses as [`super::split`]'s does
 /// ([`SplitReduceError::ScaffoldingOperand`],
 /// [`SplitReduceError::InsideOutOperand`]).
@@ -267,7 +282,7 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Section<T>, SectionError<T>> {
-    super::gate_finished(operand, tol).map_err(|e| SectionError::Split(SplitError::Reduce(e)))?;
+    super::gate_finished(operand, tol).map_err(|e| SectionError::from(SplitError::Reduce(e)))?;
     let band = geom_core::Band::linear(tol)
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
     let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
