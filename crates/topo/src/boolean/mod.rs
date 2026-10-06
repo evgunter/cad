@@ -218,7 +218,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         crate::query::DATUM_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
-        | boxes::BOX_SPHERE_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
+        | boxes::BOX_SPHERE_AXIS
+        | boxes::BOX_SPHERE_SEAM_UNIT => geom_core::DIRECTION_LENGTH_SUBJECT,
         boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal

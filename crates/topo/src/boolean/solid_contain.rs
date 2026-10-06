@@ -2991,7 +2991,7 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
 /// **A sphere face's exact chart rectangle**, for the face class the
 /// sphere chart rectangle can actually express — the rectangle the
 /// sphere arm of the face boxes bounds a face by
-/// (`boxes::sphere_rect`). Point containment does not read it: a
+/// (`boxes::sphere_window`). Point containment does not read it: a
 /// trimmed sphere face's region is read from its boundary arcs
 /// ([`super::sphere_region`]).
 ///
@@ -3220,9 +3220,6 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             levels.push((w.dot(axis), r_c));
         }
     }
-    let Some((north, south)) = latitude_extremes(&levels, radius, band).map_err(escalate)? else {
-        return Ok(None);
-    };
     // A window the loop walk cannot derive is a face this chart cannot
     // express, NOT a broken body: the walk needs a closed-form chart
     // image for every boundary edge and a branch it can pin across each
@@ -3251,18 +3248,25 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // attains every azimuth of its latitude range, so its azimuth window
     // is the whole turn (`None`) — the cylinder's full-turn band
     // ([`full_turn_outline`]) is the same reading on the same structural
-    // test. Any other face trims by its
-    // window, which must then be definitely narrower than a period: a
-    // window that reads a whole turn on a face that does not wrap alone
-    // has a gap the window cannot see (a zone merged with half a cap),
-    // and one wider than a period is a walk that wrapped more than once.
-    // Both are out of the class. The gate is also what keeps the
-    // LATITUDE window sound: latitude's only critical points are the
-    // poles, so the boundary's levels bound the face unless it encloses
-    // one, and a loop of rims and meridians that steps around a pole is
-    // exactly a walk reading a whole turn on a face that does not wrap
-    // alone.
-    let az = if wrap_rims(
+    // test. Any other face trims by its window, which must then be
+    // definitely narrower than a period: a window that reads a whole
+    // turn on a face that does not wrap alone has a gap the window
+    // cannot see (a zone merged with half a cap), and one wider than a
+    // period is a walk that wrapped more than once. Both are out of the
+    // class.
+    //
+    // Latitude's only critical points are the poles, so the levels of
+    // the edges that BOUND the face bound it unless it encloses a pole
+    // none of them reaches; the levels of an edge the face holds on both
+    // sides (a strut, its own seam) are points of the face and bound
+    // nothing. On a face that does not wrap alone the period gate is
+    // what excludes the enclosed pole: a loop that steps around one is a
+    // walk reading a whole turn. On a face that wraps alone the bounding
+    // edges are exactly its rims, so only their levels enter the fold,
+    // with any pole the face's vertices reach: a single rim level is a
+    // cap, whose far pole no rim sees, and keeps no window unless a
+    // vertex sits on that pole.
+    let (az, levels) = match wrap_rims(
         body,
         face,
         WrapRims::Coaxial {
@@ -3270,21 +3274,35 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             axis,
         },
         band,
-    )?
-    .is_some()
-    {
-        None
-    } else {
-        match decide(
+    )? {
+        Some(rims) => {
+            let mut bounding: Vec<(T, T)> = rims
+                .iter()
+                .map(|rim| ((rim.center - center).dot(axis), rim.radius))
+                .collect();
+            for level in levels {
+                if zero("bool_sphere_trim_pole_end", Margin::of(level.1))? {
+                    bounding.push(level);
+                }
+            }
+            (None, bounding)
+        }
+        None => match decide(
             "bool_sphere_trim_period",
             Margin::levered(T::tau() - (raw.1 - raw.0), radius),
             band,
         )
         .map_err(escalate)?
         {
-            Sign::Positive => Some(raw),
+            Sign::Positive => (Some(raw), levels),
             Sign::Zero | Sign::Negative => return Ok(None),
-        }
+        },
+    };
+    if levels.is_empty() {
+        return Ok(None);
+    }
+    let Some((north, south)) = latitude_extremes(&levels, radius, band).map_err(escalate)? else {
+        return Ok(None);
     };
     Ok(Some(SphereChartTrim { az, north, south }))
 }

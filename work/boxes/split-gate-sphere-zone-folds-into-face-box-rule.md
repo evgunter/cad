@@ -51,7 +51,7 @@ radii's ends.
 
 ## Since `reach/split-gate-sphere-azimuth` (2026-10-06): the sphere half landed
 
-`FaceBoxRule::SphereRect` is the sphere arm (`boxes::sphere_reach`): the
+`FaceBoxRule::SphereWindow` is the sphere arm (`boxes::sphere_reach`): the
 face's chart rectangle, latitude and azimuth, read off
 `solid_contain::sphere_chart_trim` under the side guard and boxed by
 `boxes::torus_rect_extent` with `R = 0`; the zone (a full turn) where

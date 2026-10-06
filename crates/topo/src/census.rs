@@ -2649,7 +2649,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             }
             Some((lo, hi))
         }
-        crate::boolean::boxes::FaceBoxRule::SphereRect => {
+        crate::boolean::boxes::FaceBoxRule::SphereWindow => {
             Some(crate::boolean::boxes::sphere_reach(body, f, band, frame))
         }
         crate::boolean::boxes::FaceBoxRule::TorusWindow {

@@ -1244,13 +1244,14 @@ pub(crate) fn conic_extent<T: Real>(
 ///   instead is what makes a pucker read as if it were the whole
 ///   cone, and doors that read overlap as "may meet" pay it in
 ///   refusals.
-/// - [`SphereRect`](Self::SphereRect) — **Sphere.** A band's belly
+/// - [`SphereWindow`](Self::SphereWindow) — **Sphere.** A band's belly
 ///   bulges past its poles and seam arcs, so the boundary does not
 ///   bound the face. Where the face is the chart rectangle its boundary
-///   spans, the box is that rectangle's own support along each
-///   coordinate ([`sphere_reach`], read off the certified trim and its
-///   side); otherwise it is the whole ball `center ± r`, within which
-///   every surface point lies.
+///   spans, or lies in the latitude zone its rims bound, the box is that
+///   rectangle's or zone's own support along each coordinate
+///   ([`sphere_reach`], read off the certified trim and its side);
+///   otherwise it is the whole ball `center ± r`, within which every
+///   surface point lies.
 /// - [`ControlNet`](Self::ControlNet) — **NURBS.** The patch bulges
 ///   past the hull of its boundary exactly as the sphere does, but it
 ///   lies in the hull of its CONTROL NET (nonnegative basis, strictly
@@ -1299,7 +1300,7 @@ pub(crate) fn conic_extent<T: Real>(
 /// come out POISON (an unboxable boundary edge, a poisoned
 /// description); that is the value, not the rule.
 ///
-/// A ball-falling [`SphereRect`](Self::SphereRect), a windowless
+/// A ball-falling [`SphereWindow`](Self::SphereWindow), a windowless
 /// [`TorusWindow`](Self::TorusWindow) and the conic-fed
 /// [`BoundaryHull`](Self::BoundaryHull) claim more than the trimmed
 /// face occupies on purpose — a cheap SUPERSET is what the contract
@@ -1343,9 +1344,9 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
         /// The half-angle α ∈ (0, π/2).
         half_angle: T,
     },
-    /// The face's chart rectangle, or the whole ball — see the type
-    /// docs.
-    SphereRect,
+    /// The face's chart rectangle or latitude zone, or the whole ball
+    /// — see the type docs.
+    SphereWindow,
     /// The boundary's chart rectangle, sampled, meeting the whole
     /// tube — see the type docs.
     TorusWindow {
@@ -1400,7 +1401,7 @@ pub(crate) fn face_box_rule<T: Decide>(
             axis: UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius)?,
             radius: *radius,
         },
-        Surface::Sphere { .. } => FaceBoxRule::SphereRect,
+        Surface::Sphere { .. } => FaceBoxRule::SphereWindow,
         Surface::Nurbs(patch) => FaceBoxRule::ControlNet(patch),
         // The fit IS the face's locus, so the fit's control hull is a
         // genuine superset of it — the same rule, on the same net. The
@@ -1434,10 +1435,8 @@ pub(crate) fn face_box_rule<T: Decide>(
     })
 }
 
-/// The K funnel name of a sphere face's chart frame, read as unit
-/// directions before its chart rectangle is read in closed form: the
-/// polar axis, and the seam direction `u_ref` the azimuth window is
-/// measured from ([`sphere_reach`]).
+/// The K funnel name of a sphere's polar axis read as a unit direction,
+/// before its chart window is read in closed form ([`sphere_window`]).
 pub(crate) const BOX_SPHERE_AXIS: &str = "bool_box_sphere_axis";
 
 /// The K funnel name of a sphere's seam direction against its polar
@@ -1445,35 +1444,53 @@ pub(crate) const BOX_SPHERE_AXIS: &str = "bool_box_sphere_axis";
 /// azimuth window is read in the frame they span ([`sphere_reach`]).
 pub(crate) const BOX_SPHERE_SEAM: &str = "bool_box_sphere_seam";
 
-/// A sphere face's chart rectangle as [`sphere_rect`] reads it: the
-/// azimuth window, measured from `u_ref` about the axis (`None` for the
-/// whole turn), and the latitude window, in radians on
-/// `[−π/2, π/2]`.
-struct SphereRect<T: Real> {
-    axis: UnitVec3<T>,
-    /// The azimuth window and the chart's `u_ref` and `axis × u_ref`,
-    /// or `None` for a face that attains every azimuth of its
-    /// latitudes, or one whose chart frame is not decided.
-    az: Option<(Span<T>, Vec3<T>, Vec3<T>)>,
-    lat: Span<T>,
+/// What [`sphere_window`] reads a sphere face's chart window as:
+/// latitudes in radians on `[−π/2, π/2]`, azimuths measured from
+/// `u_ref` about the axis.
+enum SphereWindow<T: Real> {
+    /// The face is the chart rectangle `az × lat` its boundary spans.
+    Rect {
+        axis: UnitVec3<T>,
+        /// The azimuth window, with the chart's `u_ref` and
+        /// `axis × u_ref`.
+        az: (Span<T>, Vec3<T>, Vec3<T>),
+        lat: Span<T>,
+    },
+    /// The face lies in the latitude zone `lat`: it attains every
+    /// azimuth of its latitudes, or its chart frame is not decided.
+    Zone { axis: UnitVec3<T>, lat: Span<T> },
+    /// No window is read, and the face lies in the whole ball.
+    Ball,
 }
 
+/// The K funnel name of a sphere's seam direction read as a unit
+/// direction, before the azimuth window is read in the frame it spans
+/// ([`sphere_window`]).
+pub(crate) const BOX_SPHERE_SEAM_UNIT: &str = "bool_box_sphere_seam_unit";
+
 /// **A sphere face's reach, in `frame`**: the support of its chart
-/// rectangle along each coordinate ([`torus_rect_extent`] with `R = 0`)
-/// where [`sphere_rect`] reads one, and the whole ball `center ± r`
-/// otherwise. Both box lanes read it: the census at its own scalar, and
-/// [`face_box`] at the body's scalar before it brackets out to `f64`.
+/// rectangle along each coordinate ([`torus_rect_extent`] with `R = 0`),
+/// or of its latitude zone, where [`sphere_window`] reads one, and the
+/// whole ball `center ± r` otherwise. Both box lanes read it: the census
+/// at its own scalar, and [`face_box`] at the body's scalar before it
+/// brackets out to `f64`.
 ///
 /// A sphere point is `c + r·(cos v·ê(u) + sin v·â)`, so along a unit `e`
 /// the factor `r·cos v` of the azimuth term is non-negative on the
 /// chart's `[−π/2, π/2]`: the best azimuth does not depend on the
-/// latitude, which is the ring torus's argument with `R = 0`. A face
-/// that wraps the azimuth alone, or whose chart frame is not decided,
-/// reads the whole turn there, which is its latitude zone's support.
+/// latitude, which is the ring torus's argument with `R = 0`. A zone
+/// reads the whole turn there.
+///
+/// The window's ends come through `atan2`, `cos` and `sqrt`, which a
+/// scalar without outward rounding (`f64`, whose `lo()`/`hi()` are
+/// identities) leaves a few ulps of `|c| + r` either side of the exact
+/// support. Each end is therefore charged [`SPHERE_REACH_ULPS`] ulps of
+/// `|c| + r` outward. The ball is not: it is the one-rounding `c ± r`
+/// every kind's whole-carrier arm reads.
 ///
 /// # Panics
 ///
-/// As [`sphere_rect`].
+/// As [`sphere_window`].
 pub(crate) fn sphere_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1486,18 +1503,22 @@ pub(crate) fn sphere_reach<T: Decide>(
         unreachable!("sphere_reach reads a sphere face")
     };
     let c = frame.point(*center);
-    let Some(rect) = sphere_rect(body, face, f, surface, band) else {
-        let ball = ball_extent(&SpanBox::point(c), *radius);
-        return (
-            Point3::new(ball.x.lo, ball.y.lo, ball.z.lo),
-            Point3::new(ball.x.hi, ball.y.hi, ball.z.hi),
-        );
+    let (axis, az, lat) = match sphere_window(body, face, f, surface, band) {
+        SphereWindow::Ball => {
+            let ball = ball_extent(&SpanBox::point(c), *radius);
+            return (
+                Point3::new(ball.x.lo, ball.y.lo, ball.z.lo),
+                Point3::new(ball.x.hi, ball.y.hi, ball.z.hi),
+            );
+        }
+        SphereWindow::Rect { axis, az, lat } => (axis, Some(az), lat),
+        SphereWindow::Zone { axis, lat } => (axis, None, lat),
     };
-    let a = frame.vector(rect.axis.get());
+    let a = frame.vector(axis.get());
     let at = |c: T, k: usize| {
         let pick = |v: Vec3<T>| [v.x, v.y, v.z][k];
         let ax = pick(a);
-        let (p, q, u) = match rect.az {
+        let (p, q, u) = match az {
             Some((u, u_ref, v_ref)) => (pick(frame.vector(u_ref)), pick(frame.vector(v_ref)), u),
             // The whole turn: any frame of the axis's normal plane, of
             // which the coordinate's share is `√(1 − a²)`.
@@ -1510,13 +1531,21 @@ pub(crate) fn sphere_reach<T: Decide>(
                 },
             ),
         };
-        torus_rect_extent(c, (p, q, ax), (T::zero(), *radius), (u, rect.lat))
+        let (lo, hi) = torus_rect_extent(c, (p, q, ax), (T::zero(), *radius), (u, lat));
+        let slack = (c.abs() + *radius) * T::from_f64(SPHERE_REACH_ULPS * f64::EPSILON);
+        (lo - slack, hi + slack)
     };
     let ((xl, xh), (yl, yh), (zl, zh)) = (at(c.x, 0), at(c.y, 1), at(c.z, 2));
     (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
 }
 
-/// **A sphere face's chart rectangle**, from the window
+/// The ulps of `|c| + r` [`sphere_reach`] charges each end of a window's
+/// support: `atan2`, `cos`, `sin` and `sqrt` are each within a few ulps,
+/// and the support composes a handful of them with the products and the
+/// sum that carry `c`.
+const SPHERE_REACH_ULPS: f64 = 16.0;
+
+/// **A sphere face's chart window**, from the window
 /// `solid_contain::sphere_chart_trim` pins: its latitude extremes and
 /// the azimuth window of its boundary walk.
 ///
@@ -1530,22 +1559,23 @@ pub(crate) fn sphere_reach<T: Decide>(
 /// boundary spans. A face whose side is unencoded, refused, or in
 /// disagreement, one whose outer loop is a lone vertex or carries null
 /// scaffolding, one outside the trim's class, one whose trim escalates,
-/// and one whose axis is not decided unit all answer `None`, and keep
-/// the ball. A face whose seam direction is not decided a unit normal
-/// of the axis keeps its latitude zone.
+/// and one whose axis is not decided unit all keep the
+/// [`Ball`](SphereWindow::Ball). A face that wraps the azimuth alone,
+/// or whose seam direction is not decided a unit normal of the axis,
+/// keeps its latitude [`Zone`](SphereWindow::Zone).
 ///
 /// `face` resolved to `f` in the caller, so its outer loop is a link,
 /// and a record the flattening of that loop names is one too: a
 /// flattening that refuses past a cycle loop is a torn body and panics
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
 /// a record miss past `face` too, and panics the same way.
-fn sphere_rect<T: Decide>(
+fn sphere_window<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     f: &crate::entity::Face,
     surface: &Surface<T>,
     band: Band,
-) -> Option<SphereRect<T>> {
+) -> SphereWindow<T> {
     use super::solid_contain::PointInSolidError;
     use crate::props::LoopEdgesError;
     use geom_core::{Margin, Sign};
@@ -1556,7 +1586,7 @@ fn sphere_rect<T: Decide>(
         u_ref,
     } = surface
     else {
-        return None;
+        return SphereWindow::Ball;
     };
     let outer = linked(
         &body.loops,
@@ -1566,11 +1596,11 @@ fn sphere_rect<T: Decide>(
         "outer",
     );
     if matches!(outer.boundary, LoopBoundary::Empty { .. }) {
-        return None;
+        return SphereWindow::Ball;
     }
     let outer = match crate::props::loop_edges(body, f.outer) {
         Ok((outer, _)) => outer,
-        Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
+        Err(LoopEdgesError::NullScaffoldEdge { .. }) => return SphereWindow::Ball,
         Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
     };
     let side = if f.sense {
@@ -1581,22 +1611,24 @@ fn sphere_rect<T: Decide>(
     if geom_brep::props::boundary_material_sign(surface, &outer, band).ok()
         != Some(geom_brep::props::MaterialSign::Encoded(side))
     {
-        return None;
+        return SphereWindow::Ball;
     }
     let trim =
         match super::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band) {
-            Ok(trim) => trim?,
-            Err(PointInSolidError::Escalated { .. }) => return None,
+            Ok(Some(trim)) => trim,
+            Ok(None) | Err(PointInSolidError::Escalated { .. }) => return SphereWindow::Ball,
             Err(refusal) => torn_outer_loop(body, face, f, refusal),
         };
-    let unit = UnitVec3::new(*axis, BOX_SPHERE_AXIS, band).ok()?;
+    let Ok(unit) = UnitVec3::new(*axis, BOX_SPHERE_AXIS, band) else {
+        return SphereWindow::Ball;
+    };
     let pole = |sign: T| (sign * *radius, T::zero());
     let latitude = |(h, rho): (T, T)| h.atan2(rho);
     let lat = Span {
         lo: latitude(trim.south.unwrap_or_else(|| pole(T::zero() - T::one()))),
         hi: latitude(trim.north.unwrap_or_else(|| pole(T::one()))),
     };
-    let seam = UnitVec3::new(*u_ref, BOX_SPHERE_AXIS, band)
+    let seam = UnitVec3::new(*u_ref, BOX_SPHERE_SEAM_UNIT, band)
         .ok()
         .filter(|seam| {
             matches!(
@@ -1608,15 +1640,17 @@ fn sphere_rect<T: Decide>(
                 Ok(Sign::Zero)
             )
         });
-    let az = trim.az.zip(seam).map(|((lo, hi), seam)| {
-        let u_ref = seam.get();
-        (Span { lo, hi }, u_ref, unit.get().cross(u_ref))
-    });
-    Some(SphereRect {
-        axis: unit,
-        az,
-        lat,
-    })
+    match trim.az.zip(seam) {
+        Some(((lo, hi), seam)) => {
+            let u_ref = seam.get();
+            SphereWindow::Rect {
+                axis: unit,
+                az: (Span { lo, hi }, u_ref, unit.get().cross(u_ref)),
+                lat,
+            }
+        }
+        None => SphereWindow::Zone { axis: unit, lat },
+    }
 }
 
 /// The torn hop under `refusal`, a record-miss refusal of a reading of
@@ -1826,7 +1860,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         // The reach is read at the body's scalar and bracketed out, end
         // by end, as the torus window is.
-        FaceBoxRule::SphereRect => {
+        FaceBoxRule::SphereWindow => {
             let (lo, hi) = sphere_reach(body, face, band, &BoxFrame::World);
             Aabb {
                 min_x: lo.x.lo(),
@@ -3237,7 +3271,7 @@ pub(crate) mod tests {
         }
     }
 
-    /// **`SphereRect` outside the rectangle class** — `center ± r`: the
+    /// **`SphereWindow` outside the rectangle class** — `center ± r`: the
     /// fixture's boundary is a planar sector's, no chart rectangle of
     /// the sphere, so its trim must not appear in the box at all. No
     /// deviation terms: this arm claims exactly what its rule states.
@@ -5915,6 +5949,141 @@ mod sphere_rect_rows {
             let (_, hi) = crate::census::face_reach_in(&body, face, band, &frame).unwrap();
             close(&format!("the reach along {aim:?}"), (lo.x, hi.x), aim);
         }
+    }
+
+    /// The unit ball cut by the rim `z = h0` into a north cap and a
+    /// south remainder, the north cap carrying a strut meridian at
+    /// azimuth 0 from the rim up to `z = hc`, each face on `senses`'
+    /// side. `(body, north, south)`.
+    fn strut_cap_ball(h0: f64, hc: f64, senses: (bool, bool)) -> (Body<f64>, FaceKey, FaceKey) {
+        let tol = Tol::witness();
+        let at = |h: f64| Point3::new((1.0 - h * h).sqrt(), 0.0, h);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(h0), true).unwrap();
+        let sphere = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: Point3::origin(),
+                        radius: 1.0,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
+            let Curve3::Circle { center, axis, .. } = carrier else {
+                unreachable!("a cap edge is a circle");
+            };
+            let plane = body.add_surface(Surface::Plane {
+                origin: center,
+                normal: axis,
+                u_ref: if axis.z.abs() > 0.5 {
+                    Vec3::unit_x()
+                } else {
+                    Vec3::unit_z()
+                },
+            });
+            let witness = carrier.mid_point(t0, t1);
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: sphere,
+                    s2: plane,
+                    witness,
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let meridian = Curve3::Circle {
+            center: Point3::origin(),
+            axis: -Vec3::unit_y(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let strut = arc(&mut body, meridian, (h0.asin(), hc.asin()));
+        let e_s = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(hc),
+                strut,
+                tol,
+            )
+            .unwrap();
+        let rim = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, h0),
+            axis: Vec3::unit_z(),
+            radius: (1.0 - h0 * h0).sqrt(),
+            u_ref: Vec3::unit_x(),
+        };
+        let rim = arc(&mut body, rim, (0.0, core::f64::consts::TAU));
+        let made = body
+            .mef(
+                MefSite::Chords {
+                    he1: e_s.he_plus,
+                    he2: e_s.he_plus,
+                },
+                rim,
+                FaceSurface::Shared {
+                    key: sphere,
+                    sense: true,
+                },
+                tol,
+            )
+            .unwrap();
+        let (north, south) = (seed.face, made.face);
+        body.set_face_sense(north, senses.0).unwrap();
+        body.set_face_sense(south, senses.1).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        (body, north, south)
+    }
+
+    /// **A strut never stands in for a rim.** A cap that wraps the
+    /// azimuth alone is bounded by its one rim, `z = −0.5`; a strut
+    /// meridian it carries up to `z = 0.3` is a point set of the face,
+    /// not a bound on it, and the face reaches the pole `z = 1`. Read
+    /// as a level, the strut's tip would end the latitude window at
+    /// `z = 0.3`. Every lane's box reaches the pole, under every sense.
+    /// The strut run on to the pole is a point of the face AT the pole,
+    /// which pins the window `[rim, pole]`: the box keeps its floor at
+    /// the rim wherever the rectangle is read, rather than the ball's.
+    #[test]
+    fn a_caps_strut_does_not_bound_its_latitude_window() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut floors = Vec::new();
+        for hc in [0.3, 1.0] {
+            for senses in [(true, true), (true, false), (false, true), (false, false)] {
+                let (body, north, _) = strut_cap_ball(-0.5, hc, senses);
+                let (_, reach) = sphere_reach(&body, north, band, &BoxFrame::World);
+                let boxed = face_box(&body, north, 0.0, band).unwrap();
+                let (_, census) = crate::census::face_reach(&body, north, band).unwrap();
+                for (lane, top) in [
+                    ("sphere_reach", reach.z),
+                    ("face_box", boxed.max_z),
+                    ("census::face_reach", census.z),
+                ] {
+                    assert!(
+                        top >= 1.0,
+                        "strut tip z = {hc}, senses {senses:?}: {lane}'s top {top} stops \
+                         short of the pole the cap reaches"
+                    );
+                }
+                if hc == 1.0 {
+                    floors.push(boxed.min_z);
+                }
+            }
+        }
+        assert!(
+            floors.iter().any(|&z| (z + 0.5).abs() < 1e-9),
+            "a cap whose strut reaches the pole reads its window [rim, pole] under its own \
+             sense; the floors were {floors:?}"
+        );
     }
 
     #[test]

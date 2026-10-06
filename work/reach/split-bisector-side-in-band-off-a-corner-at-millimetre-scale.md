@@ -45,3 +45,12 @@ first.
 The row stands this refusal down loudly, with a floor of one per pose
 (`every_cut_clear_of_a_partial_turn_sphere_face_splits`).
 
+
+**A second witness** (REACH review of PR 4123, the reviewer's split
+probe, in `probes/` on `analysis/reach-review/4123`): a two-rim sphere zone through
+`Θ = 1.5` rad, cut 1e-3 clear of the face by the plane
+`n = (−0.320, 0.0435, 0.946)`, `d = −0.2407`. It refuses
+`SliverSector` at `split_bisector_side` on vertex `8v1` in both poses,
+at `s = 1e-3` under ε 1e-9 (margin 5.44e-9) and at `s = 1` under
+ε 1e-6 (margin 5.44e-6). This is the same `10⁶` body-to-ε ratio as the
+cap witness above, on a body with no cap.
