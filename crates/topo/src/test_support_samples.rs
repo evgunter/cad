@@ -495,6 +495,11 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             r#loop,
             half_edge,
         },
+        PcurveMintError::JointWithoutRoom {
+            face,
+            r#loop,
+            half_edge,
+        },
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },

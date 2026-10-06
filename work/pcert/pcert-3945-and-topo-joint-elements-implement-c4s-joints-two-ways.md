@@ -76,9 +76,12 @@ stored elements.
 
 Closed by PR 3945's merge of main (`1f3a5cc2`), which carries the
 reconciliation as answered above. There is one decider,
-`topo::pcurves::decide_joint`: the walk, the site mint, `split_cache`
-and `turn_element` write what it decides, and tier 3 checks each stored
-element against it. It returns a `Reset` only on a decided 3-D
+`topo::pcurves::decide_joint`: the walk, the site mint's new joints,
+`split_cache` and `turn_element` write what it decides, and tier 3
+checks each stored element against it. The other writers compose or
+copy, as R has them (kill sums, `revert`'s inverse, null-edge
+identities, kept and carried elements, the boolean graft copy); tier 3's
+re-decision makes any of them that disagrees loud at rest. It returns a `Reset` only on a decided 3-D
 incidence (`singular_at`). R's storage, `loop_lift`, the kill sums and
 the stored-element reads are main's, unchanged.
 

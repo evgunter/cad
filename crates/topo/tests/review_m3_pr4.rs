@@ -742,7 +742,10 @@ fn not_adjacent_edges(errors: &[topo::ValidationError]) -> Vec<topo::EdgeKey> {
 /// the face's four boundary edges, whose lines do not lie on the cone,
 /// and one pcurve finding, a certification refusal on one of the face's
 /// own half-edges (its chart image does not map back onto its line, check
-/// 4's map residual) — and on nothing else.
+/// 4's map residual) — and on nothing else. One, though all four lines
+/// are off the cone: the relabelled face stores no rows, so tier 3
+/// re-derives it whole and reports the derivation's refusal, which is the
+/// face's first owed one (`topo::pcurves::validate_pcurves`, step 1).
 fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     assert!(
         matches!(

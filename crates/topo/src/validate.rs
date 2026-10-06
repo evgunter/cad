@@ -2917,6 +2917,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             NOT_YET,
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
+        // Never produced at rest: only the face description raises it.
+        M::JointWithoutRoom { .. } => (CLOSE, NOT_YET),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.

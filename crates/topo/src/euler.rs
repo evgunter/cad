@@ -1170,6 +1170,23 @@ pub enum EulerOpError {
         /// The typed certification failure, nested whole.
         error: geom_brep::PcurveCertifyError,
     },
+    /// [`Body::split_edge`]: the one joint decision
+    /// (`crate::pcurves::decide_joint`) decided no element for the joint
+    /// between the two children of a half-edge's row. The gap there is
+    /// exactly zero, so what refused is the split point's lever: a mark
+    /// at it escalated (`diag` is `Some`), or the lever is so short that
+    /// the zero gap reads on a mark (`None`), as on a narrow cone near
+    /// its apex. The split writes no element nothing decided. Raised
+    /// before any mutation, so the body is untouched.
+    SplitJointUndecided {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The parent half-edge whose joint was not decided.
+        half_edge: HalfEdgeKey,
+        /// The escalated mark's in-band/poisoned margin diagnostics,
+        /// where one escalated.
+        diag: Option<geom_core::Indeterminate>,
+    },
     /// [`Body::kev_describing`]: whether a killed half's image closes on
     /// itself — the turn a general unsplice crosses it whole by — is
     /// undecided at the door's band, so the joint the kill bridges
@@ -1432,6 +1449,20 @@ impl EulerOpError {
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {error}"
             ),
+            Self::SplitJointUndecided {
+                edge,
+                half_edge,
+                diag,
+            } => format!(
+                "split_edge: on edge {edge:?}, the joint between half-edge {half_edge:?}'s two \
+                 children is not decided at the split point: {}. Recourse: split at a \
+                 parameter farther from the chart's axis, or move the geometry",
+                diag.as_ref().map_or_else(
+                    || "the point's lever is too short to tell one azimuth period from the next"
+                        .to_owned(),
+                    |d| d.payload().to_string()
+                )
+            ),
             Self::KillTurnEscalated { half_edge, diag } => format!(
                 "kev_describing: whether killed half-edge {half_edge:?}'s pcurve image meets \
                  itself across its closed carrier is undecided: {}. Recourse: kill the edge at \
@@ -1677,6 +1708,16 @@ pub(crate) fn every_euler_op_error_once()
                 predicate: Some("split_edge_param_interior"),
                 terminal_sliver: false,
             },
+        },
+        EulerOpError::SplitJointUndecided {
+            edge: ek,
+            half_edge: he,
+            diag: Some(geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_loop_branch"),
+                terminal_sliver: false,
+            }),
         },
         EulerOpError::KillTurnEscalated {
             half_edge: HalfEdgeKey::default(),

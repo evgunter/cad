@@ -221,7 +221,12 @@ fn a_turned_half_cap_at_a_tight_k_keeps_its_twin() {
 /// (`split_cache`), and tier 3, which re-decides it at the new vertex,
 /// reads the body clean. Read at any other point of the carrier the
 /// joint would be an ordinary identity, which tier 3 refuses.
-fn split_at_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
+/// The half cap with its meridian arc split at parameter `t` (the arc
+/// crosses the north pole at `t = π/3`).
+fn split_meridian<T: Real + SpanLocate + AtRestPolicy + Bounds>(
+    lane: &str,
+    t: f64,
+) -> (Body<T>, topo::SplitEdgeCreated) {
     let mut body = half_cap::<T>(0.0).unwrap_or_else(|e| panic!("{lane}: {e}"));
     let meridian = body
         .edges()
@@ -234,21 +239,29 @@ fn split_at_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
         })
         .expect("the half cap's meridian arc");
     let made = body
-        .split_edge(
-            meridian,
-            T::from_f64(core::f64::consts::FRAC_PI_3),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{lane}: the split at the pole: {e:?}"));
+        .split_edge(meridian, T::from_f64(t), Tol::witness())
+        .unwrap_or_else(|e| panic!("{lane}: the split at t = {t}: {e:?}"));
+    (body, made)
+}
+
+fn split_at_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
+    let (body, made) = split_meridian::<T>(lane, core::f64::consts::FRAC_PI_3);
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    for he in [made.he_plus, made.he_minus] {
+    let at_the_pole: Vec<_> = [made.he_plus, made.he_minus]
+        .into_iter()
+        .filter(|&he| body.get_half_edge(he).unwrap().start == made.vertex)
+        .collect();
+    assert_eq!(
+        at_the_pole.len(),
+        1,
+        "{lane}: one child enters at the new vertex"
+    );
+    for he in at_the_pole {
         let element = body.joint(he).expect("the split writes each child's joint");
-        if body.get_half_edge(he).unwrap().start == made.vertex {
-            assert!(
-                element.is_reset(),
-                "{lane}: the joint at the pole is a reset: {element:?}"
-            );
-        }
+        assert!(
+            element.is_reset(),
+            "{lane}: the joint at the pole is a reset: {element:?}"
+        );
     }
     assert_eq!(
         topo::pcurves::validate_pcurves(&body, band),
@@ -257,8 +270,113 @@ fn split_at_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
     );
 }
 
+/// **A strut from the pole reads its joints at its own ends.** On the
+/// half cap split at the pole, `mev` adds a strut from the pole vertex
+/// down the meridian at azimuth `π/2`, and the site mint decides the
+/// joints of its two new halves at the vertices they enter at: the half
+/// leaving the pole is a reset there (every azimuth names the pole), and
+/// the turn at the strut's tip is ordinary. The new vertex does not exist
+/// before the surgery, so the mint reads each new half's entry off its
+/// carrier, at the end the half starts from.
+fn strut_from_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
+    let tol = Tol::witness();
+    let f = T::from_f64;
+    let (mut body, made) = split_meridian::<T>(lane, core::f64::consts::FRAC_PI_3);
+    let theta = 0.8_f64.acos();
+    let side = Curve3::Circle {
+        center: Point3::new(f(0.0), f(0.0), f(0.0)),
+        axis: Vec3::new(f(-1.0), f(0.0), f(0.0)),
+        radius: f(1.0),
+        u_ref: Vec3::new(f(0.0), f(0.0), f(1.0)),
+    };
+    let tip = Point3::new(f(0.0), f(theta.sin()), f(theta.cos()));
+    let strut = body
+        .mev(
+            MevSite::Fan {
+                he1: made.he_plus,
+                he2: made.he_plus,
+            },
+            tip,
+            EdgeCurveSpec::arc_of_circle(side, f(0.0), f(theta)).unwrap(),
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{lane}: the strut: {e:?}"));
+    let leaving = body
+        .joint(strut.he_plus)
+        .expect("the site mint writes the strut's joints");
+    let turning = body
+        .joint(strut.he_minus)
+        .expect("the site mint writes the strut's joints");
+    assert!(
+        leaving.is_reset(),
+        "{lane}: the strut leaves the pole on a reset: {leaving:?}"
+    );
+    assert_eq!(
+        turning,
+        topo::JointElement::IDENTITY,
+        "{lane}: the turn at the strut's tip is ordinary"
+    );
+    let band = geom_core::Band::linear(tol).unwrap();
+    assert_eq!(
+        topo::pcurves::validate_pcurves(&body, band),
+        vec![],
+        "{lane}: the strut's rows read clean"
+    );
+}
+
+#[test]
+fn a_strut_from_the_pole_reads_its_joints_at_its_own_ends() {
+    strut_from_the_pole::<f64>("f64");
+    strut_from_the_pole::<Interval>("Interval");
+}
+
 #[test]
 fn a_split_at_the_pole_carries_a_reset() {
     split_at_the_pole::<f64>("f64");
     split_at_the_pole::<Interval>("Interval");
+}
+
+/// **Near a pole, the face description refuses before it reads a
+/// winding it cannot trust.** The half cap's meridian split `c·K·ε` off
+/// the pole puts a joint there, and `chart_boundary` reads each face's
+/// loops at the split body:
+/// - `c = 0.5`: within the band of the pole (`singular_at` undecided),
+///   refused as a singular joint, never let through to the winding;
+/// - `c = 2`: off the pole, but the quarter-period room at the vertex's
+///   lever, `(π/2)·2·K·ε`, is not past four times the band, so a mark
+///   there may have named the other sheet: refused for want of room;
+/// - `c = 4`: the room is past it, so the joint's integer is the joint's
+///   own and the description reads the winding, which goes through the
+///   twin (`LoopWraps`).
+///
+/// The body itself reads clean at rest in all three.
+fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let k_eps = tol.k() * tol.eps();
+    for (c, want) in [(0.5, "singular"), (2.0, "room"), (4.0, "wraps")] {
+        let (body, _) = split_meridian::<T>(lane, core::f64::consts::FRAC_PI_3 + c * k_eps);
+        assert_eq!(
+            topo::pcurves::validate_pcurves(&body, band),
+            vec![],
+            "{lane} c = {c}: the split cap reads clean"
+        );
+        for (face, record) in body.faces() {
+            let chart = body.get_surface(record.surface).unwrap().clone();
+            let read = topo::pcurves::chart_boundary(&body, face, &chart, band);
+            let got = match read {
+                Err(topo::PcurveMintError::SingularChartJoint { .. }) => "singular",
+                Err(topo::PcurveMintError::JointWithoutRoom { .. }) => "room",
+                Err(topo::PcurveMintError::LoopWraps { .. }) => "wraps",
+                other => panic!("{lane} c = {c}: {face:?} reads {other:?}"),
+            };
+            assert_eq!(got, want, "{lane} c = {c}: {face:?}");
+        }
+    }
+}
+
+#[test]
+fn near_a_pole_the_description_refuses_before_the_winding() {
+    near_the_pole::<f64>("f64");
+    near_the_pole::<Interval>("Interval");
 }

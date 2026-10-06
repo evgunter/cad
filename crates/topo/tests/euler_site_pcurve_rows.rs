@@ -1391,3 +1391,33 @@ fn a_kemr_writes_the_sum_of_two_periods_on_each_side() {
     assert_eq!(rows_of(&body, face), (9, 0), "both loops are complete");
     kept_rows_are_the_pass_s(body, face, "kemr");
 }
+
+/// **A kill that crosses a closed carrier whole sums its turn.** Up the
+/// wall's ruling a strut ends at a tip, and a null strut there, described
+/// as the cylinder's own circle once round, is a closed carrier whose two
+/// vertices hold one point. A strut on from its far vertex makes killing
+/// it a general unsplice, which crosses each of its halves whole: the
+/// joint it bridges on each side carries that half's turn, a period
+/// round the chart (`turn_element`), summed with the elements either
+/// side. The rows the kill leaves are the pass's, and tier 3 reads them
+/// clean.
+#[test]
+fn a_kill_across_a_closed_carrier_sums_its_turn() {
+    let (mut body, face, m) = wall();
+    let first = strut(&mut body, face, m);
+    let ring = null_at(&mut body, first.he_minus);
+    body.set_edge_curve(ring.edge, circle_at(0.5), tol())
+        .unwrap();
+    body.mev_line(
+        MevSite::Fan {
+            he1: ring.he_minus,
+            he2: ring.he_minus,
+        },
+        at(UM, 0.8),
+        tol(),
+    )
+    .unwrap();
+    assert_eq!(validate_pcurves(&body, band()), vec![], "before the kill");
+    body.kev_describing(ring.he_plus, &[], tol()).unwrap();
+    kept_rows_are_the_pass_s(body, face, "kev across a closed carrier");
+}

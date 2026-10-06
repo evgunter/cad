@@ -82,18 +82,28 @@ Implemented as ratified on [ev] PR 3919 (C4's domain-validity sentence,
   `ChartWindow`; `PcurveCheck::TrimContainment` and
   `PcurveCertifyError::TrimEscape` are gone, with every caller's window
   lookup. The cone's azimuth lever reads the row's own box.
-- **A joint states its deck element** (`topo::pcurves::lift_joint`):
-  the whole periods per periodic channel, and on a sphere the
-  involution twin, by `whole_periods` with half a period of room,
-  metered at the joint vertex's own distance from the chart axis. Tier 3
-  requires the identity at every joint and a winding of 0 or ±1 at the
-  closing one; `chart_boundary` requires winding 0.
-  `pcurve_loop_closure` and `_closure_height` are gone, and
-  `pcurve_loop_continuity` is left on spline charts and on a joint whose
-  singular incidence and branch marks are both undecided.
+- **A joint states its deck element**, decided by the one joint
+  decision on main's joint-element model (`topo::pcurves::decide_joint`,
+  ported by the merge of PR 4024's R): the whole periods per periodic
+  channel, and on a sphere the involution twin, as one orbit integer
+  with half the step to the next orbit point as room (half a period on a
+  cylinder, cone or torus, a quarter on a sphere), metered at the joint
+  vertex's own distance from the chart axis. Tier 3 re-decides each
+  stored element and requires it equal to the decided one, kind
+  included, and composes the loop's winding from the elements
+  (`Winding::closes`: off the twin at most one period per periodic
+  channel; through it an odd number of azimuth half turns up to three,
+  the second channel unbounded; no azimuth winding across a reset).
+  `chart_boundary` requires winding 0, and refuses a joint whose integer
+  was decided with less room than the joint bound
+  (`PcurveMintError::JointWithoutRoom`). `pcurve_loop_closure` and
+  `_closure_height` are gone. `pcurve_loop_continuity` is left on spline
+  charts; a joint whose singular incidence and branch marks are both
+  undecided decides `pcurve_loop_pole_gap` at the vertex's lever.
 - **Pole joints are 3-D incidence** of the vertex on a sphere's poles or
   a cone's apex (`singular_at`); cylinders, planes and ring tori decide
-  nothing there.
+  nothing there. A reset is written there, and on a spline chart whose
+  net-level gate is undecided.
 
 Measured: `chaintol` at the default ε is back at `[1.0, 0.3702, 0.1851,
 0.1110]` with `dihedral_wedge` the wall (`[1.0, 0.3603, 0.1802, 0.1083]`

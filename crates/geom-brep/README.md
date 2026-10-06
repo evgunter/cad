@@ -331,7 +331,9 @@ chart. Its home is the half-edge (`Body::pcurves`, a
 a function of the edge and the chart alone, plus the half-edge's
 **joint element**, the integer (whole periods, a torus's second period,
 a sphere's twin bit) that carries its image onto the end of the
-half-edge before it in its loop, or a reset marker at a pole or apex.
+half-edge before it in its loop, or a reset marker at a pole or apex
+(and on a spline chart where the net's own `u` stretch is not decided
+past the band).
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no
@@ -378,14 +380,23 @@ loop: at each joint the walk decides the deck element (the whole number
 of periods, and on a sphere the involution twin) as an integer, with
 half the step to the next point of the joint's orbit as room: half a
 period on a cylinder, cone or torus, and a quarter period on a sphere,
-whose twin sits half a period over in azimuth. The joint's 3-D
-coincidence is not decided again in the chart, since it follows from
-the two rows' envelopes and the edge certificate's pinning of each
-carrier's ends to the vertex. Each loop winds at most one period per
-channel (on a sphere also through the twin), and a closed chart
-polygon is built only where it winds 0. A vertex on the chart's singular set (a sphere's pole,
-a cone's apex) is decided as 3-D incidence of the vertex on that set;
-a chart with no singular set decides nothing there. On a spline chart,
+whose twin sits half a period over in azimuth. Where that room, metred
+at the vertex's distance from the axis, exceeds the joint bound, the
+integer names the joint's own orbit point; nearer a pole or a narrow
+cone's apex it may name another lift of the same point. The joint's
+3-D coincidence is not decided again in the chart, since it follows
+from the two rows' envelopes and the edge certificate's pinning of each
+carrier's ends to the vertex. A loop's winding is its elements composed
+once around, read off the invariants a change of starting half-edge
+leaves alone: off the twin, at most one period on each periodic
+channel; through the twin, an odd number of half turns of azimuth, at
+most three, and no bound on the second channel, whose periods are not
+such an invariant there; and no azimuth winding counted across a reset.
+A closed chart polygon is built only where the winding is zero and
+every joint's integer was decided with room past the joint bound. A
+vertex on the chart's singular set (a sphere's pole, a cone's apex) is
+decided as 3-D incidence of the vertex on that set; a chart with no
+singular set decides nothing there. On a spline chart,
 where a net can fold and a 3-D coincidence does not name the sheet, each
 joint also states its chart-space gap. Planar faces store nothing; `chart_pcurve` derives on
 demand. On every other chart the row is mandatory at rest: every

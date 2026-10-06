@@ -364,16 +364,8 @@ fn main() {
         }
     }
     if boxes.len() == cleared.loop_cycle(first).unwrap().len() {
-        // Every half-edge derived: build the face window exactly as
-        // `mint_face` does, then certify each one.
-        let mut window = None;
-        for (_, p, a, b) in &boxes {
-            let bx = p.chart_box(*a, *b);
-            window = Some(match window {
-                None => bx,
-                Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
-            });
-        }
+        // Every half-edge derived: certify each one against its carrier
+        // and the chart, exactly as `mint_face` does.
         println!("\nQ4  all derived — now the CERTIFICATION door on each:");
         for (he, p, a, b) in &boxes {
             let e = cleared
@@ -413,22 +405,11 @@ fn main() {
             boxes.len(),
             cleared.loop_cycle(first).unwrap().len()
         );
-        // Q5: force the question anyway — build the window from the
-        // half-edges that DID derive (the true trim region up to the
-        // one refusing seam, whose image is the other interior column
-        // and lies inside it) and put each derived pcurve through the
-        // certification door by hand. This is the measurement no row
-        // in the tree takes: does the WIDENED cap-rim branch's output
-        // actually certify?
-        let mut window: Option<geom_brep::ChartWindow<f64>> = None;
-        for (_, p, a, b) in &boxes {
-            let bx = p.chart_box(*a, *b);
-            window = Some(match window {
-                None => bx,
-                Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
-            });
-        }
-        println!("\nQ5  the certification door, forced (window = hull of the 3 derived boxes):");
+        // Q5: force the question anyway — put each half-edge that DID
+        // derive through the certification door by hand. This is the
+        // measurement no row in the tree takes: does the WIDENED
+        // cap-rim branch's output actually certify?
+        println!("\nQ5  the certification door, forced, on the derived half-edges:");
         for (he, p, a, b) in &boxes {
             let e = cleared
                 .get_edge(cleared.get_half_edge(*he).unwrap().edge)

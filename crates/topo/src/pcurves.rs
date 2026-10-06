@@ -464,6 +464,25 @@ pub enum PcurveMintError {
         /// The half-edge whose ENTRY sits at the singular point.
         half_edge: HalfEdgeKey,
     },
+    /// A joint of a loop sits off the chart's singular set, but so near
+    /// the axis that the walk decided its azimuth integer with less room
+    /// than the joint bound: half the step to the next point of the
+    /// joint's orbit, metered at the vertex's own distance from the axis,
+    /// is not definitely past the band's escalation four times over
+    /// (`chart_bound_joint_room`). There a mark may name an orbit point
+    /// other than the joint's own (both lifts of the one 3-D point), so
+    /// the loop's winding may read zero while the loop truly winds, and
+    /// a chord polygon built on it would bound a region the face does
+    /// not have. Raised by [`chart_boundary`] alone, on a sphere near a
+    /// pole or a cone near its apex.
+    JointWithoutRoom {
+        /// The face whose loop holds the joint.
+        face: FaceKey,
+        /// The loop.
+        r#loop: LoopKey,
+        /// The half-edge whose ENTRY is the joint.
+        half_edge: HalfEdgeKey,
+    },
     /// The outer loop's own chart span is definitely wider than the
     /// chart's period, so the face wraps onto itself and its region is
     /// not periodic within its own outer — the premise every ring lift
@@ -622,6 +641,18 @@ impl core::fmt::Display for PcurveMintError {
                 "the pcurves of a loop of face {face:?} do not close in its chart (the \
                  azimuth advance is neither zero nor one full period). Recourse: re-mint the body after any \
                  surgery; if a fresh mint refuses too, repair the loop"
+            ),
+            Self::JointWithoutRoom {
+                face,
+                r#loop: lp,
+                half_edge,
+            } => write!(
+                f,
+                "loop {lp:?} of face {face:?} passes so near a sphere pole or cone apex at \
+                 half-edge {half_edge:?} that its azimuth period is decided with less room than \
+                 the joint bound, so no face description is built; there is nothing in the \
+                 body to repair. Recourse: ask for the description of a face whose loops keep \
+                 farther from the pole or apex"
             ),
             Self::SingularChartJoint {
                 face,
@@ -2282,17 +2313,32 @@ pub(crate) struct CarriedRows<T: Real> {
     pub(crate) joint: JointElement,
 }
 
-/// Why [`split_cache`] could not state a restriction: the parent's
-/// image, restricted to one child's sub-interval, failed the
-/// closed-form certification the whole image passed. A covered lane
-/// that refuses here is a genuine defect and is raised, never
-/// swallowed.
+/// Why [`split_cache`] could not state a restriction, for one parent
+/// half-edge. Raised, never swallowed: the split leaves nothing it
+/// could not state.
 #[derive(Clone, Debug)]
 pub(crate) struct SplitRowError {
     /// The parent half-edge whose row was being restricted.
     pub(crate) half_edge: HalfEdgeKey,
-    /// The typed certification failure.
-    pub(crate) error: PcurveCertifyError,
+    /// What refused.
+    pub(crate) refusal: SplitRefusal,
+}
+
+/// The two refusals of [`split_cache`].
+#[derive(Clone, Debug)]
+pub(crate) enum SplitRefusal {
+    /// The parent's image, restricted to one child's sub-interval,
+    /// failed the closed-form certification the whole image passed. A
+    /// covered lane that refuses here is a genuine defect.
+    Certify(PcurveCertifyError),
+    /// The one decider decided no element for the joint between the
+    /// two children ([`decide_joint`]). The gap there is exactly zero,
+    /// so what refused is the split point's lever: a mark at it
+    /// escalated (`Some`, with its cause), or the lever is so short
+    /// that the zero gap reads on a mark (`None`) — a point off the
+    /// singular set by more than the band can still sit closer than
+    /// that to the axis, on a narrow cone near its apex.
+    Joint(Option<Indeterminate>),
 }
 
 /// The **restriction of an edge's two half-edge rows to the two
@@ -2366,7 +2412,10 @@ pub(crate) struct SplitRowError {
 /// # Errors
 ///
 /// [`SplitRowError`] — a certification the whole image passed failing
-/// over a sub-interval.
+/// over a sub-interval ([`SplitRefusal::Certify`]), or the joint
+/// between the two children undecided at the split point
+/// ([`SplitRefusal::Joint`]): the split writes no element the one
+/// decider did not decide.
 ///
 /// # Panics
 ///
@@ -2395,20 +2444,37 @@ pub(crate) fn split_cache<T: Decide>(
         let surface = half_edge_surface(body, half_edge);
         let image = cache.pcurve().clone();
         let certify = |a: T, b: T, image: Pcurve<T>| {
-            PcurveCache::certify(image, a, b, &carrier, &surface, band)
-                .map_err(|error| SplitRowError { half_edge, error })
-        };
-        // The children meet at the image's own point at `t`, so the joint
-        // decides no period; it is decided as every joint is, which reads
-        // whether the split point is on the chart's singular set.
-        let joint = DescribedChart::of(&surface)
-            .and_then(|chart| {
-                let at = image.eval(t);
-                let vertex = carrier.eval(t);
-                let period = chart_u_period(&surface, band);
-                decide_joint(chart, &image, t, at, vertex, period, band).ok()
+            PcurveCache::certify(image, a, b, &carrier, &surface, band).map_err(|error| {
+                SplitRowError {
+                    half_edge,
+                    refusal: SplitRefusal::Certify(error),
+                }
             })
-            .unwrap_or(JointElement::IDENTITY);
+        };
+        // The children meet at the image's own point at `t`, so the gap
+        // is exactly zero; the joint is decided as every joint is, which
+        // reads whether the split point is on the chart's singular set.
+        let Some(chart) = DescribedChart::of(&surface) else {
+            unreachable!(
+                "{half_edge:?} stores a row, and rows are minted only on a described chart \
+                 (`DescribedChart::minting`)"
+            )
+        };
+        let at = image.eval(t);
+        let vertex = carrier.eval(t);
+        let period = chart_u_period(&surface, band);
+        let joint = match decide_joint(chart, &image, t, at, vertex, period, band) {
+            Ok(element) => element,
+            Err(miss) => {
+                return Err(SplitRowError {
+                    half_edge,
+                    refusal: SplitRefusal::Joint(match miss {
+                        PinMiss::Escalated(cause) => Some(cause),
+                        PinMiss::Discontinuity | PinMiss::OutOfReach => None,
+                    }),
+                });
+            }
+        };
         rows[slot] = Some(CarriedRows {
             parent_half: certify(t0, t, image.clone())?,
             new_half: certify(t, t1, image)?,
@@ -3897,11 +3963,22 @@ enum AzimuthRule {
     /// has no period.
     Aperiodic,
     /// No azimuth integer, and the joint is a reset
-    /// ([`JointElement::Reset`]): the vertex is on the singular set
-    /// (every azimuth names the point), or a spline chart's net-level
-    /// gate did not read `Off` (its chart-space gap decides,
-    /// [`spline_gap_closes`]).
-    Reset,
+    /// ([`JointElement::Reset`]): the vertex is decided ON the singular
+    /// set, so every azimuth names the point. On an analytic chart that
+    /// is 3-D incidence on a pole or an apex; on a spline chart, a net
+    /// whose whole `u` stretch is under the band ([`singular_at`]). The
+    /// skip rests on that decision alone.
+    OnSingularSet,
+    /// No azimuth integer, and the joint is a reset: a spline chart
+    /// whose net-level gate is UNDECIDED. The reset is written on an
+    /// undecided reading here, and only here. Its soundness is not the
+    /// incidence's but the joint's chart-space gap, which the spline
+    /// joint decides at the unshifted entry ([`spline_gap_closes`]): no
+    /// azimuth integer is claimed, and the two chart points are shown to
+    /// agree within the band through the net's sup stretch. An analytic
+    /// chart's undecided incidence takes [`AzimuthRule::MarksNearPole`]
+    /// instead.
+    SplineUndecided,
     /// The integer, by the marks.
     Marks,
     /// The integer by the marks; where they are undecided too, the
@@ -3914,8 +3991,8 @@ impl AzimuthRule {
     fn of(periodic: bool, singular: Singular, spline: bool) -> Self {
         match (periodic, singular) {
             (false, _) => Self::Aperiodic,
-            (true, Singular::On) => Self::Reset,
-            (true, Singular::Undecided(_)) if spline => Self::Reset,
+            (true, Singular::On) => Self::OnSingularSet,
+            (true, Singular::Undecided(_)) if spline => Self::SplineUndecided,
             (true, Singular::Off) => Self::Marks,
             (true, Singular::Undecided(cause)) => Self::MarksNearPole(cause),
         }
@@ -3947,6 +4024,10 @@ impl AzimuthRule {
 /// vertex's distance `d` from the axis: half the separation of the two
 /// nearest orbit points in the chart metric.
 ///
+/// The integer counts the orbit's steps, so on a sphere it counts half
+/// periods, and `geom_brep::MAX_BRANCH_PERIODS` bounds half periods
+/// there: half its reach in whole periods.
+///
 /// **What that room buys, and where it is not enough.** Where it exceeds
 /// the joint bound below (the chart ends `≤ 4ε` apart in metres), the
 /// decided integer is the joint's true deck element. It does not exceed
@@ -3959,7 +4040,10 @@ impl AzimuthRule {
 /// within the joint bound are within it of each other, so the lift
 /// stays continuous in metres to that bound. Otherwise a mark decides
 /// Zero (the gap is on it: a refusal) or escalates. No branch is ever
-/// decided that names a different point.
+/// decided that names a different point. What such a pick can move is
+/// the loop's winding by one orbit step, so a reader of the winding as a
+/// region checks each joint's room first: [`chart_boundary`] refuses a
+/// joint whose room is not past the joint bound ([`joint_has_room`]).
 ///
 /// **The joint's 3-D coincidence is not decided again here**, and needs
 /// no chart margin: it follows from two certified bounds. Each row's
@@ -3986,6 +4070,34 @@ impl AzimuthRule {
 /// name the sheet), and each of its joints states its chart-space gap
 /// as well ([`spline_gap_closes`]), which is what keeps its net-level
 /// skip safe.
+///
+/// **Which writers decide, and which compose or copy.** The writers that
+/// decide a joint call this and nothing else: the minting walk (the
+/// closure joint read as every other), the site mint's new and missing
+/// joints ([`site_rows`]), a split's joint between its children
+/// ([`split_cache`]), a kill's turn across a closed carrier
+/// ([`turn_element`]), and tier 3 ([`validate_pcurves`]). The rest write
+/// elements by algebra or copy, as R's design has them: a kill's bridged
+/// joint is the composition of the elements either side
+/// ([`JointElement::then`]), a reversed loop's is the inverse
+/// ([`JointElement::inverse`], `Body::revert`), a null edge's is the
+/// identity (a point), and the site mint's kept elements, a split's
+/// carried rows and the boolean graft copy elements between images that
+/// stand unchanged. Each is the element this decision gives the same
+/// geometry, where its integer has room: the composed path and the
+/// bridged joint carry the same image onto the same point. And tier 3
+/// re-decides every stored element here, so a written element this
+/// decision does not give reads as a [`PcurveMintError::LoopDiscontinuity`]
+/// at rest — loud, never silent. Where the room is short (a pole at a
+/// small `K`, a narrow cone's apex), a composition may name another lift
+/// of the same point than a fresh decision does; that too is loud at
+/// rest (`work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
+///
+/// **So a reset is written in exactly two cases**: a vertex decided on
+/// the singular set (any chart), and a spline chart whose net-level gate
+/// is undecided. The second is a reset on an undecided reading; it is
+/// sound by the joint's chart-space gap, not by the incidence. An
+/// analytic chart never writes a reset on an undecided incidence.
 fn decide_joint<T: Decide>(
     chart: DescribedChart<'_, T>,
     image: &Pcurve<T>,
@@ -4032,20 +4144,23 @@ fn decide_joint<T: Decide>(
         Some(t) if is_twin => t,
         _ => image.clone(),
     };
-    let mut lifted = sheet.shift_branch(whole(ku), u_period.unwrap_or_else(T::zero));
-    let mut kv = 0;
-    if let Some(polar) = polar_arm(surface) {
-        kv = whole_period_count(
+    // The second channel's periods, on the chosen sheet; a shift of the
+    // first channel moves no second-channel value.
+    let kv = match polar_arm(surface) {
+        Some(polar) => whole_period_count(
             "pcurve_loop_branch",
-            prev.y - lifted.eval(entry_t).y,
+            prev.y - sheet.eval(entry_t).y,
             tau,
             |g| Margin::levered(g, polar),
             band,
         )
-        .map_err(PinMiss::from)?;
-        lifted = shift_polar_branch(&lifted, whole(kv), tau);
-    }
+        .map_err(PinMiss::from)?,
+        None => 0,
+    };
+    // A spline chart has no angular second channel (`polar_arm` is
+    // `None`), so its lift is the sheet moved by the azimuth periods.
     if spline {
+        let lifted = sheet.shift_branch(whole(ku), u_period.unwrap_or_else(T::zero));
         spline_gap_closes(chart, lifted.eval(entry_t), prev, band)?;
     }
     let deck = Deck {
@@ -4054,7 +4169,7 @@ fn decide_joint<T: Decide>(
         twin: is_twin,
     };
     Ok(match rule {
-        AzimuthRule::Reset => JointElement::Reset(deck),
+        AzimuthRule::OnSingularSet | AzimuthRule::SplineUndecided => JointElement::Reset(deck),
         AzimuthRule::Aperiodic | AzimuthRule::Marks | AzimuthRule::MarksNearPole(_) => {
             JointElement::Shift(deck)
         }
@@ -4067,14 +4182,21 @@ fn decide_joint<T: Decide>(
 /// it with the elements either side ([`crate::Body::kev_describing`]).
 /// `Ok(None)` where the half stores no image or its ends do not meet.
 ///
+/// Whether the ends meet is decided in 3-D, as the distance between the
+/// edge's two vertices (`pcurve_turn_closes`): the joint decision
+/// ([`decide_joint`]) takes the coincidence of the two points it joins as
+/// given, so it is not asked until the coincidence is decided. Where they
+/// meet, the turn is decided at that point as every joint is.
+///
 /// # Errors
 ///
-/// The joint's escalation ([`decide_joint`]): whether the ends meet is
-/// undecided at `band`, and a kill does not write an element through it.
+/// An escalation: whether the ends meet is undecided at `band`, or the
+/// turn's joint decision escalated there. A kill does not write an
+/// element through either.
 ///
 /// # Panics
 ///
-/// Where `half_edge`'s face or surface does not resolve.
+/// Where `half_edge`'s face, surface, edge or vertices do not resolve.
 #[track_caller]
 pub(crate) fn turn_element<T: Decide>(
     body: &Body<T>,
@@ -4088,6 +4210,12 @@ pub(crate) fn turn_element<T: Decide>(
     let Some(chart) = DescribedChart::of(&surface) else {
         return Ok(None);
     };
+    let (start, end) = edge_vertex_points(body, half_edge);
+    match decide("pcurve_turn_closes", Margin::of(start.distance(end)), band) {
+        Ok(Sign::Zero) => {}
+        Ok(Sign::Positive | Sign::Negative) => return Ok(None),
+        Err(cause) => return Err(cause),
+    }
     let (t0, t1) = row.params();
     let (entry_t, exit_t) = entry_exit(is_plus(body, half_edge), t0, t1);
     let image = row.pcurve();
@@ -4185,6 +4313,50 @@ fn spline_gap_closes<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// **Whether a joint's azimuth integer was decided with room** past the
+/// joint bound ([`chart_boundary`]'s room fence). The walk decides the
+/// integer with half the step to the next orbit point as room, at the
+/// vertex's own lever ([`decide_joint`]): half a period on a cylinder,
+/// cone or torus, a quarter on a sphere. That integer names the joint's
+/// own orbit point where the room exceeds the joint bound, the chart
+/// ends `≤ 4ε` apart in metres. So the room, metered at the lever, is
+/// decided against four times the band (`chart_bound_joint_room`: an
+/// eighth of the step at the lever must decide definitely past the
+/// band's escalation `K·ε ≥ ε`), and anything else refuses — the
+/// conservative side.
+///
+/// A chart with no period decides no integer. A spline chart is exempt:
+/// each of its joints already decided its lifted chart-space gap within
+/// the band through the net's sup stretch ([`spline_gap_closes`]), which
+/// pins the lift itself rather than the room of its integer.
+fn joint_has_room<T: Decide>(
+    chart: DescribedChart<'_, T>,
+    vertex: geom_core::Point3<T>,
+    u_period: Option<T>,
+    band: Band,
+) -> bool {
+    let surface = chart.surface();
+    let Some(period) = u_period else {
+        return true;
+    };
+    if surface.spline_chart().is_some() {
+        return true;
+    }
+    let step = if matches!(surface, Surface::Sphere { .. }) {
+        period * T::from_f64(0.5)
+    } else {
+        period
+    };
+    matches!(
+        decide(
+            "chart_bound_joint_room",
+            joint_arm(chart, vertex).meter(step * T::from_f64(0.125)),
+            band,
+        ),
+        Ok(Sign::Positive)
+    )
 }
 
 /// The chart image of one walked half-edge, in loop direction.
@@ -4316,9 +4488,17 @@ fn chart_edge<T: Decide>(
 /// ([`PcurveMintError::SingularChartJoint`]): a joint vertex on a pole
 /// or an apex, decided as 3-D incidence ([`singular_at`]), has no
 /// azimuth, the walk decides no azimuth periods there, and the chord
-/// drawn to such a joint bounds a different region from the face. A
-/// sphere or cone face that stays clear of its singularity describes
-/// normally.
+/// drawn to such a joint bounds a different region from the face. So
+/// is a loop that passes close to it ([`PcurveMintError::JointWithoutRoom`]):
+/// off the singular set the walk decides each joint's azimuth integer
+/// with half the step to the next orbit point as room, at the vertex's
+/// own lever, and where that room is not past the joint bound a mark may
+/// name another orbit point, so the winding read below may be a step off
+/// ([`joint_has_room`]). On a sphere that is a vertex within about
+/// `2.5·K·ε` of a pole; on a cone, one whose distance from the axis is
+/// under about `1.3·K·ε`, which a narrow cone reaches well away from
+/// its apex. A sphere or cone face whose loops keep clear of both
+/// describes normally.
 ///
 /// **A spline chart** describes when [`chart_u_period`] can answer for
 /// it. A plane has no period, so its walk decides no branch.
@@ -4345,7 +4525,9 @@ fn chart_edge<T: Decide>(
 /// or general image on a face that stores no rows, and
 /// [`PcurveMintError::MissingCache`] for one missing from a face that
 /// stores others; [`PcurveMintError::SingularChartJoint`] for a loop
-/// through a pole or an apex; [`PcurveMintError::LoopWraps`] for a
+/// through a pole or an apex; [`PcurveMintError::JointWithoutRoom`] for
+/// one whose joint passes too near either to decide its azimuth period
+/// with room; [`PcurveMintError::LoopWraps`] for a
 /// walk whose winding is not zero (a whole period off, or through a
 /// sphere's involution); [`PcurveMintError::Certify`] for a closed-form
 /// row that does not certify against `chart`; and
@@ -4409,6 +4591,24 @@ pub fn chart_boundary<T: AtRestPolicy>(
                 Singular::Off
             ) {
                 return Err(PcurveMintError::SingularChartJoint {
+                    face,
+                    r#loop: *lp,
+                    half_edge: w.key,
+                });
+            }
+        }
+        // THE ROOM FENCE. Off the singular set the walk decided each
+        // joint's azimuth integer with half the step to the next orbit
+        // point as room, at the vertex's own lever. Where that room is
+        // not past the joint bound, a mark may have named an orbit point
+        // other than the joint's own: a lift of the same point, so the
+        // walk stays continuous in metres, but the winding read below
+        // may then be one step off, and a polygon built on it would
+        // bound a different region. So each joint's room is decided here
+        // ([`joint_has_room`]), and a joint without it refuses.
+        for w in &walked {
+            if !joint_has_room(described, entry_vertex(body, w.key), period, band) {
+                return Err(PcurveMintError::JointWithoutRoom {
                     face,
                     r#loop: *lp,
                     half_edge: w.key,
@@ -5549,6 +5749,43 @@ mod stretch_meter {
         ));
     }
 
+    /// **On a spline chart, a gate that does not read `Off` writes a
+    /// reset**, the undecided reading included: the net's whole `u`
+    /// stretch in the band names no azimuth integer, so none is decided,
+    /// and the joint's chart-space gap is what decides it
+    /// (`spline_gap_closes`, here a zero gap). Read off a net whose
+    /// stretch is under the band, in it, and past it, on a chart given a
+    /// period of 1: a reset, a reset, an ordinary identity.
+    #[test]
+    fn a_spline_gate_that_is_not_off_writes_a_reset() {
+        use super::{Deck, JointElement, decide_joint};
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Vec2};
+        let zero = Vec2::new(0.0, 0.0);
+        let at = Point2::new(0.4, 0.5);
+        let image = Pcurve::Harmonic {
+            p0: at,
+            pa: zero,
+            pb: zero,
+            pl: zero,
+        };
+        for (span, reset) in [(1e-12, true), (5e-9, true), (100.0, false)] {
+            let s = flat_chart(span);
+            let vertex = Point3::new(0.4 * span, 0.5 * span, 0.0);
+            let out = decide_joint(chart(&s), &image, 0.0, at, vertex, Some(1.0), band());
+            let want = if reset {
+                JointElement::Reset(Deck::IDENTITY)
+            } else {
+                JointElement::IDENTITY
+            };
+            assert!(
+                matches!(out, Ok(element) if element == want),
+                "span {span:e}: {want:?}, read {:?}",
+                out.as_ref().ok()
+            );
+        }
+    }
+
     /// A placeholder payload has no net to bound, so it has no arms:
     /// it is not a [`DescribedChart`], and these meters cannot be
     /// asked about it.
@@ -5653,6 +5890,11 @@ mod recourse_tests {
                 r#loop: LoopKey::default(),
                 half_edge: HalfEdgeKey::default(),
             },
+            PcurveMintError::JointWithoutRoom {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+                half_edge: HalfEdgeKey::default(),
+            },
             PcurveMintError::OuterSpansPeriod,
             PcurveMintError::LoopWraps {
                 face: FaceKey::default(),
@@ -5679,7 +5921,7 @@ mod recourse_tests {
                 face: FaceKey::default(),
             },
         ];
-        assert_eq!(arms.len(), 16, "an arm was added without a row here");
+        assert_eq!(arms.len(), 17, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             match arm {
@@ -6082,6 +6324,43 @@ mod pole_slit_tests {
             "a twin planted on the pole joint is a discontinuity there: {findings:?}"
         );
     }
+
+    /// **A joint's kind is part of its element at rest.** The same deck
+    /// stored as the other kind — the pole's reset as an ordinary shift,
+    /// and an ordinary joint's identity as a reset — is a discontinuity
+    /// at that joint: tier 3 reads the stored element whole, not its deck
+    /// alone. A shift at the pole would count the slit's azimuth winding
+    /// across a point that has none, and a reset off it would drop a
+    /// winding the loop has.
+    #[test]
+    fn a_joint_stored_as_the_other_kind_is_loud() {
+        let (body, _, members) = slit_cap();
+        let band = Band::linear(Tol::witness()).unwrap();
+        let flip = |e: crate::JointElement| match e {
+            crate::JointElement::Reset(deck) => crate::JointElement::Shift(deck),
+            crate::JointElement::Shift(deck) => crate::JointElement::Reset(deck),
+        };
+        let reset = members
+            .iter()
+            .copied()
+            .find(|&he| body.joint(he).is_some_and(crate::JointElement::is_reset))
+            .expect("the slit's turn at the pole is a reset");
+        let shift = members
+            .iter()
+            .copied()
+            .find(|&he| body.joint(he).is_some_and(|e| !e.is_reset()))
+            .expect("the cap's rim joints are ordinary");
+        for he in [reset, shift] {
+            let mut planted = body.clone();
+            let swapped = flip(planted.joint(he).unwrap());
+            planted.attach_joint(he, swapped);
+            let findings = super::validate_pcurves(&planted, band);
+            assert!(
+                findings.contains(&super::PcurveMintError::LoopDiscontinuity { half_edge: he }),
+                "{swapped:?} planted at {he:?} is a discontinuity there: {findings:?}"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -6430,6 +6709,54 @@ mod lift_rows {
     fn a_joint_on_a_pole_is_a_reset() {
         on_the_pole_resets::<f64>("f64");
         on_the_pole_resets::<Interval>("Interval");
+    }
+
+    /// **Near a pole the fallback takes the orbit point the gap meets.**
+    /// The vertex is `5ε` from the north pole (incidence undecided), so
+    /// its lever is `5ε` and the half-period marks at it are undecided
+    /// too. Against a predecessor on the image's own point the fallback
+    /// takes `m = 0`, the identity; against one on the twin either way
+    /// round it takes `m = ±1`, the twin. Each orbit point's gap at the
+    /// vertex's lever decides Zero, and every other one's does not.
+    fn near_pole_takes_the_orbit_point<T: Decide>(lane: &str) {
+        let s = unit_sphere::<T>();
+        let v = core::f64::consts::FRAC_PI_2 - 5e-9;
+        let u = 0.3;
+        let vertex = on_sphere(u, v);
+        let twin_v = core::f64::consts::PI - v;
+        let rows = [
+            ((u, v), Deck::IDENTITY),
+            (
+                (u + core::f64::consts::PI, twin_v),
+                Deck {
+                    u: 0,
+                    v: 0,
+                    twin: true,
+                },
+            ),
+            (
+                (u - core::f64::consts::PI, twin_v),
+                Deck {
+                    u: -1,
+                    v: 0,
+                    twin: true,
+                },
+            ),
+        ];
+        for (prev, want) in rows {
+            let out = lift(&s, (u, v), prev, vertex, 10.0);
+            assert!(
+                matches!(out, Ok(JointElement::Shift(deck)) if deck == want),
+                "{lane} prev {prev:?}: the fallback takes {want:?}: {:?}",
+                out.as_ref().ok()
+            );
+        }
+    }
+
+    #[test]
+    fn near_a_pole_the_fallback_takes_the_orbit_point_the_gap_meets() {
+        near_pole_takes_the_orbit_point::<f64>("f64");
+        near_pole_takes_the_orbit_point::<Interval>("Interval");
     }
 
     #[test]

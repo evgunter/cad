@@ -36,8 +36,8 @@
 //! | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
 //! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
 //! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.31 s |
-//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm_wedge`, `[0, 7.44e-3]` | 0.51 s |
-//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm_wedge`, `[0, 7.44e-3]` | 0.64 s |
+//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.51 s |
+//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.64 s |
 //!
 //! **That column is the first refusal at the WHOLE study, which is a
 //! different question from what bounds the certifiable box.**
@@ -492,8 +492,11 @@ fn assert_row(row: &Row) {
                  {links} link(s) it was still the first refusal: {}",
                 first()
             );
+            // The predicate's exact name, as the refusal's diagnostics
+            // spell it: `dihedral_arm` is a prefix of `dihedral_arm_wedge`,
+            // so a substring would read either as the other.
             assert!(
-                first().contains(predicate),
+                first().contains(&format!("predicate: Some(\"{predicate}\")")),
                 "the table says the first refusal at {links} link(s) over the whole study \
                  is `{predicate}`; it was: {}",
                 first()
@@ -755,7 +758,7 @@ mod tests {
                 );
                 let first = row.first.expect("a refusing row names its first refusal");
                 assert!(
-                    first.contains("dihedral_wedge"),
+                    first.contains("predicate: Some(\"dihedral_wedge\")"),
                     "the header says the WALL is `dihedral_wedge`; at {links} links, \
                      {over}× the fraction, the first refusal was: {first}"
                 );
