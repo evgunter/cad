@@ -7,7 +7,7 @@ opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [one-segment-loop-through-builders]
+blocked_on: [one-segment-loop-through-builders, a-plane-across-a-one-face-wall-meets-its-wrap-edge-once]
 ---
 
 
