@@ -2,12 +2,13 @@
 id: shell-offset-three-followups
 kind: issue
 title: shell/offset follow-ups - curved-rim narrowing, the three-owner winding predicate, the per-call pcurve mint
-status: open
+status: closed
 opened: 2026-08-27
 github: 1058
 refs: [1048, 1019]
 priority: P1
-cost: D
+cost: M
+closed: 2026-10-06
 ---
 
 ## From GitHub issue 1058
@@ -25,3 +26,18 @@ Opened 2026-08-27; 0 comments.
 ## Home
 
 All three sites are `crates/topo/src/shell.rs`, `replace_face.rs` and the offset lane, in VERBS' `paths:` territory.
+
+## Closed (SHELL orchestrator, 2026-10-06) — each item re-homed
+
+1. The curved-rim refusal is its own row:
+   `work/shell/shell-open-refuses-a-curved-designated-face`.
+2. Dissolved: the predicate now has one home,
+   `topo::loop_winding::WINDING_PREDICATE`, stated once for its three
+   sites. Only `verbs_shell::shell_runs_no_intersection_machinery`'s
+   "three owners" prose is stale; it rides
+   `offset-doors-small-doc-and-message-drift`.
+3. Narrowed: `offset_together` and `offset_axial` mint scoped; only
+   `replace_faces_offset` still calls the whole-body mint, so only the
+   per-chart loop pays it. Rides
+   `work/shelf/offset-doors-take-solids-and-a-per-chart-rule`, whose
+   door ladder owns that loop.
