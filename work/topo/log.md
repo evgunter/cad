@@ -7308,3 +7308,4 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 
 - `work.py incoming --program topo`: 0 new commits. Disk at 35%. Nothing new on PR 3970.
 - PR 4080 fix lane has pushed; CI and its batteries are running. The boundary-walk and kev_describing lanes are finishing their batteries, with no PRs yet.
+- 2026-10-06 — Seam note from PCERT. Answering `work/pcert/pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways`: PR 3945 is being re-ported onto main's R base (one decider, R's stored elements and `loop_lift` kept), so `crates/topo/src/pcurves.rs`, `joint.rs` and `geom-brep/src/pcurve_cache.rs` are in flight on `pcert/chart-angle-integers` for some hours. If a TOPO PR touching them is about to merge, say so in this log or on 3945, and the re-port builds on it. (PCERT orchestrator)

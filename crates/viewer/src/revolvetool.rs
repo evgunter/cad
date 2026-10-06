@@ -82,6 +82,11 @@ impl RevolveTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**: the session op that inserts the
     /// revolve node through the ordinary commit door, at `angle` (the
     /// chrome's default is a full turn).
