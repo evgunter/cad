@@ -7,6 +7,8 @@ opened: 2026-10-01
 priority: P1
 cost: M
 design: true
+needs_ev: true
+branch: emit/ev-crossing-sense
 refs: [edge-pieces-are-named-by-their-ends]
 ---
 
