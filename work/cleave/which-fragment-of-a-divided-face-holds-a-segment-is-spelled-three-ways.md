@@ -2,18 +2,10 @@
 id: which-fragment-of-a-divided-face-holds-a-segment-is-spelled-three-ways
 kind: issue
 title: Which fragment of a divided face holds a segment is spelled three ways: the shared lineage, finish's descendants, and segment_curve's first half
-<<<<<<< HEAD
-status: dispatched
-opened: 2026-10-04
-priority: P1
-cost: M
-branch: cleave/fragment-lineage
-=======
 status: closed
 opened: 2026-10-04
 closed: 2026-10-06
 pr: 4131
->>>>>>> 271e3bf6247c5054699a3c9625c85be9296f41f2
 ---
 
 Found by PR 4008's fix pass (JOIN), on review r2's style finding that
