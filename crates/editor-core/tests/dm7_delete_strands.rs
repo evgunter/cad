@@ -714,20 +714,14 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
 
 /// **A delete's report is its strands alone, payload then store; the
 /// only placement row an edit reports is the mate door's, on an
-/// insert** — the boundary main's
-/// `an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
-/// pinned, re-expressed for gauges.
+/// insert.**
 ///
-/// That row held the strands ahead of the registry acts a delete
-/// forced. Under gauges a delete forces none: deleting a member leaves
-/// its group's offsets where they are (ASSEMBLY.md A11 (2)), so the
-/// one placement row left, [`Maintenance::OffsetCleared`], comes only
-/// from a mate's insert — and an insert strands nothing. The boundary
-/// therefore holds by construction, and this row pins both halves on
-/// the edit that used to produce all three kinds: the mate's insert
-/// reports its clear and no strand, and the delete of the painted,
-/// mated instance reports the payload strand, then the appearance
-/// strand, and nothing after them.
+/// Deleting a member leaves its group's offsets where they are
+/// (ASSEMBLY.md A11 (2)), so [`Maintenance::OffsetCleared`] comes only
+/// from a mate's insert, and an insert strands nothing. This row pins
+/// both halves: the mate's insert reports its clear and no strand, and
+/// the delete of the painted, mated instance reports the payload
+/// strand, then the appearance strand, and nothing after them.
 #[test]
 fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() {
     let mut store = PartStore::new();

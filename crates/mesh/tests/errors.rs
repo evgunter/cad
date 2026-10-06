@@ -105,6 +105,7 @@ test_utils::f6_variants! {
         CertificateExceeded,
         Triangulation,
         SelfTouchingTrimLoop,
+        PinchWedge,
         UnsupportedCurvedDomain,
         UnsupportedCurvedShape,
         MeridianFreeCurvedFace,
@@ -215,6 +216,10 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::SelfTouchingTrimLoop { face },
             vec!["trim loop", "T-junction"],
+        ),
+        (
+            TessellateError::PinchWedge { face },
+            vec!["one point", "sector", "single pass", "ring"],
         ),
         (
             TessellateError::UnsupportedCurvedDomain {

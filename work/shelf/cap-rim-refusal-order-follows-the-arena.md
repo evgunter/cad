@@ -4,8 +4,9 @@ kind: issue
 title: replace_faces_offset: a cone chart whose rims leave whole-disc caps refuses as the rim edge's RechartFalsifies (no gap) on one frustum and ReanchorOffCarrier (with the gap) on its mirror
 status: open
 opened: 2026-10-01
-priority: P2
+priority: P3
 cost: E
+design: true
 ---
 
 
