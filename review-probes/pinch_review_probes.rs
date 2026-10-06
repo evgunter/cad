@@ -346,7 +346,7 @@ fn review_pinch_rows_volume_and_delta() {
                     let ck = mesh::validate::check_mesh(&mesh);
                     let got = mesh::validate::signed_volume(&mesh);
                     eprintln!("ROW {tag} d={d}: tris {} check_mesh {:?} mesh vol {got:.9} body vol {want:?}",
-                        mesh.triangles.len(), ck.err());
+                        mesh.patches.iter().map(|p| p.triangles.len()).sum::<usize>(), ck.err());
                 }
                 Err(e) => eprintln!("ROW {tag} d={d}: REFUSED {e:?}"),
             }
