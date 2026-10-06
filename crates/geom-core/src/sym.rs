@@ -4685,7 +4685,11 @@ fn rungs(
         let e = walk(sess, id, WalkKind::EarlyFree, attempt, (rules, bits));
         if e.is_zero() {
             return Some((
-                if e.gated { Discharge::SignGated } else { Discharge::Theorem },
+                if e.gated {
+                    Discharge::SignGated
+                } else {
+                    Discharge::Theorem
+                },
                 Rung::Early,
             ));
         }
@@ -4717,7 +4721,11 @@ fn rungs(
         let e = walk(sess, id, WalkKind::EarlyFree, attempt, (rules, bits));
         if e.is_zero() {
             return Some((
-                if e.gated { Discharge::SignGated } else { Discharge::Theorem },
+                if e.gated {
+                    Discharge::SignGated
+                } else {
+                    Discharge::Theorem
+                },
                 Rung::Early,
             ));
         }
@@ -4727,7 +4735,8 @@ fn rungs(
     } else if rules.early {
         let e = walk(sess, id, WalkKind::Early, attempt, (rules, bits));
         if rules.decision_read
-            && ((cand == 1 && e.is_zero() && e.gated) || (cand == 2 && (e.gated || (d10() == 8 && sess.d10_gfroze))))
+            && ((cand == 1 && e.is_zero() && e.gated)
+                || (cand == 2 && (e.gated || (d10() == 8 && sess.d10_gfroze))))
             && free_theorem(sess, WalkKind::EarlyFree)
         {
             moved();
@@ -4794,7 +4803,8 @@ fn rungs(
             return Some((Discharge::Registered, Rung::Door));
         }
         if rules.decision_read
-            && ((cand == 1 && d.is_zero() && d.gated) || (cand == 2 && (d.gated || (d10() == 8 && sess.d10_gfroze))))
+            && ((cand == 1 && d.is_zero() && d.gated)
+                || (cand == 2 && (d.gated || (d10() == 8 && sess.d10_gfroze))))
             && free_theorem(sess, WalkKind::DoorFree)
         {
             moved();

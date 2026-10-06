@@ -904,8 +904,15 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
             println!(
                 "   {name:<20} x{scale:<10.3e} {label}: certifies_whole={} in {best:.3}s \
                  [{}, {}, {}, {}] retried {} frozen {} d10 asked {asked} moved {moved} gfreeze {} cand {:?}",
-                leaf.0, d.symbolic_zero, d.sign_gated, d.registered, d.numeric, d.retried,
-                d.frozen, geom_core::sym::d10_gfreeze(), std::env::var("CAD_DECIDE10").ok()
+                leaf.0,
+                d.symbolic_zero,
+                d.sign_gated,
+                d.registered,
+                d.numeric,
+                d.retried,
+                d.frozen,
+                geom_core::sym::d10_gfreeze(),
+                std::env::var("CAD_DECIDE10").ok()
             );
         }
     }

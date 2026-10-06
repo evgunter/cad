@@ -82,6 +82,8 @@ mod coeffs_pair_identity;
 mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
+#[path = "decide10_probe.rs"]
+mod decide10_probe;
 #[path = "decide_4_root_quotient_rows.rs"]
 mod decide_4_root_quotient_rows;
 #[path = "decoration_seam.rs"]
@@ -154,8 +156,6 @@ mod sym11_witness_kind_rows;
 mod sym_9_retry_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
-#[path = "decide10_probe.rs"]
-mod decide10_probe;
 #[path = "sym_root_rows.rs"]
 mod sym_root_rows;
 #[path = "sym_rule_e_rows.rs"]
