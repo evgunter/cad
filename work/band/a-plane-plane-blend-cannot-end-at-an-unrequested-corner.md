@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P0
 cost: H
-design: true
+pr: 4085
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene
@@ -84,3 +84,30 @@ short of the fillet's tangent points).
   and 2 panic as retired and the scene's document ends in the chamfer at
   the oracle above.
 - A face's whole rim chamfers: wall 3 panics as retired.
+
+## Ruled (Ev, PR 4085, 2026-10-06)
+
+The request decides how a straight band ends at a trivalent vertex of one
+convexity between planes: all three edges, the corner patch; one, the
+CUT-OFF in the end face's plane section (chord; circle or ellipse); two,
+the MITRE along the bands' intersection (line; planar ellipse), with one
+more short curve where the trihedron is not isosceles. Chain G1 classifies
+plane–plane junctions; the planar band carves locally. Text:
+`crates/geom-brep/README.md` C8 and `crates/sweep/README.md` ("Where a
+straight band ends, and where it turns"). Names `Mitre { vertex }`,
+`TurnFoot { vertex }`; `EndFace`/`CutOffAtEndFace`, `Turn`/`Mitre`. The
+isosceles verdict lands under option (b): recorded as a value-decided
+coincidence, proven structurally at INTENT's stage 4
+(`work/intent/isosceles-mitre-reads-as-an-unproven-coincidence-on-every-box.md`).
+
+Build order (each step widens admission; this row closes with step 4):
+1. Battery: chains break at definite sharp turns; the `EndFace`/`Turn`
+   tags and the refusals re-worded.
+2. The local planar carve: the cut-off at any angle for the chamfer and at
+   perpendicular end faces for the fillet, with the corner patch moved onto
+   the local carve (a band with a patch at one end and a cut-off at the
+   other). Retires the bracket's walls 1 and 2 for the chamfer.
+3. The oblique fillet (the ellipse; the cap-clearance region widened).
+4. The isosceles mitre, chamfer then fillet. Retires wall 3.
+5. The non-isosceles overrun (a numeric probe before its spec), then delete
+   the whole-face planar path — split to their own rows when step 4 lands.

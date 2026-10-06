@@ -979,3 +979,38 @@ both doors. The convergent answer is that `transform_rigid` reads the
 NURBS lane from `AtRestPolicy`. That needs no compound-bound
 ratification; the row's premise that it did was the row author's.
 — (CLEAVE orchestrator)
+
+## Third session opens; triage and the priority-seam cut (2026-10-06)
+
+The track carried 66 points against 30, with six unpriced rows and
+four on legacy `D`. Three read-only triage lanes checked all 27 live
+rows against today's tree; the orchestrator re-verified each closure
+before acting on it.
+
+- **Closed, already fixed or duplicated:** `no-approx-faced-body-…`
+  (legs 1–3 lifted; leg 4 is EXPORT's `approx-face-has-no-step-printer`),
+  `shell-mouth-chart-designated-in-full` (8c9e6968 builds the mouth as
+  one face), `void-insertion-refuses-…-latitude-seam` (both halves
+  landed), `shell-offset-three-followups` (item 1 re-filed as
+  `shell-open-refuses-a-curved-designated-face`, item 2 dissolved into
+  `loop_winding.rs`, item 3 rides SHELF's door re-shape).
+- **Re-banded:** `shell-launders-a-stale-operand-row` P0 → P1/M,
+  re-scoped to the shell door, riding the inside-out-operand row (one
+  `AtRestBody` unit); `shelled-result-does-not-name-the-wall-it-built`
+  P0 → P3/E (`ShellNaming::inner_of` and `thickened` now name the wall);
+  the clearance-footprint, lofted-wall-seam and replace-face-refusal
+  rows priced P1; the antiparallel row P2/E.
+- **Moved:** to CLEAR, `shell-curved-wall-clearance-window` (SHELL-4
+  closes it) and `violated-witness-can-sit-off-the-trimmed-face`
+  (P3/E; mostly fixed). To a new sibling **SHELF** (22 points, P2
+  spine), the offset-door re-shape, the three `transform.rs` rows, the
+  `replace_face.rs` hygiene rows, the E test/walk rows, the corpus
+  hold-out (TCOST's ground; TCOST is at its ceiling), and the parked
+  cone frustum. OFFSET was told its conic-carrier row is an Ev fork
+  with no `design` flag.
+- **Filed:** `shell-open-refuses-a-curved-designated-face` (P1/H,
+  design), `shelf/replace-face-reads-an-approx-iso-as-u-fixed` (P3/E).
+
+SHELL now carries 28 points, as the seven units in `plan.md`.
+Pole-touching ball: the premise drifted with f28c201d, so its lane
+measures before it fixes.

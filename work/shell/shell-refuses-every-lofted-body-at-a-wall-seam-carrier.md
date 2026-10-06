@@ -4,6 +4,8 @@ kind: issue
 title: topo::shell refuses every lofted body re-anchoring a spline wall seam at a cap corner, so no NURBS-walled body reaches the offset fit through shell
 status: open
 opened: 2026-09-25
+priority: P1
+cost: M
 ---
 
 

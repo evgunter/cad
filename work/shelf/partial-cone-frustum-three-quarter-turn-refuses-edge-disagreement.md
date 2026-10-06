@@ -5,7 +5,7 @@ title: a three-quarter-turn partial revolve of a cone frustum refuses TogetherEd
 status: parked
 opened: 2026-09-08
 blocked_on: [offset-lane-has-no-conic-carrier]
-priority: P0
+priority: P1
 cost: H
 ---
 

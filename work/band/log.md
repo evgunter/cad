@@ -433,6 +433,42 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — `swept-cocircular-arc-runs-build-one-wall` closed (PR #3826)
+
+Extrude and the full revolve build one wall per run of adjacent cocircular
+same-turn arcs (`swept::joins` → `Join::{Corner, Run, Cut}`; the full
+revolve's `collapse_runs` sums the arc sweeps); a circle cut into arcs keeps
+its C12.5 cut, one wall per arc on one key (the orchestrator accepted that
+reading: a curved run closing its full period refuses to merge). The partial
+revolve still builds an arc run one wall per arc — the props meridian fold
+groups pieces by split lineage — parked as
+`partial-revolve-arc-runs-wait-on-the-meridian-fold` and stated at the README
+claim site. `offset_axial::reauthor` reads a re-authored arc's sweep nearest
+the old one (an atan2-cut fix a collapsed meridian exposed). Full review
+(APPROVE-WITH-FIXES, no MAJOR): the fix pass made the arc boolean rows answer,
+corrected stale station prose, guarded `wall_runs`' one-corner loop, adopted
+the probes (Vector, hole loop, k = 5, Interval, π-summing runs, the hollow
+sweep across the atan2 cut, f64/Interval names) and folded duplicate helpers.
+Merged up to main over ~3000 commits; main's split-ball row
+(`pi_seam_and_kiss_through_the_boolean`) re-pointed to a hand-cut equator. No
+re-baseline moved. Merged over main's own red at 1e-6
+(`pocket_ring_steep_ellipse`, filed on JOIN).
+## 2026-10-06 — the plane–plane run-out fork goes to Ev (`[ev]` PR #4085)
+
+`a-plane-plane-blend-cannot-end-at-an-unrequested-corner` (P0) put
+through the design-fork protocol: fork-log row 72. Designers A and B
+both diagnosed one missing idea (a band's end as its section by the face
+it runs into) and a face-whole planar carve, recommended the cut-off /
+mitre / patch by request count, and converged after three rounds; the
+only crossover was the mitre's name key, settled once both measured that
+a wider role variant is additive on the wire. PR 4085 asks Ev to rule
+the rule itself, the C8 and H7 text, whether an extruded box's isosceles
+mitre should lint as an unproven coincidence under D10, and the
+vocabulary. The designers flagged three rows to file once Ev rules:
+`CornerConfig::policy` maps `MixedConvexity` to `RunOutFeather`;
+`RuledPlan::plan` refuses a requested cap rim (the ruled band's own
+2-of-3 gap); the inner corner of an L-shaped rim (a torus pivot about L,
+or the end-face rule; the torus is degenerate there).
 ## 2026-10-06 — `a-hole-filleted-at-both-rims-in-one-fillet-panics-in-blend-surgery` closed (PR #4088)
 
 A through-bore's two rims filleted in one call panicked at the surgery's
@@ -470,3 +506,15 @@ open-link candidate filed as `ruled-cap-meter-reads-a-co-requested-open-link-at-
 "this link's trim on this face" given one home (`EdgeBlend::trims`,
 `Link::trim_on`, `open_trimline`); the reviewer's boundary sweep adopted
 as rows.
+
+## 2026-10-06 — the plane–plane run-out ruled (Ev, PR #4085)
+
+Ev approved all four decisions: the request-count rule (cut-off, mitre,
+patch), the C8/H7 text, and the vocabulary; decision 3 (whether a box's
+isosceles mitre lints) went to INTENT at Ev's request (#4094), where Ev
+answered: land it under (b), recorded as a value-decided coincidence and
+proven at INTENT's stage 4 (#4097). Fork-log row 72 completed (byte 26:
+Opus = A, Fable = B; both matched after round 3). The row's build order is
+in its `## Ruled` section; step 1 dispatches next. Filed
+`chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
+question.

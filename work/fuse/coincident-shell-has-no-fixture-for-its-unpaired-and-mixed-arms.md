@@ -2,10 +2,11 @@
 id: coincident-shell-has-no-fixture-for-its-unpaired-and-mixed-arms
 kind: issue
 title: CoincidentShell's Unpaired and Mixed arms have no fixture: only the not-covered-back arm is reached
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
