@@ -371,10 +371,11 @@ pub enum ShellError<T: Real> {
     /// One of the operand's solids, once sorted into pieces, has no
     /// outer shell: only cavities, which bound no material. Not a shape
     /// this verb thickens. More than one cannot reach here: the sort
-    /// reads roles through the one shell-role reader
-    /// ([`crate::props::shell_role`]) and this verb classifies through
-    /// the same reader and lane, so a solid the sort leaves with a
-    /// second decided `Outer` does not exist, and an undecided shell
+    /// reads roles through [`crate::props::shell_role`], and this verb
+    /// classifies through the same lane at the reporting target, which
+    /// reads a role only where that walk read the same one
+    /// (`props::role_at_target`). So the sort leaves no solid with a
+    /// second decided `Outer`, and a shell the sort left undecided
     /// refuses [`Self::Roles`].
     OperandOuterShells {
         /// The solid with no outer shell.
@@ -1009,8 +1010,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             0 => return Err(ShellError::OperandOuterShells { solid }),
             1 => {}
             outer => unreachable!(
-                "{outer} decided outer shells under one solid after the sort, which read \
-                 them through the same reader and lane"
+                "{outer} decided outer shells under one solid after the sort, whose \
+                 sign walk reads every role the classification reads"
             ),
         }
         voids.extend(

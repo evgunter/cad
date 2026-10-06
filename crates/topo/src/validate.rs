@@ -4203,9 +4203,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   at-infinity volume. A shell no witness of which is off every other
 ///   shell is silent too: the witness ladder ([`crate::stands`]) reads
 ///   its vertices, edge midpoints and planar face interiors, and skips
-///   one that touches. And check 10 reads one point per shell, which decides only
-///   under the no-crossing premise — **shells that cross** are global
-///   self-intersection's, the first item of this list.
+///   one that touches. And check 10 decides on one witness per shell,
+///   which settles the shell only under the no-crossing premise —
+///   **shells that cross** are global self-intersection's, the first
+///   item of this list.
 ///   (`work/restfront/check-10-is-silent-where-point-in-solid-refuses`.)
 ///
 ///   A shell whose role is undecided is not counted toward check 10's
@@ -4752,9 +4753,9 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// not-yet-checked list names.
 ///
 /// **A shell's role is its own sign** ([`crate::props::shell_role`],
-/// through the lane the door made check 7 through, `quad`). Every door that makes check 10 calls this behind a
-/// clean check 7: a winding read off a solid whose orientation is
-/// refused would be cascade noise.
+/// through the lane the door made check 7 through, `quad`). Every door
+/// that makes check 10 calls this behind a clean check 7: a winding read
+/// off a solid whose orientation is refused would be cascade noise.
 ///
 /// **What it costs.** A solid with one shell is skipped before anything
 /// is read, so the common body pays nothing. A solid with `n > 1`

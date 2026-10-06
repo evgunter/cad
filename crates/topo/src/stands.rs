@@ -1,11 +1,16 @@
-//! **Where a shell stands against another closed surface** — the one
-//! witness ladder every such question reads.
+//! **Where a shell stands against another closed surface** — the
+//! crate's one witness ladder.
 //!
-//! Three questions ask it: tier 3's check 10 (the winding the other
+//! Three questions read it: tier 3's check 10 (the winding the other
 //! shells of a solid put on each of its shells), the result sort
 //! ([`crate::pieces`], which piece's material surrounds a shell), and
 //! the boolean's uncut-shell verdict (which side of the other operand an
-//! uncut cell complex lies on, `boolean::shell_witness`). Each asks it
+//! uncut cell complex lies on, `boolean::shell_witness`). A fourth asks
+//! it and does not read it yet: the census's cross-solid material probe
+//! (`census::sweep_cross_solid_backstop`), which reads vertices only and
+//! refuses where all of them touch
+//! (`work/contact/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
+//! Each asks it
 //! under the premise that the complex crosses no surface it is probed
 //! against, so it meets one only where it lies ON it, every point of it
 //! off those surfaces is on one side of each, and one decisive witness
@@ -62,7 +67,16 @@ pub(crate) enum Witness<S> {
     InBand(PointInSolidError),
 }
 
-impl Witness<SolidContainment> {
+/// A decisive point-in-solid reading: the point is off the surface.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Strict {
+    /// Inside the material.
+    In,
+    /// Outside it.
+    Out,
+}
+
+impl Witness<Strict> {
     /// One point-in-solid reading as a witness: `In` and `Out` decide,
     /// `OnBoundary` and an in-band refusal are inconclusive, and any
     /// other refusal propagates.
@@ -70,8 +84,9 @@ impl Witness<SolidContainment> {
         read: Result<SolidContainment, PointInSolidError>,
     ) -> Result<Self, PointInSolidError> {
         match read {
+            Ok(SolidContainment::In) => Ok(Self::Side(Strict::In)),
+            Ok(SolidContainment::Out) => Ok(Self::Side(Strict::Out)),
             Ok(SolidContainment::OnBoundary) => Ok(Self::On),
-            Ok(side) => Ok(Self::Side(side)),
             Err(e) if e.inconclusive() => Ok(Self::InBand(e)),
             Err(e) => Err(e),
         }
@@ -411,8 +426,8 @@ pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
                 continue;
             }
             inside[t] = match Witness::of(point_in_solid_faces(body, &other.sel, q, band, tol))? {
-                Witness::Side(SolidContainment::In) => other.role == ShellRole::Outer,
-                Witness::Side(_) => other.role == ShellRole::Void,
+                Witness::Side(Strict::In) => other.role == ShellRole::Outer,
+                Witness::Side(Strict::Out) => other.role == ShellRole::Void,
                 Witness::On => return Ok(Witness::On),
                 Witness::InBand(e) => return Ok(Witness::InBand(e)),
             };

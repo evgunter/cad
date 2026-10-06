@@ -5398,8 +5398,10 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         faces,
         band,
         tol,
-        (None, T::quad_lane()),
-        (AT_INFINITY, AT_INFINITY_ENCLOSURE),
+        None,
+        T::quad_lane(),
+        AT_INFINITY,
+        AT_INFINITY_ENCLOSURE,
     )
     .map_err(refused)?;
     let role = role.map_err(|refusal| match refusal {

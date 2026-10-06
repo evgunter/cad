@@ -3146,3 +3146,55 @@ fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
          {verdict:?}"
     );
 }
+
+/// **The census's cross-solid gate keeps an `Outer` its rounded sum
+/// calls a cavity**, end to end. The far-anchored slab, filed under one
+/// solid with a true cavity beside it, stands wholly inside a second
+/// solid's material. Read with no lane both its shells read `Void`, so
+/// the gate holds none of that solid's hulls and clears the pair unprobed
+/// (no finding at all). Read through the scalar's lane the slab is an
+/// `Outer`, its hull is inside the other's reach, and its vertices probe
+/// inside: interference.
+#[test]
+fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let mut body = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
+    let cavity = crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol)
+        .revert()
+        .expect("the cavity reverts");
+    crate::graft_disjoint_all_keyed(&mut body, &cavity).expect("the graft");
+    body.merge_all_solids().expect("one solid");
+    let [slab] = solids_of(&body)[..] else {
+        panic!("the slab and its cavity are one solid");
+    };
+    let around =
+        crate::test_support::brick::<f64>((-1e-3, 2e-3), (-1e-3, 2e-3), (-1e-3, 1e-3), tol);
+    crate::graft_disjoint_all_keyed(&mut body, &around).expect("the graft");
+    let block = solids_of(&body)
+        .into_iter()
+        .find(|&s| s != slab)
+        .expect("the block is a solid of its own");
+    let errors = crate::census::census_and_certify(
+        &body,
+        &crate::boolean::ContactRecords::default(),
+        band,
+        tol,
+        None,
+    );
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::InstanceInterference { outer, inner, .. }
+                if *outer == block && *inner == slab
+        )),
+        "the slab stands inside the block's material: {errors:?}"
+    );
+}

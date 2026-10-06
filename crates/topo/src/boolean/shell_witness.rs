@@ -80,7 +80,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};
-use crate::stands::{LadderRefusal, Witness, ladder};
+use crate::stands::{LadderRefusal, Strict, Witness, ladder};
 
 /// What the ladder read off a complex: the first decisive witness's
 /// side, `In` or `Out`, or the tally of a complex none decided.
@@ -114,8 +114,8 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
             match Witness::of(point_in_solid(other, q, band, tol))
                 .map_err(BooleanError::Containment)?
             {
-                Witness::Side(SolidContainment::In) => Witness::Side(SideCode::In),
-                Witness::Side(_) => Witness::Side(SideCode::Out),
+                Witness::Side(Strict::In) => Witness::Side(SideCode::In),
+                Witness::Side(Strict::Out) => Witness::Side(SideCode::Out),
                 Witness::On => Witness::On,
                 Witness::InBand(e) => Witness::InBand(e),
             },

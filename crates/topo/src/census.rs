@@ -4565,6 +4565,22 @@ fn touch_verdict<T: Decide>(
     }
 }
 
+/// The role of `shell` the cross-solid gate reads: the one shell-role
+/// reader ([`crate::props::shell_role`]) through the scalar's own lane,
+/// so the gate drops exactly the shells check 10, the result sort and
+/// the shell classification read as `Void`. `None` where it does not
+/// read.
+pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    shell: crate::entity::ShellKey,
+    band: Band,
+    tol: Tol,
+) -> Option<crate::props::ShellRole> {
+    crate::props::shell_role(body, shell, band, tol, T::quad_lane())
+        .ok()
+        .map(|(role, _)| role)
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -4704,22 +4720,6 @@ fn touch_verdict<T: Decide>(
 /// a recorded interference fit is, and what it may skip, is C6's
 /// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
 /// gate-skips are not implemented.
-/// The role of `shell` the cross-solid gate reads: the one shell-role
-/// reader ([`crate::props::shell_role`]) through the scalar's own lane,
-/// so the gate drops exactly the shells check 10, the result sort and
-/// the shell classification read as `Void`. `None` where it does not
-/// read.
-pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    shell: crate::entity::ShellKey,
-    band: Band,
-    tol: Tol,
-) -> Option<crate::props::ShellRole> {
-    crate::props::shell_role(body, shell, band, tol, T::quad_lane())
-        .ok()
-        .map(|(role, _)| role)
-}
-
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
