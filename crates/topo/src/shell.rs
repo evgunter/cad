@@ -2460,10 +2460,16 @@ fn re_anchored<T: Decide>(
     })
 }
 
-/// The half-edges of `r#loop` in cycle order; empty for a lone vertex.
+/// The half-edges of `r#loop` in cycle order. Every loop the seamed
+/// band reads bounds a face of a finished wall or is a ring the glue
+/// just made of one, so it is a cycle.
+#[track_caller]
 fn cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Vec<HeKey> {
     let LoopBoundary::Cycle { first } = proven(&body.loops, r#loop, EntityId::Loop).boundary else {
-        return Vec::new();
+        unreachable!(
+            "{:?} bounds a face of a finished wall, so it is a cycle",
+            r#loop
+        )
     };
     body.loop_walk(first).closed("loop", first)
 }
@@ -2721,7 +2727,7 @@ fn chart_read<T: Decide>(
         let w = p - anchor;
         let h = w.dot(axis);
         let (x, y) = (w.dot(u_ref), w.dot(v_ref));
-        let radial = (x * x + y * y).sqrt();
+        let radial = (x.powi(2) + y.powi(2)).sqrt();
         let mut u = y.atan2(x);
         let v = match surface {
             S::Cone { half_angle, .. } => {
