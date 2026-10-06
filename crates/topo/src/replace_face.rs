@@ -40,6 +40,20 @@
 //!   unchanged, because the surfaces holding it did not move; only
 //!   where the edge stops did.
 //!
+//! That parameter is read per carrier kind: an analytic carrier's
+//! closed-form inverse anchored at the endpoint's old parameter
+//! (`Curve3::param_near` — line, circle, ellipse, spiric), and a spline
+//! carrier's Newton foot from the same anchor
+//! (`geom_brep::NurbsLane::carrier_foot`, read off
+//! [`crate::AtRestPolicy::nurbs_lane`]). The new point must then be on
+//! the carrier within ε; what refuses is
+//! [`ReplaceFaceError::ReanchorOffCarrier`] (the point the read names
+//! is not the vertex), [`ReplaceFaceError::ReanchorPastCarrierEnd`] (a
+//! spline foot clamped at the carrier's end),
+//! [`ReplaceFaceError::ReanchorInconclusive`] (Newton did not converge)
+//! and [`ReplaceFaceError::NurbsLaneUnsupported`] (the scalar holds no
+//! lane).
+//!
 //! # The carrier lanes
 //!
 //! An edge on the boundary lies ON the replaced surface, so the offset
@@ -357,9 +371,18 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The PER-FACE door's finding**: an edge ending at a moved
     /// vertex, but not on the replaced face's boundary, could not be
-    /// re-anchored — its new endpoint is definitely off its own
-    /// carrier, which did not move because the surfaces holding it did
-    /// not.
+    /// re-anchored — the moved vertex is definitely `gap` from the
+    /// point the carrier's parameter read from the endpoint's OLD
+    /// parameter names. The carrier did not move, because the surfaces
+    /// holding it did not.
+    ///
+    /// What that point is depends on the carrier. On a line or a circle
+    /// it is the carrier's nearest point, so the vertex is off the
+    /// carrier. On an ellipse it is the point at the vertex's scaled
+    /// polar angle, and on a spline the stationary point of the
+    /// distance Newton reaches from the old parameter: there the vertex
+    /// is off the carrier, or on a stretch of it the old parameter does
+    /// not lead to (`work/shell/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`).
     ///
     /// This is the gate that stands between the per-face door and an
     /// OBLIQUE junction's wrong body: composing that door over a whole
@@ -378,6 +401,39 @@ pub enum ReplaceFaceError<T: Real> {
         /// The measured distance from the moved point to the carrier,
         /// in meters.
         gap: T,
+    },
+    /// **A moved vertex ran past the end of an untouched edge's spline
+    /// carrier.** Newton's foot from the endpoint's old parameter is
+    /// stopped by the domain clamp at the carrier's end, `gap` from the
+    /// moved point. This door re-anchors an
+    /// endpoint on the carrier the edge has and does not extend one, so
+    /// an outward offset meets this wherever the carrier ends at the
+    /// moved face — a lofted wall's seam, whose carrier ends where its
+    /// patch does, and a carrier minted only as long as its edge.
+    ReanchorPastCarrierEnd {
+        /// The edge whose carrier ends short of the moved vertex.
+        edge: EdgeKey,
+        /// The distance from the moved point to the carrier's end, in
+        /// meters.
+        gap: T,
+    },
+    /// A spline carrier's foot-point Newton did not converge from the
+    /// moved endpoint's old parameter. No foot is offered in its place.
+    ReanchorInconclusive {
+        /// The edge whose carrier the foot was sought on.
+        edge: EdgeKey,
+        /// The projection's own refusal, verbatim.
+        error: geom::ProjectionInconclusive,
+    },
+    /// An edge ending at a moved vertex rides a spline carrier, and the
+    /// scalar the door ran at holds no NURBS lane to read its foot
+    /// point with ([`crate::AtRestPolicy::nurbs_lane`] answers `None` —
+    /// a dual, DL1). A fact about the scalar, not the body.
+    NurbsLaneUnsupported {
+        /// The edge whose carrier needs the lane.
+        edge: EdgeKey,
+        /// The scalar the door ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// **The simultaneous door's scope gate**: a face it was asked to
     /// move is not a plane. Its corner solve is three plane equations,
@@ -677,8 +733,26 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::ReanchorOffCarrier { edge, gap } => write!(
                 f,
-                "replace_face_offset: {edge:?} ends at a moved vertex that is {gap:?} m off its \
-                 own carrier, so its parameter cannot be re-anchored"
+                "replace_face_offset: {edge:?} ends at a moved vertex {gap:?} m from the point \
+                 its carrier's parameter reads from the endpoint's old parameter, so its \
+                 parameter cannot be re-anchored"
+            ),
+            Self::ReanchorPastCarrierEnd { edge, gap } => write!(
+                f,
+                "replace_face_offset: {edge:?} ends at a moved vertex {gap:?} m past the end \
+                 of its spline carrier, which this door re-anchors on and does not extend"
+            ),
+            Self::ReanchorInconclusive { edge, error } => write!(
+                f,
+                "replace_face_offset: {edge:?}'s moved endpoint has no foot on its spline \
+                 carrier: {error}"
+            ),
+            Self::NurbsLaneUnsupported { edge, scalar } => write!(
+                f,
+                "replace_face_offset: {edge:?} rides a spline carrier, and the {scalar} scalar \
+                 holds no NURBS lane to re-anchor its moved endpoint with; only a scalar with \
+                 certification rights holds that lane. Recourse: offset the body at a \
+                 certifying scalar"
             ),
             Self::TogetherAxialUnsupported { face, kind } => write!(
                 f,
@@ -1362,7 +1436,7 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Decide: the incident edges that only need re-anchoring. ----
-    let anchored = plan_reanchors(body, &boundary, &moved, band, tol)?;
+    let anchored = plan_reanchors(body, &boundary, &moved, band, tol, T::nurbs_lane())?;
 
     // ---- Mutation, on a clone (infallible decisions are done). ----
     //
@@ -1808,19 +1882,8 @@ fn plan_edge<T: Decide>(
     // at its new home silently destroyed it for every edge the fence
     // had converted.
     //
-    // Measured, not reasoned: offsetting the tube's `y = 0.6` cap by
-    // `d = 0.05` and reading the moved cap seam's authority back —
-    //
-    //   as `Chart { declared: … }`, dropped → `Derived` (destroyed)
-    //   as `Scaffold(mc)`, what `main` stores → `Declared`, placement
-    //                                           translated by `(0, d, 0)`
-    //
-    // — same body, same door, same offset, differing only in which arm
-    // the description sends it down. So the branch CHANGED this lane
-    // rather than inheriting a defect, which is what puts it in scope
-    // here. Dropping it also flips `EdgeAuthority::is_declared`, which
-    // tier 3's prefer-intrinsic rules read — a verdict change, which
-    // this unit does not make.
+    // Dropping it also flips `EdgeAuthority::is_declared`, which tier
+    // 3's prefer-intrinsic rules read — a verdict change.
     //
     // The `delta` requirement is the pre-collapse one, unchanged and
     // for the pre-collapse reason: a pushforward can only be carried
@@ -1889,7 +1952,8 @@ fn plan_edge<T: Decide>(
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::DegenerateTorus
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
-                | geom_brep::SectionError::Carrier(_)) => unreachable!(
+                | geom_brep::SectionError::Carrier(_)
+                | geom_brep::SectionError::Spiric(_)) => unreachable!(
                     "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
                  returned {other:?}"
                 ),
@@ -2266,12 +2330,17 @@ pub(crate) fn remap_description<T: Real>(
 /// hold them did not move) and only the parameter at the moved end —
 /// and, for a mapped description, the sketch endpoint that parameter
 /// images — is re-anchored.
+///
+/// A spline carrier's parameter is a foot point read through
+/// `nurbs_lane` ([`crate::AtRestPolicy::nurbs_lane`]); a scalar holding
+/// none refuses with [`ReplaceFaceError::NurbsLaneUnsupported`].
 fn plan_reanchors<T: Decide>(
     body: &Body<T>,
     boundary: &[EdgeKey],
     moved: &[(VertexKey, Point3<T>)],
     band: Band,
     tol: Tol,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
 ) -> Result<Vec<(EdgeKey, EdgeCurveSpec<T>)>, ReplaceFaceError<T>> {
     let mut out = Vec::new();
     let keys: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
@@ -2330,11 +2399,28 @@ fn plan_reanchors<T: Decide>(
             // and that is a claim about the CALLER, not about the
             // arithmetic: an offset MOVES an endpoint along its
             // carrier, it does not teleport it half a turn, so `δ`
-            // stays small. Measured over the `sweep` suite — the only
-            // suite that reaches this door — 245 live calls, 236 on a
-            // `Line` (no branch at all) and 9 on a `Circle`, with
-            // `max |δ| = 0.244979` rad against a boundary of `π`: an
-            // order of magnitude of headroom, not a near miss.
+            // stays small. Measured over the `topo`, `sweep`,
+            // `editor-core`, `verbs`, `pncad` and `geom-brep` suites —
+            // 789 live calls: 765 on a `Line` (no branch at all; 16 of
+            // them at `Interval`), 14 on a `Circle` with
+            // `max |δ| = 0.244979` rad against a boundary of `π` — an
+            // order of magnitude of headroom, not a near miss — and
+            // none on an `Ellipse` or a `Spiric`, whose arms share the
+            // circle's tie.
+            //
+            // A SPLINE carrier has no branch to tie on: it is clamped
+            // and open, and its read is Newton from `t_old`. What the
+            // same caller premise bounds there is how far Newton has to
+            // walk, and the risk is a different stationary point, not a
+            // turn. 10 live calls, all on open degree-1 lofted seams
+            // and M7-8 wall edges over a unit domain, `max |δ| = 0.25`.
+            // A wrong stationary point is a point the gate below
+            // measures, so it refuses rather than storing a wrong span
+            // unless the carrier passes within ε of itself; a CLOSED
+            // spline is where that read misnames its refusal
+            // (`work/shell/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`),
+            // and `geom_brep`'s `foot_rows` pins that the seed is what
+            // picks the foot.
             //
             // No refusal is added for it here. One would be a new
             // named predicate, and a new predicate's margins cannot be
@@ -2343,12 +2429,34 @@ fn plan_reanchors<T: Decide>(
             // to close a gap no live call approaches is the worse
             // trade. Banked with that measurement rather than waved
             // through.
-            let t_new = carrier.param_near(point, t_old).ok_or(
-                ReplaceFaceError::CarrierLaneUnsupported {
-                    edge,
-                    what: "a re-anchored carrier that is neither a line nor a circle",
-                },
-            )?;
+            //
+            // A spline carrier has no closed-form inverse: its parameter
+            // is Newton's foot from the same anchor. A foot the domain
+            // clamp stopped at an end is the carrier's end, which an
+            // outward move runs past — the gate below then refuses that
+            // by name rather than as a point off the carrier.
+            let (t_new, at_domain_end) = match &carrier {
+                Curve3::Nurbs(spline) => {
+                    let lane = nurbs_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                        edge,
+                        scalar: T::NAME,
+                    })?;
+                    let foot = lane
+                        .carrier_foot(spline, point, t_old)
+                        .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })?;
+                    let (lo, hi) = spline.domain();
+                    (T::from_f64(foot.t), foot.t == lo || foot.t == hi)
+                }
+                Curve3::Line { .. }
+                | Curve3::Circle { .. }
+                | Curve3::Ellipse { .. }
+                | Curve3::Spiric { .. } => (
+                    carrier.param_near(point, t_old).unwrap_or_else(|| {
+                        unreachable!("`param_near` inverts every analytic kind")
+                    }),
+                    false,
+                ),
+            };
             let gap = carrier.eval(t_new).distance(point);
             match decide(
                 "offset_reanchor_on_carrier",
@@ -2358,6 +2466,9 @@ fn plan_reanchors<T: Decide>(
             .map_err(|source| ReplaceFaceError::Escalated { source })?
             {
                 Sign::Positive | Sign::Zero => {}
+                Sign::Negative if at_domain_end => {
+                    return Err(ReplaceFaceError::ReanchorPastCarrierEnd { edge, gap });
+                }
                 Sign::Negative => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
             }
             // **The door RE-STATES the sketch datum; it does not

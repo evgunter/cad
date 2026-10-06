@@ -3,10 +3,10 @@
 //! the partially-carved body immediately before that rim's own phase —
 //! identity only, every decision stays in the plan, resolved against
 //! the source. The served sharing is any pair of ANNULUS rims — on a
-//! revolution WALL (this file's rows) or on a full-revolve PLANE CAP,
-//! whose radial seam is the same shape (`blend2_r2_probes`' cap-pair
-//! and four-rim-cycle rows). These rows are what makes the widened
-//! door's claims measured rather than hoped:
+//! revolution WALL (this file's rows) or on a full revolve's PLANE
+//! wall, which has no seam and struts each rim's foot instead
+//! (`blend2_r2_probes`' cap-pair and four-rim-cycle rows). These rows
+//! are what makes the widened door's claims measured rather than hoped:
 //!
 //! - **The one-call result IS the sequential composition**, bit-level:
 //!   the volume of the one-call body equals the sequential result's in

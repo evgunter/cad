@@ -63,11 +63,12 @@
 //!    lines / tangent line / apex point); axis-normal cut (`Circle`);
 //!    a tilt meeting every generator ⇒ exact `Ellipse`; a parabolic or
 //!    hyperbolic tilt refuses typed, naming its conic (R1).
-//! 4. [`plane_torus_section`] — the two exact-degenerate poses: an
-//!    axis-CONTAINING plane's two meridian `Circle`s, an axis-NORMAL
-//!    plane's two concentric ones (or the tangency circle, as
-//!    classification data); every tilt — the spiric and the Villarceau
-//!    bitangent included — refuses typed.
+//! 4. [`plane_torus_section`] — the axis-aligned poses: an
+//!    axis-CONTAINING plane's two meridian `Circle`s, an axis-PARALLEL
+//!    plane off the axis its two `Spiric` ovals (short of the inner
+//!    equator), an axis-NORMAL plane's two concentric circles (or the
+//!    tangency circle, as classification data); every tilt — the
+//!    Villarceau bitangent included — refuses typed.
 //! 5. [`cylinder_cylinder_section`] — equal radii (**structural or
 //!    declared ONLY, never inferred from values** — the caller passes
 //!    [`RadiusEvidence`] resolved through the coincidence ladder; the
@@ -109,7 +110,7 @@
 //! them (the split/boolean lanes do, typed).
 
 use geom::Surface;
-use geom::{Curve3, EllipseInvalid, SurfaceKind};
+use geom::{Curve3, EllipseInvalid, SpiricInvalid, SurfaceKind};
 use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
@@ -126,7 +127,8 @@ use geom_core::Decide;
 pub enum Rung {
     /// Rung 1: closed-form `Line`/`Circle` carriers (the M2 pairs).
     Closed,
-    /// Rung 2: exact conic carriers (`Ellipse`, M5 PR 5).
+    /// Rung 2: exact conic and quartic carriers (`Ellipse`, M5 PR 5;
+    /// the axis-parallel plane×torus `Spiric`, C1).
     Conic,
     /// Rung 3: march + fit (SSI, M5 PR 7) — the general rung.
     General,
@@ -241,19 +243,19 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    to the general rung, whose cylinder×cylinder arm has not retired \
                    (arms retire one at a time, each with its proof)",
         },
-        // ---- Rung 1, exact-degenerates only: the two axis-aligned
-        // configurations are closed-form Circles; every tilted
-        // configuration keeps its general-rung routing, named at the
-        // arm's own refusal. ----
+        // ---- Rung 2, axis-aligned poses only: the containing and
+        // normal planes cut closed-form Circles, the parallel one off
+        // the axis the exact Spiric; every tilted configuration keeps
+        // its general-rung routing, named at the arm's own refusal. ----
         (Plane, Torus) | (Torus, Plane) => PairRoute {
-            rung: Rung::Closed,
+            rung: Rung::Conic,
             implemented: true,
-            note: "exact-degenerate cases only: an axis-containing plane cuts the \
-                   two meridian Circles, an axis-normal plane the two concentric \
-                   Circles (or the tangency circle — classification data, not a \
-                   carrier; no production consumer takes it yet) \
-                   (plane_torus_section); everything tilted — the \
-                   axis-parallel offset plane's spiric section and the bitangent \
+            note: "axis-aligned cases only: an axis-containing plane cuts the two \
+                   meridian Circles, an axis-parallel plane off the axis the two \
+                   Spiric ovals (short of the inner equator), an axis-normal plane \
+                   the two concentric Circles (or the tangency circle — \
+                   classification data, not a carrier; no production consumer takes \
+                   it yet) (plane_torus_section); everything tilted — the bitangent \
                    Villarceau pair included — routes to the general rung with the \
                    ℝ³ IMPLICIT-PAIR trace shape, blocked on the torus's exact \
                    meters conversion (arms retire one at a time, each with its \
@@ -540,7 +542,8 @@ pub fn route_pose<T: Decide>(
         | Err(
             SectionError::BeyondOperandExtent { .. }
             | SectionError::CoincidentSurfaces
-            | SectionError::Carrier(_),
+            | SectionError::Carrier(_)
+            | SectionError::Spiric(_),
         ) => Ok(arm),
         Err(SectionError::RoutesToGeneralRung { why, .. }) => refused(why),
         // Refused BEFORE the pose was classified: an operand guard the
@@ -646,6 +649,10 @@ pub enum SectionError {
     /// degenerate axis) — the constructor is the one deciding door for
     /// axis ordering (spec §1) and its verdict stands.
     Carrier(EllipseInvalid),
+    /// The spiric carrier constructor refused a configuration the arm
+    /// classified as its own — the constructor is the one deciding door
+    /// for the spiric's regime and its verdict stands.
+    Spiric(SpiricInvalid),
 }
 
 impl From<EllipseInvalid> for SectionError {
@@ -716,6 +723,7 @@ impl core::fmt::Display for SectionError {
                  has a ring torus, so this one is corrupt"
             ),
             Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
+            Self::Spiric(e) => write!(f, "the section's spiric refused: {e}"),
         }
     }
 }
@@ -1984,14 +1992,13 @@ pub fn plane_cone_section<T: Decide>(
 // plane × torus
 // ---------------------------------------------------------------------
 
-/// The classified plane×torus section — the two exact-degenerate
-/// configurations' closed forms (rung 1: the trileans run before any
-/// rung, C5; **no fitted chord anywhere in this arm** — every
-/// constructible locus is an exact `Circle`). Everything tilted cuts a
-/// spiric QUARTIC and refuses typed as routed to the general rung; the
-/// bitangent (Villarceau) two-circle configuration is deliberately
-/// unclassified — a third classification no consumer configuration
-/// reaches.
+/// The classified plane×torus section — the axis-aligned
+/// configurations' closed forms (the trileans run before any rung, C5;
+/// **no fitted chord anywhere in this arm** — every constructible locus
+/// is an exact `Circle` or `Spiric`). Everything tilted refuses typed
+/// as routed to the general rung; the bitangent (Villarceau) two-circle
+/// configuration is deliberately unclassified — a classification no
+/// consumer configuration reaches.
 #[derive(Clone, Debug)]
 pub enum PlaneTorusSection<T: Real> {
     /// Axis-containing plane: the TWO meridian circles — radius `r`,
@@ -2006,6 +2013,18 @@ pub enum PlaneTorusSection<T: Real> {
         c1: Curve3<T>,
         /// The circle centred at `c − m·R`.
         c2: Curve3<T>,
+    },
+    /// Axis-parallel plane OFF the axis, short of the inner equator
+    /// (`0 < |d| < R − r` for the stand-off `d = n·q − n·c`): the
+    /// spiric's TWO ovals, each the [`Curve3::Spiric`]
+    /// [`Curve3::spiric`] mints from the torus and the plane's normal. Zero-residual-by-construction
+    /// against both implicit forms in ℝ.
+    SpiricOvals {
+        /// The oval on the `+a × n` side of the plane's trace of the
+        /// axis: `u_ref = n`, `offset = d`.
+        s1: Curve3<T>,
+        /// The oval on the `−a × n` side: `u_ref = −n`, `offset = −d`.
+        s2: Curve3<T>,
     },
     /// Axis-normal plane cutting the tube (`|h| < r` for
     /// `h = (q − c)·a`): TWO concentric circles — radii
@@ -2032,7 +2051,7 @@ pub enum PlaneTorusSection<T: Real> {
     Empty,
 }
 
-/// Classifies and constructs the plane×torus exact-degenerate sections.
+/// Classifies and constructs the plane×torus axis-aligned sections.
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
@@ -2057,10 +2076,14 @@ pub enum PlaneTorusSection<T: Real> {
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
-///    `(c − q)·n` (meters): Zero ⇒ the plane CONTAINS the axis ⇒
+///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
+///    the centre's): Zero ⇒ the plane CONTAINS the axis ⇒
 ///    [`PlaneTorusSection::MeridianCircles`]; definite ⇒ the
-///    axis-parallel plane OFF the axis, whose section is a spiric
-///    quartic — the general-rung refusal.
+///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
+///    — margin `(R − r) − |d|` (meters, `d` that same gap): Positive ⇒
+///    [`PlaneTorusSection::SpiricOvals`], minted through
+///    [`Curve3::spiric`]; otherwise the section is a node, a folded
+///    loop or empty, and refuses as routed to the general rung.
 /// 3. `pt_axis_normal` — margin `‖a×n‖·R` (the tilt angle's sine,
 ///    metered at the would-be circle radius): Zero ⇒ the plane is
 ///    perpendicular to the axis; then `pt_cap_gap` — margin `r − |h|`
@@ -2079,7 +2102,8 @@ pub enum PlaneTorusSection<T: Real> {
 /// # Errors
 ///
 /// [`SectionError`] — wrong-lane kinds, the degenerate-torus guard,
-/// in-band escalations (F6), or the general-rung routing refusal.
+/// in-band escalations (F6), the general-rung routing refusal, or the
+/// spiric constructor's own refusal ([`SectionError::Spiric`]).
 pub fn plane_torus_section<T: Decide>(
     plane: &Surface<T>,
     torus: &Surface<T>,
@@ -2137,8 +2161,10 @@ pub fn plane_torus_section<T: Decide>(
     {
         Sign::Zero => {
             // The axis direction lies in the plane: containing vs
-            // offset, by the centre-to-plane gap.
-            match decide("pt_axis_plane_gap", Margin::of((c - q).dot(n)), band)
+            // offset, by the stand-off `d` — the one spelling this arm
+            // decides on and mints from.
+            let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
+            match decide("pt_axis_plane_gap", Margin::of(d), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {
@@ -2158,13 +2184,43 @@ pub fn plane_torus_section<T: Decide>(
                         c2: circle_at(c - m * big_r),
                     })
                 }
-                Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
-                    pair: "plane×torus",
-                    why: "an axis-parallel plane OFF the axis cuts a spiric quartic, \
-                          not a circle, and the pair's general-rung arm has not \
-                          retired — blocked on the torus's exact meters conversion \
-                          (arms retire one at a time, each with its proof)",
-                }),
+                Sign::Positive | Sign::Negative => {
+                    // Off the axis: the spiric, two ovals while the
+                    // plane stays short of the inner equator — a
+                    // length, decided before any root is taken.
+                    match decide(
+                        "pt_spiric_two_ovals",
+                        Margin::of((big_r - r) - d.abs()),
+                        band,
+                    )
+                    .map_err(SectionError::Escalated)?
+                    {
+                        Sign::Positive => {}
+                        Sign::Zero | Sign::Negative => {
+                            return Err(SectionError::RoutesToGeneralRung {
+                                pair: "plane×torus",
+                                why: "an axis-parallel plane at or past the torus's inner \
+                                      equator cuts a node, one folded loop or nothing — not \
+                                      the two ovals the spiric carries — and the pair's \
+                                      general-rung arm has not retired, blocked on the \
+                                      torus's exact meters conversion",
+                            });
+                        }
+                    }
+                    // `(a, n, d)` names the oval on the `+a × n` side
+                    // of the plane's trace, and `(a, −n, −d)` the other
+                    // (the variant's docs).
+                    let oval = |u: Vec3<T>, offset: T| {
+                        Curve3::spiric(c, a, u, big_r, r, offset, band).map_err(|e| match e {
+                            geom::SpiricInvalid::Escalated(diag) => SectionError::Escalated(diag),
+                            other => SectionError::Spiric(other),
+                        })
+                    };
+                    Ok(PlaneTorusSection::SpiricOvals {
+                        s1: oval(n, d)?,
+                        s2: oval(-n, -d)?,
+                    })
+                }
             }
         }
         Sign::Positive | Sign::Negative => {

@@ -454,7 +454,7 @@ fn revert_does_not_move_the_verdict() {
                     .map(|w| w.split_whitespace().next().unwrap_or("").to_string())
                     .collect()
             };
-            let reverted = body.revert().expect("the body reverts");
+            let reverted = body.revert();
             assert_eq!(
                 variants(&body).is_empty(),
                 tag == "honest",
