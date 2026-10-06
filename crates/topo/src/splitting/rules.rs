@@ -140,7 +140,7 @@
 //! for rule (a)'s Fig. 14.8 coplanar-edge-goes-below choice.
 
 use geom_brep::{EntersMaterial, WallBend, enters_material};
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
 use super::neighborhood::{chord, sector_face};
 use super::{
@@ -505,9 +505,12 @@ fn wall_graze<T: Decide>(
 }
 
 /// The face-extent lever arm for the coplanarity/sense predicates: the
-/// farthest distance from the base vertex to any vertex of the face's
-/// loops — the largest displacement a normal-angle error can induce
-/// across this face (D4 ¶1's "face extent" arm, computed, named).
+/// farthest distance from the base vertex to any point of the face's
+/// boundary — its vertices, and each curved edge's far reach
+/// ([`edge_reach`]), so a one-vertex face bounded by a closed edge has
+/// the arm its edge spans, not zero — the largest displacement a
+/// normal-angle error can induce across this face (D4 ¶1's "face
+/// extent" arm, computed, named).
 ///
 /// The arm must be an OVER-estimate of that displacement: it divides
 /// out of the caller's angular residuals ([`Margin::levered`]), so an
@@ -553,7 +556,10 @@ pub(crate) fn face_extent<T: Decide>(
                     return Err(UnboundedFace { face, vertex: lone });
                 }
                 BoundaryMember::Isolated { point, .. } => point,
-                BoundaryMember::Edge { he, half, .. } => {
+                BoundaryMember::Edge { he, half, ek, edge } => {
+                    if let Some(curve) = body.edge_curve_linked(ek, edge).certified() {
+                        extent = extent.max(edge_reach(curve.carrier(), p_base));
+                    }
                     body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
             };
@@ -561,6 +567,36 @@ pub(crate) fn face_extent<T: Decide>(
         }
     }
     Ok(extent)
+}
+
+/// An over-estimate of how far from `p` any point of a curved
+/// `carrier` lies, whatever span of it an edge holds: a conic's or
+/// spiric's centre distance plus its largest radius (a spiric lies on
+/// its torus, within R + r of the centre), a spline's farthest control
+/// point (its convex hull holds it, every weight being positive). A
+/// line's points lie between its endpoints, which are vertices, so it
+/// adds nothing.
+fn edge_reach<T: Real>(carrier: &geom::Curve3<T>, p: Point3<T>) -> T {
+    match carrier {
+        geom::Curve3::Line { .. } => T::zero(),
+        geom::Curve3::Circle { center, radius, .. } => (*center - p).norm() + radius.abs(),
+        geom::Curve3::Ellipse {
+            center,
+            major,
+            minor,
+            ..
+        } => (*center - p).norm() + major.abs().max(minor.abs()),
+        geom::Curve3::Spiric {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => (*center - p).norm() + major_radius.abs() + minor_radius.abs(),
+        geom::Curve3::Nurbs(curve) => curve
+            .control()
+            .iter()
+            .fold(T::zero(), |far, &q| far.max((q - p).norm())),
+    }
 }
 
 /// [`face_extent`]'s refusal: `face`'s outer loop is the lone `vertex`.

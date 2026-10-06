@@ -597,6 +597,9 @@ SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0,
   - Read: units on how segments are stored (3, 4, 6) and the storage P0s may start under the hold.
   - A unit that reworks how declared tangent joints are recorded or verified waits for D10's build, as the sketch plane does.
 
+- 2026-10-06 — 5b merged (#3774, `33e5000fb`; DR-88). Unit 3 (`one-segment-loop-through-builders`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
+  - D10 check: it changes how a closed loop is stored and swept, not intent or placement, so it may start under the hold.
+  - Review tier: dual. It is new topology (one periodic wall with a seam strut), where a wrong body ships silently.
 ## 2026-10-06 — PR 3774 fired the klein tour's tripwire on main
 
 PR 3774 ("constructions store the carriers they build") retired the
