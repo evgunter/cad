@@ -945,6 +945,56 @@ fn a_re_parameterized_certified_edge_re_mints_its_faces() {
     strut(&mut body, face, m);
     is_the_pass_s(&body, "re-description, then a strut");
 }
+/// **A carrier that keeps its ends but not its trace re-mints the
+/// face.** The strut up the ruling from `(UM, 0)` to `(UM, 0.5)` is
+/// re-described by an arc through the same two points at the same two
+/// parameters, bowing outward off the cylinder in the plane of the
+/// ruling: its ends read as the line's, its interior does not. The wall
+/// is re-minted, and the arc leaving the chart leaves it rowless, loud
+/// at rest. Where the description kept the strut's rows, the wall kept
+/// the line's images.
+#[test]
+fn a_carrier_that_keeps_its_ends_but_not_its_trace_re_mints_the_face() {
+    let (mut body, face, m) = wall();
+    let made = strut(&mut body, face, m);
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    let (p0, p1) = (at(UM, 0.0), at(UM, 0.5));
+    let frame = CylFrame::canonical(1.0);
+    let radius = 0.25 / 0.25_f64.sin();
+    let center = p0.lerp(p1, 0.5) + frame.radial(UM) * (radius * 0.25_f64.cos());
+    let u_ref = (p0 - center) / radius;
+    let arc = |axis: geom_core::Vec3<f64>| geom::Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    };
+    let axis = frame.axis.cross(frame.radial(UM));
+    let carrier = if arc(axis).eval(0.5).distance(p1) < 1e-12 {
+        arc(axis)
+    } else {
+        arc(-axis)
+    };
+    assert!(
+        carrier.eval(0.5).distance(p1) < 1e-12,
+        "the arc ends at the strut's tip"
+    );
+    let (t0, t1) = body
+        .get_curve_geom(body.get_edge(made.edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    assert_eq!((t0, t1), (0.0, 0.5), "the strut's interval is the arc's");
+    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, 0.5).unwrap();
+    body.set_edge_curve(made.edge, spec, tol()).unwrap();
+    assert_eq!(
+        rows_of(&body, face).0,
+        0,
+        "the wall is re-minted, and stores nothing"
+    );
+    loud_at_rest(&mut body);
+}
+
 /// The cylinder's own circle at height `v`, once round from the ruling
 /// `UM`: a closed carrier on the chart, for a null edge at `(UM, v)`.
 fn circle_at(v: f64) -> geom_brep::EdgeCurveSpec<f64> {

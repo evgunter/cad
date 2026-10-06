@@ -2,8 +2,9 @@
 id: set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization
 kind: issue
 title: set_edge_curve keeps a certified edge's rows across a re-parameterization, so a later site mint keeps an image over an interval its edge does not span
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-06
 priority: P3
 refs: [kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale]
 ---
@@ -65,3 +66,32 @@ moves the carrier or interval (`Remints::Every`, as `kev_describing`
 now does), which changes `Completes`' declaration for
 `set_edge_curve`; then the assertion lands. Or the posture stays, in
 which case the assertion cannot.
+
+## Closed
+
+Closed by the first option, read as a measurement. `Body::set_edge_curve`
+(`crates/topo/src/attach.rs`) asks `Body::description_moves` whether the
+new curve moves the carrier or the interval. The question is measured at
+the band: the new carrier at the old interval's ends against the edge's
+vertices, and against the old carrier at three interior parameters. A
+move plans through `Body::description_rows` under `Remints::Every`, the
+plan `kev_describing` uses, through the one predicate
+`Body::description_remints`. A certified edge's face on a spline chart is
+left as found. A description that restates both keeps every row
+(`Remints::FirstDescription`), so `Remints` keeps its two cases.
+
+Re-minting on every certified description refused a sound boolean
+(`sweep/tests/carved_sphere_operand.rs`, both rows). The re-mint cleared
+fitted sphere rows that the closing mint would have carried, which is why
+the rule is measured.
+
+`replace_faces_offset` (`crates/topo/src/replace_face.rs`) now drops the
+rows of every edge that ends at a vertex it moves, before its re-anchors'
+site mints. The closing `mint_pcurves` re-derives them.
+
+The `debug_assert!` above is in `pcurves::site_rows`' kept-image arm. The
+witness is `euler_site_pcurve_rows::a_re_parameterized_certified_edge_re_mints_its_faces`,
+which is this row's recipe. The sibling door
+`set_face_surfaces_describing` is filed as
+`set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`.
+
