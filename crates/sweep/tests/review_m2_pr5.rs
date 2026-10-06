@@ -546,10 +546,16 @@ fn survives_washer_zip_lineage_and_seam_state() {
         panic!("full")
     };
     let meridians = &meridians[0];
-    // Lineage: the surviving edge set is EXACTLY the 4 original chain
-    // edges (the meridians) plus the 4 full-period rims — every copied
-    // chain edge, every zip null edge, and both seam discs are dead.
-    let mut expected: Vec<EdgeKey> = meridians.iter().map(|m| m.unwrap()).collect();
+    // Lineage: the surviving edge set is EXACTLY the 2 cylinders'
+    // original chain edges (their meridians) plus the 4 full-period
+    // rims — every copied chain edge, every zip null edge, both seam
+    // discs and the two plane walls' slits are dead.
+    assert_eq!(
+        meridians.iter().filter(|m| m.is_some()).count(),
+        2,
+        "the two cylinders keep a meridian, the two plane annuli none"
+    );
+    let mut expected: Vec<EdgeKey> = meridians.iter().flatten().copied().collect();
     expected.extend(t.rims[0].iter().map(|r| r.unwrap()));
     expected.sort();
     let mut actual: Vec<EdgeKey> = t.body.edges().map(|(k, _)| k).collect();
@@ -566,15 +572,23 @@ fn survives_washer_zip_lineage_and_seam_state() {
     ] {
         vertex_at(&t.body, p); // panics if missing
     }
-    // The Seam state: each wall's outer loop traverses its own
-    // meridian TWICE (both halves in one face), each full-period rim
-    // is a self-loop (start vertex = end vertex) spanning exactly τ.
+    // The Seam state: each cylinder's outer loop traverses its own
+    // meridian TWICE (both halves in one face), each plane annulus is
+    // its outer circle and one ring, and each full-period rim is a
+    // self-loop (start vertex = end vertex) spanning exactly τ.
     for (j, w) in t.walls()[0].iter().enumerate() {
         let face = t.body.get_face(w.unwrap()).unwrap();
         let LoopBoundary::Cycle { first } = t.body.get_loop(face.outer).unwrap().boundary else {
             panic!("wall loop");
         };
-        let mer = meridians[j].unwrap();
+        let Some(mer) = meridians[j] else {
+            assert_eq!(
+                (t.body.loop_cycle(first).unwrap().len(), face.rings.len()),
+                (1, 1),
+                "wall {j}: a plane annulus is one circle and one ring"
+            );
+            continue;
+        };
         let hits = t
             .body
             .loop_cycle(first)
@@ -745,7 +759,7 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
         .unwrap();
     let t = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(counts(&t.body), (4, 8, 4, 0));
+    assert_eq!(counts(&t.body), (4, 6, 4, 2));
     // The reviewer's own azimuth check: every Seam edge sits at u = 0
     // of ITS surface, in the placed frame.
     assert_seams_on_u0(&t.body);
@@ -998,7 +1012,7 @@ fn survives_definite_near_band_classes_do_not_flip() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(counts(&t.body), (4, 8, 4, 0));
+    assert_eq!(counts(&t.body), (4, 6, 4, 2));
 }
 
 #[test]
@@ -1325,11 +1339,12 @@ fn survives_angle_full_range_boundary_rows() {
 }
 
 #[test]
-fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
-    // The plane-meridian exception's other half: Seam on a
-    // non-periodic chart must be structurally malformed
-    // (SeamOnNonPeriodic), so the washer's plane-wall meridian can
-    // never be silently "upgraded".
+fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
+    // The washer's plane annulus carries no meridian at all, and none
+    // of its edges can be silently "upgraded" to one: a Seam is one
+    // surface on both sides, which no edge of the annulus is, so the
+    // forgery is refused at adjacency before the chart's periodicity
+    // is asked (SeamOnNonPeriodic has its own row in `geom-brep`).
     let lp = ProfileLoop::polygon([
         Point2::new(1.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -1341,22 +1356,23 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
-    let meridians = &meridians[0];
     // Canonical segment 1 ((2,0)->(2,1)) is a cylinder; segment 0
-    // ((1,0)->(2,0)) sweeps the bottom plane annulus.
-    let plane_meridian = meridians[0].unwrap();
-    let plane_key = wall_key(&t.body, t.walls()[0][0].unwrap());
-    // Its honest state before the forgery: an image in the plane
-    // annulus's chart, NOT that chart's seam, declared by the profile
-    // segment. (Pre-U2 this was the `MappedCurve` variant; the seam
-    // flag is where the same fact lives now — which is exactly the
-    // fact the forgery below flips.)
-    assert_declared_image_in(&t.body, plane_meridian, plane_key);
+    // ((1,0)->(2,0)) sweeps the bottom plane annulus, one face with no
+    // meridian.
+    assert_eq!(meridians[0][0], None, "a plane wall has no meridian");
+    let annulus = t.walls()[0][0].unwrap();
+    let plane_key = wall_key(&t.body, annulus);
     assert!(matches!(
         t.body.get_surface(plane_key),
         Some(Surface::Plane { .. })
     ));
-    let e = t.body.get_edge(plane_meridian).unwrap();
+    // The annulus's outer circle: its whole outer cycle.
+    let face = t.body.get_face(annulus).unwrap();
+    let LoopBoundary::Cycle { first } = t.body.get_loop(face.outer).unwrap().boundary else {
+        panic!("the annulus's outer cycle");
+    };
+    let circle = t.body.get_half_edge(first).unwrap().edge;
+    let e = t.body.get_edge(circle).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
@@ -1367,11 +1383,12 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     };
     let err = t
         .body
-        .set_edge_curve(plane_meridian, forged, Tol::witness())
+        .set_edge_curve(circle, forged, Tol::witness())
         .unwrap_err();
-    assert!(
-        matches!(err, topo::EulerOpError::Certification { .. }),
-        "Seam on a plane chart must be refused: {err:?}"
+    assert_eq!(
+        err,
+        topo::EulerOpError::DescriptionNotAdjacent { edge: Some(circle) },
+        "Seam on a plane annulus's circle must be refused"
     );
     assert_all_tiers(&t.body);
 }

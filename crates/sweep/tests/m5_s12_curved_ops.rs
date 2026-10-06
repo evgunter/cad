@@ -185,7 +185,7 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
     assert_eq!(planar.len(), 2, "two caps");
     assert_eq!(curved.len(), 3, "three cylinder wall segments");
 
-    let rev = body.revert().expect("S12: curved revert is wired");
+    let rev = body.revert();
     assert_eq!(format!("{body:?}"), before, "revert mutated its operand");
 
     // Planar faces: the BIT is untouched, the stored normal negates.
@@ -229,15 +229,12 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
 fn curved_revert_is_a_bitwise_involution_and_deterministic() {
     for body in [m5_boss(3, 0.0, 1.0), m5_boss(2, 0.0, 1.0), notched()] {
         let original = format!("{body:?}");
-        let once = body.revert().unwrap();
-        assert_eq!(format!("{:?}", once.revert().unwrap()), original);
-        assert_eq!(
-            format!("{:?}", once.revert().unwrap().revert().unwrap()),
-            format!("{once:?}"),
-        );
+        let once = body.revert();
+        assert_eq!(format!("{:?}", once.revert()), original);
+        assert_eq!(format!("{:?}", once.revert().revert()), format!("{once:?}"));
         // Determinism: the same input maps to the same output, bit for
         // bit, on every call.
-        assert_eq!(format!("{:?}", body.revert().unwrap()), format!("{once:?}"));
+        assert_eq!(format!("{:?}", body.revert()), format!("{once:?}"));
     }
 }
 
@@ -254,7 +251,7 @@ fn revert_flips_a_mixed_sense_body_face_by_face() {
         before.contains(&false) && before.contains(&true),
         "the S11 notch fixture must carry MIXED bits, got {before:?}"
     );
-    let rev = body.revert().unwrap();
+    let rev = body.revert();
     let after = senses(&rev);
     // Only the CURVED face's bit is the one revert writes; the planar
     // faces keep theirs (their reversal is in the normal).
@@ -264,7 +261,7 @@ fn revert_flips_a_mixed_sense_body_face_by_face() {
         assert_eq!(now, if curved { !*was } else { *was }, "face {k:?}");
     }
     assert_ne!(after, before, "something must have moved");
-    assert_eq!(senses(&rev.revert().unwrap()), before, "involution on bits");
+    assert_eq!(senses(&rev.revert()), before, "involution on bits");
 }
 
 // =====================================================================
