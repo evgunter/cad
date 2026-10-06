@@ -7,7 +7,7 @@
 
 use geom::NurbsSurface;
 use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec3};
-use sweep::skin::{loft_geometry, segment_curve, sweep_geometry};
+use sweep::skin::{loft_geometry, loft_parameters, segment_curve, sweep_geometry};
 use sweep::test_support::bulge_arc;
 
 use crate::common;
@@ -37,13 +37,9 @@ fn contained(surface: &NurbsSurface<f64>, grid: usize) {
 #[test]
 fn review_interval_containment_dense_loft_and_sweep() {
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    let loft = loft_geometry(
-        &[chain(1.0), chain(1.6), chain(1.0)],
-        &places,
-        2,
-        Tol::witness(),
-    )
-    .expect("loft");
+    let sections = [chain(1.0), chain(1.6), chain(1.0)];
+    let params = loft_parameters(&sections, &places, 2, Tol::witness()).expect("loft parameters");
+    let loft = loft_geometry(&sections, &places, 2, &params, Tol::witness()).expect("loft");
     for wall in &loft.walls[0] {
         contained(wall, 96);
     }

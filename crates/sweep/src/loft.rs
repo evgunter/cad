@@ -76,7 +76,10 @@ use topo::{
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::skin::{LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, sweep_places};
+use crate::skin::{
+    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, loft_geometry_by_chord_length,
+    station_parameters, sweep_places,
+};
 use crate::swept::{
     SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
     swept_segments,
@@ -115,8 +118,10 @@ pub struct Lofted<T: Real> {
     ///
     /// This is a re-read of what the kernel chose, not a measurement
     /// — the produced surface IS the definition (DESIGN Q8), so no
-    /// residual pad accompanies it. [`crate::loft_parameters`] answers the
-    /// same question BEFORE the body is built.
+    /// residual pad accompanies it. For a [`loft_body`] it is
+    /// [`crate::loft_parameters`]' answer, askable BEFORE the body is
+    /// built; for a [`sweep_body`], each station's normalised path
+    /// parameter.
     pub section_params: Vec<f64>,
 }
 
@@ -718,12 +723,10 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 /// the body rolls by `theta`. To change the twist, start the section at
 /// a different vertex.
 ///
-/// **And the vertex order decides more than the pairing**: the whole
-/// surface's v-parameterization is the FIRST STRIP's, so a section
-/// spelled from a different starting vertex — or rolled about its own
-/// normal by a symmetry that leaves its ring pointwise identical —
-/// builds a different body. [`loft_geometry`]'s comment at the
-/// parameterization is the statement of it.
+/// The sections sit at [`crate::loft_parameters`]' v-parameters, a
+/// function of the section set: a section spelled from a different
+/// starting vertex, or rolled about its own normal by one of its own
+/// symmetries, builds the same body.
 ///
 /// `places[i]` is the caller's. For the plane normal to a curve at a
 /// point, `geom_core::linalg::frame::path_start_frame(point, tangent,
@@ -739,7 +742,8 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let geometry = loft_geometry(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
+    let geometry =
+        loft_geometry_by_chord_length(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
     assemble(places, &geometry, tol)
 }
 
@@ -755,10 +759,11 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
 /// the identity whatever the profile's vertex order was. What the
 /// authored start still decides is which wall of the
 /// built body is which — the segment order the returned
-/// [`Lofted::side_faces`] is keyed in, and, through the first strip,
-/// the surface's v-parameterization ([`loft_body`]). The body's roll
-/// comes from the path frame ([`sweep_places`]), not from the
-/// sections.
+/// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
+/// path frame ([`sweep_places`]), not from the sections, and each
+/// station's section sits at its normalised path parameter
+/// (`i / (stations − 1)`), which neither the spelling nor the roll
+/// enters.
 ///
 /// # The starting frame
 ///
@@ -786,6 +791,13 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
 ) -> Result<Lofted<T>, LoftError> {
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
-    let geometry = loft_geometry(&sections, &places, v_degree, tol).map_err(LoftError::Skin)?;
+    let geometry = loft_geometry(
+        &sections,
+        &places,
+        v_degree,
+        &station_parameters(stations),
+        tol,
+    )
+    .map_err(LoftError::Skin)?;
     assemble(&places, &geometry, tol)
 }

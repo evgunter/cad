@@ -71,7 +71,7 @@ use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 use pncad::prelude::{Bulge, Open, Start, Via};
 use pncad::profile::{ConstructedLoop, Segment};
-use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
+use pncad::sweep::skin::{Section, loft_geometry, loft_parameters, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 use pncad::topo::readback::euler_counts;
 
@@ -115,13 +115,10 @@ pub fn narration(tol: Tol) {
 
     // ---- The loft: three sections, the middle one scaled. ----
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    let loft = loft_geometry(
-        &[chain(1.0, tol), chain(1.6, tol), chain(1.0, tol)],
-        &places,
-        2,
-        tol,
-    )
-    .expect("the three-section loft skins");
+    let sections = [chain(1.0, tol), chain(1.6, tol), chain(1.0, tol)];
+    let params = loft_parameters(&sections, &places, 2, tol).expect("the three sections skin");
+    let loft =
+        loft_geometry(&sections, &places, 2, &params, tol).expect("the three-section loft skins");
     println!(
         "== loft: 3 sections (1.0 / 1.6 / 1.0 scale) x 1 loop x {} segments ==",
         loft.walls[0].len()
