@@ -3128,21 +3128,6 @@ impl<T: Decide> Body<T> {
     // Shared internals
     // ------------------------------------------------------------------
 
-    /// Resolves a half-edge, copying out its fields, its miss answered
-    /// as `from` says ([`KeySource`]).
-    ///
-    /// An operator that also splices through the key wants
-    /// [`Body::resolve_half_edge_live`], which is this lookup keeping
-    /// the proof it earns rather than re-earning it.
-    #[track_caller]
-    pub(crate) fn resolve_half_edge<S: KeySource>(
-        &self,
-        he: HalfEdgeKey,
-        from: S,
-    ) -> S::Answer<HalfEdge> {
-        S::map(self.resolve_half_edge_live(he, from), |(_, data)| data)
-    }
-
     /// Proves that `he`, a half-edge a kill anchors `v` at, read one
     /// `next` step from `origin`, the killed half that starts at `v`,
     /// starts at `v`. An orbit walk needs no such proof:
@@ -3426,66 +3411,6 @@ impl<T: Decide> Body<T> {
                  tier-1-valid body a vertex with half-edges is no loop's lone vertex",
                 loop = r#loop
             );
-        }
-    }
-
-    /// `he`'s mate, read from `he`'s own edge and proven its pair: `he`
-    /// resolves (its miss answered as `from` says), its edge resolves,
-    /// the edge claims `he`, the mate the claim gives resolves, and the
-    /// two are the edge's halves ([`require_halves`]), in that order. The
-    /// one hop from a half-edge to its mate a plan may read without
-    /// proving more; [`Body::mate`] answers `None` for every one of these
-    /// faults alike and proves no pair.
-    ///
-    /// # Panics
-    ///
-    /// Where any hop past `he` fails: on a tier-1-valid body the edge ↔
-    /// half-edge bijection holds.
-    #[track_caller]
-    pub(crate) fn proven_mate<S: KeySource>(
-        &self,
-        he: HalfEdgeKey,
-        from: S,
-    ) -> S::Answer<ProvenMate<'_>> {
-        S::map(self.resolve_half_edge(he, from), |he_data| {
-            self.mate_of(he, he_data)
-        })
-    }
-
-    /// [`Body::proven_mate`] past its first lookup: `he` resolved to
-    /// `he_data`, and every hop from there is a link.
-    #[track_caller]
-    fn mate_of(&self, he: HalfEdgeKey, he_data: HalfEdge) -> ProvenMate<'_> {
-        let edge = he_data.edge;
-        let edge_data = linked(
-            &self.edges,
-            edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(claim) = edge_data.claim(he) else {
-            unreachable!(
-                "{he:?}'s edge {edge:?} does not claim it in either slot: on a tier-1-valid \
-                 body an edge claims the two half-edges that name it"
-            )
-        };
-        let mate = claim.mate;
-        let mate_data = linked(
-            &self.half_edges,
-            mate,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            claim.mate_field(),
-        )
-        .clone();
-        require_halves(edge, edge_data, he, (mate, mate_data.edge));
-        ProvenMate {
-            he_data,
-            edge,
-            edge_data,
-            mate,
-            mate_data,
         }
     }
 
@@ -4470,6 +4395,85 @@ impl<T: Decide> Body<T> {
              arena delta (kernel bug)",
         );
         self.assert_tier1_postcondition(op);
+    }
+}
+
+/// The plan-phase reads that need no scalar decision, so serve every
+/// scalar backend.
+impl<T: Real> Body<T> {
+    /// Resolves a half-edge, copying out its fields, its miss answered
+    /// as `from` says ([`KeySource`]).
+    ///
+    /// An operator that also splices through the key wants
+    /// [`Body::resolve_half_edge_live`], which is this lookup keeping
+    /// the proof it earns rather than re-earning it.
+    #[track_caller]
+    pub(crate) fn resolve_half_edge<S: KeySource>(
+        &self,
+        he: HalfEdgeKey,
+        from: S,
+    ) -> S::Answer<HalfEdge> {
+        S::map(self.resolve_half_edge_live(he, from), |(_, data)| data)
+    }
+
+    /// `he`'s mate, read from `he`'s own edge and proven its pair: `he`
+    /// resolves (its miss answered as `from` says), its edge resolves,
+    /// the edge claims `he`, the mate the claim gives resolves, and the
+    /// two are the edge's halves ([`require_halves`]), in that order. The
+    /// one hop from a half-edge to its mate a plan may read without
+    /// proving more; [`Body::mate`] answers `None` for every one of these
+    /// faults alike and proves no pair.
+    ///
+    /// # Panics
+    ///
+    /// Where any hop past `he` fails: on a tier-1-valid body the edge ↔
+    /// half-edge bijection holds.
+    #[track_caller]
+    pub(crate) fn proven_mate<S: KeySource>(
+        &self,
+        he: HalfEdgeKey,
+        from: S,
+    ) -> S::Answer<ProvenMate<'_>> {
+        S::map(self.resolve_half_edge(he, from), |he_data| {
+            self.mate_of(he, he_data)
+        })
+    }
+
+    /// [`Body::proven_mate`] past its first lookup: `he` resolved to
+    /// `he_data`, and every hop from there is a link.
+    #[track_caller]
+    fn mate_of(&self, he: HalfEdgeKey, he_data: HalfEdge) -> ProvenMate<'_> {
+        let edge = he_data.edge;
+        let edge_data = linked(
+            &self.edges,
+            edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let Some(claim) = edge_data.claim(he) else {
+            unreachable!(
+                "{he:?}'s edge {edge:?} does not claim it in either slot: on a tier-1-valid \
+                 body an edge claims the two half-edges that name it"
+            )
+        };
+        let mate = claim.mate;
+        let mate_data = linked(
+            &self.half_edges,
+            mate,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            claim.mate_field(),
+        )
+        .clone();
+        require_halves(edge, edge_data, he, (mate, mate_data.edge));
+        ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate,
+            mate_data,
+        }
     }
 }
 

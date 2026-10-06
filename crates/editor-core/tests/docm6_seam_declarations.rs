@@ -258,8 +258,8 @@ fn assert_rows_match_names(gathered: &editor_core::Product<f64>) {
     for row in &gathered.carried {
         let route = |inner: &StableName| {
             let mut name = inner.clone();
-            for &node in row.route.via.iter().rev() {
-                name = wrap(node, name);
+            for hop in row.route.via.iter().rev() {
+                name = wrap(hop.id(), name);
             }
             wrap(row.route.through, name)
         };
@@ -285,7 +285,11 @@ fn rows(
             (
                 c.route.through,
                 c.route.of,
-                c.route.via.clone(),
+                c.route
+                    .via
+                    .iter()
+                    .map(editor_core::SpokenNode::id)
+                    .collect(),
                 c.declaration.mate,
             )
         })
@@ -460,7 +464,7 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
     assert!(
         findings.iter().any(|f| matches!(
             &f.attribution,
-            Attribution::Carried { route, declaration, relation: Relation::Refuted }
+            Attribution::Carried { route, declaration, relation: Relation::Refuted, .. }
                 if route.through == instances[0]
                     && route.of == inner_id
                     && route.via.is_empty()
@@ -524,7 +528,7 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
     assert!(
         findings.iter().all(|f| matches!(
             &f.attribution,
-            Attribution::Carried { route, declaration, relation: Relation::Declined }
+            Attribution::Carried { route, declaration, relation: Relation::Declined, .. }
                 if route.through == instances[0]
                     && route.of == inner_id
                     && route.via.is_empty()
@@ -713,7 +717,7 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("an inner part with an unverified contact is not at rest: {result:?}");
     };
-    let [CarriedRefusal { route, refusal }] = refusals.as_slice() else {
+    let [CarriedRefusal { route, refusal, .. }] = refusals.as_slice() else {
         panic!("one broken part, so one carried row: {refusals:?}");
     };
     assert_eq!(
@@ -726,8 +730,8 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let rendered = result.unwrap_err().to_string();
     assert!(
         rendered.contains(&inner_id.to_string())
-            && rendered.contains(&format!("mate {}", test_utils::refusal::tag(inner_mate.0))),
-        "the badge names the document and the mate: {rendered}"
+            && rendered.contains(&format!("Mate {}", test_utils::refusal::tag(inner_mate.0))),
+        "the badge names the document and the mate, as that document holds it: {rendered}"
     );
 }
 
@@ -809,22 +813,191 @@ fn a_refusal_two_levels_down_names_its_route() {
     let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("the refusal reaches the outermost gate: {result:?}");
     };
-    let [CarriedRefusal { route, refusal }] = refusals.as_slice() else {
+    let [CarriedRefusal { route, refusal, .. }] = refusals.as_slice() else {
         panic!("one broken part, so one carried row: {refusals:?}");
     };
     assert_eq!(
         (
             route.through,
             route.of,
-            route.via.as_slice(),
+            route
+                .via
+                .iter()
+                .map(editor_core::SpokenNode::id)
+                .collect::<Vec<_>>(),
             refusal.mate()
         ),
         (
             outer_instances[0],
             broken_id,
-            &mid_instances[..],
+            mid_instances.clone(),
             broken_mate
         )
+    );
+}
+
+/// `doc` with `node` labelled `label`.
+fn labelled(doc: ProfileDoc, node: RecipeNodeId, label: &str) -> ProfileDoc {
+    step(
+        doc,
+        DocEdit::SetLabel {
+            node,
+            label: Some(editor_core::Label::new(label).expect("a valid label")),
+        },
+    )
+    .0
+}
+
+/// **A deeper hop is said as its own document holds it.** A broken
+/// stand, a middle document instancing it (the instance labelled "mid
+/// seat"), and an outer document whose first node is the middle
+/// document's twin — an instance of the stand, labelled "spare seat" —
+/// and whose second instances the middle document. The second row's
+/// hop is the middle document's instance, whose id the outer document
+/// holds as that twin: the hop says the middle document's label, and
+/// the twin's label is said only where the outer document's own
+/// instance is meant.
+#[test]
+fn a_carried_refusals_deeper_hop_says_its_documents_label_where_the_outer_holds_its_id() {
+    let mut store = PartStore::default();
+    let (broken, broken_id, broken_mate, ..) = broken_part(&mut store, "speak-hop-stand");
+    let (mid, mid_instances) = row_of("speak-hop-mid", broken, 1, 4.0);
+    let mid = labelled(mid, mid_instances[0], "mid seat");
+    let mid_ref = store.insert(mid.clone(), Tol::witness());
+    let (outer, twin) = row_of("speak-hop-outer", broken, 1, 4.0);
+    assert_eq!(
+        twin, mid_instances,
+        "both documents mint from the zero chain"
+    );
+    let outer = labelled(outer, twin[0], "spare seat");
+    let (outer, instance) = insert(outer, Node::instantiate_part(mid_ref));
+    let outer = place(outer, instance, [12.0, 0.0, 0.0]);
+    let outer = labelled(outer, instance, "left bracket");
+
+    let ev = run(&outer, &with_resolver(store));
+    let result = assemble(&outer, &ev, Tol::witness());
+    let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
+        panic!("the refusal reaches the outermost gate: {result:?}");
+    };
+    let [direct, deep] = refusals.as_slice() else {
+        panic!("one row by each instance of the stand: {refusals:?}");
+    };
+    assert_eq!(
+        (
+            direct.route.through,
+            deep.route.through,
+            direct.route.of,
+            deep.route.of
+        ),
+        (twin[0], instance, broken_id, broken_id)
+    );
+    assert_eq!(
+        deep.route.via,
+        vec![mid.spoken(mid_instances[0])],
+        "the hop holds the middle document's node"
+    );
+    assert_eq!(
+        (direct.refusal.mate(), deep.refusal.mate()),
+        (broken_mate, broken_mate)
+    );
+    let spoken = result.as_ref().expect_err("refused").spoken(&outer);
+    let hops = format!(
+        "{} → InstantiatePart \"mid seat\" ({})",
+        left_bracket(instance),
+        test_utils::refusal::tag(mid_instances[0].0)
+    );
+    assert!(
+        spoken.contains(&hops),
+        "the first hop is the outer document's, the second the middle document's: {spoken}"
+    );
+    assert_eq!(
+        spoken.matches("spare seat").count(),
+        1,
+        "only the outer document's own instance says the twin's label: {spoken}"
+    );
+    let said = deep.to_string();
+    assert!(
+        said.contains(&format!(
+            "through instance {} → InstantiatePart \"mid seat\"",
+            test_utils::refusal::tag(instance.0)
+        )),
+        "with no document at hand the first hop is said by its tag, the deeper one as its \
+         document holds it: {said}"
+    );
+}
+
+/// **A carried row holds the labels its pin fixes, and compares them.**
+/// One middle document in two versions labelled apart, so two pins:
+/// an instance of each carries the stand's refusal by rows whose ids
+/// below the instance agree and whose hop labels do not, so the rows
+/// differ, and each says its own pin's label.
+#[test]
+fn a_carried_row_says_the_labels_its_pin_fixes() {
+    let mut store = PartStore::default();
+    let (broken, ..) = broken_part(&mut store, "speak-pin-stand");
+    let (mid, mid_instances) = row_of("speak-pin-mid", broken, 1, 4.0);
+    let rows_of = |mid: ProfileDoc| {
+        // One store per version: a store holds one version of a
+        // document.
+        let mut store = store.clone();
+        let mid_ref = store.insert(mid, Tol::witness());
+        let outer = ProfileDoc::empty(DocumentId::derive("speak-pin-outer"), Tol::witness());
+        let (outer, _) = insert(outer, Node::instantiate_part(mid_ref));
+        let ev = run(&outer, &with_resolver(store));
+        match assemble(&outer, &ev, Tol::witness()) {
+            Err(AssemblyError::CarriedMintRefusal { refusals }) => (mid_ref, refusals),
+            other => panic!("the stand's refusal is carried: {other:?}"),
+        }
+    };
+    let (seat_ref, seat) = rows_of(labelled(mid.clone(), mid_instances[0], "mid seat"));
+    let (moved_ref, moved) = rows_of(labelled(mid, mid_instances[0], "mid moved"));
+    assert_ne!(seat_ref.pin, moved_ref.pin, "a label is in the pin");
+    let ids = |rows: &[CarriedRefusal]| {
+        rows.iter()
+            .map(|r| {
+                (
+                    r.route
+                        .via
+                        .iter()
+                        .map(editor_core::SpokenNode::id)
+                        .collect::<Vec<_>>(),
+                    r.refusal.clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        ids(&seat),
+        ids(&moved),
+        "the two versions' rows name the same ids below the instance"
+    );
+    // An instance's id is minted from its reference, so the two
+    // instances differ; the rows are compared through one of them.
+    let moved_through_seat: Vec<CarriedRefusal> = moved
+        .iter()
+        .zip(&seat)
+        .map(|(m, s)| CarriedRefusal {
+            route: editor_core::Route {
+                through: s.route.through,
+                ..m.route.clone()
+            },
+            ..m.clone()
+        })
+        .collect();
+    assert_ne!(
+        seat, moved_through_seat,
+        "the rows hold different labels under different pins, so they differ"
+    );
+    let line = |rows: &[CarriedRefusal]| rows.iter().map(ToString::to_string).collect::<String>();
+    assert!(
+        line(&seat).contains("\"mid seat\"") && !line(&seat).contains("mid moved"),
+        "{}",
+        line(&seat)
+    );
+    assert!(
+        line(&moved).contains("\"mid moved\"") && !line(&moved).contains("mid seat"),
+        "{}",
+        line(&moved)
     );
 }
 
@@ -1118,7 +1291,7 @@ fn a_certified_assembly_names_the_carried_mates_it_certified_over() {
     );
 }
 
-// ---- A carried row speaks a part's ids by tag ----
+// ---- A carried row says a part's ids as the part holds them ----
 
 /// A stand over a shared cube part: two instances of it and one mate,
 /// labelled `label`, between their caps, in a document named `id`.
@@ -1156,10 +1329,10 @@ fn stand_over(
 /// document is the same stand (labelled "outer seat") plus an instance
 /// of the part (labelled "inner seat"), placed clear of it, the
 /// instance labelled "left bracket". Every document's mint starts at the
-/// zero chain, so the two stands mint the same ids. A carried row speaks
-/// the part's ids by tag; one spoken from the outer document would name
-/// the outer mate. Its route's first instance is the outer document's,
-/// so that document speaks it.
+/// zero chain, so the two stands mint the same ids. A carried row says
+/// the part's ids as the part holds them; one spoken from the outer
+/// document would name the outer mate. Its route's first instance is
+/// the outer document's, so that document speaks it.
 ///
 /// Returns the store, the part, the outer document, the shared id and
 /// the instance.
@@ -1200,11 +1373,11 @@ fn left_bracket(instance: RecipeNodeId) -> String {
 }
 
 /// The part's own mint refusal speaks its labelled mate from the part;
-/// the same row carried to the outer gate keeps the part's tag, though
-/// the outer document holds that id as its own labelled mate, and its
-/// route's first instance is spoken from the outer document.
+/// the same row carried to the outer gate says it as the part does,
+/// though the outer document holds that id as its own labelled mate, and
+/// its route's first instance is spoken from the outer document.
 #[test]
-fn a_carried_mint_refusal_keeps_the_parts_tag_where_the_outer_document_holds_the_id() {
+fn a_carried_mint_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let (store, inner, outer, mate, instance) =
         outer_over_twin(ContactClass::Tangent, [0.0, 0.0, 5.0]);
     let t = test_utils::refusal::tag(mate.0);
@@ -1245,30 +1418,35 @@ fn a_carried_mint_refusal_keeps_the_parts_tag_where_the_outer_document_holds_the
         "the carried row is raised first: {carried:?}"
     );
     let spoken = carried.spoken(&outer);
-    assert!(spoken.contains(&format!("mate {t}'s class")), "{spoken}");
     assert!(
-        !spoken.contains("seat"),
+        spoken.contains(&format!(": {spoken_row}")),
+        "the carried row says the part's refusal as the part does: {spoken}"
+    );
+    assert!(
+        !spoken.contains("outer seat"),
         "a carried row is never spoken from the outer document: {spoken}"
     );
     assert!(
         spoken.contains(&left_bracket(instance)),
         "the route's first instance is spoken from the outer document: {spoken}"
     );
+    let said = carried.to_string();
     assert!(
-        carried.to_string().contains(&format!(
+        said.contains(&format!(
             "through instance {}",
             test_utils::refusal::tag(instance.0)
-        )),
-        "with no document at hand the instance is said by its tag: {carried}"
+        )) && said.contains(&format!(": {spoken_row}")),
+        "with no document at hand the instance is said by its tag, and the part's mate as \
+         the part holds it: {said}"
     );
 }
 
 /// Both stands' declared rests are refuted (seat 0.5: the cubes
 /// interpenetrate). The outer document's own finding speaks its
-/// labelled mate; the part's carried finding keeps the part's tag,
-/// though the outer document holds that id.
+/// labelled mate; the part's carried finding says the part's, though
+/// the outer document holds that id.
 #[test]
-fn a_carried_attribution_keeps_the_parts_tag_and_this_documents_own_is_spoken() {
+fn a_carried_attribution_says_the_parts_label_and_this_documents_own_is_spoken() {
     let (store, _, outer, mate, instance) = outer_over_twin(ContactClass::Rest, [0.0, 0.0, 0.5]);
     let t = test_utils::refusal::tag(mate.0);
     let ev = run(&outer, &with_resolver(store));
@@ -1290,8 +1468,15 @@ fn a_carried_attribution_keeps_the_parts_tag_and_this_documents_own_is_spoken() 
     );
     let carried_line = carried.spoken(&outer);
     assert!(
-        carried_line.starts_with(&format!("mate {t}'s declared")) && !carried_line.contains("seat"),
+        carried_line.starts_with(&format!("Mate \"inner seat\" ({t})'s declared"))
+            && !carried_line.contains("outer seat"),
         "{carried_line}"
+    );
+    assert!(
+        carried
+            .to_string()
+            .starts_with(&format!("Mate \"inner seat\" ({t})'s declared")),
+        "with no document at hand the part's mate is said as the part holds it: {carried}"
     );
     assert!(
         carried_line.contains(&left_bracket(instance)),
@@ -1389,7 +1574,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     let ev = run(&outer, &with_resolver(store.clone()));
     let own = ev.node_error(added).expect("the second mate is refused");
     assert_eq!(
-        own.spoken(&outer),
+        own.spoken(&outer, &ev),
         format!(
             "Mate \"outer added\" ({ta}) failed: the mate solve refused: Mate \"outer held\" \
              ({th}) and this mate cannot both hold: {}",
@@ -1408,10 +1593,10 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         },
     );
     assert!(
-        own.spoken(&renamed)
+        own.spoken(&renamed, &ev)
             .contains(&format!("Mate \"outer renamed\" ({th}) and this mate")),
         "the memoized refusal holds the id, so a rename shows with nothing re-evaluated: {}",
-        own.spoken(&renamed)
+        own.spoken(&renamed, &ev)
     );
 
     let error = ev
@@ -1422,10 +1607,11 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         panic!("one carried level, in the part: {levels:?}");
     };
     assert_eq!(level.document.doc_ref(), Some(&inner_ref), "{levels:?}");
-    let inner_own = run(&inner, &with_resolver(store))
+    let inner_ev = run(&inner, &with_resolver(store));
+    let inner_own = inner_ev
         .node_error(level.node)
         .expect("the part's own tree draws the level's node failed")
-        .spoken(&inner);
+        .spoken(&inner, &inner_ev);
     let in_outer = level.line_in(&outer);
     assert_eq!(
         in_outer, inner_own,
@@ -1437,7 +1623,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
          {in_outer}"
     );
     assert_eq!(in_outer, level.line(), "the level holds its own nodes");
-    let in_frame = error.spoken(&outer);
+    let in_frame = error.spoken(&outer, &ev);
     assert!(
         in_frame.contains(&format!("the part's {} failed", inner.spoken(level.node)))
             && !in_frame.contains("outer"),
@@ -1568,7 +1754,7 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
         refusal.kind(),
         editor_core::ProductErrorKind::PlacedUnderTwoRoots
     );
-    let in_outer = error.spoken(&outer);
+    let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!(
             "Extrude \"inner block\" ({t})'s body is placed under two roots"

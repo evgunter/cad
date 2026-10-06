@@ -47,3 +47,17 @@ It is the two-emitter row's argument again: the document is legal, and
 `Emission` tells its author the crate has a bug. A typed refusal naming
 the construction, or a naming rule for the shape, is owed; which is the
 two-emitter row's own question.
+
+## More orders once declarations stop refusing by order (EMIT, 2026-10-06)
+
+Today `DeclareResolve` (`ConsumedByFold`) refuses first in most orders
+and hides this `Emission`. Once that refusal goes (INTENT's stage 4
+retires declarations; a scratch fan-out of the refused pair to every
+descending face did the same), this row's measured orders grow:
+- `row`/`rowids` with `(a, h)` declared: from 2 orders to 8 (0231 0312
+  0321 2031 2301 3012 3021 3201);
+- `emit_seam_junction`: from `{ahbg, habg}` (`SEAM_VERTEX_RESIDUE`) to 8 orders;
+- `{a, b, h}` declared: stays at 2.
+
+Measurement and fan-out: `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
+"Re-measured on main (2026-10-06)".

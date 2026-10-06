@@ -72,7 +72,7 @@ mod tests {
         };
         assert!(
             said.starts_with(
-                "duplicate appearance key face name minted by node 3fa9c1d2a0b1 — refused, no \
+                "duplicate appearance key the face of node 3fa9c1d2a0b1 — refused, no \
                  silent last-wins"
             ),
             "{said}"

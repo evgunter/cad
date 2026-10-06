@@ -216,12 +216,10 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "BlendSelectionEmpty",
     "BlendSelectionKind",
     "BlendSelectionResolve/Ambiguous",
-    "BlendSelectionResolve/NodeGone",
     "BlendSelectionResolve/Vanished",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DeclareResolve/Ambiguous",
-    "DeclareResolve/NodeGone",
     "DeclareResolve/Vanished",
     "DeclareSiteNotAnOperand",
     "DeclareUnsupportedPair",
@@ -243,7 +241,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "FaceFrameReadback/NoCanonicalFrame",
     "FaceFrameReadback/NoCarrier",
     "FaceFrameResolve/Ambiguous",
-    "FaceFrameResolve/NodeGone",
     "FaceFrameResolve/Vanished",
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
@@ -252,7 +249,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureNonFinite",
     "MeasureNotParallel",
     "MeasureRefResolve/Ambiguous",
-    "MeasureRefResolve/NodeGone",
     "MeasureRefResolve/Vanished",
     "MeasureRefUnreadable/Ambiguous",
     "MeasureRefUnreadable/NoBodies",
@@ -298,7 +294,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ShellLaneUnsupported",
     "ShellOpenKind",
     "ShellOpenResolve/Ambiguous",
-    "ShellOpenResolve/NodeGone",
     "ShellOpenResolve/Vanished",
     "ToleranceConflict",
     "UnschedulableCycle",
@@ -326,6 +321,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/DegenerateArcCenter",
     "ProfileReplay/Path/DegenerateArcChord",
     "ProfileReplay/Path/DegenerateArcSpec",
+    "ProfileReplay/Path/ArcSweepNotShortOfFullTurn",
     "ProfileReplay/Path/NoCornerForFillet",
     "ProfileReplay/Path/NoCornerForFillet(disjoint)",
     "ProfileReplay/Path/NoCornerOfPair",
@@ -1453,6 +1449,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::TangencyUnsupported { face, vertex },
         ),
         (
+            "KnifeEdge",
+            R::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Vertex(vertex),
+            }),
+        ),
+        (
             "ScaffoldingOperand",
             R::ScaffoldingOperand {
                 errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
@@ -1634,7 +1637,18 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
         ),
-        ("SectionCusp", F::SectionCusp { edge, face }),
+        (
+            "DescribeBendEscalated",
+            F::DescribeBendEscalated { edge, diag: diag() },
+        ),
+        ("SmoothJoinRefuted", F::SmoothJoinRefuted { edge }),
+        (
+            "KnifeEdge",
+            F::KnifeEdge(topo::KnifeEdge {
+                wall: face,
+                at: topo::KnifeEdgeSite::Edge(edge),
+            }),
+        ),
         (
             "SectionWindingUndecided",
             F::SectionWindingUndecided {
@@ -2334,13 +2348,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
         ("RepeatedEdge", E::RepeatedEdge { edge }),
         ("NonpositiveSize", E::NonpositiveSize { size: 0.0 }),
         (
-            "UnsupportedBody",
-            E::UnsupportedBody {
-                solids: 2,
-                shells: 2,
-            },
-        ),
-        (
             "UnsupportedChain",
             E::UnsupportedChain {
                 edge,
@@ -2355,8 +2362,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedRunOut",
             E::UnsupportedRunOut {
                 at: EntityId::Vertex(vertex),
-                detail: "a chain terminates at a trivalent vertex whose three edges are not all \
-                         requested; run-outs at such corners are not implemented",
+                detail: sweep::blend::battery::END_FACE_CURVED,
             },
         ),
         (
@@ -2653,6 +2659,10 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::NonpositiveCircleRadius { radius: -0.1 },
         ),
         ("DegenerateArcSpec", P::DegenerateArcSpec { value: 0.0 }),
+        (
+            "ArcSweepNotShortOfFullTurn",
+            P::ArcSweepNotShortOfFullTurn { angle: 7.0 },
+        ),
         ("CircleSplitCount", P::CircleSplitCount { n: 1 }),
         (
             "PolygonTooFewVertices",
@@ -3160,21 +3170,29 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     let wraps: [(&str, Wrap); 5] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
             error,
+            reference: 0,
         }),
         ("BlendSelectionResolve", |error| {
             NodeErrorKind::BlendSelectionResolve {
                 verb: sweep::blend::BlendKind::Chamfer,
                 error,
+                reference: 0,
             }
         }),
         ("ShellOpenResolve", |error| {
-            NodeErrorKind::ShellOpenResolve { error }
+            NodeErrorKind::ShellOpenResolve {
+                error,
+                reference: 0,
+            }
         }),
         ("FaceFrameResolve", |error| {
             NodeErrorKind::FaceFrameResolve { error }
         }),
         ("MeasureRefResolve", |error| {
-            NodeErrorKind::MeasureRefResolve { error }
+            NodeErrorKind::MeasureRefResolve {
+                error,
+                reference: 0,
+            }
         }),
     ];
     for (wrap, build) in wraps {
@@ -3885,7 +3903,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             "OperandOuterShells",
             S::OperandOuterShells {
                 solid: SolidKey::default(),
-                outer: 0,
             },
         ),
         (

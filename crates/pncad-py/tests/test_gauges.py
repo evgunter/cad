@@ -26,6 +26,7 @@ from pncad import (
     ContactClass,
     Doc,
     DocEdit,
+    DocRef,
     EditError,
     Frame,
     Node,
@@ -36,10 +37,12 @@ from pncad import (
     m,
     rad,
     root_of,
+    content_pin,
     solve_document,
 )
 
 import bench_scene
+from spoken import tag
 
 
 def lifted(z):
@@ -168,6 +171,45 @@ class Gauges(unittest.TestCase):
             ev.step_string(shelf)
         self.assertEqual(caught.exception.variant, "unplaced")
         self.assertEqual(caught.exception.parts, [(shelf, shelf, "no_offset")])
+
+    def test_a_group_below_says_the_parts_label_where_the_outer_holds_its_id(self):
+        # A sub-assembly whose second post is unplaced, labelled; the
+        # outer document mints the same two ids first, so it holds the
+        # group's id as its own post, labelled apart.
+        sub = Doc("py-gauge-below-sub")
+        sub.insert(Node.instantiate_part(self.post_ref))
+        lost = sub.insert(Node.instantiate_part(self.post_ref))
+        sub.apply(DocEdit.set_offset(lost, lifted(2)))
+        sub.apply(DocEdit.set_offset(lost, None))
+        sub.apply(DocEdit.set_label(lost, "lost post"))
+        self.ws.create(sub)
+        sub_ref = DocRef(sub.id, content_pin(sub))
+        outer = Doc("py-gauge-below-outer")
+        outer.insert(Node.instantiate_part(self.post_ref))
+        twin = outer.insert(Node.instantiate_part(self.post_ref))
+        self.assertEqual(twin, lost, "both documents mint from the zero chain")
+        outer.apply(DocEdit.set_offset(twin, lifted(2)))
+        outer.apply(DocEdit.set_label(twin, "twin group"))
+        instance = outer.insert(Node.instantiate_part(sub_ref))
+        outer.apply(
+            DocEdit.set_offset(
+                instance, Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m)))
+            )
+        )
+        outer.apply(DocEdit.set_label(instance, "left bracket"))
+        ev = evaluate(outer, resolver=self.ws)
+        with self.assertRaises(pncad.ExportError) as caught:
+            ev.step_string(instance)
+        err = caught.exception
+        self.assertEqual(err.variant, "unplaced_below")
+        self.assertEqual(err.parts, [(instance, lost, "no_offset")])
+        said = str(err)
+        self.assertIn(
+            f'through InstantiatePart "left bracket" ({tag(instance)}): the group rooted at '
+            f'InstantiatePart "lost post" ({tag(lost)})',
+            said,
+        )
+        self.assertNotIn("twin group", said)
 
     def test_a_world_pose_is_the_gauge_chain_and_root_offset_onto_the_solve(self):
         """`A ∘ F ∘ B` through Python, against an independent 4x4

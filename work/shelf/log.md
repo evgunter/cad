@@ -11,3 +11,7 @@ entry. No A/B band: the experiment is suspended. Nothing dispatched.
 `shell-corpus-documents-held-out-of-the-registry` (P4/E, design) is
 the registry's question and its ground is TCOST's, but TCOST sits at
 its 30-point ceiling, so it waits here; its lane announces the seam.
+
+## 2026-10-06 — received from SHELL: offset-door-declared-transport-has-no-built-witness
+
+SHELL moved BAND's P2/E coverage row here, off its active cut.

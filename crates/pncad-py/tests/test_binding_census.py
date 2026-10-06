@@ -2300,10 +2300,14 @@ NOT_BOUND = {
     "FullId": SHAPE,
     "HeldNodes": SHAPE,
     "held_by": SHAPE,
+    # The name tables a speaker says names within: the binding speaks
+    # each door's message itself, so the table it scopes by is its own.
+    "NameTables": SHAPE,
     "Said": SHAPE,
     "Say": SHAPE,
     "Speaker": SHAPE,
     "spoken_by": SHAPE,
+    "spoken_within": SHAPE,
     "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     # A variable as a refusal speaks it: its name, or its tag where it
@@ -2586,6 +2590,22 @@ NOT_BOUND = {
     "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
+    # A name's leaf role in words. Python holds a name as its opaque
+    # text, and the words ride inside every sentence that names one —
+    # each door's refusal, spoken from the document it evaluated — so
+    # no value of the renderer's crosses.
+    "LeafRole": SHAPE,
+    "leaf_role": SHAPE,
+    "role_leaf": SHAPE,
+    # A resolve refusal said about a reference its sentence already
+    # names (a node's slot, a pane's "this face"). Python's resolve
+    # door has no such sentence: it raises the bare refusal, which says
+    # the name once, in full.
+    "AboutReference": SHAPE,
+    # What an edit took from a name it stranded. A maintenance row's
+    # message says it, and the row's `name` is the name it took it
+    # from.
+    "Took": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
     # A cone-delete is composed caller-side in Python: the bound door
@@ -3495,6 +3515,9 @@ MEMBERS_BOUND_AS = {
     # holding the type: the same spelling `Attribution` and
     # `CarriedDeclaration` use.
     "CarriedRefusal::route": "CarriedRefusal.of",
+    # The refusal's nodes as the document below holds them: what the
+    # row's `refusal` says them from (`str(row.refusal)`).
+    "CarriedRefusal::held": "CarriedRefusal.refusal",
     # A VALUE's arms, not a refusal's, and the word is `relation` because
     # what the walk answers is how a declaration stands to the document
     # it was gathered from.
@@ -3729,6 +3752,7 @@ MEMBERS_BOUND_AS = {
     "PathError::NonpositiveFilletRadius": "PathError.variant",
     "PathError::NonpositiveCircleRadius": "PathError.variant",
     "PathError::DegenerateArcSpec": "PathError.variant",
+    "PathError::ArcSweepNotShortOfFullTurn": "PathError.variant",
     "PathError::CircleSplitCount": "PathError.variant",
     "PathError::PolygonTooFewVertices": "PathError.variant",
     "PathError::ZeroDirection": "PathError.variant",
@@ -4116,6 +4140,11 @@ MEMBERS_NOT_BOUND = {
     # itself and renders from it, so there is no second document to
     # check against and no id to read back.
     "McReport::document": SHAPE,
+    # The carried mate as the document below holds it, kept for the
+    # sentence that names it. Python's row is read by its fields and
+    # says no sentence; the finding that names it does
+    # (`str(AtRestFinding)`), from these labels.
+    "CarriedDeclaration::held": SHAPE,
     # The same for the checks report and its refusal: Python's
     # `ChecksReport` holds the evaluated document and speaks from it,
     # and `CheckRefusal` is raised with the message already spoken.

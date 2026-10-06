@@ -157,7 +157,7 @@ enum Seen {
     /// `NamingError::MergedChordConstituents`, the same row's chord rule.
     MergedChord,
     /// A declared face a later member split before its pair's step
-    /// (`work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+    /// (`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others`).
     Split,
 }
 
@@ -230,7 +230,7 @@ fn every_order(
                 Some(NodeErrorKind::Naming(NamingError::MergedChordConstituents { .. })) => {
                     Seen::MergedChord
                 }
-                Some(NodeErrorKind::DeclareResolve { error })
+                Some(NodeErrorKind::DeclareResolve { error, .. })
                     if matches!(
                         &**error,
                         ResolveError::Vanished {

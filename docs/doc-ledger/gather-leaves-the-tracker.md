@@ -40,7 +40,7 @@ Recover SHA `69e51398da3b94930a83e2ec2d576a5856876900`.
 - A wedge-0/2π edge is legal at rest iff jet-determinate, derived from
   the body; intent is declared where the tangency is created (D1 tier
   3, PR 3317; #3362). Every body-producing op was audited for an
-  undeclared wedge end (#3373): split refuses `SectionCusp`, STEP
+  undeclared wedge end (#3373): split refuses `KnifeEdge`, STEP
   import transcribes the file's shared edge, the loft's
   opposite-turning joints are a self-overlap filed on CARVE.
 - `assemble` runs tier 3's local battery once per aggregate, over the

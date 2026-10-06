@@ -93,9 +93,10 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
+use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
-    Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, of_merge, remap_carried, remap_contacts,
+    Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
+    merge_rows, of_merge, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -110,7 +111,7 @@ use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::live::{Proven, linked, proven};
+use crate::live::{BoundaryMember, Proven, linked, proven};
 use crate::splitting::finish::single_solid;
 use geom_core::Tol;
 
@@ -191,6 +192,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if decls.coincident_faces.is_empty() || red.null_pairs.is_empty() {
         return Ok(None);
     }
+    // Read before the lane's surgery on the clones.
+    let carried = split_lineage(&red, decls, band)?;
 
     // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
     let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
@@ -409,19 +412,11 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let mut contacts = remap_contacts(
+    let contacts = carry(
         &body,
         &contacts,
-        KeyView::Direct,
-        KeyView::Graft(&graft),
-        &desc,
-    )?;
-    remap_carried(
-        &mut contacts,
-        &body,
-        decls,
-        &KeyView::Direct,
-        &KeyView::Graft(&graft),
+        [&carried[0], &carried[1]],
+        [&KeyView::Direct, &KeyView::Graft(&graft)],
         &desc,
     )?;
     body.sweep_and_close();
@@ -652,27 +647,21 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// face. `None` where `face`, the caller's key, does not resolve.
 ///
 /// Every hop past the face is a link (its loops, their walks, each
-/// member's start vertex and its point; a null strut's half-edges walk
+/// member's edge, start vertex and its point, a lone vertex's point; a null strut's half-edges walk
 /// like any other), and a miss panics (on an at-rest body by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
     let f = body.get_face(face)?;
-    let mut out = Vec::new();
-    let loops = core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&l| (l, "rings")));
-    for (lk, field) in loops {
-        match loop_boundary(body, lk, EntityId::Face(face), field) {
-            LoopBoundary::Empty { vertex } => {
-                out.push(body.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary"));
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in cycle(body, first) {
-                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                    out.push(body.linked_vertex_point(start, EntityId::HalfEdge(he), "start"));
+    Some(
+        body.face_boundary_linked(face, f)
+            .map(|member| match member {
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
-            }
-        }
-    }
-    Some(out)
+            })
+            .collect(),
+    )
 }
 
 /// **A face pair's consumed extent**, as the carrier doors read it:
@@ -1097,13 +1086,8 @@ fn fragment_holding<T: Decide>(
     v: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Option<FaceKey>, BooleanError> {
-    let lineage = crate::chord_join::lineage(face, fragments);
-    let at_u: Vec<FaceKey> = incident_faces(body, u, rings)?
-        .into_iter()
-        .filter(|f| lineage.contains(f))
-        .collect();
-    Ok(super::sectors::sole_common_face(
-        &at_u,
+    Ok(Lineage::of(face, fragments).holding_both(
+        &incident_faces(body, u, rings)?,
         &incident_faces(body, v, rings)?,
     ))
 }
@@ -1179,7 +1163,7 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
         if joined(body, u, v)? {
             continue;
         }
-        let Some(host) = super::sectors::sole_common_face(
+        let Some(host) = sole_common_face(
             &incident_faces(body, u, rings)?,
             &incident_faces(body, v, rings)?,
         ) else {
@@ -1405,6 +1389,13 @@ fn incident_faces<T: Decide>(
 }
 
 /// The face-boundary halves of `face` starting at `u` (outer + rings).
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn halves_at<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1414,15 +1405,12 @@ fn halves_at<T: Decide>(
         .get_face(face)
         .ok_or_else(|| desync("REST lane: chord host face vanished"))?;
     let mut out = Vec::new();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = loop_boundary(body, l, EntityId::Face(face), "loops")
-        else {
+    for member in body.face_boundary_linked(face, f) {
+        let BoundaryMember::Edge { he, half, .. } = member else {
             continue;
         };
-        for he in cycle(body, first) {
-            if proven(&body.half_edges, he, EntityId::HalfEdge).start == u {
-                out.push(he);
-            }
+        if half.start == u {
+            out.push(he);
         }
     }
     Ok(out)
@@ -1764,13 +1752,16 @@ fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
         } else {
             slit_zip(body, da, db, &shared, vmap, tol)?
         };
-        report
-            .vertex_merges
-            .extend(rep.vertex_merges.iter().copied());
-        report.seam_edges.extend(rep.seam_edges.iter().copied());
-        report
-            .interior_edges
-            .extend(rep.interior_edges.iter().copied());
+        let ZipReport {
+            vertex_merges,
+            seam_edges,
+            interior_edges,
+            edge_merges,
+        } = rep;
+        report.vertex_merges.extend(vertex_merges);
+        report.seam_edges.extend(seam_edges);
+        report.interior_edges.extend(interior_edges);
+        report.edge_merges.extend(edge_merges);
     }
     Ok(report)
 }
@@ -2078,9 +2069,13 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
             } else {
                 return Err(corr("slit-zip final pair is not one copy per side"));
             };
-            report
-                .seam_edges
-                .push(if b_edges.contains_key(e0) { e1 } else { e0 });
+            let (b_copy, a_copy) = if b_edges.contains_key(e0) {
+                (e0, e1)
+            } else {
+                (e1, e0)
+            };
+            report.seam_edges.push(a_copy);
+            report.edge_merges.push((b_copy, a_copy));
             body.kef_minting(b_half, tol)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
@@ -2092,11 +2087,11 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
             let next = walk[(i + 1) % walk.len()];
             let en = edge_in(next);
             if a_edges.contains_key(e) && b_edges.contains_key(en) {
-                fold = Some((he, next));
+                fold = Some((he, next, (en, e)));
                 break;
             }
         }
-        let Some((ha, hb)) = fold else {
+        let Some((ha, hb, copies)) = fold else {
             return Err(corr("slit-zip fold not found"));
         };
         let sa = proven(&body.half_edges, ha, EntityId::HalfEdge).start;
@@ -2120,6 +2115,9 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         debug_assert_eq!(merge, (eb, sa), "the slit fuse keeps the a copy");
         report.vertex_merges.push(merge);
         report.seam_edges.push(edge_of(body, ha)?);
+        // `ha` runs from `sa` and `hb` back to its correspondent: one
+        // segment, the b copy retired onto the a copy.
+        report.edge_merges.push(copies);
         body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
@@ -2130,6 +2128,25 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **The witnesses and the chord halves panic on a ring link that
+    /// does not resolve**, where they stepped over it.
+    #[test]
+    fn the_boundary_walks_panic_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let u = body.vertices().next().map(|(k, _)| k).unwrap();
+        assert!(face_witnesses(&body, face).is_some(), "the live face reads");
+        assert!(halves_at(&body, face, u).is_ok(), "the live face walks");
+        let named = tear_ring(&mut body, face);
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("face_witnesses", &mut body, &premise, |b| {
+            face_witnesses(b, face)
+        });
+        assert_torn_op_panics("halves_at", &mut body, &premise, |b| halves_at(b, face, u));
+    }
 
     /// **A glue's deaths settle against the seam, one glue at a time.**
     /// A seam edge that died and was reported interior leaves the seam;

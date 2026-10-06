@@ -41,8 +41,14 @@ in two seats:
   `face: FaceKey(19v1)`.
 
 At five and seven fins (no wall on a trimline) both build at the
-closed-form volume. The scene ships r = 1/32 and cites this row where
-it justifies that radius.
+closed-form volume.
+
+The scene no longer takes this order (BAND, 2026-10-06): the fillet
+reads polygonal support rings now, so the heat sink rounds the plate
+AFTER the union and its r = 1/16 limit is the fillet's own clearance
+screen (a zero margin at the ninth fin's foot), not this refusal. The
+reach above is the fillet-first recipe, reproducible by moving the
+`Fillet` node back above the union.
 
 ## Owner note
 
