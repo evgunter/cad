@@ -175,17 +175,28 @@
 //! the latitude posture's off-axis-centre refusal (no door-built
 //! operand carries a circle between two distinct non-torus,
 //! non-sphere charts with its centre off the axis; `torax_axial`
-//! demonstrates it by mutation), the torus rim mint's six refusing
-//! predicates, the circle-beside-two-caps-still-on-the-axis refusal, the axis-pole
-//! station arm and its off-axis-circle arm (a torus meridian cannot
-//! contain a pole, `R − r > 0` keeps it clear), the seam arms'
-//! refusing sides, the off-axis rim mint's four refusing predicates,
-//! the over-determined-azimuth arm — no constructible body here has more than one plane
-//! through the axis at a corner that is not also all-planar — and the
-//! re-author's turned-start refusal (every door-built revolved point's
-//! sketch plane contains its axis; a mutation that keeps the old
-//! azimuth reaches it on the klein elbow), and the rim window's
-//! one-point refusal (a door-built rim has two distinct ends).
+//! demonstrates it by mutation), the section rim mint's refusals (a cap
+//! past its wall's reach, a midpoint on the cap's trace of the axis, a
+//! sense that does not transfer, an old carrier with no plane), the
+//! circle-beside-three-caps refusal, the axis-pole station arm and its
+//! off-axis-circle arm (a torus meridian cannot contain a pole,
+//! `R − r > 0` keeps it clear), the seam arms' refusing sides, the
+//! over-determined-azimuth arm — no constructible body here has more
+//! than one plane parallel to the axis at a corner that is not also
+//! all-planar or a cap pair — the re-author's turned-start refusal
+//! (every door-built revolved point's sketch plane contains its axis; a
+//! mutation that keeps the old azimuth reaches it on the klein elbow)
+//! and its in-plane extrusion refusal (an extrude's vector never lies
+//! in its own sketch plane), and the window's one-point refusal (a
+//! door-built edge has two distinct ends).
+//!
+//! **The lift's rows**, the door run on a cavity it built: the klein
+//! elbow opened at both caps and at one (`verbs_shell`), the lune
+//! opened at one cap and, past the lifts, at both (`torax_axial`) —
+//! the second of those moves a rim corner onto the axis, the pole arm
+//! answering the cap pair that meets there. The extruded-point
+//! re-author's moved stations are door-built by the bored hex prism
+//! (`verbs_shell`).
 //!
 //! # What this door does not do
 //!
@@ -729,7 +740,11 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
 
 /// **Is this a body this door can take?** Structural and cheap: every
 /// surface is a plane, cylinder, cone, sphere or TORUS, the curved ones
-/// share one axis LINE, and every plane is normal to it or contains it.
+/// share one axis LINE, and every plane is normal to it or parallel to
+/// it, through it or beside it — "axial" is "expressible in one axial
+/// frame", not "a body of revolution". A box with a coaxial bore, a
+/// flatted shaft and a hollow the door itself built are all axial, so
+/// a lift reads the same verdict the cavity did.
 ///
 /// `shell` reads this per SOLID to pick that solid's branch, so a solid
 /// outside it keeps exactly the posture it had.
