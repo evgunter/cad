@@ -3920,7 +3920,7 @@ fn mef_trim<T: Decide + Bounds + topo::AtRestPolicy>(
 ///
 /// The host keeps its key, its designations and its other rings, and
 /// the plus half runs as the multi-crossing trim's does.
-fn lone_host_trim<T: Decide + Bounds + topo::AtRestPolicy>(
+fn lone_host_trim<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim_half: HalfEdgeKey,
     foot: VertexKey,
