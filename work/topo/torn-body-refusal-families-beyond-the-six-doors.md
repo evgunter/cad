@@ -151,3 +151,40 @@ splits the same way, and so does `torus_chart_windows`, where a torn
 edge is also typed. Each site carries a comment that hands its
 `CorruptFace` raises to this row. Once this row's split ("record misses
 panic") lands, each walk answers one way.
+
+## 2026-10-06 — typed torn hops the split / chord-join / reach unit converted
+
+`torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`'
+unit turned these typed raises over a hop past a resolved record into
+premise panics, and kept each one over a key the caller carries:
+- `chord_join.rs` `outer_cycle`: `SplitJoinError::Corrupt` for the
+  outer loop and its walk; the face keeps `Corrupt`.
+  `run_azimuth_images`' member half-edge and edge, and
+  `cone_apex_closure`'s member half-edge (`Corrupt`), now `proven` /
+  `linked`. So `face_azimuth_window`, `face_azimuth_images` and
+  `cone_apex_closure` answer `Corrupt` only for a face that does not
+  resolve, and every caller in `boolean/solid_contain.rs` resolved
+  that face first.
+- `chord_join.rs` `along_edge_spec`: the circle arm's `Corrupt` for the
+  segment edge's `he_plus` and its end; the segment edge itself keeps
+  a typed `SectionInvariant` ("the segment's edge no longer resolves").
+- `chord_join.rs` `face_azimuth_window_traces` (`sweep-testing`): the
+  surface's `Corrupt`.
+- `splitting/join.rs` `split_leave`: the face's surface (`Corrupt`).
+- `splitting/classify.rs` `sphere_zone_reach` now panics on
+  `props::loop_edges`' `LoopEdgesError::Corrupt` past a cycle outer
+  loop, and on `sphere_chart_trim`'s `CorruptFace`, both past a face
+  the gate resolved. `loop_edges` and `sphere_chart_trim` themselves
+  are unchanged and still answer typed for other callers.
+
+**What `solid_contain.rs` now folds.** `cylinder_chart_trim`'s
+`face_azimuth_window(..).ok()` and the cone arm's
+`face_azimuth_images(..).ok()` / `Err(_)` fold into `CorruptFace` only
+the walk's geometric refusals: a run edge with no closed-form chart
+image, a fitted image, a vertex off the carrier, `ApexUnlifted`, and,
+in `cylinder_chart_trim` and the cone's `face_azimuth_images` fold, an
+escalation. Those are not corruption, so the `CorruptFace` label there
+is now wrong in every case it fires; this row's split ("needs its own
+variant first") is where it gets a name. `wall_outline`'s
+`Err(_) => unsupported()` and `sphere_chart_trim`'s `Err(_) => Ok(None)`
+fold only geometric refusals, which is what they claim.
