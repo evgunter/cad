@@ -7225,3 +7225,26 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - PR 4076 → `session_01A4Rh5QmkpHomLtmFEKs1eV`. It checks each text's truth at rest, in particular the `RayExhausted` wording against PR 4055's correction.
   - Both PRs touch `census.rs`; collisions to be checked.
 - The planar-offset lane has no PR yet. Nothing new on PR 3970.
+
+## 02:01 check-in (2026-10-06)
+
+- **PR 4076 review: fix first, one BLOCKING.**
+  - The `RayExhausted` arms (top-level and both carried) render "too close to a boundary", which PR 4055 found false (the point is off the boundary; every ray grazed). The PR copies it to two more arms and pins it with an equality test. The same class exists in the census (`WitnessTooClose`) and in `PointInSolidError`'s `Display` (`COINCIDENCE_RECOURSE`).
+  - MINORs:
+    - `Loop(OffPlane)`'s text is true for one of three causes;
+    - `ZeroVolumeBody` is blamed on the kernel by tier 3 but on the user by the census;
+    - the carried poisoned `Escalated` margin has no witness.
+  - Otherwise confirmed: no wildcard (dummy arms turn the rosters red); 1398 base renderings byte-identical at head.
+  - Fix lane `session_01K4sgR4hPjGB6skR6CU1uxb`, with the class swept in scope. Reviewer archived (about $2.7).
+- **PR 4078 review: merge, no BLOCKING.**
+  - Every mid-op panic reads after the last write (all `&Body` or re-read). Per-op 4429 passed; 13 shards + 55 tests, 0 diffs; 10 of the PR's mutations reproduce.
+  - MINOR-1: six converted hops have no witness (A1/A2/A3/A4/A5/A7 green; A1 and A3 probed reachable). MINOR-2: C15/C16 witness docs misdescribe. MINOR-4: `along_edge_spec`'s chord-end point hop. NIT: `unreachable!` as a premise panic.
+  - #4081 (cleave's `split-segment-curve`) conflicts textually in `chord_join.rs`.
+  - Fix lane `session_01A8feUdiktifDkmLyoeeZQc`, including an iterator for the boundary-member prelude in touched files plus a row for the rest. Reviewer archived (about $4.6).
+- **The planar-offset lane opened PR 4080** (+270/-93, 5 files).
+  - One home: `held_neighbour_image` / `beside_moving`, used by all three offset doors.
+  - `offset_together` derives every other chart image (`image: None`), which fixes a second measured case (both charts moving).
+  - It corrected the brief: the rim lift does not call this door; `shell`'s `PlanesTogether` branch does.
+  - Probes: 651 cases, 0 diffs.
+  - Reviewer `session_0141b8jK7BaH43achrrorLfJ` dispatched (FULL): no regression from deriving every image; the 4060 doors are behaviour-identical; the `moves` threshold. Implementer archived (about $3.9).
+- Nothing new on PR 3970.
