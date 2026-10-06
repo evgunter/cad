@@ -640,16 +640,23 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 
 /// The corpus dump's hash at the default ε row (see
 /// [`the_corpus_stored_loops_dump_to_the_bit`]). Re-derived when the
-/// loop stopped keeping a bulge beside each segment: the dump spells
-/// each segment's stored fields (an arc's centre, radius and sweep)
-/// where it spelled the bulge, so every arc's line moved in form. No
-/// stored value moved — the carriers are the ones the bulges were
-/// lowered to — and no loop's verdict moved, at any ε.
-const GOLDEN_DEFAULT: u64 = 0xf78b_852e_8f50_e2b9;
+/// fillet door began storing the carriers its constructions build — a
+/// fillet arc on its own centre and the authored radius, an arc side's
+/// run on the side's circle — instead of re-lowering each arc from its
+/// chord: every arc's fields moved in the last bits. No loop's verdict
+/// moved at this row or at 1e-6; at 1e-12 two loops that escalated a
+/// near-coincidence between the fillet arc and its arc neighbour now
+/// validate (`line x arc c=32 r=0.5`, `c=128 r=0.2`). Then the
+/// arc-carrier fillet's sweep took the one quarter-tangent spelling
+/// (`sugar::quarter_tan_about`), moving its last bits on every
+/// arc-carrier fillet in the corpus, and an arc side's run with an
+/// authored radius stores it as `|r|` (`shared coverage corpus 13`'s
+/// 1.9999999999999998 is 2.0); no verdict or joint moved.
+const GOLDEN_DEFAULT: u64 = 0x76d3_b8c8_3dc5_745c;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0xb288_b10a_a6f2_744c;
+const GOLDEN_1E6: u64 = 0x9b07_a34e_72f9_1772;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x291a_0c67_fcdb_e02f;
+const GOLDEN_1E12: u64 = 0x7625_7377_b8a5_c0f4;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

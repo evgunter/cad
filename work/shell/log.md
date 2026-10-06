@@ -1126,3 +1126,49 @@ No ratified text moves, so there is no `[ev]` PR. The spec basis is in
 the item. Unit 6 now runs BEFORE unit 7, whose partial-revolve lift
 depends on it. Its review tier is DUAL: the gate change re-routes many
 bodies and is hard to reverse once rows are rebuilt on it.
+
+## Unit 3 MERGED (2026-10-06, PR 4115)
+
+The planar wall-clearance gate:
+- reads arc-bounded footprints through the existing `carrier_ball`;
+- decides facing on a levered drift, unioned with the old cosine
+  window, with the gap taken short by the drift.
+
+Single full review: APPROVE-WITH-FIXES on two MINORs (window narrowing
+on tall parts; the drift correction unguarded). Both are fixed with rows
+that go red under the review's mutants, and the fourth extent dispatcher
+was replaced by reuse. Filed:
+- the extent class (FLUX);
+- vertex-only siblings (CHART, HONE, TANG);
+- the rim_wedge cosines (HONE);
+- the tilted residue (shell).
+
+Merged over six failures that are red on main at ε = 1e-6:
+- JOIN's pinch row;
+- BAND's `bounds_census` roster row (filed here, P0);
+- four CLEAVE split closed-form rows (filed by the orchestrator, P0).
+## Unit 4 MERGED (2026-10-06, PR 4117)
+
+Lofted and NURBS-walled bodies get past the wall-seam re-anchor. The
+re-anchor is certified and seeded on spline carriers and in closed form
+on ellipses. Single full review: APPROVE-WITH-FIXES, no MAJOR. The fix
+pass:
+- adds a seed-sensitive row (red under the reviewer's seedless mutant);
+- makes the analytic arms explicit;
+- re-measures |δ| over the new carrier kinds;
+- uses one `NurbsLaneUnsupported` spelling within the door;
+- corrects the refusal docs and the vase number.
+Filed:
+- the closed-carrier seam case, the three-spellings class and the
+  spline-extension residue (shell);
+- the zero-span "kernel defect" text, riding unit 5;
+- the ellipse boolean `param_near` sites (HONE);
+- the interior-row iso arm (ISO).
+ENCL's rigid-map row, which was parked on the closed item, is re-parked
+on the oblique-corner item that now gates it.
+
+## 2026-10-06 15:20 — unit 6 dual review dispatched; demos main-red routed to PATHS
+
+- Unit 6 lane report landed on PR 4151 (head `70b1ef611`). Dual review (H, concurrent) dispatched on that frozen head: R1 `session_01WniRc3DStGGngmTdm1tfTz`, R2 `session_0154Q262rVu2oCh4QejUS4p5`, identical briefs and seven claims to falsify. Protocol `713b017b7`; blinding byte 236.
+- The demos job's four `eps_regression` reds on 4151 are a red main (klein findings pin 10 retired, certified-cells header moved), reproduced on clean main `364b8aefa`. Filed P0 for PATHS: `work/paths/demos-red-on-main-klein-pin-retired-and-certified-cells-moved.md` (suspect #3774; #4136 second).
+- Unit 5 (PR 4163): `test` red on `122ac63b`; the lane is asked to name its rows.
