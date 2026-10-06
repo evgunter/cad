@@ -198,7 +198,7 @@ area `api`; prefix `emit/`; tag `(EMIT orchestrator)`; ab_band `8300-8399`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P1 | `a-second-crossing-by-one-face-renames-the-first-and-its-pieces` | issue | M +design | open | The crossing ordinal is not local: a second crossing of an edge by a face that already crosses it renames the first crossing and every piece whose Ends cite it |  |  |
+| P1 | `a-second-crossing-by-one-face-renames-the-first-and-its-pieces` | issue | M | open | The crossing ordinal is not local: a second crossing of an edge by a face that already crosses it renames the first crossing and every piece whose Ends cite it |  |  |
 | P1 | `union-refuses-in-some-member-orders-and-publishes-in-others` | issue | H | parked | A union refuses in some member orders and publishes in others, over PR 3112's review corpus and the #3168 review fixtures | d10-one-way-to-say-intent-is-unbuilt |  |
 | P2 | `a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter` | issue | M | open | Crossings of a NURBS edge tie because param_along has no parameter for a NURBS carrier, where N2 ranks them by the carrier's own parameter |  |  |
 | P2 | `an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order` | issue | M | open | A union vertex where a member edge crosses another member's edge is spelled by member order (Flush::crossing falls through to the fold's spelling) |  |  |
