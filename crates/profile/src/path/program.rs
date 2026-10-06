@@ -21,10 +21,10 @@
 //!    verb is called by, so its `Display` is the row's too.
 //! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
 //!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
-//!    points the author wrote; their bulges are DERIVED at replay, by
-//!    the same binders the typed surface calls. Storing a derived bulge
-//!    would re-type a computed value as authored and kill its
-//!    parametricity (PROFILES-V2 §V1/§V2).
+//!    points the author wrote; their arcs are DERIVED at replay, by the
+//!    same binders the typed surface calls. Storing a derived arc would
+//!    re-type a computed value as authored and kill its parametricity
+//!    (PROFILES-V2 §V1/§V2).
 //! 3. [`ClosedLoop`] — what a closing verb now returns: the lowered
 //!    [`ProfileLoop`] *and* the program that produced it. One authoring
 //!    surface, two consumers; no second spelling of any verb.
@@ -1252,11 +1252,11 @@ transition_table! {
             /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
             /// centre). `p: Start` is the sharp arc seam.
             ///
-            /// Each mode's authored data is stored VERBATIM and its bulge
-            /// derived by the one closed form the raw chain uses
-            /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
-            /// the doors emit the same bits. On a directed point the §4 item 1
-            /// junction check runs on the arc's START TANGENT.
+            /// Each mode's authored data is stored VERBATIM and its arc
+            /// built by the mode's one conversion: `Bulge` and `Via` lowered
+            /// from the chord, `Center` about the authored centre. On a
+            /// directed point the §4 item 1 junction check runs on the arc's
+            /// START TANGENT.
             ///
             /// Refusals: a through-point within ε_input of the chord LINE
             /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
@@ -1893,13 +1893,15 @@ transition_table! {
             ///
             /// Numerics, stated plainly: vertex `k` sits at
             /// `centre + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
-            /// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
+            /// every arc sweeps `4·atan(tan(π/(2n)))` about the authored centre at
+            /// the authored radius — all through the scalar's libm-pure
             /// trig (D9-deterministic; no exactness promise at axis crossings, the
             /// same posture as `.angle(θ)` directors).
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
             /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
-            /// — a one-vertex full turn has no bulge representation). `n` is
+            /// — a one-vertex full turn's quarter-tangent, `tan(π/2)`, is the
+            /// pole). `n` is
             /// structural (a count, never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
                 centre: Point2<T>,
@@ -2831,9 +2833,10 @@ pub fn replay_guided<T: ArcCarrierScalar>(
 
 /// A loop the path lattice constructed: the loop, and the fact that
 /// every arc in it was verified at its construction, at this scalar
-/// (D1) — a `Center` arc by `path_arc_center_equidistant`, decided
-/// inline by the path door, and a lowered arc by its lowering, the
-/// bulge form's one conversion, whose endpoint identities it registers.
+/// (D1) — each by the mode's one conversion that built it, which
+/// registers the endpoint identities its algebra proves and decides
+/// the rest inline (a `Center` arc's `path_arc_center_equidistant`, a
+/// fillet's offset tangency or exact fit).
 ///
 /// Minted only at the lattice's closing — a chain's `finish` and the
 /// `circle` and `circle_split` forms — which the builder and every

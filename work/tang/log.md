@@ -565,3 +565,14 @@ the record of the dispatch.
 **Dispatched:**
 `plane-cylinder-section-reads-its-gap-at-the-stored-origin`, tier SINGLE
 FULL. It is classifier geometry, and the hold does not cover it.
+## 2026-10-06 — a rim lying across a seam ruling splits there (TANG implementer)
+
+`a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door` (P1)
+closes. When certificates (a) and (b) decline, `reduce::lying_on` asks
+where the arc meets the face's boundary mid-span
+(`carrier_cross::boundary_crossing`) and splits it there. It meets any
+line or circle boundary edge and any boundary vertex. The census
+confirms a v-f record on a curved face (CONTACT's ground, announced in
+the PR). The turned sunk dome, on a two-face and a four-face tube,
+builds every op in both member orders at tiers 3 and 3′. Filed:
+`a-line-edge-lying-on-a-wall-keeps-the-door` (P1).

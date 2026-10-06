@@ -1,7 +1,7 @@
 ---
 id: a-turned-lens-keeps-the-door
 kind: issue
-title: A lens of two domes turned on each other keeps the crossing layer's door
+title: The turned lens builds only with its discs declared Rest, which D10 retires
 status: parked
 opened: 2026-10-02
 priority: P1
@@ -14,32 +14,24 @@ blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 The lens of `crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`
 (`a_lens_of_two_domes_builds_with_its_discs_declared_rest`): the dome of
 radius `√2` standing on its rim circle, unioned with the bowl that
-mirrors it, the two discs declared `Rest`. With the two seams aligned it
-builds at `2 · V(dome)`. Turned about the axis by `π/7` or `π/2`, it
-refuses `CurvedPierceUnsupported` in both member orders (measured on
-branch `tang/abutting-rim`, PR 3823; the row pins it).
+mirrors it. Turned about the axis by `π/7` or `π/2`, it builds since
+PR 4148 (`tang/lying-on-arc-splits-at-a-ruling`). Both member orders give
+`2 · V(dome)` to `1e-15`, tiers 3 and 3′ pass, the census is
+`(4, 8, 6, 1)`, and there are no contact records. The row pins it.
 
-## Why
+What remains is the declaration. The build needs the two coincident
+discs declared `Rest`. Undeclared, the turned lens refuses
+`UndeclaredCoincidence` on the discs at every turn, the unturned lens
+included. D10 retires the declared-contact seats, so this row waits on
+it: once D10 lands, the discs' coincidence is said its way, and the row
+moves to that.
+
+## How the crossing layer passes it
 
 Each dome rim semicircle lies on the bowl's sphere and runs along parts
-of two bowl arcs. `reduce::lying_on` has two certificates:
-
-- **(b), the chain**, needs both ends of the arc paired with vertices of
-  the partner. A turned semicircle ends inside a bowl arc, and the end
-  is paired only once the other sweep direction splits that arc.
-- **(a), the boundary meets the circle only at the ends**, is
-  conservative here: the bowl face's boundary lies on the rim's circle
-  itself, which (a) never certifies.
-
-With (a) forced true, order 0 builds (measured by mutating
-`boundary_meets_circle_only_at`); the reviewers of PR 3823 measured
-`V = 2 · V(dome)` there. So the refusal is the certificate's reach, not
-the geometry.
-
-## Direction
-
-The arc runs along the partner's boundary on the same circle. A
-certificate that reads an overlapping run of the partner's arcs, not
-only a chain from paired end to paired end, would cover it, and so
-would ordering the sweep so the partner's split vertices exist before
-the arc is asked.
+of two bowl arcs. `reduce::lying_on`'s certificates (a) and (b) decline
+on the whole semicircle. The interior question that PR 4148 added splits
+it at the bowl's rim vertex. One half is then answered by (b), its ends
+paired along a chain of the bowl's arcs. The other half is answered by
+the interior question's certified absence (measured by the PR's
+reviewer, with instrumentation).

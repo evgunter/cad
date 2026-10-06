@@ -25,7 +25,7 @@ use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, SplitPart, split};
 
-use super::shell_operands::{tube, vessel};
+use super::shell_operands::vessel;
 use sweep::test_support::finished;
 
 fn v<T: Real>(x: f64, y: f64, b: f64) -> (Point2<T>, T) {
@@ -157,7 +157,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     out
 }
 
-// ---- f64-only corrupt constructions (check 8 / check 9 failures). ----
+// ---- f64-only corrupt constructions (check 2 / check 8 failures). ----
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
@@ -169,20 +169,18 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
         .collect()
 }
 
-/// A ring standing on its own outer loop (check 9), built the way
-/// `verbs_shell`'s `a_ring_standing_on_its_outer_loop_refuses_at_tier_3`
-/// builds it on [`vessel`] and [`tube`]; plus its reverted twin so
-/// check 7 WOULD also fire.
+/// The old rim construction's raw glue on [`vessel`]'s cap, which
+/// fails check 2 (its counterpart's ring stands clear of the outer loop
+/// now that the cap is built whole, so check 9 no longer fires); plus
+/// its reverted twin so check 7 WOULD also fire. The annular cap of
+/// `shell_operands::tube` no longer composes at all: its counterpart
+/// carries the bore as a ring, which the raw glue refuses.
 pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     let tol = Tol::witness();
     let mut out = Vec::new();
     let vessel = vessel(0.5, 0.4);
-    let tube = tube(0.30, 0.50, 0.40);
     let t = 0.05;
-    for (what, body, y) in [
-        ("ring_on_outer_vessel", vessel, 0.4),
-        ("ring_on_outer_tube", tube, 0.40),
-    ] {
+    for (what, body, y) in [("raw_glue_on_the_vessel_cap", vessel, 0.4)] {
         let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .expect("sealed shell")
             .body;

@@ -28,14 +28,15 @@ single-piece hand spellings a builder would replace:
 
 - `crates/editor-core/tests/m4_pr3_names.rs` — the wedge-cap meridians
   of the partial revolve (`:274`), the seam meridians of the full
-  revolve (`:351`) and of the holed one (`:411`), and the seam and `Pi`
-  meridians of the wire case's segment 0 (`:521`, `:522`);
-- `crates/editor-core/tests/ring_r1_names_probe.rs` (`:86`), the seam
+  square torus (`:344`), of the flange (`:387`) and of the holed
+  revolve (`:443`), and the seam and `Pi` meridians of the wire case's
+  segment 0 (`:554`, `:555`);
+- `crates/editor-core/tests/ring_r1_names_probe.rs` (`:88`), the seam
   meridians of the ring's second loop;
 - `crates/editor-core/tests/corpus/die_composed.rs` (`:203`).
 
 The multi-piece run sites in `crates/editor-core/tests/band_run_wall_names.rs`
-(`:201`, `:216`, `RoleSeg::Meridian(.., run_of(..))`) are out of a
+(`:201`, `:215`, `RoleSeg::Meridian(.., run_of(..))`) are out of a
 single-piece builder's reach, as the run sites of `band` are.
 
 ## Fix shape
