@@ -1,14 +1,14 @@
-//! **A chord on one of several collinear rim pieces is named as the
-//! piece it lies on.**
+//! **A chord on a flush rim line is named for the member edges it lies
+//! along.**
 //!
 //! `a` and `b` meet flush along x with all four families declared, so
-//! a union step that folds them together leaves `a`'s top cap and its
-//! y = 1 wall (or their merged successors) meeting along one line in
-//! PIECES, split where `b`'s end meets it. A later member cuts a chord
-//! on that line out of one piece, and the chord's two faces, descended
-//! into the accumulated operand, share every piece: "the one edge the
-//! pair shares" no longer picks the chord's edge. The chord's geometry
-//! does — it lies within exactly one piece — and that piece names it.
+//! `a`'s top cap and its y = 1 wall (or their merged successors) meet
+//! along one line that runs over both members' rims. A slab cuts a
+//! chord out of that line. In orders that fold `a` and `b` first, the
+//! accumulated operand holds the line as one joined edge across both
+//! rims; in the others, as the two members' rims. Either way the
+//! finished body names a chord within one rim as a piece of it, and one
+//! spanning both rims for the set of them (`emit_union::Flush`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
@@ -92,7 +92,9 @@ fn x_span(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, n: &StableName
 
 /// Every published edge named `FromMember(m, <edge of m>)`, ranked or
 /// not, lies within that edge of member `m`'s own body: both of its
-/// ends on the segment. A chord named for the wrong rim piece fails
+/// ends on the segment. Every edge named `Merged` of member edges lies
+/// along each of them, and each of its ends lies on one of them. A
+/// chord named for the wrong rim piece, or for a set it leaves, fails
 /// here even when the table is otherwise well formed.
 fn every_member_edge_lies_on_its_source(
     ev: &editor_core::Evaluation<f64>,
@@ -105,78 +107,112 @@ fn every_member_edge_lies_on_its_source(
         let v = b.get_half_edge(he).unwrap().start;
         *b.get_point(b.get_vertex(v).unwrap().point).unwrap()
     };
+    // The source segment of member edge `of` of `member`.
+    let source = |member: RecipeNodeId, of: &StableName| {
+        let src_body = body_of(ev, member);
+        let src = edge_of(table(ev, member), "the member's edge", of);
+        let se = src_body.get_edge(src).unwrap();
+        (point(src_body, se.he_plus), point(src_body, se.he_minus))
+    };
+    // Where `p` lies against segment `q0..q1`: its distance off the
+    // line, and its parameter along it.
+    let place = |p: geom_core::Point3<f64>, (q0, q1): (geom_core::Point3<f64>, _)| {
+        let d: geom_core::Vec3<f64> = q1 - q0;
+        ((p - q0).cross(d).norm() / d.norm(), (p - q0).dot(d) / d.dot(d))
+    };
+    let on = |(off, s): (f64, f64)| off < 1e-9 && s > -1e-9 && s < 1.0 + 1e-9;
     for (name, entry) in t.iter() {
-        let (editor_core::Entry::Unique(e), Some(RoleSeg::FromMember { member, of })) =
-            (entry, name.path.first())
-        else {
+        let editor_core::Entry::Unique(e) = entry else {
             continue;
         };
         let editor_core::EntityKey::Edge(k) = e.key else {
             continue;
         };
-        if of.kind != EntityKind::Edge {
-            continue;
-        }
-        let src_body = body_of(ev, *member);
-        let src = edge_of(table(ev, *member), "the member's edge", of);
-        let se = src_body.get_edge(src).unwrap();
-        let (q0, q1) = (point(src_body, se.he_plus), point(src_body, se.he_minus));
         let edge = body.get_edge(k).unwrap();
-        for p in [point(body, edge.he_plus), point(body, edge.he_minus)] {
-            let d = q1 - q0;
-            let off = (p - q0).cross(d).norm() / d.norm();
-            let s = (p - q0).dot(d) / d.dot(d);
-            assert!(
-                off < 1e-9 && s > -1e-9 && s < 1.0 + 1e-9,
-                "{at}: {name:?} has an end at {p:?}, off its source edge {q0:?}..{q1:?}"
-            );
+        let ends = [point(body, edge.he_plus), point(body, edge.he_minus)];
+        match name.path.first() {
+            Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Edge => {
+                let seg = source(*member, of);
+                for p in ends {
+                    assert!(
+                        on(place(p, seg)),
+                        "{at}: {name:?} has an end at {p:?}, off its source edge {seg:?}"
+                    );
+                }
+            }
+            Some(RoleSeg::Merged(set)) if name.kind == EntityKind::Edge => {
+                let segs: Vec<_> = set
+                    .iter()
+                    .map(|c| match c.path.as_slice() {
+                        [RoleSeg::FromMember { member, of }] => source(*member, of),
+                        _ => panic!("{at}: {name:?} lists a constituent that is no member edge"),
+                    })
+                    .collect();
+                for &(q0, q1) in &segs {
+                    let ((o0, s0), (o1, s1)) = (place(q0, (ends[0], ends[1])), place(q1, (ends[0], ends[1])));
+                    assert!(
+                        o0 < 1e-9 && o1 < 1e-9 && s0.max(s1) > 1e-9 && s0.min(s1) < 1.0 - 1e-9,
+                        "{at}: {name:?} lists a member edge {q0:?}..{q1:?} it does not run along"
+                    );
+                }
+                for p in ends {
+                    assert!(
+                        segs.iter().any(|&seg| on(place(p, seg))),
+                        "{at}: {name:?} has an end at {p:?} on none of its member edges"
+                    );
+                }
+            }
+            _ => {}
         }
     }
 }
 
-/// **`[a, b, g]`: the chord x = 0.0..0.3 is named as a piece of `a`'s
-/// top/y = 1 rim**, beside that rim's other pieces. The rim runs from
-/// x = 1 to x = 0 (segment 2 of `a`'s profile), and the body's vertices
-/// cut it at 0.5, 0.4 and 0.3; `a` holds 0.4..0.5 and 0.0..0.3, each
-/// its own name by its ends, 0.3..0.4 lies inside `g`, and 0.5..1.0,
-/// flush with `b`, is named for the lesser of the two
-/// (`emit_union::Flush`). This order once refused
-/// `SharedRim { found: Several }`.
+/// **`[a, b, g]`: the chord x = 0.0..0.3 is named as `a`'s top/y = 1
+/// rim, and x = 0.4..1.5 for the set of that rim and `b`'s.** The rim
+/// runs from x = 1 to x = 0 (segment 2 of `a`'s profile), and the
+/// slab's walls cut the line at 0.3 and 0.4: 0.0..0.3 lies within `a`'s
+/// rim alone, 0.3..0.4 lies inside `g`, and 0.4..1.5 runs along `a`'s
+/// rim and on along `b`'s, which together cover it. This order once
+/// refused `SharedRim { found: Several }`.
 #[test]
-fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
+fn the_chord_is_named_for_the_rims_it_lies_along() {
     let (doc, ids) = document(&[A, B, G], &[0, 1, 2]);
-    let (a, b, g) = (ids[0], ids[1], ids[2]);
+    let (a, b) = (ids[0], ids[1]);
     let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (docx, union) = declared_union(doc, &[a, b, g], pairs);
+    let (docx, union) = declared_union(doc, &ids, pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    let rim = StableName {
+    let rim = |m: RecipeNodeId, seg: usize| StableName {
         kind: EntityKind::Edge,
-        node: a,
+        node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&docx, a, 0, 2),
+            crate::fixture::piece(&docx, m, 0, seg),
         )],
     };
     let micro = |x: f64| (x * 1e6).round() as i64;
-    let mut spans: Vec<(i64, i64)> = table(&ev, union)
+    let span = |n: &StableName| {
+        let (x0, x1) = x_span(&ev, union, n);
+        (micro(x0), micro(x1))
+    };
+    let t = table(&ev, union);
+    let pieces: Vec<(i64, i64)> = t
         .iter()
-        .filter(|(n, _)| is_rim_piece(n, a, &rim))
-        .map(|(n, _)| {
-            let (x0, x1) = x_span(&ev, union, n);
-            (micro(x0), micro(x1))
-        })
+        .filter(|(n, _)| is_rim_piece(n, a, &rim(a, 2)))
+        .map(|(n, _)| span(n))
         .collect();
-    spans.sort_unstable();
-    let mut want = vec![(0.0, 0.3), (0.4, 0.5)];
-    if a < b {
-        want.push((0.5, 1.0));
-    }
-    let want: Vec<(i64, i64)> = want
-        .into_iter()
-        .map(|(p, q)| (micro(p), micro(q)))
-        .collect();
-    assert_eq!(spans, want, "a's rim pieces");
+    assert_eq!(pieces, vec![(0, micro(0.3))], "a's rim pieces");
+    let mut set = vec![
+        crate::fixture::member_entity(union, a, rim(a, 2), EntityKind::Edge),
+        crate::fixture::member_entity(union, b, rim(b, 2), EntityKind::Edge),
+    ];
+    set.sort();
+    let joined = StableName {
+        kind: EntityKind::Edge,
+        node: union,
+        path: vec![RoleSeg::Merged(set)],
+    };
+    assert_eq!(span(&joined), (micro(0.4), micro(1.5)), "the set-named edge");
 }
 
 /// **No order of the review probe's documents refuses
