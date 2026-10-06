@@ -78,6 +78,8 @@ pub mod props;
 pub mod recourse;
 mod sphere_circle;
 pub mod ssi;
+#[cfg(test)]
+mod rv4190_r1_unit_probes;
 pub mod tangent;
 pub mod torus_convention;
 

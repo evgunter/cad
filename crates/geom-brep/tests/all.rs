@@ -221,6 +221,8 @@ test_utils::every_suite_file_is_aggregated!();
 
 #[path = "r2_probes.rs"]
 mod r2_probes;
+#[path = "rv4190_r1_probes.rs"]
+mod rv4190_r1_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
 
