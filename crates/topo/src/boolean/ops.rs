@@ -635,6 +635,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
     let copies = Descendants::null_copies(&red.null_edges);
+    let along = connected.along.clone();
     let carried = split_lineage(&red, decls, band)?;
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
@@ -647,7 +648,9 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = fin.weld_merges_a.clone();
-    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b).with_copies(copies);
+    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b)
+        .with_copies(copies)
+        .with_along(along);
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -2553,6 +2556,12 @@ pub(super) struct Descendants {
     /// Each operand's null-edge copies, in its clone keys: the vertices
     /// one null edge joins, on one point by construction.
     copies: [Vec<(VertexKey, VertexKey)>; 2],
+    /// Each operand's chords along its own edges, `(edge, chord)` in
+    /// its clone keys, read before its key view: the join minted
+    /// `chord` on a segment that IS `edge` (`join::Connected::along`),
+    /// so where the op drops `edge`, the chord holds its interior.
+    /// Read only where `edge` left the result.
+    along: [Vec<(EdgeKey, EdgeKey)>; 2],
     /// Every other substitution, dead cell → the cell that holds its
     /// interior now, result keys: a zipped ring edge → its seam edge, a
     /// cell the merge swallowed → the kept face, a joined vertex or
@@ -2585,6 +2594,12 @@ impl Descendants {
     /// ([`carry`]).
     pub(super) fn with_copies(self, copies: [Vec<(VertexKey, VertexKey)>; 2]) -> Self {
         Self { copies, ..self }
+    }
+
+    /// The map that also reaches the chords the join minted along each
+    /// operand's own edges ([`Self::along`]).
+    pub(super) fn with_along(self, along: [Vec<(EdgeKey, EdgeKey)>; 2]) -> Self {
+        Self { along, ..self }
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
@@ -2658,15 +2673,52 @@ impl Descendants {
     /// its key `view`, the zips' fusions (a vertex), then the face
     /// absorptions and the substitution rows until live: `None` where
     /// the chain ends at a dead cell with no row (the cell left the
-    /// result).
+    /// result). An edge whose chain ends so is read on through the
+    /// chords the join minted along it ([`Self::along`]), each by the
+    /// same chain: the one that is live holds it.
     ///
     /// # Errors
     ///
     /// [`BooleanError::JoinDesync`] on a corrupt fusion list
     /// ([`survivor_checked`]), or rows that cycle: a walk that outlasts
     /// the row count has revisited a cell, a corrupt record, and
-    /// reading it as gone would drop a recorded contact.
+    /// reading it as gone would drop a recorded contact. So too where
+    /// two chords along one edge both reach a live cell, and they are
+    /// not one: two edges cannot both hold one edge's interior.
     pub(super) fn live<T: Real>(
+        &self,
+        body: &Body<T>,
+        side: Operand,
+        view: &KeyView<'_>,
+        cell: Cell,
+    ) -> Result<Option<Cell>, BooleanError> {
+        if let Some(c) = self.chained(body, side, view, cell)? {
+            return Ok(Some(c));
+        }
+        let Cell::Edge(edge) = cell else {
+            return Ok(None);
+        };
+        let mut held = None;
+        let rows = &self.along[usize::from(side == Operand::B)];
+        for &(_, chord) in rows.iter().filter(|&&(e, _)| e == edge) {
+            // A chord is minted, never an `along` row's edge, so one
+            // hop ends the read.
+            match (held, self.chained(body, side, view, Cell::Edge(chord))?) {
+                (_, None) => {}
+                (None, Some(c)) => held = Some(c),
+                (Some(h), Some(c)) if h == c => {}
+                (Some(_), Some(_)) => {
+                    return Err(BooleanError::JoinDesync {
+                        what: "two live edges hold one edge's interior through the join's chords",
+                    });
+                }
+            }
+        }
+        Ok(held)
+    }
+
+    /// [`Self::live`] without the chord rows.
+    fn chained<T: Real>(
         &self,
         body: &Body<T>,
         side: Operand,
@@ -2788,7 +2840,6 @@ pub(super) fn split_lineage<T: Decide>(
         for row in core::mem::take(&mut carried.ee) {
             ee_lineage(clone, side, &red.edge_splits, row, carried, band)?;
         }
-        carried.read_ends(clone);
     }
     Ok(out)
 }
@@ -2937,10 +2988,6 @@ pub(super) struct Rows {
     vf: Vec<VfContact>,
     ve: Vec<VeContact>,
     ee: Vec<EeContact>,
-    /// The two end vertices of each line edge a `ve` or `ee` row names,
-    /// read from the operand's clone once split lineage has placed the
-    /// rows ([`held_by_ends`]).
-    ends: BTreeMap<EdgeKey, (VertexKey, VertexKey)>,
 }
 
 impl Rows {
@@ -2951,30 +2998,6 @@ impl Rows {
             vf: vf.iter().map(|c| c.rest).collect(),
             ve: ve.clone(),
             ee: ee.clone(),
-            ends: BTreeMap::new(),
-        }
-    }
-
-    /// Records the ends of every line edge the rows name, from `clone`.
-    fn read_ends<T: Real>(&mut self, clone: &Body<T>) {
-        let edges: Vec<EdgeKey> = self
-            .ve
-            .iter()
-            .map(|r| r.edge)
-            .chain(self.ee.iter().flat_map(|r| [r.a, r.b]))
-            .collect();
-        for e in edges {
-            let Some(d) = clone.get_edge(e) else {
-                continue;
-            };
-            let line = clone
-                .edge_curve_linked(e, d)
-                .certified()
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
-            let start = |h| clone.get_half_edge(h).map(|h| h.start);
-            if let (true, Some(u), Some(w)) = (line, start(d.he_plus), start(d.he_minus)) {
-                self.ends.insert(e, (u, w));
-            }
         }
     }
 }
@@ -3152,45 +3175,8 @@ fn carry_rows<T: Real>(
             );
         }
     }
-    // An edge a row names that left the result with no substitution row
-    // is held by the live line edge between its two ends' coincidence
-    // groups, where there is one ([`held_by_ends`]).
-    let images = |side: Operand, v: VertexKey, live: &[(usize, End)]| {
-        let mut out: Vec<VertexKey> = desc
-            .copies_of(side, v)
-            .into_iter()
-            .filter_map(
-                |k| match desc.live(body, side, view(side), Cell::Vertex(k)) {
-                    Ok(Some(Cell::Vertex(x))) => Some(x),
-                    _ => None,
-                },
-            )
-            .collect();
-        if let Some(i) = ends
-            .iter()
-            .position(|&e| e == arena((side, Cell::Vertex(v))))
-        {
-            out.extend(live.iter().filter_map(|&(g, (_, c))| match c {
-                Cell::Vertex(x) if g == group[i] => Some(x),
-                _ => None,
-            }));
-        }
-        out
-    };
-    let edge_cell = |side: Operand, e: Cell, live: &[(usize, End)]| {
-        if let Some(c) = desc.live(body, side, view(side), e)? {
-            return Ok(Some(c));
-        }
-        let Cell::Edge(e) = e else {
-            return Ok(None);
-        };
-        let rows = carried[usize::from(side == Operand::B)];
-        Ok::<_, BooleanError>(rows.ends.get(&e).and_then(|&(u, w)| {
-            held_by_ends(body, &images(side, u, live), &images(side, w, live)).map(Cell::Edge)
-        }))
-    };
     for (&i, [_, (side, e)]) in attached.iter().zip(&ve_rows) {
-        let c = edge_cell(*side, *e, &live)?;
+        let c = desc.live(body, *side, view(*side), *e)?;
         push(&mut live, group[i], *side, c);
     }
     for (i, &(g, x)) in live.iter().enumerate() {
@@ -3236,7 +3222,7 @@ fn carry_rows<T: Real>(
             .flat_map(|(side, rows)| rows.ee.iter().map(move |c| (side, *c))),
     );
     for (side, c) in ee_rows {
-        let edge = |e| edge_cell(side, Cell::Edge(e), &live);
+        let edge = |e| desc.live(body, side, view(side), Cell::Edge(e));
         if let (Some(x), Some(y)) = (edge(c.a)?, edge(c.b)?) {
             record(body, &mut out, (side, x), (side, y));
         }
@@ -3268,28 +3254,6 @@ fn carry_rows<T: Real>(
         }
     }
     Ok(out)
-}
-
-/// The live line edge from one of `us` to one of `ws`: what holds the
-/// interior of a line edge that left the result with no substitution
-/// row, whose two ends are `us` and `ws` now. Two lines through two
-/// points are one line, so the edge is decided by keys and carriers
-/// alone, never by a position: the bound rule the census certifies a
-/// coincident-edge segment by. `None` where no one live edge joins
-/// them.
-fn held_by_ends<T: Real>(body: &Body<T>, us: &[VertexKey], ws: &[VertexKey]) -> Option<EdgeKey> {
-    let mut held = body.edges().filter_map(|(k, d)| {
-        let start = |h| body.get_half_edge(h).map(|h| h.start);
-        let (s, t) = (start(d.he_plus)?, start(d.he_minus)?);
-        let line = body
-            .edge_curve_linked(k, d)
-            .certified()
-            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
-        (line && ((us.contains(&s) && ws.contains(&t)) || (us.contains(&t) && ws.contains(&s))))
-            .then_some(k)
-    });
-    let first = held.next()?;
-    held.next().is_none().then_some(first)
 }
 
 /// Records the cell pair `x`, `y` (result keys) under its kind, once:

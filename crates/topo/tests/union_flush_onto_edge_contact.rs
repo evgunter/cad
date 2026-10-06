@@ -1647,7 +1647,10 @@ fn notched_filled(y: &BooleanBody<f64>, tol: Tol) -> BooleanBody<f64> {
 /// `SharedVertexCrossings`. Red in `y ∖ cube` when a carried row's ends
 /// do not reach their null-edge copies: the pinch line's far end lies
 /// inside the cube's face, and the copies the result keeps there are
-/// unrecorded.
+/// unrecorded. Red in `y ∪ cube` (3′ `VertexOnEdge`, `EdgeEdgeOverlap`)
+/// when the join's chord along `y`'s pinch-line edge writes no
+/// substitution row: the op drops the edge and keeps the chord, and a
+/// carried row on the edge has nowhere to land.
 #[test]
 fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
     lens_in_a_lens(

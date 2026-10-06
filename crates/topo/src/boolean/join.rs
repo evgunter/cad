@@ -258,6 +258,9 @@ struct SolidJoin {
     /// per datum, every chord that rides it shares it (the descriptions
     /// stay key-coherent for D6).
     aux: std::collections::BTreeMap<AuxDatum, crate::geometry::SurfaceKey>,
+    /// `(edge, chord)` for every chord minted on a segment along this
+    /// solid's `edge` ([`Self::join`]).
+    along: Vec<(EdgeKey, EdgeKey)>,
 }
 
 /// What an aux surface in [`SolidJoin::aux`] is a copy of, which is
@@ -373,6 +376,13 @@ impl SolidJoin {
     /// ([`ChordJoiner::join`]): `plan`'s chords where the roles are its
     /// order, else the plan of the roles' own order — the ring lane of a
     /// planar face orders the halves by the curve, after it is computed.
+    ///
+    /// A segment whose locus on this solid is an edge is that edge
+    /// (module docs), so a chord minted on it runs along the edge from
+    /// end to end: each is logged in [`Self::along`] as `(edge, chord)`,
+    /// the substitution row the carriage reads where the op drops the
+    /// edge and keeps the chord. The pairing is the locus's key, never
+    /// a position.
     fn join<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
@@ -389,9 +399,14 @@ impl SolidJoin {
             reordered = self.plan(body, roles, segment)?;
             &reordered
         };
-        self.joiner
+        let minted = self
+            .joiner
             .join(body, plan, curve, tol)
             .map_err(BooleanError::Join)?;
+        if let Some(edge) = segment {
+            self.along
+                .extend(minted.into_iter().map(|chord| (edge, chord)));
+        }
         Ok(())
     }
 }
@@ -402,6 +417,7 @@ impl SolidJoin {
             joiner: ChordJoiner::new(band),
             sides: Sides::new(red, operand),
             aux: std::collections::BTreeMap::new(),
+            along: Vec::new(),
         }
     }
 }
@@ -601,6 +617,12 @@ pub(super) struct Connected {
     pub completed: Vec<CompletedPolygonPair>,
     pub a_fragments: Vec<(FaceKey, FaceKey)>,
     pub b_fragments: Vec<(FaceKey, FaceKey)>,
+    /// Each operand's chords along its own edges, `(edge, chord)` in
+    /// that operand's clone keys, A's then B's: every chord a segment
+    /// whose locus on that operand is an edge minted runs along that
+    /// edge between its two ends, so it holds the edge's interior
+    /// where the op drops the edge ([`SolidJoin::join`]).
+    pub along: [Vec<(EdgeKey, EdgeKey)>; 2],
 }
 
 /// The lockstep joining sweep (module docs). Mutates both annotated
@@ -995,6 +1017,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         completed,
         a_fragments: sa.joiner.take_fragments(),
         b_fragments: sb.joiner.take_fragments(),
+        along: [sa.along, sb.along],
     })
 }
 
