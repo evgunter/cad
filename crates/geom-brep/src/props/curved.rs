@@ -3901,9 +3901,17 @@ fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec
                 (TorusStep::Rim { .. }, TorusStep::Rim { .. })
                     | (TorusStep::Meridian { .. }, TorusStep::Meridian { .. })
             );
-        let gap = if ea.forward { eb.t0 - ea.t1 } else { ea.t0 - eb.t1 };
+        let gap = if ea.forward {
+            eb.t0 - ea.t1
+        } else {
+            ea.t0 - eb.t1
+        };
         same && matches!(
-            decide("props_torus_pieces_meet", Margin::levered(gap, minor), exact_band()),
+            decide(
+                "props_torus_pieces_meet",
+                Margin::levered(gap, minor),
+                exact_band()
+            ),
             Ok(Sign::Zero)
         )
     };
@@ -4037,14 +4045,22 @@ fn torus_chart<T: Decide>(
                     let orient =
                         torus_meridian_orient((arc.n_c, arc.c_c), center, axis, minor, band)?;
                     let sign = t_sign::<T>(orient.flip())
-                        * if arc.edge.forward { T::one() } else { -T::one() };
+                        * if arc.edge.forward {
+                            T::one()
+                        } else {
+                            -T::one()
+                        };
                     let step = TorusStep::Meridian {
                         dv: sign * (arc.edge.t1 - arc.edge.t0),
                     };
                     (step, sign)
                 }
             };
-            pieces.push(TorusPiece { edge: e, step, sign });
+            pieces.push(TorusPiece {
+                edge: e,
+                step,
+                sign,
+            });
         }
         for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
             require_zero(
@@ -4136,9 +4152,11 @@ fn torus_chart<T: Decide>(
         let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
         let anchor = lo + (hi - lo) * half;
         let (f_m, g_m) = (f(anchor), g(anchor));
-        let (flux, area) = lifted.iter().fold((T::zero(), T::zero()), |(fl, ar), &(v, du)| {
-            (fl - (f(v) - f_m) * du, ar - (g(v) - g_m) * du)
-        });
+        let (flux, area) = lifted
+            .iter()
+            .fold((T::zero(), T::zero()), |(fl, ar), &(v, du)| {
+                (fl - (f(v) - f_m) * du, ar - (g(v) - g_m) * du)
+            });
         per_loop.push((area, length));
         total.flux = total.flux + flux;
         total.area = total.area + area;

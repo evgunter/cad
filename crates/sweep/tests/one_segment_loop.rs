@@ -386,7 +386,11 @@ fn wrap_edges<T: Real>(body: &Body<T>) -> Vec<(topo::FaceKey, EdgeKey)> {
     for (edge, _) in body.edges() {
         let sides = topo::readback::edge_sides(body, edge).unwrap();
         let (a, b) = sides.faces();
-        assert_eq!(a == b, is_seam(body, edge), "{edge:?}: wrap flag against its faces");
+        assert_eq!(
+            a == b,
+            is_seam(body, edge),
+            "{edge:?}: wrap flag against its faces"
+        );
         if a == b {
             out.push((a, edge));
         }
@@ -415,12 +419,17 @@ fn a_revolved_one_segment_circle_is_one_torus_wall_with_a_wrap_strut() {
             let want = theta * PI * r * r * cx;
             close(volume(&one.body), want, &what);
             let two = revolved(vec![two_arcs_at(cx, cy, r, phase, TAU)], turn, &what);
-            close(volume(&two.body), want, &format!("{what}, the two-arc circle"));
+            close(
+                volume(&two.body),
+                want,
+                &format!("{what}, the two-arc circle"),
+            );
             let walls = one.walls();
             let wall = walls[0][0].expect("the circle sweeps a wall");
             assert!(
                 matches!(
-                    one.body.get_surface(one.body.get_face(wall).unwrap().surface),
+                    one.body
+                        .get_surface(one.body.get_face(wall).unwrap().surface),
                     Some(geom::Surface::Torus { .. })
                 ),
                 "{what}: the wall is a torus"
@@ -435,7 +444,10 @@ fn a_revolved_one_segment_circle_is_one_torus_wall_with_a_wrap_strut() {
             }
             assert!(wraps.iter().all(|&(f, _)| f == wall), "{what}: {wraps:?}");
             let rim = one.rims[0][0].expect("the strut is the vertex's rim");
-            assert!(wraps.iter().any(|&(_, e)| e == rim), "{what}: the strut wraps");
+            assert!(
+                wraps.iter().any(|&(_, e)| e == rim),
+                "{what}: the strut wraps"
+            );
             let mesh = mesh::tessellate(&one.body, 1e-2, tol())
                 .unwrap_or_else(|e| panic!("{what}: meshes: {e}"));
             assert_eq!(mesh::validate::check_mesh(&mesh), Ok(()), "{what}: closed");
@@ -480,7 +492,10 @@ fn one_segment_circles_revolve_as_holes_and_around_them() {
         ),
         (
             "an annulus of two circles",
-            vec![circle(3.0, 0.0, 1.0, TAU), circle_at(3.0, 0.0, 0.5, 2.0, -TAU)],
+            vec![
+                circle(3.0, 0.0, 1.0, TAU),
+                circle_at(3.0, 0.0, 0.5, 2.0, -TAU),
+            ],
             (PI - PI * 0.25) * 3.0,
             (4, 6, 4),
             (2, 4, 2),
@@ -563,7 +578,12 @@ fn one_segment_circles_revolve_at_interval() {
 #[test]
 fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
     let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
-    type Case = (&'static str, Vec<ProfileLoop<f64>>, Vec<ProfileLoop<f64>>, usize);
+    type Case = (
+        &'static str,
+        Vec<ProfileLoop<f64>>,
+        Vec<ProfileLoop<f64>>,
+        usize,
+    );
     let cases: Vec<Case> = vec![
         (
             "a circle",
@@ -574,7 +594,10 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
         (
             "a square with a round hole",
             vec![rect(-2.0, -2.0, 2.0, 2.0), circle(0.25, 0.0, 1.0, TAU)],
-            vec![rect(-2.0, -2.0, 2.0, 2.0), two_arcs_at(0.25, 0.0, 1.0, 0.0, TAU)],
+            vec![
+                rect(-2.0, -2.0, 2.0, 2.0),
+                two_arcs_at(0.25, 0.0, 1.0, 0.0, TAU),
+            ],
             1,
         ),
     ];
@@ -597,7 +620,11 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
             let lofted = sweep::loft_body::<Interval>(&[loops.clone(), loops], &places, 1, tol())
                 .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
             assert_eq!(validate(&lofted.body), Ok(()), "{what} at Interval: tier 1");
-            assert_eq!(validate_closed(&lofted.body), Ok(()), "{what} at Interval: tier 2");
+            assert_eq!(
+                validate_closed(&lofted.body),
+                Ok(()),
+                "{what} at Interval: tier 2"
+            );
             // The face a refusal names differs between the two bodies;
             // what it says about that face is compared.
             match validate_geometric(&lofted.body, tol()) {

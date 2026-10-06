@@ -153,7 +153,11 @@ fn seam_edges(body: &Body<f64>) -> Vec<(EdgeKey, topo::SurfaceKey)> {
 /// meridians, so no edge of it is a wrap edge (D1: a wrap edge's two
 /// halves bound one face).
 fn assert_no_wrap_edges(body: &Body<f64>) {
-    assert_eq!(seam_edges(body), vec![], "a wire's meridians part two π-bands");
+    assert_eq!(
+        seam_edges(body),
+        vec![],
+        "a wire's meridians part two π-bands"
+    );
 }
 
 /// Asserts every Seam edge's samples sit at azimuth ≈ 0 of its own
@@ -725,7 +729,9 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
         .expect("the π meridian is an image of the sphere, so its one meter certifies");
     assert_eq!(
         topo::validate_geometric(&t.body, Tol::witness()),
-        Err(vec![topo::ValidationError::DescriptionNotAdjacent { edge: pi_edge }]),
+        Err(vec![topo::ValidationError::DescriptionNotAdjacent {
+            edge: pi_edge
+        }]),
         "a forged wrap flag on an edge between two faces is refused at tier 3"
     );
 }

@@ -270,7 +270,11 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
             assert_eq!(split_face.len(), 1, "one face carries the shifted piece");
             let meet_s = format!("{meet:?}");
             assert_eq!(split_face[0].1, Err(meet_s), "the door");
-            assert!(split_face[0].2.is_ok(), "the flux lane: {:?}", split_face[0].2);
+            assert!(
+                split_face[0].2.is_ok(),
+                "the flux lane: {:?}",
+                split_face[0].2
+            );
             assert!(split_face[0].3.is_ok(), "the side: {:?}", split_face[0].3);
         }
     }

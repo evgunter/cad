@@ -3343,7 +3343,10 @@ mod tests {
             let p = spec.carrier.eval(sample_param(t0, t1, i));
             m = m.max(implicit_residual(surface, p).abs());
             if let Surface::Cylinder {
-                origin, axis, u_ref, ..
+                origin,
+                axis,
+                u_ref,
+                ..
             } = *surface
             {
                 let d = p - origin;
@@ -4284,14 +4287,20 @@ mod tests {
             dir: Vec3::unit_z(),
         };
         let cut = EdgeCurve::certify(antipode, q0, q1, &lookup, band()).unwrap();
-        let chart = cut.description().chart().expect("a wrap edge is a chart image");
+        let chart = cut
+            .description()
+            .chart()
+            .expect("a wrap edge is a chart image");
         assert!(chart.wrap, "the antipodal ruling carries the wrap flag");
         assert!(
             (chart.pcurve.eval(0.0).x - core::f64::consts::PI).abs() < 1e-12,
             "its image is the iso line at its own chart u: {:?}",
             chart.pcurve.eval(0.0)
         );
-        let (o0, o1) = (Point3::new(r + 1.0, 0.0, 0.0), Point3::new(r + 1.0, 0.0, 3.0));
+        let (o0, o1) = (
+            Point3::new(r + 1.0, 0.0, 0.0),
+            Point3::new(r + 1.0, 0.0, 3.0),
+        );
         let mut off = spec.clone();
         off.carrier = Curve3::Line {
             origin: o0,

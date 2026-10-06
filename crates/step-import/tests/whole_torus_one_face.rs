@@ -88,7 +88,11 @@ fn the_whole_torus_is_one_face_cut_once_each_way() {
     );
     for (edge, _) in body.edges() {
         let sides = topo::readback::edge_sides(&body, edge).unwrap();
-        assert_eq!(sides.faces(), (faces[0], faces[0]), "{edge:?}: both halves bound the face");
+        assert_eq!(
+            sides.faces(),
+            (faces[0], faces[0]),
+            "{edge:?}: both halves bound the face"
+        );
         let e = body.get_edge(edge).unwrap();
         let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         assert!(
@@ -102,8 +106,16 @@ fn the_whole_torus_is_one_face_cut_once_each_way() {
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "tier 3");
     let mp = topo::mass_properties(&body, tol()).unwrap();
     let (volume, area) = (2.0 * PI * PI * R * MINOR * MINOR, 4.0 * PI * PI * R * MINOR);
-    assert!((mp.volume - volume).abs() < 1e-12, "volume {} vs {volume}", mp.volume);
-    assert!((mp.surface_area - area).abs() < 1e-12, "area {} vs {area}", mp.surface_area);
+    assert!(
+        (mp.volume - volume).abs() < 1e-12,
+        "volume {} vs {volume}",
+        mp.volume
+    );
+    assert!(
+        (mp.surface_area - area).abs() < 1e-12,
+        "area {} vs {area}",
+        mp.surface_area
+    );
     let chordal = 1e-3;
     let mesh = mesh::tessellate(&body, chordal, tol()).expect("the whole torus meshes");
     assert_eq!(mesh::validate::check_mesh(&mesh), Ok(()), "the mesh closes");
@@ -121,11 +133,31 @@ fn the_whole_torus_answers_containment_and_a_disjoint_union() {
     let body = whole_torus();
     let band = Band::linear(tol()).unwrap();
     for (what, q, want) in [
-        ("on the tube's centre circle", Point3::new(R, 0.0, 0.0), SolidContainment::In),
-        ("in the tube", Point3::new(-0.7, 0.7, 0.1), SolidContainment::In),
-        ("in the hole", Point3::new(0.0, 0.0, 0.0), SolidContainment::Out),
-        ("past the rim", Point3::new(2.0, 0.0, 0.0), SolidContainment::Out),
-        ("over the tube", Point3::new(R, 0.0, 0.5), SolidContainment::Out),
+        (
+            "on the tube's centre circle",
+            Point3::new(R, 0.0, 0.0),
+            SolidContainment::In,
+        ),
+        (
+            "in the tube",
+            Point3::new(-0.7, 0.7, 0.1),
+            SolidContainment::In,
+        ),
+        (
+            "in the hole",
+            Point3::new(0.0, 0.0, 0.0),
+            SolidContainment::Out,
+        ),
+        (
+            "past the rim",
+            Point3::new(2.0, 0.0, 0.0),
+            SolidContainment::Out,
+        ),
+        (
+            "over the tube",
+            Point3::new(R, 0.0, 0.5),
+            SolidContainment::Out,
+        ),
     ] {
         assert_eq!(
             topo::point_in_solid(&body, q, band, tol()).unwrap(),
@@ -141,7 +173,11 @@ fn the_whole_torus_answers_containment_and_a_disjoint_union() {
     );
     let out = topo::union(&a, &far, tol()).expect("a disjoint union builds");
     let b = &out.body().expect("not empty").body;
-    assert_eq!(topo::validate_geometric(b, tol()), Ok(()), "the union's tier 3");
+    assert_eq!(
+        topo::validate_geometric(b, tol()),
+        Ok(()),
+        "the union's tier 3"
+    );
     let v = topo::mass_properties(b, tol()).unwrap().volume;
     let want = 2.0 * PI * PI * R * MINOR * MINOR + 1.0;
     assert!((v - want).abs() < 1e-12, "union volume {v} vs {want}");

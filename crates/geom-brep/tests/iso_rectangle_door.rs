@@ -353,7 +353,11 @@ fn pieces_from_distinct_edges_never_fold() {
                 && (c.area - ctl.area).abs() <= 1e-12 * ctl.area,
             "{name}: flux lane {c:?} vs the control {ctl:?}"
         );
-        assert_eq!(boundary_material_sign(&s, loop_, band()), Ok(side), "{name}: side");
+        assert_eq!(
+            boundary_material_sign(&s, loop_, band()),
+            Ok(side),
+            "{name}: side"
+        );
     };
     // The same values, distinct identities on one meridian's pieces.
     measures(

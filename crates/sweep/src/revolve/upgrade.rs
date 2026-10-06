@@ -211,7 +211,9 @@ pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
         geom::Surface::Plane { .. }
     );
     let (f_plus, f_minus) = topo::readback::edge_sides(body, edge)
-        .unwrap_or_else(|_| unreachable!("meridian {edge:?} was minted by this revolve and is live"))
+        .unwrap_or_else(|_| {
+            unreachable!("meridian {edge:?} was minted by this revolve and is live")
+        })
         .faces();
     if is_plane || f_plus != f_minus {
         // The meridian is at rest in that wall's chart, and the
