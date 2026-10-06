@@ -101,7 +101,10 @@
 //! downstream unchanged.
 
 use geom::Surface;
-use geom_core::{Band, Indeterminate, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING, Sign};
+use geom_core::{
+    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,
+    Sign,
+};
 
 use crate::dihedral::decide;
 use geom::SurfaceKind;
@@ -530,10 +533,12 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetDistanceError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Offset(error) => write!(f, "{error}"),
+            // The caller asked for the distance between two surfaces it
+            // holds as an offset pair, so a kind mismatch is its defect.
             Self::KindsDiffer { from, onto } => write!(
                 f,
-                "offset_distance: a {} is never the offset of a {}, since an offset keeps its \
-                 kind",
+                "a {} is never the offset of a {}, since an offset keeps its kind. \
+                 {KERNEL_DEFECT_ENDING}",
                 onto.name(),
                 from.name()
             ),
