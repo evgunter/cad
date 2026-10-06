@@ -76,13 +76,20 @@ fn shaft_volume(h: f64) -> f64 {
 }
 
 /// The shaft spans, by name: through both rims; exactly the bore; and
-/// flush at one rim, proud of the other. A shaft ending inside the
-/// bore is `work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex.md`.
+/// flush at one rim, proud of the other.
 const SPANS: [(&str, f64, f64); 4] = [
     ("through", 0.5, 2.0),
     ("flush", 1.0, 1.0),
     ("proud above", 1.0, 1.5),
     ("proud below", 0.5, 1.5),
+];
+
+/// The blind spans: the shaft enters through one rim and its cap floats
+/// inside the bore. A shaft wholly inside the bore is
+/// `work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex.md`.
+const BLIND: [(&str, f64, f64); 2] = [
+    ("blind from below", 0.5, 1.0),
+    ("blind from above", 1.5, 1.0),
 ];
 
 /// `got` against the closed form, relative to the larger operand.
@@ -125,9 +132,14 @@ fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str)
 
 /// **The union** at every span and pose, in both operand orders.
 fn unions_at(collar: &Body<f64>, deg: f64, what: &str) {
+    unions_over(collar, deg, what, &SPANS);
+}
+
+/// [`unions_at`] over the spans named.
+fn unions_over(collar: &Body<f64>, deg: f64, what: &str, spans: &[(&str, f64, f64)]) {
     for (pose_name, pose) in crate::common::poses::poses() {
         let c = placed(collar, &pose);
-        for (span, y0, h) in SPANS {
+        for &(span, y0, h) in spans {
             let p = placed(&shaft(deg, y0, h), &pose);
             let tag = format!("{what}, azimuth {deg}, {span}, pose {pose_name}");
             unions_both_ways(&c, &p, h, &tag);
@@ -148,6 +160,16 @@ fn a_shaft_off_the_bores_seam_unions() {
 #[test]
 fn a_shaft_a_quarter_turn_off_the_bores_seam_unions() {
     unions_at(&collar(), 90.0, "one-face bore");
+}
+
+/// **A blind shaft unions** on the bore's seam, off it and a quarter
+/// turn off it, at every pose and in both operand orders: its floating
+/// cap rim crosses the bore's seam ruling, and the section joins it.
+#[test]
+fn a_blind_shaft_unions_on_and_off_the_bores_seam() {
+    for deg in [0.0, 60.0, 90.0] {
+        unions_over(&collar(), deg, "one-face bore", &BLIND);
+    }
 }
 
 /// **Off the seam, the zip builds the mate**: the join's surgery
@@ -267,11 +289,21 @@ fn split_collar() -> Body<f64> {
 /// one-face bore's rims have its flat caps, which do. At the bore's
 /// seam azimuth every shaft span unions in both orders and at every
 /// pose. Off the seam, the circle's own vertex sits inside a shaft wall
-/// third with no counterpart for the zip
-/// (`work/zip/a-vertex-of-one-solid-inside-the-rest-contact-has-no-twin.md`).
+/// third
+/// ([`a_bore_split_on_its_own_carrier_unions_off_the_seam_where_the_shaft_ends_at_a_rim`]).
 #[test]
 fn a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth() {
     unions_at(&split_collar(), 0.0, "split bore");
+}
+
+/// **Off the seam, the split bore unions where the shaft ends at a
+/// rim**: flush, proud above and proud below, at every pose and in both
+/// operand orders, though the circle's vertex sits inside a shaft wall
+/// third. The through span is
+/// `work/zip/a-vertex-of-one-solid-inside-the-rest-contact-has-no-twin.md`.
+#[test]
+fn a_bore_split_on_its_own_carrier_unions_off_the_seam_where_the_shaft_ends_at_a_rim() {
+    unions_over(&split_collar(), 60.0, "split bore", &SPANS[1..]);
 }
 
 /// **The other three ops answer the closed form**: `∩` empty in both

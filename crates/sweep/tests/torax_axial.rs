@@ -531,7 +531,7 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 /// parallel to it, and cuts the moved torus in a SPIRIC — sampled
 /// below as the oval's own half-width against its half-height, which
 /// a circle would make equal — so the rim mints as `Curve3::Spiric`,
-/// its window read forward of its start (`offset_axial_rim_window`).
+/// its window read forward of its start (`offset_axial_edge_window`).
 /// The disc's two profile vertices revolve into `RevolvedPoint`-declared
 /// equator seams whose ends the moved caps turn about the axis, and the
 /// declarations follow the corners. The hollow assembles, passes checks
@@ -820,6 +820,63 @@ fn torax_the_sphere_lune_hollows_to_its_closed_form() {
     // And shell walks the WHOLE hollow — corners, carriers, pcurves,
     // containment — and its closing gate measures the cavity's lens.
     assert_hollow_lune("the one-arc lune", &body, r, 0.05);
+}
+
+/// **The sphere lune's LIFT.** Opening the quarter-turn lune at a
+/// meridian cap lifts that cap's cavity counterpart back onto the
+/// cap's own plane, through the axis, so the rim the lift mints there
+/// is the moved pair's GREAT circle where the cavity's was a small one.
+/// The cavity then reaches that plane and keeps the other cap's slab:
+/// the ball of radius `R = r − t` on `{x ≥ t, z ≥ 0}`,
+/// `(π/2)(2R³/3 − R²t + t³/3)`.
+///
+/// **Both caps** lift too — the second lift moves the rim corner the
+/// two cavity caps met at ONTO the axis, the pole the two moved caps
+/// now meet at — and stop at the rim glue: the two mouths are adjacent
+/// across the axis, so a counterpart's boundary meets its designated
+/// face's, which a box opened at two adjacent faces meets the same way
+/// (`ShellError::OpenFaceRimNotExpressible`'s own scope; scheduled as
+/// `work/shelf/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md`).
+#[test]
+fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
+    let (r, t) = (0.3, 0.05);
+    let body = lune(r, core::f64::consts::FRAC_PI_2);
+    let caps: Vec<FaceKey> = body
+        .faces()
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(caps.len(), 2, "a partial revolve has two meridian caps");
+    let open = |designated: &[FaceKey]| {
+        topo::shell_open(
+            &finished("the operand", body.clone(), tol()),
+            t,
+            designated,
+            tol(),
+        )
+    };
+
+    let one = open(&caps[..1])
+        .unwrap_or_else(|e| panic!("the lune opens at one cap, got {e:?}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&one, tol()), Ok(()));
+    let got = topo::mass_properties(&one, tol())
+        .expect("the opened lune measures")
+        .volume;
+    let (pi, big_r) = (core::f64::consts::PI, r - t);
+    let cavity = pi / 2.0 * (2.0 * big_r.powi(3) / 3.0 - big_r * big_r * t + t.powi(3) / 3.0);
+    let want = pi * r * r * r / 3.0 - cavity;
+    println!("[torax] the lune opened at one cap: {got}, closed form {want}");
+    assert!(
+        (got - want).abs() / want < 1e-12,
+        "opened wall {got:.15e} != {want:.15e}"
+    );
+
+    let both = open(&caps[..]).expect_err("two mouths adjacent across the axis");
+    assert!(
+        matches!(both, ShellError::OpenFaceRimNotExpressible { .. }),
+        "the lifts pass and the glue refuses, got {both:?}"
+    );
 }
 
 /// The cavity a hollow of thickness `t` leaves in the quarter-turn

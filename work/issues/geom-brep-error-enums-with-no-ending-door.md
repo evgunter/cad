@@ -1,7 +1,7 @@
 ---
 id: geom-brep-error-enums-with-no-ending-door
 kind: issue
-title: geom-brep: six error enums have neither an ending door nor an inline recourse on most arms; whether each reaches a surface that shows it is untraced
+title: geom-brep: five error enums have neither an ending door nor an inline recourse on most arms; whether each reaches a surface that shows it is untraced
 status: open
 opened: 2026-10-02
 ---
@@ -25,12 +25,14 @@ recourse:
 | `SectionError` | `intersect.rs` | 9 of 11 | germ, reach, tang |
 | `PropsError` | `props/mod.rs` | 7 of 8 | — |
 | `PcurveError` | `pcurve.rs` | 5 of 5 | — |
-| `OffsetError` | `offset.rs` | 5 of 5 | — |
 | `NewellError` | `newell.rs` | 3 of 3 | — |
 | `IsoRowError` | `nurbs_iso.rs` | 3 of 4 | iso (by subject) |
 
 **Not traced:** whether any of these reach a surface a person reads
-unwrapped. A caller may wrap one and add its own ending, as topo does
+unwrapped. (`OffsetError` left this table with SHELL's refusal-text
+unit: every arm now states a recourse or that there is no way through,
+and the feature-tree guard renders each through the shell op.) A caller
+may wrap one and add its own ending, as topo does
 for `CertifyError`, or the enum may only ever reach kernel developers.
 The repair depends on the answer: an ending door like
 `SsiError::ending`, or a note on the variant saying who ends it.

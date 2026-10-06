@@ -562,18 +562,26 @@ pub struct StableName {
     pub path: RolePath,
 }
 
-// The human-readable rendering: the kind (through [`EntityKind::noun`],
-// never `Debug`) plus the minting node — the half of a name a user can
-// act on. The role path is a derivation, not something a person reads
-// mid-sentence, so prose never renders it; the typed value remains the
-// machine channel for anything that needs the path. Article-free
-// ("face name minted by node 3") so a sentence supplies its own
-// article. Refusal prose that names a name forwards this rather than
-// re-spelling it.
+// The human-readable rendering: the path as a structure is the machine
+// channel; a person reads it in words ([`super::LeafRole`]), each node
+// and step by its tag, in full (`the end cap of node 000000000003`).
+// Article-led, so a sentence takes it as a noun phrase. This is
+// [`crate::Speaker::name`] said by tag, the one spelling every sentence
+// that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
+        crate::spoken::Speaker::TAG.name(self).fmt(f)
     }
+}
+
+/// Where the trailing run of `Fragment` segments of `path` starts: the
+/// length of what they qualify. The one reading of "a name with only
+/// fragments after it", for a group's parent, its cutters, a seam row
+/// and a name said in words alike.
+pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
+    path.iter()
+        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
+        .map_or(0, |i| i + 1)
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition
@@ -1164,11 +1172,14 @@ pub enum RoleSeg {
         /// union's table).
         b: NameRef,
     },
-    /// An F7 merged face: the sorted, FLAT set of constituent names
-    /// retires into this name (N3; canonical order = name order). A
-    /// constituent is never itself a BARE merged face, through any
+    /// An F7 merged face, or an edge a boolean's output stage joined
+    /// across several operand or member edges (`names/README.md`,
+    /// "Flush edges at a union"): the sorted, FLAT set of constituent
+    /// names retires into this name (N3; canonical order = name order). A
+    /// constituent is never itself a BARE merged name, through any
     /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
-    /// faces, never the merge. The one carve-out, stated here and
+    /// faces, never the merge, and an edge set lists edges. The one
+    /// carve-out, stated here and
     /// pointed at from every other site: a FRAGMENT of a merged face
     /// (`[Merged(set), Fragment(q)]`) is a face in its own right, a
     /// legitimate constituent, and is not nesting.

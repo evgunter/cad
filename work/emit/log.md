@@ -1972,3 +1972,19 @@ The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pn
 ## 2026-10-06 — PR 4166: the part chooser proposes an editable label
 
 `add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
+
+## 2026-10-06 — the strict-tolerance reds, traced
+
+Several PRs failed CI's strict-tolerance step today (#4164 among them).
+#4083 had already fixed the cause on main: sweep rows from #4120 and
+#4074 used fixed tolerances. On main at c1199a2a56 the workspace passes
+12078/12078 with `--profile ci` at 1e-6 and 1e-12, at CI's opt-level.
+
+Two nightly-only reds remain, both stale test pins, fixed on
+`emit/nightly-eps-stale-pins`:
+- `pocket_ring_steep_ellipse` at 1e-6 (join row closed);
+- `arc_loft` and `r1_dm1_probe`, which pinned prose that #3942 reworded,
+  at 1e-12 (exch row closed).
+
+Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
+with `return_content=false` returns a signed URL that `curl` fetches.
