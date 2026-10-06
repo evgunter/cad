@@ -491,31 +491,24 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         topo::validate_pseudomanifold(body, contacts, Tol::witness()),
         Ok(())
     );
-    // Review F6: this shape is the corpus's PURE-seam-vertex pin —
-    // the merged caps keep, on their boundary, the vertices where the
-    // two blocks' walls cross, each named from ONE seam line (single
-    // Seam-headed path, no junction composition); the bent seam's
+    // Review F6: the merged caps keep, on their boundary, the vertices
+    // where the two blocks' walls cross, each named as the one crossing
+    // of two wall edges (no junction composition); the bent seam's
     // corner, the one vertex the merge deletes, is not among them.
     // Assert they exist.
-    let pure_seam_vertices = ev
+    let wall_crossings = ev
         .value(u)
         .unwrap()
         .name_table
         .iter()
         .filter(|(n, _)| {
             n.kind == EntityKind::Vertex
-                && matches!(n.path.first(), Some(RoleSeg::Seam { .. }))
-                && n.path
-                    .iter()
-                    .filter(|seg| matches!(seg, RoleSeg::Seam { .. }))
-                    .count()
-                    == 1
+                && matches!(n.path.as_slice(), [RoleSeg::EdgeCrossing { .. }])
         })
         .count();
     assert!(
-        pure_seam_vertices >= 2,
-        "expected the pure-seam-vertex naming arm to fire (single-line \
-         seam vertices), got {pure_seam_vertices}"
+        wall_crossings >= 2,
+        "expected the wall edges' crossings to be named, got {wall_crossings}"
     );
 }
 

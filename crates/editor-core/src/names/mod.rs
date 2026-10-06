@@ -84,7 +84,7 @@ pub(crate) use role::name_free_seg;
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle,
-    SplitHalf, StableName, band, band_pi, band_rim, carried, meridian_vertex,
+    Sense, SplitHalf, StableName, band, band_pi, band_rim, carried, meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{Lift, VerbatimEdge, lift, verbatim_edge};

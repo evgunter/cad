@@ -619,6 +619,8 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         }
         RoleSeg::FromMember { .. } => write!(f, "a union member's entity"),
         RoleSeg::Seam { .. } => write!(f, "a boolean seam"),
+        RoleSeg::Crossing { .. } => write!(f, "a boolean crossing of an edge by a face"),
+        RoleSeg::EdgeCrossing { .. } => write!(f, "a boolean crossing of two edges"),
         RoleSeg::Merged(_) => write!(f, "a merged face"),
         RoleSeg::Fragment(_) => write!(f, "a fragment"),
         RoleSeg::SplitBody(_) => write!(f, "a split body"),
@@ -1852,13 +1854,15 @@ fn group_reading(groups: &crate::names::FragmentGroups, base: &StableName) -> Op
 /// entities that made it (`names::emit_topo`, `name_boolean_edges` and
 /// `name_boolean_vertices`): a seam EDGE by two faces, so a face
 /// group's parent meets its cutters along seam edges; a seam VERTEX by
-/// an edge and the face, edge or vertex it met, so an edge group's
-/// parent meets them at seam vertices. So the rows read are the minting
-/// node's own rows of the kind one down from the group's — an edge for
-/// a face group, a vertex for an edge group — with a `Seam` segment one
-/// side of which is on the parent. Such a row is read when it is one
-/// `Seam { a, b }` with only `Fragment`s after it, however many (the
-/// pair is matched, not the row). Any other shape on the parent makes
+/// an edge and the face, edge or vertex it met (a `Crossing`, an
+/// `EdgeCrossing` or a `Seam`), so an edge group's parent meets them at
+/// seam vertices. So the rows read are the minting node's own rows of
+/// the kind one down from the group's — an edge for a face group, a
+/// vertex for an edge group — with such a segment one side of which is
+/// on the parent, a `Crossing`'s edge being its one side that can be.
+/// Such a row is read when it is one such segment with only
+/// `Fragment`s after it, however many (the pair is matched, not the
+/// row). Any other shape on the parent makes
 /// the whole reading [`GroupCutters::SeamUnread`]: a comparison that
 /// skipped it could name a cutter gone that was only not read. A face
 /// group's seam VERTICES (a cutter's edge piercing the face) are of the
@@ -2031,22 +2035,29 @@ impl<'a> SeamParent<'a> {
             if row.node != base.node || row.kind != seam_kind {
                 continue;
             }
-            let on_parent = row.path.iter().any(|seg| match seg {
-                RoleSeg::Seam { a, b } => self.across(base, a, b).is_some(),
-                _ => false,
-            });
+            let on_parent = row.path.iter().any(|seg| self.cut_by(base, seg).is_some());
             if !on_parent {
                 continue;
             }
-            let (RoleSeg::Seam { a, b }, tail) = row.path.split_first()? else {
-                return None;
-            };
+            let (head, tail) = row.path.split_first()?;
             if fragment_tail_start(tail) != 0 {
                 return None;
             }
-            out.insert(self.normalized(self.across(base, a, b)?));
+            out.insert(self.normalized(self.cut_by(base, head)?));
         }
         Some(out)
+    }
+
+    /// The cutter across seam segment `seg` from the parent: across a
+    /// `Seam`'s or an `EdgeCrossing`'s sides ([`SeamParent::across`]),
+    /// and a `Crossing`'s face where its edge is on the parent; `None`
+    /// for a segment of any other shape, or one not on the parent.
+    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Option<&'n StableName> {
+        match seg {
+            RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => self.across(base, a, b),
+            RoleSeg::Crossing { edge, face, .. } => self.holds(base, edge).then_some(&**face),
+            _ => None,
+        }
     }
 }
 
@@ -2487,7 +2498,11 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
                     }
                 }
             }
-            RoleSeg::Seam { a, b } => {
+            RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
             }

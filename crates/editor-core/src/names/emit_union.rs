@@ -31,14 +31,14 @@
 //! sorted, and a `Seam`'s two sides are put in name order, because a
 //! union has no A and B.
 //!
-//! Putting a `Seam`'s sides in name order can also rewrite a VALUE in
-//! the tail. A seam-vertex group ranked along a seam edge is ranked as
-//! the loop of that seam's first side runs along it, so where the pair
-//! comes out swapped in name order the rank reads from the other end
-//! (`of − 1 − rank`). Which ranks lie on a seam line, and which pair's
-//! line, is ONE answer, `names::seam_pair`, read by the pair emitter to
-//! orient the edge and by the canonical form (`names::canonical`) to
-//! decide what the ordering does.
+//! Putting a `Seam`'s sides in name order can also rewrite a VALUE.
+//! A crossing of a seam edge reads its sense, and a group of them its
+//! ranks, as the loop of that seam's first side runs along it, so where
+//! the pair comes out swapped in name order the sense flips and the rank
+//! reads from the other end (`of − 1 − rank`). Which crossings lie on a
+//! seam line, and which pair's line, is ONE answer, `names::seam_pair`,
+//! read by the pair emitter to orient the edge and by the canonical form
+//! (`names::canonical`) to decide what the ordering does.
 //!
 //! More rewrites happen at the END, on the published table only,
 //! because they read the finished table or the finished body. Each
@@ -118,11 +118,11 @@ use crate::names::emit_topo::{
     CrossedEdge, FaceDescent, OnSegment, Segment, name_edge_pieces, name_parent_faces,
     rank_crossings,
 };
-use crate::names::groups::Rederived;
+use crate::names::groups::{CrossingSenses, Rederived};
 use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
-    Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName,
+    Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, Sense, StableName,
     never_in_a_boolean_table,
 };
 use crate::names::table::{EntityKey, Entry, NameTable};
@@ -210,7 +210,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
     let parents = Parents::of(node, body, members, fold, links)?;
-    let flush = Flush::of(node, body, members, &parents, bnd)?;
+    let flush = Flush::of(node, body, members, &parents, &fold.senses, bnd)?;
     let by_parents = name_by_parents(node, &t, body, &parents, fold, &flush)?;
     let (t, member_edges) = group_member_edges(by_parents.table, by_parents.held, &flush)?;
     let mut t = cite_member_edges(
@@ -414,6 +414,8 @@ struct Flush<'a, T: geom_core::Decide> {
     edges: BTreeMap<topo::EdgeKey, BTreeSet<MemberEntity>>,
     /// Finished face → its name.
     face_names: BTreeMap<topo::FaceKey, StableName>,
+    /// Finished vertex → the senses the step that minted it read there.
+    senses: &'a CrossingSenses,
     bnd: geom_core::Band,
 }
 
@@ -425,6 +427,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         body: &'a topo::Body<T>,
         members: &'a [Member<'a, T>],
         parents: &Parents,
+        senses: &'a CrossingSenses,
         bnd: geom_core::Band,
     ) -> Result<Self, NamingError> {
         let mut faces = BTreeMap::new();
@@ -442,6 +445,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             faces,
             edges: BTreeMap::new(),
             face_names,
+            senses,
             bnd,
         };
         let mut edges = BTreeMap::new();
@@ -517,13 +521,19 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     }
 
     /// **Finished vertex `v` where one member edge is crossed by one
-    /// face**, named `Seam { edge, face }` in name order: the edge is the
+    /// face**, named `Crossing { edge, face, sense }`: the edge is the
     /// least member edge the finished edges at `v` lie within, and it is
     /// one line — every finished edge at `v` that lies within a member
     /// edge names the same least one; the face is the one face at `v`
     /// that descends from none of the faces of the member edges along
-    /// that line, cited without its `Fragment`s. Anything else is `None`.
-    fn crossing(&self, v: topo::VertexKey) -> Result<Option<StableName>, NamingError> {
+    /// that line, cited without its `Fragment`s. The sense is the one
+    /// the fold step that minted the vertex read, carried by its name
+    /// `fold` ([`Flush::carried_sense`]). Anything else is `None`.
+    fn crossing(
+        &self,
+        v: topo::VertexKey,
+        fold: &StableName,
+    ) -> Result<Option<StableName>, NamingError> {
         let at = self.inc.vertex_edges.get(&v).map_or(&[][..], Vec::as_slice);
         let mut lines = BTreeSet::new();
         let mut along = BTreeSet::new();
@@ -573,20 +583,156 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (Some(face), None) = (others.next(), others.next()) else {
             return Ok(None);
         };
-        let edge = entity_name(self.union, &(member, edge));
-        let (a, b) = if edge < face {
-            (edge, face)
-        } else {
-            (face, edge)
+        let sense = match self.carried_sense(fold, &(member, edge.clone()))? {
+            Some(sense) => sense,
+            None => self.read_sense(v, &(member, edge.clone()))?,
         };
+        let edge = entity_name(self.union, &(member, edge));
         Ok(Some(StableName {
             kind: EntityKind::Vertex,
             node: self.union,
-            path: vec![RoleSeg::Seam {
-                a: NameRef::new(a),
-                b: NameRef::new(b),
+            path: vec![RoleSeg::Crossing {
+                edge: NameRef::new(edge),
+                face: NameRef::new(face),
+                sense,
             }],
         }))
+    }
+
+    /// **The sense a vertex's fold name carries along member edge
+    /// `edge`**: a `Crossing`'s, or the sense of an `EdgeCrossing`'s edge
+    /// that lies on `edge`'s line, read along `edge` — as it stands
+    /// where the fold's edge is `edge`, flipped where the fold's runs the
+    /// other way along the line ([`Flush::same_way`]). `None` where the
+    /// fold name carries none.
+    fn carried_sense(
+        &self,
+        fold: &StableName,
+        edge: &MemberEntity,
+    ) -> Result<Option<Sense>, NamingError> {
+        let carried: Vec<(&StableName, Sense)> = match fold.path.first() {
+            Some(RoleSeg::Crossing { edge, sense, .. }) => vec![(edge, *sense)],
+            Some(RoleSeg::EdgeCrossing {
+                a,
+                a_sense,
+                b,
+                b_sense,
+            }) => vec![(a, *a_sense), (b, *b_sense)],
+            _ => Vec::new(),
+        };
+        for (cited, sense) in carried {
+            let Some((member, of, _)) = member_edge_piece(cited) else {
+                continue;
+            };
+            if let Some(same) = self.same_way(&(member, of), edge)? {
+                return Ok(Some(if same { sense } else { sense.flipped() }));
+            }
+        }
+        Ok(None)
+    }
+
+    /// **The sense at finished vertex `v` along member edge `edge`, as
+    /// the fold step that minted the vertex read it** where the vertex's
+    /// fold name carries none: the [`Fold`]'s record of the senses read
+    /// there, each edge collapsed to the member edge it lies on, and the
+    /// one on `edge`'s line read along `edge` ([`Flush::same_way`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::Emission`] where no edge read there lies on the
+    /// line, or two read it differently.
+    fn read_sense(&self, v: topo::VertexKey, edge: &MemberEntity) -> Result<Sense, NamingError> {
+        let mut found = BTreeSet::new();
+        for (name, sense) in self.senses.get(&v).into_iter().flatten() {
+            let Some((member, of, _)) = member_edge_piece(&collapse_name(self.union, name)?) else {
+                continue;
+            };
+            if let Some(same) = self.same_way(&(member, of), edge)? {
+                found.insert(if same { *sense } else { sense.flipped() });
+            }
+        }
+        let mut found = found.into_iter();
+        match (found.next(), found.next()) {
+            (Some(sense), None) => Ok(sense),
+            (None, _) => Err(NamingError::Emission {
+                what: "a union's crossing has no sense read along its edge at the step that minted it",
+            }),
+            (Some(_), Some(_)) => Err(NamingError::Emission {
+                what: "a union's crossing reads two senses along its edge",
+            }),
+        }
+    }
+
+    /// Whether member edge `of` runs the same way as member edge `like`:
+    /// `Some(true)` for the same edge, and for a straight edge lying on
+    /// `like`'s straight line the way their directions agree; `None`
+    /// where `of` does not lie on that line.
+    fn same_way(
+        &self,
+        of: &MemberEntity,
+        like: &MemberEntity,
+    ) -> Result<Option<bool>, NamingError> {
+        if of == like {
+            return Ok(Some(true));
+        }
+        let (of_body, of_edge) = member_edge(self.members, of.0, of.1.name())?;
+        let (like_body, like_edge) = member_edge(self.members, like.0, like.1.name())?;
+        if !(straight(of_body, of_edge) && straight(like_body, like_edge)) {
+            return Ok(None);
+        }
+        Segment::of_edge(like_body, like_edge)?.runs_with(
+            &Segment::of_edge(of_body, of_edge)?,
+            ON_MEMBER_EDGE,
+            self.bnd,
+        )
+    }
+
+    /// `now`, the rewrite of vertex name `was` with every member edge it
+    /// cites whole, with each sense it carries re-read along the edge it
+    /// now cites ([`Flush::same_way`]): a sense read along a member edge
+    /// is flipped where the rewrite cites another one running the other
+    /// way along the line.
+    fn resensed(&self, was: &StableName, mut now: StableName) -> Result<StableName, NamingError> {
+        let mut pairs: Vec<(&StableName, (&mut NameRef, &mut Sense))> = Vec::new();
+        match (was.path.first(), now.path.first_mut()) {
+            (
+                Some(RoleSeg::Crossing { edge: old, .. }),
+                Some(RoleSeg::Crossing { edge, sense, .. }),
+            ) => pairs.push((old, (edge, sense))),
+            (
+                Some(RoleSeg::EdgeCrossing { a: oa, b: ob, .. }),
+                Some(RoleSeg::EdgeCrossing {
+                    a,
+                    a_sense,
+                    b,
+                    b_sense,
+                }),
+            ) => {
+                pairs.push((oa, (a, a_sense)));
+                pairs.push((ob, (b, b_sense)));
+            }
+            _ => {}
+        }
+        for (old, (edge, sense)) in pairs {
+            let (Some((m0, e0, _)), Some((m1, e1, _))) =
+                (member_edge_piece(old), member_edge_piece(edge))
+            else {
+                continue;
+            };
+            if (m0, &e0) == (m1, &e1) {
+                continue;
+            }
+            match self.same_way(&(m0, e0), &(m1, e1))? {
+                Some(true) => {}
+                Some(false) => *sense = sense.flipped(),
+                None => {
+                    return Err(NamingError::Emission {
+                        what: "a union cites a crossing's edge whole as a member edge off its line",
+                    });
+                }
+            }
+        }
+        Ok(now)
     }
 
     /// The member edge a name of finished vertex `v` cites whole, where
@@ -723,16 +869,18 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, NameRef, bool)>
 /// A vertex that sits at a member vertex is that member vertex, the
 /// least if several members have one there ([`Flush::least_vertex`]).
 /// One that lies along one member edge, crossed there by one face, is
-/// `Seam { edge, face }` ([`Flush::crossing`]), however the fold met it
-/// — as a seam of the edge's faces, or as a junction of seam lines.
+/// `Crossing { edge, face, sense }` ([`Flush::crossing`]), however the
+/// fold met it — as a crossing of the edge, or as a junction of seam
+/// lines — with the sense the step that minted it read.
 ///
 /// Any other seam vertex embeds the member edge it lies on as far as the fold
 /// had cut it when it met the vertex — a piece that no published name
 /// denotes. It is cited as `FromMember(m, e)`, which is how a vertex
 /// already cites an edge the fold had not cut, and as the least member
-/// edge through the vertex along that line ([`Flush::least_at`]). The
-/// rewrite is [`StableName::rewrite_path`], which ends in the canonical
-/// form (`names::canonical::rewritten`).
+/// edge through the vertex along that line ([`Flush::least_at`]), each
+/// sense it carries re-read along the edge it now cites
+/// ([`Flush::resensed`]). The rewrite is [`StableName::rewrite_path`],
+/// which ends in the canonical form (`names::canonical::rewritten`).
 ///
 /// A vertex's own trailing rank is fold history too once its name moved,
 /// so vertices are grouped by their name without it. A group of several
@@ -785,17 +933,20 @@ fn cite_member_edges<T: geom_core::Decide>(
             None => None,
         };
         let crossing = match (&member_vertex, at) {
-            (None, Some(v)) => flush.crossing(v)?,
+            (None, Some(v)) => flush.crossing(v, &name)?,
             _ => None,
         };
         let cited = match (member_vertex, crossing) {
             (Some(vertex), _) => entity_name(name.node, &vertex),
             (None, Some(crossing)) => crossing,
-            (None, None) => name.clone().rewrite_path(&mut WholeMemberEdges {
-                union: name.node,
-                at,
-                flush,
-            })?,
+            (None, None) => {
+                let whole = name.clone().rewrite_path(&mut WholeMemberEdges {
+                    union: name.node,
+                    at,
+                    flush,
+                })?;
+                flush.resensed(&name, whole)?
+            }
         };
         if cited.kind != EntityKind::Vertex {
             put_entry(&mut out, cited, &entry)?;
@@ -820,7 +971,13 @@ fn cite_member_edges<T: geom_core::Decide>(
         }
         let whole = |n: &StableName| member_edge_piece(n).filter(|(_, _, qualified)| !qualified);
         let carrier = match base.path.as_slice() {
-            [RoleSeg::Seam { a, b }] => match (whole(a), whole(b)) {
+            [
+                RoleSeg::Seam { a, b }
+                | RoleSeg::EdgeCrossing { a, b, .. }
+                | RoleSeg::Crossing {
+                    edge: a, face: b, ..
+                },
+            ] => match (whole(a), whole(b)) {
                 (Some(m), None) | (None, Some(m)) => Some(m),
                 (Some(_), Some(_)) => return Err(bug(Unrankable::SidedVertexRank.what())),
                 (None, None) if respelled_bases.contains(&base) => {
@@ -1067,6 +1224,9 @@ pub(crate) struct Fold {
     /// Accumulation face → the member faces it descends from.
     lineage: BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
     obstacles: Obstacles<MemberFace>,
+    /// Accumulation vertex → the senses the step that minted it read
+    /// there, each edge by its fold-table name.
+    senses: CrossingSenses,
 }
 
 impl Fold {
@@ -1078,17 +1238,38 @@ impl Fold {
                 .map(|(f, _)| (f, BTreeSet::from([(first, f)])))
                 .collect(),
             obstacles: Obstacles::new(),
+            senses: CrossingSenses::new(),
         }
     }
 
     /// One fold step: `member` folded into the accumulation, giving
-    /// `result` with the kernel's record `naming`.
+    /// `result` with the kernel's record `naming` and the pair emitter's
+    /// crossing `senses`.
+    ///
+    /// An accumulation vertex the result holds keeps its senses, under
+    /// the vertex the step fused it into if it did; the step's own are
+    /// added at its vertices.
     pub(crate) fn step<T: geom_core::Real>(
         &mut self,
         member: RecipeNodeId,
         naming: &topo::BooleanNaming,
         result: &topo::Body<T>,
+        senses: &CrossingSenses,
     ) -> Result<(), NamingError> {
+        let mut carried = CrossingSenses::new();
+        if naming.a_keys == topo::OperandKeys::Direct {
+            let fused = naming.fused_into();
+            for (v, read) in core::mem::take(&mut self.senses) {
+                let v = fused.get(&v).copied().unwrap_or(v);
+                if result.get_vertex(v).is_some() {
+                    carried.entry(v).or_default().extend(read);
+                }
+            }
+        }
+        for (&v, read) in senses {
+            carried.entry(v).or_default().extend(read.iter().cloned());
+        }
+        self.senses = carried;
         let bug = |what| NamingError::Emission { what };
         let descent = FaceDescent::of(naming);
         let from = |lineage: &BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
@@ -1831,6 +2012,26 @@ fn orient<'s>(
             RoleSeg::Seam { a, b } => {
                 vec![seam_line(a, b, done)?]
             }
+            // A crossing: its edge and face collapsed, the sense the pair
+            // emitter read carried as it stands. Its edge may lie on a
+            // seam whose sides the canonicalization re-orders, which
+            // re-reads the sense with the rank.
+            RoleSeg::Crossing { edge, face, sense } => vec![RoleSeg::Crossing {
+                edge: done.need(edge)?.clone(),
+                face: done.need(face)?.clone(),
+                sense: *sense,
+            }],
+            RoleSeg::EdgeCrossing {
+                a,
+                a_sense,
+                b,
+                b_sense,
+            } => vec![RoleSeg::EdgeCrossing {
+                a: done.need(a)?.clone(),
+                a_sense: *a_sense,
+                b: done.need(b)?.clone(),
+                b_sense: *b_sense,
+            }],
             // An F7 merged face: its constituents are result-face names in
             // the minting node's space (N3), so they stay in this union's
             // space, each collapsed by this same rule.
@@ -1916,6 +2117,8 @@ fn orient<'s>(
             | RoleSeg::FromB(_)
             | RoleSeg::FromMember { .. }
             | RoleSeg::Seam { .. }
+            | RoleSeg::Crossing { .. }
+            | RoleSeg::EdgeCrossing { .. }
             | RoleSeg::Merged(_)
             | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
         });
@@ -2409,7 +2612,8 @@ mod tests {
             table: &member_table,
         }];
         let parents = Parents::empty();
-        let flush = Flush::of(union, &body, &members, &parents, bnd).unwrap();
+        let senses = CrossingSenses::new();
+        let flush = Flush::of(union, &body, &members, &parents, &senses, bnd).unwrap();
         let (rest, groups) = group_member_edges(tied_rows, Vec::new(), &flush).unwrap();
         assert_eq!(rest.iter().count(), 0, "the row was not taken into a group");
         let [group] = groups.as_slice() else {
@@ -2534,7 +2738,8 @@ mod tests {
             let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
             let members = self.members();
             let parents = Parents::empty();
-            let flush = Flush::of(self.union, &self.body, &members, &parents, bnd)?;
+            let senses = CrossingSenses::new();
+            let flush = Flush::of(self.union, &self.body, &members, &parents, &senses, bnd)?;
             cite_member_edges(
                 NameTable::new(),
                 rows,
@@ -2591,6 +2796,67 @@ mod tests {
                 );
             }
             assert_eq!(out.len(), 2, "{label}: {out:?}");
+        }
+    }
+
+    /// **Crossings of one member edge by one face are ranked along the
+    /// edge only among those of one sense** (N2). Two crossings of member
+    /// 5's edge by member 2's cap, the fold's names citing pieces of the
+    /// edge: with one sense they are one group, ranked along the edge;
+    /// with opposite senses each is its own, and neither is ranked.
+    #[test]
+    fn a_cited_crossing_group_is_ranked_only_among_one_sense() {
+        use crate::names::role::Sense;
+
+        let g = CitedGroup::new();
+        let crossing = |edge: StableName, sense, rank: Option<u32>| {
+            let mut path = vec![RoleSeg::Crossing {
+                edge: NameRef::new(edge),
+                face: NameRef::new(member_cap(g.union, 2)),
+                sense,
+            }];
+            path.extend(rank.map(|rank| RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 })));
+            vertex(g.union, path)
+        };
+        let whole = member_edge(g.union, 5);
+        let [first, second] = g.along;
+        let at = |v| {
+            Some(Entry::Unique(crate::names::table::EntityRef {
+                body: 0,
+                key: EntityKey::Vertex(v),
+            }))
+        };
+        let one_sense = g
+            .cite(vec![
+                (crossing(g.piece(0), Sense::Enters, None), first),
+                (crossing(g.piece(1), Sense::Enters, None), second),
+            ])
+            .unwrap();
+        assert_eq!(one_sense.len(), 2, "{one_sense:?}");
+        for (rank, want) in [(0, first), (1, second)] {
+            assert_eq!(
+                one_sense
+                    .lookup(&crossing(whole.clone(), Sense::Enters, Some(rank)))
+                    .cloned(),
+                at(want),
+                "one sense: #{rank} of 2 is the vertex {rank} along the member edge"
+            );
+        }
+        let two_senses = g
+            .cite(vec![
+                (crossing(g.piece(0), Sense::Enters, None), first),
+                (crossing(g.piece(1), Sense::Leaves, None), second),
+            ])
+            .unwrap();
+        assert_eq!(two_senses.len(), 2, "{two_senses:?}");
+        for (sense, want) in [(Sense::Enters, first), (Sense::Leaves, second)] {
+            assert_eq!(
+                two_senses
+                    .lookup(&crossing(whole.clone(), sense, None))
+                    .cloned(),
+                at(want),
+                "two senses: the {sense:?} crossing is its own, unranked"
+            );
         }
     }
 

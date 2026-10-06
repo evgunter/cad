@@ -399,3 +399,90 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
         ],
     );
 }
+
+/// **The in-face vertices of the area-overlap union carry opposite
+/// senses** (N2's end-touch). At the fold step that mints them, `s ∪
+/// big`'s seam along `y = 0, z = 0.8` runs from `x = 0.2` to `x = 0.4`
+/// inside `a`'s `y = 0` wall: each of its ends is where the edge, lying
+/// in the wall, ends in it, and a side of the end with no edge counts as
+/// outside `a`. So one end is where the edge enters `a` and the other
+/// where it leaves, and the two vertices are told apart by that, with no
+/// rank and one spelling in every member order that leaves them: the two
+/// that fold `a` last.
+#[test]
+fn the_area_overlap_unions_in_face_vertices_carry_opposite_senses() {
+    use editor_core::{EntityKey, Entry, StableName};
+
+    let doc = ProfileDoc::empty_derived("wire_fold_contact_3", Tol::witness());
+    let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
+    let pairs = continuations(&pairs);
+    let mut published: Vec<(Vec<usize>, [StableName; 2])> = Vec::new();
+    for order in orders(3) {
+        let members: Vec<RecipeNodeId> = order.iter().map(|&k| [a, s, big][k]).collect();
+        let (docx, union) = declared_union_classed(doc.clone(), &members, pairs.clone());
+        let ev = run(&docx);
+        if failure(&ev, union).is_some() {
+            continue;
+        }
+        let body = body_of(&ev, union);
+        let mut at = [None, None];
+        for (name, entry) in crate::fixture::table(&ev, union).iter() {
+            let Entry::Unique(r) = entry else { continue };
+            let EntityKey::Vertex(v) = r.key else {
+                continue;
+            };
+            let p = crate::fixture::point(body, v);
+            if p.y.abs() > 1e-9 || (p.z - 0.8).abs() > 1e-9 {
+                continue;
+            }
+            for (slot, x) in [(0, 0.2), (1, 0.4)] {
+                if (p.x - x).abs() < 1e-9 {
+                    assert!(at[slot].is_none(), "{order:?}: one vertex at x = {x}");
+                    at[slot] = Some(name.clone());
+                }
+            }
+        }
+        let [low, high] = match at {
+            [Some(low), Some(high)] => [low, high],
+            // An order that folds `a` before `s ∪ big` exists meets no
+            // such seam and leaves no vertex there.
+            [None, None] => continue,
+            _ => panic!("{order:?}: a vertex at each end of the seam or at neither: {at:?}"),
+        };
+        match (low.path.as_slice(), high.path.as_slice()) {
+            (
+                [
+                    RoleSeg::Crossing {
+                        edge: e0,
+                        face: f0,
+                        sense: s0,
+                    },
+                ],
+                [
+                    RoleSeg::Crossing {
+                        edge: e1,
+                        face: f1,
+                        sense: s1,
+                    },
+                ],
+            ) => {
+                assert_eq!((e0, f0), (e1, f1), "{order:?}: one edge in one face");
+                assert_eq!(*s1, s0.flipped(), "{order:?}: opposite senses");
+            }
+            _ => panic!("{order:?}: two crossings, unranked: {low:?} {high:?}"),
+        }
+        published.push((order, [low, high]));
+    }
+    assert_eq!(
+        published.iter().map(|(o, _)| o.clone()).collect::<Vec<_>>(),
+        vec![vec![1, 2, 0], vec![2, 1, 0]],
+        "the orders that fold `a` into `s ∪ big` leave the two vertices"
+    );
+    for (order, names) in &published {
+        assert_eq!(
+            names, &published[0].1,
+            "{order:?} spells the two vertices as {:?} does",
+            published[0].0
+        );
+    }
+}

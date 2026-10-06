@@ -27,3 +27,11 @@ Found by a designer lane while weighing the covered-member fork (fork-log row 37
 ## Next
 
 1. Give `Flush` an order-free spelling for an edge–edge crossing, for example the two member edges' `Ends`-style pair sorted in name order. Check that against N2's vertex rules first: if N2 does not decide it, it is a design question.
+
+## Since the crossing's sense
+
+Crossings now carry their sense (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`),
+so the two orders spell the vertex `EdgeCrossing { b's LateralEdge, ·, a's
+RimEdge(End), · }` and `Crossing { b's LateralEdge, a's Cap(End), sense }`.
+Still four absences per case; `KNOWN_ABSENT`'s digests were re-baselined for
+the new spellings.

@@ -9,8 +9,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf, band,
-    band_rim, evaluate, meridian_vertex,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, Sense, SitedRef, SplitHalf,
+    band, band_rim, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, len, len2, minted, on_frame_keeping, table};
 use geom_core::Tol;
@@ -732,13 +732,20 @@ fn split_names_sections_fragments_and_crossings() {
                 .is_some(),
                 "missing strut fragment side={side:?} v={s}"
             );
+            // The strut runs up from the start cap, so it enters the
+            // half above the plane and leaves the half below it.
+            let sense = match side {
+                SplitHalf::Above => Sense::Enters,
+                SplitHalf::Below => Sense::Leaves,
+            };
             assert!(
                 t.lookup(&minted(
                     EntityKind::Vertex,
                     split,
                     RoleSeg::CrossingVertex {
                         side,
-                        edge: strut.into()
+                        edge: strut.into(),
+                        sense,
                     }
                 ))
                 .is_some(),

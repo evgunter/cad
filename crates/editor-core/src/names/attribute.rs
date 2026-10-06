@@ -113,6 +113,8 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // crossing faces, a section's operand face — and the entity
         // named is none of them.
         RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::BlendFace(_)
