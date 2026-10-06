@@ -16,7 +16,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
-| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
+| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
@@ -241,8 +241,9 @@ The qualifier depends on what was split:
   boolean's or union's is `Crossing { edge, face, sense }`, the Split's
   `CrossingVertex` holds it as a field. A vertex where two edges cross carries
   each edge's sense against the other operand's closed body. Crossings of one
-  edge by one face with the same sense are N4's tie; nothing ranks them along
-  the edge.
+  edge by one face with the same sense are ranked along the crossed edge by its
+  carrier's own parameter, in the edge's stored orientation; an equal pair
+  ties.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing.
@@ -453,10 +454,10 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
 
 - *Which edge pieces it meets.* An edge piece's `Ends` holds no count and a
   crossing's sense is its own, so a cut elsewhere on its parent leaves the
-  piece's name as it was, and so do the crossings it ends at. A second crossing
-  with the same sense by a face that already crosses the parent ties with the
-  first (N4), so a reference to either resolves as ambiguous rather than
-  vanishing. The rung meets an edge piece where its own ends moved or were
+  piece's name as it was, and so do the crossings it ends at. Only a second
+  crossing with the same sense by a face that already crosses the parent
+  renames anything: it ranks the same-sense group, so the first crossing gains
+  its rank, and with it every piece whose `Ends` cite it. The rung meets an edge piece where its own ends moved or were
   renamed, or its group stopped being divided.
 - *What the group is.* The group is the one the emitter formed, read from the
   record it keeps beside the table (`names::FragmentGroups`, not persisted),
