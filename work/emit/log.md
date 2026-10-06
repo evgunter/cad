@@ -1939,3 +1939,14 @@ Ruled section.
 The runs also found:
 - the pinned locality test is vacuous (two documents, two Split ids);
 - an in-face union case that neither first reading of the sense covered.
+
+## 2026-10-06 — PR 4134's follow-ups filed
+
+Three design rows came out of the crossing-sense fork:
+- `borders-and-keeps-spell-a-lone-piece-bare`: the lone-member rule, on
+  faces;
+- `section-face-and-hole-rim-are-ordinals-over-their-group`;
+- `an-in-face-crossing-is-spelled-as-a-seam-of-the-face-it-lies-in`.
+
+The NURBS-crossing and edge × edge rows each get a note to re-measure
+once the sense is built.
