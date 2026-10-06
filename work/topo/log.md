@@ -7400,3 +7400,11 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - `transform.rs` is left alone (offset/shelf/shell territory).
   - No open PR touches `revert.rs` or `review_d18.rs`.
 - Nothing new on PR 3970.
+
+## 12:36 (2026-10-06) check-in
+
+- Sync PR 4142 merged at `4e06930c`.
+- **PR 4154** `topo: revert's torn reads panic; RevertError::Corrupt retires` is open. The impl lane is archived (about $8.9). Its FULL reviewer is `session_01NumM4b6icuXu24j6znB6r6`; the key claims are the void-insert cavity's argument-vs-record answer and write-before-check. Subscribed.
+- The set_edge_curve lane is running its 84-shard batteries; no PR yet.
+- Main carried one new TOPO-dir row from CLEAVE: `...lone-site-placeholder-has-no-type-of-its-own`, filed by PR 4120's lane. Not triaged yet.
+- Nothing new on PR 3970.
