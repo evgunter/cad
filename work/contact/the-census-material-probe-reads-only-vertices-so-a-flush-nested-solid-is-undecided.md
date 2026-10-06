@@ -51,3 +51,14 @@ it as it stands. Census probes a SOLID's face selection
 (`point_in_solid_faces`), and `complex_side` probes a whole body
 (`point_in_solid`). The fix makes the probe a parameter of the ladder,
 or moves it next to `SolidFaces`, and runs the ladder on `AllOn`.
+
+## The probe is now a parameter (FUSE `fuse/one-home-shell-stands`)
+
+The ladder moved to `crates/topo/src/stands.rs` as `ladder(body, faces,
+band, probe)`, generic over the probe (a closure from a point to
+`Witness<S>`) and over the refusal type (`E: From<LadderRefusal>`).
+`Witness::of` turns one `point_in_solid_faces` reading into a witness.
+So the fix here is wiring: on `Probe::AllOn`, run the ladder over
+`inner`'s faces with that probe against `outer`'s selection. FUSE left
+that to this row's owner, because it changes which census verdicts
+appear.
