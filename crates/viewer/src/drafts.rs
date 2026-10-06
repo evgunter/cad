@@ -275,8 +275,7 @@ pub(crate) struct Drafts {
 ///
 /// # Errors
 ///
-/// [`LabelFault`] for a text the rule refuses — one with a line break
-/// or another control character.
+/// [`LabelFault`] for a text the rule refuses.
 pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
     if text.trim().is_empty() {
         return Ok(None);

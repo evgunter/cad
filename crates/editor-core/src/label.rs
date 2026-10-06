@@ -8,21 +8,24 @@
 //! [`Label`] is the one validated spelling. Every door that takes a
 //! label's text — the edit, the appearance attribute, the load door
 //! reading either out of a file — goes through [`Label::new`], so a
-//! held `Label` is non-blank, one line, and free of control
-//! characters.
+//! held `Label` is one line, free of controls and direction
+//! formatting, with a visible character: no character in it acts past
+//! the label's own text, and at least one is something a person can
+//! see.
 
 use core::fmt;
 
-/// **A label's text**, validated ([`Label::new`]): it has a character
-/// that is not whitespace, it is one line, and it holds no control
-/// character.
+/// **A label's text**, validated ([`Label::new`]): one line, free of
+/// controls and direction formatting, with a visible character.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Label(String);
 
 /// Why a text is not a [`Label`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LabelFault {
-    /// Empty, or only whitespace: nothing a person could read.
+    /// Empty, or only whitespace and default-ignorable characters
+    /// (zero-width spaces and joiners, variation selectors, Hangul
+    /// fillers, tag characters): nothing a person could see.
     Blank,
     /// A line break (`\n`, `\r`, a vertical tab or form feed, U+0085,
     /// U+2028, U+2029) at this char index: a label is one line,
@@ -39,6 +42,18 @@ pub enum LabelFault {
         /// The character.
         ch: char,
     },
+    /// A bidi embedding, override or isolate (U+202A–U+202E,
+    /// U+2066–U+2069) at this char index. Each opens a direction
+    /// scope that runs until its terminator, so one in a label can
+    /// reorder whatever a surface prints after it. The bidi marks
+    /// (U+200E, U+200F, U+061C) act only on their neighbours and are
+    /// allowed.
+    Direction {
+        /// The char index of the first one.
+        at: usize,
+        /// The character.
+        ch: char,
+    },
 }
 
 /// The characters that end a line, in Unicode's reading and in a
@@ -50,6 +65,44 @@ fn breaks_a_line(ch: char) -> bool {
     )
 }
 
+/// The bidi embeddings and overrides (LRE, RLE, PDF, LRO, RLO) and
+/// isolates (LRI, RLI, FSI, PDI).
+fn sets_direction(ch: char) -> bool {
+    matches!(ch, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+}
+
+/// Unicode's `Default_Ignorable_Code_Point`: the characters a renderer
+/// draws nothing for. The ranges are `DerivedCoreProperties.txt`'s,
+/// Unicode 18.0.0, adjacent lines merged.
+fn is_default_ignorable(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{00ad}'
+            | '\u{034f}'
+            | '\u{061c}'
+            | '\u{115f}'..='\u{1160}'
+            | '\u{17b4}'..='\u{17b5}'
+            | '\u{180b}'..='\u{180f}'
+            | '\u{200b}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2060}'..='\u{206f}'
+            | '\u{3164}'
+            | '\u{fe00}'..='\u{fe0f}'
+            | '\u{feff}'
+            | '\u{ffa0}'
+            | '\u{fff0}'..='\u{fff8}'
+            | '\u{1bca0}'..='\u{1bca3}'
+            | '\u{1d173}'..='\u{1d17a}'
+            | '\u{e0000}'..='\u{e0fff}'
+    )
+}
+
+/// A character a person can see: not whitespace, and not one a
+/// renderer draws nothing for.
+fn shows(ch: char) -> bool {
+    !ch.is_whitespace() && !is_default_ignorable(ch)
+}
+
 impl Label {
     /// The text as a label, or why it cannot be one. The text is
     /// stored as given: surrounding whitespace is the author's.
@@ -57,7 +110,8 @@ impl Label {
     /// # Errors
     ///
     /// [`LabelFault`]: the first line break, then the first other
-    /// control character, then blankness.
+    /// control character, then the first direction-setting character,
+    /// then blankness.
     pub fn new(text: impl Into<String>) -> Result<Self, LabelFault> {
         let text = text.into();
         if let Some(at) = text.chars().position(breaks_a_line) {
@@ -66,7 +120,10 @@ impl Label {
         if let Some((at, ch)) = text.chars().enumerate().find(|(_, ch)| ch.is_control()) {
             return Err(LabelFault::Control { at, ch });
         }
-        if text.chars().all(char::is_whitespace) {
+        if let Some((at, ch)) = text.chars().enumerate().find(|&(_, ch)| sets_direction(ch)) {
+            return Err(LabelFault::Direction { at, ch });
+        }
+        if !text.chars().any(shows) {
             return Err(LabelFault::Blank);
         }
         Ok(Self(text))
@@ -88,7 +145,7 @@ impl fmt::Display for Label {
 impl fmt::Display for LabelFault {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Blank => f.write_str("a label must have a character that is not whitespace"),
+            Self::Blank => f.write_str("a label must have a character a person can see"),
             Self::LineBreak { at } => write!(
                 f,
                 "a label is one line, and this one breaks at character {at}"
@@ -96,6 +153,11 @@ impl fmt::Display for LabelFault {
             Self::Control { at, ch } => write!(
                 f,
                 "a label holds no control character, and this one has {} at character {at}",
+                ch.escape_unicode()
+            ),
+            Self::Direction { at, ch } => write!(
+                f,
+                "a label holds no bidi embedding, override or isolate, and this one has {} at character {at}",
                 ch.escape_unicode()
             ),
         }
@@ -135,13 +197,13 @@ impl<'de> serde::Deserialize<'de> for Label {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{Label, LabelFault};
+    use super::{Label, LabelFault, is_default_ignorable};
 
     /// Each rule, at a text that breaks only it, and the text kept
     /// verbatim when none breaks.
     #[test]
-    fn a_label_is_non_blank_one_line_and_free_of_control_characters() {
-        let cases: [(&str, Result<&str, LabelFault>); 9] = [
+    fn a_label_is_visible_one_line_and_free_of_controls_and_direction_formatting() {
+        let cases: [(&str, Result<&str, LabelFault>); 22] = [
             ("base plate", Ok("base plate")),
             ("  padded  ", Ok("  padded  ")),
             ("Bolt \"M6\" ⌀6", Ok("Bolt \"M6\" ⌀6")),
@@ -155,6 +217,52 @@ mod tests {
                 Err(LabelFault::Control {
                     at: 0,
                     ch: '\u{1b}',
+                }),
+            ),
+            // Joiners, marks, selectors and tags that shape visible
+            // text are the author's: an emoji family, a Persian word,
+            // a subdivision flag, a mixed-direction label.
+            ("👨\u{200d}👩\u{200d}👧", Ok("👨\u{200d}👩\u{200d}👧")),
+            ("می\u{200c}خواهم", Ok("می\u{200c}خواهم")),
+            (
+                "🏴\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}",
+                Ok("🏴\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f}"),
+            ),
+            ("שלום\u{200f} M6", Ok("שלום\u{200f} M6")),
+            ("x\u{00ad}y", Ok("x\u{00ad}y")),
+            // Nothing in these shows.
+            ("\u{200b}\u{200b}", Err(LabelFault::Blank)),
+            ("\u{3164}", Err(LabelFault::Blank)),
+            ("\u{fe0f}", Err(LabelFault::Blank)),
+            (" \u{2060}\u{feff} ", Err(LabelFault::Blank)),
+            // A direction scope anywhere refuses, at its index; one
+            // alone is a direction fault before it is a blank one.
+            (
+                "\u{202e}lid",
+                Err(LabelFault::Direction {
+                    at: 0,
+                    ch: '\u{202e}',
+                }),
+            ),
+            (
+                "lid\u{202e}",
+                Err(LabelFault::Direction {
+                    at: 3,
+                    ch: '\u{202e}',
+                }),
+            ),
+            (
+                "ab\u{2066}cd\u{2069}",
+                Err(LabelFault::Direction {
+                    at: 2,
+                    ch: '\u{2066}',
+                }),
+            ),
+            (
+                "\u{202e}",
+                Err(LabelFault::Direction {
+                    at: 0,
+                    ch: '\u{202e}',
                 }),
             ),
         ];
@@ -179,8 +287,72 @@ mod tests {
         assert_eq!(back, label);
         let refused = serde_json::from_str::<Label>("\"  \"").expect_err("a blank label refuses");
         assert!(
-            refused.to_string().contains("not whitespace"),
+            refused.to_string().contains("a person can see"),
             "the refusal names the fault: {refused}"
+        );
+    }
+
+    /// `Default_Ignorable_Code_Point` from `DerivedCoreProperties.txt`
+    /// (Unicode 18.0.0), adjacent lines merged: each range holds its
+    /// ends and not the characters just outside them, and nothing
+    /// outside the ranges is ignorable.
+    #[test]
+    fn default_ignorable_is_unicodes_ranges_and_nothing_else() {
+        const RANGES: [(u32, u32); 17] = [
+            (0x00ad, 0x00ad),
+            (0x034f, 0x034f),
+            (0x061c, 0x061c),
+            (0x115f, 0x1160),
+            (0x17b4, 0x17b5),
+            (0x180b, 0x180f),
+            (0x200b, 0x200f),
+            (0x202a, 0x202e),
+            (0x2060, 0x206f),
+            (0x3164, 0x3164),
+            (0xfe00, 0xfe0f),
+            (0xfeff, 0xfeff),
+            (0xffa0, 0xffa0),
+            (0xfff0, 0xfff8),
+            (0x1_bca0, 0x1_bca3),
+            (0x1_d173, 0x1_d17a),
+            (0xe_0000, 0xe_0fff),
+        ];
+        let at = |cp: u32| is_default_ignorable(char::from_u32(cp).expect("a scalar value"));
+        for (lo, hi) in RANGES {
+            assert!(at(lo) && at(hi), "U+{lo:04X}..U+{hi:04X} holds its ends");
+            assert!(
+                !at(lo - 1) && !at(hi + 1),
+                "U+{lo:04X}..U+{hi:04X} stops at its ends"
+            );
+        }
+        let total: u32 = RANGES.iter().map(|(lo, hi)| hi - lo + 1).sum();
+        let found = (char::MIN..=char::MAX)
+            .filter(|&ch| is_default_ignorable(ch))
+            .count();
+        assert_eq!(total, 4174, "the file's count of ignorable code points");
+        assert_eq!(found, 4174, "no ignorable outside the ranges");
+    }
+
+    /// The direction-setting set is exactly the nine embeddings,
+    /// overrides and isolates, and every one of them is refused; the
+    /// default-ignorables around them pass that check.
+    #[test]
+    fn exactly_the_nine_direction_scopes_refuse_as_direction() {
+        let refused: Vec<char> = ('\u{2000}'..='\u{20ff}')
+            .filter(|&ch| {
+                matches!(
+                    Label::new(format!("a{ch}")),
+                    Err(LabelFault::Direction { .. })
+                )
+            })
+            .collect();
+        assert_eq!(
+            refused,
+            [
+                '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2066}', '\u{2067}',
+                '\u{2068}', '\u{2069}'
+            ],
+            "the direction-setting characters in U+2000–U+20FF"
         );
     }
 }
