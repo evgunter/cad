@@ -103,6 +103,15 @@ pub(crate) struct Study {
 /// pad +4 at every row; annulus and bracket unmoved. `registered` and
 /// the verdicts are unmoved.
 ///
+/// **A slot holds a variable** (INTENT-LITERALS PR C): a formula
+/// written at a slot is an anonymous definition, bound through the
+/// non-finite door and read through it once more, so each written
+/// formula adds a theorem. `symbolic_zero`: plate 955 → 956, annulus
+/// 440 → 442, link 689 → 691, bracket 1282 → 1285 at every ε; the pad
+/// is unmoved. `registered` and the verdicts are unmoved. An
+/// untoleranced variable binds as its nominal (VR8), and on these five
+/// that moved no decision.
+///
 /// The scales are M10-9's brackets. The plate, the annulus and the link
 /// certify whole at them. The bracket and the pad refuse at the
 /// extrude's `pcurve_envelope` (`refused_by`, asserted;
@@ -119,7 +128,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: [955, 955, 955],
+            symbolic_zero: [956, 956, 956],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -132,7 +141,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // rests on that factor alone): eight decisions the read
             // answered as `sign_gated` are theorems, `registered` and
             // `numeric` unmoved.
-            symbolic_zero: [440, 440, 440],
+            symbolic_zero: [442, 442, 442],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -157,7 +166,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
             registered: 118,
-            symbolic_zero: [689, 689, 689],
+            symbolic_zero: [691, 691, 691],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -197,7 +206,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 1283/156 here (and 156/162 there): the move is the order
             // alone. How much the tier reaches depends on symbol order;
             // the orchestrator files that.
-            symbolic_zero: [1282, 1282, 1282],
+            symbolic_zero: [1285, 1285, 1285],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {

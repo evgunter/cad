@@ -200,3 +200,37 @@ Closed: `python-param-classes-name-a-variable`.
   symbolic-tier rows.
 
 Filed: `definition-node-bound-is-re-measured-against-the-corpus-after-d`.
+
+## 2026-10-06 — INTENT-LITERALS PR C, a slot holds a VarId (`intent/literals-c`)
+
+A stored slot holds the id of the variable it reads. The edit door
+lowers each authored slot in one walk that returns every fault at its
+address: a lone variable, name or fresh entry is itself, a value mints
+an anonymous free variable, and a formula mints an anonymous defined
+one. `Node::authored` re-authors a node by reading its variables, and
+`Node::written` gives the formulas the slots were written as. Equal
+typed values are two variables, so their tokens and content keys
+differ; sharing is said by reading one variable.
+
+Ev revised Q3 and Q4 mid-PR (spec §11, VARIABLES-DESIGN VR8): only a
+toleranced variable is an analysis axis. An untoleranced one is a
+constant in every lane, and Sym binds it as its exact nominal. Measured
+against B's head: the interval suite's slowest five are unchanged
+(427/209/115/95/87 s against 422/213/114/90/87 s), the stackups on
+`tolerance`, `mcplate` and `chaintol` list the same three rows, and the
+Monte Carlo sheet is bit-identical. Sym theorems rise by one per written
+formula (`work/sym/symbolic-reach-at-slot-variables-c.md`).
+
+Ruled by the lane:
+- An anonymous variable's mint reads what it holds, so sibling inserts
+  that differ only in a typed value still mint different nodes.
+- An anonymous definition's refusal is reported as the slot's own
+  (`VarEnv::written`), not as a refusal of `#id`.
+- Names refuse before dimensions, B's order.
+- The path editor loads and compares the program as written, so a value
+  moved since the load refuses `ProfileEditStale`.
+- Retiring anonymous variables is no loss the person is shown.
+
+Closed: `range-synthetic-name-mints-a-name`,
+`symbolic-reach-at-slot-variables-c`. Filed:
+`unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
