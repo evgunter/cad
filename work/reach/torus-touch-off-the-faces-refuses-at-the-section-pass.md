@@ -2,10 +2,11 @@
 id: torus-touch-off-the-faces-refuses-at-the-section-pass
 kind: issue
 title: A torus touching a plane off the faces refuses R-tan at the section pass
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: M
+branch: reach/torus-touch-off-faces
 ---
 
 
