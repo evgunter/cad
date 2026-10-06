@@ -1347,3 +1347,56 @@ fn every_tilted_cut_wall_reads_its_truth() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// **A point on a trimmed sphere face's carrier, far from the face, is
+/// read by the rays.** The quarter dome's sphere face is bounded by two
+/// meridian arcs, whose great circles run on round the back of the
+/// sphere. A point there, on the sphere and within the band of one of
+/// those circles' continuation but more than a unit from any arc of the
+/// face, is plainly `Out`: base (`ce256f0c23`) answers it, and the
+/// region's boundary pass must not refuse it on the carrier alone.
+/// (Review lane `cleave-review-4083-r1`; red at `1edb52efb0` with
+/// `Escalated { bool_sphere_region_arc_on }` at every in-band offset.)
+#[test]
+fn a_point_in_band_of_a_meridians_continuation_reads_out() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let body = sweep::test_support::revolved_about_y(
+        sweep::test_support::dome_profile(1.0),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    );
+    let (zero, k) = (band.zero(), band.escalate());
+    for z in [0.0, 3.0 * zero, -3.0 * zero, 0.6 * k, 30.0 * k] {
+        for phi in [0.1, 0.3, 0.5, 0.7] {
+            let v = Vec3::new(-f64::cos(phi), f64::sin(phi), z);
+            let q = Point3::origin() + v / v.norm();
+            assert_eq!(
+                point_in_solid(&body, q, band, tol()),
+                Ok(SolidContainment::Out),
+                "z {z:e}, phi {phi}"
+            );
+        }
+    }
+}
+
+/// **A ray leaving through an edge, with both faces' crossings at one
+/// place, answers nothing.** From these points the schedule's first ray
+/// (`+x`) exits the cut cylinder exactly through the section's ellipse
+/// edge, where the wall's hit and the section face's hit coincide, each
+/// on its own trim boundary. The fold must set that ray aside (a tie with
+/// the closest crossing, and the closest on an edge) and let a later ray
+/// answer `In`. Disabling both rules together answers `Out` here; each
+/// alone is covered by the other at this pose.
+#[test]
+fn a_ray_exiting_through_the_section_edge_is_set_aside() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let body = cut_by(&[Cut::tilted(1.25, 0.3)]);
+    for x0 in [0.2, -0.5, 0.7] {
+        let q = Point3::new(x0, 0.0, 1.25 - 0.3f64.tan());
+        assert_eq!(
+            point_in_solid(&body, q, band, tol()),
+            Ok(SolidContainment::In),
+            "{q:?}"
+        );
+    }
+}
