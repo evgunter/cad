@@ -23,7 +23,7 @@
 //! next witness will come from. Two of these rows were wrong in
 //! exactly that way and are gone: `FILLET3_GEOMETRY_RECOURSE` and
 //! `FILLET3_RING_RECOURSE` are both front-door reachable, on a
-//! non-circular ring and off the clearance screen's sample lattice
+//! ring that is neither lines nor circles and off the clearance screen's sample lattice
 //! respectively, and `review_fillet_e2_probes.rs` holds both witnesses
 //! (issue 1278's dead-recourse class, and PR 1753's).
 //! Wording a fixture's reach as a door's reach is what hid them.
@@ -899,11 +899,12 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
 /// **`FILLET3_GEOMETRY_RECOURSE` names a ring and an order that
 /// builds.**
 ///
-/// The refusal is reached at a support face's non-circular RING:
-/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`
-/// is the witness — a square pocket through a cube's top face, the
-/// twelve outer edges refused at every radius, because `ring_circle`
-/// reads circle rings only.
+/// The refusal is reached at a support face's RING of a carrier no
+/// meter reads:
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring`
+/// is the witness — a tilted bore through a cube's top face, the
+/// twelve outer edges refused, because the ring is an ellipse and the
+/// ring meters read lines and circles only.
 ///
 /// This row follows the sentence. The old wording described only the
 /// REQUEST ("blend edges whose supports are planes … carriers are lines
@@ -912,35 +913,24 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
 /// offending shape need not be one you requested and gives the lever
 /// that exists: **cut the feature that leaves the ring AFTER the blend
 /// rather than before it.** Executed here, on the same body, at the
-/// same radius the pocketed body refuses.
+/// same radius the bored body refuses.
 ///
 /// Red if that order stops working, or if the sentence stops naming
 /// the ring — either way the caller is back to advice they cannot act
 /// on.
 #[test]
 fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
-    let pocket = topo::transform_rigid(
-        &cube(0.3, tol()),
-        &Affine3::translation(Vec3::new(0.35, 0.35, 0.8)),
-        tol(),
-    )
-    .unwrap();
-    let pocketed = subtract(&cube(1.0, tol()), &pocket);
-    let outer = outer_box_edges(&pocketed);
+    let bore = crate::common::tilted_bore();
+    let bored = subtract(&cube(1.0, tol()), &bore);
+    let outer = outer_box_edges(&bored);
     assert_eq!(outer.len(), 12, "the outer box's twelve edges");
 
     // The refusal, and that it is about the RING rather than anything
     // the caller named.
-    let err = refusal(
-        &pocketed,
-        &outer,
-        0.1,
-        "the outer edges of a pocketed box",
-        false,
-    );
+    let err = refusal(&bored, &outer, 0.1, "the outer edges of a bored box", false);
     assert!(
         matches!(err, BlendError::UnsupportedGeometry { .. }),
-        "the ring's line carriers are what refuse, got {err:?}"
+        "the ring's ellipse carriers are what refuse, got {err:?}"
     );
     let shown = err.to_string();
     assert!(
@@ -954,7 +944,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
          answers it: {FILLET3_GEOMETRY_RECOURSE}"
     );
 
-    // Followed: blend first, cut the pocket second.
+    // Followed: blend first, cut the bore second.
     let blended = fillet_edges(
         &cube(1.0, tol()),
         &outer_box_edges(&cube(1.0, tol())),
@@ -963,9 +953,9 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
     )
     .expect("the bare cube's twelve edges blend")
     .body;
-    let after = subtract(&blended, &pocket);
+    let after = subtract(&blended, &bore);
     validate_geometric(&after, tol())
-        .expect("and cutting the pocket into the blended cube leaves a tier-3 valid body");
+        .expect("and cutting the bore into the blended cube leaves a tier-3 valid body");
 }
 
 /// **On a LATTICE-ALIGNED dimple the clearance screen answers before

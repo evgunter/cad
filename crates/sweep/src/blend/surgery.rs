@@ -105,7 +105,8 @@
 //! carry-through honesty check, **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
-//! circle-vs-circle, exact, never sampled — between each other
+//! circle-vs-circle for a ring that is one circle, edge by edge for a
+//! ring of lines and arcs, exact, never sampled — between each other
 //! outer-boundary edge of a closed rim's support and that support's
 //! trim, and, on a transverse cap a convex ruled band cuts off,
 //! between each edge the cut leaves on the cap and a region enclosing
@@ -1973,15 +1974,34 @@ fn loop_walk<T: Decide>(
 // The ring carry-through check.
 // ------------------------------------------------------------------
 
-/// A ring read as one circle: every edge of the ring must carry a
-/// `Circle` carrier on one shared centre/radius (the pip rims and the
-/// widened trim circles — the only rings this kernel mints on planar
-/// faces at rest). Anything else refuses typed rather than sampling.
-fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T), BlendError> {
+/// **How the ring carry-through pass reads one ring of a support face.**
+///
+/// Only a ring of ONE closed circle edge is read whole: the arcs of a
+/// ring of several edges are separate curve rows, and nothing stored
+/// says they share a circle (two overlapping bores leave a ring of arcs
+/// of two). Every other ring is read edge by edge, which answers the
+/// carry-through question exactly — whether any edge of the ring meets
+/// the strip the carve excises — without asking which side of the ring
+/// the trim lies on.
+enum RingRead<T: Real> {
+    /// One closed circle edge: `(center, radius)`.
+    Circle(Point3<T>, T),
+    /// Lines and arcs — a union's prism foot, a pocket's mouth, a rim
+    /// split into arcs: the ring's edges in cycle order, each metered
+    /// over its own stored window by the per-piece closed forms
+    /// ([`piece_along`], [`piece_distance`]).
+    Edges(Vec<EdgeKey>),
+}
+
+/// Read one ring of a support face ([`RingRead`]). An edge with no
+/// certified carrier, or one that is neither a line nor a circle,
+/// refuses typed rather than being skipped or bounded.
+fn ring_read<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<RingRead<T>, BlendError> {
     let walk = loop_walk(body, ring)
         .ok_or_else(|| not_intact(EntityId::Loop(ring), "a support face's ring"))?;
-    let mut found: Option<(Point3<T>, T)> = None;
-    for (_, _, edge) in walk {
+    let mut edges = Vec::with_capacity(walk.len());
+    let mut whole = None;
+    for &(_, _, edge) in &walk {
         let e = body
             .get_edge(edge)
             .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ring edge"))?;
@@ -1991,31 +2011,51 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
                 "a ring edge carries no certified carrier",
             ));
         };
-        let Curve3::Circle { center, radius, .. } = *c.carrier() else {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(edge),
-                "a ring edge's carrier is not a circle, the only ring the clearance check \
-             covers",
-            ));
-        };
-        // Key equality is not available across arcs of one rim (each
-        // arc is its own curve row), so the shared-circle fact is
-        // structural per mint and simply adopted from the first arc:
-        // the clearance margin below uses one centre for the whole
-        // ring, which is exact for every ring this kernel mints.
-        found.get_or_insert((center, radius));
+        match *c.carrier() {
+            Curve3::Circle { center, radius, .. } if walk.len() == 1 => {
+                whole = Some((center, radius));
+            }
+            Curve3::Circle { .. } | Curve3::Line { .. } => {}
+            Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                return Err(ring_edge_unmetered(edge));
+            }
+        }
+        edges.push(edge);
     }
     // Row 0 (`D96`): NO — the non-emptiness is `topo::loop_cycle`'s,
     // and carrying it locally means `loop_walk` returning a split
     // head/tail through six call sites that index and length it. The
     // cost is written up in `docs/SMELL-T-LOG.md`'s `T-c` record.
-    let Some(circle) = found else {
-        unreachable!(
-            "ring_circle: `loop_walk` above returned a cycle, and a cycle always \
-             carries at least its anchor half-edge"
+    assert!(
+        !edges.is_empty(),
+        "ring_read: `loop_walk` above returned a cycle, and a cycle always carries at least \
+         its anchor half-edge"
+    );
+    Ok(match whole {
+        Some((center, radius)) => RingRead::Circle(center, radius),
+        None => RingRead::Edges(edges),
+    })
+}
+
+/// A ring edge the pass meters piece by piece, as its stored carrier
+/// and window.
+fn ring_piece<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Result<Piece<'_, T>, BlendError> {
+    stored_piece(body, edge)?.ok_or_else(|| {
+        unbuilt_geometry(
+            EntityId::Edge(edge),
+            "a ring edge carries no certified carrier",
         )
-    };
-    Ok(circle)
+    })
+}
+
+/// The refusal for a ring edge whose carrier has no closed form in the
+/// per-piece meters.
+fn ring_edge_unmetered(edge: EdgeKey) -> BlendError {
+    unbuilt_geometry(
+        EntityId::Edge(edge),
+        "a ring edge's carrier is neither a line nor a circle, the ring edges the clearance \
+         check covers",
+    )
 }
 
 /// A rim link's (host, mate) trim circles as `(center, radius)` pairs,
@@ -2138,8 +2178,8 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// contains a hostless trim reads minus the sum of the radii under
 /// `other_inside_trim`.
 ///
-/// A host's OUTER boundary is not read here: its edges are arcs and
-/// segments, not whole circles, and [`ring_clearance_pass`]'s
+/// A host's OUTER boundary is not read here, nor a ring of several
+/// edges: their edges are arcs and segments, not whole circles, and [`ring_clearance_pass`]'s
 /// support-boundary walk meters each over its own window.
 ///
 /// **The containment reading is the same real predicate 2's
@@ -2156,18 +2196,19 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// `external` is the one reading with no screen counterpart, because the
 /// screen has no notion of which side of a boundary a strip lies on.
 ///
-/// **A ring is read as one whole circle here, not as its pieces through
-/// [`piece_distance`], because `external` is not a per-piece
-/// question.** `other_inside_trim` would fold — it is `si` less the
-/// ring's farthest reach from the trim centre, the largest of its
-/// pieces' `far` — but a piece's `near` is unsigned: `near − si` reads a
-/// ring that ENCLOSES the trim circle (the trim sitting in a hole) as
+/// **A ring of one closed circle is read whole here, not as its piece
+/// through [`piece_distance`], because `external` asks more than a
+/// piece can.** `other_inside_trim` would fold — it is `si` less the
+/// ring's farthest reach from the trim centre — but a piece's `near` is
+/// unsigned: `near − si` reads a ring that ENCLOSES the trim circle as
 /// clear by `aj − d − si`, where `external` reads it as the overlap
 /// `d − si − aj < 0`. Which side of a ring the trim lies on is whether
 /// the closed cycle winds about the trim centre, a property of the
-/// cycle and of no piece of it. The ladder walk's outer boundary is
-/// metered by pieces exactly because there the enclosing side is the
-/// one expected, and `near − si` asks nothing else.
+/// cycle and of no piece of it. A ring of several edges
+/// ([`RingRead::Edges`]) is metered by its pieces in the support-boundary
+/// walk instead, which answers only whether an edge meets the excised
+/// strip: a ring enclosing the trim encloses the rim, nested rings the
+/// carve leaves untouched either way.
 struct CircleMargins<T> {
     /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
     /// outside each other.
@@ -2515,12 +2556,13 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 .get_face(face)
                 .ok_or_else(|| not_intact(EntityId::Face(face), "a link's support face"))?;
             for ring in fd.rings.clone() {
-                let (c, a) = match effective(ring)? {
-                    Some(widened) => widened,
-                    None => ring_circle(body, ring)?,
+                let read = match effective(ring)? {
+                    Some((c, a)) => RingRead::Circle(c, a),
+                    None => ring_read(body, ring)?,
                 };
                 // The trimline is unbounded within the face, so only
-                // the transverse clearance matters, and `m ⊥ dir`
+                // the transverse clearance matters: the ring's lowest
+                // reach along `m` past the trimline. `m ⊥ dir`
                 // EXACTLY, not approximately: the battery seeds
                 // `plane_plane_blend` with the carrier evaluated at
                 // `(t0 + t1)/2`, the trim origin is that point
@@ -2531,8 +2573,26 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 // carrier — so `origin - mid` is purely transverse by
                 // shared construction, never by cancellation.
                 let _ = dir;
-                let margin = (c - origin).dot(m) - a;
-                ring_clearance(face, o.convexity(), margin, false, band)?;
+                match read {
+                    RingRead::Circle(c, a) => {
+                        let margin = (c - origin).dot(m) - a;
+                        ring_clearance(face, o.convexity(), margin, false, band)?;
+                    }
+                    RingRead::Edges(edges) => {
+                        for edge in edges {
+                            let (stored, stored_window) = ring_piece(body, edge)?;
+                            let trim =
+                                co_requested_trim(edge, face, stored, stored_window, opens, rims)?;
+                            let (carrier, window) = match &trim {
+                                Some((c, w)) => (c, *w),
+                                None => (stored, stored_window),
+                            };
+                            let (low, _) = piece_along(carrier, window, origin, m)
+                                .ok_or_else(|| ring_edge_unmetered(edge))?;
+                            ring_clearance(face, o.convexity(), low, false, band)?;
+                        }
+                    }
+                }
             }
         }
     }
@@ -2561,7 +2621,12 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 }
                 let (cj, aj) = match effective(ring)? {
                     Some(widened) => widened,
-                    None => ring_circle(body, ring)?,
+                    None => match ring_read(body, ring)? {
+                        RingRead::Circle(c, a) => (c, a),
+                        // Metered edge by edge, with the support's
+                        // outer boundary, by `support_boundary_clearance`.
+                        RingRead::Edges(_) => continue,
+                    },
                 };
                 // Which relation the ring stands in to the trim is
                 // fixed by what the trim REPLACES on this face
@@ -2637,7 +2702,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 
 /// **Each support's OUTER boundary against that support's trim**, for
 /// one closed rim: on every distinct host and mate face, each edge of
-/// its outer cycle the carve does not replace, over its own stored
+/// its outer cycle the carve does not replace, and each edge of a ring
+/// that is not one circle ([`RingRead::Edges`]), over its own stored
 /// window. The carve excises the strip between the rim and the trim, so
 /// every other boundary edge must lie wholly on the trim's FAR side
 /// from the rim. Side and reach are read through a function whose level
@@ -2756,11 +2822,26 @@ fn support_boundary_clearance<T: Decide + Bounds>(
                 "a rim's support has no outer cycle that walks",
             )
         })?;
+        let mut edges = Vec::with_capacity(outer.len());
         for he in outer {
-            let edge = body
-                .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim support's boundary"))?
-                .edge;
+            edges.push(
+                body.get_half_edge(he)
+                    .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim support's boundary"))?
+                    .edge,
+            );
+        }
+        // A ring the host-ring arm does not read as one circle is
+        // metered here, edge by edge, as the outer boundary is; a
+        // requested rim's ring is read widened, by that arm.
+        for &ring in &fd.rings {
+            if rims.iter().any(|r| r.ladder_ring() == Some(ring)) {
+                continue;
+            }
+            if let RingRead::Edges(ring_edges) = ring_read(body, ring)? {
+                edges.extend(ring_edges);
+            }
+        }
+        for edge in edges {
             if replaced(edge) {
                 continue;
             }
@@ -2805,10 +2886,10 @@ type OwnedPiece<T> = (Curve3<T>, (T, T));
 ///   onto it. On a ruled band that segment IS the trim: both run cap
 ///   to cap, between planes perpendicular to them. On a planar band it
 ///   is never the deciding read: a planar link can bound a rim's
-///   support only as an edge of a LADDER host's outer cycle (walking an
-///   annulus host's cycle from one reaches its seam foot, which no
-///   open chain admits), and there arm (a) has already read the same
-///   trimline, unbounded, against the rim's widened ring — a margin
+///   support only as an edge of a LADDER host's outer cycle or rings
+///   (walking an annulus host's cycle from one reaches its seam foot,
+///   which no open chain admits), and there arm (a) has already read the
+///   same trimline, unbounded, against the rim's widened ring — a margin
 ///   `dist(c, line) − R` no larger than any segment's.
 /// - A closed rim's arc reads its rim's WHOLE trim circle on `face`,
 ///   in the closed forms every circle takes here. The whole circle

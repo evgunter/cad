@@ -1,14 +1,15 @@
 //! The parametric heat-sink strip (#91 C5): the tour's first M4-layer
-//! showcase. ONE editor-core recipe document — base extrude, its edges
-//! rounded by a `Fillet`, a fin extrude, a `PlacedUnion` of the fin
-//! along a `Linear` rule, and a `Boolean(Union)` folding the group into
-//! the rounded base — evaluated three times with the fin count edited
-//! 5 → 7 → 9 through `SetStructuralParam`. Each re-eval feeds the
-//! PRIOR evaluation as the memo, so the caption's recompute counters
-//! are the ratified downstream-only-recompute story: the count edit
-//! re-runs the group and the union below it, and the seven nodes
-//! upstream of the edited slot — both frames, both profiles, both
-//! extrudes and the fillet — are reused by content key. Stable names
+//! showcase. ONE editor-core recipe document — base extrude, a fin
+//! extrude, a `PlacedUnion` of the fin along a `Linear` rule, a
+//! `Boolean(Union)` folding the group into the base, and a `Fillet`
+//! rounding the base's twelve edges on the unioned part — evaluated
+//! three times with the fin count edited 5 → 7 → 9 through
+//! `SetStructuralParam`. Each re-eval feeds the PRIOR evaluation as the
+//! memo, so the caption's recompute counters are the ratified
+//! downstream-only-recompute story: the count edit re-runs the group,
+//! the union and the fillet below it, and the six nodes upstream of the
+//! edited slot — both frames, both profiles, both extrudes — are reused
+//! by content key. Stable names
 //! (N1 `Instance(i)` wrapping) survive the edits, counted live.
 //!
 //! The fin group is a `PlacedUnion`, not a `Pattern`: a `Boolean`
@@ -42,20 +43,23 @@
 //! recomputing only what is downstream of it, so the scene keeps the
 //! sunk fins and measures the two-edit door instead.
 //!
-//! # One wall, run live ([`wall_probes`])
+//! # The base is rounded after the union
 //!
-//! **The base is rounded BEFORE the union, not after.** Filleting the
-//! base's twelve edges on the unioned part refuses: the fins' feet are
-//! rectangular rings of the base's top face, and the blend's ring
-//! carry-through check covers circular rings only
-//! (`work/band/fillet-support-ring-must-be-a-circle.md`). Rounding the
-//! plate first, then standing the fins on it, is the order that builds.
+//! **The fillet is the last node**, so the count edit re-runs it on the
+//! part it changed. Its twelve edges are the union's edges that came
+//! through from the plate (`FromA`), selected once at five fins and
+//! stored by name. The fins' feet are rectangular rings of the plate's
+//! top face, and the blend meters each ring edge against each band's
+//! trimline before it carves: the fins stand 1/8 inside the long edges
+//! and 1/4 inside the near end, so at r = 1/32 every foot clears every
+//! trimline.
 //!
 //! The radius is under 1/16 because the ninth fin's outer wall stands
-//! 1/16 inside the base's end face: at r = 1/16 that wall lands on the
-//! band's trimline, and the nine-fin union refuses
-//! `CurvedPierceUnsupported` there
-//! (`work/hone/a-wall-flush-with-a-fillets-tangent-line-refuses-the-pierce.md`).
+//! 1/16 inside the base's end face: at r = 1/16 that wall's foot lies on
+//! the end band's trimline, and the nine-fin fillet refuses
+//! `FaceClearanceUncertified` at a margin of zero (the sampled screen
+//! answers before the exact ring meter, because the foot's edge runs
+//! parallel to the band).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,9 +68,9 @@ use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
-    Formula, LoopProgram, Node, NodeErrorKind, PatternKind, ProfileProgram, RecipeNodeId,
-    RefusingReach, SlotId, ValuePayload, apply, evaluate, parse_formula,
+    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    LoopProgram, Node, NodeErrorKind, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach,
+    SlotId, ValuePayload, apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -75,9 +79,8 @@ use pncad::geom_core::Probe;
 use pncad::prelude::PlaneRelation;
 use pncad::select::{
     BooleanCoincidence, ContactClass, EntityKind, NamePat, RoleSeg, SegPat, SegTag, Selector,
-    all_edges, declare_all, declared_pairs, find_flush_candidates, select,
+    declare_all, declared_pairs, find_flush_candidates, select,
 };
-use pncad::sweep::blend::BlendError;
 
 use crate::scalar::Scalar;
 
@@ -127,6 +130,9 @@ struct Recipe {
     /// slot, and what `SetStructuralParam` edits.
     group: RecipeNodeId,
     /// The `Boolean(Union)` that folds the fin group into the base.
+    union: RecipeNodeId,
+    /// The `Fillet` that rounds the plate's edges on the unioned part:
+    /// the document's final body.
     solid: RecipeNodeId,
     /// The node the union takes as its base operand.
     base: RecipeNodeId,
@@ -177,15 +183,15 @@ fn set_count(
     .doc
 }
 
-/// The scene's own document: fins sunk, base rounded.
+/// The scene's own document: fins sunk.
 fn scene_doc(tol: Tol) -> Recipe {
-    build_doc(tol, Seat::Sunk, true)
+    build_doc(tol, Seat::Sunk)
 }
 
 /// Builds the heat sink at five fins. Where a stored selection is
 /// needed — the fillet's edges, the declared contacts — it is taken
 /// from an evaluation of the document so far: evaluate, select, store.
-fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
+fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base_loops = vec![
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)])
             .expect("finite corners"),
@@ -219,7 +225,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         }),
         tol,
     );
-    let mut base = insert(
+    let base = insert(
         &mut doc,
         Node::Extrude {
             profile: base_p,
@@ -228,10 +234,6 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         },
         tol,
     );
-    if round_base {
-        let edges = all_edges(&eval(&doc, None, tol), base);
-        base = insert(&mut doc, Node::fillet(base, pe(RADIUS), edges), tol);
-    }
     let (fin_z, fin_height) = match seat {
         Seat::Sunk => (0.1875, "812.5 mm"),
         Seat::Flush => (0.25, "750 mm"),
@@ -288,7 +290,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
             declared_pairs(&found)
         }
     };
-    let solid = insert(
+    let union = insert(
         &mut doc,
         Node::Boolean {
             op: BooleanOp::Union,
@@ -298,9 +300,19 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         },
         tol,
     );
+    // The plate's twelve edges on the unioned part: the union's edges
+    // that came through from operand A.
+    let edges = select(
+        &eval(&doc, None, tol),
+        union,
+        &Selector::of(NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::FromA))),
+    );
+    assert_eq!(edges.len(), 12, "the plate's edges: {edges:#?}");
+    let solid = insert(&mut doc, Node::fillet(union, pe(RADIUS), edges), tol);
     Recipe {
         doc,
         group,
+        union,
         solid,
         base,
     }
@@ -308,15 +320,10 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
 
 /// The document's OWN final body, read back, gated on the exact
 /// volume: the rounded plate's closed form plus `n` fins.
-fn solidify<S: Scalar>(
-    r: &Recipe,
-    ev: &Evaluation<S>,
-    n: usize,
-    tol: Tol,
-) -> (pncad::topo::Body<S>, pncad::topo::ContactRecords) {
-    let value = ev.value(r.solid).expect("the union node evaluated");
-    let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
-        panic!("union payload: {:?}", value.payload);
+fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pncad::topo::Body<S> {
+    let value = ev.value(r.solid).expect("the fillet node evaluated");
+    let ValuePayload::Body(body) = &value.payload else {
+        panic!("fillet payload: {:?}", value.payload);
     };
     let want = volume(n);
     let got = pncad::topo::mass_properties(body, tol)
@@ -327,7 +334,7 @@ fn solidify<S: Scalar>(
         (got - want).abs() <= 1e-9,
         "the {n}-fin solid measures {got}, and the rounded base + {n} fins is {want}"
     );
-    ((**body).clone(), (**contacts).clone())
+    (**body).clone()
 }
 
 /// The rounded plate's closed form plus `n` fins.
@@ -358,9 +365,7 @@ fn volume(n: usize) -> f64 {
 /// name the evaluation contract's own bound is a design question for
 /// that census, not something to settle from here.
 #[cfg(feature = "probe")]
-pub(crate) fn probe_solids(
-    tol: Tol,
-) -> Vec<(pncad::topo::Body<Probe>, pncad::topo::ContactRecords)> {
+pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
     let r = scene_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
@@ -386,19 +391,13 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     scene_doc(tol).doc
 }
 
-/// A node's refusal, or `Ok(())` when it built — both arms reachable,
-/// so a wall whose refusal goes away is noticed.
-fn outcome(ev: &Evaluation<f64>, node: RecipeNodeId) -> Result<(), &NodeErrorKind> {
-    ev.node_error(node).map_or(Ok(()), |e| Err(&e.kind))
-}
-
 /// Flush fins, measured live — the module docs' first section.
 ///
 /// Not a wall: an undeclared contact after the count edit refusing is
 /// the boolean failing loud. The recourse is a second edit, measured
 /// here: the re-detected pairs set as the live union's declaration.
 fn flush_fins(tol: Tol) {
-    let flush = build_doc(tol, Seat::Flush, true);
+    let flush = build_doc(tol, Seat::Flush);
     let ev5 = eval(&flush.doc, None, tol);
     solidify(&flush, &ev5, 5, tol);
     println!(
@@ -408,7 +407,7 @@ fn flush_fins(tol: Tol) {
 
     let doc7 = set_count(&flush.doc, flush.group, 7, tol);
     let ev7 = eval(&doc7, Some(&ev5), tol);
-    let refusal = ev7.node_error(flush.solid).map(|e| &e.kind);
+    let refusal = ev7.node_error(flush.union).map(|e| &e.kind);
     assert!(
         matches!(refusal, Some(NodeErrorKind::UndeclaredCoincidence { finding, .. })
             if matches!(finding.pair.1.name.path.first(), Some(RoleSeg::Instance { i: 5, .. }))),
@@ -423,7 +422,7 @@ fn flush_fins(tol: Tol) {
     let found = find_flush_candidates(&ev7, flush.base, flush.group, tol)
         .expect("the fin feet are definite flush pairs");
     assert_eq!(found.len(), 7, "one contact per fin: {found:#?}");
-    let doc = declare_all(&doc7, flush.solid, &found, tol)
+    let doc = declare_all(&doc7, flush.union, &found, tol)
         .expect("the union is live and the findings are its operands'")
         .doc;
     let ev = eval(&doc, Some(&ev7), tol);
@@ -435,40 +434,6 @@ fn flush_fins(tol: Tol) {
         volume(7),
         ev.recomputed,
         ev.reused
-    );
-}
-
-/// The wall the module docs name, attempted for real.
-fn wall_probes(tol: Tol) {
-    // The base's twelve edges rounded AFTER the union, picked as the
-    // union's edges that came through from operand A.
-    let sharp = build_doc(tol, Seat::Sunk, false);
-    let ev = eval(&sharp.doc, None, tol);
-    let base_edges = select(
-        &ev,
-        sharp.solid,
-        &Selector::of(NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::FromA))),
-    );
-    assert_eq!(base_edges.len(), 12, "the plate's edges: {base_edges:#?}");
-    let mut doc = sharp.doc.clone();
-    let rounded = insert(
-        &mut doc,
-        Node::fillet(sharp.solid, pe(RADIUS), base_edges),
-        tol,
-    );
-    crate::walls::wall(
-        "heat sink",
-        1,
-        "fillet the base's twelve edges on the unioned part",
-        outcome(&eval(&doc, Some(&ev), tol), rounded),
-        |k| {
-            matches!(k, NodeErrorKind::Blend {
-                error: BlendError::UnsupportedGeometry { detail, .. }, ..
-            } if *detail == "a ring edge's carrier is not a circle, the only ring the \
-                              clearance check covers")
-        },
-        "move the scene's fillet below the union, so the count edit re-runs it, and \
-         re-count the edit's recompute/reuse pins",
     );
 }
 
@@ -496,14 +461,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             "count edit -> {n}: recomputed {} node(s), reused {} (downstream-only recompute)",
             ev.recomputed, ev.reused
         );
-        // The fin group and the union that consumes it re-run; both
-        // frames, both profiles, both extrudes and the base's fillet
-        // are upstream of the edited slot and reuse by content key.
+        // The fin group, the union that consumes it and the fillet on
+        // the union re-run; both frames, both profiles and both
+        // extrudes are upstream of the edited slot and reuse by content
+        // key.
         assert_eq!(
-            ev.recomputed, 2,
-            "a count edit re-runs exactly the fin group and the union below it"
+            ev.recomputed, 3,
+            "a count edit re-runs exactly the fin group, the union and the fillet below it"
         );
-        assert_eq!(ev.reused, 7, "everything upstream reuses by content key");
+        assert_eq!(ev.reused, 6, "everything upstream reuses by content key");
         evs.push((n, ev, caption));
     }
 
@@ -535,16 +501,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         names5.len()
     );
     flush_fins(tol);
-    wall_probes(tol);
 
-    let recipe_ops = "ONE recipe doc: Profile -> Extrude -> Fillet (base), Profile -> Extrude \
-         (fin) -> PlacedUnion(Linear count) -> Boolean(Union); count edited via \
-         SetStructuralParam";
+    let recipe_ops = "ONE recipe doc: Profile -> Extrude (base), Profile -> Extrude (fin) -> \
+         PlacedUnion(Linear count) -> Boolean(Union) -> Fillet (the base's edges); count edited \
+         via SetStructuralParam";
     let colors = [[0.45, 0.62, 0.62], [0.38, 0.58, 0.68], [0.32, 0.54, 0.74]];
     evs.into_iter()
         .zip(colors)
         .map(|((n, ev, recompute_story), color)| {
-            let (body, contacts) = solidify(&r, &ev, n, tol);
+            let body = solidify(&r, &ev, n, tol);
             let name: &'static str = match n {
                 5 => "heatsink5",
                 7 => "heatsink7",
@@ -566,9 +531,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 delta: 1e-2,
                 note: Some(format!(
                     "{recompute_story}; fins sunk 1/16 into a base rounded at r = 1/32 \
-                     (volume {} = the rounded plate's closed form + {n} fins, gated 1e-9); \
-                     flush fins build, but a count edit outruns their declared contacts, \
-                     and the base fillet refuses after the union (wall 1)",
+                     after the union (volume {} = the rounded plate's closed form + {n} fins, \
+                     gated 1e-9); flush fins build, but a count edit outruns their declared \
+                     contacts",
                     volume(n)
                 )),
                 view: View {
@@ -576,7 +541,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     azim: -62.0,
                     up: 'z',
                 },
-                bodies: vec![SceneBody::seamed(name, color, body, contacts).named(&ev, r.solid)],
+                bodies: vec![SceneBody::plain(name, color, body).named(&ev, r.solid)],
             }
         })
         .collect()
@@ -626,7 +591,7 @@ mod name_column {
             &EvalOptions::default(),
             tol,
         );
-        let (body, _) = super::solidify(&r, &ev, 5, tol);
+        let body = super::solidify(&r, &ev, 5, tol);
         let rendered = crate::face_names(&ev, r.solid, &body);
         let rows = body
             .faces()
@@ -683,11 +648,11 @@ mod name_column {
 mod scene {
     //! The PR gate runs the tour's tests, not the tour: this is where the
     //! scene's own assertions — the recompute and reuse counts, the
-    //! surviving names, the volume at every count — and both wall
-    //! probes run on every PR that touches the tour.
+    //! surviving names, the volume at every count, and the flush fins'
+    //! refusal and recourse — run on every PR that touches the tour.
 
     #[test]
-    fn the_scene_and_its_walls_hold() {
+    fn the_scene_holds() {
         super::stops(pncad::geom_core::Tol::witness());
     }
 }
