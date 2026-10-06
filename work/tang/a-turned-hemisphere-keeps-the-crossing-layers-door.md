@@ -2,10 +2,11 @@
 id: a-turned-hemisphere-keeps-the-crossing-layers-door
 kind: issue
 title: The sphere-capped tube with its hemisphere turned about the axis (seam rulings misaligned) refuses at the crossing layer
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

@@ -2,10 +2,11 @@
 id: a-rim-offset-half-the-zero-band-builds-in-one-member-order-only
 kind: issue
 title: A dome rim offset half the zero band off the tube builds in one member order and refuses in the other
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What

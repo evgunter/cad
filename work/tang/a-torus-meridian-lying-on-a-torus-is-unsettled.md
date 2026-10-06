@@ -2,10 +2,11 @@
 id: a-torus-meridian-lying-on-a-torus-is-unsettled
 kind: issue
 title: A torus meridian lying on a torus is the F≡0 case the circle×torus root door answers Unsettled
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: H
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
