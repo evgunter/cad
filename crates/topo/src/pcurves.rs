@@ -282,9 +282,12 @@
 //! can derive the rows of its halves, and on a face the site mint
 //! selects ([`StoredRows::remints`]) it re-mints every loop no other
 //! null edge holds open ([`site_rows`]) — the whole face, once no null
-//! edge is left on it. A kill that lists a null member describes it
-//! for the first time, and re-mints the same way over each face as
-//! the kill leaves it.
+//! edge is left on it. A kill that lists a member re-mints the same way
+//! over each face its halves are on, as the kill leaves it, whether the
+//! member is null or certified: it describes a null member for the
+//! first time, and it moves a certified member's end with its carrier,
+//! so the rows the member's halves store would span the interval the
+//! end moved from.
 //!
 //! **A kill that takes the last null edge off a loop releases it**, and
 //! the rows the loop missed while it was held open are owed there
@@ -3410,7 +3413,7 @@ pub(crate) fn site_rows<T: Decide>(
                 let SiteCarriers::Described(described) = curves else {
                     unreachable!(
                         "site_rows: a Described half under non-Described carriers; \
-                         `Body::null_description_rows` is the one constructor of \
+                         `Body::description_rows` is the one constructor of \
                          `SiteHalf::Described`, and it plans under \
                          `SiteCarriers::Described` alone"
                     )
@@ -3418,7 +3421,7 @@ pub(crate) fn site_rows<T: Decide>(
                 let Some(&(_, edge)) = described.iter().find(|(e, _)| *e == of) else {
                     unreachable!(
                         "site_rows: a Described half whose edge the carriers do not list; \
-                         `Body::null_description_rows` marks a half Described only when it is \
+                         `Body::description_rows` marks a half Described only when it is \
                          a half of one of `described`'s edges, and passes that same slice as \
                          the carriers"
                     )
@@ -3481,6 +3484,14 @@ pub(crate) fn site_rows<T: Decide>(
             match (stands[i], halves[i]) {
                 (Some(cache), SiteHalf::Existing(he)) => {
                     let (t0, t1) = cache.params();
+                    debug_assert!(
+                        half_edge_curve(body, he).is_ok_and(|curve| {
+                            format!("{:?}", curve.params()) == format!("{:?}", (t0, t1))
+                        }),
+                        "site_rows: the image kept for {he:?} spans an interval its edge does not: \
+                         every door that moves an edge's interval re-derives the rows of its \
+                         halves on a chart that mints"
+                    );
                     Ok(WalkItem {
                         base: Cow::Borrowed(cache.pcurve()),
                         t0,
@@ -4719,7 +4730,13 @@ pub(crate) mod staleness_posture {
         /// ([`super::StoredRows::remints`]) — every loop of it, whatever
         /// it missed, once no null edge is left on it. Those loops leave
         /// complete, or the face rowless where the closed-form lane
-        /// cannot mint it, or — on a spline chart — as found.
+        /// cannot mint it, or — on a spline chart — as found. A kill
+        /// that re-describes the members it merges re-mints the same way
+        /// over every face a listed member's halves are on, a certified
+        /// member's included: the kill moves that member's end, so the
+        /// rows it keeps there would span the interval the end moved
+        /// from. On a spline chart the certified member's face is left
+        /// as found, for the tier-3 pass.
         Completes,
     }
 
@@ -4876,13 +4893,13 @@ pub(crate) mod staleness_posture {
             (
                 "kev_describing",
                 Completes,
-                "kill op, `set_edge_curve`'s posture for the members it re-describes: a \
-             certified member keeps its rows, and a listed NULL member's description is its \
-             first, re-minted through the same planner over the faces its halves are on as \
-             the kill leaves them (the killed halves gone), every listed member's halves \
-             under the curve the kill installs; and `kev` with a band, minting what a loop \
-             a killed null edge releases misses on every other face it is on \
-             (`Body::plan_released_rows`)",
+                "kill op, completing every face a listed member's halves are on: a NULL \
+             member's description is its first, and a CERTIFIED member's end moves with its \
+             carrier, so each such face is re-minted through `set_edge_curve`'s planner as \
+             the kill leaves it (the killed halves gone), every listed member's halves under \
+             the curve the kill installs, a certified member's face on a spline chart left \
+             as found; and `kev` with a band, minting what a loop a killed null edge \
+             releases misses on every other face it is on (`Body::plan_released_rows`)",
             ),
             (
                 "kemr_minting",
