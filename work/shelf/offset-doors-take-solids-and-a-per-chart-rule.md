@@ -4,7 +4,7 @@ kind: unit
 title: The offset doors take the solids plus a per-chart distance rule; an inward-by-t door sits over them; ChartMove and its policing refusals go
 status: open
 opened: 2026-09-28
-priority: P3
+priority: P2
 cost: H
 ---
 
