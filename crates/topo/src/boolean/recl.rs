@@ -1539,14 +1539,14 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
         let axis = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), "test_axis", band).unwrap();
-        let tilt = 1e-6;
+        let tilt = 1e3 * band.escalate();
         let bound = Vec3::new(tilt, 0.0, 1.0).normalize();
         let chord = |v: Vec3<f64>, len: f64| Reach::Chord {
             base: o,
             far: o + v * len,
         };
         let (w, reach) = flank_rep(axis, bound, chord(bound, 1.0), band)
-            .expect("a metre-long edge stands a micrometre off the line");
+            .expect("a metre-long edge stands a thousand bands off the line");
         assert!(
             (w - Vec3::new(1.0, 0.0, 0.0)).norm() < 1e-9,
             "unit, perpendicular, on the bound's side: {w:?}"
