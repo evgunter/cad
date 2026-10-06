@@ -127,8 +127,11 @@
 //!
 //! Anywhere else — a plane face, or a curved one not tangent to the
 //! plane — opposite `S` stays a safety default, not a derivation: it
-//! mints the null edge, so the configuration is cut or refuses, never
-//! answered wrongly. The rows are
+//! mints the null edge, and the join cuts there. A contact with no
+//! material across it never takes the default: a cusp's zero-width
+//! sector is refused by the neighbourhood classifier before either
+//! rule runs (`SliverSector` on `sector_straight`), and a curved wall
+//! tangent to the plane is rule (a)'s. The rows are
 //! `sweep/tests/split_tangent_edge_curved.rs` (convex grazes of a
 //! cylinder and a cone answered, concave ones refused).
 //!
@@ -232,9 +235,10 @@ pub(super) fn apply_rule_a<T: Decide>(
                                 surface, p_base, n_face, extent, band,
                             )
                             .map_err(|e| match e {
-                                geom_brep::WallBendError::Indefinite(kind) => {
-                                    SplitReduceError::CurvedBooleanUnsupported { face, kind }
-                                }
+                                geom_brep::WallBendError::Indefinite(kind) => unreachable!(
+                                    "a {kind:?} wall reached rule (a): `sector_face` admits \
+                                     only planes, cylinders and cones"
+                                ),
                                 geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
                                     diag,
                                     ..
@@ -264,6 +268,11 @@ pub(super) fn apply_rule_a<T: Decide>(
                                         at,
                                     }));
                                 }
+                                // A cylinder or cone has one zero principal
+                                // curvature, so this margin is half the
+                                // osculation margin just decided ≥ Kε: it
+                                // reads flat only when K ≤ 2, which
+                                // `CAD_AMBIGUITY_K` admits (any K > 1).
                                 WallBend::Flat => {
                                     return Err(SplitReduceError::TangencyUnsupported {
                                         face,

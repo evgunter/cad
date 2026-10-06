@@ -840,13 +840,16 @@ impl<T: Decide> Sweep<T> {
     /// straight back, so the vertex before it and the vertex after it
     /// coincide. A spur is a contact the plane only touches joined into
     /// a real section's loop, and it would leave a zero-width slit in
-    /// both halves. None reaches the join: rule (b) sends an edge the
-    /// plane only touches with its material, and rule (a) refuses a
-    /// wall that bends away from its material
-    /// ([`crate::SplitReduceError::KnifeEdge`]), so a contact never
-    /// mints a null edge of its own. An exact spur is that invariant
-    /// broken, and panics; one the band cannot tell from a corner
-    /// escalates.
+    /// both halves. None reaches the join, because no contact mints a
+    /// null edge of its own: rule (b) sends an edge the plane only
+    /// touches along a corner with its material; rule (a) refuses a wall
+    /// that bends away from its material
+    /// ([`crate::SplitReduceError::KnifeEdge`]); and a cusp, the one
+    /// contact rule (b)'s safety default could otherwise send across,
+    /// has a zero-width sector the neighbourhood classifier refuses
+    /// first ([`crate::SplitReduceError::SliverSector`] on
+    /// `sector_straight`). An exact spur is that invariant broken, and
+    /// panics; one the band cannot tell from a corner escalates.
     ///
     /// The margin is the distance between the tip's two neighbours
     /// (`split_section_spur`, a length through [`Margin::norm3`]).
@@ -890,7 +893,8 @@ impl<T: Decide> Sweep<T> {
             ) {
                 Ok(Sign::Zero) => unreachable!(
                     "section polygon {face:?} runs out along a touching edge and back: a \
-                     contact minted a null edge of its own, which rules (a) and (b) rule out"
+                     contact minted a null edge of its own, which rules (a) and (b) and the \
+                     classifier's sector_straight refusal of a cusp rule out"
                 ),
                 Ok(_) => {}
                 Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),

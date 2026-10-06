@@ -405,14 +405,13 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // they leave restated in their plane, which every section
         // boundary edge lies in; the boundary pass below gives each its
         // honest class. One re-chart reads both faces' edges before
-        // either moves, so neither restatement depends on the other.
+        // either moves, so neither restatement depends on the other, and
+        // the two lists are disjoint: an edge between the two faces
+        // would have both faces wearing the one inherited chart, which
+        // `section_plane_restatements` skips.
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
         let mut restated = section_plane_restatements(&body, promoted.face)?;
-        for (edge, spec) in section_plane_restatements(&body, section.face)? {
-            if !restated.iter().any(|(e, _)| *e == edge) {
-                restated.push((edge, spec));
-            }
-        }
+        restated.extend(section_plane_restatements(&body, section.face)?);
         body.set_face_surfaces_describing(
             vec![
                 Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
