@@ -403,6 +403,7 @@ fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     for d in [0.0, 26.0, -26.0, 30.0, -30.0].map(|k| k * eps * t.sin()) {
         let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), d);
         let posed = topo::transform_rigid(&body, &map, tol()).unwrap();
+        let posed = sweep::test_support::finished("the posed", posed, tol());
         for flip in [true, false] {
             let what = format!("lean {d:e}, flipped {flip}");
             let plane = tilted(1.25, t, flip);
@@ -634,7 +635,12 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
             let plane =
                 topo::test_support::split_plane(o, n.normalize(), geom_core::Tol::witness());
             let what = format!("{name}, plane through {o:?}");
-            let r = split(body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let r = split(
+                &sweep::test_support::finished("the operand", body.clone(), tol()),
+                &plane,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: {e:?}"));
             let below_want = 4.0 * (4.0 - 2.0 * tilt);
             for (part, want, side) in [
                 (&r.below, below_want, "below"),
@@ -675,6 +681,7 @@ fn twice_area(polygon: &topo::SectionPolygon<f64>) -> f64 {
 #[test]
 fn plane_section_of_the_u_cutter_is_one_region_with_two_holes() {
     let body = u_cut();
+    let body = sweep::test_support::finished("the body", body, tol());
     for x in [3.0, 3.9] {
         let s = topo::plane_section(&body, &at_x(x), tol()).unwrap();
         assert_eq!(s.regions.len(), 1, "x = {x}: one region");
@@ -728,7 +735,12 @@ fn plane_section_of_a_bored_body_is_one_region_with_the_bore_its_hole() {
         ),
     ];
     for (what, body, (cx, cy, r), plane) in cases {
-        let s = topo::plane_section(&body, &plane, tol()).unwrap();
+        let s = topo::plane_section(
+            &sweep::test_support::finished("the operand", body.clone(), tol()),
+            &plane,
+            tol(),
+        )
+        .unwrap();
         assert_eq!(s.regions.len(), 1, "{what}: one region");
         let region = &s.regions[0];
         assert_eq!(region.holes.len(), 1, "{what}: the bore is the one hole");
@@ -773,6 +785,7 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
         &islanded,
         &rod(Point2::new(0.0, 0.0), 0.5, -1.0, 5.0),
     );
+    let body = sweep::test_support::finished("the body", body, tol());
     let s = topo::plane_section(&body, &tilted(2.0, 0.0, false), tol()).unwrap();
     let radius = |p: &Point3<f64>| p.x.hypot(p.y);
     let mut regions: Vec<(usize, Vec<f64>)> = s
@@ -807,6 +820,7 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
 #[test]
 fn plane_section_of_the_steep_cut_through_both_seams_is_one_region() {
     let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol());
     for flip in [false, true] {
         let s = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol())
             .unwrap_or_else(|e| panic!("flipped {flip}: {e:?}"));
@@ -848,7 +862,12 @@ fn plane_section_areas_read_the_arcs() {
     ];
     for (what, body, t, outline, r) in cases {
         let z = if what.starts_with("brick") { 1.25 } else { 0.5 };
-        let s = topo::plane_section(&body, &tilted(z, t, false), tol()).unwrap();
+        let s = topo::plane_section(
+            &sweep::test_support::finished("the operand", body.clone(), tol()),
+            &tilted(z, t, false),
+            tol(),
+        )
+        .unwrap();
         assert_eq!(s.regions.len(), 1, "{what}: one region");
         let region = &s.regions[0];
         assert_eq!(region.holes.len(), 1, "{what}: one hole");
@@ -911,6 +930,7 @@ fn plane_section_area_of_the_steep_cut_reads_segments_and_arcs() {
     let a = 1.25 / t.tan();
     let want = 2.0 * (a * (1.0 - a * a).sqrt() + a.asin()) / t.cos();
     let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol());
     for flip in [false, true] {
         let s = topo::plane_section(&cylinder, &tilted(1.25, t, flip), tol()).unwrap();
         let [region] = &s.regions[..] else {
@@ -959,6 +979,7 @@ fn plane_section_areas_enclose_the_closed_form_at_interval() {
         iv(1.0),
         tol(),
     );
+    let body = sweep::test_support::finished("the body", body, tol());
     let plane = topo::test_support::split_plane(
         p3(0.0, 0.0, 0.5),
         v3(t.sin(), 0.0, t.cos()),
@@ -1013,6 +1034,7 @@ fn tilted_cut_of_a_d_prism<T: geom_core::Decide + topo::AtRestPolicy>() -> (T, u
         T::from_f64(1.0),
         tol(),
     );
+    let prism = sweep::test_support::finished("the prism", prism, tol());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5).map(T::from_f64),
         Vec3::new(t.sin(), 0.0, t.cos()).map(T::from_f64),

@@ -43,10 +43,10 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 const KERNEL_KEYED: &[&str] = &[
     "Revolve/VoidInsertion",
     "Revolve/Pcurve",
-    "Split/Reduce/ScaffoldingOperand",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
     "Split/Reduce/CrossingInsertion",
@@ -359,9 +359,9 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    "Split/Reduce/ScaffoldingOperand",
     // work/carve/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
@@ -1452,7 +1452,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "TangencyUnsupported",
             R::TangencyUnsupported { face, vertex },
         ),
-        ("ScaffoldingOperand", R::ScaffoldingOperand { edge }),
+        (
+            "ScaffoldingOperand",
+            R::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            R::InsideOutOperand {
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
         (
             "SliverVertex",
             R::SliverVertex {
@@ -1479,6 +1492,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),
+        (
+            "NullEdgeAtVertex",
+            R::NullEdgeAtVertex {
+                vertex,
+                edge: topo::EdgeKey::default(),
+            },
+        ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
         ("UnboundedFace", R::UnboundedFace { face, vertex }),
         (

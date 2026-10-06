@@ -195,6 +195,7 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
         (2.0, 0.0),
     ];
     let a = prism_z::<f64>(&reflex, 0.0, 1.0, tol).body;
+    let a = topo::test_support::finished("the a", a, tol);
     let corner = a
         .vertex_points()
         .find(|(_, p)| {
