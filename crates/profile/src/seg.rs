@@ -395,7 +395,7 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     Ok(Seg {
         a,
         b: a,
-        chord: a - a,
+        chord: Vec2::zero(),
         len: T::zero(),
         unit: heading,
         kind,

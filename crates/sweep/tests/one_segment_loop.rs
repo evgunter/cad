@@ -540,6 +540,10 @@ fn split_volumes(
     }))
 }
 
+/// A split row: its name, the plane's origin and normal, and the volume
+/// each side keeps (`None` for no material).
+type SplitCase = (&'static str, [f64; 3], [f64; 3], [Option<f64>; 2]);
+
 /// **A split of an extruded one-segment cylinder builds where the
 /// two-arc cylinder does, at the same volumes.** The cylinder is r = 1
 /// about the z axis, its seam strut on the vertex's meridian. The
@@ -561,7 +565,7 @@ fn a_split_through_the_seam_builds_as_the_two_arc_form_does() {
                 ExtrudeSide::Against => (-2.0, 0.0),
             };
             let mid = (bottom + top) / 2.0;
-            let cases: [(&str, [f64; 3], [f64; 3], [Option<f64>; 2]); 4] = [
+            let cases: [SplitCase; 4] = [
                 (
                     "through the bottom seam vertex",
                     [c, s, bottom],
