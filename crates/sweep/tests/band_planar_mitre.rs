@@ -159,9 +159,7 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
     for verb in [Verb::Chamfer, Verb::Fillet] {
         let removed = match verb {
             Verb::Chamfer => perimeter * D * D / 2.0 - k * D.powi(3) / 3.0,
-            Verb::Fillet => {
-                perimeter * verb.section() - k * (5.0 / 3.0 - PI / 2.0) * D.powi(3)
-            }
+            Verb::Fillet => perimeter * verb.section() - k * (5.0 / 3.0 - PI / 2.0) * D.powi(3),
         };
         let out = carve(&body, &rim, verb, removed, "a pentagon's cap rim");
         let rec = out.naming.as_ref().expect("births");
@@ -264,7 +262,7 @@ fn a_turn_foot_refuses_a_later_blend_of_its_edge_and_names_the_same_call() {
         );
         assert!(
             err.to_string().contains(FILLET3_CORNER_RECOURSE)
-                && FILLET3_CORNER_RECOURSE.contains("request in the same call"),
+                && FILLET3_CORNER_RECOURSE.ends_with("in one call"),
             "{verb:?}: the recourse names the same call: {err}"
         );
         carve(
@@ -331,7 +329,10 @@ fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
         edge(&body, [2.0, 1.5, 1.0], [0.0, 1.5, 1.0]),
         edge(&body, [0.0, 1.5, 1.0], [0.0, 0.0, 1.0]),
     ];
-    for kind in [sweep::blend::BlendKind::Chamfer, sweep::blend::BlendKind::Fillet] {
+    for kind in [
+        sweep::blend::BlendKind::Chamfer,
+        sweep::blend::BlendKind::Fillet,
+    ] {
         let request = sweep::blend::BlendRequest {
             body: &body,
             edges: rim.to_vec(),
@@ -340,11 +341,18 @@ fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
         let band = Band::linear(tol()).expect("the run's band");
         let verdict = run_battery_for(&request, band, kind).expect("the battery admits");
         assert_eq!(verdict.turns.len(), 4, "{kind:?}: four turns");
-        assert_eq!(verdict.coincidences.len(), 4, "{kind:?}: one record per turn");
+        assert_eq!(
+            verdict.coincidences.len(),
+            4,
+            "{kind:?}: one record per turn"
+        );
         for (turn, record) in verdict.turns.iter().zip(&verdict.coincidences) {
             let DecidedCoincidence::IsoscelesTurn { vertex, gap } = record;
             assert_eq!(*vertex, turn.vertex, "{kind:?}: recorded at the turn");
-            assert!(gap.abs() < 1e-15, "{kind:?}: the gap decided Zero, got {gap}");
+            assert!(
+                gap.abs() < 1e-15,
+                "{kind:?}: the gap decided Zero, got {gap}"
+            );
         }
     }
 }

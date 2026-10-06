@@ -347,6 +347,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::CapTransverse => "cap_transverse",
         BlendDecision::CapEllipse => "cap_ellipse",
         BlendDecision::CutOffFeet => "cut_off_feet",
+        BlendDecision::TurnIsosceles => "turn_isosceles",
     }
 }
 

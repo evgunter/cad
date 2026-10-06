@@ -116,7 +116,10 @@ fn a_turn_is_named_by_its_mitre_and_feet() {
                 "{what}: the mitres"
             );
             assert_eq!(
-                count(|s| matches!(s, RoleSeg::TurnFoot { .. }), EntityKind::Vertex),
+                count(
+                    |s| matches!(s, RoleSeg::TurnFoot { .. }),
+                    EntityKind::Vertex
+                ),
                 turns,
                 "{what}: the turn feet"
             );

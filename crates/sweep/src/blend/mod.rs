@@ -411,10 +411,9 @@ impl BlendDecision {
             }
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
-            Self::ChainG1
-            | Self::SupportCoaxiality
-            | Self::CapTransverse
-            | Self::TurnIsosceles => None,
+            Self::ChainG1 | Self::SupportCoaxiality | Self::CapTransverse | Self::TurnIsosceles => {
+                None
+            }
             // The second-order separation passes on any definite sign,
             // but the relay's in-band verdict may be a station's
             // first-order wedge, which a smaller tolerance decides
@@ -968,11 +967,11 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// symmetric about the third, and one alone. "Whatever is requested"
 /// covers a vertex that mixes convexity: it ends no chain whether the
 /// request names one of its edges, two, or all three, because its
-/// configuration is read before the count. Its last clause answers the
-/// four-edge vertex a mitre leaves where the third edge ends: that edge
-/// blended in a later call ends at a valence-4 vertex, and requested in
-/// the mitre's own call it builds the corner patch instead. The
-/// run-outs' own details name their shapes.
+/// configuration is read before the count. Its last clause, "in one
+/// call", answers the four-edge vertex a mitre leaves where the third
+/// edge ends: that edge blended in a later call ends at a valence-4
+/// vertex, and requested in the mitre's own call it builds the corner
+/// patch instead. The run-outs' own details name their shapes.
 ///
 /// The ends it names are true of either verb on either material side:
 /// the uniform trivalent vertex carves wherever the material lies (the
@@ -983,10 +982,9 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// being the shared arm both doors render. Held to it by
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
-pub const FILLET3_CORNER_RECOURSE: &str = "end each chain at trivalent vertices of one convexity \
-     between planes, whatever is requested: all three edges; two, the faces symmetric about the \
-     third; or the chain's edge alone, cut off in a plane end face; request in the same call an \
-     edge a mitre ends";
+pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of one convexity \
+     between planes, whatever is requested: all three edges, two symmetric about the third, or one \
+     cut off in a plane end face, in one call";
 /// The lever of `fillet3_turn_isosceles`: in band, the turn is neither
 /// the mitre that lands on the third edge nor the overrun past it, so
 /// the way out is a symmetric vertex, a clearly asymmetric one, or the

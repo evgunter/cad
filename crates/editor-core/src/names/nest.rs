@@ -1875,6 +1875,8 @@ pub(super) mod tests {
                     vertex: r(a),
                     edge: r(b),
                 },
+                R::Mitre { vertex: r(a) },
+                R::TurnFoot { vertex: r(b) },
                 R::BandFace(vec![a.clone(), b.clone()]),
                 R::BandTrim {
                     edge: r(a),

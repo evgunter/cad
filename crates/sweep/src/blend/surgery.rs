@@ -213,8 +213,7 @@ use topo::{
 };
 
 use super::admit::{
-    AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
-    TurnRow,
+    AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary, TurnRow,
 };
 use super::arms::EdgeBlend;
 use super::battery::{

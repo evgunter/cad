@@ -1783,13 +1783,13 @@ pub fn run_battery_for<T: Decide + Bounds>(
                 match corner_at(body, v, link, &req.edges, r, band, kind)? {
                     Some(EndVerdict::Section(section)) => end_faces.push((v, section)),
                     // Both chains a turn ends read it; it is one turn.
-                    Some(EndVerdict::Turn(turn, coincidence)) => {
-                        if !turns.iter().any(|t: &Turn<T>| t.vertex == v) {
-                            turns.push(turn);
-                            coincidences.push(coincidence);
-                        }
+                    Some(EndVerdict::Turn(turn, coincidence))
+                        if !turns.iter().any(|t: &Turn<T>| t.vertex == v) =>
+                    {
+                        turns.push(turn);
+                        coincidences.push(coincidence);
                     }
-                    None => {}
+                    Some(EndVerdict::Turn(..)) | None => {}
                 }
             }
         }
@@ -1950,8 +1950,7 @@ pub enum EndSection<T: Real> {
 /// The refusal for a turn whose trihedron is definitely not isosceles
 /// about its unrequested edge.
 pub const TURN_OVERRUN: &str = "two requested edges turn at a vertex whose faces are not \
-     symmetric about its third edge, so one band reaches past the mitre and would be cut off by \
-     the other's far face, which is not built";
+     symmetric about its third edge, so one band overruns the mitre, which is not built";
 
 /// **A turn predicate 6 admitted**: two of a trivalent vertex's three
 /// edges requested, the third, `edge`, not, and the trihedron decided
@@ -2025,7 +2024,13 @@ fn turn_at<T: Decide>(
                 "a turn's two requested edges share no face",
             )
         })?;
-    let other = |l: &Link<T>| if l.face_a == shared { l.face_b } else { l.face_a };
+    let other = |l: &Link<T>| {
+        if l.face_a == shared {
+            l.face_b
+        } else {
+            l.face_a
+        }
+    };
     let (f1, f2) = (other(l1), other(l2));
     let p = point_at(body, vertex)?;
     let normal = |f: FaceKey| {

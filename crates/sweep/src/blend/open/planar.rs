@@ -423,7 +423,13 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide>(
                 "a turn's two links share no support",
             )
         })?;
-    let other = |l: &Link<T>| if l.face_a == shared { l.face_b } else { l.face_a };
+    let other = |l: &Link<T>| {
+        if l.face_a == shared {
+            l.face_b
+        } else {
+            l.face_a
+        }
+    };
     let others = [other(l1), other(l2)];
     let (o1, d1) = open_trimline(l1, shared)?;
     let (o2, d2) = open_trimline(l2, shared)?;
@@ -582,7 +588,12 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     for t in turns {
         let foot = turn_split(body, t, rec, tol)?;
         for f in t.others {
-            once(&mut foot_of, (t.vertex, f), foot, EntityId::Vertex(t.vertex))?;
+            once(
+                &mut foot_of,
+                (t.vertex, f),
+                foot,
+                EntityId::Vertex(t.vertex),
+            )?;
         }
     }
 
@@ -995,7 +1006,16 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
                 "a turn's vertex does not carry its two links and one third edge",
             )
         })?;
-    let frag = split_fragment(body, third, t.vertex, t.at, None, rec, "turn foot split", tol)?;
+    let frag = split_fragment(
+        body,
+        third,
+        t.vertex,
+        t.at,
+        None,
+        rec,
+        "turn foot split",
+        tol,
+    )?;
     if frag.source != t.third {
         return Err(not_intact(
             EntityId::Edge(third),
@@ -1033,7 +1053,8 @@ fn turn_fusion<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BlendError> {
     let v = t.vertex;
-    let (he1, he2, x, y) = chord_site(body, band, |row| body.half_edge_end(row.0) == Some(v), 0, 2)?;
+    let (he1, he2, x, y) =
+        chord_site(body, band, |row| body.half_edge_end(row.0) == Some(v), 0, 2)?;
     let (px, py) = (
         point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a mitre's end"))?,
         point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a mitre's end"))?,
@@ -1069,7 +1090,13 @@ fn turn_fusion<T: Decide + topo::AtRestPolicy>(
             [e] => halves_of(body, e),
             _ => None,
         })
-        .map(|(hp, hm)| if body.half_edge_end(hm) == Some(v) { hm } else { hp })
+        .map(|(hp, hm)| {
+            if body.half_edge_end(hm) == Some(v) {
+                hm
+            } else {
+                hp
+            }
+        })
         .ok_or_else(|| {
             not_intact(
                 EntityId::Vertex(v),

@@ -100,7 +100,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
     assert_speaks_as_the_chamfer(&err, "run-out");
     let text = format!("{err}");
     assert!(
-        text.contains("end each chain at trivalent vertices"),
+        text.contains("end chains at trivalent vertices"),
         "the recourse speaks of the band, not the other verb: {text}"
     );
 }
@@ -209,9 +209,9 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
 ///
 /// - clearance: "reduce the blend size" — the chamfer that refused at
 ///   0.55 m builds at 0.1 m;
-/// - corner/run-out: "the chain's edge alone, which is cut off in the
-///   plane end face" — an edge ending at a curved end face refuses, and
-///   one ending at plane end faces (a cube's) builds;
+/// - corner/run-out: "one cut off in a plane end face" — an edge ending
+///   at a curved end face refuses, and one ending at plane end faces (a
+///   cube's) builds;
 /// - tangential: "blend an edge whose supports meet at a definite
 ///   angle" — the cube's edges are such edges, and they build.
 #[test]
