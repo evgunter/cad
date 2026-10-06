@@ -1,6 +1,7 @@
 //! **BLEND-6 (ring clearance) R2 review probes** — what the unit's own
-//! rows leave unmeasured about the two CONTAINMENT relations of
-//! `CircleMargins`. Every fixture the unit rows is COAXIAL: the ring or
+//! rows leave unmeasured about the two CONTAINMENT relations of the
+//! ring carry-through meter (`support_boundary_clearance`'s `si − far`
+//! and `near − si`). Every fixture the unit rows is COAXIAL: the ring or
 //! the boundary shares the trim circle's centre, so `‖cj − ci‖` is zero
 //! at every reading and two coaxial circles never cross. The fixture
 //! here is a cylinder with an off-axis spherical PIP, which puts a

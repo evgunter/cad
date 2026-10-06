@@ -57,8 +57,13 @@ One further defect in the same reader: an all-ARC ring adopted its
 first arc's circle for the whole ring. Two overlapping bores leave a
 ring of arcs of two circles, and in one subtraction order a fillet at
 r = 0.252 carved through the second bore's arc into a body that failed
-tier 3 (`RingMeetsOuter`), while the other order refused. A ring is now
-read as one circle only when it is one closed circle edge; every other
-ring is metered edge by edge, exactly, in arm (a) against the
-trimline and in the support-boundary walk against the trim circle.
-Pinned by `review_fillet_e2_probes::a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc`.
+tier 3 (`RingMeetsOuter`), while the other order refused. Main also
+built tier-3-invalid bodies for a ring of three bores' arcs (r = 0.2502
+and 0.252) and for a lens ring on a hostless annulus (r = 0.191). Every
+ring is now metered piece by piece (`ring_pieces`), exactly, in arm (a)
+against the trimline and in the support-boundary walk against the trim
+circle, and each cycle refuses at its least margin. The whole-circle
+readings (`CircleMargins`) are retired: no ring of a face encloses a
+ladder trim, which encloses its rim, another ring of that face. Pinned
+by `review_fillet_e2_probes::a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc`
+and `ring_carry_through_by_piece`.

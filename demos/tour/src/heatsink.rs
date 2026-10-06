@@ -334,6 +334,8 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
         (got - want).abs() <= 1e-9,
         "the {n}-fin solid measures {got}, and the rounded base + {n} fins is {want}"
     );
+    pncad::topo::validate_geometric(body, tol)
+        .unwrap_or_else(|e| panic!("the {n}-fin solid is tier-3 valid, got {e:?}"));
     (**body).clone()
 }
 
