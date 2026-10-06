@@ -892,6 +892,7 @@ impl<T: Decide> Sweep<T> {
                 axis: axis_e,
                 sa,
                 sb,
+                reach,
                 ..
             }) = crate::loop_winding::ConicFrame::of(curve.carrier())
             else {
@@ -911,7 +912,9 @@ impl<T: Decide> Sweep<T> {
                 + sa * sb * axis_e.dot(self.plane.normal.get()) * dt_signed
                 - a.cross(b).dot(self.plane.normal.get());
             twice_area = twice_area + excess;
-            perimeter = perimeter + (sa * span.abs() - (b - a).norm());
+            // The arc's length over-stated by its larger semi-axis
+            // magnitude (`reach`), whichever is stored first.
+            perimeter = perimeter + (reach * span.abs() - (b - a).norm());
         }
         // `twice_area` IS 2A (shoelace), so dividing by the full
         // perimeter yields the documented margin 2·|A|/P — the mean
