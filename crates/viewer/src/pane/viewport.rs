@@ -1813,9 +1813,8 @@ mod tests {
     /// the clear value, it was misreported both ways: as *id buffer
     /// nothing* against a ray that named a face, and as silent
     /// agreement against a ray that named nothing. The two rows below
-    /// each ask one of those cursors. The ray's names come back as the
-    /// landed document speaks them within its evaluation, role path
-    /// included.
+    /// each ask one of those cursors. The ray's names come back in
+    /// words, as the landed document speaks them within its evaluation.
     fn unassigned_id_news(
         wanted: impl Fn(&[StableName]) -> bool,
     ) -> (u32, Vec<StableName>, Vec<String>, Option<frame::Message>) {

@@ -597,10 +597,7 @@ pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
 ///
 /// So a component that is not a literal is not evaluated and not
 /// guessed: the label says the origin is driven and names no number. A
-/// [`Datum::FaceFrame`] says whose face it is read off; it cannot say
-/// WHICH face, because a face's identity is its role path and
-/// `RoleSeg` has no `Display` (`crate::idpass`'s note says so in as
-/// many words).
+/// [`Datum::FaceFrame`] says whose face it is read off, not which face.
 ///
 /// `None` is a node with no such sentence — every kind but the two
 /// frames.

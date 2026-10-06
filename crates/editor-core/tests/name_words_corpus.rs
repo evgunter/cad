@@ -46,7 +46,7 @@ use editor_core::{
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
-const OVER_BUDGET: &[(&str, usize)] = &[("SelectRefusal::PairInBand", 77)];
+const OVER_BUDGET: &[(&str, usize)] = &[];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -59,18 +59,22 @@ const UNMARKED_RECOURSE: &[&str] = &[
     "NodeErrorKind::CrossingUnverified",
 ];
 
-/// **The names' own lengths in words, p50, p99 and max**: a face said
-/// within its table, then every name a node holds said in full. A
-/// ratchet: a number that grows fails, one that shrinks lowers it.
-const NAME_WORDS: [(&str, [usize; 3]); 2] =
-    [("scoped faces", [16, 34, 38]), ("full", [19, 73, 111])];
+/// **The names' own lengths in words, p50, p99, max and the total**: a
+/// face said within its table, then every name a node holds said in
+/// full. A ratchet: a number that grows fails, one that shrinks lowers
+/// it. The total moves with a word said once more by every name of a
+/// kind, which the quantiles of a long tail need not.
+const NAME_WORDS: [(&str, [usize; 4]); 2] = [
+    ("scoped faces", [16, 34, 38, 38_230]),
+    ("full", [19, 73, 111, 252_376]),
+];
 
 /// **A digest of every word the corpus's names say** — each name a
 /// node holds, in full from the document, by tag, and within the
 /// evaluation, in the corpus's order: a wrong word of the same length
 /// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
 /// that moved, said in the PR that moves them.
-const SAID_DIGEST: u64 = 0x1c20_aa96_ad94_d130;
+const SAID_DIGEST: u64 = 0x4363_a07d_a6e7_6bfc;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -121,18 +125,20 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
             let by_tag = name.to_string();
             *groups[0].entry(said.clone()).or_default() += 1;
             *groups[1].entry(by_tag.clone()).or_default() += 1;
-            // A name another node holds is said within that node's
-            // table, which a pass-through repeats row for row.
+            // A name another node minted is said within that node's
+            // table, which a pass-through repeats row for row: it is
+            // counted there, and checked here against the names this
+            // table mixes it with.
+            let within = scoped.name(name).to_string();
+            *groups[2].entry(within.clone()).or_default() += 1;
             if name.node != id {
                 out.said.push(said);
                 continue;
             }
-            let within = scoped.name(name).to_string();
             out.full
                 .push((said.split_whitespace().count(), name.clone()));
             out.scoped
                 .push((within.split_whitespace().count(), name.clone()));
-            *groups[2].entry(within.clone()).or_default() += 1;
             out.every.extend([said.clone(), by_tag, within]);
             out.said.push(said);
         }
@@ -163,12 +169,12 @@ fn digest<'a>(said: impl IntoIterator<Item = &'a String>) -> u64 {
     hash
 }
 
-/// p50, p99 and max of `names`' words.
-fn spread(names: &[Counted]) -> [usize; 3] {
+/// p50, p99, max and total of `names`' words.
+fn spread(names: &[Counted]) -> [usize; 4] {
     let mut words: Vec<usize> = names.iter().map(|n| n.words).collect();
     words.sort_unstable();
     let at = |q: usize| words[(words.len() - 1) * q / 100];
-    [at(50), at(99), at(100)]
+    [at(50), at(99), at(100), words.iter().sum()]
 }
 
 /// The name at the `q`th percentile of `names` by words, and the
@@ -234,11 +240,11 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
         .collect();
     let words = [("scoped faces", spread(&faces)), ("full", spread(&full))];
     let hash = digest(&every);
-    println!("the names' words, p50 p99 max: {words:?}; digest {hash:#018x}");
+    println!("the names' words, p50 p99 max total: {words:?}; digest {hash:#018x}");
     let mut moved = Vec::new();
     if words != NAME_WORDS {
         moved.push(format!(
-            "the names say {words:?} words (p50, p99, max); NAME_WORDS pins {NAME_WORDS:?}: \
+            "the names say {words:?} words (p50, p99, max, total); NAME_WORDS pins {NAME_WORDS:?}: \
              a number that grew is a regression, one that shrank lowers the pin"
         ));
     }
@@ -337,20 +343,24 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
 }
 
 /// **A node's resolve failure says which slot**: a corpus fillet's
-/// first selected edge, stranded, as the tree row says it.
+/// last selected edge of several, stranded, as the tree row says it.
 fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'static str, String)> {
-    let (doc, ev, fillet, edge) = docs
+    let (doc, ev, fillet, at, edge) = docs
         .iter()
         .zip(evals)
         .find_map(|(d, ev)| {
             d.doc.order().iter().find_map(|&id| match d.doc.node(id) {
-                Some(Node::Fillet { selection, .. }) => {
-                    Some((&d.doc, ev, id, selection.first()?.clone()))
-                }
+                Some(Node::Fillet { selection, .. }) if selection.len() > 1 => Some((
+                    &d.doc,
+                    ev,
+                    id,
+                    selection.len() - 1,
+                    selection.last()?.clone(),
+                )),
                 _ => None,
             })
         })
-        .expect("the corpus fillets an edge");
+        .expect("the corpus fillets more than one edge");
     let stranded = NodeError {
         node: fillet,
         kind: NodeErrorKind::BlendSelectionResolve {
@@ -359,12 +369,13 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
                 name: edge.clone(),
                 edit: RecipeEditRef::NodeDeleted { node: edge.node },
             }),
+            reference: at,
         },
         escalations: Default::default(),
     }
     .spoken(doc, ev);
     assert!(
-        stranded.contains("this fillet's edge 0 is stranded: "),
+        stranded.contains(&format!("this fillet's edge {at} is stranded: ")),
         "the row says the slot: {stranded}"
     );
     vec![("NodeErrorKind::BlendSelectionResolve", stranded)]

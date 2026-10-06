@@ -900,6 +900,7 @@ mod tests {
             C::ParamSourceAttach => K::ParamSourceAttach(topo::ParamAttachError::StaleKey),
             C::DeclareResolve => K::DeclareResolve {
                 error: resolve_error(),
+                reference: 0,
             },
             C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand { at: n(3) },
             C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
@@ -934,10 +935,12 @@ mod tests {
             C::FilletSelectionResolve => K::BlendSelectionResolve {
                 verb: BlendKind::Fillet,
                 error: resolve_error(),
+                reference: 0,
             },
             C::ChamferSelectionResolve => K::BlendSelectionResolve {
                 verb: BlendKind::Chamfer,
                 error: resolve_error(),
+                reference: 0,
             },
             C::FilletSelectionKind => found_body(|found| K::BlendSelectionKind {
                 verb: BlendKind::Fillet,
@@ -958,6 +961,7 @@ mod tests {
             C::Shell => K::Shell(Box::new(topo::ShellError::Thickness { thickness: -0.5 })),
             C::ShellOpenResolve => K::ShellOpenResolve {
                 error: resolve_error(),
+                reference: 0,
             },
             C::ShellOpenKind => found_body(|found| K::ShellOpenKind {
                 name: Box::new(name()),
@@ -1154,6 +1158,7 @@ mod tests {
             },
             C::MeasureRefResolve => K::MeasureRefResolve {
                 error: resolve_error(),
+                reference: 0,
             },
             C::MeasureRefUnreadable => K::MeasureRefUnreadable {
                 name: Box::new(name()),

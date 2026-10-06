@@ -296,6 +296,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                     node: RecipeNodeId(tagged(3)),
                 },
             }),
+            reference: 0,
         },
         K::BlendSelectionResolve {
             verb: sweep::blend::BlendKind::Fillet,
@@ -308,6 +309,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                     width: 2,
                 },
             }),
+            reference: 0,
         },
         K::WitnessBifurcation(editor_core::WitnessBifurcation {
             kind: editor_core::BifurcationKind::FoldProximity,
@@ -375,7 +377,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
         let payload = match &kind {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
-            K::DeclareResolve { error } => error.to_string(),
+            K::DeclareResolve { error, .. } => error.to_string(),
             K::BlendSelectionResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),

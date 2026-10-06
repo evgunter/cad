@@ -475,6 +475,8 @@ mod name_depth;
 mod name_tables_by_position;
 #[path = "name_words_corpus.rs"]
 mod name_words_corpus;
+#[path = "name_words_rows.rs"]
+mod name_words_rows;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
 #[path = "node_labels.rs"]

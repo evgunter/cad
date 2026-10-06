@@ -26,6 +26,13 @@
 //!   body's own continuation and is silent. Two names of one table first
 //!   differ at a node where one went through a secondary operand, which
 //!   a join says.
+//! - **A cited name whose words run on past its node** — a qualifier's
+//!   list, a join — is said in brackets: "the part of the start cap of
+//!   Extrude e548 bordering (the part of the side wall over loop 0 step
+//!   2 of Extrude e548 bordering 2 faces) and the side wall over loop 0
+//!   step 3 of Extrude e548". Every other cited name ends at its node,
+//!   so no "and" or join the citing sentence says after a citation reads
+//!   as more of it, and the full form reads one way only.
 //!
 //! **Which node's output holds the entity is not the name's to say**:
 //! two copies of one body hold names alike, and the sentence that says
@@ -120,7 +127,8 @@ pub(crate) type Pos = Vec<u16>;
 /// many more, or how many of what kind where it opens none.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Detail {
-    /// Every citation opened: the form two distinct names never share.
+    /// Every citation opened: the form two distinct names never share,
+    /// its run-on citations bracketed ([module docs](self)).
     Full,
     /// These citations opened, and no others.
     Open(BTreeSet<Pos>),
@@ -157,9 +165,17 @@ pub(crate) fn words(name: &StableName, by: Speaker<'_>, detail: &Detail) -> Stri
 ///
 /// Then every name is said at its own detail, and each group of names
 /// whose words are alike — each at the detail it chose, which no search
-/// above compared — is said in full, until no two read alike: the full
-/// form never says two names alike. A detail is unique in the table,
+/// above compared — is said in full, until no two read alike. The full
+/// form says no two distinct names alike ([`Detail::Full`]), so the
+/// loop ends with every name apart. A detail is unique in the table,
 /// not the fewest openings.
+///
+/// **Cost.** Each name of a group alike at no citation is said once per
+/// detail some search of the group asks of it ([`Alike`]), and the
+/// searches share those sayings: a detail one search tries is mostly
+/// one every search of the group tries, since the group's names cite
+/// alike. What grows with the group is comparing each name's words with
+/// its rivals', quadratic in the group's size by string comparison.
 ///
 /// Worked out by tag: a speaker holding a document says each node and
 /// step it names in a spelling of its own for each, so names that read
@@ -174,13 +190,9 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
     }
     let mut details = vec![bare; names.len()];
     for group in alike.values().filter(|group| group.len() > 1) {
-        for &i in group {
-            let rivals: Vec<&StableName> = group
-                .iter()
-                .filter(|&&j| j != i)
-                .map(|&j| &**names[j])
-                .collect();
-            details[i] = apart_from(names[i], &rivals);
+        let mut said = Alike::new(group.iter().map(|&i| &**names[i]).collect());
+        for (k, &i) in group.iter().enumerate() {
+            details[i] = said.apart(k);
         }
     }
     let mut said: Vec<String> = names
@@ -200,8 +212,6 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
             .copied()
             .filter(|&i| details[i] != Detail::Full)
             .collect();
-        // Two names alike in full are left for the corpus gate to name:
-        // no detail says more than the full form.
         if opened.is_empty() {
             break;
         }
@@ -213,62 +223,96 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
     names.into_iter().cloned().zip(details).collect()
 }
 
-/// A detail at which `name` reads apart from each of `rivals`, each said
-/// at that same detail, found greedily ([`table_details`]).
-fn apart_from(name: &StableName, rivals: &[&StableName]) -> Detail {
-    let by = Speaker::TAG;
-    let alike = |open: &BTreeSet<Pos>, among: &[&StableName]| -> usize {
-        let detail = Detail::Open(open.clone());
-        let mine = words(name, by, &detail);
+/// **One group of names alike at no citation, and each said at every
+/// detail a search asked of it**, so that the group's searches
+/// ([`Alike::apart`]) say each name at each detail once between them.
+struct Alike<'n> {
+    names: Vec<&'n StableName>,
+    /// Each name's words, by the openings said and the name's place in
+    /// the group.
+    said: BTreeMap<BTreeSet<Pos>, Vec<Option<String>>>,
+}
+
+impl<'n> Alike<'n> {
+    fn new(names: Vec<&'n StableName>) -> Self {
+        Self {
+            names,
+            said: BTreeMap::new(),
+        }
+    }
+
+    /// The words of the group's `i`th name with `open` opened.
+    fn words(&mut self, open: &BTreeSet<Pos>, i: usize) -> &str {
+        let len = self.names.len();
+        let row = self
+            .said
+            .entry(open.clone())
+            .or_insert_with(|| vec![None; len]);
+        let name = self.names[i];
+        row[i].get_or_insert_with(|| words(name, Speaker::TAG, &Detail::Open(open.clone())))
+    }
+
+    /// How many of `among` read alike with the `i`th name at `open`.
+    fn count(&mut self, open: &BTreeSet<Pos>, i: usize, among: &[usize]) -> usize {
+        let mine = self.words(open, i).to_owned();
         among
             .iter()
-            .filter(|other| words(other, by, &detail) == mine)
+            .filter(|&&j| self.words(open, j) == mine)
             .count()
-    };
-    let mut open = BTreeSet::new();
-    let mut left: Vec<&StableName> = rivals.to_vec();
-    let mut shut = cited_positions(name, by);
-    loop {
-        let detail = Detail::Open(open.clone());
-        let mine = words(name, by, &detail);
-        left.retain(|other| words(other, by, &detail) == mine);
-        if left.is_empty() {
-            // An opening can make alike a rival an earlier detail told
-            // apart ("2 faces" and "2 entities" both open to "the side
-            // wall … and 1 more"), so every rival is asked again.
-            left = rivals
-                .iter()
-                .copied()
-                .filter(|other| words(other, by, &detail) == mine)
-                .collect();
+    }
+
+    /// A detail at which the group's `i`th name reads apart from each
+    /// other name of the group, each said at that same detail, found
+    /// greedily ([`table_details`]).
+    fn apart(&mut self, i: usize) -> Detail {
+        let rivals: Vec<usize> = (0..self.names.len()).filter(|&j| j != i).collect();
+        let mut open = BTreeSet::new();
+        let mut left = rivals.clone();
+        let mut shut = cited_positions(self.names[i], Speaker::TAG);
+        loop {
+            let mine = self.words(&open, i).to_owned();
+            left.retain(|&j| self.words(&open, j) == mine);
             if left.is_empty() {
-                break;
+                // An opening can make alike a rival an earlier detail
+                // told apart ("2 faces" and "2 entities" both open to
+                // "the side wall … and 1 more"), so every rival is asked
+                // again.
+                left = rivals
+                    .iter()
+                    .copied()
+                    .filter(|&j| self.words(&open, j) == mine)
+                    .collect();
+                if left.is_empty() {
+                    break;
+                }
+            }
+            // The citations said now: those whose citing name is open.
+            let detail = Detail::Open(open.clone());
+            let sayable: Vec<usize> = (0..shut.len())
+                .filter(|&k| detail.opens(&shut[k][..shut[k].len() - 1]))
+                .collect();
+            let Some(pick) = sayable.iter().copied().min_by_key(|&k| {
+                let mut tried = open.clone();
+                tried.insert(shut[k].clone());
+                self.count(&tried, i, &left)
+            }) else {
+                return Detail::Full;
+            };
+            open.insert(shut.remove(pick));
+        }
+        // An opening a later one made needless is shut again, with every
+        // opening beneath it, while the name still reads apart; in
+        // reverse order, so an opening is tried before the one it sits
+        // beneath.
+        for pos in open.clone().iter().rev() {
+            let mut fewer = open.clone();
+            fewer.retain(|kept| !kept.starts_with(pos));
+            if self.count(&fewer, i, &rivals) == 0 {
+                open = fewer;
             }
         }
-        // The citations said now: those whose citing name is open.
-        let sayable: Vec<usize> = (0..shut.len())
-            .filter(|&i| detail.opens(&shut[i][..shut[i].len() - 1]))
-            .collect();
-        let Some(pick) = sayable.iter().copied().min_by_key(|&i| {
-            let mut tried = open.clone();
-            tried.insert(shut[i].clone());
-            alike(&tried, &left)
-        }) else {
-            return Detail::Full;
-        };
-        open.insert(shut.remove(pick));
+        Detail::Open(open)
     }
-    // An opening a later one made needless is shut again, with every
-    // opening beneath it, while the name still reads apart; in reverse
-    // order, so an opening is tried before the one it sits beneath.
-    for pos in open.clone().iter().rev() {
-        let mut fewer = open.clone();
-        fewer.retain(|kept| !kept.starts_with(pos));
-        if alike(&fewer, rivals) == 0 {
-            open = fewer;
-        }
-    }
-    Detail::Open(open)
 }
 
 /// Every citation of `name`'s full form, nearest first.
@@ -524,6 +568,20 @@ fn expand<'n, 's>(
                 format!(", joined at {} from {}", by.node(union), by.node(member))
             }
         }));
+    }
+    // A cited name whose words run on past its node — a qualifier's
+    // list, a join — is bracketed, so nothing the citing sentence says
+    // after it reads as more of it.
+    let runs_on = !joins.is_empty()
+        || wraps.iter().any(|wrap| {
+            matches!(
+                wrap,
+                Wrap::Part(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_))
+            )
+        });
+    if runs_on && !pos.is_empty() {
+        items.insert(0, text("("));
+        items.push(text(")"));
     }
     items
 }

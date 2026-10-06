@@ -391,7 +391,7 @@ impl crate::spoken::Say for SelectRefusal {
             Self::PairInBand {
                 pair, at, source, ..
             } => {
-                f.write_str("select: whether ")?;
+                f.write_str("select: ")?;
                 // A name does not say the node holding it, so two copies
                 // of one body hold names alike: then each face is said
                 // with its node.
@@ -408,7 +408,7 @@ impl crate::spoken::Say for SelectRefusal {
                 }
                 write!(
                     f,
-                    " are flush is undecided: {}",
+                    " are flush? undecided: {}",
                     source.under(geom_core::NO_DECLARATION_RECOURSE)
                 )
             }

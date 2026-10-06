@@ -184,8 +184,8 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     let shown = refusal.to_string();
     assert!(
         shown.starts_with(
-            "select: whether the end cap of node 000000000002 and the start cap of node \
-             000000000005, through operand B of node 000000000009 are flush is undecided: "
+            "select: the end cap of node 000000000002 and the start cap of node \
+             000000000005, through operand B of node 000000000009 are flush? undecided: "
         ),
         "{shown}"
     );
@@ -659,9 +659,9 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 source: in_band("bool_plane_side_of"),
             },
             vec![
-                "select: whether the end cap",
+                "select: the end cap",
                 "on node 000000000003 and the end cap",
-                "on node 000000000004 are flush is undecided",
+                "on node 000000000004 are flush? undecided:",
             ],
         ),
         (
@@ -3064,7 +3064,7 @@ fn maintenance_display_says_what_the_edit_did() {
                  000000000007",
                 // The sentence says what the edit took, never that the
                 // name went.
-                "this edit deleted the node that made it",
+                "this edit deleted Extrude 000000000007, which minted the name",
                 "resolves to nothing until it is rebound",
             ],
         ),

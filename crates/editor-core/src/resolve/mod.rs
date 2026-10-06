@@ -140,7 +140,7 @@ pub enum ResolveError {
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM in prose — the name said once, in full where no table
 // holds it, the WHY forwarded from the payload's own rendering.
-// `NodeGone` names the node the name is on, and words its edit itself.
+// `NodeGone` names the node that minted the name, and words its edit itself.
 // A sentence that already names the reference (a node's slot, a pane's
 // "this face") leads with that instead ([`AboutReference`]).
 impl crate::spoken::Say for ResolveError {

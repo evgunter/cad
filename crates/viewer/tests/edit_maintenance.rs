@@ -217,10 +217,11 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     assert_eq!(
         line.text(),
         "nothing to undo \u{2022} node 000000000003 carries a name for the face of node \
-         000000000007; this edit deleted the node that made it, so the name resolves to \
-         nothing until it is rebound \u{2022} the appearance store holds an attachment under a \
-         name for the face of node 000000000008; this edit deleted the node that made it, so \
-         the name resolves to nothing until it is rebound or cleared"
+         000000000007; this edit deleted node 000000000007, which minted the name, so the \
+         name resolves to nothing until it is rebound \u{2022} the appearance store holds an \
+         attachment under a name for the face of node 000000000008; this edit deleted node \
+         000000000008, which minted the name, so the name resolves to nothing until it is \
+         rebound or cleared"
     );
 }
 

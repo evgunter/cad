@@ -645,8 +645,9 @@ class SelectRefusal(PncadError):
     `distinct_finding` (a kernel defect). The other attributes are
     the refusing arm's payload, always present and `None` where
     inapplicable: `name` (the candidate's opaque name text, a flush
-    pair's first face), `other` (a flush pair's second face),
-    `predicate` (the funnel site), `matched`/`candidates` (a tied
+    pair's first face), `other` (a flush pair's second face), `at` and
+    `other_at` (the nodes holding a flush pair's two faces, which tell
+    two copies of one body apart), `predicate` (the funnel site), `matched`/`candidates` (a tied
     name's disagreement counts), `datum` (the non-datum reference, or
     the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
@@ -654,6 +655,8 @@ class SelectRefusal(PncadError):
     reason: str
     name: Optional[str]
     other: Optional[str]
+    at: Optional[NodeId]
+    other_at: Optional[NodeId]
     predicate: Optional[str]
     matched: Optional[int]
     candidates: Optional[int]

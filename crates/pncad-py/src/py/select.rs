@@ -737,6 +737,8 @@ pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str,
         ("reason", PyString::new(py, reason).unbind().into_any()),
         ("name", none()),
         ("other", none()),
+        ("at", none()),
+        ("other_at", none()),
         ("predicate", none()),
         ("matched", none()),
         ("candidates", none()),
@@ -777,13 +779,12 @@ fn fill(fields: &mut [(&'static str, Py<PyAny>)], attribute: &str, payload: Py<P
 /// `None` where inapplicable — so stub-guided reads cannot
 /// `AttributeError` (the house rule from `ExportError`).
 ///
-/// The human message is written per arm here rather than taken from
-/// the kernel's `Display`, because a candidate is spelled through
-/// `name_text` — the `StableName` alphabet Python speaks — where the
-/// kernel spells it kind-plus-minting-node. The arms this binding does
-/// not mirror fall back to that kernel prose, spoken from the evaluated
-/// document and its evaluation. The fields are the
-/// contract; the message is prose.
+/// The fields spell a candidate through `name_text` — the `StableName`
+/// alphabet Python speaks. The in-band arms' message is the kernel's
+/// sentence, spoken from the evaluated document and within its
+/// evaluation, which says each name in words and the band once; so are
+/// the arms this binding does not mirror. The other arms' messages are
+/// written here. The fields are the contract; the message is prose.
 pub(crate) fn select_refusal(
     py: Python<'_>,
     err: &s::SelectRefusal,
@@ -798,9 +799,7 @@ pub(crate) fn select_refusal(
     let mut fields = refusal_fields(py, select_refusal_tag(err));
     let message = match err {
         R::InBand {
-            name,
-            predicate,
-            source,
+            name, predicate, ..
         } => {
             let name = match crate::py::doc::name_text(py, name) {
                 Ok(t) => t,
@@ -808,12 +807,7 @@ pub(crate) fn select_refusal(
             };
             fill(&mut fields, "name", text(&name));
             fill(&mut fields, "predicate", text(predicate));
-            format!(
-                "a candidate's decided margin is inside the ambiguity band \
-                 for `{predicate}` — neither side of the comparison is \
-                 certified, so the query refuses rather than silently \
-                 including or dropping it: {source}"
-            )
+            err.spoken(doc, evaluation)
         }
         R::TiedDisagrees {
             name,
@@ -888,8 +882,8 @@ pub(crate) fn select_refusal(
         }
         R::PairInBand {
             pair,
+            at,
             predicate,
-            source,
             ..
         } => {
             let a = match crate::py::doc::name_text(py, &pair.0) {
@@ -900,13 +894,19 @@ pub(crate) fn select_refusal(
                 Ok(t) => t,
                 Err(failed) => return failed,
             };
+            // Two copies of one body hold names alike: the node holding
+            // each face tells them apart.
+            for (attribute, node) in [("at", at.0), ("other_at", at.1)] {
+                let node = match NodeId(node).into_pyobject(py) {
+                    Ok(bound) => bound.unbind().into_any(),
+                    Err(failed) => return failed,
+                };
+                fill(&mut fields, attribute, node);
+            }
             fill(&mut fields, "name", text(&a));
             fill(&mut fields, "other", text(&b));
             fill(&mut fields, "predicate", text(predicate));
-            format!(
-                "a candidate pair's verify-door margin is inside the \
-                 ambiguity band for `{predicate}`: {source}"
-            )
+            err.spoken(doc, evaluation)
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
         R::Band(error) => format!(

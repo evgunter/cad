@@ -1118,15 +1118,18 @@ impl NodeRefusal {
 /// share.
 /// **A reference the failed node holds that stopped resolving**: said by
 /// its slot, `this fillet's edge 2 is stranded: …`, where the speaker's
-/// document holds the node ([`crate::Speaker::about`] names it);
-/// otherwise `lead`, then the refusal saying the name once, in full.
+/// document holds the node ([`crate::Speaker::about`] names it) with
+/// that name at `reference`, its place among
+/// [`crate::Node::payload_names`]; otherwise `lead`, then the refusal
+/// saying the name once, in full.
 fn resolve_failed(
     f: &mut core::fmt::Formatter<'_>,
     by: crate::spoken::Speaker<'_>,
     error: &crate::resolve::ResolveError,
+    reference: usize,
     lead: impl core::fmt::Display,
 ) -> core::fmt::Result {
-    match by.reference(error.name()) {
+    match by.reference(reference, error.name()) {
         Some(reference) => write!(
             f,
             "{}",
@@ -1717,6 +1720,9 @@ pub enum NodeErrorKind {
         /// The resolution failure: N5's closed trio of shapes, its
         /// diagnosis not limited to N5's arms.
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A declared entity is SITED at a node that is not one of the
     /// consumer's operands — not a member of the union, nor `a` or
@@ -1836,6 +1842,9 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A blend node's selection named something that is not an EDGE
     /// of the target (a face, a vertex, the body). The op blends
@@ -1882,6 +1891,9 @@ pub enum NodeErrorKind {
     ShellOpenResolve {
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A shell node's `open` list named something that is not a FACE
     /// of the target (an edge, a vertex, the body). The op opens faces
@@ -2064,6 +2076,9 @@ pub enum NodeErrorKind {
     MeasureRefResolve {
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A `Node::Measure` reference resolved into a value that carries
     /// no bodies, or into an output body its value does not have — the
@@ -2639,10 +2654,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 f,
                 "the parameter-identity attach refused on a carrier the blend just minted: {e}"
             ),
-            Self::DeclareResolve { error } => resolve_failed(
+            Self::DeclareResolve { error, reference } => resolve_failed(
                 f,
                 by,
                 error,
+                *reference,
                 "a declared name failed to resolve through the operands' tables",
             ),
             Self::DeclareSiteNotAnOperand { at } => write!(
@@ -2679,10 +2695,15 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UndeclarableContact { row, diag } => {
                 crate::finding::compose(f, &UndeclarableContactFinding { row, diag, by })
             }
-            Self::BlendSelectionResolve { verb, error } => resolve_failed(
+            Self::BlendSelectionResolve {
+                verb,
+                error,
+                reference,
+            } => resolve_failed(
                 f,
                 by,
                 error,
+                *reference,
                 format_args!("a {verb} selection name failed to resolve"),
             ),
             Self::BlendSelectionKind { verb, name, found } => write!(
@@ -2697,9 +2718,13 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
             Self::Shell(e) => write!(f, "the shell op refused: {e}"),
-            Self::ShellOpenResolve { error } => {
-                resolve_failed(f, by, error, "a shell open-face name failed to resolve")
-            }
+            Self::ShellOpenResolve { error, reference } => resolve_failed(
+                f,
+                by,
+                error,
+                *reference,
+                "a shell open-face name failed to resolve",
+            ),
             Self::ShellOpenKind { name, found } => write!(
                 f,
                 "the shell's open face names {}, which is {} {}, not a face",
@@ -2717,6 +2742,7 @@ impl crate::spoken::Say for NodeErrorKind {
                 f,
                 by,
                 error,
+                0,
                 "the derived frame's face name failed to resolve",
             ),
             Self::FaceFrameKind { name, found } => write!(
@@ -2761,9 +2787,13 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.node_as(*profile, "profile node"),
                 by.node_as(*frame, "derived frame node")
             ),
-            Self::MeasureRefResolve { error } => {
-                resolve_failed(f, by, error, "a measure reference failed to resolve")
-            }
+            Self::MeasureRefResolve { error, reference } => resolve_failed(
+                f,
+                by,
+                error,
+                *reference,
+                "a measure reference failed to resolve",
+            ),
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
                 "the measure reference to {} could not be read back: {error}",

@@ -387,7 +387,7 @@ impl SpokenName {
         &self.0.name
     }
 
-    /// The node whose output holds it ([`StableName::node`]), spoken.
+    /// The node that minted it ([`StableName::node`]), spoken.
     #[must_use]
     pub fn minter(&self) -> &SpokenNode {
         &self.0.minter
@@ -511,8 +511,8 @@ pub struct Speaker<'a> {
     scope: Option<&'a dyn NameTables>,
 }
 
-/// **The name tables a [`Speaker`] says names within**: the table of
-/// the node whose output holds a name, as an evaluation answers it.
+/// **The name tables a [`Speaker`] says names within**: a name is said
+/// within the table of the node that minted it, as an evaluation answers it.
 pub trait NameTables {
     /// The name table of `node`'s output, `None` where there is none.
     fn table(&self, node: RecipeNodeId) -> Option<&NameTable>;
@@ -538,13 +538,14 @@ trait HoldsNodes {
     fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp>;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
-    /// Which slot of `node`'s payload holds `name`
+    /// The slot of `node`'s payload at `reference` that holds `name`
     /// ([`Node::reference_slot`]), `None` where it is not held here. A
     /// door's held nodes keep none, so a refusal they say names the
     /// reference by its words.
     fn reference_slot(
         &self,
         _node: RecipeNodeId,
+        _reference: usize,
         _name: &StableName,
     ) -> Option<(&'static str, String)> {
         None
@@ -600,9 +601,10 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn reference_slot(
         &self,
         node: RecipeNodeId,
+        reference: usize,
         name: &StableName,
     ) -> Option<(&'static str, String)> {
-        self.node(node)?.reference_slot(name)
+        self.node(node)?.reference_slot(node, reference, name)
     }
 }
 
@@ -902,10 +904,11 @@ impl<'a> Speaker<'a> {
 
     /// **The reference `name` is, as the sentence's subject holds it**:
     /// `this fillet's edge 2`, where the node the enclosing sentence is
-    /// about ([`Speaker::about`]) holds `name` in a slot of its payload
-    /// in this speaker's document; `None` by tag, or where it holds none.
-    pub(crate) fn reference(self, name: &StableName) -> Option<String> {
-        let (owner, slot) = self.doc?.reference_slot(self.subject?, name)?;
+    /// about ([`Speaker::about`]) holds `name` at `reference`, its place
+    /// among the payload's names ([`crate::Node::payload_names`]), in
+    /// this speaker's document; `None` by tag, or where it does not.
+    pub(crate) fn reference(self, reference: usize, name: &StableName) -> Option<String> {
+        let (owner, slot) = self.doc?.reference_slot(self.subject?, reference, name)?;
         Some(format!("this {owner}'s {slot}"))
     }
 

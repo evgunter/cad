@@ -3140,21 +3140,29 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     let wraps: [(&str, Wrap); 5] = [
         ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
             error,
+            reference: 0,
         }),
         ("BlendSelectionResolve", |error| {
             NodeErrorKind::BlendSelectionResolve {
                 verb: sweep::blend::BlendKind::Chamfer,
                 error,
+                reference: 0,
             }
         }),
         ("ShellOpenResolve", |error| {
-            NodeErrorKind::ShellOpenResolve { error }
+            NodeErrorKind::ShellOpenResolve {
+                error,
+                reference: 0,
+            }
         }),
         ("FaceFrameResolve", |error| {
             NodeErrorKind::FaceFrameResolve { error }
         }),
         ("MeasureRefResolve", |error| {
-            NodeErrorKind::MeasureRefResolve { error }
+            NodeErrorKind::MeasureRefResolve {
+                error,
+                reference: 0,
+            }
         }),
     ];
     for (wrap, build) in wraps {
