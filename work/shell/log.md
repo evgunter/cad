@@ -1176,3 +1176,28 @@ on the oblique-corner item that now gates it.
 ## 2026-10-06 15:50 — incoming: BAND's unwitnessed-transport row goes to SHELF
 
 BAND filed `offset-door-declared-transport-has-no-built-witness` (P2, E) on this slate. It is a coverage row: the declared-description transport arm in `replace_face_offset` lost its only witness when the lamina full revolve stopped minting a meridian. It is not on the active cut, so it is moved to `work/shelf/` beside the other follow-on rows.
+
+## 2026-10-06 16:40 — unit 6 dual review adjudicated
+
+Both reviews on `70b1ef611` returned APPROVE-WITH-FIXES with no MAJOR, and all seven claims held under execution. The demos and 1e-6 reds were confirmed inherited by both reviewers.
+
+Correspondence pre-note:
+- **Bilateral:**
+  - undisclosed stored-bit moves (both MINOR, on different bodies);
+  - the `Err(_) => t_old` swallow;
+  - the stand-off spelled three ways in `plane_torus_section`;
+  - stale "through/contains the axis" docs;
+  - each beyond-spec arm pinned by exactly one row (same mutants, same rows).
+- **Unilateral, R1:**
+  - the door returns a strict-subset body when the cap–cap line enters the tube (MINOR, demonstrated, pre-existing, newly reachable through two calls);
+  - `section_refused` names one cause for three;
+  - the turn rule is written twice.
+- **Unilateral, R2:**
+  - two interpenetrating solids pass tier 3 when a void dilates past the cavity wall (NOTE, demonstrated, pre-existing);
+  - the r1p1 row's `Err => println` arm (MINOR, by inspection);
+  - the spiric lever uses the speed floor (unsure);
+  - stale predicate cites;
+  - CURVED-SPIRIC-DESIGN.md:281.
+- **Tally candidates:** none, since no unilateral MAJOR was raised.
+
+Fix list of ten items sent to the lane. Both pre-existing wrong bodies are to be filed P1 on SHELF.
