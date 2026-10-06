@@ -31,7 +31,7 @@
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
 
-use geom_core::{Band, Decide, Margin, Sign, UnitVec3, Vec3};
+use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
@@ -822,15 +822,8 @@ fn place_germ(
 /// A flanker's representative direction and the reach behind it.
 type Rep<T> = (Vec3<T>, Reach<T>);
 
-/// The common line's direction at an edge-edge site, levered at its
-/// bound's reach ([`resolve_edge_edge`]).
-const BOOL_FLANK_AXIS: &str = "bool_flank_axis";
-
-/// A flanker's offset off the common line, in metres ([`flank_rep`]).
-const BOOL_FLANK_OFFSET: &str = "bool_flank_offset";
-
 /// **A flanker's representative**: its noncoplanar bound `v` projected
-/// perpendicular to the common line `axis`, normalized only once its
+/// perpendicular to the unit common line `axis`, normalized only once its
 /// length decides positive at the bound's own reach
 /// (`bool_flank_offset`) — the bound's offset off the line where
 /// [`side_code`] reads it: a line edge's far vertex, a curved edge's
@@ -839,15 +832,14 @@ const BOOL_FLANK_OFFSET: &str = "bool_flank_offset";
 /// name: it refuses with the decided margin, as the wedge's extent
 /// does.
 fn flank_rep<T: Decide>(
-    axis: UnitVec3<T>,
+    axis: Vec3<T>,
     v: Vec3<T>,
     reach: Reach<T>,
     band: Band,
 ) -> Result<Rep<T>, BooleanError> {
-    let a = axis.get();
-    let off = v - a * v.dot(a);
+    let off = v - axis * v.dot(axis);
     crate::validate::decide_positive(
-        BOOL_FLANK_OFFSET,
+        "bool_flank_offset",
         Margin::levered(off.norm(), reach.length()),
         band,
     )
@@ -924,20 +916,19 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     let fa_e = (fa_s + 1) % n_a;
     let fb_e = (fb_s + 1) % n_b;
-    // The common line is a real edge bound of A's (the caller's
-    // `real` mention): `sector_shape`'s unit direction of a chord its
-    // arm rung decided long, so no arm of this refusal is reachable
-    // from a sector array that rung built.
+    // The common line is A's `fa_s` start bound, a real edge (the
+    // caller passes only a `real` mention): `sector_shape`'s unit
+    // direction of a chord its arm rung decided long, so it is the
+    // axis as it stands.
     let common = &a_sectors[fa_s];
-    let axis = UnitVec3::levered(
-        common.start,
-        BOOL_FLANK_AXIS,
-        band,
-        common.start_reach.length(),
-    )
-    .map_err(|_| BooleanError::ClassificationInvariant {
-        what: "an edge-edge site's common line has no decided direction",
-    })?;
+    if !common.start_edge() {
+        unreachable!(
+            "an edge-edge site's common line is a subdivision bisector, not an edge: A's \
+             sector {fa_s} starts at {:?} ({:?})",
+            common.start, common.start_reach
+        );
+    }
+    let axis = common.start;
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
     // A line bound's side of the other solid's flanking plane is its
     // far vertex's, in metres (`side_code`); that plane holds the
@@ -951,14 +942,6 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         flank_rep(axis, v, reach, band)
     };
-    let a_fl = [
-        (fa_s, rep(&a_sectors[fa_s], true)?),
-        (fa_e, rep(&a_sectors[fa_e], false)?),
-    ];
-    let b_fl = [
-        (fb_s, rep(&b_sectors[fb_s], true)?),
-        (fb_e, rep(&b_sectors[fb_e], false)?),
-    ];
 
     // Membership of one flanker's rep inside the other solid's wedge.
     let membership = |own_is_a: bool,
@@ -1126,6 +1109,14 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     let keys = if tangent_flank {
         None
     } else {
+        let a_fl = [
+            (fa_s, rep(&a_sectors[fa_s], true)?),
+            (fa_e, rep(&a_sectors[fa_e], false)?),
+        ];
+        let b_fl = [
+            (fb_s, rep(&b_sectors[fb_s], true)?),
+            (fb_e, rep(&b_sectors[fb_e], false)?),
+        ];
         let a_in = [
             membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
             membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,
@@ -1144,10 +1135,10 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         if !germ_a {
             return Ok(None);
         }
-        Some((a_in, b_in))
+        Some((a_fl, b_fl, a_in, b_in))
     };
     let code = |inside: bool| if inside { SideCode::In } else { SideCode::Out };
-    if let Some((a_in, b_in)) = keys {
+    if let Some((a_fl, b_fl, a_in, b_in)) = keys {
         // The one fold rule per solid, on that solid's own membership
         // keys: the common edge joins the run `fold_on_bound` names, so
         // the crossing is recorded on the flanker `crossing_flank`
@@ -1538,7 +1529,7 @@ mod tests {
         use geom_core::{Point3, Tol};
         let band = Band::linear(Tol::witness()).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
-        let axis = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), "test_axis", band).unwrap();
+        let axis = Vec3::new(0.0, 0.0, 1.0);
         let tilt = 1e3 * band.escalate();
         let bound = Vec3::new(tilt, 0.0, 1.0).normalize();
         let chord = |v: Vec3<f64>, len: f64| Reach::Chord {
@@ -1556,14 +1547,14 @@ mod tests {
             "the reach rides through"
         );
         let mid = (band.zero() + band.escalate()) / 2.0;
-        for (v, len, offset, label) in [
+        for (v, len, in_band, label) in [
             (
                 bound,
                 mid / tilt,
-                None,
+                true,
                 "the same tilt on an edge whose far end stands in band",
             ),
-            (axis.get(), 1.0, Some(0.0), "a bound along the line"),
+            (axis, 1.0, false, "a bound along the line"),
         ] {
             let err = flank_rep(axis, v, chord(v, len), band).expect_err(label);
             let BooleanError::Escalated { decision, diag } = &err else {
@@ -1574,24 +1565,31 @@ mod tests {
                 BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot),
                 "{label}"
             );
-            assert_eq!(diag.predicate, Some(BOOL_FLANK_OFFSET), "{label}");
-            if let Some(offset) = offset {
-                assert_eq!(
-                    diag.margin.diagnostic_f64_for_error_text().value(),
-                    Some(offset),
-                    "{label}: the decided margin rides the payload"
+            assert_eq!(diag.predicate, Some("bool_flank_offset"), "{label}");
+            let margin = diag
+                .margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("the margin rides the payload");
+            if in_band {
+                assert!(
+                    band.zero() < margin && margin < band.escalate(),
+                    "{label}: the margin {margin:e} lies in the band"
                 );
+            } else {
+                assert_eq!(margin, 0.0, "{label}: the decided zero rides the payload");
             }
         }
     }
 
-    /// **The common line's direction is decided, not re-normalized.** A
-    /// sector array whose common bound has no length — which
-    /// `sector_shape`'s rungs never build — refuses as the invariant it
-    /// breaks rather than projecting the flankers onto a direction of
-    /// NaN.
+    /// **The common line is an edge.** Two convex wedges apart but for a
+    /// common edge resolve with no germ; the same site whose common
+    /// bound is a subdivision bisector — which no caller passes — panics
+    /// naming it rather than projecting the flankers onto a direction
+    /// with no edge behind it.
     #[test]
-    fn a_common_line_with_no_direction_refuses_as_an_invariant() {
+    #[should_panic(expected = "an edge-edge site's common line is a subdivision bisector")]
+    fn a_common_line_that_is_no_edge_panics() {
         use crate::boolean::{BooleanDeclarations, DeclaredPairs};
         use crate::test_support_fixtures::prism_z;
         use geom_brep::OutwardNormal;
@@ -1630,13 +1628,12 @@ mod tests {
         );
         let declared =
             DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
-        let resolve = |common: Vec3<f64>| {
+        let resolve = |common_reach: Reach<f64>| {
+            let mut first = sector(z, a1, a1.cross(z));
+            first.start_reach = common_reach;
             resolve_edge_edge(
                 &[rec(0, 0, (On, Out), (Out, In))],
-                &[
-                    sector(common, a1, a1.cross(z)),
-                    sector(a2, common, z.cross(a2)),
-                ],
+                &[first, sector(a2, z, z.cross(a2))],
                 &b_corner,
                 &p.body,
                 &p.body,
@@ -1647,19 +1644,16 @@ mod tests {
                 0,
             )
         };
+        let edge = Reach::Chord {
+            base: o,
+            far: o + z,
+        };
         assert!(
-            matches!(resolve(z), Ok(None)),
-            "along a unit common line, neither wedge holds a flanker of the other: {:?}",
-            resolve(z)
+            matches!(resolve(edge), Ok(None)),
+            "along a common edge, neither wedge holds a flanker of the other: {:?}",
+            resolve(edge)
         );
-        assert!(
-            matches!(
-                resolve(Vec3::new(0.0, 0.0, 0.0)),
-                Err(BooleanError::ClassificationInvariant { what })
-                    if what == "an edge-edge site's common line has no decided direction"
-            ),
-            "a common line of no length refuses as the invariant"
-        );
+        let _ = resolve(Reach::Bisector(1.0));
     }
 
     fn rec(a: usize, b: usize, sa: (SideCode, SideCode), sb: (SideCode, SideCode)) -> PairRecord {

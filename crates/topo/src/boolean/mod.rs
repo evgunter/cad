@@ -210,7 +210,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
-        "bool_sector_within" | "bool_flank_offset" => Coincide::Sectors.subject(),
+        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" => {
+            Coincide::Sectors.subject()
+        }
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
