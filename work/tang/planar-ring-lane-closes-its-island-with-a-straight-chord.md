@@ -4,6 +4,8 @@ kind: issue
 title: The planar ring lane closes a run with a straight chord even where its section is an arc: a D-shaped prism through a slab desyncs on a zero-area winding, a crescent prism on a section vertex
 status: open
 opened: 2026-10-02
+priority: P0
+cost: M
 ---
 
 

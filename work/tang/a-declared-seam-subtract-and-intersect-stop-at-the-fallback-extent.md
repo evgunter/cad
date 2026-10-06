@@ -2,8 +2,11 @@
 id: a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent
 kind: issue
 title: The sphere-capped tube declared a Seam builds its union, and its subtract and intersect stop at the fallback extent
-status: open
+status: parked
 opened: 2026-10-02
+priority: P1
+cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

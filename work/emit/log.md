@@ -1782,3 +1782,91 @@ declarations) never pass `product_fault`.
 Only the pin moved: no genuine crossing is refused and there are no wide
 winners. #4081's CI passed on a head that predates #4088/#4086, and
 main runs no test job on push. Re-pinned here.
+
+## 2026-10-06 — PR 4093: the open tool's held nodes follow every later document
+
+`Tools::respeak` re-speaks the open tool's held `SpokenNode`s (seats, the
+blend target, the mate's two picks) under the `respoken` keep rule.
+`ViewerApp::respeak_held` is now the single per-op call, beside
+`Drafts::respeak`. So a lost pick or target says the last label its node
+had.
+
+The mate's commit refusals (`NotAnInstancePick`, `SamePick`) prefer the
+kept label over the landed spelling. This covers the window where a
+rename and delete have not landed.
+
+On `Open`/`NewDocument`, `Tools::document_replaced` re-opens the tool
+empty, as drafts drop their held face. Without that, picks would be
+re-spoken from another document's id space; a reopened saved copy keeps
+identical ids, so the pick survived reconcile.
+
+Review folds:
+- C1 (kept-first, over a gated `app` row);
+- C2 (`Driven` rows through `perform_batch` for both respeakers);
+- C4 (replacement);
+- one helper and one shared loop;
+- a stale `app`-gated comment.
+
+All mutation-checked.
+
+## 2026-10-06 — PR 4103: verdict-nodes issue parked on the rewiring op
+
+`a-verdicts-other-nodes-are-said-by-tag-once-deleted` cannot happen
+through the session today. A `Vanished` verdict names only derivation
+nodes and strict ancestors of a live minter. `delete_node` deletes the
+whole cascade cone, and no session op rewires a live node's inputs.
+The row is parked on `no-docedit-splices-a-deleted-node` (#1324). Its
+body records the reachability evidence and the fix for when the case
+becomes reachable: widen `Derived::said` to the nodes a verdict can
+name, merged after each op. A snapshot taken at standing time would be
+too late.
+
+## 2026-10-06 — PR 4107: cluster-act gauges row closed as overtaken
+
+`a-cluster-act-speaks-its-gauges-by-tag` named `ClusterMaintenance`,
+`Maintenance::Cluster` and `mate::solve::gauge_spoken`. #3676
+(`1441b5154d`) deleted all of them with the placement registry, hours
+before the row was filed from a branch that predated it. The one
+placement row an edit reports today, `Maintenance::OffsetCleared`,
+already speaks its instance. A sweep of every `Maintenance` arm and of
+`node {` format strings in `editor-core/src` found nothing new (the
+carried rows are already filed). The PR only removes comments left stale
+by the deletion, and re-points two citations of a renamed test. That
+re-pointing was checked by mutating `Carrier::ALL`: exactly the three
+cited rows fail.
+
+## 2026-10-06 — PR 4114: a part's carried rows say its nodes as the pinned part holds them
+
+The success-path rows a part carries up now say the part's nodes by the
+labels its pin fixes. These are the `Route` deeper hops, `CarriedRefusal`,
+`CarriedUnplaced` (group and cause) and `Attribution::Carried`.
+- `Route::via` is `Vec<SpokenNode>`, each hop spoken from its own
+  document.
+- Each row body keeps `held: Arc<HeldNodes>`, recorded by `held_by` over
+  the body's own sentence (`PartRow::own`).
+- `PartValue` hands up `PartRow`s, built in `evaluate_entered` while the
+  pinned part is in hand.
+- `carry_up` and `Route::through_instance` are deleted.
+- Only `route.through`, the memoizing document's own id, stays bare and
+  is said by the frame.
+
+Memo keys: carried rows are reused only through `PartCache`
+`(DocRef, ε)` and the instance's content key (`feed_doc_ref`: id + pin).
+The pin hashes the canonical bytes, labels included, and fixes every
+deeper reference transitively. So every stored label is fixed by its
+key, under the general rule Ev ratified on #3839, and there is no design
+fork. The review confirmed this, and found `gauge_chain`'s "dead" cycle
+unreachable (every gauge-writing door runs `gauge_ref_fault`).
+
+Review folds:
+- the four stale `Display` docs;
+- a live-twin cause-gauge test (mutation-checked);
+- `RowBody` replaced by `held_by` over `B: Say`;
+- `UnplacedGroup` replaces the tuple;
+- one spelling of `Unplaced` through its `Say`.
+
+The generic carried-row type was skipped: it would rename public fields
+the Python bindings and the census read.
+
+The node-labels unit has no open actionable rows left. The verdict-nodes
+row is parked on #1324.

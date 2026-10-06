@@ -4,6 +4,8 @@ kind: issue
 title: The strut source of the one-sided cover covers plane x cylinder only; cylinder x cylinder and sphere x cylinder wait for a witness
 status: open
 opened: 2026-10-02
+priority: P1
+cost: M
 ---
 
 

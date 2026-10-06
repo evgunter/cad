@@ -26,7 +26,8 @@
 use geom_core::{Band, Point3, Tol};
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{
-    CylFrame, arc_chain_over_the_jump, cyl_arc_at, cyl_wall_sheet, kill_under_a_null_strut,
+    CylFrame, NullStrutListing, arc_chain_over_the_jump, cyl_arc_at, cyl_wall_sheet,
+    kill_under_a_null_strut,
 };
 use topo::{Body, FaceKey, HalfEdgeKey, MekrSite, MevSite, PcurveMintError, VertexKey};
 
@@ -1202,6 +1203,175 @@ fn a_kill_that_describes_a_null_member_beside_a_certified_one_completes_the_wall
     );
 }
 
+/// The minted wall sheet over `[0.2, 1.4] x [0, 1]` with its side
+/// ruling `u = 0.2` split at mid-height, and the half that kills the
+/// lower side segment toward the split: a general kill across the wall
+/// and the seed face, merging the split vertex into the bottom corner.
+///
+/// Returns the body, the wall, the seed face, that half and the split
+/// vertex.
+fn side_split() -> (Body<f64>, FaceKey, FaceKey, HalfEdgeKey, VertexKey) {
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        None,
+        (0.2, 1.4),
+        (0.0, 1.0),
+        tol(),
+    );
+    let point = |body: &Body<f64>, he: HalfEdgeKey| {
+        topo::readback::vertex_point(body, body.get_half_edge(he).unwrap().start).unwrap()
+    };
+    let near = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-9;
+    let corner = at(0.2, 0.0);
+    let up = body
+        .half_edges()
+        .map(|(h, _)| h)
+        .find(|&h| {
+            let next = body.get_half_edge(h).unwrap().next;
+            near(point(&body, h), corner) && near(point(&body, next), at(0.2, 1.0))
+        })
+        .expect("the wall has a side ruling at u = 0.2");
+    let side = body.get_half_edge(up).unwrap().edge;
+    let (t0, t1) = body
+        .get_curve_geom(body.get_edge(side).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    let mid = body
+        .split_edge(side, 0.5 * (t0 + t1), tol())
+        .unwrap()
+        .vertex;
+    assert_eq!(
+        validate_pcurves(&body, band()),
+        vec![],
+        "the split carries the rows"
+    );
+    let toward_mid = body
+        .half_edges()
+        .map(|(h, _)| h)
+        .find(|&h| {
+            let he = body.get_half_edge(h).unwrap();
+            body.get_half_edge(he.next).unwrap().start == mid && near(point(&body, h), corner)
+        })
+        .expect("the lower side segment has a half from the corner to the split");
+    let face_of = |body: &Body<f64>, he: HalfEdgeKey| {
+        let lk = body.get_half_edge(he).unwrap().parent_loop;
+        body.get_loop(lk).unwrap().face
+    };
+    let seed = face_of(&body, body.mate(toward_mid).unwrap());
+    assert_ne!(
+        seed,
+        face_of(&body, toward_mid),
+        "the side lies between two faces"
+    );
+    (body, face, seed, toward_mid, mid)
+}
+
+/// Every member `kill` merges, each with the line between its merged
+/// ends.
+fn merged_as_lines(body: &Body<f64>, kill: HalfEdgeKey) -> NullStrutListing {
+    body.kev_merged_members(kill)
+        .unwrap()
+        .into_iter()
+        .map(|member| {
+            (
+                member.edge,
+                geom_brep::EdgeCurveSpec::line_between(member.start, member.end),
+            )
+        })
+        .collect()
+}
+
+/// [`side_split`] with a null strut at the split vertex, the kill
+/// listing both merged members — the null strut and the upper side
+/// segment. (PR 4010's review probe P3.)
+///
+/// Returns the body, the wall, the seed face, the half that kills the
+/// lower segment toward the split, and the listing.
+fn side_split_under_a_null_strut() -> (Body<f64>, FaceKey, FaceKey, HalfEdgeKey, NullStrutListing) {
+    let (mut body, face, seed, toward_mid, mid) = side_split();
+    let at_mid = leaving(&body, face, mid);
+    let null = null_at(&mut body, at_mid);
+    let listed = merged_as_lines(&body, toward_mid);
+    assert_eq!(
+        listed.len(),
+        2,
+        "the split vertex's fan is the null strut and the upper segment"
+    );
+    assert!(listed.iter().any(|(e, _)| *e == null.edge));
+    (body, face, seed, toward_mid, listed)
+}
+
+/// **A kill that re-describes a certified member re-mints its far face
+/// too.** [`side_split_under_a_null_strut`]: the upper side segment's
+/// end moves down to the corner, and its half on the seed face — which
+/// no null member's half is on — is re-derived over the interval it now
+/// spans, so both faces leave with the pass's rows. At this unit's
+/// merge base tier 3 read `MissingCache` and `LoopDiscontinuity` on the
+/// seed face's bottom rim and `RowInterval` on that half.
+#[test]
+fn a_kill_that_re_describes_a_certified_member_re_mints_its_far_face() {
+    let (mut body, face, seed, toward_mid, listed) = side_split_under_a_null_strut();
+    body.kev_describing(toward_mid, &listed, tol()).unwrap();
+    assert_eq!(
+        validate_pcurves(&body, band()),
+        vec![],
+        "tier 3, both faces"
+    );
+    let minted = [face, seed].map(|f| live_rows_deep(&body, f));
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(
+        [face, seed].map(|f| live_rows_deep(&body, f)),
+        minted,
+        "the rows are the pass's, on the wall and the seed face"
+    );
+}
+
+/// **A certified member alone re-mints both its faces.** [`side_split`]
+/// with no null strut: the kill's one merged member is the upper side
+/// segment, certified, whose halves lie on the wall and the seed face,
+/// and no null member's half is on either. Its end moves down to the
+/// corner, so each face is re-derived over the interval the segment now
+/// spans, and both leave with the pass's rows.
+#[test]
+fn a_kill_that_re_describes_only_a_certified_member_re_mints_both_its_faces() {
+    let (mut body, face, seed, toward_mid, _) = side_split();
+    let listed = merged_as_lines(&body, toward_mid);
+    let [(upper, _)] = listed.as_slice() else {
+        panic!("the split vertex's fan is the upper segment alone: {listed:?}")
+    };
+    let e = body.get_edge(*upper).unwrap();
+    let faces = [e.he_plus, e.he_minus].map(|h| {
+        let lk = body.get_half_edge(h).unwrap().parent_loop;
+        body.get_loop(lk).unwrap().face
+    });
+    assert!(
+        faces == [face, seed] || faces == [seed, face],
+        "the upper segment's halves are on the wall and the seed face: {faces:?}"
+    );
+    assert!(
+        body.get_curve_geom(e.curve)
+            .and_then(topo::CurveGeom::certified)
+            .is_some(),
+        "the upper segment is certified"
+    );
+    body.kev_describing(toward_mid, &listed, tol()).unwrap();
+    assert_eq!(
+        validate_pcurves(&body, band()),
+        vec![],
+        "tier 3, both faces"
+    );
+    let minted = [face, seed].map(|f| live_rows_deep(&body, f));
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(
+        [face, seed].map(|f| live_rows_deep(&body, f)),
+        minted,
+        "the rows are the pass's, on the wall and the seed face"
+    );
+}
+
 /// The minted wall over `[4.2, 5.4] x [0, 1]` — across `3π/2`, where
 /// the chart's principal branch jumps a period, so the loop's images sit
 /// on two branches and its elements carry the jump — split by a
@@ -1335,20 +1505,17 @@ fn a_kev_strut_writes_the_sum_of_two_periods() {
     kept_rows_are_the_pass_s(body, face, "kev strut");
 }
 
-/// **A `kev` mirror sums its two bridged elements.** Killing `q → t`
-/// from the tip's side (`t → q`, whose start dangles) merges `q` into
-/// `t`, so `s → q` re-describes as the arc from `4.6` to `5.0`. The
-/// joint the kill bridges is the turn at `t` from that arc onto its own
-/// mate, `e(q → t) · e(q → s)`: a period one way then the other, the
-/// identity the pass decides there, which neither element alone is.
-///
-/// The re-described arc keeps its rows over the interval its end moved
-/// from (`work/topo/kev-describing-leaves-a-re-described-certified-
-/// members-far-face-rows-stale`), so tier 3 names exactly its two
-/// halves and the bridged joint is read against the pass alone.
+/// **A `kev` mirror re-mints the member it re-describes.** Killing
+/// `q → t` from the tip's side (`t → q`, whose start dangles) merges `q`
+/// into `t`, so `s → q` re-describes as the arc from `4.6` to `5.0`: its
+/// end moves, and its rows are re-derived over the interval it now
+/// spans. The joint the kill bridges is the turn at `t` from that arc
+/// onto its own mate, `e(q → t) · e(q → s)`: a period one way then the
+/// other, the identity the pass decides there, which neither element
+/// alone is.
 #[test]
-fn a_kev_mirror_writes_the_sum_of_two_periods() {
-    let (mut body, _, s_q, q_t) = arc_chain_over_the_jump(tol());
+fn a_kev_mirror_re_mints_the_member_it_re_describes() {
+    let (mut body, face, s_q, q_t) = arc_chain_over_the_jump(tol());
     let members = body.kev_merged_members(q_t[1]).unwrap();
     let edge = body.get_half_edge(s_q[0]).unwrap().edge;
     assert_eq!(
@@ -1358,26 +1525,29 @@ fn a_kev_mirror_writes_the_sum_of_two_periods() {
     );
     body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 4.6, 5.0))], tol())
         .unwrap();
-    let mut stale: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
-        .into_iter()
-        .map(|f| match f {
-            PcurveMintError::RowInterval { half_edge } => half_edge,
-            other => panic!("only the re-described member's rows are stale, got {other:?}"),
-        })
-        .collect();
-    stale.sort();
-    let mut want = s_q.to_vec();
-    want.sort();
-    assert_eq!(stale, want, "the filed stale rows, and no joint");
-    let bridged = s_q[1];
-    let summed = body.joint(bridged);
-    assert!(summed.is_some(), "the kill writes the bridged element");
-    topo::mint_pcurves(&mut body, tol()).unwrap();
-    assert_eq!(
-        summed,
-        body.joint(bridged),
-        "the bridged element is the pass's"
+    assert!(
+        body.joint(s_q[1]).is_some(),
+        "the kill writes the bridged element"
     );
+    kept_rows_are_the_pass_s(body, face, "kev mirror");
+}
+
+/// **A later operator walks the rows the kill re-minted.** After the
+/// [`a_kev_mirror_re_mints_the_member_it_re_describes`] kill, a strut up
+/// the ruling from `s` runs the site mint over the loop the re-described
+/// arc is on, which keeps the arc's images; the wall leaves with the
+/// pass's rows. Where the kill kept the arc's old rows, the strut's
+/// site mint keeps them too, and tier 3 reads them stale.
+#[test]
+fn a_strut_after_a_kev_mirror_keeps_the_re_minted_rows() {
+    let (mut body, face, s_q, q_t) = arc_chain_over_the_jump(tol());
+    let edge = body.get_half_edge(s_q[0]).unwrap().edge;
+    body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 4.6, 5.0))], tol())
+        .unwrap();
+    let he = s_q[0];
+    body.mev_line(MevSite::Fan { he1: he, he2: he }, at(4.6, 0.7), tol())
+        .unwrap();
+    kept_rows_are_the_pass_s(body, face, "kev mirror, then a strut");
 }
 
 /// **A `kemr` sums each side's bridged elements.** Killing the arc

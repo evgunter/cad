@@ -2,10 +2,11 @@
 id: a-subtract-through-a-pinch-line-drops-the-pinch-row-at-its-cut
 kind: issue
 title: A subtract that cuts one side of a pinch line records no contact where the cut leaves the pinch: neither end of either v-v row there resolves live
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
