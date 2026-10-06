@@ -202,6 +202,14 @@ mod band_annulus_host_boundary;
 mod band_clearance_screen_reads_every_feature;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_planar_cut_off.rs"]
+mod band_planar_cut_off;
+#[path = "band_planar_cut_off_interval.rs"]
+mod band_planar_cut_off_interval;
+#[path = "band_planar_cut_off_meters.rs"]
+mod band_planar_cut_off_meters;
+#[path = "band_planar_cut_off_shapes.rs"]
+mod band_planar_cut_off_shapes;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
