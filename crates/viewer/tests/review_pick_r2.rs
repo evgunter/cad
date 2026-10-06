@@ -69,9 +69,11 @@ struct Tally {
 /// `--nocapture`).
 ///
 /// Last moved when each construction began storing the arc it builds
-/// (`store-constructed-carriers`): from `(442782, 141968, 12774, 6870)`.
-/// The rays are unchanged. Per document (taken on the tree before the
-/// chord-join move; the totals moved by the same amounts on both):
+/// (`store-constructed-carriers`), measured per document against main
+/// at `4632f3db66`. That tree reads `(442782, 141890, 13932, 7110)`, so
+/// it is red against its own pin, `(442782, 141968, 12774, 6870)`, for a
+/// cause outside this change. The rays are unchanged. Per document,
+/// against that tree:
 /// - `boss_union` (its `circle_split` rims on the authored carrier)
 ///   takes 192 determinant refusals over 144 rays and 12 fewer grazes;
 /// - `declared_tangency` gains 10 grazes;
@@ -100,7 +102,7 @@ struct Tally {
 /// - `boss_union` gains 18 grazes.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (442_782, 141_963, 12_966, 7_014);
+const PINNED: (usize, usize, usize, usize) = (442_782, 141_885, 14_124, 7_254);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
