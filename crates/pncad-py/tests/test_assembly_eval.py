@@ -426,7 +426,9 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(refusal.kind, "part_root_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
-        self.assertEqual(bracket_root, self.twin, "both documents mint from the zero chain")
+        self.assertEqual(
+            bracket_root, self.twin, "both documents mint from the zero chain"
+        )
         seat = f'InstantiatePart "bracket seat" ({tag(bracket_root)})'
         self.assertIn(f"the part's {seat} failed", text)
         self.assertIn(f"repair {seat}", text)
@@ -439,7 +441,9 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
         self.assertEqual(bracket_refusal.kind, "part_root_failed")
         self.assertEqual(bracket_refusal.node, bracket_root)
-        self.assertTrue(str(bracket_refusal).startswith(f"{seat} failed: "), str(bracket_refusal))
+        self.assertTrue(
+            str(bracket_refusal).startswith(f"{seat} failed: "), str(bracket_refusal)
+        )
         self.assertNotIn("host twin", str(bracket_refusal))
         self.assertNotIn(str(bracket_refusal), text, "the instance never quotes it")
 
