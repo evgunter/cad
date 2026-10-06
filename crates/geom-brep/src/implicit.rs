@@ -507,6 +507,19 @@ pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 /// contract, not an enclosure: the `Interval` lane carries its own.
 pub const HARMONIC_NOISE_ULPS: f64 = 16.0;
 
+/// The factor a CEILING read from the carrier's frame is padded by, so
+/// that the `f64` value bounds the true one: the cone's reach `R`
+/// ([`conic_cone_harmonics`]) and the torus's reach and surface ceilings
+/// ([`ConicTorusHarmonics`]). Each is built from the frame by sums,
+/// products, squares and square roots at most a dozen correctly rounded
+/// operations deep, every one off by at most the unit roundoff `u`
+/// relative to what it forms — or, for the one difference, the torus's
+/// `(aa − bb)/2`, to the sum beside it that dominates it. To first order
+/// the ceiling is off by well under `32u`, and `64u` doubles that for
+/// the second-order terms. A ROUNDING estimate, as
+/// [`HARMONIC_NOISE_ULPS`] is.
+const CEILING_PAD: f64 = 1.0 + 64.0 * geom_core::UNIT_ROUNDOFF;
+
 /// The rounding charged against a term bound `terms`:
 /// [`HARMONIC_NOISE_ULPS`] half-ulps of it.
 #[must_use]
@@ -1180,7 +1193,7 @@ pub fn conic_cone_harmonics<T: Real>(
         hu * hv,
     ];
     let reach_m = d.norm() + conic.speed_hi();
-    let pad = T::from_f64(1.0 + 64.0 * geom_core::UNIT_ROUNDOFF);
+    let pad = T::from_f64(CEILING_PAD);
     let per = reach_m * pad;
     let terms = reach_m.powi(2);
     let form = |k: usize| (cc * wall[k] - ss * height[k]) / per;
@@ -1377,7 +1390,7 @@ pub fn conic_torus_harmonics<T: Real>(
     // eigenvalue, `(A + B)/2 + |((A − B)/2, C)|`.
     let off = a * b * u.dot(v);
     let gram = (aa + bb) * half + (((aa - bb) * half).powi(2) + off.powi(2)).sqrt();
-    let pad = T::from_f64(1.0 + 64.0 * geom_core::UNIT_ROUNDOFF);
+    let pad = T::from_f64(CEILING_PAD);
     let reach = (w.norm() + gram.sqrt() + major_radius) * pad;
     let tube = two * (major_radius + minor_radius);
     ConicTorusHarmonics {

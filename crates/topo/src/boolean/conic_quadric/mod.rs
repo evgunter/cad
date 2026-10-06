@@ -12,9 +12,11 @@
 //! projection off the axis on a wall), `⊥(C(θ) − o)` is a first harmonic
 //! in `θ`, so the linearized residual is EXACTLY
 //! `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ` metres
-//! (`geom_brep::ConicHarmonics`). The noise meter's floor on `|F|` per
-//! metre of residual is therefore `1`, an identity rather than a
-//! neighbourhood bound, and there are at most four crossings per turn.
+//! (`geom_brep::ConicHarmonics`). On a sphere or a wall the noise
+//! meter's floor on `|F|` per metre of residual is therefore `1`, an
+//! identity rather than a neighbourhood bound; a cone's `F` is in its
+//! own units, and its floor is read from the geometry ("Against a cone"
+//! below). There are at most four crossings per turn.
 //! An in-band sign escalates as the surface's arc decision
 //! ([`BooleanDecision::ArcSphereRoots`],
 //! [`BooleanDecision::ArcCylinderRoots`]).
@@ -22,7 +24,8 @@
 //! # Two arms, by the second harmonic
 //!
 //! `bool_conic_quadric_second_harmonic` decides `A₂ = |(c₂, s₂)|`, the
-//! second harmonic's amplitude in metres.
+//! second harmonic's amplitude in `F`'s units: metres on a sphere or a
+//! wall, where `F` is the residual, and `Q/R` on a cone.
 //!
 //! - **The first-harmonic arm — `A₂` in the zero band**: the residual is
 //!   a first harmonic to within `A₂`, which is charged to both extremes'
@@ -378,16 +381,34 @@ fn cone_roots<T: Decide>(
             band,
         )?
     };
+    Ok(off_the_apex(conic, apex, roots, band))
+}
+
+/// The apex rung (module docs, "Against a cone"): `roots` stand only if
+/// every certified root is definitely off the apex, and are
+/// [`CircleRoots::AtApex`] otherwise.
+///
+/// Through the door it is a second line: a root the subdivision isolates
+/// within the escalation band of the apex is refused first by the slack
+/// meter, whose lever there is `F`'s slope, at most `2|q|` per unit of
+/// speed over `R` — so the rung decides only a root that meter let
+/// through, and its row hands it one directly.
+fn off_the_apex<T: Decide>(
+    conic: &geom_brep::Conic<T>,
+    apex: geom_core::Point3<T>,
+    roots: CircleRoots<T>,
+    band: Band,
+) -> CircleRoots<T> {
     let CircleRoots::Certified { count, thetas } = roots else {
-        return Ok(roots);
+        return roots;
     };
     for &theta in &thetas[..count] {
         match decide(CONE_APEX, Margin::norm3(conic.point(theta) - apex), band) {
             Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) | Err(_) => return Ok(CircleRoots::AtApex),
+            Ok(Sign::Zero | Sign::Negative) | Err(_) => return CircleRoots::AtApex,
         }
     }
-    Ok(roots)
+    roots
 }
 
 #[cfg(test)]

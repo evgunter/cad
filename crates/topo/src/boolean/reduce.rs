@@ -73,6 +73,7 @@ use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::replace_face::ReplaceFaceError;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -2148,9 +2149,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     return Placement::declared(ends, inside.clear()).ok_or_else(frontier);
                 }
-                // **The circle × sphere, × cylinder and × torus root
-                // lanes.** An arc the enclosures could not clear against
-                // one of those kinds takes the same endpoint-sign arms as
+                // **The circle × sphere, × cylinder, × cone and × torus
+                // root lanes.** An arc the enclosures could not clear
+                // against one of those kinds takes the same endpoint-sign arms as
                 // a line below, and the certified roots of
                 // [`super::conic_quadric`] / [`super::circle_torus`]
                 // decide every one of them through [`wall_crossing`].
@@ -3306,16 +3307,36 @@ fn wall_crossing<T: Decide + Bounds>(
     // THAT nappe ([`geom_brep::cone_elevation`] asked about it) lies on
     // the other: the carrier is crossed, not here. A face whose corners
     // do not decide its nappe (one reaching its apex) leaves the
-    // question to its trim.
+    // question to its trim; a corner station in the band escalates, as
+    // the trim's own reading would, and a face the sweep holds that does
+    // not resolve is the sweep's desync.
     let nappe = match *surface {
         geom::Surface::Cone {
             apex,
             axis,
             half_angle,
             ..
-        } => crate::offset_nappe::face_nappe(y, face, band)
-            .ok()
-            .map(|nappe| (apex, axis, half_angle, nappe)),
+        } => match crate::offset_nappe::face_nappe(y, face, band) {
+            Ok(nappe) => Some((apex, axis, half_angle, nappe)),
+            Err(ReplaceFaceError::NappeStraddles { .. }) => None,
+            Err(ReplaceFaceError::Escalated { source }) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::Containment,
+                    diag: source,
+                });
+            }
+            Err(ReplaceFaceError::StaleFace { .. }) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "the crossing layer read the nappe of a cone face the sweep holds, and \
+                           the face did not resolve",
+                });
+            }
+            Err(_) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a cone face's nappe reading answered a refusal it does not give",
+                });
+            }
+        },
         _ => None,
     };
     // Whether some root sits at an end of the span, and whether some
@@ -6252,6 +6273,98 @@ mod line_cone_rows {
         assert!(
             matches!(short, CircleRoots::Uncertain),
             "a segment ending half a metre short of the apex, got {short:?}"
+        );
+    }
+
+    /// **Each root is placed along the edge** (the root-slack rung's row),
+    /// against an independent oracle: the double cone's residual
+    /// `ρ cos α − |h| sin α`, read from each point of the line and
+    /// bisected where it changes sign. The poses are steep lines beside
+    /// the apex — an edge along the axis, `δ` off it — on a narrow, a
+    /// right and a wide cone at a millimetre, a metre and a kilometre, at
+    /// each of the three ε rows. A root on a shallow crossing can lie on
+    /// the cone and still be far along the edge from the true one, so the
+    /// row reads the root's PLACE, never its distance from the cone:
+    ///
+    /// - a certified pair has exactly the oracle's crossings in a window
+    ///   one span wide either side of the edge;
+    /// - each lies within the zero band, along the edge, of the oracle's,
+    ///   or past the span by at least its distance from it (the rung's
+    ///   contract for a root outside the span), widened only by the
+    ///   oracle's own resolution;
+    /// - a `Miss` has no crossing in the window.
+    ///
+    /// Without the rung, a narrow cone at a kilometre places roots up to
+    /// two micrometres off at ε 1e-9.
+    #[test]
+    fn roots_beside_the_apex_are_placed_along_the_edge() {
+        use crate::boolean::conic_oracle::crossings;
+        let axis = Vec3::new(0.0, 0.6, 0.8);
+        let (u, _) = axis.orthonormal_basis();
+        let (mut certified, mut judged) = (0, 0);
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for alpha in [0.01f64, 0.785, 1.5] {
+                for scale in [1e-3, 1.0, 1e3] {
+                    let apex = Point3::new(0.2 * scale, 0.1 * scale, -0.3 * scale);
+                    for p in 0..30 {
+                        let delta = scale * 10f64.powf(-15.0 + 0.5 * f64::from(p));
+                        let origin = apex + u * delta - axis * scale;
+                        let span = (0.0, 2.0 * scale);
+                        let label = format!("ε {eps}, α {alpha}, scale {scale}, δ {delta:e}");
+                        let res = |t: f64| {
+                            let q = origin + axis * t - apex;
+                            let h = q.dot(axis);
+                            (q - axis * h).norm() * alpha.cos() - h.abs() * alpha.sin()
+                        };
+                        let length = span.1 - span.0;
+                        let window = (span.0 - length, span.1 + length);
+                        let inside = |t: &f64| {
+                            *t > window.0 + 1e-3 * length && *t < window.1 - 1e-3 * length
+                        };
+                        let truth: Vec<f64> = crossings(res, window.0, window.1)
+                            .into_iter()
+                            .filter(inside)
+                            .collect();
+                        match line_cone_roots(origin, axis, (apex, axis, alpha), span, band) {
+                            Ok(CircleRoots::Certified { count, thetas }) => {
+                                certified += 1;
+                                let got: Vec<f64> =
+                                    thetas[..count].iter().copied().filter(inside).collect();
+                                assert_eq!(
+                                    got.len(),
+                                    truth.len(),
+                                    "{label}: {got:?} vs the oracle's {truth:?}"
+                                );
+                                for (g, t) in got.iter().zip(&truth) {
+                                    // The oracle's own resolution: its
+                                    // reading's rounding over its slope.
+                                    let step = 1e-6 * scale;
+                                    let slope = (res(t + step) - res(t - step)) / (2.0 * step);
+                                    let resolved =
+                                        8.0 * f64::EPSILON * (scale + t.abs()) / slope.abs();
+                                    let outside = (span.0 - g).max(g - span.1).max(0.0);
+                                    let off = (g - t).abs();
+                                    judged += 1;
+                                    assert!(
+                                        off <= eps + outside + resolved,
+                                        "{label}: the root {g} lies {off:e} along the edge from \
+                                         the oracle's {t} ({resolved:e} unresolved)"
+                                    );
+                                }
+                            }
+                            Ok(CircleRoots::Miss) => {
+                                assert!(truth.is_empty(), "{label}: a Miss, but {truth:?}");
+                            }
+                            Ok(_) | Err(_) => {}
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            certified > 50 && judged > 100,
+            "the row reaches the rung: {certified} certified pairs, {judged} roots judged"
         );
     }
 }

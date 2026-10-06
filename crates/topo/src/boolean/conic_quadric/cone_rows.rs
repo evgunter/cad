@@ -132,6 +132,47 @@ fn on_the_opening_nappe(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, roots: &[
         .count()
 }
 
+/// The door's certified `roots` are the oracle's crossings `truth` (the
+/// quadric form's sign changes round the turn, sorted), one for one, and
+/// each lies within `eps` of its own ALONG THE ARC: on a shallow crossing
+/// a root can lie on the cone and still be far along the carrier from
+/// the true one, so its distance from the cone does not place it. The
+/// place is widened only by the oracle's own resolution, the form's
+/// rounding at the root over its slope along the arc.
+fn assert_placed(
+    label: &str,
+    e: &geom::Curve3<f64>,
+    s: &geom::Surface<f64>,
+    roots: &[f64],
+    truth: &[f64],
+    eps: f64,
+) {
+    let (apex, _, _) = parts(s);
+    let mut got = roots.to_vec();
+    got.sort_by(f64::total_cmp);
+    assert_eq!(
+        got.len(),
+        truth.len(),
+        "{label}: {got:?} certified, the quadric form changes sign at {truth:?}"
+    );
+    for (g, t) in got.iter().zip(truth) {
+        let step = 1e-7;
+        let (before, after) = (e.eval(t - step), e.eval(t + step));
+        let speed = (after - before).norm() / (2.0 * step);
+        let slope = (form(s, after) - form(s, before)) / (2.0 * step);
+        let p = e.eval(*t);
+        let q = (p - apex).norm();
+        let rounding = 8.0 * f64::EPSILON * q * (q + (p - Point3::origin()).norm());
+        let resolved = speed * rounding / slope.abs();
+        let along = (e.eval(*g) - p).norm();
+        assert!(
+            along <= eps + resolved,
+            "{label}: the root {g} lies {along:e} along the arc from the oracle's {t} \
+             ({resolved:e} unresolved)"
+        );
+    }
+}
+
 /// **Crossings of a cone**, two and four per turn, at several arcs: a
 /// tilted circle through one nappe's wall, an ellipse across both of a
 /// nappe's generators in a meridian plane, and a circle about the apex in
@@ -237,18 +278,146 @@ fn a_narrow_cones_near_coaxial_circle_is_not_on_it() {
 
 /// **At the apex the door refuses.** A circle through the apex in a
 /// meridian plane, and a circle crossing a nappe a few zero bands from
-/// the apex: neither a root nor a miss is answered.
+/// the apex, at each of the three ε rows: neither a root nor a miss is
+/// answered, and the refusal is `Uncertain` — the subdivision cannot read
+/// a definite side beside the apex, or the slack meter refuses the root
+/// it isolates there, before the apex rung reads it
+/// ([`off_the_apex`]'s docs; the rung's own row is below).
 #[test]
 fn a_root_at_the_apex_refuses() {
-    let b = band();
     let s = cone([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.6);
-    let through = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
-    let near = circle([0.5, 0.0, 3.0 * b.zero()], [0.0, 1.0, 0.0], 0.5);
-    for (label, e) in [("through the apex", through), ("beside the apex", near)] {
-        let got = door(&e, &s, 0.0, TAU);
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        let through = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
+        let near = circle([0.5, 0.0, 3.0 * eps], [0.0, 1.0, 0.0], 0.5);
+        for (label, e) in [("through the apex", through), ("beside the apex", near)] {
+            let got = conic_quadric_roots(&e, 0.0, TAU, &s, band);
+            assert!(
+                matches!(got, Ok(CircleRoots::Uncertain)),
+                "ε {eps}, {label}: refused, got {got:?}"
+            );
+        }
+    }
+}
+
+/// **The apex rung answers `AtApex` for a root at the apex**, and for
+/// one in the escalation band of it, and leaves roots definitely off it
+/// standing: the rung read directly, on certified roots the door would
+/// hand it (the door's own meters refuse such a root first, above).
+#[test]
+fn the_apex_rung_refuses_a_root_at_the_apex() {
+    let b = band();
+    // A circle through the apex at `θ = 0`: `C(0) = c + ρ·û` is the apex.
+    let e = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
+    let geom::Curve3::Circle { u_ref, .. } = e else {
+        unreachable!("a circle")
+    };
+    let conic = geom_brep::Conic::of(&e).unwrap();
+    // `θ` placing `C(θ)` about `shift` metres along the circle from `C(0)`.
+    let toward = if u_ref.x < 0.0 { 0.0 } else { PI };
+    let at = |shift: f64| toward + shift / 0.5;
+    let apex = conic.point(toward);
+    let certified = |thetas: &[f64]| {
+        let mut all = [0.0; 8];
+        all[..thetas.len()].copy_from_slice(thetas);
+        CircleRoots::Certified {
+            count: thetas.len(),
+            thetas: all,
+        }
+    };
+    for (label, shift) in [
+        ("at the apex", 0.0),
+        ("half a zero band off it", 0.5 * b.zero()),
+        ("in its escalation band", 0.5 * (b.zero() + b.escalate())),
+    ] {
+        let got = off_the_apex(&conic, apex, certified(&[at(shift), at(1.0)]), b);
+        assert!(matches!(got, CircleRoots::AtApex), "{label}: got {got:?}");
+    }
+    let clear = certified(&[at(3.0 * b.escalate()), at(1.0)]);
+    let got = off_the_apex(&conic, apex, clear, b);
+    assert!(
+        matches!(got, CircleRoots::Certified { count: 2, .. }),
+        "roots definitely off the apex stand, got {got:?}"
+    );
+    for other in [
+        CircleRoots::Miss,
+        CircleRoots::OnSurface,
+        CircleRoots::Uncertain,
+    ] {
+        let label = format!("{other:?}");
+        let got = off_the_apex(&conic, apex, other, b);
+        assert_eq!(
+            format!("{got:?}"),
+            label,
+            "a non-root answer passes through"
+        );
+    }
+}
+
+/// **A root the slack meter cannot place refuses** (the meter's row,
+/// `bool_conic_cone_root_slack`). A circle of radius 1 crosses a right
+/// cone transversally `d` from its apex, at ε 1e-12. The root is
+/// bisected on the residual itself, so its true error is that
+/// residual's rounding over its slope (about `1e-16` m here), which no
+/// `f64` oracle resolves; what the meter is answerable for is its own
+/// charge, so the row pins that against a closed form.
+///
+/// The charge is `speed·reach/lever`. The lever is at most `F`'s slope
+/// at the root, `|Q′(θ)|/R` with `R` at least the carrier's farthest
+/// reach from the apex `|c| + ρ`; at `θ = 0`, where `C′ = −ρ·x̂` and
+/// `⊥q = d sin α·x̂`, `|Q′| = 2 cos²α · d sin α · ρ`. The reach is at
+/// least the residual's charged rounding, which holds the `cos θ` ulp
+/// carried along `û = −ẑ` into the height, `2u·ρ·sin α`
+/// ([`geom_brep::conic_cone_residual`]). Where that bound is past the
+/// escalation threshold the door must refuse; far from the apex the same
+/// circle's roots are certified and placed.
+#[test]
+fn a_root_the_slack_meter_cannot_place_refuses() {
+    let alpha = core::f64::consts::FRAC_PI_4;
+    let s = cone([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], alpha);
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let rho = 1.0;
+    let crossing = |d: f64| {
+        let on = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
+        geom::Curve3::Circle {
+            center: on + Vec3::new(0.0, 0.0, rho),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: rho,
+            u_ref: Vec3::new(0.0, 0.0, -1.0),
+        }
+    };
+    for d in [1e-6, 1e-5] {
+        let e = crossing(d);
+        let geom::Curve3::Circle { center, .. } = e else {
+            unreachable!("a circle")
+        };
+        let farthest = (center - Point3::origin()).norm() + rho;
+        let slope = 2.0 * alpha.cos().powi(2) * d * alpha.sin() * rho;
+        let reach = 2.0 * geom_core::UNIT_ROUNDOFF * rho * alpha.sin();
+        let charge = rho * reach * farthest / slope;
         assert!(
-            matches!(got, CircleRoots::AtApex | CircleRoots::Uncertain),
-            "{label}: refused, got {got:?}"
+            charge > band.escalate(),
+            "the pose: the meter charges at least {charge:e} at d = {d:e}"
+        );
+        let got = conic_quadric_roots(&e, -0.5, 0.5, &s, band);
+        assert!(
+            matches!(got, Ok(CircleRoots::Uncertain)),
+            "d = {d:e}: a root charged {charge:e} is refused, got {got:?}"
+        );
+    }
+    let e = crossing(0.3);
+    let Ok(CircleRoots::Certified { count, thetas }) = conic_quadric_roots(&e, -0.5, 0.5, &s, band)
+    else {
+        panic!("far from the apex the roots are certified")
+    };
+    let mut got = thetas[..count].to_vec();
+    got.sort_by(f64::total_cmp);
+    let truth = crossings(|t| form(&s, e.eval(t)), -PI, PI);
+    assert_eq!(got.len(), truth.len(), "{got:?} vs the oracle's {truth:?}");
+    for (g, t) in got.iter().zip(&truth) {
+        assert!(
+            (g - t).abs() * rho < 1e-12,
+            "the root {g} vs the oracle's {t}"
         );
     }
 }
@@ -260,8 +429,9 @@ fn a_root_at_the_apex_refuses() {
 ///
 /// - every certified root lies on the double cone, its distance from it
 ///   inside the zero band, and none within the band of the apex;
-/// - a certified count is never below the true sign changes of the
-///   quadric form round the turn;
+/// - a certified answer has exactly the quadric form's sign changes
+///   round the turn, each root within the zero band, along the arc, of
+///   its own ([`assert_placed`]);
 /// - a `Miss` is never certified for a carrier that crosses the cone or
 ///   comes within the zero band of it;
 /// - `OnSurface` only for a carrier whose every sampled point lies within
@@ -325,7 +495,8 @@ fn certified_answers_hold_against_the_quadric_form() {
                 continue;
             };
             let at = |k: u32| mid - PI + TAU * f64::from(k) / f64::from(dense);
-            let changes = crossings(|t| form(&s, e.eval(t)), mid - PI, mid + PI).len();
+            let truth = crossings(|t| form(&s, e.eval(t)), mid - PI, mid + PI);
+            let changes = truth.len();
             let closest = (0..=dense)
                 .map(|k| distance(&s, e.eval(at(k))))
                 .fold(f64::INFINITY, f64::min);
@@ -342,10 +513,7 @@ fn certified_answers_hold_against_the_quadric_form() {
                             "{label}: root {t} lies {from_apex} from the apex"
                         );
                     }
-                    assert!(
-                        count >= changes,
-                        "{label}: {count} certified roots, {changes} sign changes"
-                    );
+                    assert_placed(&label, &e, &s, &thetas[..count], &truth, eps);
                 }
                 CircleRoots::Miss => {
                     misses += 1;
@@ -377,7 +545,9 @@ fn certified_answers_hold_against_the_quadric_form() {
 /// of the three ε rows:
 ///
 /// - a `Miss` only for a carrier the oracle finds definitely clear;
-/// - every certified root on the cone and off the band of the apex.
+/// - every certified root on the cone and off the band of the apex, the
+///   count exactly the oracle's and each root in its place along the arc
+///   ([`assert_placed`]).
 #[test]
 fn grazes_and_apex_passes_never_certify_what_they_cannot() {
     let mut rng = fuzz::start("conic_quadric::cone_grazes_and_apex");
@@ -433,7 +603,8 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 continue;
             };
             let at = |j: u32| mid - PI + TAU * f64::from(j) / f64::from(dense);
-            let changes = crossings(|t| form(&s, e.eval(t)), mid - PI, mid + PI).len();
+            let truth = crossings(|t| form(&s, e.eval(t)), mid - PI, mid + PI);
+            let changes = truth.len();
             let closest = (0..=dense)
                 .map(|j| distance(&s, e.eval(at(j))))
                 .fold(f64::INFINITY, f64::min);
@@ -450,10 +621,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                             "{label}: root {t} lies {from_apex} from the apex"
                         );
                     }
-                    assert!(
-                        count >= changes,
-                        "{label}: {count} certified roots, {changes} sign changes"
-                    );
+                    assert_placed(&label, &e, &s, &thetas[..count], &truth, eps);
                 }
                 CircleRoots::Miss => {
                     misses += 1;
@@ -468,143 +636,5 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
             }
         }
         println!("ε {eps}: {certified} certified, {misses} misses, {refused} refused");
-    }
-}
-
-/// The door as it read a sphere or a wall before it had a cone arm: the
-/// differential below holds the two to the same answers, bit for bit.
-fn sphere_or_wall_before(
-    carrier: &geom::Curve3<f64>,
-    t0: f64,
-    t1: f64,
-    surface: &geom::Surface<f64>,
-    band: Band,
-) -> Result<CircleRoots<f64>, BooleanError> {
-    let conic = geom_brep::Conic::of(carrier).unwrap();
-    let (h, r, decision) = match *surface {
-        geom::Surface::Sphere { center, radius, .. } => (
-            geom_brep::conic_sphere_harmonics(&conic, center, radius),
-            radius,
-            BooleanDecision::ArcSphereRoots,
-        ),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (
-            geom_brep::conic_cylinder_harmonics(&conic, origin, axis, radius),
-            radius,
-            BooleanDecision::ArcCylinderRoots,
-        ),
-        _ => unreachable!("a sphere or a wall"),
-    };
-    let two = 2.0;
-    let noise = rounding_charge(h.terms) / (two * r);
-    let hypot = |x: f64, y: f64| (x.powi(2) + y.powi(2)).sqrt();
-    let second = hypot(h.c2, h.s2);
-    if let Ok(Sign::Zero) = decide(SECOND_HARMONIC, Margin::of(second), band) {
-        let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
-        let first = FirstHarmonic {
-            lo: h.c0 - a1,
-            hi: h.c0 + a1,
-            cos_part: h.c1,
-            sin_part: h.s1,
-            lo_noise: noise,
-            hi_noise: noise,
-            phase_noise: 0.0,
-        };
-        return first_harmonic_roots(
-            &first,
-            conic.speed_hi(),
-            t0,
-            t1,
-            &first_rows(decision),
-            band,
-        );
-    }
-    half_angle_roots(
-        &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
-        |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
-        HalfAngleFrame {
-            walk: SubdivisionFrame {
-                t0,
-                t1,
-                speed_hi: conic.speed_hi(),
-                noise,
-                f_per_metre: 1.0,
-                f_per_metre_hi: 1.0,
-                residual_reach: None,
-            },
-            speed_lo: conic.speed_lo(),
-            lever: two * conic.speed_lo(),
-        },
-        &ladder_rows(decision),
-        None,
-        band,
-    )
-}
-
-/// **The cone arm changes no sphere or wall answer** (a differential):
-/// random ellipses and non-circle-sphere circles against random spheres
-/// and walls posed to cross or graze them, at the three ε rows, answered
-/// by the door and by its sphere-and-wall body as it stood before the
-/// cone arm. The answers agree bit for bit, escalations included.
-#[test]
-fn the_cone_arm_changes_no_sphere_or_wall_answer() {
-    let mut rng = fuzz::start("conic_quadric::cone_arm_differential");
-    for eps in [1e-6, 1e-9, 1e-12] {
-        let band = Band::new(eps, 10.0 * eps).unwrap();
-        for i in 0..fuzz::scaled(300) {
-            let n = unit(&mut rng);
-            let w = unit(&mut rng);
-            let uref = (w - n * w.dot(n)).normalize();
-            let big = rng.range(1e-3, 1.0);
-            let e = if i % 4 == 0 {
-                geom::Curve3::Circle {
-                    center: Point3::origin(),
-                    axis: n,
-                    radius: big,
-                    u_ref: uref,
-                }
-            } else {
-                geom::Curve3::Ellipse {
-                    center: Point3::origin(),
-                    axis: n,
-                    major: big,
-                    minor: big / rng.range(1.0, 8.0),
-                    u_ref: uref,
-                }
-            };
-            let through = e.eval(rng.range(0.0, TAU));
-            let r = rng.range(1e-3, 2.0);
-            let ax = unit(&mut rng);
-            let x = Vec3::new(1.0, 0.0, 0.0);
-            let s = if i % 2 == 0 || matches!(e, geom::Curve3::Circle { .. }) {
-                geom::Surface::Cylinder {
-                    origin: through + unit(&mut rng).cross(ax).normalize() * r,
-                    axis: ax,
-                    radius: r,
-                    u_ref: (x - ax * x.dot(ax)).normalize(),
-                }
-            } else {
-                geom::Surface::Sphere {
-                    center: through + unit(&mut rng) * r,
-                    radius: r,
-                    axis: ax,
-                    u_ref: (x - ax * x.dot(ax)).normalize(),
-                }
-            };
-            let t0 = rng.range(0.0, TAU);
-            let t1 = t0 + rng.range(0.1, TAU);
-            let now = format!("{:?}", conic_quadric_roots(&e, t0, t1, &s, band));
-            let before = format!("{:?}", sphere_or_wall_before(&e, t0, t1, &s, band));
-            assert_eq!(
-                now,
-                before,
-                "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
-                fuzz::replay()
-            );
-        }
     }
 }

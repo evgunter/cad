@@ -32,3 +32,23 @@ frontier) while its corners decide its nappe.
 The row owed: such a face, with an edge crossing the double cone on
 its other nappe and nowhere on its own, through the crossing sweep —
 `Elsewhere` with the tell-off, the frontier without it.
+
+## Both reviews of PR 4135 confirm it, and the route may not exist
+
+- **r1** (MINOR-3, mutant M3, the tell-off disabled): every PR row stays
+  green. A quarter-revolved frustum — a partial face, so its trim
+  cannot place a root — crossed by a brick only on the mirror nappe,
+  four times, answers correctly (no new vertex) with and without the
+  tell-off: it does not reach the decision either.
+- **r2** (n-1, mutant M5): the tell-off cannot decide where the trim
+  answers, because `solid_contain::point_on_cone_in_face` refuses the
+  far nappe first (`crates/topo/src/boolean/solid_contain.rs:3018-3022`,
+  `bool_ray_cone_nappe`). It decides only on faces the trim declines —
+  rings, `PartialConeFace` — and there it turns a frontier into
+  `Elsewhere`. r2 could not build one through a public door.
+
+So the `PartialConeFace` route suggested above may not exist: a partial
+face's trim refuses its other roots too. The row owed may need a door
+that hands the crossing layer a face its trim declines, or the tell-off
+may prove unreachable through public doors, in which case it is a
+second line behind the trim and says so.
