@@ -472,14 +472,20 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   continuity margins come: `Assertion` calls +14 on every walk and
 ///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
 ///   −31. Every digest moves; the freezes hold.
+/// - **`set_edge_curve`'s carrier readings.** `Body::set_edge_curve`
+///   measures whether a description moves the edge's carrier or
+///   interval (`description_moves_carrier`): `Plain/Decision` +120
+///   calls and +864 forms, its digest moving; `Early/Decision` and
+///   `Door/Decision` +16 calls each, with their forms and digests
+///   unchanged. Freezes hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16596 frozen 696 digest 552c90e3f81bbc1b4c60c2c582b61a1a\n\
+     Plain/Decision calls 1263 forms 17460 frozen 696 digest 5bf99562b48daecb29fa0c279bb6a759\n\
      Plain/Assertion calls 664 forms 3944 frozen 372 digest 3fc3c1d6ccf7251c60ae7b7ad0cd5f7d\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 432 forms 9399 frozen 8 digest 7804ce3c229e1f27e2ec128de098ae55\n\
+     Early/Decision calls 448 forms 9399 frozen 8 digest 7804ce3c229e1f27e2ec128de098ae55\n\
      Early/Assertion calls 664 forms 4860 frozen 0 digest da899654fa4aca546b0c78ee005e679c\n\
      Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 596 forms 13624 frozen 0 digest 97586c9dae132defdcb8611d00243c26\n\
+     Door/Decision calls 612 forms 13624 frozen 0 digest 97586c9dae132defdcb8611d00243c26\n\
      Door/Assertion calls 408 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
