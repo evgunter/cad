@@ -488,12 +488,15 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// elsewhere refuses first.) The seam's clearance is zero, the door
 /// answers `Coaxial`, and `wall_crossing` answers `LiesOn`. Its parents
 /// are decided distinct from `B`'s carrier, so the undeclared
-/// `(Zero, Zero)` arm asks `lying_on`'s certificates, and the door holds
-/// because certificate (a) finds a crossing: `B`'s face boundary meets
-/// the seam's circle off the seam's ends. No chain of `B`'s arcs runs
-/// along it either.
+/// `(Zero, Zero)` arm asks `lying_on`. Certificate (a) declines, because
+/// `B`'s far end meridian meets the seam's CIRCLE beyond the arc's end,
+/// and no chain of `B`'s arcs runs along it; the interior question
+/// certifies that the ARC meets `B`'s boundary nowhere strictly inside
+/// its span, so its ends place it and the sweep answers. The op itself
+/// stops later, on the two tubes' coplanar start caps.
 #[test]
-fn a_coaxial_seam_on_the_torus_keeps_the_door() {
+fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
+    let tol = Tol::witness();
     let contour = B_MAJOR + (B_MINOR.powi(2) - A_HEIGHT.powi(2)).sqrt();
     let a = tube(
         Point3::new(0.0, A_HEIGHT, 0.0),
@@ -506,13 +509,39 @@ fn a_coaxial_seam_on_the_torus_keeps_the_door() {
     let b = b_quarter();
     let seam = circle_edges(&a, contour);
     assert_eq!(seam.len(), 1, "the seam on B's contour");
-    let err = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness())
-        .expect_err("an undeclared on-carrier seam keeps the door");
-    let BooleanError::CurvedPierceUnsupported { edge, .. } = err else {
-        panic!("the frontier door: {err:?}");
+    let walls = torus_faces(&b);
+    let (ab, _) = sweep_traces(&a, &b, SweepStrategy::Realized, None, tol)
+        .unwrap_or_else(|e| panic!("the sweep answers: {e:?}"));
+    let on_walls = |pairs: &[(EdgeKey, FaceKey)]| {
+        pairs
+            .iter()
+            .filter(|(e, f)| seam.contains(e) && walls.contains(f))
+            .count()
     };
-    assert!(
-        seam.contains(&edge),
-        "the refusal names the coaxial seam: {err:?}"
+    // Read once against B's wall and recorded there, never split: a
+    // split re-reads the seam's fragment against the same face.
+    assert_eq!(
+        (on_walls(&ab.examined), on_walls(&ab.accepted)),
+        (1, 1),
+        "the whole seam arc is placed on B's wall by its ends: {ab:?}"
     );
+    let (a, b) = (
+        sweep::test_support::finished("A", a, tol),
+        sweep::test_support::finished("B", b, tol),
+    );
+    let none = topo::BooleanDeclarations::none();
+    for (op, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
+        let r = topo::union_with(x, y, &none, tol);
+        let Err(BooleanError::UndeclaredCoincidence { pair, .. }) = r else {
+            panic!("{op}: the coplanar start caps: {r:?}");
+        };
+        for (operand, face) in pair {
+            let body = if operand == topo::Operand::A { x } else { y };
+            let kind = body
+                .get_face(face)
+                .and_then(|f| body.get_surface(f.surface))
+                .map(geom::Surface::kind);
+            assert_eq!(kind, Some(geom::SurfaceKind::Plane), "{op}: a start cap");
+        }
+    }
 }

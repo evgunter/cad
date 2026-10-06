@@ -3989,10 +3989,18 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         super::sphere_region::sphere_face_region(body, piece, cut.center, r)
                             .map_err(read)?
                             .ok_or_else(unread)?;
+                    // The region's own refusal: in band of an arc, or no
+                    // ray of its walk settled, or an arc that bounds
+                    // nothing — each a piece not read against the circle.
+                    let read_region = |e: super::sphere_region::RegionRefusal| match e {
+                        super::sphere_region::RegionRefusal::Escalated(diag) => esc(diag),
+                        super::sphere_region::RegionRefusal::RayExhausted { .. }
+                        | super::sphere_region::RegionRefusal::WoundPastPeriod => unread(),
+                    };
                     let [lo, hi] = crossings;
                     match (
-                        region.contains(piece, lo, band).map_err(read)?,
-                        region.contains(piece, hi, band).map_err(read)?,
+                        region.contains(lo, band).map_err(read_region)?,
+                        region.contains(hi, band).map_err(read_region)?,
                     ) {
                         (Some(true), Some(true)) if holder.is_none() => holder = Some(piece),
                         (Some(false), Some(false)) => {}
@@ -4388,7 +4396,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 };
                 voids::insert_hollow_voids(&mut body, &[solid], b_body, &evidence)
                     .map_err(|e| match e {
-                        voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
                         voids::VoidInsertError::StaleSolid { .. }
                         | voids::VoidInsertError::SolidCount { .. } => unreachable!(
                             "the void fallback grafts a one-solid B carve into the one solid \
@@ -4472,7 +4479,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
-        body = body.revert().map_err(BooleanError::Revert)?;
+        body = body.revert();
     }
     // No cross-operand pair merges here: one operand is absent from the
     // result. A declared pair that held the absent operand's region
@@ -4635,8 +4642,7 @@ mod tests {
         let lamina = pillow.flipped_face_sense_for_tests(split.face).unwrap();
         let inside_out =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol)
-                .revert()
-                .unwrap();
+                .revert();
         let up = Vec3::new(0.0, 0.0, 1.0);
         let offset = 1e3 * tol.get().eps;
         let stranded =
@@ -4870,7 +4876,7 @@ mod tests {
         // Complement operand (negative flux volume): its bound is
         // vacuous and must be SKIPPED — A ∩ revert(B) legitimately
         // exceeds vol(revert B); the A-side bound still applies.
-        let rev = quad_prism(&square, 0.5, Tol::witness()).revert().unwrap();
+        let rev = quad_prism(&square, 0.5, Tol::witness()).revert();
         volume_backstop(
             BooleanOp::Intersect,
             &cube,
@@ -4905,7 +4911,7 @@ mod tests {
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let prism = |h: f64| quad_prism(&square, h, Tol::witness());
         let (cube, small, quarter, tall) = (prism(1.0), prism(0.5), prism(0.25), prism(1.5));
-        let rev = cube.revert().expect("the cube reverts");
+        let rev = cube.revert();
         let refuses = |op, a, b, result, which: &str| {
             let err = volume_backstop(
                 op,
@@ -5001,9 +5007,7 @@ mod tests {
         let run = |v_over_a: f64| {
             // `V = s³ − 1` over `A = 6 + 6s²`.
             let s = (1.0 + 12.0 * v_over_a).cbrt();
-            let mut result = mapped_cube::<f64>(unit(0.0, 1.0), tol)
-                .revert()
-                .expect("the cube reverts");
+            let mut result = mapped_cube::<f64>(unit(0.0, 1.0), tol).revert();
             cube_into(&mut result, unit(5.0, s), tol);
             volume_backstop(
                 BooleanOp::Intersect,

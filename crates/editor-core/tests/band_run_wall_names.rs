@@ -171,8 +171,8 @@ fn a_wrapping_run_begins_after_the_start_vertex() {
 /// the run either way. A partial revolve's wedge caps keep the station:
 /// its meridians stay per piece and the station's meridian vertices are
 /// named, but no `BandRim` stands there. A full revolve keeps no entity
-/// for the station: one seam meridian over the run, no rim, no
-/// meridian vertex.
+/// for the station: the run sweeps one plane annulus with no meridian,
+/// and the station has no rim and no meridian vertex.
 #[test]
 fn a_revolved_run_wall_is_named_by_its_pieces() {
     for angle in [std::f64::consts::FRAC_PI_2, std::f64::consts::TAU] {
@@ -191,8 +191,7 @@ fn a_revolved_run_wall_is_named_by_its_pieces() {
         );
         let station = vpiece(&doc, rev, 0, 1);
         assert!(
-            t.lookup(&minted(EntityKind::Edge, rev, RoleSeg::BandRim(station)))
-                .is_none(),
+            t.lookup(&editor_core::band_rim(rev, station)).is_none(),
             "{angle}: a station has no rim"
         );
         if full {
@@ -201,12 +200,11 @@ fn a_revolved_run_wall_is_named_by_its_pieces() {
                 rev,
                 RoleSeg::Meridian(MeridianEnd::Seam, run_of(&doc, rev, &[0, 1])),
             );
-            assert!(t.lookup(&seam).is_some(), "the run's one seam meridian");
-            let v = minted(
-                EntityKind::Vertex,
-                rev,
-                RoleSeg::MeridianVertex(MeridianEnd::Seam, station),
+            assert!(
+                t.lookup(&seam).is_none(),
+                "the run's plane annulus has no meridian"
             );
+            let v = editor_core::meridian_vertex(MeridianEnd::Seam, rev, station);
             assert!(t.lookup(&v).is_none(), "the station has no entity");
         } else {
             for end in [MeridianEnd::Start, MeridianEnd::End] {
@@ -218,11 +216,7 @@ fn a_revolved_run_wall_is_named_by_its_pieces() {
                     );
                     assert!(t.lookup(&m).is_some(), "{end:?} meridian of piece {k}");
                 }
-                let v = minted(
-                    EntityKind::Vertex,
-                    rev,
-                    RoleSeg::MeridianVertex(end, station),
-                );
+                let v = editor_core::meridian_vertex(end, rev, station);
                 assert!(
                     t.lookup(&v).is_some(),
                     "{end:?} meridian vertex at the station"
@@ -372,7 +366,7 @@ fn a_run_of_arcs_is_named_by_its_pieces() {
             )
         };
         let station = vpiece(&doc, rev, 0, 1);
-        let rim = t.lookup(&minted(EntityKind::Edge, rev, RoleSeg::BandRim(station)));
+        let rim = t.lookup(&editor_core::band_rim(rev, station));
         if full {
             assert!(t.lookup(&band(&[0, 1])).is_some(), "the arc run's band");
             assert!(rim.is_none(), "a station has no rim");

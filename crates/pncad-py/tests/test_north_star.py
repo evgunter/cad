@@ -611,16 +611,16 @@ class TestBracket(unittest.TestCase):
         expected = 0.75 * (5.25 - math.pi / 16.0)
         self.assertAlmostEqual(volume_of(doc, bracket), expected, delta=1e-12)
 
-    def test_the_trimmed_leg_ends_cannot_be_broken_by_name(self):
-        """The scene's wall 1: split across both legs at x + y = 2.75,
+    def test_the_trimmed_leg_ends_are_broken_by_name(self):
+        """The scene's document: split across both legs at x + y = 2.75,
         keep the corner piece, chamfer its four cap chords by name.
 
         The split partitions the body (each offcut is a trapezoid prism
         of area (3 - 2.75) + 1/2) and names each cap chord by its ends,
-        because the plane crosses each cap twice. The chamfer refuses:
-        a plane-plane band ends only at a corner whose three edges are
-        all requested (work/band/a-plane-plane-blend-cannot-end-at-an-
-        unrequested-corner.md)."""
+        because the plane crosses each cap twice. Each chord's band is cut
+        off where it meets the leg's two side walls, a unit apart at 45
+        degrees, so the corner piece loses 4 * (d^2 / 2) * sqrt(2)
+        (work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md)."""
         doc, bracket = self.build()
         tool = doc.insert(
             Node.datum_plane(
@@ -645,11 +645,9 @@ class TestBracket(unittest.TestCase):
         )
         self.assertEqual(len(chords), 4, "two legs x two caps, each chord named by its ends")
 
+        kept = volume_of(doc, corner)
         broken = doc.insert(Node.chamfer(corner, Formula.length_in(0.1, m), chords))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(broken)
-        self.assertEqual(caught.exception.kind, "chamfer")
-        self.assertEqual(caught.exception.inner_kind, "unsupported_run_out")
+        self.assertAlmostEqual(volume_of(doc, broken), kept - 4 * (0.1**2 / 2) * math.sqrt(2), delta=1e-12)
 
 
 class TestVase(unittest.TestCase):
@@ -2662,7 +2660,7 @@ class TestBudfillet(unittest.TestCase):
         # below is between two bodies and not against a remembered
         # number (the scene's own discipline).
         self.assertEqual(len(ev.all_vertices(sharp)), 5)
-        self.assertEqual(len(ev.all_edges(sharp)), 10)
+        self.assertEqual(len(ev.all_edges(sharp)), 8)
         self.assertEqual(len(ev.all_faces(sharp)), 5)
         sharp_volume = ev.value(sharp).body().mass_properties().volume
 
@@ -2710,7 +2708,7 @@ class TestBudfillet(unittest.TestCase):
         # Proof 1: three annulus bands, each (+1 vertex, +2 edges,
         # +1 face) over the sharp bud.
         self.assertEqual(len(ev.all_vertices(rolled)), 8)
-        self.assertEqual(len(ev.all_edges(rolled)), 16)
+        self.assertEqual(len(ev.all_edges(rolled)), 14)
         self.assertEqual(len(ev.all_faces(rolled)), 8)
 
         # Proof 2: the band faces exist and are TORI — three of them,
@@ -3284,7 +3282,7 @@ class TestTeapot(unittest.TestCase):
         rolled.validate()
         # Three annulus bands, each (+1 vertex, +2 edges, +1 face).
         self.assertEqual(len(ev.all_vertices(lid)), 9)
-        self.assertEqual(len(ev.all_edges(lid)), 18)
+        self.assertEqual(len(ev.all_edges(lid)), 16)
         self.assertEqual(len(ev.all_faces(lid)), 9)
         # Every band is a TORUS — what sharing an axis of revolution
         # buys — and there are exactly three.
@@ -4405,9 +4403,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # runs the same detector to the naming wall).
         # `StableName` stays, and for a sharper reason than "nothing
         # spells it": a name is `str` on this side, so there is no
-        # name TYPE and no grammar to half-parse. The five role-name
-        # doors — `band`, `band_pi`, `band_rim`, `meridian_vertex`,
-        # `carried` — do not change that: each MINTS a name by naming
+        # name TYPE and no grammar to half-parse. The six role-name
+        # doors — `band`, `band_pi`, `band_rim`, `band_rim_pi`,
+        # `meridian_vertex`, `carried` — do not change that: each MINTS a name by naming
         # a ROLE and answers the same opaque text a materializer
         # answers, which is why they are module doors and not methods
         # on a name class. A `FlushFinding`'s pair crosses as the same

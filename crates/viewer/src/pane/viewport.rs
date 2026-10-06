@@ -443,9 +443,9 @@ fn cursor_news(
         .faces_under_cursor(eval, camera, viewport, cursor, display)
         .map(|faces| faces.into_iter().map(|face| face.name).collect());
     match &from_ray {
-        Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal, doc)),
+        Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal, (doc, eval))),
         _ => idpass::disagreement(index, answer, outstanding, from_ray.as_deref())
-            .map(|report| report.notice(doc)),
+            .map(|report| report.notice((doc, eval))),
     }
 }
 
@@ -810,7 +810,7 @@ impl ViewerBehavior<'_> {
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
-                    Err(error) => self.notices.push(frame::pick_refusal(&error, doc)),
+                    Err(error) => self.notices.push(frame::pick_refusal(&error, (doc, eval))),
                 }
             }
         } else if let Some(refusal) = pickcache::unindexed(&actions, self.index, self.indexing) {
@@ -1799,7 +1799,7 @@ mod tests {
             .expect_err("the moved ray is refused");
         assert_eq!(
             cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
-            Some(frame::pick_refusal(&refusal, foreign_doc)),
+            Some(frame::pick_refusal(&refusal, (foreign_doc, foreign))),
             "the comparison says the refusal in the pick path's own words"
         );
     }
@@ -1813,8 +1813,8 @@ mod tests {
     /// the clear value, it was misreported both ways: as *id buffer
     /// nothing* against a ray that named a face, and as silent
     /// agreement against a ray that named nothing. The two rows below
-    /// each ask one of those cursors. The ray's names come back as the
-    /// landed document speaks them, role path included.
+    /// each ask one of those cursors. The ray's names come back in
+    /// words, as the landed document speaks them within its evaluation.
     fn unassigned_id_news(
         wanted: impl Fn(&[StableName]) -> bool,
     ) -> (u32, Vec<StableName>, Vec<String>, Option<frame::Message>) {
@@ -1873,7 +1873,10 @@ mod tests {
         let news = cursor_news(&index, question, answer, log.outstanding(), true);
         let spoken = from_ray
             .iter()
-            .map(|name| idpass::NameAndPath(name, pncad::document::Speaker::of(landed)).to_string())
+            .map(|name| {
+                let by = pncad::document::Speaker::of(landed).within(eval);
+                by.name(name).to_string()
+            })
             .collect();
         (unassigned, from_ray, spoken, news)
     }
@@ -1906,8 +1909,8 @@ mod tests {
             .zip(spoken.first())
             .expect("the helper returns the one-face answer it was asked for");
         assert!(
-            said.contains("Extrude") && said.ends_with(&format!("({:?})", named.path)),
-            "the face's minter is said as the landed document holds it, then its path: {said}"
+            said.contains("Extrude") && !said.contains(&format!("{:?}", named.path)),
+            "the face's minter is said as the landed document holds it, and no path: {said}"
         );
         assert_eq!(
             news.expect("an unassigned id against a named face is a disagreement")

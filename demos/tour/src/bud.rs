@@ -35,9 +35,9 @@
 //!
 //! - **the census delta**, exactly three times the annulus band's own
 //!   `(+1 vertex, +2 edges, +1 face)` — two feet minted and the rim
-//!   vertex retired, two seam children and two trim circles minted
-//!   against the rim and the host seam's rim-side piece, two strips
-//!   minted and one merged away;
+//!   vertex retired, a seam child per seam split (a strut on a plane
+//!   side) and two trim circles minted against the rim and the host's
+//!   rim-side piece, two strips minted and one merged away;
 //! - **the band faces exist and are tori**, each storing the radius the
 //!   caller asked for;
 //! - **the mouth band's torus is the CLOSED FORM**, re-derived in this
@@ -268,8 +268,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             sharp.edges().count(),
             sharp.faces().count(),
         ),
-        (5, 10, 5),
-        "the bud is five walls, five latitude rims and five meridian seams"
+        (5, 8, 5),
+        "the bud is five walls, five latitude rims and the three curved walls' meridian seams"
     );
 
     // The three rims, said BY DESCRIPTION. Two of them the description
@@ -370,7 +370,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!(
         (v, e, f),
-        (8, 16, 8),
+        (8, 14, 8),
         "three annulus bands, each (+1 vertex, +2 edges, +1 face) over the sharp bud"
     );
 
@@ -521,7 +521,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
               carves (#935)",
         delta: DELTA,
         note: Some(format!(
-            "{v} vertices, {e} edges, {f} faces — the sharp bud's 5/10/5 plus exactly \
+            "{v} vertices, {e} edges, {f} faces — the sharp bud's 5/8/5 plus exactly \
              three times the annulus band's own (+1, +2, +1). All three rims roll in \
              ONE call, the mouth and the lip sharing the pucker cone included: the \
              carve re-reads the later rim's seam-piece identities against the \

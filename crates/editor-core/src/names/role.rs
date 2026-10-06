@@ -562,18 +562,26 @@ pub struct StableName {
     pub path: RolePath,
 }
 
-// The human-readable rendering: the kind (through [`EntityKind::noun`],
-// never `Debug`) plus the minting node — the half of a name a user can
-// act on. The role path is a derivation, not something a person reads
-// mid-sentence, so prose never renders it; the typed value remains the
-// machine channel for anything that needs the path. Article-free
-// ("face name minted by node 3") so a sentence supplies its own
-// article. Refusal prose that names a name forwards this rather than
-// re-spelling it.
+// The human-readable rendering: the path as a structure is the machine
+// channel; a person reads it in words ([`super::LeafRole`]), each node
+// and step by its tag, in full (`the end cap of node 000000000003`).
+// Article-led, so a sentence takes it as a noun phrase. This is
+// [`crate::Speaker::name`] said by tag, the one spelling every sentence
+// that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
+        crate::spoken::Speaker::TAG.name(self).fmt(f)
     }
+}
+
+/// Where the trailing run of `Fragment` segments of `path` starts: the
+/// length of what they qualify. The one reading of "a name with only
+/// fragments after it", for a group's parent, its cutters, a seam row
+/// and a name said in words alike.
+pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
+    path.iter()
+        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
+        .map_or(0, |i| i + 1)
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition
@@ -1411,7 +1419,7 @@ pub enum RoleSeg {
 /// revolve at `node` (in a full revolve's wire case, a curved wall's
 /// `[0, π)` half) — [`RoleSeg::Band`] over the one-piece run.
 ///
-/// This and its three siblings are the MINTING direction of the
+/// This and its four siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
 /// selection that is ANSWERED — [`select`](fn@crate::select),
 /// [`all_faces`](fn@super::all_faces) — needs an evaluation to answer
@@ -1451,6 +1459,20 @@ pub fn band_rim(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::BandRim(vertex)],
+    }
+}
+
+/// **The `[π, 2π)` latitude rim at the profile vertex `vertex`** —
+/// [`band_rim`]'s twin on a full revolve whose profile touches the
+/// axis, where each rim is two half-arcs between the seam vertices
+/// ([`RoleSeg::BandRimPi`]); an annular profile's rim is one.
+/// An [`EntityKind::Edge`], as [`band_rim`] is.
+#[must_use]
+pub fn band_rim_pi(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::BandRimPi(vertex)],
     }
 }
 
@@ -2483,7 +2505,7 @@ pub(crate) use never_in_a_boolean_table;
 mod tests {
     use super::{
         EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle,
-        StableName, band, band_pi, band_rim, carried, meridian_vertex,
+        StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
     };
     use crate::node::{RecipeNodeId, StepId};
 
@@ -2506,7 +2528,7 @@ mod tests {
     }
 
     /// A builder mints EXACTLY the name a caller would spell by hand.
-    /// Four pins, one per builder, each written the long way — the
+    /// One pin per builder, each written the long way — the
     /// spelling they replace at their consumers — at both locator
     /// forms, so a builder cannot drift from the vocabulary without
     /// this file disagreeing with itself.
@@ -2547,6 +2569,20 @@ mod tests {
                     kind: EntityKind::Edge,
                     node: N,
                     path: vec![RoleSeg::BandRim(e.start())],
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn band_rim_pi_mints_the_hand_spelled_edge() {
+        for e in edges() {
+            assert_eq!(
+                band_rim_pi(N, e.start()),
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: N,
+                    path: vec![RoleSeg::BandRimPi(e.start())],
                 }
             );
         }

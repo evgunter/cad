@@ -597,8 +597,7 @@ fn r2_oblique_plane_prisms_outside_their_table() {
 /// **R2-7: the tangent bullet's second door, and WHICH of its two
 /// `what` strings fires.** The PR attributes the row to the mapped-arc
 /// description authored by `.tangent().tangent_arc_to(..)`. That is one
-/// of two `CarrierLaneUnsupported` sites in `replace_face.rs`; the
-/// other is a carrier that is neither a line nor a circle. The payload
+/// of several `CarrierLaneUnsupported` sites in `replace_face.rs`. The payload
 /// carries the string, so this is measurable and the PR did not
 /// measure it (its table records only the variant).
 #[test]

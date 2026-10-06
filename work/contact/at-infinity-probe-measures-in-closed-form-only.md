@@ -55,7 +55,7 @@ either way), or a rod drilled up through the cut face (radius 0.2 at
 have passed. Which classification query reaches the probe was not
 instrumented; the drum's cut wall is the only face in these operands
 with an ellipse boundary. Pinned (the ball) by
-`a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream`.
+`a_ball_through_the_cut_face_clears_the_rim_and_builds`.
 
 ## Also met: blind pockets in a tilted-cut cylinder (SHOW, 2026-10-02)
 
@@ -130,7 +130,7 @@ volumes, so the cut wall's ellipse trim is what the probe cannot
 measure. The closed-form volumes are written down in
 `crates/sweep/tests/parallel_cylinder_join.rs` (`rim_poses`), and the
 poses are pinned at this door by
-`the_rim_crossing_rods_stop_at_the_volume_probe`.
+`the_rim_crossing_rods_build_where_a_probe_ray_meets_the_boundary`.
 
 ## Another witness (JOIN, PR 4038's pinch crossing)
 
@@ -153,3 +153,29 @@ whose edge touches the wall's carrier above the cap, refuses
 `Containment(VolumeUncertified)` in every op and both orders once the
 crossing layer clears the touch. The unit took its cylinder row on a
 270° extrusion instead, whose faces are all closed-form.
+
+## Moved on branch `cleave/ray-walk`
+
+CLEAVE's ray-walk driver unit (PR 4083) made the probe's refusal a
+reading of the one ray that met nothing (`ray_walk::RayFault::Blocked`).
+A ray of the schedule that meets the boundary answers, and the query
+refuses `VolumeUncertified` only where no ray settles; then the refusal
+says that one of its rays met nothing and no other settled it. That
+can be a point whose other rays met the boundary only within the band:
+`pis_arc_capped_poses::a_ray_meeting_nothing_refuses_only_where_no_ray_settles`
+pins such a pose, refusing at the witness band and answering at a
+tighter one.
+
+Every pose this row and its pins name now builds, each held to its
+closed form:
+
+- `conic_edge_curved_face`'s ball through the cut face, and all three
+  rim-crossing rods
+  (`parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`);
+- `axis_lap::an_oblique_cap_flats_through_its_ellipse_arc`;
+- the tour's tilted-cut walls: the C on the lower half's section face,
+  and the C in the upper half's cap after the cut.
+
+The built rods are not yet legal operands: their union with a far brick
+refuses, and why was not measured. The closed-form-only measurement is
+untouched.
