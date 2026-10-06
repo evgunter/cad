@@ -2,7 +2,7 @@
 id: the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left
 kind: issue
 title: offset_planes_together keeps an edge's image in a held neighbour's chart, and certification refuses the sound move because the edge has left that image
-status: open
+status: dispatched
 opened: 2026-10-05
 priority: P3
 cost: E

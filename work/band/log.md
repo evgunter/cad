@@ -432,3 +432,22 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — `a-hole-filleted-at-both-rims-in-one-fillet-panics-in-blend-surgery` closed (PR #4088)
+
+A through-bore's two rims filleted in one call panicked at the surgery's
+naming postcondition (in the kernel, not only through the document): both
+are ladder rims sharing the bore wall as mate, the wall's seams run rim to
+rim, and the second carve's `meridian_splits` row named the fragment the
+first carve left rather than the source seam. The row now names
+`frag.source`, as the annulus phase does, the band telling the two splits
+of one seam apart; `shared_support_gate`'s doc no longer says two ladder
+rims never meet. Rows: the extruded bore at N = 2…4 and box ∖ cylinder
+build at the two-tori closed form and equal the two single-rim calls in
+either order (red on main), and one document `Fillet` over both rims mints
+distinct names. Reviewed by the orchestrator's read (one-key fix, the
+convention pinned by the new rows).
+
+`declared-joint-kind-zero-margin-reads-smooth` parked on
+`d10-one-way-to-say-intent-is-unbuilt`: profile declared-joint kinds are
+the hold's ground (D10 makes tangency constructed).
