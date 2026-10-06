@@ -36,12 +36,12 @@
 //!   (the lily/s_duct precedent): the corpus fixture
 //!   (`common/mod.rs::nonuniform_loft()`, #210/#207) keeps its
 //!   z = 0/1/3 spacing, but at that spacing the pair's silhouettes
-//!   are nearly indistinguishable — bulge peak at 48.8% vs 50% of
-//!   height, peak half-width 1.415 vs 1.375, MEASURED. The SCENE
+//!   are nearly indistinguishable — bulge peak at 49.4% vs 50% of
+//!   height, peak half-width 1.419 vs 1.375. The SCENE
 //!   re-places the same
 //!   sections at z = 0/0.15/2 — same sections, same total height,
 //!   ONLY the middle placement moves — driving the bulge to
-//!   half-width 1.646 at 32.6% of height: silhouette-obvious. Rendered
+//!   half-width 1.853 at 38.5% of height: silhouette-obvious. Rendered
 //!   `LOFT_PAIR_GAP` along +x of its twin by `transform_rigid` on the
 //!   BUILT body — the walls are described NURBS nets, which the rigid
 //!   map carries by their control points.
@@ -276,11 +276,11 @@ const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1
 
 /// How far along +x the non-uniform loft renders from its twin. The
 /// prism reaches half-width 1.375 (its trapezoid) and the non-uniform
-/// skin overshoots to 1.646, so 4 m leaves 4 − 1.375 − 1.646 ≈ 0.98 m
+/// skin overshoots to 1.853, so 4 m leaves 4 − 1.375 − 1.853 ≈ 0.77 m
 /// of clear air between the two silhouettes at the shared camera —
 /// separated without either shrinking to make room. The twisted loft
 /// stands at twice the gap; its turning walls reach 1.38 m toward the
-/// pair (MEASURED off its mesh), leaving the same ≈ 0.98 m.
+/// pair (MEASURED off its mesh), leaving ≈ 0.77 m.
 const LOFT_PAIR_GAP: f64 = 4.0;
 
 /// The S-duct's arc radius (scene-local; the corpus elbow's is
@@ -467,12 +467,10 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 /// The square/trapezoid/square section stack both loft scenes share —
 /// the minimal pair's shared half.
 /// The middle section's v-parameter at the montage spacing
-/// (z = 0/0.15/2), `3√29/(3√29 + √5701)` — the pin the stop's note
-/// narrates, checked against `loft_parameters` at build time.
-// The shortest form that round-trips to the same f64 as the note's
-// 0.17625368909901809 (that last digit is past f64's precision, which
-// is why the narration keeps it and the constant does not).
-const NONUNIFORM_T: f64 = 0.1762536890990181;
+/// (z = 0/0.15/2), `(3√29/(3√29 + √5701) + 3/40)/2` — the pin the
+/// stop's note narrates, checked against `loft_parameters` at build
+/// time.
+const NONUNIFORM_T: f64 = 0.12562684454950906;
 
 fn prism_sections(tol: Tol) -> Vec<Section<ConstructedLoop<f64>>> {
     vec![
@@ -535,7 +533,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // ±y camera puts the ±x walls edge-on and the flare becomes a
     // bulge in the outline itself — the prism's symmetric peak
     // (half-width 1.375) at mid-height, the non-uniform's fatter peak
-    // (half-width 1.646, wider than ANY authored section) at 32.6%
+    // (half-width 1.853, wider than ANY authored section) at 38.5%
     // with its long upper taper — rather than a shading difference
     // (#218 review: the pair must be distinct in profile, not
     // shading). 10° of azimuth and elevation keep a sliver of side
@@ -618,7 +616,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let nonuniform_places = lofted_at_z(&[0.0, 0.15, 2.0]);
     // The middle section's v-parameter, ASKED (LIB-U5 deliverable 1)
     // rather than re-derived: the note below narrates
-    // t = 3√29/(3√29 + √5701) and every number downstream of it, so
+    // t = (3√29/(3√29 + √5701) + 3/40)/2 and every number downstream
+    // of it, so
     // the derivation is pinned against the kernel's own answer here.
     let params = pncad::sweep::loft_parameters(&prism_sections(tol), &nonuniform_places, 2, tol)
         .expect("the non-uniform sections skin");
@@ -654,12 +653,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // is 2(1 − L2), so the slice's area is
     // 4((1 − L2)² + L2²) + 2d·L1·(1 − L2). Integrating it against z′:
     // V = 16/3 + (8t + d(1 + 12t − 10t²)) / (30t²(1 − t)²).
-    // t is the first strip's chord average (`skin_parameters`): both
-    // rows step √73/8 to the trapezoid, then 5√17/8 and √329/8 to the
-    // top corner they are now paired with.
+    // t is the chord average over every corner (`loft_parameters`):
+    // the two flared corners step √73/8 to the trapezoid, then 5√17/8
+    // and √329/8 to the top corner they are now paired with; the two
+    // others step 1, then √5.
     let twist_t = {
         let (a, b, c) = (73f64.sqrt(), 5.0 * 17f64.sqrt(), 329f64.sqrt());
-        0.5 * (a / (a + b) + a / (a + c))
+        0.25 * (a / (a + b) + a / (a + c) + 2.0 / (1.0 + 5f64.sqrt()))
     };
     let twisted_places = lofted_at_z(&[0.0, 1.0, 2.0]);
     let twist_params =
@@ -807,9 +807,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     patches, not ruled strips. LEFT: placements z = 0/1/2. RIGHT: the \
                     SAME sections, the SAME 2 m height, and ONLY the middle placement \
                     moved, to z = 0/0.15/2 — the degree-2 skin interpolates through the \
-                    crowded spacing and OVERSHOOTS, bulging to half-width 1.646, wider \
+                    crowded spacing and OVERSHOOTS, bulging to half-width 1.853, wider \
                     than any authored section (the trapezoid stops at 1.375), peaking \
-                    at 32.6% of the height with a long taper above. FAR RIGHT: the SAME \
+                    at 38.5% of the height with a long taper above. FAR RIGHT: the SAME \
                     sections at the SAME z = 0/1/2 as the left, with ONE change: the top \
                     square is authored from its second corner. Same four points, so the \
                     same section — but a loft joins corners by where each loop starts, so \
@@ -835,22 +835,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  [nonuniform_loft] the scene LEADS the corpus since montage-v2 (the \
                  s_duct/lily precedent) — the corpus fixture keeps z = 0/1/3 \
                  (step-export/tests/common/mod.rs::nonuniform_loft, #210/#207), whose \
-                 bulge (peak 48.8% of height, half-width 1.415) is visually the \
-                 prism's silhouette rescaled; MEASURED before this re-spacing. \
-                 Derivation at 0/0.15/2: skin_parameters averages cumulative CHORD \
-                 lengths over the first strip's control rows (the flared bottom \
-                 corners), so t = 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) = \
+                 bulge (peak 49.4% of height, half-width 1.419) is visually the \
+                 prism's silhouette rescaled. Derivation at 0/0.15/2: \
+                 loft_parameters averages cumulative CHORD lengths over every \
+                 control row of every wall — the two flared corners share \
+                 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)), the two others 0.15/2 — so \
+                 t = (3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) + 3/40)/2 = \
                  {NONUNIFORM_T} — which the scene ASKS the kernel for \
                  (sweep::loft_parameters) and pins this derivation against, rather \
                  than re-deriving it in prose; the corner flare is the quadratic \
                  Lagrange bump lambda(v) = v(1-v)/(t(1-t)), slice area 4 + 2d*lambda \
                  (d = 0.375), z(v) the quadratic through (0,0),(t,0.15),(1,2), and \
                  int v(1-v) z'(v) dv = H/6 for ANY quadratic z, so \
-                 V = 4H + dH/(3t(1-t)) = 8 + 0.25/(t(1-t)) = 9.721901523222 m^3 \
+                 V = 4H + dH/(3t(1-t)) = 8 + 0.25/(t(1-t)) = 10.275939648198 m^3 \
                  (quadrature agrees at pad ~1e-13). Peak half-width \
-                 1 + d/(4t(1-t)) = 1.6457 at z(1/2) = 0.6513 = 32.6% of height. A \
+                 1 + d/(4t(1-t)) = 1.8535 at z(1/2) = 0.7696 = 38.5% of height. A \
                  naive z-proportional parameterization (t = 0.075) would say \
-                 11.604 m^3 — 19% off: the chord-length choice is load-bearing. \
+                 11.604 m^3 — 13% off: the chord-length choice is load-bearing. \
                  Same skin-fit lane whose synthesized weight channel used to land an \
                  ulp off 1.0 on non-uniform spacings and refuse at assembly (#207); \
                  BUILT at the origin like its twin and then MOVED {LOFT_PAIR_GAP} m \
@@ -863,11 +864,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  square authored from (1, -1): the loft takes each loop's start as \
                  authored, so strut k runs c_k -> c_(k+1) (checked, against the \
                  prism's c_k -> c_k) — a quarter turn, which is what shifting a \
-                 square's start one vertex IS. Derivation: v comes from the first \
-                 strip's chord average, both rows stepping sqrt(73)/8 to the \
+                 square's start one vertex IS. Derivation: v is the chord average \
+                 over every corner, the flared two stepping sqrt(73)/8 to the \
                  trapezoid and then 5*sqrt(17)/8 and sqrt(329)/8 to their new top \
-                 corners, so t = (sqrt(73)/(sqrt(73)+5*sqrt(17)) + \
-                 sqrt(73)/(sqrt(73)+sqrt(329)))/2 = {twist_t} (asked of \
+                 corners, the other two stepping 1 and then sqrt(5), so \
+                 t = (sqrt(73)/(sqrt(73)+5*sqrt(17)) + \
+                 sqrt(73)/(sqrt(73)+sqrt(329)) + 2/(1+sqrt(5)))/4 = {twist_t} (asked of \
                  sweep::loft_parameters and pinned) — the twist moved the middle \
                  section's parameter off the prism's 1/2. Each slice is planar at \
                  z(v) = L1 + 2*L2 (Lagrange basis on 0, t, 1) with corners \

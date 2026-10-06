@@ -1091,15 +1091,16 @@ class TestNonuniformLoft(unittest.TestCase):
     read-back stays a named residue, the m3 precedent from LIB-PYG1."""
 
     # demos/tour/src/skinned.rs::NONUNIFORM_T — the middle section's
-    # v-parameter at this spacing, 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)),
-    # which the Rust scene pins against `loft_parameters`.
-    NONUNIFORM_T = 0.1762536890990181
+    # v-parameter at this spacing,
+    # (3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) + 3/40)/2, which the Rust
+    # scene pins against `loft_parameters`.
+    NONUNIFORM_T = 0.12562684454950906
 
     def test_nonuniform_loft_matches_the_derived_closed_form(self):
         # V = 4H + dH/(3t(1-t)) = 8 + 0.25/(t(1-t)), H = 2, d = 0.375.
         t = self.NONUNIFORM_T
         expected = 8.0 + 0.25 / (t * (1.0 - t))
-        self.assertAlmostEqual(expected, 9.721901523222, delta=1e-11)
+        self.assertAlmostEqual(expected, 10.275939648198, delta=1e-11)
 
         doc = Doc()
         loft = prism_loft(doc, [0.0, 0.15, 2.0])

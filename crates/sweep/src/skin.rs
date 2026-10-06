@@ -1101,12 +1101,13 @@ fn skin_strips(
 ///     .collect();
 ///
 /// let params = loft_parameters(&sections, &places, 2, tol).expect("the sections skin");
-/// // Ends pinned; the middle is the CHORD-length share, not the
-/// // z-share (which would be 1/3): the flare lengthens the first
-/// // chord, giving t = √73 / (√73 + √265).
+/// // Ends pinned; the middle is the CHORD-length share averaged over
+/// // every corner, not the z-share (which would be 1/3): the flare
+/// // lengthens the first chord at the two bottom corners, giving
+/// // t = (√73 / (√73 + √265) + 1/3) / 2.
 /// assert_eq!(params[0], 0.0);
 /// assert_eq!(params[2], 1.0);
-/// assert_eq!(params[1], 0.34419950074181277);
+/// assert_eq!(params[1], 0.33876641703757304);
 /// ```
 pub fn loft_parameters<L: SectionLoop>(
     sections: &[Section<L>],

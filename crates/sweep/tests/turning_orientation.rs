@@ -326,13 +326,15 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
 /// about the start tangent is one solid, and `v = 0.5` is the
 /// inflection.**
 ///
-/// A centred square is invariant under that quarter turn and the
-/// sweep carries the start frame rigidly, so every station's ring is
+/// The two are the kernel's frame and the retired cone recipe's, which
+/// is it turned by `R_z(−90°)` (`s393_start_frame_door`). A centred
+/// square is invariant under that quarter turn and the sweep carries
+/// the start frame rigidly, so every station's ring is
 /// the same set of world points in both builds; the quarter turn is
 /// the exact column permutation, so they are the same BITS, and only
 /// which edge is wall 0 differs. The sections sit at the path's own
 /// normalised parameter, so the walls are bit-identical, shifted by
-/// one — the solid, whose volume a first-strip parameterization moved
+/// one edge — the solid, whose volume a first-strip parameterization moved
 /// in the fifth digit with the roll. The path is symmetric about its
 /// inflection, so the middle station — `v = 0.5` — is the inflection
 /// `(0, 2, 2)`: a parameterization read off one wall's chord lengths
@@ -343,7 +345,7 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     let place = normal_start_place(&path);
     let [x, y, z] = place.linear.cols();
-    let rolled = Affine3::from_parts(Mat3::from_cols(y, -x, z), place.translation);
+    let rolled = Affine3::from_parts(Mat3::from_cols(-y, x, z), place.translation);
     let tol = Tol::witness();
     let build = |place| {
         let params = sweep::loft_parameters(
@@ -378,9 +380,11 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
         other.section_params, base.section_params,
         "rolled: same parameters"
     );
+    // The rolled frame carries sketch vertex `j` to the world point the
+    // unrolled one carries vertex `j − 1` to.
     let n = base.walls[0].len();
     for (j, wall) in other.walls[0].iter().enumerate() {
-        let want = &base.walls[0][(j + 1) % n];
+        let want = &base.walls[0][(j + n - 1) % n];
         assert!(
             wall.knots_v().knots() == want.knots_v().knots()
                 && wall.weights() == want.weights()
@@ -390,7 +394,7 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
                     .zip(want.control())
                     .all(|(p, q)| p.x == q.x && p.y == q.y && p.z == q.z),
             "rolled wall {j} must be wall {} of the unrolled duct, bit for bit",
-            (j + 1) % n
+            (j + n - 1) % n
         );
     }
 

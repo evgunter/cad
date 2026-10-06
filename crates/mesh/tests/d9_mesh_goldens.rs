@@ -296,7 +296,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("loft_prism", [0x2d6a_6bd0_bdce_2300, 0x6109_b327_f166_6647]),
     (
         "swept_elbow",
-        [0xa641_6efc_aabc_ab58, 0x9d69_b691_1dd3_be28],
+        [0xcf3c_9d81_6cbd_6296, 0x2e0d_0a69_c4e6_cb20],
     ),
 ];
 
