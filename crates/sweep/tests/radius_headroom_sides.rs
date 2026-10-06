@@ -15,7 +15,6 @@
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Sign};
-use profile::test_support::bulge_loop;
 use sweep::blend::BlendError;
 use sweep::blend::battery::{Convexity, radius_headroom};
 use sweep::test_support::{corners, revolved_about_y_at};
