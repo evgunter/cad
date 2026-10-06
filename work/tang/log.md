@@ -484,3 +484,12 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — in-face rings pair along the wall: fixed upstream by PR 4008; the sweep row lands (TANG implementer)
+
+`in-face-pierce-rings-pair-across-the-gap` (P0) closes with no kernel
+change: JOIN's PR 4008 ranks each germ's partners along the section
+conic, which is this item's fix. Bisected (216 of 1320 probe ops refuse
+at its parent, none at its merge). The unit lands the arc-against-gap
+sweep over the pipe and the bored block, every op in both member
+orders, at tiers 3 and 3′, closed-form volume and exact census.
