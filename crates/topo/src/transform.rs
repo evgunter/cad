@@ -321,9 +321,18 @@ pub fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), Transf
         ("transform_rigid_det_plus_one", l.determinant() - one),
     ];
     if std::env::var_os("SYM17_PROBE").is_some() {
-        eprintln!("SYM17 band zero={:e} escalate={:e}", band.zero(), band.escalate());
+        eprintln!(
+            "SYM17 band zero={:e} escalate={:e}",
+            band.zero(),
+            band.escalate()
+        );
         eprintln!("SYM17 c0={:?}", l.c0);
-        eprintln!("SYM17 c0.x*c0.x={:?} c0.y*c0.y={:?} c0.z*c0.z={:?}", l.c0.x * l.c0.x, l.c0.y * l.c0.y, l.c0.z * l.c0.z);
+        eprintln!(
+            "SYM17 c0.x*c0.x={:?} c0.y*c0.y={:?} c0.z*c0.z={:?}",
+            l.c0.x * l.c0.x,
+            l.c0.y * l.c0.y,
+            l.c0.z * l.c0.z
+        );
         for (check, margin) in &checks {
             eprintln!("SYM17 margin {check} = {margin:?}");
         }

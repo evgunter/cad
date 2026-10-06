@@ -815,7 +815,9 @@ mod tests {
     #[ignore]
     fn sym17_probe() {
         let tol = Tol::witness();
-        let links: usize = std::env::var("SYM17_LINKS").map(|v| v.parse().unwrap()).unwrap_or(1);
+        let links: usize = std::env::var("SYM17_LINKS")
+            .map(|v| v.parse().unwrap())
+            .unwrap_or(1);
         let sigmas: Vec<f64> = std::env::var("SYM17_SIGMAS")
             .unwrap()
             .split(',')

@@ -4193,7 +4193,10 @@ pub(crate) fn transform_map<T: Decide>(
 ) -> Affine3<T> {
     if std::env::var_os("SYM17_PROBE").is_some() {
         let (s, c) = angle.sin_cos();
-        eprintln!("SYM17 angle={angle:?} sin={s:?} cos={c:?} axis={:?}", axis.get());
+        eprintln!(
+            "SYM17 angle={angle:?} sin={s:?} cos={c:?} axis={:?}",
+            axis.get()
+        );
     }
     Affine3::from_parts(Mat3::rotation_about(axis.get(), angle), translation)
 }
