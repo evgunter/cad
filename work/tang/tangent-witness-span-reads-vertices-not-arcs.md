@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P2
 cost: E
+refs: [an-edges-extent-has-four-dispatchers]
 ---
 
 
@@ -23,6 +24,7 @@ line (an extruded disc's cap: two vertices on one diameter, so a line
 across that diameter reads a span of zero), so the union under-claims
 the metering extent and the overlap can miss where the faces meet.
 
-A fix folds each curved edge's extent along the line in
-(`geom::curves::boxes::conic_arc_aabb` on the carrier, the NURBS control
-hull).
+A fix folds each curved edge's extent in through the one door
+`an-edges-extent-has-four-dispatchers` names. Until that lands it is
+`splitting::containment::carrier_ball`, which the shell clearance gate
+reads (`shell::carrier_box`).

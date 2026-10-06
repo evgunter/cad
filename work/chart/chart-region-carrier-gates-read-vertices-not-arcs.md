@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P2
 cost: E
+refs: [an-edges-extent-has-four-dispatchers]
 ---
 
 
@@ -33,5 +34,7 @@ carrier gates fold it as if it were the face's extent:
 `transfer_residual`, the third reader, pairs vertices positionally by
 design and is not this class.
 
-A fix folds each curved edge's extent in (`containment::carrier_ball`,
-or `geom::curves::boxes::conic_arc_aabb` on the edge's carrier).
+A fix folds each curved edge's extent in through the one door
+`an-edges-extent-has-four-dispatchers` names. Until that lands it is
+`splitting::containment::carrier_ball`, which the shell clearance gate
+reads (`shell::carrier_box`).

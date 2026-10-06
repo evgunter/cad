@@ -12,13 +12,15 @@ cost: M
 Found by the `shell/planar-gate-misses` lane while levering
 `shell_walls_antiparallel`, and **measured**.
 
-`wall_clearance` (`crates/topo/src/shell.rs`) gates a planar pair only
-when its outward normals are antiparallel to the band across the pair's
-extent; a pair whose drift is definite (`shell_walls_antiparallel`
-Positive) is skipped. Two non-adjacent planar walls that face each
-other at an angle, closer than `2t` over part of their overlap, are
-therefore never read, and their offsets cross. The module docs name the
-window ("a planar pair that is not antiparallel"); nothing schedules it.
+`wall_clearance` (`crates/topo/src/shell.rs`) reads a planar pair only
+inside one of two windows: its planes drift apart by at most one wall
+`t` across the pair (`shell_walls_antiparallel` not Positive), or its
+normals' cosine is antiparallel to the band
+(`shell_walls_antiparallel_cosine` Zero, a tilt up to about `√(2ε)`).
+Two non-adjacent planar walls that face each other at a steeper angle,
+closer than `2t` over part of their overlap, are never read, and their
+offsets cross. The module docs name the window ("a planar pair tilted
+further than that"); nothing else schedules it.
 
 Witness (run on the lane's head; the probe was not kept): the prism of
 `(0,0),(3,0),(3,1),(2.5,1),(2.8,0.5),(0,0.5)` extruded 1
@@ -34,10 +36,10 @@ area of the self-crossing mitre polygon
 rectangle `[0.15,2.85]×[0.15,0.35]` (area 0.54) alone, so the cavity is
 under-counted and the result is silently wrong.
 
-Before the lever the facing test read `−(n̂_a·n̂_b) − 1` against the
-band, which admitted tilts up to about `√(2ε)` and then measured them
-with the parallel-plane gap; this pair (tilt ≈ 0.54 rad) was outside
-that window too, so the miss is not new.
+The pair (tilt ≈ 0.54 rad) is outside both windows, and was outside the
+cosine window the gate read before PR 4115, so the miss is not new. The
+review of PR 4115 measured another instance on the base and the head
+alike: an arm 100 long at `t = 0.001` returns `Ok`, volume `0.20918`.
 
 A closing gate reads, for a facing non-antiparallel pair, the least
 distance between the two faces' offset regions (or refuses any facing

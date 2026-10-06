@@ -128,9 +128,9 @@
 //! pair whose operand footprints are disjoint by less than `2t` across
 //! a gap under `2t` (an S-bend's risers, two voids offset diagonally)
 //! refuses too. **What the gate decides** is that no two antiparallel
-//! PLANAR faces — to within a drift of `t` across the pair — have
-//! offsets whose projected boxes meet across less than `2t`; **what it
-//! still cannot see** is a curved wall (below), a planar pair tilted
+//! PLANAR faces — to within a drift of `t` across the pair, or a
+//! cosine antiparallel to the band — have offsets whose projected boxes
+//! meet across less than `2t`; **what it still cannot see** is a curved wall (below), a planar pair tilted
 //! further than that (two offsets meeting at an angle,
 //! `work/shell/shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel.md`),
 //! and the corner solves' own refusals, which are the offset doors'.
@@ -2373,11 +2373,12 @@ fn loop_rekeyed<T: Decide>(
 /// ([`footprints_may_overlap`]) — and an ambiguous or escalating box
 /// comparison counts as OVERLAPPING. A pair tilted off antiparallel
 /// is read when its planes drift apart by at most `t` across its
-/// extent, and its gap is then taken short by that drift. The gate may
-/// therefore refuse a staircase body whose faces do not really face
-/// each other, or a convex-edged pair whose offsets would have
-/// cleared; it cannot miss a planar pair within that tilt that
-/// crosses. A pair tilted further is not read (module docs).
+/// extent, or when its normals' cosine is antiparallel to the band, and
+/// its gap is then taken short by that drift. The gate may therefore
+/// refuse a staircase body whose faces do not really face each other,
+/// or a convex-edged pair whose offsets would have cleared; it cannot
+/// miss a planar pair within either window that crosses. A pair tilted
+/// further is not read (module docs).
 fn wall_clearance<T: Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
@@ -2396,12 +2397,16 @@ fn wall_clearance<T: Decide>(
             if a.solid != b.solid {
                 continue;
             }
-            // Facing each other: outward normals antiparallel to within a
-            // wall. `|n_a + n_b|` is the sine of the tilt off antiparallel
-            // (to first order), levered by a bound on how far apart two
-            // points of the pair stand: the drift of one plane against
-            // the other across what the gate compares. A pair drifting by
-            // more than `t` is the tilted residue (module docs).
+            // Facing each other. `|n_a + n_b|` is the chord between one
+            // outward normal and the other's reverse, exactly `2·sin(δ/2)`
+            // for a tilt `δ` off antiparallel; levered by `L`, a bound on
+            // how far apart two points of the pair stand, it is how far
+            // one plane drifts from the other across the pair. A pair is
+            // read when that drift is within one wall, OR when the cosine
+            // is antiparallel to the band — the window the gate read
+            // before the lever, which is the wider one when `t/L` is
+            // below `√(2ε)`. A pair outside both is the tilted residue
+            // (module docs).
             let lever = gate_measured(
                 "shell_walls_extent",
                 a.reach + b.reach + (b.origin - a.origin).norm(),
@@ -2409,14 +2414,25 @@ fn wall_clearance<T: Decide>(
             )
             .map_err(|source| ShellError::Escalated { source })?;
             let drift = (a.normal + b.normal).norm() * lever;
-            if matches!(
+            let within_a_wall = !matches!(
                 decide(
                     "shell_walls_antiparallel",
                     Margin::of(drift - thickness),
                     band,
                 ),
                 Ok(Sign::Positive)
-            ) {
+            );
+            let antiparallel_cosine = || {
+                matches!(
+                    decide(
+                        "shell_walls_antiparallel_cosine",
+                        Margin::of(-(a.normal.dot(b.normal)) - T::one()),
+                        band,
+                    ),
+                    Ok(Sign::Zero)
+                )
+            };
+            if !within_a_wall && !antiparallel_cosine() {
                 continue;
             }
             if face_neighbours(body, a.face).contains(&b.face) {
@@ -2425,9 +2441,12 @@ fn wall_clearance<T: Decide>(
             if !footprints_may_overlap(a, b, thickness, band) {
                 continue;
             }
-            // Every point of `b` stands within `drift` of `gap` from `a`'s
-            // plane, so `gap - drift` bounds the wall from below, and the
-            // offsets cross only below `t·(1 − n_a·n_b) ≤ 2t`.
+            // `gap - drift` bounds the wall from below: for `q` on `b`,
+            // `(q − o_a)·n_a = ±gap + (q − o_b)·(n_a + n_b)`, since
+            // `(q − o_b)·n_b = 0`, and `|q − o_b| ≤ L`. Together the two
+            // offsets close that separation by `t·(1 − n_a·n_b) ≤ 2t`, so
+            // a wall of at least `2t` everywhere keeps them apart. Read in either window, so a tilted pair the cosine
+            // admits is not measured as parallel.
             let gap = (b.origin - a.origin).dot(a.normal).abs();
             match decide(
                 "shell_wall_clearance",
@@ -2535,15 +2554,11 @@ impl<T: Real> InPlane<T> {
         let w = p - self.origin;
         geom_core::Point3::new(w.dot(self.u), w.dot(self.v), w.dot(self.n))
     }
-
-    fn vec(&self, w: geom_core::Vec3<T>) -> geom_core::Vec3<T> {
-        geom_core::Vec3::new(w.dot(self.u), w.dot(self.v), w.dot(self.n))
-    }
 }
 
 /// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
 /// whole boundary — every vertex, and every edge's arc on its carrier
-/// ([`arc_extent`]). The vertices alone are not enough: an arc bowing
+/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
 /// disc's cap has its two vertices on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
@@ -2568,7 +2583,11 @@ fn footprint<T: Decide>(
         );
         // Null scaffolding is a zero-length chord its vertex holds.
         if let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() {
-            points.extend(arc_extent(curve, frame));
+            points.extend(
+                carrier_box(curve.carrier(), curve.params(), frame)
+                    .into_iter()
+                    .flatten(),
+            );
         }
     }
     let poison = points
@@ -2587,63 +2606,23 @@ fn footprint<T: Decide>(
     )
 }
 
-/// `(u, v)` points of `frame` whose box holds `curve`'s arc: none for a
-/// line, whose two vertices hold it; the corners of the arc's own box
-/// for a circle or ellipse, by certified subdivision
-/// ([`crate::boolean::boxes::arc_extent`]) on the carrier read in
-/// `frame`, so a quarter round is boxed as the quarter, not its circle;
-/// the corners of the torus's bounding ball for a spiric, which lies on
-/// it; the control points for a NURBS carrier, whose positive weights
-/// hold the curve in their hull.
-fn arc_extent<T: Decide>(curve: &geom_brep::EdgeCurve<T>, frame: &InPlane<T>) -> Vec<(T, T)> {
-    use crate::boolean::boxes::{Span, SpanBox};
-    let corners = |b: SpanBox<T>| vec![(b.x.lo, b.y.lo), (b.x.hi, b.y.hi)];
-    let (center, axis, u_ref, semi_u, semi_v) = match *curve.carrier() {
-        geom::Curve3::Line { .. } => return Vec::new(),
-        geom::Curve3::Nurbs(ref n) => {
-            return n
-                .control()
-                .iter()
-                .map(|&p| {
-                    let q = frame.point(p);
-                    (q.x, q.y)
-                })
-                .collect();
-        }
-        geom::Curve3::Spiric {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let c = frame.point(center);
-            let reach = major_radius + minor_radius;
-            return vec![(c.x - reach, c.y - reach), (c.x + reach, c.y + reach)];
-        }
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => (center, axis, u_ref, radius, radius),
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            u_ref,
-        } => (center, axis, u_ref, major, minor),
-    };
-    let (t0, t1) = curve.params();
-    corners(crate::boolean::boxes::arc_extent(
-        &SpanBox::point(frame.point(center)),
-        &SpanBox::vector(frame.vec(u_ref)),
-        &SpanBox::vector(frame.vec(axis.cross(u_ref))),
-        Span::exact(semi_u),
-        Span::exact(semi_v),
-        t0,
-        t1,
-    ))
+/// The `(u, v)` box of `frame` holding `carrier`'s arc over `params`:
+/// the projection of [`carrier_ball`]'s ball, which holds the whole arc.
+/// `None` for a line, whose two vertices hold it.
+///
+/// [`carrier_ball`]: crate::splitting::containment::carrier_ball
+fn carrier_box<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    params: (T, T),
+    frame: &InPlane<T>,
+) -> Option<[(T, T); 2]> {
+    if matches!(carrier, geom::Curve3::Line { .. }) {
+        return None;
+    }
+    let (center, radius) = crate::splitting::containment::carrier_ball(carrier, params)
+        .unwrap_or_else(|| unreachable!("a certified spline carrier has control points"));
+    let c = frame.point(center);
+    Some([(c.x - radius, c.y - radius), (c.x + radius, c.y + radius)])
 }
 
 /// Do the two footprints overlap when both are projected into `a`'s
@@ -2833,6 +2812,9 @@ fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 mod tests {
     use super::*;
     use crate::test_support::finished;
+
+    #[allow(clippy::panic)]
+    mod footprint_fuzz;
 
     /// **The duplicate scan panics on a ring link that does not
     /// resolve**, where it stepped over it.

@@ -448,7 +448,8 @@ fn the_clearance_gate_reads_arc_bounded_footprints() {
     let one = crate::common::cavity::cut("lower void", &block(6.0, 6.0, 6.0, tol), &void(2.5, 1.0));
     let body = crate::common::cavity::cut("upper void", &one, &void(3.5, 3.2));
     assert_eq!(body.shells().count(), 3, "outer plus two voids");
-    let e = topo::shell(&body, 0.3, tol).expect_err("0.4 < 0.6 under overlapping caps refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), 0.3, tol)
+        .expect_err("0.4 < 0.6 under overlapping caps refuses");
     let ShellError::WallClearance {
         face,
         other,
@@ -473,29 +474,37 @@ fn the_clearance_gate_reads_arc_bounded_footprints() {
     );
 }
 
-/// **A wall tilted a little off antiparallel is still a wall.** The
-/// arm between `x = 3` and the notch wall `(2.75, 1)–(2.74, 0.5)` is
-/// `0.25`–`0.26` wide, tilted `0.02` rad: far outside any coincidence
-/// band, but its drift across the pair is under one wall `t = 0.15`, so
-/// the gate reads it, and `0.26 < 0.3` refuses.
-#[test]
-fn the_clearance_gate_reads_a_slightly_tilted_wall() {
-    let tol = Tol::witness();
-    let body = prism(
+/// **An arm between two nearly antiparallel walls**: the prism of an
+/// L-shaped profile extruded `h`, whose arm stands on the shelf
+/// `y = 0.5` for `len`, between the wall `x = 3` and a notch wall
+/// `w_top` from it at the arm's top and `w_foot` at its foot.
+fn arm_prism(len: f64, w_top: f64, w_foot: f64, h: f64) -> Body<f64> {
+    let top = 0.5 + len;
+    prism(
         corners(&[
             (0.0, 0.0),
             (3.0, 0.0),
-            (3.0, 1.0),
-            (2.75, 1.0),
-            (2.74, 0.5),
+            (3.0, top),
+            (3.0 - w_top, top),
+            (3.0 - w_foot, 0.5),
             (0.0, 0.5),
         ]),
-        1.0,
-        tol,
-    );
-    let e = topo::shell(&body, 0.15, tol).expect_err("a 0.26 arm cannot hold two 0.15 walls");
+        h,
+        Tol::witness(),
+    )
+}
+
+/// `body` shelled at `t` refuses `WallClearance`, naming the arm's two
+/// walls.
+fn assert_the_arm_walls_refuse(body: &Body<f64>, t: f64, why: &str) {
+    let e = topo::shell(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .expect_err(why);
     let ShellError::WallClearance { face, other, .. } = e else {
-        panic!("expected the wall-clearance gate, got {e}");
+        panic!("{why}: expected the wall-clearance gate, got {e}");
     };
     let normal_x = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
         Some(geom::Surface::Plane { normal, .. }) => normal.x.abs(),
@@ -503,7 +512,52 @@ fn the_clearance_gate_reads_a_slightly_tilted_wall() {
     };
     assert!(
         normal_x(face) > 0.99 && normal_x(other) > 0.99,
-        "the refusal names the two arm walls"
+        "{why}: the refusal names the two arm walls"
+    );
+}
+
+/// **A wall tilted a little off antiparallel is still a wall.** The
+/// arm is `0.25`–`0.26` wide, tilted `0.02` rad: far outside any
+/// coincidence band, but its drift across the pair is under one wall
+/// `t = 0.15`, so the gate reads it, and `0.26 < 0.3` refuses.
+#[test]
+fn the_clearance_gate_reads_a_slightly_tilted_wall() {
+    assert_the_arm_walls_refuse(
+        &arm_prism(0.5, 0.25, 0.26, 1.0),
+        0.15,
+        "a 0.26 arm cannot hold two 0.15 walls",
+    );
+}
+
+/// **A tall part keeps the window the cosine read.** A prism `100`
+/// tall with an arm `2` long and `0.0015` wide at its top, shelled at
+/// `t = 0.001`, its notch wall tilted by `0.3·√(2ε)` — inside the
+/// cosine's window at this run's `ε`. At the coarse rows (`ε ≥ 1e-9`)
+/// the planes drift by more than one wall across the part's extent, so
+/// only that window reads the pair; at `1e-12` the drift is under a
+/// wall and the levered window reads it too. Either way it refuses.
+#[test]
+fn the_clearance_gate_reads_a_near_parallel_wall_on_a_tall_part() {
+    let tilt = 0.3 * (2.0 * Tol::witness().eps()).sqrt();
+    assert_the_arm_walls_refuse(
+        &arm_prism(2.0, 0.0015, 0.0015 + 2.0 * tilt, 100.0),
+        0.001,
+        "an arm 0.0015 wide cannot hold two 0.001 walls",
+    );
+}
+
+/// **The gap is taken short by the drift.** The arm is `0.104` wide at
+/// its top and `0.098` at its foot, at `t = 0.05`: the walls cross at
+/// the foot, while the plane gap the gate measures between the faces'
+/// origins is `0.101`, over two walls. Read as parallel the pair would
+/// clear and the verb would build crossing offsets; the drift across
+/// the pair takes the gap under `2t`, and it refuses.
+#[test]
+fn the_clearance_gate_takes_a_tilted_gap_short_by_its_drift() {
+    assert_the_arm_walls_refuse(
+        &arm_prism(1.0, 0.104, 0.098, 1.0),
+        0.05,
+        "an arm 0.098 wide at its foot cannot hold two 0.05 walls",
     );
 }
 

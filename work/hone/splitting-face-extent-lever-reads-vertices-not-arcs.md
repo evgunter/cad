@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P2
 cost: E
+refs: [an-edges-extent-has-four-dispatchers]
 ---
 
 
@@ -27,5 +28,7 @@ reaches `2r`, and an arc bowing outward between two vertices carries
 region past both. Callers:
 `splitting/rules.rs` (two sites) and `chord_join.rs` (two sites).
 
-A fix folds each curved edge's extent (`containment::carrier_ball`, as
-`loop_extent_from` does) into the arm.
+A fix folds each curved edge's extent in through the one door
+`an-edges-extent-has-four-dispatchers` names. Until that lands it is
+`splitting::containment::carrier_ball`, which the shell clearance gate
+reads (`shell::carrier_box`).
