@@ -195,7 +195,9 @@ fn thin_segment(theta: f64) -> f64 {
 
 /// Near tangency the sliver falls inside the band and a cut may refuse;
 /// on the seam ruling or off it, a pose that answers holds both sides
-/// at their closed forms, the sliver included. Each side is held to
+/// at their closed forms, the sliver included. A sliver whose depth
+/// `1 − cos t` is within ε is a graze at this ε: the cylinder may land
+/// whole on the other side instead. Each side is held to
 /// the float floor of a volume integrated over the whole operand's
 /// scale, so the sliver is read wherever it is above that floor
 /// (t ≥ 1e-4). Which poses answer depends on ε.
@@ -216,6 +218,25 @@ fn a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly() {
                 };
                 answered += 1;
                 let sliver = thin_segment(2.0 * t);
+                let (thin, whole) = if s > 0.0 {
+                    (&r.above, &r.below)
+                } else {
+                    (&r.below, &r.above)
+                };
+                if 1.0 - t.cos() <= tol.eps() && thin.body().is_none() {
+                    let b = whole
+                        .body()
+                        .unwrap_or_else(|| panic!("{label}: both sides empty"));
+                    topo::validate_closed(b).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
+                    let m = mass_properties(b, tol)
+                        .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"));
+                    assert!(
+                        (m.volume - PI).abs() <= 1e-9 * PI + m.volume_pad + floor,
+                        "{label}: landed whole with volume {}",
+                        m.volume
+                    );
+                    continue;
+                }
                 let (above, below) = if s > 0.0 {
                     (sliver, PI - sliver)
                 } else {
