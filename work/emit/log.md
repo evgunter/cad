@@ -1745,3 +1745,40 @@ Review folds, each mutation-checked:
 Filed:
 - `a-verdicts-other-nodes-are-said-by-tag-once-deleted`;
 - `the-tools-pick-time-snapshots-never-follow-a-rename`.
+
+## 2026-10-06 — PR 4090: a part's fault and carried levels say the part's labels as its pin fixes them
+
+Built to the Ruled section of #3839. `product_fault` records the part's
+nodes (`held_by` over the fault's sentence and its in-part carried
+levels) while the evaluated pinned part is in hand. The four `PartFault`
+arms that name part nodes keep them as `held: Arc<HeldNodes>`.
+`CarriedIn::Part` carries them too. `PartFault`'s `Display` speaks only
+through its own snapshot, so a host speaker can never lend a twin id its
+label. The viewer tree, `str(err)` and `__cause__` say part labels.
+Deleted: `CarriedLevel::line_in_part`, `PartFault::spoken`,
+`assert_pinned` (no resolver/pin cross-check remains on the speaking
+path; labels come from the evaluated document).
+
+Equality now also compares the labels the pin fixed. Equal ids from
+differently-labelled pins compare unequal, which is deliberate and
+reaches `ReachRefusal` and `FacePoseRefusal`.
+
+Review folds:
+- the `Eq` prose;
+- arms built with their snapshot, with `held_mut` gone;
+- the `spoken.rs` module doc leads with the general rule;
+- a direct match in `line_in`/`line`.
+
+Twin-id tests in editor-core, the viewer and Python, mutation-checked
+before the refactor.
+
+Filed: `carried-rows-say-a-parts-nodes-by-tag`. The success-path rows
+(`Route` via hops, `CarriedRefusal`, `CarriedUnplaced`, carried
+declarations) never pass `product_fault`.
+
+**Main was red.** `review_pick_r2`'s corpus tally moved at the merge of
+#4081 (ae873ecb6b; b804bcc1c9 still at the old pin), from
+`(442782, 141968, 12774, 6870)` to `(442782, 141890, 13932, 7110)`.
+Only the pin moved: no genuine crossing is refused and there are no wide
+winners. #4081's CI passed on a head that predates #4088/#4086, and
+main runs no test job on push. Re-pinned here.

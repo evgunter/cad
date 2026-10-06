@@ -280,7 +280,8 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
 /// chamfer's, and the census above is what proves nothing was skipped.
 #[test]
 fn the_splits_flow_is_empty_beside_a_real_record() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube =
+        sweep::test_support::finished("the cube", sweep::test_support::cube(1.0, tol()), tol());
     let out = Verb::Split {
         plane: z_plane(0.5),
     }

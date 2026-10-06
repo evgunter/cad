@@ -1043,7 +1043,7 @@ fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
     use topo::splitting::{SplitPart, split};
     for cut in cuts {
         let result = split(
-            &body,
+            &sweep::test_support::finished("the operand", body.clone(), tol()),
             &topo::test_support::split_plane(cut.point, cut.normal, geom_core::Tol::witness()),
             tol(),
         )
