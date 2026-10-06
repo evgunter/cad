@@ -16,6 +16,12 @@
 //! them is the one that would notice a blend name decided outside the
 //! blend's funnel.
 //!
+//! Two blend decisions are taken by another crate's door and relayed
+//! under the closed type: `ContactSecondOrder` (`geom_brep`'s must-carry
+//! rule) and `CapEllipse` (`geom`'s `Curve3::ellipse`). Their names are
+//! decided nowhere in this crate's src, so the census does not see
+//! them, and nothing here lists them as another door's.
+//!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
 //! home for this walk. **What it cannot read it reports** — an
 //! unreadable spelling, an indirect site whose carrier is undeclared, a
@@ -151,7 +157,11 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     ),
     (
         BlendDecision::CapTransverse,
-        sweep::blend::FILLET3_CORNER_RECOURSE,
+        sweep::blend::FILLET3_CAP_TILT_RECOURSE,
+    ),
+    (
+        BlendDecision::CapEllipse,
+        sweep::blend::FILLET3_CAP_ELLIPSE_RECOURSE,
     ),
     (
         BlendDecision::CutOffFeet,

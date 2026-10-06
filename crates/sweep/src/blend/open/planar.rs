@@ -38,12 +38,12 @@ use topo::{
     VertexKey,
 };
 
-use super::end_face::{CutRims, EndCurve, EndCut, cut_off, fold_sliver};
+use super::end_face::{CutRims, EndCut, cut_off, fold_sliver};
 use crate::blend::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary,
 };
 use crate::blend::arms::{chamfer_corner_patch, corner_ball, line_meet};
-use crate::blend::battery::Convexity;
+use crate::blend::battery::{Convexity, EndSection};
 use crate::blend::build::{octant_chart, outward_of};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
@@ -309,9 +309,9 @@ pub(in crate::blend) struct CutOffPlan<'a, T: Real> {
 }
 
 /// Plan the cut-off of `link` at `vertex`: each support's trimline
-/// carried along itself to the end face — a chord for a chamfer, and for
-/// a fillet the arc about the spine's crossing (the battery admitted the
-/// end only where the end face is perpendicular to the spine).
+/// carried along itself to the end face, and the end curve of the
+/// `section` the battery picked — a chamfer's chord, a fillet's arc of
+/// a circle or an ellipse about the spine's crossing.
 ///
 /// # Errors
 ///
@@ -321,23 +321,14 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
     body: &Body<T>,
     link: AdmittedOpen<'a, T>,
     vertex: VertexKey,
-    kind: BlendKind,
+    section: EndSection<T>,
 ) -> Result<CutOffPlan<'a, T>, BlendError> {
     let l = link.link();
     let (q_a, along) = open_trimline(l, l.face_a)?;
     let (q_b, _) = open_trimline(l, l.face_b)?;
-    let curve = match (kind, &l.blend.surface) {
-        (BlendKind::Chamfer, _) => EndCurve::Chord,
-        (BlendKind::Fillet, Surface::Cylinder { origin, radius, .. }) => EndCurve::Arc {
-            center: *origin,
-            radius: *radius,
-        },
-        (BlendKind::Fillet, _) => {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(l.edge),
-                "a plane–plane fillet's band is not a cylinder about its edge",
-            ));
-        }
+    let spine = match l.blend.surface {
+        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
+        _ => None,
     };
     let end = EndCut::plan(
         body,
@@ -346,7 +337,8 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
         (l.face_a, l.face_b),
         (q_a, q_b),
         along,
-        curve,
+        section,
+        spine,
     )?;
     Ok(CutOffPlan { link, end })
 }
