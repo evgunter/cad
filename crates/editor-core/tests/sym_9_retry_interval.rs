@@ -3,7 +3,7 @@
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s unit,
 //! taken at the nominal on five of the six measured documents (R2's
 //! rounded pad does not return a nominal replay on a four-core box:
-//! `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
+//! `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
 //! the leaf instrument in `m10_10_evidence_interval` takes it).
 //!
 //! The instrument is the RETRY LADDER itself (`geom_core::sym::SymRetry`)
@@ -187,7 +187,7 @@ fn document(name: &str, scale: f64, tol: Tol) -> ProfileDoc {
 /// report the unit's dispatch recorded as exhausting a four-core box's
 /// memory (this lane's own two pad runs did not return a first replay
 /// with the report on or off:
-/// `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
+/// `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
 /// The counts are the same either way: the report is a recorder, the
 /// receipt is the session's own.
 fn replay(
@@ -198,7 +198,10 @@ fn replay(
     tol: Tol,
 ) -> (Vec<DecisionShape>, SymCounts) {
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &doc.spoken_var(*name).to_string(),
+        );
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
@@ -452,6 +455,34 @@ fn sym_9_what_each_retry_recovers() {
 /// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
 /// `registered`, `numeric` and `retried` do not move.
 ///
+/// Check 5 deciding only an escape's positive part (PR 3981,
+/// `geom_brep::pcurve_cache::escape`) moves all five up out of
+/// `numeric`, with and without the ladder alike: theorems on the plate
+/// (+8, `[955, 0, 148, 690]`) and the link (+8, `[689, 0, 118, 735]`
+/// without the ladder), `sign_gated` on the annulus (+8, `[440, 32, …]`),
+/// the boss (+6, `[459, 26, …]`) and the bracket (+10, `[1259, 45, …]`).
+/// A row box inside its window reads Zero where its clearance read a
+/// numeric Negative. `registered` and `retried` do not move.
+///
+/// The variable table (INTENT-VARS-1 PR 2) keys a variable's symbol by
+/// its minted id where it was keyed by a hash of its name, so the
+/// bracket's variables sort differently inside every canonical form.
+/// Two of its residuals that registered under the old order are left
+/// numeric under the new one, with and without the ladder alike
+/// (`registered` 156 → 154 and 162 → 160, `numeric` up by two): the
+/// ladder's own six and every other document's row do not move.
+/// Measured by a probe binding each variable under its old name-hash
+/// symbol, which restores 156 and 162: the move is the order alone.
+///
+/// A loop walk that decides each loop's closure joint as every other
+/// joint, between two images, and reads the winding off the integer
+/// joint elements (the re-anchor ruling, PR 4024) trades the closure
+/// margins for that joint's branch, pole-lever and continuity margins:
+/// `numeric` up on all five, with and without the ladder alike (the
+/// plate +14 to 704, the annulus +14 to 451, the boss +10 to 414, the
+/// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
+/// Theorems, `sign_gated`, `registered` and `retried` do not move.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -471,21 +502,21 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [947, 0, 148, 698], [947, 0, 148, 698], 0),
-        ("r1_annulus", [440, 24, 148, 445], [440, 24, 148, 445], 0),
+        ("two_hole_plate", [955, 0, 148, 704], [955, 0, 148, 704], 0),
+        ("r1_annulus", [440, 32, 148, 451], [440, 32, 148, 451], 0),
         (
             "r1_segment_boss",
-            [459, 20, 102, 410],
-            [459, 20, 102, 410],
+            [459, 26, 102, 414],
+            [459, 26, 102, 414],
             0,
         ),
         (
             "r2_filleted_bracket",
-            [1259, 35, 156, 1078],
-            [1259, 35, 162, 1072],
+            [1259, 45, 154, 1087],
+            [1259, 45, 160, 1081],
             6,
         ),
-        ("r2_link", [681, 0, 118, 743], [683, 0, 130, 729], 14),
+        ("r2_link", [689, 0, 118, 748], [691, 0, 130, 734], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -585,7 +616,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         retry: SymRetry::none(),
         ..editor_core::drive::SymbolicDials::default()
     });
-    let (line, human) = (shipped.serialize(), shipped.render(&analyzed));
+    let (line, human) = (shipped.serialize(), shipped.render(&doc, &analyzed));
     println!("{line}\n{human}");
     assert_eq!(shipped.receipt().certified, 1, "the leaf certifies whole");
     assert_eq!(
@@ -602,11 +633,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1259, 35, 162, 1072, 6],
+        [1259, 45, 160, 1081, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=162 retried=6\n"),
+        line.contains("registered=160 retried=6\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -622,11 +653,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1259, 35, 156, 1078, 0]
+        [1259, 45, 154, 1087, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
     );
-    assert!(!bare.render(&analyzed).contains("second attempt"));
+    assert!(!bare.render(&doc, &analyzed).contains("second attempt"));
 }

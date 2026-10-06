@@ -12,6 +12,8 @@ use crate::common::operands::{slab as plate, three_arc_cylinder};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -29,8 +31,8 @@ fn boss() -> Body<f64> {
 
 #[test]
 fn the_boss_union_lands_end_to_end() {
-    let a = plate();
-    let b = boss();
+    let a = finished("the plate", plate(), Tol::witness());
+    let b = finished("the boss", boss(), Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the first transverse curved boolean");
     let body = &out.body().expect("a seamed result").body;
 
@@ -144,8 +146,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         })
         .expect("the plate's top face");
     let mut records = topo::ContactRecords::default();
-    for (vk, v) in body.vertices() {
-        let p = body.get_point(v.point).unwrap();
+    for (vk, p) in body.vertex_points() {
         let on_rim = (p.z - 1.0).abs() < 1e-9
             && ((p.x - 2.0).powi(2) + (p.y - 2.0).powi(2) - 0.25).abs() < 1e-9;
         if on_rim {
@@ -193,9 +194,16 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// **R1 probe (claim 1), FIXED by the union pass (F1): a conformal
@@ -338,7 +346,10 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         &Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()
@@ -394,7 +405,10 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         &Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

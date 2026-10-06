@@ -928,12 +928,35 @@ Notes on the neighbouring names:
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
-- `point_in_arc_loop_reach` is a ray's clearance from an uncrossable
-  edge's ball. A clearance in the band abandons the ray rather than
-  escalating.
+- `point_in_arc_loop_reach` is a ray's clearance from a ball: an
+  uncrossable (spline) edge's, where a clearance in the band abandons
+  the ray rather than escalating, and a spiric piece's, where it halves
+  the piece.
 
 Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
 names.
+
+**Roster addition (CLEAVE): the spiric edge's crossing row.** Eleven new
+names from `topo/src/splitting/spiric_arc.rs`, the row the carrier walk
+crosses a spiric edge by, halving the arc into pieces each held in a
+ball from the oval's speed bound. The boundary reading's are
+`SpiricRows` fields, one set per caller (`containment`'s `WALK_ROWS`,
+`contain`'s `ROWS`); the ray's are the walk's own, bare literals:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_spiric_end` | `SpiricRows` field (`WALK_ROWS`): the distance to an end of the arc |
+| `point_in_arc_loop_spiric_clear` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's clearance from the point |
+| `point_in_arc_loop_spiric_on` | `SpiricRows` field (`WALK_ROWS`): the distance to a point of the arc |
+| `point_in_arc_loop_spiric_leaf` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's radius, `Zero` ending the halving |
+| `bool_contact_spiric_end` | `SpiricRows` field (`contain`'s `ROWS`) |
+| `bool_contact_spiric_clear` | `SpiricRows` field (`ROWS`) |
+| `bool_contact_spiric` | `SpiricRows` field (`ROWS`): the distance to a point of the arc |
+| `bool_contact_spiric_leaf` | `SpiricRows` field (`ROWS`) |
+| `point_in_arc_loop_spiric_side` | a `const` in `spiric_arc`: a piece end's offset from the ray line |
+| `point_in_arc_loop_spiric_turn` | a `const` in `spiric_arc`: `|s(v_b) − s(v_a)| − 2·A·h²`, the piece's monotonicity across the ray line |
+| `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
+| `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
@@ -1006,6 +1029,8 @@ the value). The names that reach the funnel through them today:
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
 | `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
 | `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
+| `mate_residual_quote` | `crates/editor-core/src/mate/solve.rs`'s `quoted_residual`, the solve's own: an UNDER refusal's residual quoted at `f64` on an analysis lane, each direction re-minted | no — the mate solve is not in the sweep's roster, and the `f64` lane names its residual without re-minting it |
+| `mate_frame_offset_axis` | `crates/editor-core/src/mate/solve.rs`'s `compose_offset`: a mate side's axis re-minted from the frame its base and offset compose, once per side whose offset is not the identity — every authored side, which is the part base with one literal step | no — the mate solve is not in the sweep's roster |
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
 | `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |

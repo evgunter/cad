@@ -20,6 +20,7 @@
 //! answer, and a merged wall a slot divides.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::corpus::body_of;
@@ -137,6 +138,7 @@ fn add(doc: ProfileDoc, m: &Mem) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(distance),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -991,6 +993,7 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     insert(
@@ -1214,6 +1217,7 @@ pub(crate) fn cylinder(
         Node::Extrude {
             profile: disc,
             distance: len(length),
+            side: ExtrudeSide::Along,
         },
     )
 }

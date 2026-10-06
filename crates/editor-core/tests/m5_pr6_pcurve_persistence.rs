@@ -51,10 +51,11 @@ fn cache_dump(bodies: &[Body<f64>]) -> Vec<String> {
     for (i, b) in bodies.iter().enumerate() {
         for (he, cache) in b.pcurves() {
             out.push(format!(
-                "{i}|{he:?}|{:?}|{:?}|{:?}",
+                "{i}|{he:?}|{:?}|{:?}|{:?}|{:?}",
                 cache.pcurve(),
                 cache.params(),
-                cache.certificate()
+                cache.certificate(),
+                b.joint(he)
             ));
         }
     }

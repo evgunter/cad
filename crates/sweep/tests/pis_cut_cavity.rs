@@ -190,8 +190,12 @@ fn parts(case: &Case, solid: &Solid) -> Vec<(Option<Part>, Body<f64>)> {
     let Some(cut) = case.cut else {
         return vec![(None, solid.body.clone())];
     };
-    let result = split(&solid.body, &cut, tol())
-        .unwrap_or_else(|e| panic!("{}: the cut splits: {e:?}", case.name));
+    let result = split(
+        &sweep::test_support::finished("the operand", solid.body.clone(), tol()),
+        &cut,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{}: the cut splits: {e:?}", case.name));
     [(Part::Below, result.below), (Part::Above, result.above)]
         .into_iter()
         .map(|(part, kept)| {

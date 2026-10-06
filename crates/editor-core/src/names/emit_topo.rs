@@ -1911,12 +1911,8 @@ pub(super) fn crossed_edge_orientation<T: geom_core::Real>(
     if a == b {
         return Ok(None);
     }
-    let sides = topo::readback::edge_sides(body, e).map_err(|what| match what {
-        topo::DanglingRef::Entity(topo::EntityId::Edge(_)) => {
-            bug("a crossed seam edge is not live in its body")
-        }
-        _ => bug("a crossed seam edge's half-edge lies on no face"),
-    })?;
+    let sides = topo::readback::edge_sides(body, e)
+        .map_err(|_| bug("a crossed seam edge is not live in its body"))?;
     let mut names = Vec::with_capacity(2);
     let (plus, minus) = sides.faces();
     for face in [plus, minus] {
@@ -2335,7 +2331,10 @@ mod tests {
             .unwrap();
         sweep::extrude(
             &profile,
-            sweep::Extrusion::Distance(1.0_f64),
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
             Tol::witness(),
         )
         .unwrap()
@@ -3003,7 +3002,7 @@ mod split_carries_candidates {
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
-    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+    fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         let a = crate::apply(
             &doc,
             &DocEdit::InsertNode {
@@ -3031,6 +3030,7 @@ mod split_carries_candidates {
             Node::Extrude {
                 profile,
                 distance: len(dz),
+                side: crate::ExtrudeSide::Along,
             },
         )
     }
@@ -3190,7 +3190,7 @@ mod split_edge_lineage {
         };
         let table = &value.name_table;
         let out = topo::split(
-            body,
+            &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
             &SplitPlane {
                 origin: *origin,
                 normal: *normal,

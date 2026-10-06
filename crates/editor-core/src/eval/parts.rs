@@ -69,6 +69,7 @@ use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
 use crate::sentence::{PASS_A_RESOLVER, Recourse};
+use crate::spoken::{HeldNodes, Say, Speaker};
 use geom_core::Tol;
 
 /// **How deep an assembly may nest**: a document `MAX_DEPTH` documents
@@ -117,6 +118,11 @@ pub(crate) struct PartValue<T: Decide> {
     pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
     /// The same for the unplaced groups it carried up from its parts.
     pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
+    /// How many parts the referenced document's product is: its
+    /// distinct root outputs ([`crate::product::Product::solid_roots`]),
+    /// each counted at its own value's `parts`, so a sub-assembly's
+    /// parts count through (`NodeValue::parts`).
+    pub parts: usize,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -131,6 +137,7 @@ impl<T: Decide> Clone for PartValue<T> {
             carried_unminted: Arc::clone(&self.carried_unminted),
             unplaced: Arc::clone(&self.unplaced),
             carried_unplaced: Arc::clone(&self.carried_unplaced),
+            parts: self.parts,
         }
     }
 }
@@ -138,6 +145,13 @@ impl<T: Decide> Clone for PartValue<T> {
 /// Why an instantiation could not produce a part body. Cloneable and
 /// self-contained: the cache stores one of these per reference, so
 /// every instance of a broken part reports the same typed cause.
+///
+/// An arm that names the part's nodes keeps them as the pinned part
+/// holds them (`held`), so every frame says them with the part's labels
+/// (DESIGN.md Band 1, "Node labels"). Equality compares those labels
+/// too, deliberately: two faults with equal ids from parts labelled apart
+/// (two pins, since a label is in the pin) are unequal, here and in the
+/// refusals that hold a `PartFault` (`ReachRefusal`, `FacePoseRefusal`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartFault {
     /// The evaluation carries no resolver, so the document seam cannot
@@ -171,6 +185,9 @@ pub enum PartFault {
         node: RecipeNodeId,
         /// That root's own refusal.
         refusal: super::NodeRefusal,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
     },
     /// The referenced document evaluated, but one of its PRODUCT ROOTS
     /// never ran: a node upstream of it inside the part failed. The
@@ -187,6 +204,9 @@ pub enum PartFault {
         through: RecipeNodeId,
         /// That ancestor's own refusal.
         refusal: super::NodeRefusal,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
     },
     /// The product door named a node as failed — a failed root, or a
     /// poisoned root's failed ancestor — and the evaluation it read
@@ -197,6 +217,9 @@ pub enum PartFault {
         /// The node the product door named as failed, in the
         /// REFERENCED document's id space.
         node: RecipeNodeId,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
     },
     /// The referenced document has no product for a reason that is not
     /// a failed or poisoned root (no body-denoting root, an invalid
@@ -204,12 +227,14 @@ pub enum PartFault {
     ///
     /// The gather's refusal crosses whole, its ids the part's: its
     /// class ([`crate::ProductRefusal::kind`]) is what a consumer
-    /// branches on, and its sentence is said by the frame that hands the
-    /// fault out ([`PartFault::spoken`]).
+    /// branches on.
     PartProduct {
         /// The product door's refusal, in the REFERENCED document's id
         /// space.
         refusal: crate::product::ProductRefusal,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
     },
     /// The reference CHAIN returned to a document it had already
     /// entered — the same (id, pin), so the same content: descending
@@ -243,11 +268,24 @@ impl PartFault {
     /// reason [`crate::MateFault::carried`] states.
     #[must_use]
     pub fn carried(&self) -> Option<(RecipeNodeId, &super::NodeRefusal)> {
+        self.carried_held()
+            .map(|(node, refusal, _)| (node, refusal))
+    }
+
+    /// [`PartFault::carried`], with the part's nodes the fault holds.
+    pub(crate) fn carried_held(&self) -> Option<(RecipeNodeId, &super::NodeRefusal, &HeldNodes)> {
         match self {
-            Self::PartRootFailed { node, refusal } => Some((*node, refusal)),
+            Self::PartRootFailed {
+                node,
+                refusal,
+                held,
+            } => Some((*node, refusal, &**held)),
             Self::PartRootPoisoned {
-                through, refusal, ..
-            } => Some((*through, refusal)),
+                through,
+                refusal,
+                held,
+                ..
+            } => Some((*through, refusal, &**held)),
             Self::NoResolver
             | Self::Unresolved { .. }
             | Self::RootFailureUnrecorded { .. }
@@ -259,15 +297,37 @@ impl PartFault {
     }
 }
 
-// Every node the fault names is numbered in the PART: a frame that does
-// not hold the part says them by tag (`Display`), and one that holds the
-// resolved part says them from it ([`PartFault::spoken`]).
-impl crate::spoken::Say for PartFault {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+impl PartFault {
+    /// **The part's nodes this fault names**, as the version its
+    /// reference pins holds them: the nodes of its own sentence and of
+    /// each level it carries in the part ([`super::CarriedLevel`]).
+    /// `None` for an arm that names no node of the part.
+    #[must_use]
+    pub fn held(&self) -> Option<&HeldNodes> {
+        match self {
+            Self::PartRootFailed { held, .. }
+            | Self::PartRootPoisoned { held, .. }
+            | Self::RootFailureUnrecorded { held, .. }
+            | Self::PartProduct { held, .. } => Some(&**held),
+            Self::NoResolver
+            | Self::Unresolved { .. }
+            | Self::ReferenceCycle { .. }
+            | Self::DepthExceeded
+            | Self::NotEntered => None,
+        }
+    }
+
+    /// **Who says this fault's nodes**: the part's, as it holds them
+    /// ([`Speaker::held`]). Its ids are numbered in the part, so no
+    /// other document says them.
+    pub(crate) fn speaker(&self) -> Speaker<'_> {
+        self.held().map_or(Speaker::TAG, Speaker::held)
+    }
+
+    /// The sentence, each of the part's nodes said by `by`: the fault's
+    /// [`speaker`](Self::speaker), or the part itself while
+    /// [`product_fault`] records them.
+    fn say_by(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             // Raised only at an API door, each of which takes a
             // resolver; the viewer always carries one of its own.
@@ -309,7 +369,7 @@ impl crate::spoken::Say for PartFault {
                     InThePart(format_args!("repair {through}")),
                 )
             }
-            Self::RootFailureUnrecorded { node } => {
+            Self::RootFailureUnrecorded { node, .. } => {
                 let node = by.node(*node);
                 write!(
                     f,
@@ -320,7 +380,7 @@ impl crate::spoken::Say for PartFault {
                     )),
                 )
             }
-            Self::PartProduct { refusal } => {
+            Self::PartProduct { refusal, .. } => {
                 write!(
                     f,
                     "the part has no product: {}",
@@ -366,34 +426,30 @@ impl crate::spoken::Say for PartFault {
     }
 }
 
-/// The fault where the part is not in hand: each node by its tag.
+/// The fault, each of the part's nodes as the pinned part holds it.
 impl core::fmt::Display for PartFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        self.say_by(f, self.speaker())
     }
 }
 
-impl PartFault {
-    /// **The fault as a frame holding the resolved part says it**: each
-    /// node as `part` holds it now. Its node ids are the part's, so
-    /// `part` is the document the instance's reference names, at the
-    /// version it pins; no other document can say them. `tol` is the
-    /// tolerance the pin is computed under, the one the part was
-    /// resolved at.
-    ///
-    /// # Panics
-    ///
-    /// When `part` is not the document `doc_ref` names, at the version
-    /// it pins.
-    #[must_use]
-    pub fn spoken(
-        &self,
-        doc_ref: &DocRef,
-        part: &crate::ProfileDoc,
-        tol: geom_core::Tol,
-    ) -> String {
-        crate::spoken::assert_pinned("the part fault", doc_ref, part, tol);
-        crate::spoken::spoken_by(self, part)
+/// **Every sentence a fault says in its part**: its own, then each
+/// carried level in the part — the levels [`product_fault`] records the
+/// nodes of. A level in a part below is that part's, and its own fault
+/// holds its nodes.
+struct InPart<'a>(&'a PartFault);
+
+impl Say for InPart<'_> {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        self.0.say_by(f, by)?;
+        let levels =
+            super::CarriedChain::from_first(self.0.carried(), super::CarriedIn::ThisDocument);
+        for level in
+            levels.take_while(|level| matches!(level.document, super::CarriedIn::ThisDocument))
+        {
+            write!(f, "\n{}", level.refusal.line_at(level.node, by))?;
+        }
+        Ok(())
     }
 }
 
@@ -628,14 +684,14 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             resolver: self.resolver.map(Arc::clone),
             profile_lift: self.profile_lift,
             // NOT inherited, unlike the two rows above: a parameter box
-            // is a set of THIS document's parameter names, and a
-            // referenced document is a different document with its own
-            // names (AQ4 — v1 instantiation takes no arguments). A box
-            // that crossed the seam would either name nothing there or,
-            // worse, collide by name with an unrelated parameter.
+            // is keyed by THIS document's variable ids, and a referenced
+            // document is a different document with its own variables
+            // (AQ4 — v1 instantiation takes no arguments). A box that
+            // crossed the seam would name nothing there: an id is minted
+            // by one document's chain and read by no other.
             param_box: None,
-            // NOT inherited, by the same argument: a seed is a name of
-            // THIS document's parameters. A part's geometry is constant
+            // NOT inherited, by the same argument: a seed is one of THIS
+            // document's variable ids. A part's geometry is constant
             // with respect to them (AQ4 — v1 instantiation takes no
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.
@@ -661,7 +717,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // truth about what instantiating a document means.
         let product = match crate::product::product_recorded(doc, &evaluation, tol) {
             Ok(product) => product,
-            Err(e) => return Err(product_fault(e, evaluation)),
+            Err(e) => return Err(product_fault(e, evaluation, doc)),
         };
         // The part's unplaced groups are not in its product (A9), so
         // they cross beside it: its own, and those its parts carried up
@@ -674,7 +730,21 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // mint health are as much part of that as its records are. The
         // `Arc`s are the cache's, so every instance of one part shares
         // one row set.
+        let parts = product
+            .solid_roots
+            .iter()
+            .map(|o| (o.node, o.output))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|(node, _)| {
+                let Some(value) = evaluation.value(node) else {
+                    unreachable!("a gathered root's value is the one the product read")
+                };
+                value.parts
+            })
+            .sum();
         Ok(PartValue {
+            parts,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
@@ -704,7 +774,7 @@ impl<T: Decide> Reached<T> {
 /// instantiate node. Both askers read it: the instantiate node's own op
 /// (`wire::wire_instantiate_part`) and the mate solve's reach over a
 /// member's instance (`mate::solve`'s `part_of`, which the lever's
-/// `pair_reach` and a `FromFace` side's face pose both ask through).
+/// `pair_reach` and a face-based side's face pose both ask through).
 /// The descent enters every reference it names before the document
 /// evaluates, and a nested cache refuses any other ask
 /// ([`PartFault::NotEntered`]).
@@ -793,31 +863,58 @@ impl<T: Decide> Entered<T> {
 /// number of documents down included.
 ///
 /// Every OTHER refusal crosses whole ([`PartFault::PartProduct`]).
+///
+/// `part` is the document evaluated, at the version its reference pins:
+/// the fault keeps the nodes it names as `part` holds them
+/// ([`PartFault::held`]), the one place the pinned part is in hand.
 fn product_fault<T: Decide>(
     error: crate::product::ProductError,
     mut evaluation: super::Evaluation<T>,
+    part: &ProfileDoc,
 ) -> PartFault {
     use super::NodeStanding;
+    // Each arm is built from its held nodes: once to say its sentence
+    // over `part`, recording what it names, and once holding them.
+    type Arm = Box<dyn Fn(Arc<HeldNodes>) -> PartFault>;
+    let unrecorded = |node: RecipeNodeId| -> Arm {
+        Box::new(move |held| PartFault::RootFailureUnrecorded { node, held })
+    };
     let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
         Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
-        _ => Err(PartFault::RootFailureUnrecorded { node: failed }),
+        _ => Err(failed),
     };
-    let carried = match error {
+    let arm: Arm = match error {
         crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
-            refusal_at(node).map(|refusal| PartFault::PartRootFailed { node, refusal })
+            match refusal_at(node) {
+                Ok(refusal) => Box::new(move |held| PartFault::PartRootFailed {
+                    node,
+                    refusal: refusal.clone(),
+                    held,
+                }),
+                Err(failed) => unrecorded(failed),
+            }
         }
         crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
-            refusal_at(through).map(|refusal| PartFault::PartRootPoisoned {
-                root: node,
-                through,
-                refusal,
+            match refusal_at(through) {
+                Ok(refusal) => Box::new(move |held| PartFault::PartRootPoisoned {
+                    root: node,
+                    through,
+                    refusal: refusal.clone(),
+                    held,
+                }),
+                Err(failed) => unrecorded(failed),
+            }
+        }
+        _ => {
+            let refusal: crate::product::ProductRefusal = error.into();
+            Box::new(move |held| PartFault::PartProduct {
+                refusal: refusal.clone(),
+                held,
             })
         }
-        _ => Ok(PartFault::PartProduct {
-            refusal: error.into(),
-        }),
     };
-    carried.unwrap_or_else(|unrecorded| unrecorded)
+    let held = crate::spoken::held_by(&InPart(&arm(Arc::default())), part);
+    arm(Arc::new(held))
 }
 
 #[cfg(test)]

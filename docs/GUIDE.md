@@ -66,7 +66,7 @@ let rect: ClosedLoop<f64> = Open
     .line_to(p2(mm(0.0), mm(40.0)), tol)?
     .line_to(Start, tol)?;
 let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?;
-let plate = extrude(&profile, Extrusion::Distance(real(mm(8.0))), tol)?.body;
+let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: ExtrudeSide::Along }, tol)?.body;
 validate_closed(&plate).expect("a closed solid");
 let props = mass_properties(&plate, tol)?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
@@ -120,18 +120,18 @@ $ PYTHONPATH=target/python-stage python3 crates/pncad-py/examples/bracket.py
 The same plate, in Python:
 
 ```python
-from pncad import Doc, Expr, Node, evaluate, mm
+from pncad import Doc, Formula, Node, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
     Node.polygon([
-        (Expr.length_in(0, mm), Expr.length_in(0, mm)),
-        (Expr.length_in(80, mm), Expr.length_in(0, mm)),
-        (Expr.length_in(80, mm), Expr.length_in(40, mm)),
-        (Expr.length_in(0, mm), Expr.length_in(40, mm)),
+        (Formula.length_in(0, mm), Formula.length_in(0, mm)),
+        (Formula.length_in(80, mm), Formula.length_in(0, mm)),
+        (Formula.length_in(80, mm), Formula.length_in(40, mm)),
+        (Formula.length_in(0, mm), Formula.length_in(40, mm)),
     ], plane=doc.sketch_frame())
 )
-plate = doc.insert(Node.extrude(profile, Expr.length_in(8, mm)))
+plate = doc.insert(Node.extrude(profile, Formula.length_in(8, mm)))
 body = evaluate(doc).value(plate).body()
 body.validate()
 assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
@@ -140,14 +140,14 @@ assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
 mm + 90 * deg` is a `QuantityOpMismatch`, not a number.
 
-A dimensioned slot takes an `Expr`, and `Expr.length_in(8, mm)` is how
+A dimensioned slot takes a `Formula`, and `Formula.length_in(8, mm)` is how
 an authored number reaches one: the value and the unit it was written
 in, so the recipe reads back `8 mm` rather than the canonical
 `0.008 m`. It is exactly
-`Expr.length_in(8, mm)` — the two doors
+`Formula.length_in(8, mm)` — the two doors
 underneath, which are what you reach for when the `WrittenLength` is
-already in hand. `Expr.angle_in(90, deg)` is the angle mirror, and
-`Expr.literal(width / 2)` is the door for a value you COMPUTED, which
+already in hand. `Formula.angle_in(90, deg)` is the angle mirror, and
+`Formula.literal(width / 2)` is the door for a value you COMPUTED, which
 stores the canonical row because there is no notation to keep.
 
 ### 1.4 Where to go next
@@ -342,7 +342,7 @@ are one program:
 ```python
 import math
 
-from pncad import Doc, Expr, Node, Open, Start, evaluate, mm
+from pncad import Doc, Formula, Node, Open, Start, evaluate, mm
 
 rounded = (
     Open.at((0 * mm, 0 * mm))
@@ -355,7 +355,7 @@ rounded = (
 )
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Expr.length_in(8, mm)))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Formula.length_in(8, mm)))
 ev = evaluate(doc)
 assert ev.succeeded(plate)
 
@@ -454,7 +454,7 @@ previously total constructor can now fail. The kernel's geometric
 validation still certifies a body at rest, as before.
 
 ```python
-from pncad import Doc, Expr, Node, SketchPlane, evaluate, m
+from pncad import Doc, Formula, Node, SketchPlane, evaluate, m
 
 doc = Doc()
 # An upright wall: a 2 x 3 sketch on the world yz-plane, extruded
@@ -464,22 +464,22 @@ wall = doc.insert(
         doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(2, m), Expr.length_in(0, m)),
-                    (Expr.length_in(2, m), Expr.length_in(3, m)),
-                    (Expr.length_in(0, m), Expr.length_in(3, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2, m), Formula.length_in(3, m)),
+                    (Formula.length_in(0, m), Formula.length_in(3, m)),
                 ],
                 plane=doc.sketch_frame(plane=SketchPlane.yz()),
             )
         ),
-        Expr.length_in(0.25, m),
+        Formula.length_in(0.25, m),
     )
 )
 assert abs(evaluate(doc).value(wall).body().mass_properties().volume - 1.5) < 1e-12
 
 # Naming the frame's plane twice is refused at the boundary.
 try:
-    doc.sketch_frame(elevation=Expr.length_in(1, m), plane=SketchPlane.yz())
+    doc.sketch_frame(elevation=Formula.length_in(1, m), plane=SketchPlane.yz())
 except TypeError:
     pass
 else:
@@ -496,22 +496,22 @@ affine image of the ends, so the four walls are genuinely curved
 rather than ruled. The degree is a STRUCTURAL slot, and both of the
 loft's inputs are editable in place once the node exists:
 `DocEdit.bind_v_degree_param(node, name)` makes the degree a named
-number that one `set_doc_param` moves — at degree 1 the same three
+number that one `set_var_value` moves — at degree 1 the same three
 sections enclose 8.75 m³ rather than 9 — and `DocEdit.set_members`
 restates the section list whole.
 
 ```python
-from pncad import Doc, Expr, Node, evaluate, m
+from pncad import Doc, Formula, Node, evaluate, m
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 
 doc = Doc()
 sections = [
-    doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in pts], plane=doc.sketch_frame(elevation=Expr.length_in(z, m))))
+    doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in pts], plane=doc.sketch_frame(elevation=Formula.length_in(z, m))))
     for pts, z in [(SQUARE, 0.0), (TRAPEZOID, 1.0), (SQUARE, 2.0)]
 ]
-prism = doc.insert(Node.loft(sections, Expr.count(2)))
+prism = doc.insert(Node.loft(sections, Formula.count(2)))
 
 # The degree-2 skin through sections at (0, 1/2, 1) is the quadratic
 # Lagrange interpolant: corner paths S + 4v(1-v)*D, z = 2v exactly,
@@ -525,7 +525,7 @@ assert props.volume_pad < 1e-6
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
 # sections cannot carry degree 3, and nothing here pre-checks that —
 # it refuses at evaluation, where the kernel refuses.
-overdegree = doc.insert(Node.loft(sections, Expr.count(3)))
+overdegree = doc.insert(Node.loft(sections, Formula.count(3)))
 assert not evaluate(doc).succeeded(overdegree)
 ```
 
@@ -538,7 +538,7 @@ use pncad::prelude::*;
 
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
     let tol = Tol::witness();
     let rect: ClosedLoop<f64> = Open
         .at(p2(x.0, y.0))
@@ -548,7 +548,9 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
         .line_to(Start, tol)?;
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
-    Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+    let body = extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body;
+    // The boolean takes finished bodies: the at-rest gate (tier 3) makes one.
+    Ok(AtRestBody::validate(body, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?)
 }
 
 let mm = |v: f64| (v * MM).meters();
@@ -564,7 +566,10 @@ assert_eq!(lightened.kind, BooleanResultKind::Seamed);
 # Ok::<(), E>(())
 ```
 
-`union` and `subtract` return a `BooleanResult`, which is `Empty` or
+`union` and `subtract` take finished bodies (`AtRestBody`): a sweep's
+body passes the at-rest gate once (`AtRestBody::validate`, tier 3), and a
+boolean's result is already finished, so it goes straight into the next
+operation. They return a `BooleanResult`, which is `Empty` or
 a `BooleanBody`. That is the first fail-loud habit to build: an empty
 result is a *value*, not an error and not a crash, and you say what
 you expect. The `kind` field records how the result came to be —
@@ -582,7 +587,7 @@ first one wastes your time.
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -591,7 +596,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -637,7 +642,7 @@ an undeclared contact.
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -646,7 +651,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -666,7 +671,7 @@ theorem on the real surfaces, not on a mesh:
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -675,7 +680,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -739,7 +744,7 @@ decision.
 use pncad::prelude::*;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -748,7 +753,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -779,7 +784,7 @@ use pncad::prelude::*;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -788,7 +793,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -829,7 +834,7 @@ use pncad::prelude::*;
 use pncad::step_import::StepImport;
 # let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
-# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+# fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, E> {
 #     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
@@ -838,7 +843,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
+#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -907,22 +912,22 @@ opaque kernel calls.
 The same bracket, the same numbers:
 
 ```python
-from pncad import BooleanOp, Doc, Expr, Node, evaluate, import_step, mm
+from pncad import BooleanOp, Doc, Formula, Node, evaluate, import_step, mm
 
 
 def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.literal(x[0]), Expr.literal(y[0])),
-                (Expr.literal(x[1]), Expr.literal(y[0])),
-                (Expr.literal(x[1]), Expr.literal(y[1])),
-                (Expr.literal(x[0]), Expr.literal(y[1])),
+                (Formula.literal(x[0]), Formula.literal(y[0])),
+                (Formula.literal(x[1]), Formula.literal(y[0])),
+                (Formula.literal(x[1]), Formula.literal(y[1])),
+                (Formula.literal(x[0]), Formula.literal(y[1])),
             ],
-            plane=doc.sketch_frame(elevation=Expr.literal(z[0])),
+            plane=doc.sketch_frame(elevation=Formula.literal(z[0])),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.literal(z[1] - z[0])))
+    return doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
 
 
 doc = Doc()
@@ -979,18 +984,18 @@ the ladder's claims are checkable from Python — closure on INDICES,
 volume on the triangles:
 
 ```python
-from pncad import BooleanOp, Doc, Expr, Node, evaluate, m, mm
+from pncad import BooleanOp, Doc, Formula, Node, evaluate, m, mm
 
 doc = Doc()
 profile = doc.insert(
     Node.polygon([
-        (Expr.length_in(0, m), Expr.length_in(0, m)),
-        (Expr.length_in(2, m), Expr.length_in(0, m)),
-        (Expr.length_in(2, m), Expr.length_in(3, m)),
-        (Expr.length_in(0, m), Expr.length_in(3, m)),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.length_in(2, m), Formula.length_in(0, m)),
+        (Formula.length_in(2, m), Formula.length_in(3, m)),
+        (Formula.length_in(0, m), Formula.length_in(3, m)),
     ], plane=doc.sketch_frame())
 )
-block = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+block = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
 body = evaluate(doc).value(block).body()
 body.validate()
 
@@ -1057,15 +1062,15 @@ runs that convergence.
 Python's document also persists and replays bit-identically:
 
 ```python
-from pncad import Doc, Expr, Node, evaluate, load, mm
+from pncad import Doc, Formula, Node, evaluate, load, mm
 
 doc = Doc()
 profile = doc.insert(Node.polygon([
-    (Expr.length_in(0, mm), Expr.length_in(0, mm)),
-    (Expr.length_in(1, mm), Expr.length_in(0, mm)),
-    (Expr.length_in(1, mm), Expr.length_in(1, mm)),
+    (Formula.length_in(0, mm), Formula.length_in(0, mm)),
+    (Formula.length_in(1, mm), Formula.length_in(0, mm)),
+    (Formula.length_in(1, mm), Formula.length_in(1, mm)),
 ], plane=doc.sketch_frame()))
-doc.insert(Node.extrude(profile, Expr.length_in(1, mm)))
+doc.insert(Node.extrude(profile, Formula.length_in(1, mm)))
 
 text = doc.save()
 replayed = load(text).doc
@@ -1091,7 +1096,7 @@ at `insert`, not as a guess.
 ```python
 import math
 
-from pncad import Doc, EditError, Expr, Node, Open, Start, circle, evaluate, m
+from pncad import Doc, EditError, Formula, Node, Open, Start, circle, evaluate, m
 
 # The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
 outer = (
@@ -1105,7 +1110,7 @@ holes = [circle((-1.5 * m, 0 * m), 0.7 * m), circle((1.5 * m, 0 * m), 0.7 * m)]
 
 doc = Doc()
 sketch = doc.insert(Node.profile([outer, *holes], plane=doc.sketch_frame()))
-plate = doc.insert(Node.extrude(sketch, Expr.length_in(0.6, m)))
+plate = doc.insert(Node.extrude(sketch, Formula.length_in(0.6, m)))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
@@ -1153,27 +1158,27 @@ next section runs them.
 ```python
 import math
 
-from pncad import Doc, EvaluationError, Expr, Node, evaluate, m
+from pncad import Doc, EvaluationError, Formula, Node, evaluate, m
 
 L, R = 1.0, 0.12
 
 doc = Doc()
 square = doc.insert(
     Node.polygon([
-        (Expr.length_in(0, m), Expr.length_in(0, m)),
-        (Expr.length_in(L, m), Expr.length_in(0, m)),
-        (Expr.length_in(L, m), Expr.length_in(L, m)),
-        (Expr.length_in(0, m), Expr.length_in(L, m)),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.length_in(L, m), Formula.length_in(0, m)),
+        (Formula.length_in(L, m), Formula.length_in(L, m)),
+        (Formula.length_in(0, m), Formula.length_in(L, m)),
     ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, Expr.length_in(L, m)))
+cube = doc.insert(Node.extrude(square, Formula.length_in(L, m)))
 
 # The twelve names, as of THIS evaluation. Stored into the recipe,
 # they are frozen: the repair path for a moved edge is a rebind, not
 # a re-query.
 edges = evaluate(doc).all_edges(cube)
 assert len(edges) == 12
-blank = doc.insert(Node.fillet(cube, Expr.length_in(R, m), edges))
+blank = doc.insert(Node.fillet(cube, Formula.length_in(R, m), edges))
 
 # The tour's `diefillet` blank: a shrunk core, six slab faces, twelve
 # quarter-cylinders and eight sphere octants.
@@ -1189,7 +1194,7 @@ body.validate()
 assert abs(body.mass_properties().volume - want) < 1e-9 * want
 
 # An empty selection is refused by the node, not by the binding.
-empty = doc.insert(Node.fillet(cube, Expr.length_in(R, m), []))
+empty = doc.insert(Node.fillet(cube, Formula.length_in(R, m), []))
 try:
     evaluate(doc).value(empty)
     raise AssertionError("an empty selection should not blend")
@@ -1228,7 +1233,7 @@ from pncad import (
     CurveKind,
     Doc,
     EntityKind,
-    Expr,
+    Formula,
     GeomPred,
     NamePat,
     Node,
@@ -1247,13 +1252,13 @@ R, H = 0.09, 0.05  # the pip ball's radius; how deep it dips in
 doc = Doc()
 square = doc.insert(
     Node.polygon([
-        (Expr.length_in(0, m), Expr.length_in(0, m)),
-        (Expr.length_in(1, m), Expr.length_in(0, m)),
-        (Expr.length_in(1, m), Expr.length_in(1, m)),
-        (Expr.length_in(0, m), Expr.length_in(1, m)),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.length_in(1, m), Formula.length_in(0, m)),
+        (Formula.length_in(1, m), Formula.length_in(1, m)),
+        (Formula.length_in(0, m), Formula.length_in(1, m)),
     ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, Expr.length_in(1, m)))
+cube = doc.insert(Node.extrude(square, Formula.length_in(1, m)))
 
 # A ball, revolved as two quarter arcs on one carrier, sunk H into the
 # top face: the second arc leaves along the first's tangent (a declared
@@ -1274,23 +1279,23 @@ frame = doc.sketch_frame(
 # through (0, 0). A revolve takes this and not a `datum_axis` — an
 # axis written in the frame cannot leave the plane it turns.
 axis = doc.insert(Node.datum_axis_in_plane(frame, (
-    Expr.length_in(0, m),
-    Expr.length_in(0, m),
+    Formula.length_in(0, m),
+    Formula.length_in(0, m),
 ), (
-    Expr.literal(0.0),
-    Expr.literal(1.0),
+    Formula.literal(0.0),
+    Formula.literal(1.0),
 )))
-ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Expr.angle_in(2 * math.pi, rad)))
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Formula.angle_in(2 * math.pi, rad)))
 pip = doc.insert(
     Node.transform(ball, (
-        Expr.length_in(0.5, m),
-        Expr.length_in(0.5, m),
-        Expr.length_in(1.0 + R - H, m),
+        Formula.length_in(0.5, m),
+        Formula.length_in(0.5, m),
+        Formula.length_in(1.0 + R - H, m),
     ), (
-        Expr.literal(0.0),
-        Expr.literal(0.0),
-        Expr.literal(1.0),
-    ), Expr.angle_in(0, rad))
+        Formula.literal(0.0),
+        Formula.literal(0.0),
+        Formula.literal(1.0),
+    ), Formula.angle_in(0, rad))
 )
 pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
 
@@ -1312,7 +1317,7 @@ meridians = ev.select_where(
 assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
 
 # One fillet takes both selections — stored, frozen, never re-queried.
-blended = doc.insert(Node.fillet(pipped, Expr.length_in(0.05, m), straight + rims))
+blended = doc.insert(Node.fillet(pipped, Formula.length_in(0.05, m), straight + rims))
 body = evaluate(doc).value(blended).body()
 body.validate()
 ```
@@ -1335,26 +1340,26 @@ are the chamfer's own words (`chamfer_selection_empty`), not the
 fillet's: one ladder, but the tag says which verb asked.
 
 ```python
-from pncad import Doc, EvaluationError, Expr, Node, evaluate, m
+from pncad import Doc, EvaluationError, Formula, Node, evaluate, m
 
 L, D = 1.0, 0.12
 
 doc = Doc()
 square = doc.insert(
     Node.polygon([
-        (Expr.length_in(0, m), Expr.length_in(0, m)),
-        (Expr.length_in(L, m), Expr.length_in(0, m)),
-        (Expr.length_in(L, m), Expr.length_in(L, m)),
-        (Expr.length_in(0, m), Expr.length_in(L, m)),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.length_in(L, m), Formula.length_in(0, m)),
+        (Formula.length_in(L, m), Formula.length_in(L, m)),
+        (Formula.length_in(0, m), Formula.length_in(L, m)),
     ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, Expr.length_in(L, m)))
+cube = doc.insert(Node.extrude(square, Formula.length_in(L, m)))
 
 # The same twelve names the fillet step stored, carried unread.
 edges = evaluate(doc).all_edges(cube)
 assert len(edges) == 12
-flat = doc.insert(Node.chamfer(cube, Expr.length_in(D, m), edges))
-round_ = doc.insert(Node.fillet(cube, Expr.length_in(D, m), edges))
+flat = doc.insert(Node.chamfer(cube, Formula.length_in(D, m), edges))
+round_ = doc.insert(Node.fillet(cube, Formula.length_in(D, m), edges))
 
 # A cube of side L set back by d is the cube less twelve edge wedges
 # and eight corner patches, which integrates to a closed form.
@@ -1376,7 +1381,7 @@ assert (
 assert len(ev.all_faces(flat)) == 26
 
 # An empty selection is refused by the node, in the chamfer's own word.
-nothing = doc.insert(Node.chamfer(cube, Expr.length_in(D, m), []))
+nothing = doc.insert(Node.chamfer(cube, Formula.length_in(D, m), []))
 try:
     evaluate(doc).value(nothing)
     raise AssertionError("an empty selection should not chamfer")
@@ -1408,7 +1413,7 @@ an arc leaves an open elbow of annular section.
 ```python
 import math
 
-from pncad import Doc, Expr, Node, TubeWindow, evaluate, m, rad
+from pncad import Doc, Formula, Node, TubeWindow, evaluate, m, rad
 
 R, OUTER, WALL = 2.0, 0.5, 0.125
 T0, T1 = 0.0, 1.5
@@ -1416,18 +1421,18 @@ T0, T1 = 0.0, 1.5
 doc = Doc()
 # The spine: centre at the origin, section turning about +z.
 spine = doc.insert(Node.datum_axis((
-    Expr.length_in(0, m),
-    Expr.length_in(0, m),
-    Expr.length_in(0, m),
+    Formula.length_in(0, m),
+    Formula.length_in(0, m),
+    Formula.length_in(0, m),
 ), (
-    Expr.literal(0.0),
-    Expr.literal(0.0),
-    Expr.literal(1.0),
+    Formula.literal(0.0),
+    Formula.literal(0.0),
+    Formula.literal(1.0),
 )))
 
 # The solid ring. Pappus meters it: V = 2 pi^2 R r^2.
 ring = doc.insert(
-    Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(R, m), TubeWindow.full(), Expr.length_in(OUTER, m))
+    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m))
 )
 solid = evaluate(doc).value(ring).body()
 solid.validate()
@@ -1437,7 +1442,7 @@ assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-
 inner = OUTER - WALL
 torus = doc.insert(
     Node.hollow_tube(
-        spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(R, m), TubeWindow.full(), Expr.length_in(OUTER, m), Expr.length_in(WALL, m)
+        spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.full(), Formula.length_in(OUTER, m), Formula.length_in(WALL, m)
     )
 )
 walled = evaluate(doc).value(torus).body()
@@ -1450,11 +1455,11 @@ assert abs(walled.mass_properties().volume - want) < 1e-9
 elbow = doc.insert(
     Node.hollow_tube(
         spine,
-        (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
-        Expr.length_in(R, m),
-        TubeWindow.arc(Expr.angle_in(T0, rad), Expr.angle_in(T1, rad)),
-        Expr.length_in(OUTER, m),
-        Expr.length_in(WALL, m),
+        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        Formula.length_in(R, m),
+        TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)),
+        Formula.length_in(OUTER, m),
+        Formula.length_in(WALL, m),
     )
 )
 annulus = math.pi * (OUTER**2 - inner**2)
@@ -1466,7 +1471,7 @@ assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
 # is exactly the bore, which is only true if each node reached its own
 # kernel door.
 open_ring = doc.insert(
-    Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(R, m), TubeWindow.arc(Expr.angle_in(T0, rad), Expr.angle_in(T1, rad)), Expr.length_in(OUTER, m))
+    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(R, m), TubeWindow.arc(Formula.angle_in(T0, rad), Formula.angle_in(T1, rad)), Formula.length_in(OUTER, m))
 )
 ev = evaluate(doc)
 bore = (T1 - T0) * R * math.pi * inner**2
@@ -1506,7 +1511,7 @@ from pncad import (
     Doc,
     EntityKind,
     EvaluationError,
-    Expr,
+    Formula,
     NamePat,
     Node,
     OpGroup,
@@ -1522,20 +1527,20 @@ L, T = 1.0, 0.125
 doc = Doc()
 square = doc.insert(
     Node.polygon([
-        (Expr.length_in(0, m), Expr.length_in(0, m)),
-        (Expr.length_in(L, m), Expr.length_in(0, m)),
-        (Expr.length_in(L, m), Expr.length_in(L, m)),
-        (Expr.length_in(0, m), Expr.length_in(L, m)),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.length_in(L, m), Formula.length_in(0, m)),
+        (Formula.length_in(L, m), Formula.length_in(L, m)),
+        (Formula.length_in(0, m), Formula.length_in(L, m)),
     ], plane=doc.sketch_frame())
 )
-box = doc.insert(Node.extrude(square, Expr.length_in(L, m)))
+box = doc.insert(Node.extrude(square, Formula.length_in(L, m)))
 
 # The top, by ROLE: the extrude's end cap. One name, carried to the
 # door unread.
 faces = NamePat.of_kind(EntityKind.Face)
 top = evaluate(doc).select(box, Selector.of(faces.seg(SegPat.tag(SegTag.Cap).side(CapEnd.End))))
 assert len(top) == 1
-cup = doc.insert(Node.shell(box, Expr.length_in(T, m), top))
+cup = doc.insert(Node.shell(box, Formula.length_in(T, m), top))
 
 # The cavity is (L-2T) x (L-2T) x (L-T): the opened top loses no wall.
 body = evaluate(doc).value(cup).body()
@@ -1553,7 +1558,7 @@ assert len(ev.select(cup, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))) 
 assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))) == 5
 
 # A wall that is not a wall is the kernel's refusal, not the binding's.
-flat = doc.insert(Node.shell(box, Expr.length_in(0, m), top))
+flat = doc.insert(Node.shell(box, Formula.length_in(0, m), top))
 try:
     evaluate(doc).value(flat)
     raise AssertionError("a zero wall should not hollow")
@@ -1601,7 +1606,7 @@ import math
 from pncad import (
     Doc,
     EntityKind,
-    Expr,
+    Formula,
     NamePat,
     Node,
     Open,
@@ -1630,13 +1635,13 @@ ring = doc.insert(
     Node.revolve(
         profile,
         doc.insert(Node.datum_axis_in_plane(frame, (
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(1.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
         ))),
-        Expr.angle_in(2 * math.pi, rad),
+        Formula.angle_in(2 * math.pi, rad),
     )
 )
 
@@ -1646,9 +1651,9 @@ ring = doc.insert(
 def piece(leg):
     return doc.piece(profile, 0, leg.step.leg)
 
-cup = doc.insert(Node.shell(ring, Expr.length_in(T, m), [band(ring, piece(top))]))
+cup = doc.insert(Node.shell(ring, Formula.length_in(T, m), [band(ring, piece(top))]))
 rolled = doc.insert(
-    Node.fillet(ring, Expr.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
+    Node.fillet(ring, Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
 )
 
 ev = evaluate(doc)
@@ -1678,7 +1683,7 @@ there is deliberately only one.
 
 Since the profiles-as-programs switch, **a profile's geometry is a
 program too**: the loops are `LoopProgram` values whose coordinates
-are `Expr`s, not baked floats. That is what makes a sketch
+are `Formula`s, not baked floats. That is what makes a sketch
 parametric rather than opaque.
 
 ```
@@ -1688,8 +1693,8 @@ use pncad::document::NodeResult;
 let tol = Tol::witness();
 // Author a plate with a round hole. Both the outline and the hole
 // are programs; every coordinate is an expression.
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
 let hole = LoopProgram::Circle {
@@ -1724,7 +1729,7 @@ let (next, profile) = insert(
     }),
 );
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
@@ -1752,7 +1757,7 @@ silently target the wrong argument when the node changes:
 ```
 use pncad::prelude::*;
 # let tol = Tol::witness();
-# let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+# let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 # let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]).expect("corners");
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
@@ -1760,12 +1765,12 @@ use pncad::prelude::*;
 #     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
-# let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+# let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 # let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
 # doc = next;
 # let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
-# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
+# let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5), side: ExtrudeSide::Along });
 # doc = next;
 # let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 // Make the plate twice as thick.
@@ -1796,7 +1801,7 @@ form is a **named document parameter** that several places reference,
 so one edit moves all of them coherently. That is
 `crates/editor-core/tests/corpus/plate_param.rs`, and it is the
 corpus document to read after this guide: a plate with **two** holes
-whose radii are both `Expr::param("hole_r")` — one parameter, two
+whose radii are both `Formula::named("hole_r")` — one parameter, two
 loops, one edit.
 
 Its acceptance rows (`crates/editor-core/tests/switch_plate_param.rs`)
@@ -1814,7 +1819,7 @@ true of a parametric system, stated as tests:
    *validate* — a different door from the replay one, which is the
    point: two distinct failure modes stay distinguishable.
 
-Note the deliberate asymmetry in row 3: the `SetDocParam` edit itself
+Note the deliberate asymmetry in row 3: the `DefineVar` edit itself
 still applies cleanly. A program that refuses under the current
 binding is legal *at rest*; the refusal belongs to replay, not to the
 edit.
@@ -1822,8 +1827,8 @@ edit.
 ### 3.2 The flagship, façade-only
 
 Named document parameters were LIB-U10's headline finding: the façade
-did not re-export `ParamName` or `DocParam`, so `DocEdit::SetDocParam`
-and `Expr::param` were doors a `pncad`-only consumer could see and not
+did not re-export `VarName` or `FreeVar`, so declaring a variable
+and `Formula::named` were doors a `pncad`-only consumer could see and not
 open, and a `compile_fail` doctest sat here pinning the hole.
 R1-PARAMS cured it — both names are curated through `pncad::document`
 (and the prelude), so what follows is `plate_param` itself, authored
@@ -1833,30 +1838,30 @@ north-star audit rather than worked around, and closing it flips this
 section from a pin to a demonstration.
 
 One parameter, referenced by two loops, moved by one edit.
-`ParamName::from_static` takes a name written in source; a name that
-arrives as text at runtime goes through `ParamName::new`, which
+`VarName::from_static` takes a name written in source; a name that
+arrives as text at runtime goes through `VarName::new`, which
 refuses one an expression could not read back (blank, padded, not
-one identifier) with a `ParamNameFault`:
+one identifier) with a `VarNameFault`:
 
 ```
 use pncad::prelude::*;
 use pncad::document::{BooleanOp, BooleanValue, NodeResult};
 
 let tol = Tol::witness();
-let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 // ONE expression, shared: BOTH holes' radius reads `hole_r`.
 let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     centre: [lit(cx), lit(cy)],
-    radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
+    radius: Formula::named(VarName::from_static("hole_r"), Dimension::Length),
 };
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 
-// Declare the parameter. An ordinary edit: recorded, replayable,
-// undoable like any other.
-doc = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::from_static("hole_r"),
-    value: DocParam::continuous(Dimension::Length, 0.25),
+// Declare the variable: it is minted an id, and `hole_r` names it. An
+// ordinary edit: recorded, replayable, undoable like any other.
+doc = apply(&doc, &DocEdit::DeclareVar {
+    name: VarName::from_static("hole_r"),
+    def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1867,7 +1872,7 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 // The plate: outline plus both parametric holes, one profile.
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
-let sc = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let sc = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 // The plate's frame. The tab below is sketched at a different
 // height, so it gets its OWN frame — two planes, visible as two
 // rows, rather than two poses frozen inside two sketches.
@@ -1883,7 +1888,7 @@ let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5) });
+let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5), side: ExtrudeSide::Along });
 doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
@@ -1903,7 +1908,7 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     ids: Vec::new(),
 }));
 doc = next;
-let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25) });
+let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25), side: ExtrudeSide::Along });
 doc = next;
 let (next, solid) = insert(&doc, Node::Boolean {
     op: BooleanOp::Union,
@@ -1934,38 +1939,57 @@ let v = |r: f64| {
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
-// One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
-let bigger = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::from_static("hole_r"),
-    value: DocParam::continuous(Dimension::Length, 0.4),
+// One `DefineVar` moves BOTH holes; the tab branch never re-runs.
+let bigger = apply(&doc, &DocEdit::DefineVar {
+    var: VarName::from_static("hole_r").into(),
+    def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
                                // branch, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
+
+// The holes were authored by NAME and are stored by IDENTITY: the
+// edit door resolved `hole_r` to the variable it names. So a rename
+// writes the name and nothing else, and nothing recomputes.
+let held = bigger.var_named("hole_r").expect("declared");
+let renamed = apply(&bigger, &DocEdit::RenameVar {
+    var: VarName::from_static("hole_r").into(),
+    name: Some(VarName::from_static("hole_radius")),
+}, tol, &pncad::document::RefusingReach)?.doc;
+assert_eq!(renamed.var_named("hole_radius"), Some(held));
+let ev3 = evaluate::<f64>(&renamed, Some(&ev2), &CancelToken::new(), &EvalOptions::default(), tol);
+assert_eq!(ev3.recomputed, 0);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Note what row 3 of §3.1 already told you: `SetDocParam` applies
+A slot reads a variable by its minted id, never by its name; the name
+lives beside the variable and is resolved only where text is read
+(`parse_formula`, an expression authored with `Formula::named`) or written
+(`Doc::unparse`). `DocEdit::DeleteVar` removes a named variable and
+leaves its readers in place, unresolved: evaluation refuses at each
+one, typed, and the id is never minted again.
+
+Note what row 3 of §3.1 already told you: `DefineVar` applies
 cleanly even for a value the geometry will refuse — a program that
 refuses under the current binding is legal *at rest*, and the refusal
 belongs to replay.
 
-From Python the same edit is `DocEdit.set_doc_param(ParamName(…),
-DocParam.length(…))`, demonstrated against this exact document in
+From Python the same edit is `DocEdit.define_var(VarName(…),
+FreeVar.length(…))`, demonstrated against this exact document in
 `crates/pncad-py/tests/test_north_star.py`. Authoring the *profile*
 above from Python now awaits exactly ONE door. Circles came with the
 audit's G1 and the three-loop profile with G9; what is left is a
 profile step whose argument is an EXPRESSION rather than a literal —
-the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
+the holes above are `LoopProgram::Circle { radius: Formula::named(…) }`,
 and `pncad.circle(centre, radius)` takes a `Length`, so the radius
 crosses as a number and the parameter link is lost.
 
 ### 3.3 Distributions: saying how much a parameter varies
 
 A parameter's value is one number. What a real part has is a number
-*and* a spread, and `DocParam::Continuous` carries an optional
+*and* a spread, and `FreeVar::Continuous` carries an optional
 `Distribution` to say so — offsets from the parameter's own nominal, in
 the parameter's own dimension. Four forms, and the differences between
 them are claims, not conveniences:
@@ -1993,24 +2017,24 @@ any sub-interval).
 ```
 use pncad::prelude::*;
 use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
-use pncad::document::{Distribution, DocParamValue};
+use pncad::document::{Distribution, FreeValue};
 
 let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
-let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: DocParam| {
-    apply(doc, &DocEdit::SetDocParam { name: ParamName::from_static(name), value }, tol, &pncad::document::RefusingReach)
+let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: FreeVar| {
+    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDecl::Free(value) }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
 // A measured bore: 4 mm, one micron of spread, normal.
-doc = declare(&doc, "bore_r", DocParam::continuous_with(
+doc = declare(&doc, "bore_r", FreeVar::continuous_with(
     Dimension::Length, 0.004, Distribution::Normal { sigma: 1e-6 }));
 // Vendor stock: the catalogue gives limits and states no shape.
-doc = declare(&doc, "plate_t", DocParam::continuous_with(
+doc = declare(&doc, "plate_t", FreeVar::continuous_with(
     Dimension::Length, 0.010, Distribution::Band { lo: -1e-4, hi: 1e-4 }));
 // Unannotated: FIXED, on purpose.
-doc = declare(&doc, "web_t", DocParam::continuous(Dimension::Length, 0.003));
+doc = declare(&doc, "web_t", FreeVar::continuous(Dimension::Length, 0.003));
 
 // The box, under the ±3σ default policy (0.9973 per parameter).
 let policy = AnalysisPolicy::default();
@@ -2018,34 +2042,37 @@ let boxed = analyzed_box(&doc, &policy);
 
 // The normal's box is the symmetric quantile interval, so it is
 // roughly ±3σ and it leaves the rest OUTSIDE.
-let bore = boxed.get(&ParamName::from_static("bore_r")).expect("an axis");
+// The box is keyed by each variable's id; its name finds the id.
+let id = |name: &str| doc.var_named(name).expect("declared");
+let bore = boxed.get(id("bore_r")).expect("an axis");
 assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
-let tail = tail_mass(&ParamName::from_static("bore_r"),
+let tail = tail_mass(&boxed.spoken(id("bore_r")),
                      &bore.distribution.expect("annotated"), &bore.offsets)
     .expect("a normal prices");
 assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 
 // The band's box IS its support, so nothing escapes it...
-let plate = boxed.get(&ParamName::from_static("plate_t")).expect("an axis");
+let plate = boxed.get(id("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
 // ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(&ParamName::from_static("web_t")).expect("an axis").offsets.is_fixed());
+assert!(boxed.get(id("web_t")).expect("an axis").offsets.is_fixed());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
 // refusal NAMES the parameter rather than quietly assuming uniform.
-let refusal = box_mass(&ParamName::from_static("plate_t"),
+let refusal = box_mass(&boxed.spoken(id("plate_t")),
                        &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
 assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
 assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 
 // Moving a value KEEPS the annotation — use the value door, never a
-// rebuilt `DocParam`.
-doc = apply(&doc, &DocEdit::SetDocParamValue {
-    name: ParamName::from_static("bore_r"),
-    value: DocParamValue::Continuous(0.0045),
+// rebuilt `FreeVar`.
+let bore_r = id("bore_r");
+doc = apply(&doc, &DocEdit::SetVarValue {
+    var: bore_r.into(),
+    value: FreeValue::Continuous(0.0045),
 }, tol, &pncad::document::RefusingReach)?.doc;
-assert!(doc.params()[&ParamName::from_static("bore_r")].distribution().is_some());
+assert!(doc.free(bore_r).expect("declared").distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -2063,12 +2090,12 @@ decision you can rely on:
   consistent with the band agrees on those. Anything finer refuses,
   typed, naming the parameter. Promoting a band to a uniform would be a
   strictly stronger claim than the author made.
-- **Value edits carry the annotation.** `SetDocParam` is
-  create-or-replace: handing it a `DocParam` you rebuilt from a
-  dimension and a number replaces the declaration and silently deletes
-  the distribution. `SetDocParamValue` writes the number and carries
-  the declaration forward, which is why the panel, the drag gesture and
-  the Python binding (`DocEdit.set_doc_param_value`) all speak it.
+- **Value edits carry the annotation.** `DefineVar` replaces the
+  whole definition: handing it a `FreeVar` you rebuilt from a
+  dimension and a number replaces the definition and silently deletes
+  the distribution. `SetVarValue` writes the number and carries
+  the definition forward, which is why the panel, the drag gesture and
+  the Python binding (`DocEdit.set_var_value`) all speak it.
 
 The same three consumables are the Python surface, with one difference
 that is a decision rather than a translation: the offsets are TYPED
@@ -2078,38 +2105,38 @@ distribution and the interval always come from one axis.
 
 ```python
 from pncad import (AnalysisPolicy, DEFAULT_QUANTILE_MASS, Distribution, Doc,
-                   DocEdit, DocParam, DocParamValue, MeasureUnavailable,
-                   ParamName, analyzed_box, mm)
+                   DocEdit, FreeVar, FreeValue, MeasureUnavailable,
+                   VarName, analyzed_box, mm)
 
 doc = Doc("guide-distributions")
 # A measured bore: 4 mm, one micron of spread, normal.
-doc.apply(DocEdit.set_doc_param(ParamName("bore_r"),
-    DocParam.length(4 * mm, Distribution.normal(0.001 * mm))))
+doc.apply(DocEdit.declare_var(VarName("bore_r"),
+    FreeVar.length(4 * mm, Distribution.normal(0.001 * mm))))
 # Vendor stock: the catalogue gives limits and states no shape.
-doc.apply(DocEdit.set_doc_param(ParamName("plate_t"),
-    DocParam.length(10 * mm, Distribution.band(-0.1 * mm, 0.1 * mm))))
+doc.apply(DocEdit.declare_var(VarName("plate_t"),
+    FreeVar.length(10 * mm, Distribution.band(-0.1 * mm, 0.1 * mm))))
 # Unannotated: FIXED, on purpose.
-doc.apply(DocEdit.set_doc_param(ParamName("web_t"), DocParam.length(3 * mm)))
+doc.apply(DocEdit.declare_var(VarName("web_t"), FreeVar.length(3 * mm)))
 
 boxed = analyzed_box(doc, AnalysisPolicy())          # or analyzed_box(doc)
-bore = boxed.get(ParamName("bore_r"))
+bore = boxed.get(VarName("bore_r"))
 assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
-assert abs(boxed.tail_mass(ParamName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
-assert boxed.get(ParamName("plate_t")).offsets[0] == -0.1 * mm
-assert boxed.get(ParamName("web_t")).is_fixed       # unannotated is FIXED
-assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]
+assert abs(boxed.tail_mass(VarName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
+assert boxed.get(VarName("plate_t")).offsets[0] == -0.1 * mm
+assert boxed.get(VarName("web_t")).is_fixed       # unannotated is FIXED
+assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]  # declaration order
 
 # The band refuses to price anything its shape would decide, and the
 # refusal NAMES the parameter rather than quietly assuming uniform.
 try:
-    boxed.box_mass(ParamName("plate_t"), -0.05 * mm, 0.05 * mm)
+    boxed.box_mass(VarName("plate_t"), -0.05 * mm, 0.05 * mm)
     raise AssertionError("a band prices nothing shape-dependent")
 except MeasureUnavailable as refused:
     assert refused.param == "plate_t"
 
 # Moving a value KEEPS the annotation; `Doc.params` reads it back.
-doc.apply(DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm)))
-assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0.001 * mm)
+doc.apply(DocEdit.set_var_value(VarName("bore_r"), FreeValue.length(4.5 * mm)))
+assert doc.params.get(VarName("bore_r")).distribution == Distribution.normal(0.001 * mm)
 ```
 
 `Distribution`'s constructors run the same `check` the edit and load

@@ -18,12 +18,14 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::{ang, len};
 use editor_core::persist::{load, save};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Expr, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
+    EvalOptions, Formula, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, ResolveError, RoleSeg, SlotId, StableName, ValuePayload,
     all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
     face_frame,
@@ -57,6 +59,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -447,7 +450,7 @@ fn name_of_key(
         .expect("every face of a corpus body is named")
 }
 
-fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> Node<ProfileProgram> {
+fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNode {
     Node::Datum(Datum::FaceFrame {
         at,
         face,
@@ -586,7 +589,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
     assert_eq!(node.slots(), vec![SlotId::Spin]);
     assert_eq!(SlotId::Spin.dimension(), Dimension::Angle);
     assert!(!SlotId::Spin.is_structural());
-    let set = |expr: Expr| {
+    let set = |expr: Formula| {
         apply(
             &doc,
             &DocEdit::SetParam {
@@ -668,6 +671,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
         Node::Extrude {
             profile,
             distance: len(0.3),
+            side: ExtrudeSide::Along,
         },
     );
     assert!(corpus::failures(&eval(&doc)).is_empty());
@@ -857,7 +861,7 @@ pub(crate) fn lofted_on_face_frame() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Loft {
             profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     )
 }

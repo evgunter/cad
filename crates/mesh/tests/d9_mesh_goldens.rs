@@ -79,6 +79,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
+use sweep::ExtrudeSide;
 use topo::Body;
 
 use crate::common;
@@ -210,9 +211,17 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     )
     .validate(Tol::witness())
     .expect("the disc validates");
-    let cylinder = extrude(&disc, Extrusion::Distance(H), Tol::witness())
-        .expect("the disc extrudes")
-        .body;
+    let cylinder = extrude(
+        &disc,
+        Extrusion::Distance {
+            depth: H,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the disc extrudes")
+    .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, H / 2.0),
         Vec3::new(PHI.sin(), 0.0, PHI.cos()),
@@ -268,7 +277,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ),
     (
         "tilted_below",
-        [0xedb7_92c4_4d03_cfde, 0xd33f_a391_6fc1_9740],
+        [0xea6f_5d95_6798_b5cb, 0xe36b_b830_e6a3_496b],
     ),
     ("keyway", [0x9d8e_44fd_e323_88de, 0x9d8e_44fd_e323_88de]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),

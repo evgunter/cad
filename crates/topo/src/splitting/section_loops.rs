@@ -20,6 +20,7 @@ use super::containment::{LoopContainment, point_in_loop};
 use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{LoopBoundary, LoopKey};
+use crate::validate::definitely_positive as positive;
 use crate::validate::{RingOuterVerdict, ring_outer_contact_about};
 
 /// A traversal of a section loop met a dangling key: the scratch body
@@ -49,8 +50,6 @@ pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>]) -> Option<Vec3<T>> {
 /// Why a loop's role could not be read.
 #[derive(Debug)]
 pub(super) enum SenseFault {
-    /// [`Torn`].
-    Torn,
     /// The winding has no sign: in the band (`Some`), or (`None`) zero,
     /// or unread because the loop carries a NURBS or spiric edge.
     Undecided(Option<Indeterminate>),
@@ -71,10 +70,7 @@ pub(super) fn loop_sense<T: Decide>(
     normal: Vec3<T>,
     band: geom_core::Band,
 ) -> Result<bool, SenseFault> {
-    match body
-        .planar_loop_winding(l, normal, band)
-        .map_err(|_| SenseFault::Torn)?
-    {
+    match body.planar_loop_winding(l, normal, band) {
         Some(Ok(geom_core::Sign::Positive)) => Ok(true),
         Some(Ok(geom_core::Sign::Negative)) => Ok(false),
         Some(Ok(geom_core::Sign::Zero)) | None => Err(SenseFault::Undecided(None)),
@@ -259,6 +255,11 @@ struct Conic<T: Real> {
     b: Vec3<T>,
 }
 
+/// Loop `l`'s edges in walk order, as [`outlines_disjoint`] reads them.
+/// [`Torn`] where a record on the walk does not resolve, except an
+/// edge's curve: the section's body is mid-operation, where that is a
+/// link ([`crate::live::OPERATORS_KEEP_LINKS`]), so a torn curve panics
+/// where null scaffolding reads [`OutlineEdge::Undecided`].
 fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T>>, Torn> {
     let corrupt = || Torn;
     // A lone-vertex loop bounds nothing a contact reading could clear.
@@ -270,10 +271,7 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let h = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
             out.push(OutlineEdge::Undecided);
             continue;
         };
@@ -342,14 +340,6 @@ fn line_clears_conic<T: Decide>(
     )
 }
 
-/// `margin` (metres) definitely positive under `band`.
-fn positive<T: Decide>(name: &'static str, margin: T, band: geom_core::Band) -> bool {
-    matches!(
-        crate::validate::decide(name, geom_core::Margin::of(margin), band),
-        Ok(geom_core::Sign::Positive)
-    )
-}
-
 /// `h`'s carrier lies definitely inside or definitely outside `e`'s
 /// (both in one plane).
 ///
@@ -387,4 +377,58 @@ fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) ->
     let outside = (centre - reach - T::one()) * lever;
     positive("split_nest_conic_conic", inside, band)
         || positive("split_nest_conic_conic", outside, band)
+}
+
+/// **A torn ring curve panics before the outlines are answered**: on a
+/// holed block's top face, whose ring lies clear inside its outer loop,
+/// a torn curve on the ring panics naming the link. Check 9
+/// (`ring_outer_contact_about`), which [`outlines_disjoint`] asks first,
+/// reads every curve of both loops as a link and panics there, so the
+/// outline reading's own read of the same link is never reached.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Tol, Vec3};
+
+    use crate::entity::{EntityId, GeomRef};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn the_ring_contact_check_panics_on_a_torn_curve() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::test_support_fixtures::holed_block::<f64>(2.0, &[1.0], tol);
+        let (outer, ring) = body
+            .faces()
+            .find(|(_, f)| f.rings.len() == 1)
+            .map(|(_, f)| (f.outer, f.rings[0]))
+            .unwrap();
+        let disjoint = |b: &crate::body::Body<f64>| {
+            super::outlines_disjoint(b, outer, ring, Vec3::unit_z(), band).map_err(|_| "torn")
+        };
+        assert_eq!(
+            disjoint(&body),
+            Ok(true),
+            "the sound ring lies clear inside the outer loop"
+        );
+        let first = match body.get_loop(ring).unwrap().boundary {
+            crate::entity::LoopBoundary::Cycle { first } => first,
+            crate::entity::LoopBoundary::Empty { .. } => panic!("the ring is a cycle"),
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "outlines_disjoint",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| disjoint(b),
+        );
+    }
 }

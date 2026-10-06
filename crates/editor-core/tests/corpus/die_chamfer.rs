@@ -23,6 +23,7 @@
 //! `f64` rounding of an irrational, not the geometry — the
 //! `die_fillet` disposition, for the same reason.
 
+use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{len, prism_edges, xy_frame};
@@ -52,6 +53,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(&r.doc, cube, 4)));
 

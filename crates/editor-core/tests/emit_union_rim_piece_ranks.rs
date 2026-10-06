@@ -453,8 +453,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
 /// owns it.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 464862541882093983),
-    ("r5pokehi", "U", 4, 6516284697558167371),
+    ("r5poke", "U", 4, 15101828559543090631),
+    ("r5pokehi", "U", 4, 13843135683705318993),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.
@@ -977,9 +977,12 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         assert!(first.contains_key(&span), "[a, b, g]: no piece at {span:?}");
         assert_eq!(first.get(&span), second.get(&span), "{span:?}");
     }
-    assert!(
+    // The flush stretch is named for the lesser of `a` and `b`
+    // (`emit_union::Flush`).
+    assert_eq!(
         first.contains_key(&x(0.5, 1.0)),
-        "[a, b, g]: a holds its flush stretch"
+        a < b,
+        "[a, b, g]: the lesser member holds the flush stretch"
     );
 }
 

@@ -64,15 +64,17 @@ pub enum Verb<T: Real> {
     /// Extrudes the operand profile along its sketch normal.
     ///
     /// The payload is the door's parameter list minus the operand:
-    /// the signed distance alone. The door's second extrusion form —
+    /// the depth and the side it goes toward. The door's second extrusion form —
     /// an explicit world VECTOR — is deliberately absent: no recipe
     /// spells one, so a variant for it would be an arm every
     /// commitment on this vocabulary (content tag, wire spelling,
     /// Python constructor, viewer label) had to name and no document
     /// could ever reach.
     Extrude {
-        /// The signed distance along the profile plane's normal.
+        /// The depth, a size (`sweep::Extrusion::Distance`).
         distance: T,
+        /// Which side of the profile plane the depth goes toward.
+        side: sweep::ExtrudeSide,
     },
     /// Revolves the operand profile about an axis written in its own
     /// sketch plane.

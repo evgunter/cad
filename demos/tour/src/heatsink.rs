@@ -59,12 +59,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
+use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
     BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, NodeErrorKind, PatternKind, ProfileProgram, RecipeNodeId,
-    RefusingReach, SlotId, ValuePayload, apply, evaluate, parse_expr,
+    Formula, LoopProgram, Node, NodeErrorKind, PatternKind, ProfileProgram, RecipeNodeId,
+    RefusingReach, SlotId, ValuePayload, apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -88,8 +90,8 @@ use crate::scalar::Scalar;
 /// here names a unit, so every literal stores the canonical row for
 /// its dimension and the panel opens on `m` because the document SAYS
 /// `m` — not because a reader had to pick a fallback.
-fn pe(src: &str) -> Expr {
-    parse_expr(src, &BTreeMap::new()).expect("tour expression")
+fn pe(src: &str) -> Formula {
+    parse_formula(src, &BTreeMap::new()).expect("tour expression")
 }
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
@@ -130,7 +132,7 @@ struct Recipe {
     base: RecipeNodeId,
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -198,8 +200,8 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         .expect("finite corners"),
     ];
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink", tol);
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
     let frame_at = |z: f64| {
         Node::Datum(Datum::Frame {
             origin: [len(0.0), len(0.0), len(z)],
@@ -222,6 +224,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         Node::Extrude {
             profile: base_p,
             distance: pe("250 mm"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -248,6 +251,7 @@ fn build_doc(tol: Tol, seat: Seat, round_base: bool) -> Recipe {
         Node::Extrude {
             profile: fin_p,
             distance: pe(fin_height),
+            side: ExtrudeSide::Along,
         },
         tol,
     );

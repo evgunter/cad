@@ -164,6 +164,18 @@
 //! names (`exact_mass_pins_hold`, the corpus transform digests, which
 //! held bit for bit on every transform that kept its id) is unchanged.
 //!
+//! RE-BLESSED FOR THE VARIABLE TABLE, a structural move the removal
+//! procedure below cannot measure either: declaring a variable now
+//! mints its id on the document's chain, so in every document that
+//! declares one (`die`, `heat_sink`, `heat_sink_fins`, `kitchen_sink`,
+//! `measured_web`, `part_select`, `plate_param`) every node minted
+//! after the declare was renumbered, and this digest feeds `id.0`. No
+//! document was added or removed. The geometric evidence the sketch
+//! frame's paragraph names — `exact_mass_pins_hold`, the corpus
+//! transform digests (which held their word on every document that
+//! declares nothing), the persistence round trip — held across the
+//! change without being touched.
+//!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
 //! out here rather than folded in with the roster moves.
@@ -428,6 +440,21 @@
 //! ARENA-order stream moved. The POINT SETS did not: a scratch dump of
 //! every corpus body's sorted vertex positions and its vertex, edge,
 //! face and point counts is identical before and after the change.
+//!
+//! RE-DERIVED, INTERVAL ROW ONLY, WHEN A BOOLEAN MATCH'S CHORDS CAME TO
+//! SHARE ONE CURVE (`chord_join::SegmentCurve`): a segment's second
+//! chord is its first chord's curve run back (θ ↦ −θ about the flipped
+//! axis) rather than a second arc selection from its own run. Measured
+//! by a scratch dump of every node's outcome and every point's interval
+//! bits, the merged tree with and without the change:
+//!
+//! - **f64 lane: unmoved**; the `f64` digest was not re-derived.
+//! - **Interval lane: every node outcome identical; 5 coordinates of
+//!   5 points moved, all in `die_composed` and `die_composed_tour`, and
+//!   every one got WIDER**, by 2.5× to 3.25× (4 to 25 ulps wide where
+//!   they were 4 to 8), endpoints moving at most 9 ulps. Each still
+//!   holds its value. The dump does not say which read of the
+//!   reversed carrier the widening enters through.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -721,7 +748,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x3e6e_20eb_6768_c4b8, 0x8b2f_473f_9e3f_e294),
+        (0x2c56_e0d4_0e39_6a57, 0x4c5d_4880_8e19_843b),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -747,7 +774,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x4148_d828_173b_7b16, 0x1dcc_30bb_4700_7e4a),
+        (0x10a8_6624_bf17_b15e, 0x454c_5202_c57e_03ba),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -771,7 +798,86 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x3e6e_20eb_6768_c4b8, 0x8b2f_473f_9e3f_e294),
+        (0x2c56_e0d4_0e39_6a57, 0x4c5d_4880_8e19_843b),
         "the corpus's Probe evaluation moved"
+    );
+}
+
+/// **The corpus's geometry, with every id masked**: per document, each
+/// node's outcome and its points' bits, the nodes sorted by what they
+/// hold rather than by id. Every other digest in this file feeds
+/// `id.0`, so a change to how ids are minted moves it with no point
+/// moving; this one moves only when an outcome or a point does.
+///
+/// It is the guard INTENT-VARS-1 PR 3's "geometry did not move" claim
+/// rested on: readers moved from names to ids, every id moved with the
+/// preimages, and this number — taken on main before the change and on
+/// the branch after it — did not.
+fn id_free_corpus_digest() -> (u64, u64) {
+    type Nodes = std::collections::BTreeMap<u64, (String, Vec<[u64; 3]>)>;
+    let mut docs: Vec<(String, Nodes)> = Vec::new();
+    let mut fixture = Digest::new();
+    walk::<f64>(|seen| match seen {
+        Seen::Fixture(i) => fixture.u64(i as u64),
+        Seen::FixtureLoop { vertices, .. } => fixture.u64(vertices as u64),
+        Seen::FixtureVertex { x, y, sweep, .. } => {
+            for c in [x, y, sweep] {
+                fixture.u64(c.to_bits());
+            }
+        }
+        Seen::FixtureRefused(_) => fixture.text("refused"),
+        Seen::Document(name) => docs.push((name.to_owned(), Nodes::new())),
+        Seen::Node { id, outcome, .. } => {
+            let outcome = match outcome {
+                Outcome::Poisoned { .. } => "poisoned",
+                Outcome::Failed => "failed",
+                Outcome::Ok { kind } => kind,
+            };
+            docs.last_mut()
+                .expect("a node is walked inside a document")
+                .1
+                .insert(id, (outcome.to_owned(), Vec::new()));
+        }
+        Seen::Point { id, p, .. } => docs
+            .last_mut()
+            .and_then(|(_, nodes)| nodes.get_mut(&id))
+            .expect("a point is walked under its node")
+            .1
+            .push(p.to_array().map(f64::to_bits)),
+    });
+    let mut d = Digest::new();
+    d.u64(fixture.lo);
+    d.u64(fixture.hi);
+    for (name, nodes) in docs {
+        d.text(&name);
+        let mut held: Vec<(String, Vec<[u64; 3]>)> = nodes
+            .into_values()
+            .map(|(outcome, mut points)| {
+                points.sort_unstable();
+                (outcome, points)
+            })
+            .collect();
+        held.sort();
+        for (outcome, points) in held {
+            d.text(&outcome);
+            d.u64(points.len() as u64);
+            for c in points.into_iter().flatten() {
+                d.u64(c);
+            }
+        }
+    }
+    (d.lo, d.hi)
+}
+
+/// **The fence with ids masked, at `f64`** ([`id_free_corpus_digest`]).
+#[test]
+fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
+    let got = id_free_corpus_digest();
+    println!("m10-p fence id-free: {got:016x?}");
+    assert_eq!(
+        got,
+        (0x7395_9181_b282_85fb, 0x45bd_7c42_dd6c_e53f),
+        "an outcome or a point of the corpus moved — every other row here also \
+         moves with ids, and this one does not"
     );
 }

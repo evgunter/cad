@@ -24,6 +24,7 @@ use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::test_support::{block, corners, prism, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
@@ -894,8 +895,8 @@ fn a_mixed_sense_chart_refuses_typed() {
     );
     let shared = body.get_face(outer).unwrap().surface;
     let inner_sense = body.get_face(inner).unwrap().sense;
-    // Lifts both refusals: a chart worn by faces of opposite sense is the row.
-    body.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: a chart worn by faces of opposite sense is the row.
+    body.set_face_surface_unvouched_for_tests(
         inner,
         topo::FaceSurface::Shared {
             key: shared,
@@ -1026,6 +1027,28 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
     ])
+}
+
+/// **Shelling the hand-built wall pair decides its caps' ring nesting.**
+/// Hollowing the annular elbow by `0.01` assembles a thin solid whose two
+/// planar end caps each carry a ring inside an outer loop with a spiric
+/// edge, every ring vertex inside the ball that spiric's arc lies in.
+/// Check 9 reads each ring against its outer loop across the spiric
+/// itself, so tier 3's one refusal is check 7's: the spiric-bounded
+/// cap's area (`Unimplemented`).
+#[test]
+fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
+    let by_hand = klein_elbow(vec![
+        circle_loop(KLEIN_R + KLEIN_WALL / 2.0),
+        circle_loop(KLEIN_R - KLEIN_WALL / 2.0),
+    ]);
+    let e = topo::shell(&by_hand, 0.01, Tol::witness()).expect_err("check 7's volume");
+    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
+    );
 }
 
 /// **The `r ± t/2` wall pair — and the wall that stops it retiring.**
@@ -2005,9 +2028,16 @@ fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
     )
     .validate(Tol::witness())
     .expect("a square with a square hole is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("the holed square extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the holed square extrudes")
+    .body
 }
 
 /// **The whole audit of one record, against the operand AND the result.**
@@ -2557,8 +2587,8 @@ fn the_record_is_a_function_of_the_construction() {
 }
 
 // **The ring-edge lookup's refusal has no row here, deliberately.** A
-// ring edge with no `inner_edges` row is `ShellError::Corrupt`, and it
-// is not constructible through these doors: the ring `kfmrh` returns is
+// ring edge with no `inner_edges` row is a kernel bug the verb panics
+// on, naming the edge (D2 row 4), and it is not constructible through these doors: the ring `kfmrh` returns is
 // the cavity counterpart's own outer loop, and the graft map wrote a
 // row for every cavity entity before the surgery began. Reaching it
 // would take a hand-built body planted past the doors, which would pin

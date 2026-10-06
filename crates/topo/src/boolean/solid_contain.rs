@@ -70,6 +70,9 @@
 //!   test). On a plane, an in-band elevation refuses only where `q`'s
 //!   foot on the plane is not definitely outside the face: a point in
 //!   band of a carrier far from its face is off that face.
+//! - **`bool_point_in_solid_sphere`**: the same pre-pass question on a
+//!   sphere face, the linearized radial residual `(|q − c|² − r²)/2r`
+//!   (metres).
 //! - **`bool_point_in_solid_denom`**: the parallel-ray gate, a length:
 //!   `d·n` per planar face, and a wall's `|d⊥|`, each levered by how far
 //!   from `q` the selection reaches (`selection_reach`), so the margin is
@@ -179,12 +182,16 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{
+    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3,
+    Sign, Vec3,
+};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
-use crate::entity::{FaceKey, LoopBoundary, SolidKey};
+use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
+use crate::live::linked;
 use crate::null::CurveGeom;
 use crate::splitting::containment::{
     LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
@@ -193,6 +200,7 @@ use crate::splitting::containment::{
 use crate::validate::decide;
 
 use super::rim_wedge::Rim;
+use super::sphere_region::{SphereFaceRegion, sphere_face_region};
 use super::surface_group::{
     WrapRims, coaxial_margins, off_axis, scope_members, surface_group, wrap_rims, wrap_rims_within,
 };
@@ -211,7 +219,13 @@ pub enum SolidContainment {
 }
 
 /// Typed failure of [`point_in_solid`].
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PointInSolidErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PointInSolidError {
     /// A predicate escalated (in-band margin).
     Escalated {
@@ -220,8 +234,8 @@ pub enum PointInSolidError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
-    /// Every schedule ray grazed — the query is ill-conditioned at
-    /// this ε.
+    /// Every schedule ray grazed, for a point the boundary pre-pass
+    /// placed off every face.
     RayExhausted,
     /// The at-infinity orientation probe found a (near-)zero signed
     /// volume — the body bounds no material to be inside of.
@@ -246,10 +260,10 @@ pub enum PointInSolidError {
     /// being classified against, so it needs a ray×surface crossing
     /// count per kind: `Plane` (its in-face walk), `Cylinder` (its wall
     /// outline, [`wall_outline`]), `Cone` (its chart trim), `Sphere` (a
-    /// closed group, or a face its chart
-    /// rectangle expresses) and `Torus` (a closed group, or a face its
-    /// two chart windows express) have one; `Nurbs` and `Approx` do
-    /// not.
+    /// closed group, or a trimmed face whose every edge is a certified
+    /// circle arc, [`super::sphere_region`]) and `Torus` (a closed group,
+    /// or a face its two chart windows express) have one; `Nurbs` and
+    /// `Approx` do not.
     ///
     /// **This door is BOX-BLIND on purpose and that is why the kind
     /// still matters here.** The operand gate is pair-scoped — a face
@@ -281,22 +295,17 @@ pub enum PointInSolidError {
     /// breaks down by source) leaves that question unanswerable, and
     /// this says so rather than reporting a HEALTHY body as broken.
     VolumeUncertified,
-    /// A `Sphere` face that is neither closed on its own surface nor
-    /// expressible as a chart RECTANGLE.
+    /// A `Sphere` face that is not closed on its own surface and has a
+    /// boundary edge that is not a circle arc.
     ///
-    /// Two classes answer: a face group closed against itself covers
-    /// the whole chart, so membership on the surface is membership in
-    /// the group; and a trimmed face whose every boundary edge is a
-    /// latitude rim or a meridian great circle is exactly the rectangle
-    /// `[azimuth] × [latitude]` its boundary pins, which
-    /// [`sphere_chart_trim`] reads. What reaches here is the
-    /// remainder — a ringed face, a boundary edge that is neither chart
-    /// class, an azimuth walk that wraps past a period, or a meridian
-    /// edge with a POLE strictly inside it, where latitude stops being
-    /// monotone along the edge and no fold over boundary levels can see
-    /// the face's own extreme.
+    /// A trimmed sphere face is read from its boundary arcs
+    /// ([`super::sphere_region`]): every crossing of a great circle with
+    /// a circle arc is the root of a first harmonic. An edge on any other
+    /// carrier — a spline, or the quartic a torus, a cylinder or a cone
+    /// whose axis misses the sphere's centre leaves on it — has no such
+    /// crossing here, and neither has an edge with no certified carrier.
     PartialSphereFace {
-        /// The sphere face the chart rectangle cannot express.
+        /// The sphere face whose outline the region reading cannot cross.
         face: FaceKey,
     },
     /// A `Cone` face in neither cone class: its surface group does not
@@ -482,11 +491,13 @@ impl core::fmt::Display for PointInSolidError {
                  to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
+            // The boundary pre-pass has placed the point off every face,
+            // so there is no coincidence to declare.
             Self::RayExhausted => write!(
                 f,
-                "cannot tell what is inside the solid: every test ray grazed its \
-                 boundary, so the question is ill-conditioned at this tolerance. \
-                 Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: the point is off its boundary, but \
+                 every test ray grazed one of its edges or vertices, or ran tangent to a \
+                 face's surface. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             // `PointInLoopError` is shared with the split, whose wrapper
             // states its own recourse; so the ray-exhausted arm carries
@@ -495,7 +506,7 @@ impl core::fmt::Display for PointInSolidError {
             // margin already ends in the shared recourse.
             Self::Loop(e @ crate::splitting::PointInLoopError::RayExhausted { .. }) => write!(
                 f,
-                "cannot tell what is inside the solid: {e}. Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: {e}. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
@@ -526,9 +537,9 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: one of its sphere faces has an \
                  outline the inside/outside test cannot read. The solid itself is fine. \
-                 Recourse: bound the sphere face with latitude circles and meridians \
-                 that meet at the poles, keep it whole, or trim it with cylinders or \
-                 planes"
+                 Recourse: cut the sphere face only where its edges are circles — with \
+                 planes, other spheres, or cylinders and cones whose axis passes \
+                 through its centre"
             ),
             Self::PartialConeFace { .. } => write!(
                 f,
@@ -575,10 +586,12 @@ impl std::error::Error for PointInSolidError {}
 /// [`plane_outward_normal`] — the callers of this door are handed a
 /// material direction, not a chart datum).
 ///
-/// Its one external consumer feeds the normal to [`point_in_face`],
-/// whose answer is ray-crossing parity and therefore blind to the
-/// normal's sign either way; threading here is what keeps the door's
-/// CONTRACT honest for the next consumer.
+/// Every consumer reads the normal's sign-blind content: each feeds it,
+/// directly or through a probe, to [`point_in_face`], whose answer is
+/// ray-crossing parity, and the join's tie (`sectors::runs_in`) also
+/// asks only whether a point's height over the plane is zero. Threading
+/// the sense here keeps the door's CONTRACT honest for a consumer that
+/// reads the sign.
 pub(crate) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -702,24 +715,20 @@ enum FaceGeo<T: geom_core::Real> {
         /// derived from the chart normal.
         sense: bool,
     },
-    /// A TRIMMED sphere face whose chart rectangle expresses it: the
-    /// same ray/sphere quadratic as [`FaceGeo::Sphere`], with each root
-    /// tested against the face's own `[azimuth] × [latitude]` window —
-    /// the cylinder arm's shape, on the sphere chart. Unlike the closed
-    /// group this arm IS per face: a trimmed face carries its own trim,
-    /// so two faces of one sphere surface contribute different
-    /// crossings and no representative stands in for the rest.
+    /// A TRIMMED sphere face: the same ray/sphere quadratic as
+    /// [`FaceGeo::Sphere`], with each root tested against the face's own
+    /// region, read from its boundary arcs
+    /// ([`super::sphere_region`]). Unlike the closed group this arm IS
+    /// per face: a trimmed face carries its own region, so two faces of
+    /// one sphere surface contribute different crossings and no
+    /// representative stands in for the rest.
     SpherePatch {
         /// The sphere's centre.
         center: Point3<T>,
         /// Its radius (positive by convention).
         radius: T,
-        /// The chart's polar axis.
-        axis: Vec3<T>,
-        /// The chart's seam direction.
-        u_ref: Vec3<T>,
-        /// The face's exact chart rectangle.
-        trim: SphereChartTrim<T>,
+        /// The face's region on the sphere.
+        region: SphereFaceRegion<T>,
         /// The face's orientation sense (S10) — `false` swaps the
         /// near/far crossing pair, as for the closed group.
         sense: bool,
@@ -812,8 +821,8 @@ pub(super) fn closed_sphere_group<T: Decide>(
 /// Resolves [`FaceGeo`]; kinds outside
 /// {Plane, Cylinder, Cone, Sphere, Torus} refuse as
 /// [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 — the spline
-/// kinds have no ray-crossing arm), and a TRIMMED sphere face
-/// the sphere chart cannot express as
+/// kinds have no ray-crossing arm), and a TRIMMED sphere face with a
+/// boundary edge that is not a circle arc as
 /// [`PointInSolidError::PartialSphereFace`]. Only a surface key that
 /// does not RESOLVE is corruption.
 fn face_geo<T: Decide>(
@@ -884,37 +893,28 @@ fn face_geo<T: Decide>(
                     .sense,
             })
         }
-        Some(&Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        }) => match closed_sphere_group(body, face, charts) {
-            Some(representative) => Ok(FaceGeo::Sphere {
-                center,
-                radius,
-                representative,
-                sense: body
-                    .get_face(representative)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .sense,
-            }),
-            // A TRIMMED sphere face is served through its own chart
-            // rectangle when the chart can express it, exactly as a
-            // trimmed cylinder wall is. Only a face outside that class
-            // keeps the refusal.
-            None => match sphere_chart_trim(body, face, center, radius, axis, band)? {
-                Some(trim) => Ok(FaceGeo::SpherePatch {
+        Some(&Surface::Sphere { center, radius, .. }) => {
+            match closed_sphere_group(body, face, charts) {
+                Some(representative) => Ok(FaceGeo::Sphere {
                     center,
                     radius,
-                    axis,
-                    u_ref,
-                    trim,
-                    sense: f.sense,
+                    representative,
+                    sense: body
+                        .get_face(representative)
+                        .ok_or(PointInSolidError::CorruptFace { face })?
+                        .sense,
                 }),
-                None => Err(PointInSolidError::PartialSphereFace { face }),
-            },
-        },
+                None => match sphere_face_region(body, face, center, radius)? {
+                    Some(region) => Ok(FaceGeo::SpherePatch {
+                        center,
+                        radius,
+                        region,
+                        sense: f.sense,
+                    }),
+                    None => Err(PointInSolidError::PartialSphereFace { face }),
+                },
+            }
+        }
         Some(&Surface::Torus {
             center,
             axis,
@@ -1207,6 +1207,15 @@ enum WallEdge<T: geom_core::Real> {
 /// [`PointInSolidError::CorruptFace`] for an unwalkable face;
 /// [`PointInSolidError::Escalated`] for an in-band class margin or a
 /// window a period wide.
+///
+/// # Panics
+///
+/// Where the outer loop, its walk, a boundary half-edge's edge or that
+/// edge's curve does not resolve (D2 row 4), in the image walk
+/// ([`crate::chord_join::face_azimuth_images`]): a torn curve is not a
+/// carrier the outline has no piece for. The bodies are at rest (the
+/// solid door) or the reduction's working copies, whose links hold by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 #[allow(clippy::too_many_arguments)] // one chart datum, each argument named
 pub(super) fn wall_outline<T: Decide>(
     body: &Body<T>,
@@ -1266,16 +1275,14 @@ pub(super) fn wall_outline<T: Decide>(
             .copied()
             .ok_or_else(corrupt)
     };
+    // A record miss past `face` answers `CorruptFace`, and a torn edge
+    // or curve panicked in the image walk, which read each carrier: the
+    // walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut edges = Vec::with_capacity(images.len());
     for (i, image) in images.iter().enumerate() {
-        let edge = body.get_half_edge(image.he).ok_or_else(corrupt)?.edge;
-        let carrier = body
-            .get_edge(edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::null::CurveGeom::certified)
-            .map(|c| c.carrier().clone());
-        let (point, normal, rim) = match carrier {
-            Some(geom::Curve3::Line { dir, .. }) => {
+        let (point, normal, rim) = match image.carrier {
+            geom::Curve3::Line { dir, .. } => {
                 if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
                     return unsupported();
                 }
@@ -1286,12 +1293,12 @@ pub(super) fn wall_outline<T: Decide>(
                 });
                 continue;
             }
-            Some(geom::Curve3::Circle {
+            geom::Curve3::Circle {
                 center,
                 axis: c_axis,
                 radius: c_radius,
                 u_ref: c_ref,
-            }) => {
+            } => {
                 let rim = Rim {
                     center,
                     axis: c_axis,
@@ -1303,13 +1310,13 @@ pub(super) fn wall_outline<T: Decide>(
                 }
                 (center, c_axis, true)
             }
-            Some(geom::Curve3::Ellipse {
+            geom::Curve3::Ellipse {
                 center,
                 axis: n,
                 major,
                 minor,
                 u_ref: major_dir,
-            }) => {
+            } => {
                 let cos = n.dot(axis);
                 if zero("bool_wall_section_tilt", sine(cos))?
                     || !zero(
@@ -2175,8 +2182,9 @@ pub(super) fn torus_face_windows<T: Decide>(
 /// loudly into `PartialTorusFace` rather than silently into a wrong
 /// window, which is why it is recorded rather than guarded.
 ///
-/// [`crate::chord_join`]'s `run_azimuth_window` is the same construction
-/// for the split/join lane. It is not shared with this one, and the
+/// [`crate::chord_join::face_azimuth_images`]' walk is the same
+/// construction for the cylinder, sphere and cone charts. It is not
+/// shared with this one, and the
 /// reason is not tidiness: that walk answers ONE channel (the azimuth)
 /// and carries the sphere chart's pole-junction rule, which is exactly
 /// what the torus does not need and cannot use; this one answers both
@@ -2187,6 +2195,12 @@ pub(super) fn torus_face_windows<T: Decide>(
 ///
 /// [`PointInSolidError::CorruptFace`] for an unwalkable face;
 /// [`PointInSolidError::Escalated`] when a chart image escalates.
+///
+/// # Panics
+///
+/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
+/// curve is not null scaffolding. The links hold at rest and, on the
+/// reduction's working copies, by [`crate::live::OPERATORS_KEEP_LINKS`].
 #[allow(clippy::type_complexity)] // the two channels of one walk
 fn torus_chart_windows<T: Decide>(
     body: &Body<T>,
@@ -2218,13 +2232,13 @@ fn torus_chart_windows<T: Decide>(
     // header's "the window is a box" paragraph).
     let mut variation = (T::zero(), T::zero());
     let mut first_entry: Option<(T, T)> = None;
+    // A record miss past `face` answers `CorruptFace` and a torn curve
+    // panics: the walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = body.edge_curve_linked(he_data.edge, edge).certified() else {
             // Null scaffolding: a zero-length coincident copy, carrying
             // no chart extent and no branch information. Stepped over
             // without breaking the chain, as the join lane's walk does.
@@ -2503,10 +2517,6 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 ///
 /// Restated (the mid direction through [`chart_dir`], the comparison or
 /// the guard written out):
-/// - [`point_on_sphere_in_face`] — the same `m̂`/`cos(w/2)` comparison
-///   inline, because its window is optional and is guarded by a POLE
-///   test that skips it entirely; the control flow differs even though
-///   the margin does not;
 /// - [`sphere_chart_trim`] — a meridian edge's own span: the period
 ///   guard as a class question, then the comparison run with `r̂ = ±â`
 ///   to find a pole inside the edge;
@@ -2978,9 +2988,12 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
     Ok(verdict)
 }
 
-/// **A sphere face's exact chart trim**: the azimuth window and the
-/// LATITUDE window, for the face class the sphere chart rectangle can
-/// actually express.
+/// **A sphere face's exact LATITUDE window**, for the face class the
+/// sphere chart rectangle can actually express — the window the
+/// splitter's latitude-zone reach bounds a face by
+/// (`splitting::classify`). Point containment does not read it: a
+/// trimmed sphere face's region is read from its boundary arcs
+/// ([`super::sphere_region`]).
 ///
 /// # The class
 ///
@@ -3040,6 +3053,13 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
 /// # Errors
 ///
 /// [`PointInSolidError`] — escalations from the class predicates.
+///
+/// # Panics
+///
+/// Where a boundary half-edge's edge or that edge's curve does not
+/// resolve (D2 row 4): a torn curve is not null scaffolding. The links
+/// hold at rest and, on the reduction's working copies, by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3075,6 +3095,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Sign::Positive | Sign::Negative => Ok(false),
         }
     };
+    // A record miss past `face` answers `CorruptFace` and a torn edge
+    // or curve panics: the walk's `CorruptFace` raises are
+    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut levels: Vec<(T, T)> = Vec::new();
     // A point's own exact meridian-half-plane pair.
     let pair = |p: Point3<T>| -> (T, T) {
@@ -3095,11 +3118,14 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
         levels.push(pair(v));
-        let certified = body
-            .get_edge(he_data.edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::null::CurveGeom::certified);
-        let Some(curve) = certified else {
+        let edge = linked(
+            &body.edges,
+            he_data.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        let Some(curve) = body.edge_curve_linked(he_data.edge, edge).certified() else {
             // Null scaffolding: no carrier, so no class claim and no
             // latitude of its own beyond the vertex above.
             continue;
@@ -3210,13 +3236,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             return Err(escalate(diag));
         }
         // A CORRUPTION-shaped refusal is not a class statement and must
-        // not wear one: `PartialSphereFace`'s message says the body is
-        // healthy and merely outside the served class, and a key the
-        // walk could not resolve, or a boundary that does not close,
-        // would be wearing that sentence falsely. The arena claim keeps
-        // its own door — the same distinction `bool_planar_chord_spec`
-        // draws between a key that does not resolve and a key of the
-        // wrong kind.
+        // not wear one: a key the walk could not resolve, or a boundary
+        // that does not close, keeps the arena claim's own door — the
+        // same distinction `bool_planar_chord_spec` draws between a key
+        // that does not resolve and a key of the wrong kind.
         Err(crate::chord_join::SplitJoinError::Corrupt { .. })
         | Err(crate::chord_join::SplitJoinError::UnpairedLooseEnds { .. }) => {
             return Err(PointInSolidError::CorruptFace { face });
@@ -3233,8 +3256,13 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // window that reads a whole turn on a face that does not wrap alone
     // has a gap the window cannot see (a zone merged with half a cap),
     // and one wider than a period is a walk that wrapped more than once.
-    // Both are out of the class.
-    let az = if wrap_rims(
+    // Both are out of the class. The gate is also what keeps the
+    // LATITUDE window sound: latitude's only critical points are the
+    // poles, so the boundary's levels bound the face unless it encloses
+    // one, and a loop of rims and meridians that steps around a pole is
+    // exactly a walk reading a whole turn on a face that does not wrap
+    // alone.
+    if wrap_rims(
         body,
         face,
         WrapRims::Coaxial {
@@ -3243,10 +3271,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         },
         band,
     )?
-    .is_some()
+    .is_none()
     {
-        None
-    } else {
         match decide(
             "bool_sphere_trim_period",
             Margin::levered(T::tau() - (raw.1 - raw.0), radius),
@@ -3254,28 +3280,25 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         )
         .map_err(escalate)?
         {
-            Sign::Positive => Some(raw),
+            Sign::Positive => {}
             Sign::Zero | Sign::Negative => return Ok(None),
         }
-    };
-    Ok(Some(SphereChartTrim { az, north, south }))
+    }
+    Ok(Some(SphereChartTrim { north, south }))
 }
 
-/// A sphere face's chart rectangle: the azimuth window and the two
-/// extreme latitudes, each as its exact `(axial, radial)` pair on the
-/// meridian half-plane.
+/// The latitude half of a sphere face's chart rectangle: its two extreme
+/// latitudes, each as its exact `(axial, radial)` pair on the meridian
+/// half-plane.
 ///
-/// A `None` window END is a constraint the face does not have, not a
-/// missing datum: a face attaining every azimuth cannot be excluded by
-/// an azimuth, and a latitude window that reaches a POLE cannot be
-/// excluded on that side — every latitude is at least the north pole's
-/// and at most the south pole's. Carrying those as `None` rather than
-/// as a margin against the pole is what keeps the margins honest:
-/// `sin(v - v_pole)` degenerates to `sin v`, which is Zero at BOTH
-/// poles and would call the far pole a graze.
+/// A `None` END is a constraint the face does not have, not a missing
+/// datum: a latitude window that reaches a POLE cannot be excluded on
+/// that side — every latitude is at least the north pole's and at most
+/// the south pole's. Carrying those as `None` rather than as a margin
+/// against the pole is what keeps the margins honest: `sin(v - v_pole)`
+/// degenerates to `sin v`, which is Zero at BOTH poles and would call the
+/// far pole a graze.
 pub(crate) struct SphereChartTrim<T> {
-    /// The azimuth window, or `None` for a full period.
-    pub az: Option<(T, T)>,
     /// The extreme latitude nearest the `+axis` pole, or `None` when
     /// the face reaches that pole.
     pub north: Option<(T, T)>,
@@ -3409,85 +3432,18 @@ fn latitude_extremes<T: Decide>(
     Ok(Some((lo, hi)))
 }
 
-/// Is the ON-SPHERE point `p` within the sphere face's chart trim?
-/// `Some(true/false)` definite, `None` a boundary graze.
-///
-/// The azimuth half is THE cosine-window construction — the argument
-/// (period guard, `r̂·m̂ ≥ cos(w/2)`, `· radius` metering, ledger row
-/// F8) is stated at [`point_on_wall_in_face`], which enumerates every
-/// site. This one RESTATES it inline rather than calling the shared
-/// [`chart_azimuth_margin`]: the window here is optional and is
-/// guarded by a pole test that skips it, so the control flow differs
-/// even though the margin does not. A change to the construction is
-/// therefore a change HERE TOO, by hand — sharing the body would buy
-/// that automatically and is the obvious follow-on, not done in
-/// passing because it moves a shipped margin's call site. A face with
-/// no azimuth window attains every azimuth and skips the test.
-///
-/// The latitude half is the sine margin of [`sphere_chart_trim`]'s
-/// header: `R sin(v − v_lo)` and `R sin(v_hi − v)`, both arc lengths,
-/// both bounded below by the geodesic distance to the window edge even
-/// when that edge is a pole.
-#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
-pub(super) fn point_on_sphere_in_face<T: Decide>(
-    face: FaceKey,
-    center: Point3<T>,
-    radius: T,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    trim: &SphereChartTrim<T>,
-    p: Point3<T>,
-    band: Band,
-) -> Result<Option<bool>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let half = T::from_f64(0.5);
-    let w = p - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let here = (height, radial.norm());
-    let mut margins: Vec<Margin<T>> = [
-        trim.north
-            .map(|n| Margin::levered(latitude_sine(n, here, radius), radius)),
-        trim.south
-            .map(|s| Margin::levered(latitude_sine(here, s, radius), radius)),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    if let Some((w_min, w_max)) = trim.az {
-        let width = w_max - w_min;
-        let m_hat = chart_dir(axis, u_ref, geom::mid_param(w_min, w_max));
-        let (_, c_h) = (width * half).sin_cos();
-        // The azimuth direction is the radial one, and at a POLE there
-        // is none: every azimuth meets there, so the window cannot
-        // exclude the point and the test is skipped rather than run on
-        // a direction that does not exist. The latitude margins above
-        // still decide the pole, exactly.
-        match decide("bool_sphere_trim_pole", Margin::of(radial.norm()), band).map_err(escalate)? {
-            Sign::Positive => {
-                let r_hat = radial / radial.norm();
-                margins.push(Margin::levered(r_hat.dot(m_hat) - c_h, radius));
-            }
-            Sign::Zero | Sign::Negative => {}
-        }
-    }
-    let mut verdict = Some(true);
-    for margin in margins {
-        match decide("bool_sphere_trim", margin, band).map_err(escalate)? {
-            Sign::Positive => {}
-            Sign::Negative => return Ok(Some(false)),
-            Sign::Zero => verdict = None, // boundary graze
-        }
-    }
-    Ok(verdict)
-}
-
 /// Is `p` (already in the face's plane) within the face's region —
 /// inside the outer loop and outside every ring? `OnBoundary` from any
 /// loop is reported as `None` (graze). Each loop is read on its edges'
 /// own carriers ([`point_in_loop_projected`]); a loop the walk can only
 /// answer outside its reach is [`PointInSolidError::EdgeCarrierUnsupported`]
 /// where `p` could land in it.
+///
+/// # Panics
+///
+/// Where a loop `face` lists does not resolve (D2 row 4): a torn outer
+/// loop is not an empty one. The links hold at rest and, on the
+/// reduction's working copies, by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn point_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3500,10 +3456,9 @@ pub(crate) fn point_in_face<T: Decide>(
         .ok_or(PointInSolidError::CorruptFace { face })?;
     // An empty outer loop bounds no region (mid-op scaffolding never
     // reaches this query; treat as no-hit).
-    if matches!(
-        body.get_loop(f.outer).map(|l| l.boundary),
-        Some(LoopBoundary::Empty { .. }) | None
-    ) {
+    let boundary =
+        |lk, field| linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary;
+    if matches!(boundary(f.outer, "outer"), LoopBoundary::Empty { .. }) {
         return Ok(Some(false));
     }
     let region = |lk| -> Result<LoopContainment, PointInSolidError> {
@@ -3520,10 +3475,7 @@ pub(crate) fn point_in_face<T: Decide>(
         LoopContainment::In => {}
     }
     for &ring in &f.rings {
-        if matches!(
-            body.get_loop(ring).map(|l| l.boundary),
-            Some(LoopBoundary::Empty { .. })
-        ) {
+        if matches!(boundary(ring, "rings"), LoopBoundary::Empty { .. }) {
             continue; // a lone ring vertex excludes no area
         }
         match region(ring)? {
@@ -3547,7 +3499,7 @@ pub(crate) fn point_in_face<T: Decide>(
 ///
 /// [`PointInSolidError`] — escalation, ray exhaustion, or a
 /// non-planar/corrupt face.
-pub fn point_in_solid<T: Decide>(
+pub fn point_in_solid<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     q: Point3<T>,
     band: Band,
@@ -3572,7 +3524,7 @@ pub fn point_in_solid<T: Decide>(
 /// [`PointInSolidError`] — the core's, plus
 /// [`PointInSolidError::NoSuchSolid`] for a key the body does not hold
 /// and [`PointInSolidError::ZeroVolumeBody`] for a solid with no faces.
-pub fn point_in_solid_of<T: Decide>(
+pub fn point_in_solid_of<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     solid: SolidKey,
     q: Point3<T>,
@@ -3598,6 +3550,10 @@ pub fn point_in_solid_of<T: Decide>(
 pub struct SolidFaces {
     faces: Vec<FaceKey>,
     charts: ChartGroups,
+    /// The side a ray that crosses nothing reads, when the selection's
+    /// role is already decided ([`SolidFaces::with_role`]); `None`
+    /// reads it off the selection's closed-form signed volume.
+    at_infinity: Option<SolidContainment>,
 }
 
 impl SolidFaces {
@@ -3643,7 +3599,29 @@ impl SolidFaces {
     fn select<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
         let charts = ChartGroups::within(body, faces.iter().copied())
             .map_err(|face| PointInSolidError::CorruptFace { face })?;
-        Ok(Self { faces, charts })
+        Ok(Self {
+            faces,
+            charts,
+            at_infinity: None,
+        })
+    }
+
+    /// This selection with its role already decided — an `Outer`
+    /// boundary leaves infinity outside its material, a `Void` inside —
+    /// so a ray that crosses nothing reads that side instead of
+    /// re-deriving it from the closed-form signed volume, which an
+    /// obliquely trimmed curved face does not certify. The role is the
+    /// same fact either way; a reader that decided it through the
+    /// quadrature lane (`crate::validate::ShellRead`) hands it over.
+    pub(crate) fn with_role(self, role: crate::props::ShellRole) -> Self {
+        let side = match role {
+            crate::props::ShellRole::Outer => SolidContainment::Out,
+            crate::props::ShellRole::Void => SolidContainment::In,
+        };
+        Self {
+            at_infinity: Some(side),
+            ..self
+        }
     }
 
     /// The selected faces, in face-arena order.
@@ -3659,7 +3637,7 @@ impl SolidFaces {
 ///
 /// The core's ([`point_in_solid`]'s), plus
 /// [`PointInSolidError::ZeroVolumeBody`] for an empty selection.
-pub fn point_in_solid_faces<T: Decide>(
+pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
     q: Point3<T>,
@@ -3676,7 +3654,7 @@ pub fn point_in_solid_faces<T: Decide>(
 /// names: no face means no enclosure, and the at-infinity fold would
 /// read the volume of nothing as exactly zero — there is no material
 /// side to classify against.
-fn point_in_faces<T: Decide>(
+fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
     q: Point3<T>,
@@ -3825,31 +3803,28 @@ fn point_in_faces<T: Decide>(
                 }
                 let elev =
                     ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
                     return Ok(SolidContainment::OnBoundary);
                 }
             }
             // The TRIMMED sphere arm: a Zero radial residual puts `q`
-            // on the CARRIER, and the face's own chart rectangle then
-            // says whether it is on THIS face (a trim graze counts as
-            // ON, as it does for the cylinder wall).
+            // on the CARRIER, and the face's own region then says
+            // whether it is on THIS face (a point on the region's
+            // boundary counts as ON, as it does for the cylinder wall).
             FaceGeo::SpherePatch {
                 center,
                 radius,
-                axis,
-                u_ref,
-                ref trim,
+                ref region,
                 sense: _, // a residual against Zero: orientation-free
             } => {
                 let elev =
                     ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                if decide("bool_point_in_solid_sphere", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
-                    match point_on_sphere_in_face(face, center, radius, axis, u_ref, trim, q, band)?
-                    {
+                    match region.contains(face, q, band)? {
                         Some(true) | None => return Ok(SolidContainment::OnBoundary),
                         Some(false) => {}
                     }
@@ -4811,7 +4786,7 @@ fn ray_passes_beside<T: Decide>(
 }
 
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
-fn cast_ray<T: Decide>(
+fn cast_ray<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
     q: Point3<T>,
@@ -5209,16 +5184,14 @@ fn cast_ray<T: Decide>(
             }
             // The TRIMMED sphere face: the same quadratic, the same
             // read-off outward pair, with each root filtered through
-            // the face's own chart rectangle — the cylinder arm's
-            // shape. A root outside the trim is not a crossing of THIS
-            // face; a root ON its boundary is a graze the schedule
-            // retries, never a parity guess.
+            // the face's own region. A root outside it is not a
+            // crossing of THIS face; a root ON its boundary is a graze
+            // the schedule retries, never a parity guess, and so is a
+            // root the region cannot place at this ε.
             FaceGeo::SpherePatch {
                 center,
                 radius,
-                axis,
-                u_ref,
-                ref trim,
+                ref region,
                 sense,
             } => {
                 let [near, far] =
@@ -5232,8 +5205,7 @@ fn cast_ray<T: Decide>(
                     (far, oriented(Sign::Positive, sense)),
                 ] {
                     let p = q + d * t;
-                    match point_on_sphere_in_face(face, center, radius, axis, u_ref, trim, p, band)?
-                    {
+                    match region.contains(face, p, band).map_err(RayFault::at_hit)? {
                         Some(false) => continue,
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}
@@ -5341,7 +5313,10 @@ fn cast_ray<T: Decide>(
         Some((_, Sign::Positive)) => Ok(Some(SolidContainment::In)),
         Some((_, _)) => Ok(Some(SolidContainment::Out)),
         // No crossing: q is on the at-infinity side (module docs).
-        None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
+        None => match sel.at_infinity {
+            Some(side) => Ok(Some(side)),
+            None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
+        },
     }
 }
 
@@ -5359,15 +5334,18 @@ fn cast_ray<T: Decide>(
 /// orientation — the body's total would read the other instances'
 /// volumes into this solid's side, and would refuse this solid for a
 /// neighbour's uncertifiable face.
-fn at_infinity_side<T: Decide>(
+fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    // Closed-form lane: this door is `T: Decide` and holds no
-    // quadrature lane, so an obliquely trimmed face refuses here
-    // (`work/contact/at-infinity-probe-measures-in-closed-form-only`).
+    use crate::props::{Certified, ShellRole};
+    // Measured in closed form, so an obliquely trimmed face refuses here
+    // (`work/contact/at-infinity-probe-measures-in-closed-form-only`);
+    // the sign is certified through the scalar's own lane
+    // ([`crate::props::Round::certify`]), so a volume below its own
+    // rounding reads no side rather than a wrong one.
     //
     // The props refusal is READ, not flattened. `VolumeUncertified`'s
     // own message asserts that the solid itself is fine and only its
@@ -5376,58 +5354,80 @@ fn at_infinity_side<T: Decide>(
     // ill-conditioned operand at this ε (with a predicate name and a
     // band the caller can act on), and the corruption-shaped arms are
     // arena claims about a BROKEN body. Each keeps its own door.
-    let props =
-        crate::props::mass_properties_closed_form_of(body, faces, band, tol).map_err(|e| {
-            match e {
-                // An escalation stays an escalation, carrying its
-                // diagnostics and the face it happened on.
-                crate::props::MassPropsError::Face {
-                    face,
-                    source: geom_brep::props::PropsError::Escalated { cause },
-                } => PointInSolidError::Escalated { face, diag: cause },
-                // Corruption-shaped: a face whose area enclosure will not
-                // certify a positive extent, a key the props walk could not
-                // resolve, or null scaffolding in a body being classified
-                // AT REST. None of these is "healthy body, missing
-                // capability".
-                crate::props::MassPropsError::Face {
-                    face,
-                    source: geom_brep::props::PropsError::DegenerateFace,
-                } => PointInSolidError::CorruptFace { face },
-                crate::props::MassPropsError::Corrupt { .. }
-                | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
-                    PointInSolidError::CorruptFace { face: faces[0] }
-                }
-                // The remainder IS the capability gap the variant
-                // describes: a boundary outside the iso-rectangle
-                // inventory (the standing rimless-lune case), a ring on a
-                // curved face, an unimplemented kind, a quadrature that
-                // would not converge inside its budget, a band that would
-                // not construct. A HEALTHY body, and a missing volume.
-                crate::props::MassPropsError::Band { .. }
-                | crate::props::MassPropsError::RingOnCurvedFace { .. }
-                | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
-            }
-        })?;
-    let margin = Margin::over_lever(props.volume, props.surface_area);
-    let sign = decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
-        PointInSolidError::Escalated {
+    let refused = |e| match e {
+        // An escalation stays an escalation, carrying its
+        // diagnostics and the face it happened on.
+        crate::props::MassPropsError::Face {
+            face,
+            source: geom_brep::props::PropsError::Escalated { cause, .. },
+        } => PointInSolidError::Escalated { face, diag: cause },
+        // Corruption-shaped: a face whose area enclosure will not
+        // certify a positive extent, a key the props walk could not
+        // resolve, or null scaffolding in a body being classified
+        // AT REST. None of these is "healthy body, missing
+        // capability".
+        crate::props::MassPropsError::Face {
+            face,
+            source: geom_brep::props::PropsError::DegenerateFace,
+        } => PointInSolidError::CorruptFace { face },
+        crate::props::MassPropsError::Corrupt { .. }
+        | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
+            PointInSolidError::CorruptFace { face: faces[0] }
+        }
+        // The remainder IS the capability gap the variant
+        // describes: a boundary outside the iso-rectangle
+        // inventory (the standing rimless-lune case), a ring on a
+        // curved face, an unimplemented kind, a quadrature that
+        // would not converge inside its budget, a band that would
+        // not construct. A HEALTHY body, and a missing volume.
+        crate::props::MassPropsError::Band { .. }
+        | crate::props::MassPropsError::RingOnCurvedFace { .. }
+        | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
+    };
+    let undecided = |unread: crate::props::RoleUnread| match unread.escalation() {
+        Some(diag) => PointInSolidError::Escalated {
             face: faces[0],
             diag,
-        }
-    })?;
-    // The closed form carries no pad: one sign, read at both ends. An
-    // `Outer` boundary leaves infinity outside its material, a `Void`
+        },
+        None => PointInSolidError::ZeroVolumeBody,
+    };
+    let last = core::cell::Cell::new(None);
+    let (role, _) = crate::props::sign_walk(
+        body,
+        faces,
+        band,
+        tol,
+        None,
+        T::quad_lane(),
+        |round| match round.certify(AT_INFINITY, AT_INFINITY_ENCLOSURE) {
+            Certified::Role(role) => Some(Ok(role)),
+            Certified::Refused(source) => Some(Err(refused(source))),
+            Certified::Open(unread) | Certified::Unresolved(unread) => {
+                last.set(Some(unread));
+                None
+            }
+        },
+        |_| match last.get() {
+            Some(unread) => Err(undecided(unread)),
+            None => unreachable!("a sign walk settles every round it reads"),
+        },
+    )
+    .map_err(refused)?;
+    // An `Outer` boundary leaves infinity outside its material, a `Void`
     // one inside.
-    use crate::props::{BracketEnd, ShellRole};
-    match ShellRole::decided_at(BracketEnd::Low, sign)
-        .or_else(|| ShellRole::decided_at(BracketEnd::High, sign))
-    {
-        Some(ShellRole::Outer) => Ok(SolidContainment::Out),
-        Some(ShellRole::Void) => Ok(SolidContainment::In),
-        None => Err(PointInSolidError::ZeroVolumeBody),
+    match role? {
+        ShellRole::Outer => Ok(SolidContainment::Out),
+        ShellRole::Void => Ok(SolidContainment::In),
     }
 }
+
+/// The side-at-infinity decision's names on the walk's sums.
+const AT_INFINITY: crate::props::RoleNames =
+    crate::props::RoleNames::one("bool_point_in_solid_infinity");
+
+/// The side-at-infinity decision's name on the interval re-derivation.
+const AT_INFINITY_ENCLOSURE: crate::props::RoleNames =
+    crate::props::RoleNames::one("bool_point_in_solid_infinity_enclosure");
 
 #[cfg(test)]
 #[path = "r1_probes.rs"]
@@ -5659,6 +5659,99 @@ mod wall_root_rows {
         assert!(
             t0 < -1.0 && t1 > 1.0,
             "the roots lie beyond the unit run: {t0}, {t1}"
+        );
+    }
+}
+
+/// **The chart walks panic on a torn boundary curve**, where
+/// `torus_chart_windows` stepped over it as null scaffolding and
+/// `wall_outline` read it as a carrier the outline has no piece for.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::entity::GeomRef;
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    /// Drops the curve of the first edge of `face`'s outer walk.
+    fn drop_first_curve(body: &mut Body<f64>, face: FaceKey) -> String {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the fixture's loop is a cycle");
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        )
+    }
+
+    #[test]
+    fn the_torus_window_panics_on_a_torn_curve() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let (mut body, face) = crate::boolean::boxes::tests::torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            2.0,
+            0.5,
+            (0.3, 1.9),
+            (-0.7, 0.8),
+        );
+        assert!(
+            torus_chart_windows(&body, face, band).unwrap().is_some(),
+            "the sound wall windows"
+        );
+        let named = drop_first_curve(&mut body, face);
+        assert_torn_op_panics(
+            "torus_chart_windows",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| torus_chart_windows(b, face, band).map(|w| w.is_some()),
+        );
+    }
+
+    #[test]
+    fn the_wall_outline_panics_on_a_torn_curve() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        let outline = |b: &Body<f64>| {
+            wall_outline(
+                b,
+                face,
+                Point3::origin(),
+                Vec3::unit_z(),
+                1.0,
+                (0.2, 1.4),
+                (0.0, 1.0),
+                band,
+            )
+            .map(|o| matches!(o, WallOutline::Unsupported { .. }))
+        };
+        assert_eq!(
+            outline(&body).ok(),
+            Some(false),
+            "the sound wall has an outline"
+        );
+        let named = drop_first_curve(&mut body, face);
+        assert_torn_op_panics(
+            "wall_outline",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| outline(b),
         );
     }
 }

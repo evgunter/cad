@@ -7,6 +7,7 @@
 //! diagnosis is a function of both).
 #![allow(dead_code)] // shared across test binaries
 
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
     ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
@@ -60,6 +61,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -108,7 +110,7 @@ where
         doc,
         Node::Pattern {
             input: u,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -164,7 +166,7 @@ where
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(1),
+            expr: editor_core::Formula::count(1),
         },
     );
     let ev3 = run::<T>(&doc3, Some(&ev1));
@@ -222,6 +224,7 @@ where
         Node::Extrude {
             profile: up,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (docu, us) = insert(

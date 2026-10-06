@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use crate::wire::doctored;
@@ -62,6 +63,7 @@ pub(crate) fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -85,6 +87,19 @@ fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeN
 fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
     match &ev.value(id).expect("the node evaluated").payload {
         ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => (**contacts).clone(),
+        other => panic!("expected a boolean body, got {other:?}"),
+    }
+}
+
+/// The tier-3′ verdict on a boolean node's value, over its own records.
+pub(crate) fn census_of(
+    ev: &Evaluation<f64>,
+    id: RecipeNodeId,
+) -> Result<(), Vec<topo::ValidationError>> {
+    match &ev.value(id).expect("the node evaluated").payload {
+        ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
+            topo::validate_pseudomanifold(body, contacts, Tol::witness()).map(|_| ())
+        }
         other => panic!("expected a boolean body, got {other:?}"),
     }
 }
@@ -527,7 +542,7 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
     // `Fragment`: the union names a member edge's pieces by their ends
     // over the finished body (`emit_union::group_member_edges`), and
     // qualifies them where that member edge is held in several pieces,
-    // which is `a`'s in both orders.
+    // which is the A-side member's in both orders.
     let fragmented_members = |ev: &Evaluation<f64>, id: RecipeNodeId| {
         let mut out: Vec<RecipeNodeId> = table(ev, id)
             .iter()
@@ -541,8 +556,12 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
         out.dedup();
         out
     };
-    assert_eq!(fragmented_members(&ev, union), vec![a]);
-    assert_eq!(fragmented_members(&ev2, union2), vec![a]);
+    // The A side is the lower member id (the union's pair fold), and
+    // ids are digests of the mint chain, so which of the two it is is
+    // read off the ids rather than pinned.
+    let a_side = a.min(b);
+    assert_eq!(fragmented_members(&ev, union), vec![a_side]);
+    assert_eq!(fragmented_members(&ev2, union2), vec![a_side]);
     // The two documents are built separately, so the ids are the same
     // ones in the same seats: `a` is the first block of both.
     assert_eq!((a, b), (a2, b2));
@@ -1083,6 +1102,35 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     );
     let ev = run(&doc);
     assert!(failure(&ev, chain1).is_none(), "{:?}", failure(&ev, chain1));
+    // The claim is the member's own end-cap vertex on its own start cap,
+    // which its geometry does not confirm: every value that carries the
+    // record ships it unconfirmed, and tier 3′ refuses it there; the
+    // door gates at tier 3 only (the census is parked,
+    // `work/reach/boolean-door-runs-the-census-over-its-result.md`).
+    // Pinned as it stands
+    // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`);
+    // red when the record is confirmed or refused where it is fed.
+    for (what, id, carries) in [
+        ("pair", pair, true),
+        ("last", last, true),
+        ("first", first, false),
+        ("chain0", chain0, true),
+        ("chain1", chain1, false),
+    ] {
+        match census_of(&ev, id) {
+            Ok(()) => assert!(!carries, "{what}: carries the record and passes 3′"),
+            Err(errors) => assert!(
+                carries
+                    && matches!(
+                        errors.as_slice(),
+                        [topo::ValidationError::StaleContactDeclaration {
+                            declaration: topo::StaleDeclaration::VertexOnFace { .. }
+                        }]
+                    ),
+                "{what}: 3′ refuses the unconfirmed vertex-on-face record only: {errors:?}"
+            ),
+        }
+    }
     let (fold, chain) = (contacts_of(&ev, first), contacts_of(&ev, chain1));
     assert_eq!(
         (fold.b_on_a.len(), fold.a_on_b.len()),

@@ -66,6 +66,7 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use test_utils::fuzz;
 
@@ -509,6 +510,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let slab = r.insert(Node::Extrude {
         profile: plate,
         distance: len(0.25),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
@@ -519,6 +521,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let boss = r.insert(Node::Extrude {
         profile: boss_profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let fused = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Union,

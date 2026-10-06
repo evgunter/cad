@@ -19,6 +19,7 @@ use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitReduceError, split};
@@ -34,9 +35,16 @@ fn cylinder_body() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 #[test]
@@ -48,6 +56,7 @@ fn the_tangent_graze_resolves_past_first_order() {
     // those predicates.
     use geom_core::k_stats::Bracket;
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.5, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
@@ -95,6 +104,7 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
     // neighborhood at THAT vertex ties at first order the same way.
     // Pin: never the first-order refusals.
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
@@ -128,9 +138,16 @@ fn filleted_block() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 #[test]

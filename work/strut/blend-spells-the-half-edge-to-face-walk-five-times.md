@@ -57,8 +57,9 @@ sites are `work/helper/the-half-edge-to-face-walk-is-spelled-per-test-file.md`.
 ## The edge-level door, and what it took (TQUERY, 2026-10-02)
 
 `topo::readback::edge_sides(body, edge)` now answers an edge's two
-sides (face and surface key each, `he_plus`'s first, a `DanglingRef`
-refusal). The tquery branch routed through it: `battery.rs`
+sides (face and surface key each, `he_plus`'s first; a typed refusal
+for the caller's stale edge only, a panic naming the record for a
+record hop that misses). The tquery branch routed through it: `battery.rs`
 `edge_surfaces`, `resolve_link`'s face pair and `cap_incidence`'s
 `faces_of` (so `battery.rs` `face_of` is gone), `surgery.rs`
 `edge_faces` and the surface pair in the rim-contact check, and

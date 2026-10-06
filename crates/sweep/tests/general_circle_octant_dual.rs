@@ -9,7 +9,9 @@
 
 use geom_core::{Affine3, Dual, Dual64, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
@@ -27,9 +29,16 @@ fn oblique_clip() -> Body<Dual64> {
         let profile = Profile::new(SketchPlane::<Dual64>::xy(), vec![lp.map_scalar(lift)])
             .validate(Tol::witness())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(lift(h)), Tol::witness())
-            .unwrap()
-            .body
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: lift(h),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
@@ -52,8 +61,8 @@ fn oblique_clip() -> Body<Dual64> {
     .unwrap();
     boolean_op_with(
         BooleanOp::Intersect,
-        &c1,
-        &c2,
+        &finished("the unit cube", c1, Tol::witness()),
+        &finished("the tilted cube", c2, Tol::witness()),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         Tol::witness(),
@@ -63,6 +72,7 @@ fn oblique_clip() -> Body<Dual64> {
     .expect("a body")
     .body
     .clone()
+    .into_body()
 }
 
 /// Red if a doorless scalar's mint refuses the faces only the fitted

@@ -36,3 +36,12 @@ azimuths 0 and π refuses typed (`CurvedSectorSideUnsupported`), as does
 the V built as a union of two cut halves (`CurvedPierceUnsupported`).
 Owner by path is unclear (`boolean/ops.rs` is reach's, `boolean/join.rs`
 zip's), so this is filed here.
+
+## Re-run 2026-10-04 (PR 4029)
+
+`StaleKey` is deleted, and a driver that forwards an argument miss now
+panics (`EulerOpError::from_driver`), so this repro was re-run on that
+PR's head (merged with main) to check it does not panic: the snippet
+above, as a throwaway row in `crates/sweep/tests/`, answers `Ok(_)`.
+The result's shape was not checked; whoever closes this row checks it
+and finds which change made the Boolean succeed.

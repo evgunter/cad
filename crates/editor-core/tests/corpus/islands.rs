@@ -41,6 +41,7 @@
 //!   strictly inside both the tube's `[0.5,3]` and the pillar's
 //!   `[0.75,2.75]`, so the cross section is constant through it)
 
+use editor_core::ExtrudeSide;
 use editor_core::{BooleanOp, DocEdit, Node, RecipeNodeId, SlotId};
 
 use crate::fixture::len;
@@ -58,6 +59,7 @@ fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), z: f64, h: f64) -> Reci
     r.insert(Node::Extrude {
         profile: p,
         distance: len(h),
+        side: ExtrudeSide::Along,
     })
 }
 

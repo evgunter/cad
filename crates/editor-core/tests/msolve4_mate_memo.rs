@@ -16,6 +16,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use std::sync::Arc;
 
@@ -49,6 +52,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -63,31 +67,49 @@ const BLOCK_HEIGHT: f64 = 2.0;
 
 /// A mate frame ON the base's top cap at `(x, y)`, axis along that
 /// cap's OUTWARD normal.
-fn base_frame(x: f64, y: f64) -> MateFrame {
-    MateFrame::authored([x, y, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn base_frame(x: f64, y: f64) -> MateFrame<Formula> {
+    MateFrame::authored(
+        [x, y, BASE_HEIGHT],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A block's bottom-cap corner, axis along THAT cap's outward normal,
 /// which points DOWN in the block's own part coordinates. The two
 /// outward normals and `Opposed` are what make this a physical seat:
 /// the block stands ON what it is mated to.
-fn block_bottom() -> MateFrame {
-    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0])
+fn block_bottom() -> MateFrame<Formula> {
+    MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, -1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A block's TOP-cap corner, axis along that cap's outward normal.
-fn block_top() -> MateFrame {
-    MateFrame::authored([0.0, 0.0, BLOCK_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn block_top() -> MateFrame<Formula> {
+    MateFrame::authored(
+        [0.0, 0.0, BLOCK_HEIGHT],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A `Rest` mate seating `b`'s frame on `a`'s.
 fn seat(
     a: SitedFace,
     b: SitedFace,
-    a_frame: MateFrame,
-    b_frame: MateFrame,
+    a_frame: MateFrame<Formula>,
+    b_frame: MateFrame<Formula>,
     primitive: MatePrimitive,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -151,7 +173,7 @@ fn scene(label: &str) -> Scene {
 
 impl Scene {
     /// Inserts `node`, answering its id.
-    fn add(&mut self, node: Node<editor_core::ProfileProgram>) -> RecipeNodeId {
+    fn add(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let (doc, id) = insert(self.doc.clone(), node);
         self.doc = doc;
         id

@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Node, PatternKind, PersistError,
@@ -47,6 +48,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, extrude)
@@ -79,6 +81,7 @@ fn row1a_no_consumer_insert_appends() {
         Node::Extrude {
             profile: p0,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_eq!(
@@ -357,7 +360,7 @@ fn row3b_pattern_root_gathers_n_solids_with_provenance() {
         doc,
         Node::Pattern {
             input: extrude,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),
@@ -605,6 +608,7 @@ fn row6c_replay_rebuilds_the_root_list() {
             Box::new(Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             }),
         );
     }

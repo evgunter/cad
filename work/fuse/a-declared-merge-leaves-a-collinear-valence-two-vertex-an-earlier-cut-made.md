@@ -2,11 +2,12 @@
 id: a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made
 kind: issue
 title: A declared coplanar merge leaves a collinear valence-2 vertex that an earlier fold step's cut made, so a union's finished body depends on member order
-status: open
+status: dispatched
 priority: P1
 cost: M
 opened: 2026-09-24
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
+branch: fuse/cell-pair-contacts
 ---
 
 

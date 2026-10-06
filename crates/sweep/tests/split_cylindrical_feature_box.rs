@@ -27,7 +27,7 @@
 use geom::Curve3;
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{SketchPlane, circle_split};
-use sweep::test_support::{brick, extruded, sketch_at, sketch_from_axes};
+use sweep::test_support::{brick, extruded, finished, sketch_at, sketch_from_axes};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, DATUM_UNIT_NORM, subtract, union};
 
@@ -42,21 +42,31 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 }
 
 fn sub(what: &str, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    subtract(a, b, tol())
+    let (a, b) = (
+        finished(what, a.clone(), tol()),
+        finished(what, b.clone(), tol()),
+    );
+    subtract(&a, &b, tol())
         .unwrap_or_else(|e| panic!("the {what} subtract succeeds: {e:?}"))
         .body()
         .unwrap_or_else(|| panic!("the {what} subtract leaves material"))
         .body
         .clone()
+        .into_body()
 }
 
 fn uni(what: &str, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    union(a, b, tol())
+    let (a, b) = (
+        finished(what, a.clone(), tol()),
+        finished(what, b.clone(), tol()),
+    );
+    union(&a, &b, tol())
         .unwrap_or_else(|e| panic!("the {what} union succeeds: {e:?}"))
         .body()
         .unwrap_or_else(|| panic!("the {what} union leaves material"))
         .body
         .clone()
+        .into_body()
 }
 
 /// The tour's 15-op enclosure, less the vent at `(column, wall)` when
@@ -123,8 +133,12 @@ fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
     let v = topo::mass_properties(body, tol())
         .expect("the body's volume")
         .volume;
-    let cut = split(body, &cutaway_plane(), tol())
-        .unwrap_or_else(|e| panic!("{what}: the cutaway plane splits it: {e:?}"));
+    let cut = split(
+        &sweep::test_support::finished("the operand", body.clone(), tol()),
+        &cutaway_plane(),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: the cutaway plane splits it: {e:?}"));
     let mut sum = 0.0;
     let out = [("above", cut.above), ("below", cut.below)].map(|(side, part)| {
         let SplitPart::Body(half) = part else {

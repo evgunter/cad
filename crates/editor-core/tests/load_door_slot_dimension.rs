@@ -15,12 +15,10 @@
 //! shared answer onto the wrong arm reds it too, because each refusal
 //! is read by arm and by payload — node, slot and both dimensions.
 //!
-//! The PARAM TABLE's half of the same address is here too
-//! (`Doc::param_ref_fault`): a slot expression names a declared
-//! parameter and reads it at the dimension it was declared with, at
-//! both doors, because a redeclaration that moves a dimension breaks
-//! every expression referencing it and a file can be written with the
-//! pairing already broken.
+//! The variable table's half of the same address is here too
+//! (`Doc::var_read_faults`): a slot expression reads a minted variable,
+//! and a live one at its kind, at both doors, because a file can be
+//! written with the pairing already broken.
 //!
 //! The kinds below are the two the narrowed walk could not see: an
 //! extrude and a frame datum. A PROFILE program's own step argument is
@@ -30,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
@@ -58,6 +57,7 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, frame, extrude)
@@ -65,7 +65,7 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// Retypes one literal from `Length`/`m` to `Angle`/`rad`. BOTH halves
 /// move, so the literal stays well-formed through
-/// `Expr::literal_with_unit` and the display-unit walk has nothing to
+/// `Formula::literal_with_unit` and the display-unit walk has nothing to
 /// say — the only rule left to refuse it is the slot's own.
 fn retype_to_angle(literal: &mut serde_json::Value) {
     let lit = &mut literal["Literal"];
@@ -179,14 +179,17 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
 
 /// A one-extrude document whose distance is the PARAMETER `depth`,
 /// declared as a length.
-fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
-    let name = editor_core::ParamName::from_static("depth");
+fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::VarName) {
+    let name = editor_core::VarName::from_static("depth");
     let (doc, _, extrude) = doc();
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name: name.clone(),
-            value: editor_core::DocParam::continuous(Dimension::Length, 1.0),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                Dimension::Length,
+                1.0,
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -198,7 +201,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::param(name.clone(), Dimension::Length),
+            expr: editor_core::Formula::named(name.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -214,18 +217,18 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
 #[test]
 fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
     let (doc, extrude, name) = parameterized();
-    let missing = editor_core::ParamName::from_static("nowhere");
+    let missing = editor_core::VarName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: editor_core::Expr::param(missing.clone(), Dimension::Length),
+            expr: editor_core::Formula::named(missing.clone(), Dimension::Length),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::SlotUnknownDocParam {
+        Err(EditError::SlotUnknownVarName {
             name: n,
             node,
             slot,
@@ -237,84 +240,66 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
+    let id = doc.var_named(name.as_str()).expect("a declared variable");
     let corrupt = doctored(&text, |wire| {
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(
-            params.remove(name.as_str()).is_some(),
-            "the surgery is aimed at the declaration the slot reads"
-        );
+        crate::wire::wire_unmint(wire, name.as_str());
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotUnknownDocParam {
-            node,
-            slot,
-            name: n,
-        })) => {
-            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (extrude, id));
         }
-        other => panic!("the load door must refuse an undeclared parameter, got {other:?}"),
+        other => panic!("the load door must refuse an unminted reader, got {other:?}"),
     }
 }
 
 /// **A slot expression reading a parameter at another dimension than
 /// it is declared with — both doors.** The edit door re-asks the rule
-/// of every slot when a declaration lands, so the redeclaration is
-/// what it refuses; the load door reads the same broken pairing off a
-/// file whose declaration was retyped after the fact.
+/// The edit door cannot write the pairing at all: a variable's kind is
+/// fixed, so the retyping is what it refuses; the load door reads the
+/// broken pairing off a file whose declaration was retyped after the
+/// fact.
 #[test]
 fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() {
     let (doc, extrude, name) = parameterized();
     match apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: name.clone(),
-            value: editor_core::DocParam::continuous(Dimension::Angle, 1.0),
+        &DocEdit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                Dimension::Angle,
+                1.0,
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::SlotDocParamDimension {
-            name: n,
-            node,
-            slot,
-            declared,
-            referenced,
-        }) => {
+        Err(EditError::VarKindFixed { var, kind, offered }) => {
+            assert_eq!(var.name(), Some(&name));
             assert_eq!(
-                (n, node.id(), slot),
-                (name.clone(), extrude, SlotId::Distance)
-            );
-            assert_eq!(
-                (declared, referenced),
-                (Dimension::Angle, Dimension::Length)
+                (kind, offered),
+                (editor_core::VarKind::Length, editor_core::VarKind::Angle)
             );
         }
-        other => panic!("the edit door must refuse the redeclaration, got {other:?}"),
+        other => panic!("the edit door must refuse the retyping, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let decl = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"];
-        assert_eq!(
-            decl["dim"],
-            serde_json::json!("Length"),
-            "the surgery is aimed at the declared dimension"
-        );
-        decl["dim"] = serde_json::json!("Angle");
-        decl["display_unit"] = serde_json::json!("rad");
+        crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotDocParamDimension {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            name: n,
+            var,
             declared,
             referenced,
         })) => {
-            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
+            assert_eq!(
+                (node.id(), slot, var.name()),
+                (extrude, SlotId::Distance, Some(&name))
+            );
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)

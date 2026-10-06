@@ -16,14 +16,16 @@
 //!   box: **exclusion** when the enclosure excludes 0.
 //! - [`implicit_gradient_enclosure`] — `∇f(B)`, the input to the
 //!   transversality/graph enclosure.
-//! - [`graph_margin`] — `(∇f₁ × ∇f₂)·e` over a box. This single number
-//!   carries the whole uniqueness-tube argument: if its enclosure
+//! - [`graph_margin`] — `(∇f₁ × ∇f₂)·e` over a box. This number carries
+//!   the graph half of the uniqueness-tube argument: if its enclosure
 //!   excludes zero then, on every slice `e·x = const` meeting the box,
 //!   the 2×2 system `(f₁, f₂)` has non-singular Jacobian, so by the
 //!   implicit function theorem the solution set inside the box is a
-//!   **graph over the `e` axis** — one arc, no branch, no loop, no
-//!   second component. Straddling zero escalates: either a genuine
-//!   sliver (F6) or the enclosure's remaining slack.
+//!   **graph over the `e` axis**: at most one solution on each slice,
+//!   no branch, no loop. A second arc beside the first along `e` is a
+//!   graph too; that it is absent is `super::one_arc`'s proof.
+//!   Straddling zero escalates: either a genuine sliver (F6) or the
+//!   enclosure's remaining slack.
 //! - [`NurbsBoxes`] — the same three readings for a NURBS chart,
 //!   assembled from control-net hulls: the rational surface's point box
 //!   is the *Cartesian* control hull over a span cell (positive weights
@@ -145,6 +147,25 @@ impl Box3 {
             (Some(x), Some(y), Some(z)) => Self { x, y, z },
             _ => self,
         }
+    }
+
+    /// The componentwise intersection where it has interior on every
+    /// axis, `None` where it has none or a side is refused: the strict
+    /// sibling of [`Box3::meet`], for a reader that needs a box rather
+    /// than a reach.
+    pub(crate) fn intersection(self, o: Self) -> Option<Self> {
+        let side = |a: Interval, b: Interval| {
+            if !(a.is_certified() && b.is_certified()) {
+                return None;
+            }
+            let (lo, hi) = (a.lo().max(b.lo()), a.hi().min(b.hi()));
+            (lo < hi).then(|| Interval::from_bounds(lo, hi))
+        };
+        Some(Self {
+            x: side(self.x, o.x)?,
+            y: side(self.y, o.y)?,
+            z: side(self.z, o.z)?,
+        })
     }
 
     /// Grow every side by `r` (the certified tube radius).
@@ -368,9 +389,15 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             radius,
             ..
         } => {
+            // The exact derivative of [`implicit_enclosure`]'s own form
+            // `(|w|² − r²)/2r`, `w = q − â h`, `h = q·â`:
+            // `(q − â h (2 − |â|²))/r`. An `f64` unit axis is not exactly
+            // unit, and Krawczyk's uniqueness reads this as that form's
+            // Jacobian, so `|â|²` is kept; it is one thin constant, so
+            // the enclosure is as tight as the unit form's.
             let q = subp(b, origin);
-            let h = dot3(q, constv(axis));
             let a = constv(axis);
+            let h = dot3(q, a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
             let r = Interval::from_certified(radius);
             [
                 (q[0] - a[0] * h) / r,
@@ -388,8 +415,8 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
 
 /// `(∇f₁ × ∇f₂)·e` over `b` — **the uniqueness-tube quantity** (module
 /// docs). An enclosure excluding zero proves the solution set inside
-/// `b` is a graph over the `e` axis: one arc, and therefore exactly one
-/// component to select.
+/// `b` is a graph over the `e` axis: at most one solution on each
+/// slice. One arc in `b` is `super::one_arc`'s proof, not this one.
 pub(crate) fn graph_margin<T: CertifiedBounds>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -529,6 +556,11 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self { surface }
     }
 
+    /// The surface boxed.
+    pub(crate) fn surface(&self) -> &'a NurbsSurface<T> {
+        self.surface
+    }
+
     /// The wall's `{u, v}` chart speeds over its whole domain, each
     /// [`NurbsBoxes::speed_sup`]: a function of the geometry, which a
     /// rigid map moves by its rounding width.
@@ -606,9 +638,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// cell's. Refused
     /// when the weight hull touches zero (interval arithmetic refuses
     /// the divisor), the net is malformed, or the window has a NaN or
-    /// inverted end. The tests' box reading of a cut cell; the chart
-    /// readings take norms from the same cut ([`NurbsBoxes::speed_sup`]).
-    #[cfg(test)]
+    /// inverted end. The boundary pass reads a directional partial off
+    /// it; the chart readings take norms from the same cut
+    /// ([`NurbsBoxes::speed_sup`]).
     pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
         self.deriv_hull(u0, u1, v0, v1, along_u, true)
     }

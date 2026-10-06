@@ -32,6 +32,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use bvh::test_support::ray;
 use bvh::{Aabb, Ray};
@@ -74,6 +75,7 @@ fn cube(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }

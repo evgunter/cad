@@ -66,7 +66,7 @@ fn dump(label: &str, body: &Body<f64>) {
             c.description()
         );
     }
-    for (k, v) in body.vertices() {
+    for (k, p) in body.vertex_points() {
         let mut faces = body.faces_of_vertex(k).unwrap();
         faces.sort();
         let mut surfaces: Vec<_> = faces
@@ -77,7 +77,7 @@ fn dump(label: &str, body: &Body<f64>) {
         surfaces.dedup();
         println!(
             "[dump] {label}: vertex {k:?} point={:?} faces={faces:?} distinct_surfaces={surfaces:?}",
-            body.get_point(v.point).unwrap()
+            p
         );
     }
     match topo::mass_properties(body, tol()) {

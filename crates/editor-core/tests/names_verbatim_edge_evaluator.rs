@@ -49,6 +49,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -57,13 +60,13 @@ use crate::fixture;
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocumentId, EvalOptions, MateFrame, MatePrimitive,
-    Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName,
+    Node, ProfileDoc, RecipeNodeId, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
-type ProfileNode = Node<ProfileProgram>;
+type ProfileNode = AuthoredNode;
 
 test_utils::f6_variants! {
     /// **Every node kind**, welded to `Node` by the match the macro
@@ -119,12 +122,19 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// **Two instanced blocks on a gauge, one seated on the other** — the

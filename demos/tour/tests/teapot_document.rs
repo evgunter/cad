@@ -30,9 +30,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
+    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorClass, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, ValuePayload, apply, evaluate, split,
 };
@@ -60,25 +61,25 @@ const ROLL: f64 = 2.0 / 256.0;
 /// The lid's three rolled rims, as the meridian vertex each stands at.
 const ROLLED: [u32; 3] = [1, 2, 4];
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("a finite length")
 }
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("a finite angle")
+fn ang(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Angle).expect("a finite angle")
 }
-fn lpt(x: f64, y: f64) -> [Expr; 2] {
+fn lpt(x: f64, y: f64) -> [Formula; 2] {
     [len(x), len(y)]
 }
-fn line_to(x: f64, y: f64) -> ProgramStep {
+fn line_to(x: f64, y: f64) -> ProgramStep<Formula> {
     ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
 }
 
 /// The lid's meridian, bored to radius `bore` — `0.0` is the scene's
 /// solid lid, [`R_VENT`] its annular twin.
-fn lid_meridian(bore: f64) -> LoopProgram {
+fn lid_meridian(bore: f64) -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(bore, LID_BASE)),
         line_to(R_FLANGE, LID_BASE),
@@ -94,7 +95,7 @@ fn lid_meridian(bore: f64) -> LoopProgram {
     ])
 }
 
-fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -206,7 +207,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, tol: Tol) -> ProfileP
         panic!("a revolve's operand is a profile");
     };
     program
-        .pieces(&doc.param_env::<f64>(), tol)
+        .pieces(&doc.var_env::<f64>(), tol)
         .expect("the meridian replays")
 }
 

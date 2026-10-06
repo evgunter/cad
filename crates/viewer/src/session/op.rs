@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, Label, LoopProgram,
-    Maintenance, ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
+    Alignment, BooleanOp, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram,
+    Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -119,7 +119,7 @@ pub enum SessionOp {
         unit: UnitDef,
     },
     /// Replace a slot's expression from source text, through the
-    /// shipped `parse_expr` door. This is the affordance's editing
+    /// shipped `parse_formula` door. This is the affordance's editing
     /// half: a driven slot refuses a NUMBER, never an expression.
     SetSlotExpression {
         /// The node.
@@ -132,7 +132,7 @@ pub enum SessionOp {
     /// Write a value into a document parameter.
     SetParam {
         /// The parameter.
-        name: ParamName,
+        var: VarId,
         /// The new value.
         value: SlotValue,
     },
@@ -151,7 +151,7 @@ pub enum SessionOp {
     /// refuses.
     SetParamUnit {
         /// The parameter.
-        name: ParamName,
+        var: VarId,
         /// The unit to write it in.
         unit: UnitDef,
     },
@@ -164,43 +164,63 @@ pub enum SessionOp {
     /// [`SessionOp::SetParam`] instead, the way a slot's bare number
     /// takes [`SessionOp::SetSlot`].
     ///
-    /// The text is read by `editor_core::parse::parse_expr`, the one
+    /// The text is read by `editor_core::parse::parse_formula`, the one
     /// parser of a unit-bearing number this workspace has, and the
     /// value and its notation are committed as ONE action — one user
     /// action is one undo, and a document that took the value without
     /// the notation would be a half-applied edit nobody asked for.
     ///
-    /// **A parameter holds a number, not an expression**
-    /// (`DocParam::Continuous` holds an `f64`), so text that parses to
-    /// anything but a literal is refused with
-    /// [`Refusal::ParamNotANumber`] — there is no
-    /// `SetDocParamExpression` for it to reach, and saying so is the
-    /// affordance. Text that does not parse at all carries
-    /// `parse_expr`'s own refusal, which names the token and its
-    /// offset.
+    /// **Text that parses to anything but a number defines the
+    /// parameter** (`DocEdit::DefineVar`): `base_r * 2` makes it a
+    /// defined variable, keeping its identity, and a number typed over
+    /// a defined one makes it free again. Text that does not parse
+    /// carries `parse_formula`'s own refusal, which names the token and
+    /// its offset; a definition the door refuses (a cycle, a read the
+    /// document does not answer) carries the door's.
     SetParamText {
         /// The parameter.
-        name: ParamName,
+        var: VarId,
         /// What was typed.
         text: String,
     },
     /// Declare a NEW document parameter — the panel's create
-    /// affordance, committing exactly one `DocEdit::SetDocParam`.
+    /// affordance, committing exactly one `DocEdit::DeclareVar`.
     ///
-    /// That edit is create-or-replace, and stays so at the API. This
-    /// door refuses an already-declared name typed
-    /// ([`Refusal::ParamExists`]): a "create" that replaced would
-    /// change not just the value but possibly the declared DIMENSION,
-    /// re-validating every referencing expression — a blast radius no
-    /// plus-shaped button should carry. Replacing stays spellable
-    /// through the door that says so ([`SessionOp::SetParam`], which
-    /// conversely refuses a name that does NOT exist — the two doors
-    /// partition the edit's semantics).
-    CreateParam {
+    /// A taken name is the edit's to refuse
+    /// (`EditError::VarNameTaken`, naming the holder), forwarded
+    /// through [`Refusal::Edit`]: the declare never replaces, so a
+    /// plus-shaped button cannot change a standing variable's kind
+    /// under the expressions that read it. Writing a standing
+    /// variable is [`SessionOp::SetParam`]'s door.
+    DeclareVar {
         /// The new parameter's name.
-        name: ParamName,
+        name: VarName,
         /// Its declared dimension and exact value.
-        value: DocParam,
+        value: FreeVar,
+    },
+    /// Rename a document parameter, or clear its name — exactly one
+    /// `DocEdit::RenameVar`.
+    ///
+    /// Only the name moves: the variable's id, and so every reader of
+    /// it and every row keyed by it, stays. The refusals (an id the
+    /// document does not hold, a taken name, the name it already has,
+    /// clearing the name of a variable nothing reads) are the edit's,
+    /// forwarded through [`Refusal::Edit`].
+    RenameVar {
+        /// The parameter.
+        var: VarId,
+        /// Its new name, or `None` to clear it.
+        name: Option<VarName>,
+    },
+    /// Delete a document parameter — exactly one `DocEdit::DeleteVar`.
+    ///
+    /// Its readers are left reading an id the document no longer
+    /// holds, and fail typed at evaluation. The refusals (an id the
+    /// document does not hold, an anonymous variable) are the edit's,
+    /// forwarded through [`Refusal::Edit`].
+    DeleteVar {
+        /// The parameter.
+        var: VarId,
     },
     /// Start a continuous gesture over a slot.
     BeginGesture {
@@ -220,7 +240,7 @@ pub enum SessionOp {
     /// gesture rule the ratified preview-vs-commit decision demands.
     BeginParamGesture {
         /// The parameter.
-        name: ParamName,
+        var: VarId,
     },
     /// Move the in-flight SLOT gesture. Emits a preview edit against
     /// scratch state; commits nothing.
@@ -263,7 +283,7 @@ pub enum SessionOp {
     /// than translating them into a second vocabulary.
     PreviewParamGesture {
         /// The parameter the gesture is dragging.
-        name: ParamName,
+        var: VarId,
         /// The value under the pointer.
         value: f64,
     },
@@ -271,7 +291,7 @@ pub enum SessionOp {
     /// gesture's last previewed value.
     CommitParamGesture {
         /// The parameter the gesture is dragging.
-        name: ParamName,
+        var: VarId,
     },
     /// Abandon whichever value gesture is open, leaving the document
     /// untouched.
@@ -413,7 +433,7 @@ pub enum SessionOp {
         class: ContactClass,
         /// The alignment datum (frames in each member's own part
         /// coordinates).
-        alignment: Alignment,
+        alignment: Alignment<Formula>,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a
@@ -481,7 +501,7 @@ pub enum SessionOp {
         /// author a sketch without a trip to another form.
         plane: ProfilePlane,
         /// The loop programs, in description order.
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
     },
     /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
@@ -525,7 +545,7 @@ pub enum SessionOp {
         /// from.
         base: ProfileProgram,
         /// The loop programs the editor holds, in description order.
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         /// Per loop, per step: the committed step it keeps, or `None`
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
@@ -535,15 +555,14 @@ pub enum SessionOp {
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
-    /// A NEGATIVE distance is admitted deliberately and builds: it is
-    /// an extrusion along the negative sketch normal, the same value
-    /// the property panel can author into the slot afterwards, and
-    /// the door does not narrow what the vocabulary means.
+    /// The extrude goes along the sketch normal. The distance is a
+    /// depth: the door inserts what it is given, and a negative one
+    /// refuses at evaluation, naming the side as its recourse.
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
-        /// The extrusion distance (`Length`).
-        distance: Expr,
+        /// The extrusion depth (`Length`).
+        distance: Formula,
     },
     /// Insert one revolve of an existing profile node about an
     /// existing axis datum — the revolve tool's one committed edit.
@@ -557,7 +576,7 @@ pub enum SessionOp {
         axis: RecipeNodeId,
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
-        angle: Expr,
+        angle: Formula,
     },
     /// Insert one regularized boolean of two existing bodies — the
     /// boolean tool's one committed action (GAUTH-4).
@@ -613,11 +632,11 @@ pub enum SessionOp {
         /// The body placed.
         input: RecipeNodeId,
         /// Translation components (`Length`).
-        translation: [Expr; 3],
+        translation: [Formula; 3],
         /// Rotation-axis components (`Scalar`).
-        rotation_axis: [Expr; 3],
+        rotation_axis: [Formula; 3],
         /// Rotation angle (`Angle`).
-        rotation_angle: Expr,
+        rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit.
@@ -698,7 +717,7 @@ pub enum SessionOp {
         /// The body whose edges are blended.
         target: RecipeNodeId,
         /// The blend radius (`Length`).
-        radius: Expr,
+        radius: Formula,
         /// The edges to blend, by stable name.
         selection: Vec<StableName>,
     },
@@ -717,7 +736,7 @@ pub enum SessionOp {
         /// The body whose edges are chamfered.
         target: RecipeNodeId,
         /// The setback along both supports (`Length`).
-        distance: Expr,
+        distance: Formula,
         /// The edges to chamfer, by stable name.
         selection: Vec<StableName>,
     },
@@ -876,7 +895,7 @@ pub enum ValueGestureName {
         slot: SlotId,
     },
     /// A document parameter.
-    Param(ParamName),
+    Param(VarId),
 }
 
 impl ValueGestureName {
@@ -888,7 +907,7 @@ impl ValueGestureName {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param(name) => SessionOp::BeginParamGesture { name: name.clone() },
+            Self::Param(var) => SessionOp::BeginParamGesture { var: *var },
         }
     }
 
@@ -902,10 +921,7 @@ impl ValueGestureName {
                 slot: *slot,
                 value,
             },
-            Self::Param(name) => SessionOp::PreviewParamGesture {
-                name: name.clone(),
-                value,
-            },
+            Self::Param(var) => SessionOp::PreviewParamGesture { var: *var, value },
         }
     }
 
@@ -917,7 +933,7 @@ impl ValueGestureName {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param(name) => SessionOp::CommitParamGesture { name: name.clone() },
+            Self::Param(var) => SessionOp::CommitParamGesture { var: *var },
         }
     }
 }
@@ -967,7 +983,7 @@ impl FreeMoveName {
 /// this crate.
 ///
 /// The six driving operations spell their subject three ways, each
-/// right for its own door: a node and a slot, a parameter name, an
+/// right for its own door: a node and a slot, a variable id, an
 /// instance. What they are all spellings OF is this. A gesture's name
 /// is what a preview and a commit are checked against before they
 /// touch anything ([`crate::g1::Slot`]'s two name checks), and
@@ -1054,7 +1070,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::BeginGesture { .. }
             | Self::BeginParamGesture { .. }
             | Self::PreviewGesture { .. }
@@ -1104,9 +1122,9 @@ impl SessionOp {
                 node: *node,
                 slot: *slot,
             }),
-            Self::BeginParamGesture { name }
-            | Self::PreviewParamGesture { name, .. }
-            | Self::CommitParamGesture { name } => value(ValueGestureName::Param(name.clone())),
+            Self::BeginParamGesture { var }
+            | Self::PreviewParamGesture { var, .. }
+            | Self::CommitParamGesture { var } => value(ValueGestureName::Param(*var)),
             Self::BeginFreeMove { instance }
             | Self::PreviewFreeMove { instance, .. }
             | Self::CommitFreeMove { instance } => probe(*instance),
@@ -1122,7 +1140,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::Undo
             | Self::Redo
             | Self::CancelEvaluation
@@ -1215,7 +1235,7 @@ impl SessionOp {
     /// **The identity that makes all three the same answer**: a value
     /// gesture's edits are `SetParam` and `SetStructuralParam`, which
     /// replace an expression on a node that already exists, and
-    /// `SetDocParamValue`, which writes a declaration in `doc.params`
+    /// `SetVarValue`, which writes a definition in `doc.vars`
     /// and touches no node at all. None of the three mints or removes
     /// one. Every display predicate is a function of the node graph —
     /// which nodes exist, of what kind, with which inputs and which
@@ -1334,7 +1354,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::Undo
             | Self::Redo
             | Self::Open(_)
@@ -1454,7 +1476,9 @@ impl SessionOp {
             | Self::SetParam { .. }
             | Self::SetParamUnit { .. }
             | Self::SetParamText { .. }
-            | Self::CreateParam { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
             | Self::BeginGesture { .. }
             | Self::BeginParamGesture { .. }
             | Self::Undo

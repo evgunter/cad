@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, PartSelect, ProfileDoc,
@@ -37,6 +38,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -122,6 +124,7 @@ fn corpus() -> ProfileDoc {
         Node::Extrude {
             profile: u,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, cut) = insert(

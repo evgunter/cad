@@ -30,6 +30,8 @@
 //! D2 bump: the extrude's `Distance` (mid-DAG — its cone is the extrude
 //! and the fillet; the frame and the profile are reused).
 
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, SlotId, StableName, StepId,
@@ -60,7 +62,7 @@ pub const CREASE_RESHAPED: usize = 5;
 /// authored as a direction and a length — two steps, one segment — so
 /// the step indices after it move by two while the segment indices
 /// move by one; `edit_set_program` says why that asymmetry is kept.
-pub fn rod_loop(bump: bool) -> LoopProgram {
+pub fn rod_loop(bump: bool) -> LoopProgram<Formula> {
     let c = rod_chord_at(ROD_FLAT);
     let xv = c.half;
     let mut steps = vec![
@@ -129,6 +131,7 @@ pub fn document() -> CorpusDoc {
     let rod = r.insert(Node::Extrude {
         profile,
         distance: len(ROD_L),
+        side: ExtrudeSide::Along,
     });
     // The fillet is authored against the PLAIN program's crease, and
     // the reshaping below keeps the step whose piece the name spells,

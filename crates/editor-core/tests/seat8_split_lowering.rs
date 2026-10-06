@@ -38,6 +38,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -160,13 +161,26 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
+/// main's shared copy points: each moved it alone — the split halves'
+/// union builds in the chord join rather than the REST zip (JOIN-1), and
+/// an op's copies of one vertex share its point, so the arena order the
+/// digest hashes moved (main) — and the merged tree is neither value.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink` only, when declaring a
+/// variable began minting its id on the document's chain: every node
+/// minted after a declare was renumbered, and this digest feeds ids.
+/// The id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x799c_caf4_ccb8_33de_u64),
-        ("part_select", 0x2563_d528_5e00_295d),
-        ("kitchen_sink", 0xf0c8_760c_ff31_b7ba),
+        ("cut_cylinder", 0xcea6_3bbf_f0ce_47adu64),
+        ("part_select", 0x6145_b1a0_caf1_f51a),
+        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -221,6 +235,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(z)],
@@ -273,7 +288,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xc112_1ccf_49a9_f783,
+        got, 0xb71f_3b0d_97ba_2ab3,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

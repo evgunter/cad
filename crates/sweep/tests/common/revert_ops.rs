@@ -10,6 +10,7 @@
 //! geometry, only which operand a declared face is named against.
 
 use geom_core::Tol;
+use sweep::test_support::finished;
 use topo::{Body, BooleanDeclarations, BooleanError, BooleanResult, FacePairDeclaration};
 
 /// The same declarations with the operands' roles swapped, for
@@ -28,18 +29,19 @@ pub fn swapped(d: &BooleanDeclarations) -> BooleanDeclarations {
 }
 
 /// `A ∖ B`, `B ∖ A` (under [`swapped`] declarations) and `A ∩ B`, each
-/// labelled for an assertion message.
+/// labelled for an assertion message. Each operand is finished once
+/// (`sweep::test_support::finished`) before the three ops read it.
 pub fn subtract_both_orders_and_intersect(
     a: &Body<f64>,
     b: &Body<f64>,
     d: &BooleanDeclarations,
 ) -> [(&'static str, Result<BooleanResult<f64>, BooleanError>); 3] {
+    let tol = Tol::witness();
+    let a = &finished("operand A", a.clone(), tol);
+    let b = &finished("operand B", b.clone(), tol);
     [
-        ("A ∖ B", topo::subtract_with(a, b, d, Tol::witness())),
-        (
-            "B ∖ A",
-            topo::subtract_with(b, a, &swapped(d), Tol::witness()),
-        ),
-        ("A ∩ B", topo::intersect_with(a, b, d, Tol::witness())),
+        ("A ∖ B", topo::subtract_with(a, b, d, tol)),
+        ("B ∖ A", topo::subtract_with(b, a, &swapped(d), tol)),
+        ("A ∩ B", topo::intersect_with(a, b, d, tol)),
     ]
 }

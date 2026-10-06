@@ -17,6 +17,7 @@ use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, split};
 use topo::{Body, validate, validate_closed, validate_geometric};
@@ -35,9 +36,16 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &disc(),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Every certified `Ellipse` edge of a body, with its curve.
@@ -62,6 +70,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<(topo::EdgeKey, geom_brep::EdgeCurve<f
 #[test]
 fn tilted_cut_mints_exact_ellipse_carriers() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let phi = 0.3f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
@@ -128,6 +137,7 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
 #[test]
 fn perpendicular_cut_stays_rung_1_circles() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::unit_z(),
@@ -165,6 +175,7 @@ fn perpendicular_cut_stays_rung_1_circles() {
 #[test]
 fn axis_parallel_cut_splits_through_rim_crossings() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::origin(),
         Vec3::unit_x(),
@@ -191,6 +202,7 @@ fn axis_parallel_cut_splits_through_rim_crossings() {
 #[test]
 fn seam_coincident_cut_splits_along_the_seams() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::origin(),
         Vec3::unit_y(),
@@ -210,6 +222,7 @@ fn seam_coincident_cut_splits_along_the_seams() {
 fn tilted_cut_replays_bit_identically() {
     let run = || {
         let body = cylinder_body();
+        let body = sweep::test_support::finished("the body", body, Tol::witness());
         let phi = 0.3f64;
         let plane = topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.5),
@@ -255,6 +268,7 @@ fn lands_whole(label: &str, above: &SplitPart<f64>, below: &SplitPart<f64>) {
 #[test]
 fn tangent_plane_lands_the_cylinder_below() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.5, 0.0, 0.0),
         Vec3::unit_x(),
@@ -280,9 +294,17 @@ mod interval {
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
-            .unwrap()
-            .body;
+        let body = extrude(
+            &vp,
+            Extrusion::Distance {
+                depth: iv(1.0),
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
+        let body = sweep::test_support::finished("the body", body, Tol::witness());
         let phi = 0.3f64;
         let plane = topo::test_support::split_plane(
             p3(0.0, 0.0, 0.5),
@@ -355,6 +377,7 @@ fn assert_two_sided(result: &topo::splitting::SplitResult<f64>) -> (Body<f64>, B
 #[test]
 fn even_crossing_recovers_the_sliver() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.25, 0.0),
         Vec3::unit_y(),
@@ -365,8 +388,7 @@ fn even_crossing_recovers_the_sliver() {
     // The above body IS the recovered sliver: every vertex at
     // y ≥ 0.25 − ε, at least one strictly beyond (the rim apex band).
     let mut max_y = f64::NEG_INFINITY;
-    for (_, v) in above.vertices() {
-        let p = above.get_point(v.point).unwrap();
+    for (_, p) in above.vertex_points() {
         assert!(p.y >= 0.25 - 1e-9, "sliver vertex below the plane: {p:?}");
         max_y = max_y.max(p.y);
     }
@@ -441,12 +463,11 @@ fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
 /// landed outside the chord's own interval and the rule selected the
 /// COMPLEMENT arc (≈342.5°, ≈315.6°) every time.
 ///
-/// S9 replaced the premise with **containment in the divided face's own
-/// azimuth window** (`split_arc_window`), derived from the run through
-/// the same closed-form chart machinery PR 6 certifies pcurves with.
-/// This row now asserts what the repair produces: a two-sided split
-/// whose eight section arcs are the SHORT ones, each staying on the
-/// finite wall over its whole stored interval.
+/// The chord now takes the arc the split's conic walk entered the face
+/// along (`chord_join::Leave`), reading no sample and no window. This
+/// row asserts what that produces: a two-sided split whose eight
+/// section arcs are the SHORT ones, each staying on the finite wall over
+/// its whole stored interval.
 ///
 /// ---- The defect's evidence, kept as a history note ----
 ///
@@ -476,6 +497,7 @@ fn wall_contained_ellipse_spans(part: &Body<f64>, height: f64) -> Vec<f64> {
 #[test]
 fn tilted_belly_cut_mints_wall_contained_section_arcs() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let n = 1.0 / 5.0f64.sqrt();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.1, 0.5),
@@ -512,18 +534,20 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
     assert_eq!(rows(&below), rows(&below2));
 }
 
-/// Seam-placement independence of the window computation (S9): the
-/// belly cut, rotated about the cylinder axis by 0.7 rad. The chart's
-/// `u_ref` does NOT rotate with it, so the run's azimuth window, the
-/// chord endpoints and the section arcs all land on a different part of
-/// the chart — including across the chart seam. The window rule
-/// compares only differences of azimuths, so the answer must not care:
+/// Seam-placement independence of the chord's arc (S9): the belly cut,
+/// rotated about the cylinder axis by 0.7 rad. The chart's `u_ref` does
+/// NOT rotate with it, so the chord endpoints and the section arcs all
+/// land on a different part of the chart — including across the chart
+/// seam. Each chord takes the arc leaving its start along the split's
+/// datum `±(n_plane × n_out)`, which reads no chart, so the answer must
+/// not care:
 /// both sides split, every arc stays on the wall, and the section's
 /// TOTAL sweep is the rotation-invariant it must be (the individual
 /// arcs differ because the profile seams cut the section elsewhere).
 #[test]
 fn rotated_belly_cut_is_seam_placement_independent() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let a = 0.7f64;
     let (s, c) = (a.sin(), a.cos());
     let n0 = Vec3::new(0.0, 2.0, 1.0).normalize();
@@ -560,7 +584,7 @@ fn rotated_belly_cut_is_seam_placement_independent() {
 /// belly cut — PR 6's pcurve mint pass ACCEPTED those bodies (the
 /// wrong-arc loops still closed on the chart). So this configuration
 /// was shipping a wrong body silently, with nothing in the kernel able
-/// to see it. The window rule selects 0.387386 rad here, on the wall;
+/// to see it. The chord now takes 0.387386 rad here, on the wall;
 /// the extent assertions below are what makes that visible.
 ///
 /// ---- The merge-base measurement, as a history note (probe F2) ----
@@ -593,6 +617,7 @@ fn rotated_belly_cut_is_seam_placement_independent() {
 #[test]
 fn on_endpoint_belly_cut_splits() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let n = Vec3::new(0.3, 1.0, 0.2).normalize();
     let plane =
         topo::test_support::split_plane(Point3::new(0.5, 0.0, 0.0), n, geom_core::Tol::witness());
@@ -623,6 +648,7 @@ fn on_endpoint_belly_cut_splits() {
 #[test]
 fn repaired_belly_bodies_mint_certified_pcurves() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let n = 1.0 / 5.0f64.sqrt();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.1, 0.5),
@@ -653,11 +679,10 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
 /// arc-side selector: that rule reduced azimuth differences taken *at*
 /// the coincident-copy chord endpoints, whose enclosures straddle a
 /// period boundary, and `reduce_periodic`'s containment-honest floor
-/// widened them to a full period. The window rule reduces against the
-/// window's CENTRE instead — half a window away from the boundary by
-/// construction — so the enclosures stay narrow and the interval lane
-/// now splits the belly document two-sided, with every section arc on
-/// the finite wall.
+/// widened them to a full period. The chord now reads no azimuth
+/// difference to choose its arc — it takes the one leaving its start
+/// along the split's datum — so the interval lane splits the belly
+/// document two-sided, with every section arc on the finite wall.
 #[test]
 fn even_crossing_belly_cut_at_interval() {
     use crate::common::interval::{iv, p2, p3};
@@ -667,9 +692,17 @@ fn even_crossing_belly_cut_at_interval() {
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
-        .unwrap()
-        .body;
+    let body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     // The tilted-belly even-crossing configuration (both rims crossed
     // twice + both seams once). Axis-parallel even-crossing planes put
     // crossing-vertex PAIRS at equal in-plane u (vertically aligned),
@@ -763,6 +796,7 @@ fn even_crossing_belly_cut_at_interval() {
 #[test]
 fn root_at_endpoint_inserts_nothing() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let originals: std::collections::BTreeSet<_> = body.vertices().map(|(k, _)| k).collect();
     let plane = topo::test_support::split_plane(
         Point3::origin(),
@@ -781,6 +815,7 @@ fn root_at_endpoint_inserts_nothing() {
 #[test]
 fn definite_roots_mint_four_crossings() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let originals: std::collections::BTreeSet<_> = body.vertices().map(|(k, _)| k).collect();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.25, 0.0),
@@ -800,6 +835,7 @@ fn definite_roots_mint_four_crossings() {
 #[test]
 fn near_graze_escalates_typed() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let eps = Tol::witness().get().eps;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5 + 3.0 * eps, 0.0),
@@ -828,6 +864,7 @@ fn near_graze_escalates_typed() {
 #[test]
 fn exact_graze_lands_the_cylinder_below() {
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5, 0.0),
         Vec3::unit_y(),

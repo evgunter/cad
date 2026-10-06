@@ -35,6 +35,12 @@ impl SaidKey for crate::node::RecipeNodeId {
     }
 }
 
+impl SaidKey for crate::var::VarId {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "variable {self}")
+    }
+}
+
 impl SaidKey for crate::names::StableName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", crate::SpokenName::absent(self.clone()))
@@ -49,12 +55,6 @@ fn as_written(f: &mut fmt::Formatter<'_>, key: &(impl Serialize + ?Sized)) -> fm
 }
 
 impl SaidKey for String {
-    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        as_written(f, self.as_str())
-    }
-}
-
-impl SaidKey for crate::doc::ParamName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         as_written(f, self.as_str())
     }
@@ -164,9 +164,14 @@ strict_map_section!(
     "snapshot node"
 );
 strict_map_section!(
-    /// The document parameter table.
-    params,
-    "document parameter"
+    /// The variable table (id → variable).
+    vars,
+    "variable"
+);
+strict_map_section!(
+    /// The variable-name store (id → name).
+    var_names,
+    "variable name"
 );
 strict_map_section!(
     /// The per-node witness store.

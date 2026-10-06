@@ -8,15 +8,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocParam, DocParamValue,
-    DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, MateFault, MateFrame, MatePrimitive,
-    Node, NodeErrorKind, ParamName, PatternKind, Placement, ProfileDoc, RecipeNodeId, SitedFace,
-    SlotId, StableName, Step, ValuePayload, evaluate, root_of,
+    Alignment, AxisSense, CapEnd, ContactClass, Dimension, DocEdit, DocRef, DocumentId,
+    EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, MateFault, MateFrame,
+    MatePrimitive, Node, NodeErrorKind, PatternKind, Placement, ProfileDoc, RecipeNodeId,
+    SitedFace, SlotId, StableName, Step, ValuePayload, VarName, evaluate, root_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -42,6 +44,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(h),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -88,11 +91,12 @@ impl Parts {
     }
 }
 
-fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+fn mframe(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
-fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core::ProfileProgram> {
+fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> AuthoredNode {
     Node::Mate {
         a: mover,
         b: onto,
@@ -107,7 +111,7 @@ fn seat_on(mover: SitedFace, onto: SitedFace, at: [f64; 3]) -> Node<editor_core:
     }
 }
 
-fn seat(top: SitedFace, base: SitedFace) -> Node<editor_core::ProfileProgram> {
+fn seat(top: SitedFace, base: SitedFace) -> AuthoredNode {
     seat_on(top, base, [1.0, 1.0, BASE_HEIGHT])
 }
 
@@ -258,16 +262,16 @@ fn assert_encloses(part: &Body<f64>, lane: &Body<Interval>, m: &M4, what: &str) 
     }
 }
 
-fn lift() -> ParamName {
-    ParamName::from_static("lift")
+fn lift() -> VarName {
+    VarName::from_static("lift")
 }
 
 fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: lift(),
-            value: DocParam::continuous(Dimension::Length, value),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     )
     .0
@@ -276,9 +280,9 @@ fn declare_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
 fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetDocParamValue {
-            name: lift(),
-            value: DocParamValue::Continuous(value),
+        DocEdit::SetVarValue {
+            var: lift().into(),
+            value: FreeValue::Continuous(value),
         },
     )
     .0
@@ -288,7 +292,11 @@ fn set_gauge(doc: ProfileDoc, node: RecipeNodeId, gauge: Option<RecipeNodeId>) -
     step(doc, DocEdit::SetGauge { node, gauge }).0
 }
 
-fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>) -> ProfileDoc {
+fn set_offset(
+    doc: ProfileDoc,
+    instance: RecipeNodeId,
+    offset: Option<Placement<Formula>>,
+) -> ProfileDoc {
     step(doc, DocEdit::SetOffset { instance, offset }).0
 }
 
@@ -329,7 +337,11 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.25),
             },
@@ -352,7 +364,7 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(2.0),
@@ -463,7 +475,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
         doc,
         Node::Pattern {
             input: top,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(5.0),
@@ -482,7 +494,7 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
     );
     let unstated = solve(&doc, &o, Tol::witness());
@@ -855,6 +867,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
             Node::Extrude {
                 profile: prof,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
@@ -979,6 +992,7 @@ fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
         Node::Extrude {
             profile: prof,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let o = p.opts();
@@ -1080,7 +1094,7 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
 
 /// **A parametric root offset moves with the cut, and `Promote` keeps
 /// it in the host** (A4): the root's offset is a cut node's, so a
-/// parameter a kept gauge reads too refuses `UncutParamReference`;
+/// parameter a kept gauge reads too refuses `UncutVarReference`;
 /// promoted, the offset is a kept gauge's placement, the group is cut
 /// leaving that gauge behind, and the part gets no copy of a parameter
 /// nothing in it reads.
@@ -1095,15 +1109,21 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), Expr::param(lift(), Dimension::Length), len(0.0)],
+                translation: [
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                    len(0.0),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },
         ),
     );
     let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    // By id, so the stored offset compares to it as written.
+    let lift_id = doc.var_named(lift().as_str()).expect("lift is declared");
     let offset = Placement::from(Step::Rigid {
-        translation: [Expr::param(lift(), Dimension::Length), len(0.0), len(0.0)],
+        translation: [Formula::var(lift_id, Dimension::Length), len(0.0), len(0.0)],
         axis: [0.0, 0.0, 1.0].map(scl),
         angle: ang(0.0),
     });
@@ -1122,8 +1142,8 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     };
     let err = split(&doc).expect_err("the cut root's offset reads a kept node's parameter");
     assert!(
-        matches!(&err, editor_core::SplitError::UncutParamReference { param, cut_node, promote: true, .. }
-            if *param == lift() && cut_node.id() == base),
+        matches!(&err, editor_core::SplitError::UncutVarReference { var, cut_node, promote: true, .. }
+            if var.name() == Some(&lift()) && cut_node.id() == base),
         "{err:?}"
     );
     assert!(
@@ -1137,7 +1157,7 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
     let k = k.expect("the promote mints its gauge");
     let out = split(&doc).expect("the promoted offset stays in the host");
     assert!(
-        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&offset)),
+        matches!(out.remainder.node(k), Some(Node::Gauge { placement, .. }) if placement.bit_eq(&editor_core::test_support::stored_placement(&offset))),
         "the promoted gauge holds the parametric offset"
     );
     assert_eq!(
@@ -1150,9 +1170,9 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Some(Placement::IDENTITY)
     );
     assert!(
-        out.part.params().is_empty(),
-        "the part copies no parameter: {:?}",
-        out.part.params().keys().collect::<Vec<_>>()
+        out.part.vars().is_empty(),
+        "the part copies no variable: {:?}",
+        out.part.var_names().values().collect::<Vec<_>>()
     );
 }
 
@@ -1172,7 +1192,11 @@ fn the_memo_moves_instances_when_their_gauge_or_their_root_moves() {
         Node::gauge(
             None,
             Step::Rigid {
-                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                translation: [
+                    len(0.0),
+                    len(0.0),
+                    Formula::named(lift(), Dimension::Length),
+                ],
                 axis: [0.0, 0.0, 1.0].map(scl),
                 angle: ang(0.0),
             },

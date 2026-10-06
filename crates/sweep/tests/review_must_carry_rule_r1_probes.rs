@@ -24,6 +24,7 @@ use geom::{Curve3, Surface};
 use geom_brep::{MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, RevolveError, extrude, revolve};
 use topo::Body;
 
@@ -220,7 +221,15 @@ fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a valid stadium");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).map(|e| e.body)
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body)
 }
 
 /// **C2, extrude.** Both ends of the band refuse typed under the

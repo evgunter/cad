@@ -22,8 +22,8 @@
 //! 4. **∖ and ∩ stop where ∪ does**, except on the socket. The torus is
 //!    on the revert roster, so each fixture under a subtract (both
 //!    orders) or an intersect refuses at the door its union meets; the
-//!    socket's union is built by the declared-REST zip, which is a
-//!    union lane, and its ∖ and ∩ stop at the section pass.
+//!    peg seated in the socket shares no interior with it, so its ∩ is
+//!    empty and each difference its minuend whole.
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
@@ -43,11 +43,11 @@ use crate::revolve_common;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, validated};
-use sweep::test_support::tube_frame;
+use sweep::test_support::{finished, tube_frame};
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::query;
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FaceKey,
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FaceKey,
     FacePairDeclaration,
 };
 
@@ -70,8 +70,8 @@ fn window(deg: f64) -> TubeWindow<f64> {
 
 /// Segment A of the chain: a tube along the lily's lower stem arc,
 /// starting at the origin heading `+z`.
-fn segment_a() -> Body<f64> {
-    tube_along_arc(
+fn segment_a() -> AtRestBody<f64> {
+    let body = tube_along_arc(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
             axis(),
@@ -84,14 +84,15 @@ fn segment_a() -> Body<f64> {
         Tol::witness(),
     )
     .expect("segment A builds")
-    .body
+    .body;
+    finished("segment A", body, Tol::witness())
 }
 
 /// Segment B: the SAME tube radius on a tighter ring, continuing from
 /// A's end with A's own end tangent — so the two walls meet G1 along
 /// the shared terminal meridian circle and the composed material runs
 /// smoothly through it.
-fn segment_b() -> Body<f64> {
+fn segment_b() -> AtRestBody<f64> {
     let turn = TURN.to_radians();
     let end = Point3::new(-RING + RING * turn.cos(), 0.0, RING * turn.sin());
     let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
@@ -99,7 +100,7 @@ fn segment_b() -> Body<f64> {
     // the same side A is turning toward.
     let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
     let center = end + inward * 1.1;
-    tube_along_arc(
+    let body = tube_along_arc(
         tube_frame(center, axis(), (end - center).normalize(), Tol::witness()),
         1.1,
         window(170.0),
@@ -107,13 +108,14 @@ fn segment_b() -> Body<f64> {
         Tol::witness(),
     )
     .expect("segment B builds")
-    .body
+    .body;
+    finished("segment B", body, Tol::witness())
 }
 
 /// The toroidal SOCKET: a hollow elbow whose BORE is a torus of tube
 /// radius [`TUBE`] — the curved spelling of the bored plate.
-fn socket() -> Body<f64> {
-    tube_along_arc_hollow(
+fn socket() -> AtRestBody<f64> {
+    let body = tube_along_arc_hollow(
         tube_frame(
             Point3::new(-RING, 0.0, 0.0),
             axis(),
@@ -127,7 +129,8 @@ fn socket() -> Body<f64> {
         Tol::witness(),
     )
     .expect("socket builds")
-    .body
+    .body;
+    finished("the socket", body, Tol::witness())
 }
 
 /// Two FULL tori KISSING along one circle: coaxial and coplanar, ring
@@ -137,14 +140,14 @@ fn socket() -> Body<f64> {
 /// torus and the inner equator seam of the outer one, so it is a
 /// boundary edge of a face on each side — a rim, not an interior
 /// touch.
-fn kissing_pair() -> (Body<f64>, Body<f64>) {
+fn kissing_pair() -> (AtRestBody<f64>, AtRestBody<f64>) {
     (full_torus(RING), full_torus(RING + 2.0 * TUBE))
 }
 
 /// A full solid torus of ring radius `major` and tube [`TUBE`], about
 /// the origin on `+z`. It carries its two wall faces and nothing else.
-fn full_torus(major: f64) -> Body<f64> {
-    tube_along_arc(
+fn full_torus(major: f64) -> AtRestBody<f64> {
+    let body = tube_along_arc(
         tube_frame(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
@@ -157,7 +160,8 @@ fn full_torus(major: f64) -> Body<f64> {
         Tol::witness(),
     )
     .expect("the full torus builds")
-    .body
+    .body;
+    finished("the full torus", body, Tol::witness())
 }
 
 /// The torus faces of a body whose tube radius is `minor`.
@@ -201,7 +205,14 @@ fn wall_declarations(
                 .push(FacePairDeclaration::new(fa, fb, class));
         }
     }
-    decls
+    // A seam pair names faces that meet along the rim. (A `Tangent`
+    // pair is kept whole: the rows here refuse it on the class or the
+    // routing, which a pair that never meets must reach too.)
+    if class == topo::BooleanCoincidence::Seam {
+        crate::common::seam_pairs::meeting(a, b, decls)
+    } else {
+        decls
+    }
 }
 
 // -------------------------------------------------------------------
@@ -220,7 +231,11 @@ fn wall_declarations(
 /// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`);
 /// the declared-REST zip takes that refusal over and builds the same
 /// census.
-fn peg_in_socket_union_holds(s: &Body<f64>, p: &Body<f64>, decls: &BooleanDeclarations) {
+fn peg_in_socket_union_holds(
+    s: &AtRestBody<f64>,
+    p: &AtRestBody<f64>,
+    decls: &BooleanDeclarations,
+) {
     let r = topo::union_with(s, p, decls, Tol::witness())
         .unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
     let bb = r.body().expect("a union of two solids is not empty");
@@ -298,6 +313,7 @@ fn a_contradicted_torus_rest_declaration_refuses_loudly() {
     )
     .expect("the thin peg builds")
     .body;
+    let thin = finished("the thin peg", thin, Tol::witness());
     let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&s, TUBE) {
         for &fb in &torus_faces(&thin, TUBE * 0.75) {
@@ -458,33 +474,33 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
 /// agree across the rim, so the material runs smoothly through it and
 /// the routing classifies the seam.
 ///
-/// The declaration is `Tangent` because that is the only class an
-/// author has to state a rim contact with today — and the routing's
-/// answer is precisely that this rim does not want one: a wedge-π rim
-/// is structural. The refusal is its own variant so it can say that
-/// without also claiming the π arm is unbuilt, which it is not.
+/// Declared `Tangent`, the aligned senses contradict the claim, as they
+/// contradict `Rest` on one carrier, and the refusal steers to the class
+/// that fits: a `Seam`.
 #[test]
 fn the_g1_tube_chain_rim_routes_to_the_smooth_seam() {
     let (a, b) = (segment_a(), segment_b());
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a seam takes no declaration, and the join wiring is not built");
+        .expect_err("a G1 rim is no Tangent contact");
     assert!(
-        matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
+        is_tangent_on_a_seam(&err),
         "a G1 chain's rim is the wedge-π seam: {err:?}"
     );
     let text = format!("{err}");
     assert!(
-        text.contains("they are one wall and the Tangent declaration on them is wrong")
-            && text.contains("no way through this in the kernel yet")
-            && !text.contains("Recourse"),
-        "the refusal must say the seam is structural, and that removing the \
-         declaration is not a way through (the union then refuses the torus pair): {text}"
+        text.contains("is a `Seam`: declare that") && text.contains("Recourse"),
+        "the refusal must steer to the seam: {text}"
     );
-    assert!(
-        !text.contains("UNBUILT"),
-        "the π arm IS built — the seam refusal must not claim otherwise: {text}"
-    );
+}
+
+/// A `Tangent` declaration the rim routing found to be a wedge-π seam.
+fn is_tangent_on_a_seam(err: &BooleanError) -> bool {
+    matches!(
+        err,
+        BooleanError::ContactContradicted { margin, .. }
+            if margin.predicate == Some("contact_tangent_rim_seam")
+    )
 }
 
 /// **The same chain, undeclared or declared `Rest`, never reaches the
@@ -569,7 +585,7 @@ fn the_two_arms_are_decided_by_the_rim_and_not_by_the_kind() {
     // of the same claim: the routing did not merely fill one payload
     // two ways, it sent the two geometries down two paths.
     assert!(
-        matches!(chain, BooleanError::RimSeamNotDeclarable { .. }),
+        is_tangent_on_a_seam(&chain),
         "the G1 chain routes to the seam: {chain:?}"
     );
     assert!(
@@ -607,6 +623,7 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
     )
     .expect("the distant elbow builds")
     .body;
+    let b = finished("the distant elbow", b, Tol::witness());
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a Tangent declaration outside the witness lane is refused");
@@ -614,7 +631,7 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
         matches!(
             err,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "no rim, no routing — the class refusal stands verbatim: {err:?}"
@@ -625,22 +642,26 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
 // 4. ∖ and ∩ on the same fixtures.
 // -------------------------------------------------------------------
 
-/// **∖ and ∩ pass the revert roster and stop where ∪ does.** The torus
-/// is on the roster, so a torus pair under a subtract or an intersect
-/// reaches the same doors as under a union, in both operand orders:
+/// **∖ and ∩ pass the revert roster; the seated peg answers the closed
+/// form and the rest stop where ∪ does.** The torus is on the roster,
+/// so a torus pair under a subtract or an intersect reaches the same
+/// doors as under a union, in both operand orders:
 ///
-/// - the declared socket and peg, and the declared coincident pair,
-///   stop at the no-crossings section pass on the tangency (R-tan);
+/// - the declared socket and peg share no interior: `∩` is empty and
+///   each difference its minuend whole, the volumes by Pappus
+///   (`πr²·Rθ` for a tube of radius `r` turned through `θ` on a ring of
+///   radius `R`);
+/// - the declared coincident pair (a continuation, both materials on
+///   one side) stops at the no-crossings section pass on the tangency
+///   (R-tan);
 /// - the declared chain routes to the seam, the declared kissing pair
 ///   to the unbuilt cusp family;
 /// - undeclared, a pair with a continuation in it refuses that
 ///   continuation at the reduction, and the others refuse at the
 ///   crossing layer (escalated where the run's band puts the sampled
 ///   margin in its window).
-///
-/// None of them is a body.
 #[test]
-fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
+fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     let tangency = |what: &str, err: &BooleanError| {
         let BooleanError::FallbackExtentUnsupported { what: w, .. } = err else {
             panic!("{what}: the section pass refuses the tangency: {err:?}");
@@ -651,12 +672,47 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         );
     };
     let (s, p) = (socket(), segment_a());
-    for (op, r) in subtract_both_orders_and_intersect(
+    let pappus = |r_out: f64, r_in: f64| {
+        core::f64::consts::PI * (r_out * r_out - r_in * r_in) * RING * TURN.to_radians()
+    };
+    let wants = [
+        ("A ∖ B", Some(pappus(0.09, TUBE))),
+        ("B ∖ A", Some(pappus(TUBE, 0.0))),
+        ("A ∩ B", None),
+    ];
+    for ((op, r), (_, want)) in subtract_both_orders_and_intersect(
         &s,
         &p,
         &wall_declarations(&s, &p, TUBE, ContactClass::Rest),
-    ) {
-        tangency(&format!("socket and peg, {op}"), &r.expect_err(op));
+    )
+    .into_iter()
+    .zip(wants)
+    {
+        let what = format!("socket and peg, {op}");
+        match (r, want) {
+            (Ok(BooleanResult::Empty), None) => {}
+            (Ok(BooleanResult::Body(bb)), Some(want)) => {
+                let v = topo::mass_properties(&bb.body, Tol::witness())
+                    .unwrap()
+                    .volume;
+                assert!(
+                    (v - want).abs() <= 1e-12 * want,
+                    "{what}: volume {v} against Pappus {want}"
+                );
+                assert_eq!(bb.body.shells().count(), 1, "{what}: one shell");
+                assert_eq!(
+                    topo::validate_geometric(&bb.body, Tol::witness()),
+                    Ok(()),
+                    "{what}: tier 3"
+                );
+                assert_eq!(
+                    topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+                    Ok(()),
+                    "{what}: tier 3′"
+                );
+            }
+            (r, want) => panic!("{what}: want {want:?} (None: empty), got {r:?}"),
+        }
     }
     let (a, b) = (full_torus(RING), full_torus(RING));
     for (op, r) in subtract_both_orders_and_intersect(
@@ -673,10 +729,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
         &wall_declarations(&a, &b, TUBE, ContactClass::Tangent),
     ) {
         let err = r.expect_err(op);
-        assert!(
-            matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
-            "the chain, {op}: {err:?}"
-        );
+        assert!(is_tangent_on_a_seam(&err), "the chain, {op}: {err:?}");
     }
     let (a, b) = kissing_pair();
     for (op, r) in subtract_both_orders_and_intersect(
@@ -758,9 +811,10 @@ fn a_cone_face_still_cannot_be_declared_at_all() {
             Point2::new(1.0, 0.0),
             Point2::new(0.0, 1.0),
         ])]);
-        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+        let cone = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
             .expect("the cone body builds")
-            .body
+            .body;
+        finished("the cone", cone, Tol::witness())
     };
     let cone_face = cone
         .faces()
@@ -839,45 +893,133 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     }
 }
 
-/// **The routing reads the SECOND face's sense, not the first's
-/// twice.** `verify_tangent_declaration` resolves each declared face
-/// once and hands `classify_shared_rim` one bit per face. The two
-/// arguments are adjacent `bool`s of the same type, so a call site
-/// passing the plus face's bit in both positions compiles — and every
-/// row above still passes, because both fixtures there carry
-/// `sense: true` on every wall and the two arguments are equal by
-/// accident.
-///
-/// This row removes the accident. It is the kissing pair — whose
-/// unflipped verdict is the slit, the row above — with the SECOND
-/// body's walls reversed through the public `Body::set_face_sense`.
-/// The outward normals then agree across the rim, so the routing must
-/// answer the seam; a door reading the first bit twice would still
-/// answer the slit.
+/// **A torus whose walls' sense bits are reversed is not a finished
+/// body**, so it cannot carry the guard this row was: that the
+/// routing reads the SECOND face's sense and not the first's twice
+/// (`verify_tangent_declaration` hands `classify_shared_rim` one bit
+/// per face, two adjacent `bool`s a transposed call site compiles
+/// with). Reversing the outer torus's walls through `Body::set_face_sense`
+/// turns their outward normals inward, and the at-rest gate refuses
+/// exactly those walls. The guard waits on a finished fixture whose two
+/// sides carry different bits
+/// (`work/tang/the-rim-routings-sense-guard-has-no-finished-fixture.md`).
 #[test]
 fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
-    let (a, mut b) = kissing_pair();
-    for fb in torus_faces(&b, TUBE) {
+    let (_, b) = kissing_pair();
+    let mut b = b.into_body();
+    let mut walls = torus_faces(&b, TUBE);
+    for &fb in &walls {
         let s = b.get_face(fb).expect("the wall face resolves").sense;
         b.set_face_sense(fb, !s).expect("the key is live");
     }
-    // The premise, stated rather than assumed: the two operands' walls
-    // now carry DIFFERENT bits, so the second argument is load-bearing.
-    let sense_of = |body: &Body<f64>| {
-        let f = torus_faces(body, TUBE)[0];
-        body.get_face(f).expect("the wall face resolves").sense
-    };
-    assert_ne!(
-        sense_of(&a),
-        sense_of(&b),
-        "the fixture must put different sense bits on the two sides of the rim"
-    );
+    let errors = topo::AtRestBody::validate(b, Tol::witness())
+        .expect_err("inward walls are not a finished body");
+    let mut inverted: Vec<_> = errors
+        .iter()
+        .map(|e| match e {
+            topo::ValidationError::CurvedSenseInverted { face, .. } => *face,
+            other => panic!("a finding other than the reversed walls': {other:?}"),
+        })
+        .collect();
+    inverted.sort();
+    walls.sort();
+    assert_eq!(inverted, walls, "the gate names each reversed wall once");
+}
 
-    let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a seam takes no declaration, and the join wiring is not built");
-    assert!(
-        matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
-        "with one side reversed the kissing rim's normals AGREE: wedge π, not the slit: {err:?}"
-    );
+/// The coincident planar end faces across the two operands, declared
+/// `Rest` (the chain's junction discs, opposed).
+fn junction_discs(x: &Body<f64>, y: &Body<f64>) -> Vec<FacePairDeclaration> {
+    let planes = |b: &Body<f64>| -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
+        query::all_faces(b)
+            .into_iter()
+            .filter_map(|f| match b.get_surface(b.get_face(f)?.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => Some((f, *origin, *normal)),
+                _ => None,
+            })
+            .collect()
+    };
+    let mut out = Vec::new();
+    for (fa, oa, na) in planes(x) {
+        for (fb, ob, nb) in planes(y) {
+            if na.dot(nb) < -1.0 + 1e-12 && (ob - oa).dot(na).abs() < 1e-12 {
+                out.push(FacePairDeclaration::rest(fa, fb));
+            }
+        }
+    }
+    out
+}
+
+/// **The G1 chain declared a `Seam` verifies, and stops at the
+/// crossing layer.** The torus × torus seam passes the witness lane
+/// along the shared meridian circle and the wedge routing, so no
+/// declaration refuses; what stops the union is two pieces the seam
+/// does not supply. A torus × torus seam certifies no global side (the
+/// two tubes diverge past the rim, so each carrier crosses the other's
+/// continuation), so an edge leaving the rim keeps its graze door
+/// (`a-torus-seam-graze-needs-the-rim-root-deflated`); and the rim
+/// semicircle lying on the partner torus is a meridian, which the
+/// circle × torus root door cannot place on the carrier
+/// (`a-torus-meridian-lying-on-a-torus-is-unsettled`). Both orders.
+#[test]
+fn the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer() {
+    let (a, b) = (segment_a(), segment_b());
+    for (x, y) in [(&a, &b), (&b, &a)] {
+        let mut decls = wall_declarations(x, y, TUBE, topo::BooleanCoincidence::Seam);
+        let discs = junction_discs(x, y);
+        assert_eq!(discs.len(), 1, "one junction disc pair");
+        decls.coincident_faces.extend(discs);
+        let err = topo::union_with(x, y, &decls, Tol::witness())
+            .expect_err("the crossing layer stops the chain");
+        let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
+            panic!("the crossing layer's refusal: {err:?}");
+        };
+        let body = if operand == topo::Operand::A { x } else { y };
+        let carrier = body
+            .get_curve_geom(body.get_edge(edge).expect("a live edge").curve)
+            .and_then(|g| g.certified())
+            .expect("a certified edge")
+            .carrier()
+            .clone();
+        assert!(
+            matches!(carrier, geom::Curve3::Circle { .. }),
+            "a circle at the rim: {carrier:?}"
+        );
+    }
+}
+
+/// **A seam declared on the kissing pair is contradicted**: the two
+/// tori touch externally, outward normals opposed, which is the
+/// `Tangent` claim's sense and contradicts the seam's
+/// (`seam_senses_aligned`). Both orders.
+#[test]
+fn a_seam_declared_on_the_kissing_torus_pair_is_contradicted() {
+    let (a, b) = kissing_pair();
+    let walls = |body: &Body<f64>| -> Vec<FaceKey> {
+        query::all_faces(body)
+            .into_iter()
+            .filter(|&f| {
+                matches!(
+                    body.get_face(f).and_then(|fd| body.get_surface(fd.surface)),
+                    Some(geom::Surface::Torus { .. })
+                )
+            })
+            .collect()
+    };
+    for (x, y) in [(&a, &b), (&b, &a)] {
+        let mut decls = BooleanDeclarations::none();
+        for fa in walls(x) {
+            for fb in walls(y) {
+                decls.coincident_faces.push(FacePairDeclaration::new(
+                    fa,
+                    fb,
+                    topo::BooleanCoincidence::Seam,
+                ));
+            }
+        }
+        let err = topo::union_with(x, y, &decls, Tol::witness()).expect_err("contradicted");
+        let BooleanError::SeamContradicted { margin, .. } = &err else {
+            panic!("the seam is contradicted: {err:?}");
+        };
+        assert_eq!(margin.predicate, Some("seam_senses_aligned"), "{err}");
+    }
 }

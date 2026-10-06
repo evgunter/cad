@@ -12,7 +12,9 @@
 //! it; a mate-placed instance inlines over a part that is one group at
 //! the empty chain on its world, whose root takes its place. Every cut
 //! split admits, inlined back at the empty offset, returns the document
-//! it was given up to node ids (R1). `Promote` and `Fold` carry a
+//! it was given up to node ids and the one regrouping A10's replacement
+//! rule makes of a cut whose roots a kept root separates (R1). `Promote`
+//! and `Fold` carry a
 //! group's frame onto a gauge and back, so a part at a frame of its own
 //! is a promote and a cut leaving the gauge behind.
 //!
@@ -22,6 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use std::sync::Arc;
 
 use crate::fixture;
@@ -754,7 +757,7 @@ fn i4_a_mate_placed_instance_over_one_such_group_inlines() {
     let out = inline(&stated, i, &store);
     assert_eq!(
         offset_of(&out.doc, out.node_map[&part_base]),
-        Some(checked),
+        Some(editor_core::test_support::stored_placement(&checked)),
         "the root carries the checked offset"
     );
 
@@ -921,7 +924,9 @@ fn r1_a_cut_holding_nested_gauges_round_trips_exactly() {
         Some(g)
     );
     assert!(
-        out.part.params().contains_key(&crate::p2_gauges::lift()),
+        out.part
+            .var_named(crate::p2_gauges::lift().as_str())
+            .is_some(),
         "K's parameter moves with it"
     );
 
@@ -994,7 +999,10 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
         .iter()
         .find(|&&id| matches!(block.node(id), Some(Node::Datum(_))))
         .expect("the block's frame");
-    let (with_datum, spare) = insert(block.clone(), block.node(frame).cloned().expect("live"));
+    let (with_datum, spare) = insert(
+        block.clone(),
+        block.node(frame).map(Node::authored).expect("live"),
+    );
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),
         (&chain, vec![k, k2], k, "a gauge chain"),
@@ -1139,7 +1147,7 @@ fn r1_the_comparator_reads_every_field() {
         (Tweak::Placement, "payload", 0),
         (Tweak::Alignment, "payload", 3),
         (Tweak::Head, "payload", 3),
-        (Tweak::Param, "parameters", 0),
+        (Tweak::Param, "variables", 0),
         (Tweak::Label, "label", 0),
     ] {
         let (b, _) = comparator_scene(&p, tweak);
@@ -1148,7 +1156,7 @@ fn r1_the_comparator_reads_every_field() {
         let said = fails(&b, &map, &step_map);
         assert!(
             said.lines().any(|l| l.starts_with(check)
-                && (check == "parameters" || l.contains(&format!("{node:?}")))),
+                && (check == "variables" || l.contains(&format!("{node:?}")))),
             "{check}: {said}"
         );
     }
@@ -1215,18 +1223,19 @@ fn r1_a_round_trip_keeping_a_profile_compares_equal() {
 
 /// **R1 over every shape split admits**: a cut moves as selected, so
 /// inlining it back at the empty offset returns the document up to node
-/// ids whatever the cut holds — one placed group, one with a checked
-/// member, a lone instance, a group rooted at a parametric offset, a
-/// gauge at the empty chain holding a group, a gauge holding one group
-/// at the empty chain, a gauge on a kept gauge holding two groups and a
-/// gauge, a group on a kept gauge, and plain geometry on the world.
+/// ids whatever the cut holds, its roots adjacent in the list — one
+/// placed group, one with a checked member, a lone instance, a group
+/// rooted at a parametric offset, a gauge at the empty chain holding a
+/// group, a gauge holding one group at the empty chain, a gauge on a
+/// kept gauge holding two groups and a gauge, a group on a kept gauge,
+/// and plain geometry on the world.
 #[test]
 fn r1_every_shape_split_admits_round_trips_exactly() {
     type Scene = (ProfileDoc, Vec<RecipeNodeId>);
     let p = parts("r1-every");
     let o = p.opts();
     let empty = |label: &str| ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement| {
+    let pair_on = |doc: ProfileDoc, gauge: Option<RecipeNodeId>, at: Placement<Formula>| {
         let (doc, base) = insert(doc, Node::instantiate_part(p.base));
         let doc = set_gauge(doc, base, gauge);
         let doc = set_offset(doc, base, Some(at));
@@ -1259,7 +1268,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         let doc = crate::p2_gauges::declare_lift(empty("r1-parametric-root"), 0.5);
         let at = Placement::from(editor_core::Step::Rigid {
             translation: [
-                editor_core::Expr::param(crate::p2_gauges::lift(), editor_core::Dimension::Length),
+                editor_core::Formula::named(
+                    crate::p2_gauges::lift(),
+                    editor_core::Dimension::Length,
+                ),
                 fixture::len(0.0),
                 fixture::len(0.0),
             ],
@@ -1428,13 +1440,14 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     round_trip(&folded, &ids, &p, "a face frame");
 }
 
-/// **The one shape whose round trip moves the root order** (the
-/// split-amendment rider (i), `refactor`'s module docs): three lone
-/// instances x, y, z, listed in that order, and a cut of x and z. The
-/// instance left behind takes x's one position, so inline lists z
-/// before y. The comparator reads root order, and this is the only
-/// disagreement it finds; with the cut's roots listed together the
-/// cut round-trips exactly.
+/// **A cut a kept root separates comes back regrouped** (A10's
+/// replacement rule, A4): three lone instances x, y, z, listed in that
+/// order, and a cut of x and z. The instance takes x's position, so
+/// inline lists x and z there and y after them; that regrouping is the
+/// only thing the comparator reads as changed. The regrouped document's
+/// cut is adjacent, so a second round trip changes nothing, and with
+/// the cut's roots listed together from the start the round trip is
+/// exact.
 #[test]
 fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
     let p = parts("r1-interleaved");
@@ -1450,11 +1463,17 @@ fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(&doc, &out, &back);
+    assert_eq!(
+        back.doc.roots(),
+        &[map[&x], map[&z], y],
+        "the cut's roots come together where x was, y after them"
+    );
     let said = same_up_to_ids(&doc, &back.doc, &map, &steps).expect_err("z comes before y");
     assert!(
         said.lines().all(|l| l.starts_with("roots")) && said.lines().count() == 1,
         "only the root order moves: {said}"
     );
+    round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
     let (together, _) = step(
         doc,
         DocEdit::SetRoots {

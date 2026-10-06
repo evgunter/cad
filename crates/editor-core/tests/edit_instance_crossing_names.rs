@@ -28,12 +28,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
     FaceName, InterfaceCrossing, InterfaceRecord, Maintenance, MateFrame, MatePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SplitError, StableName, apply, content_pin,
-    inline, split,
+    ProfileDoc, RecipeNodeId, RoleSeg, SplitError, StableName, apply, content_pin, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, on_frame, step, step_with};
@@ -55,6 +56,7 @@ fn part_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -93,14 +95,26 @@ fn crossing(outer: StableName, inner: FaceName) -> InterfaceCrossing {
 
 /// A mate whose two heads are the named faces, read at their own
 /// mints.
-fn mate(a: StableName, b: StableName) -> Node<ProfileProgram> {
+fn mate(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(a),
         b: fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            a: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
+            b: MateFrame::authored(
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                geom_core::Tol::witness(),
+            )
+            .expect("a definite frame"),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
@@ -381,7 +395,8 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
-            | Maintenance::LabelDropped { .. } => None,
+            | Maintenance::LabelDropped { .. }
+            | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect();
     assert_eq!(

@@ -4,20 +4,23 @@
 //! `SlotId::Profile { loop_, step, arg }` address routes `SetParam`/
 //! `SetExpression`/`Doc::expr_at` into the program; the authoring-time
 //! check (VQ9) refuses program-breaking edits typed AT THE DOOR under
-//! the current environment, while `SetDocParam` NEVER refuses for
+//! the current environment, while `DefineVar` NEVER refuses for
 //! downstream profile breakage — that surfaces as the node's typed
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::Expr;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, Frame, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, Placement, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, SplitHalf, Step, StepArg, TubeWindow, ValuePayload, evaluate,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula,
+    Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -140,7 +143,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = circle_doc(0.5);
     // Replace the radius with (0.5 + 0.25), then re-point its LEFT
     // literal via a sub-path edit.
-    let sum = Expr::add(len(0.5), len(0.25)).unwrap();
+    let sum = Formula::add(len(0.5), len(0.25)).unwrap();
     let doc = doc
         .apply(
             &DocEdit::SetParam {
@@ -235,17 +238,17 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     }
 }
 
-/// VQ9 direction two: `SetDocParam` NEVER refuses for downstream
+/// VQ9 direction two: `DefineVar` NEVER refuses for downstream
 /// profile breakage — the broken binding surfaces as the NODE's typed
 /// evaluation error naming (loop, step): V1 class 2, refusing programs
 /// exist at rest.
 #[test]
-fn set_doc_param_never_refuses_for_downstream_profiles() {
+fn define_var_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.5),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("r"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -269,7 +272,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
+                        radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -282,14 +285,14 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     // The breaking param edit APPLIES (never refused here)…
     let broken = doc
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::from_static("r"),
-                value: DocParam::continuous(Dimension::Length, 0.0),
+            &DocEdit::DefineVar {
+                var: VarName::from_static("r").into(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("SetDocParam never refuses for downstream profile breakage (VQ9)")
+        .expect("DefineVar never refuses for downstream profile breakage (VQ9)")
         .doc;
     // …and the refusal surfaces at evaluation, typed, naming the loop.
     let ev = evaluate::<f64>(
@@ -392,7 +395,8 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
 
     // (incoming spec, arrival spec, incoming role, arrival role, the
     // arrival argument's authored value, a replacement for it).
-    let rows: Vec<(ProgramArcData, ProgramArcData, StepArg, StepArg, f64, Expr)> = vec![
+    type Arc = ProgramArcData<Formula>;
+    let rows: Vec<(Arc, Arc, StepArg, StepArg, f64, Formula)> = vec![
         (
             sweep(0.25),
             sweep(0.6),
@@ -465,7 +469,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // …and the arrival role addresses the ARRIVAL spec's argument,
         // which is the whole of issue #829.
         assert_eq!(
-            program.expr(fused).and_then(Expr::literal_value),
+            program.expr(fused).and_then(Formula::literal_value),
             Some(authored),
             "{arrival:?} addresses the arrival spec's argument"
         );
@@ -480,12 +484,12 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 step: 1,
                 arg: incoming,
             })
-            .and_then(Expr::literal_value);
+            .and_then(Formula::literal_value);
         *program
             .expr_mut(fused)
             .expect("the arrival role is writable") = replacement.clone();
         assert_eq!(
-            program.expr(fused).and_then(Expr::literal_value),
+            program.expr(fused).and_then(Formula::literal_value),
             replacement.literal_value()
         );
         assert_eq!(
@@ -495,7 +499,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                     step: 1,
                     arg: incoming,
                 })
-                .and_then(Expr::literal_value),
+                .and_then(Formula::literal_value),
             incoming_before,
             "writing the arrival argument moved the incoming one"
         );
@@ -567,13 +571,13 @@ test_utils::f6_variants! {
     const DATUM_KIND: Datum = [Plane, Axis, Point, AxisInPlane, Frame, FaceFrame];
 }
 
-type ProfileNode = Node<ProfileProgram>;
+type ProfileNode = AuthoredNode;
 
 fn nid(n: u64) -> RecipeNodeId {
     RecipeNodeId(n)
 }
 
-fn datum_shapes() -> Vec<Datum> {
+fn datum_shapes() -> Vec<Datum<Formula>> {
     vec![
         Datum::Plane {
             origin: [len(0.0), len(0.0), len(0.0)],
@@ -620,6 +624,7 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Extrude {
             profile: nid(1),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
         Node::Revolve {
             profile: nid(1),
@@ -650,13 +655,13 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Loft {
             profiles: vec![nid(1), nid(2)],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
         Node::Sweep {
             profile: nid(1),
             path: nid(2),
-            stations: Expr::count(4),
-            v_degree: Expr::count(1),
+            stations: Formula::count(4),
+            v_degree: Formula::count(1),
         },
         Node::Fillet {
             target: nid(1),
@@ -734,12 +739,12 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     ] {
         nodes.push(Node::Pattern {
             input: nid(1),
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
             input: nid(1),
-            count: Some(Expr::count(3)),
+            count: Some(Formula::count(3)),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
@@ -751,7 +756,7 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     nodes.extend([
         Node::Part {
             of: nid(1),
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
         Node::Part {
             of: nid(1),
@@ -785,8 +790,26 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-                b: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                a: MateFrame::authored(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
+                // A face base whose offset is a literal then a rigid
+                // step: the rigid step's slots carry the side and the
+                // step's own index.
+                b: MateFrame::on_face(
+                    Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
+                        &Step::Rigid {
+                            translation: [len(0.5), len(0.0), len(0.0)],
+                            axis: [scl(0.0), scl(0.0), scl(1.0)],
+                            angle: ang(0.5),
+                        }
+                        .into(),
+                    ),
+                ),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -977,8 +1000,11 @@ fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;
     let mut text = String::new();
     for node in one_of_every_node_shape() {
+        let node = editor_core::test_support::stored(&node);
         let slots = node.slots();
-        let tags: Vec<Expr> = (0..slots.len()).map(|i| scl(1000.0 + i as f64)).collect();
+        let tags: Vec<editor_core::Expr> = (0..slots.len())
+            .map(|i| editor_core::test_support::stored_expr(&scl(1000.0 + i as f64)))
+            .collect();
         let mut tagged = node.clone();
         for (&slot, tag) in slots.iter().zip(&tags) {
             *tagged

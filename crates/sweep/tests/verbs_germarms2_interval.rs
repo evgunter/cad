@@ -37,10 +37,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::interval::{iv, p2, p3, v3};
 use geom_core::{Affine3, Interval, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -51,9 +53,16 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
     let lp = profile::circle(p2(0.0, 0.0), iv(r), tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -h)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&vp, Extrusion::Distance(iv(2.0 * h)), tol)
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(2.0 * h),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
@@ -88,7 +97,12 @@ fn repose(b: &Body<Interval>) -> Body<Interval> {
 }
 
 fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    topo::union(&a, &b, tol).expect_err("this family has no join arm")
 }
 
 /// **The re-posed twin's obligation at the CERTIFIED scalar**, which is

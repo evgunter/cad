@@ -53,8 +53,8 @@ use geom_core::{Decide, Point2, Point3, Real, Vec2, Vec3};
 ///
 /// let d: f64 = real(0.75);
 /// assert_eq!(d, 0.75);
-/// let body = Extrusion::Distance(real::<f64>(0.75));
-/// assert!(matches!(body, Extrusion::Distance(_)));
+/// let body = Extrusion::Distance { depth: real::<f64>(0.75), side: ExtrudeSide::Along };
+/// assert!(matches!(body, Extrusion::Distance { .. }));
 /// ```
 #[inline]
 pub fn real<T: Real>(x: f64) -> T {

@@ -29,6 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::prelude::{
     BlendError, Body, Convexity, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet,
     fillet_edges, mass_properties, query, validate_geometric,
@@ -314,7 +315,10 @@ pub fn profile<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
 fn plate<S: Scalar>(tol: Tol) -> Extruded<S> {
     extrude(
         &profile::<S>(tol),
-        Extrusion::Distance(S::from_f64(DEPTH)),
+        Extrusion::Distance {
+            depth: S::from_f64(DEPTH),
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("extrude rocker")

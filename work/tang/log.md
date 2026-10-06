@@ -369,6 +369,35 @@ PR 3823's state-sync.
 - **Next.** `pi-seam-between-two-operands-has-no-declaration` (`Seam`)
   is dispatched now that the cover rungs have landed.
 
+## 2026-10-03 — `BooleanCoincidence::Seam` lands (PR 3849) (TANG orchestrator)
+
+**What landed.** The declared G1 seam between two operands, as Ev ruled
+on PR 3756:
+- verified by the `Tangent` witness lane with the sense bit reversed;
+- the two faces must leave the locus on opposite sides wherever they
+  both lie on it (a coverage read along the rim angle or line
+  parameter);
+- a cover source only for kinds that keep one global side.
+
+The hemisphere on a tube, the plane×torus puck and the D-bar build; the
+lily stops at two filed gaps.
+
+**Review.**
+- A concurrent dual review (H). Both reviews returned APPROVE-WITH-FIXES.
+  The vacuous rim-wedge check (a cusp verified as a seam) was raised by
+  both, MAJOR on one side and MINOR on the other, so it is bilateral and
+  the tally is unchanged.
+- Three delta reviews followed. Two were NOT-MERGEABLE, each on a false
+  seam passing the declaration door. These were introduced by the fix
+  passes, not missed by the pair:
+  1. the boundary-sample line side (the dodge plate);
+  2. an edge anywhere on the locus standing in for the face where the
+     faces touch (the tab, partial and far plates).
+- The third delta found no further instance. The last pass was read by
+  the orchestrator.
+- Lesson recorded for briefs: a door that reads "which side" must read
+  it where the faces meet, and every cut in its parameter must have a
+  row that turns red without it.
 ## 2026-10-03 — the pierce ring joins on a curved face (PR 3851) (TANG orchestrator)
 
 **Review.** A concurrent dual review (H); both reviewers returned
@@ -404,3 +433,54 @@ orchestrator.
 
 **Closed in the PR.** `pierce-ring-has-no-join-arm` (P0) and PROPS'
 notched-wall row.
+
+## 2026-10-03 — `tangent_locus` consumes the section classifiers' tangency (TANG implementer)
+
+The witness lane's plane×cylinder and parallel-cylinder tangency now
+run on the section classifiers' rows (`pc_*`, `cc_*`), not its own.
+Two band-edge disagreements resolved and pinned. One issue filed: the
+plane×cylinder section reads its gap at the stored origin.
+
+**Closed in the PR.** `tangent-locus-re-meters-the-section-classifiers-tangency`.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

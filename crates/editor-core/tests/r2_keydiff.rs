@@ -11,11 +11,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation,
-    Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, apply, evaluate,
+    BooleanOp, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
+    FreeVar, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -60,6 +61,7 @@ fn boxed(
             node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -75,14 +77,14 @@ fn r2_measure_free_content_keys() {
     let d0 = ProfileDoc::empty(DocumentId::derive("r2-keydiff"), Tol::witness());
     let d1 = push(
         &d0,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("t"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("t"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let (d2, a) = boxed(&d1, (0.0, 1.0), (0.0, 2.0), 0.0, 3.0);
@@ -113,7 +115,8 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: bp,
-                distance: Expr::param(ParamName::from_static("t"), Dimension::Length),
+                distance: Formula::named(VarName::from_static("t"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     );

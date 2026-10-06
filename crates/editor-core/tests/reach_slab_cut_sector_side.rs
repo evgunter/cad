@@ -17,6 +17,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
@@ -31,7 +33,7 @@ use topo::{BooleanError, PointInSolidError};
 
 /// A disc of radius `r` about `(cx, cy)` on the plane `z = z0`,
 /// extruded `dz`.
-fn disc(doc: ProfileDoc, lp: LoopProgram, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, p) = insert(
         doc,
@@ -46,6 +48,7 @@ fn disc(doc: ProfileDoc, lp: LoopProgram, z0: f64, dz: f64) -> (ProfileDoc, Reci
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }

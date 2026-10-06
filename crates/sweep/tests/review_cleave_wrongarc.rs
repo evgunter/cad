@@ -16,7 +16,7 @@
 use crate::common::bores::turned_cylinder;
 use crate::common::cavity::brick;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use sweep::test_support::{bored_cylinder, cylinder_of_arcs_at};
+use sweep::test_support::{bored_cylinder, cylinder_of_arcs_at, finished};
 use topo::Body;
 use topo::splitting::{SplitPart, SplitPlane, split};
 
@@ -110,7 +110,12 @@ fn sections(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<(bool, usize)> {
 /// string naming what refused or failed.
 type Half = (Vec<(bool, usize)>, Result<f64, String>);
 fn read_split(body: &Body<f64>, plane: &SplitPlane<f64>) -> Result<[Half; 2], String> {
-    let r = split(body, plane, tol()).map_err(|e| format!("split refused: {e:?}"))?;
+    let r = split(
+        &sweep::test_support::finished("the operand", body.clone(), tol()),
+        plane,
+        tol(),
+    )
+    .map_err(|e| format!("split refused: {e:?}"))?;
     let mut out = Vec::new();
     for (side, part) in [("below", r.below), ("above", r.above)] {
         let SplitPart::Body(half) = part else {
@@ -347,9 +352,13 @@ fn a_keyed_cylinder_from_subtract_splits_into_counter_clockwise_sections() {
         ((-0.25, 0.25), (0.4, 2.0), (-1.0, 3.5)),
     ];
     for turn in [0.0, -2.0] {
-        let cyl = turned_cylinder(turn, h);
+        let cyl = finished("the turned cylinder", turned_cylinder(turn, h), tol());
         for (sx, sy, sz) in slabs {
-            let slab = brick(Point3::new(sx.0, sy.0, sz.0), Point3::new(sx.1, sy.1, sz.1));
+            let slab = finished(
+                "the slab",
+                brick(Point3::new(sx.0, sy.0, sz.0), Point3::new(sx.1, sy.1, sz.1)),
+                tol(),
+            );
             let body = match topo::subtract(&cyl, &slab, tol()) {
                 Ok(r) => match r.body() {
                     Some(b) => b.body.clone(),
@@ -495,4 +504,57 @@ fn axis_parallel_cuts_left_to_the_book_rule_still_answer() {
         }
     }
     t.assert_clean("p7 axis-parallel");
+}
+
+/// PR 3981 review: the steep-tube pose that refused check 5 at
+/// ε = 1e-6, and its neighbours in turn, tilt, height and plane
+/// azimuth (one bore radius: 0.38 read identically to 0.4). Every
+/// split must answer with halves at rest whose volumes are the closed
+/// form: what the clamp turned from a refusal into an answer is
+/// checked against the truth, not only admitted.
+#[test]
+fn steep_tube_neighbours_of_the_check_5_pose_answer_and_are_right() {
+    use core::f64::consts::PI;
+    let mut t = Tally::default();
+    let a = 0.4;
+    let base = bored_cylinder(a, 0.0, 0.0, tol());
+    let total = PI * (1.0 - a * a);
+    for turn in [1.0682, 1.0582, 1.0782, 1.1682, 0.9682, 1.3682] {
+        let body = turned(&base, turn);
+        for tilt in [1.15, 1.2, 1.25] {
+            for (o, phi) in [([0.0, 0.0, 0.5], 0.0), ([0.0, 0.0, 0.47], 0.3)] {
+                for flip in [false, true] {
+                    let plane = plane_at(o, tilt, phi, flip);
+                    let want = disc_below(0.0, 0.0, 1.0, 1.0, &plane)
+                        - disc_below(0.0, 0.0, a, 1.0, &plane);
+                    judge(
+                        &mut t,
+                        format!(
+                            "tube a {a} turn {turn:.4} tilt {tilt} at {o:?} phi {phi} flip {flip}"
+                        ),
+                        &body,
+                        &plane,
+                        want,
+                        total,
+                        None,
+                    );
+                }
+            }
+        }
+    }
+    // Tier 3's quadrature refusals (`props_quad_converged`, QUAD's
+    // `quadrature-convergence-test-escalates-instead-of-refining`) are
+    // printed, not failed; a pcurve-certificate refusal is this row's.
+    t.report("p2 steep-tube neighbours");
+    assert!(t.wrong.is_empty(), "{} wrong (above)", t.wrong.len());
+    let ours: Vec<_> = t
+        .refused
+        .iter()
+        .filter(|r| !r.contains("props_quad_converged"))
+        .collect();
+    assert!(
+        ours.is_empty(),
+        "refusals outside the quadrature lane: {ours:#?}"
+    );
+    assert!(t.ok > 50, "only {} splits answered", t.ok);
 }

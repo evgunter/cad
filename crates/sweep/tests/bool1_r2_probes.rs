@@ -9,6 +9,7 @@
 use geom_brep::EdgeDescription;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, ValidationError};
 
@@ -16,14 +17,21 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("valid probe profile");
-    extrude(&prof, Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 fn split_at_y(body: &Body<f64>, y: f64) -> topo::SplitResult<f64> {
     topo::split(
-        body,
+        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
         &topo::test_support::split_plane(
             Point3::new(0.0, y, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -123,10 +131,11 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
     let first = split_at_y(&body, 1.0);
     let below1 = first.below.body().expect("below of split #1");
     tier3(below1, "coplanar split below");
+    let below1 = sweep::test_support::finished("the lower half", below1.clone(), Tol::witness());
 
     // Transverse second cut straight through the restated edges' span.
     let second = topo::split(
-        below1,
+        &below1,
         &topo::test_support::split_plane(
             Point3::new(6.5, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
@@ -216,6 +225,7 @@ fn tangent_plane_split_of_a_cylinder_never_reaches_the_smooth_arm() {
         (Point2::new(1.0, 0.0), 1.0),
     ]);
     let body = extruded(vec![circle], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     // Plane y = 1 is tangent to the barrel along the line (0,1,z).
     let attempt = topo::split(
         &body,

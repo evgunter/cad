@@ -39,10 +39,9 @@ addendum's silent-discard shape, not a wrong answer on valid input.
 
 Inside `topo`, read the pairing through `Edge::claim(he)`
 (`crates/topo/src/entity.rs`), which returns `None` for an unclaimed
-half and otherwise the half's side (`plus`) and its `mate`, and refuse
-on `None` with the crate's typed corruption error, naming the
-half-edge and the edge (`EulerOpError::UnclaimedHalfEdge { he, edge }`
-where the site speaks the Euler vocabulary). `Body::mate` reads through
+half and otherwise the half's side (`plus`) and its `mate`, and on `None`
+panic naming the record (D2 row 4): the half-edge, and the edge
+whose pair does not claim it. `Body::mate` reads through
 it; `merge_faces`' `outermost_survivor` and `edge_mate` and
 `loop_winding`'s walk do since PR 3532. `Edge::claim` is `pub(crate)`,
 so a site outside `topo` has `Body::mate` (public, `None` for an

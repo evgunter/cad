@@ -18,6 +18,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
@@ -422,9 +423,16 @@ fn l_bracket() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("an L is a valid profile");
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("an L-bracket extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("an L-bracket extrudes")
+    .body
 }
 
 /// The bracket's one concave edge: both supports planes, the dihedral

@@ -54,6 +54,7 @@
 //! pins is validity and the census; `lib_placedunion.rs` pins the tool
 //! against the pairwise Transform + Union chain it replaces.
 
+use editor_core::ExtrudeSide;
 use editor_core::{BooleanOp, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{ang, axis_in_plane, frame, len, xy_frame};
@@ -114,6 +115,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
         distance: len(DIE_L),
+        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along +Z (`die_pips`' construction) ----

@@ -125,12 +125,12 @@
 //! intent-recording property, and C4's verify-at-use backstops lies
 //! either way.
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Tol};
 
 use crate::body::Body;
 use crate::boolean::{
-    BooleanDeclarations, CarrierEqError, CarrierRelation, FacePairDeclaration, PairUnread,
-    carrier_pair_relation,
+    BooleanDeclarations, CarrierEqError, CarrierRelation, CoincidenceMeasure, FacePairDeclaration,
+    PairUnread, PlaneRung, carrier_pair_relation,
 };
 use crate::contact::BooleanCoincidence;
 use crate::entity::FaceKey;
@@ -207,21 +207,65 @@ pub enum FlushRefusal {
         /// The verifier's own diagnostic, carrying its funnel site.
         source: Indeterminate,
     },
+    /// A surface datum a pair is compared on is not finite: the pair
+    /// describes no shape to compare, and is named rather than
+    /// reported or dropped.
+    PairUnreadable {
+        /// The pair the door could not read.
+        pair: (FaceKey, FaceKey),
+        /// The verifier's own diagnostic, carrying the datum's predicate.
+        source: Indeterminate,
+    },
     /// The verify door reported `Distinct` as a finding's evidence
     /// ([`finding`]'s refusal): a kernel defect.
     Distinct(DistinctFinding),
+}
+
+/// Why [`pair_finding`] decided no finding either way.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PairUndecided {
+    /// The verify door's margin did not decide (in band, or escalated),
+    /// or a face has no extent to read it over ([`EXTENT_UNREAD`]).
+    InBand(Indeterminate),
+    /// A surface datum the pair is compared on is not finite.
+    Unreadable(Indeterminate),
+}
+
+impl PairUndecided {
+    /// The verifier's diagnostic, whichever arm carries it.
+    #[must_use]
+    pub const fn diag(self) -> Indeterminate {
+        match self {
+            Self::InBand(diag) | Self::Unreadable(diag) => diag,
+        }
+    }
 }
 
 impl core::fmt::Display for FlushRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Band(error) => write!(f, "flush detection: {error}"),
+            // **No offer to widen the tolerance** (D4 ¶1 (i)): this is
+            // not a kernel approximation limit — the geometry is the
+            // lever, and the escalation carries the margin that values
+            // the one tolerance D4 does allow, a SMALLER one, which
+            // decides the pair either way.
             Self::PairInBand { pair, source } => write!(
                 f,
                 "flush detection: face pair {:?}/{:?} is neither definitely flush nor definitely \
-                 apart ({source}) — a finding is only ever definite, so the pair is named rather \
-                 than reported or dropped; separate the geometry or widen the tolerance",
-                pair.0, pair.1
+                 apart ({}) — a finding is only ever definite, so the pair is named rather \
+                 than reported or dropped. {}",
+                pair.0,
+                pair.1,
+                source.payload(),
+                source.ending("separate the geometry")
+            ),
+            Self::PairUnreadable { pair, .. } => write!(
+                f,
+                "flush detection: face pair {:?}/{:?} is compared on a surface datum that is \
+                 not finite, so the pair describes no shape to compare and is named rather \
+                 than reported or dropped. {KERNEL_OR_FILE_DEFECT_ENDING}",
+                pair.0, pair.1,
             ),
             Self::Distinct(defect) => defect.fmt(f),
         }
@@ -246,8 +290,8 @@ impl core::error::Error for FlushRefusal {}
 ///
 /// Everything — descriptions, oriented sources, AND the verification
 /// arm — comes from [`carrier_pair_relation`] (module docs). ONE
-/// call, in `declared: false` mode: its `Undeclared` refusal with the
-/// verifier's definite-zero encoding ([`MarginKind::Invalid`](geom_core::MarginKind::Invalid)) is
+/// call, in `declared: false` mode: its `Undeclared` refusal on a
+/// coincidence decided zero ([`CoincidenceMeasure::Zero`]) is
 /// precisely "would verify if declared", and the refusal itself
 /// carries the orientation the ladder decided — the same orientation
 /// verdict the declared rung re-decides deterministically at use, so
@@ -264,7 +308,7 @@ pub fn pair_finding<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<FlushEvidence>, Indeterminate> {
+) -> Result<Option<FlushEvidence>, PairUndecided> {
     let relation = match carrier_pair_relation(a, fa, b, fb, false, band) {
         Ok(relation) => relation,
         // A kind outside the `Rest` ladder's inventory (cone, NURBS,
@@ -275,12 +319,12 @@ pub fn pair_finding<T: Decide>(
         // ladder no lever, so the pair is neither flush nor apart:
         // named, under the door's own label, never dropped.
         Err(PairUnread::Extent(_)) => {
-            return Err(Indeterminate {
+            return Err(PairUndecided::InBand(Indeterminate {
                 margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some(EXTENT_UNREAD),
                 terminal_sliver: false,
-            });
+            }));
         }
     };
     match relation {
@@ -290,36 +334,36 @@ pub fn pair_finding<T: Decide>(
             relation,
             rung: FlushRung::SharedSource,
         })),
-        Err(CarrierEqError::Undeclared { diag, relation }) => {
-            if diag.margin.is_invalid() {
-                // The verifier's definite-zero-offset encoding: the
-                // pair would verify if declared, with the orientation
-                // the refusal itself carries. A NaN-poisoned margin
-                // shares that encoding, and the detector takes the
-                // verifier's encoding as-is (anti-twin: it interprets
-                // nothing the verifier doesn't) — C4's verify-at-use
-                // is the backstop for geometry broken this early.
-                match relation {
-                    CarrierRelation::SameOriented | CarrierRelation::SameOpposite => {
-                        Ok(Some(FlushEvidence {
-                            relation,
-                            rung: FlushRung::DecidedCoincident,
-                        }))
-                    }
-                    // Unreachable by the variant's contract (an
-                    // Undeclared refusal never carries `Distinct`);
-                    // typed, never silent.
-                    CarrierRelation::Distinct => Err(diag),
-                }
-            } else {
-                // In-band coincidence: not definite, not droppable.
-                Err(diag)
+        // The verifier decided the coincidence: the pair would verify if
+        // declared, with the orientation the refusal itself carries.
+        Err(CarrierEqError::Undeclared {
+            coincidence: CoincidenceMeasure::Zero { .. },
+            relation: relation @ (CarrierRelation::SameOriented | CarrierRelation::SameOpposite),
+        }) => Ok(Some(FlushEvidence {
+            relation,
+            rung: FlushRung::DecidedCoincident,
+        })),
+        // Poisoned: a datum that is not finite, or a norm the ladder
+        // cannot read.
+        Err(
+            CarrierEqError::Undeclared {
+                coincidence: CoincidenceMeasure::Unreadable(diag),
+                ..
             }
+            | CarrierEqError::Escalated {
+                rung: PlaneRung::Norm,
+                diag,
+            },
+        ) => Err(PairUndecided::Unreadable(diag)),
+        // In band: not definite, not droppable. A `Distinct` relation
+        // breaks the variant's contract; typed, never silent.
+        Err(CarrierEqError::Undeclared { coincidence, .. }) => {
+            Err(PairUndecided::InBand(coincidence.reported()))
         }
-        Err(CarrierEqError::Escalated { diag, .. }) => Err(diag),
+        Err(CarrierEqError::Escalated { diag, .. }) => Err(PairUndecided::InBand(diag)),
         // Unreachable with `declared: false`; kept typed.
         Err(CarrierEqError::Contradicted { diag, .. } | CarrierEqError::Unsettled { diag }) => {
-            Err(diag)
+            Err(PairUndecided::InBand(diag))
         }
     }
 }
@@ -382,7 +426,8 @@ impl core::error::Error for DistinctFinding {}
 /// # Errors
 ///
 /// [`FlushRefusal::PairInBand`] when a pair's verify-door margin is
-/// indeterminate (never silently included or dropped),
+/// indeterminate and [`FlushRefusal::PairUnreadable`] when a datum it
+/// compares is not finite (never silently included or dropped),
 /// [`FlushRefusal::Band`] if the ambient tolerance is broken.
 pub fn find_flush_candidates<T: Decide>(
     a: &Body<T>,
@@ -395,9 +440,15 @@ pub fn find_flush_candidates<T: Decide>(
     for &ka in &fa {
         for &kb in &fb {
             let evidence =
-                pair_finding(a, ka, b, kb, band).map_err(|source| FlushRefusal::PairInBand {
-                    pair: (ka, kb),
-                    source,
+                pair_finding(a, ka, b, kb, band).map_err(|undecided| match undecided {
+                    PairUndecided::InBand(source) => FlushRefusal::PairInBand {
+                        pair: (ka, kb),
+                        source,
+                    },
+                    PairUndecided::Unreadable(source) => FlushRefusal::PairUnreadable {
+                        pair: (ka, kb),
+                        source,
+                    },
                 })?;
             if let Some(evidence) = evidence {
                 out.push(finding((ka, kb), evidence).map_err(FlushRefusal::Distinct)?);
@@ -435,3 +486,7 @@ pub fn declare_all(findings: &[FacePairFinding]) -> BooleanDeclarations {
         ..BooleanDeclarations::none()
     }
 }
+
+#[cfg(test)]
+#[path = "flush_rows.rs"]
+mod rows;
