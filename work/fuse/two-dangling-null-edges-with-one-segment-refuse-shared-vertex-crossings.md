@@ -1,7 +1,7 @@
 ---
 id: two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings
 kind: issue
-title: Two dangling null edges with one segment nest by their codes; the witness whose pinch lines end in the face fails beyond the origin
+title: Two dangling null edges with one segment nest by their codes; the witness whose pinch lines end in the face drops its far-end rows under y ∖ cube
 status: dispatched
 opened: 2026-10-03
 priority: P0
@@ -34,12 +34,12 @@ flips with `y`'s union order, no longer reaches it.
   reaches past the cube. Every op builds in both operand orders, with
   `y` built both ways, and passes 3′.
 - **Pinned:** `two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`.
-  The inner lens ends inside the cube's face. Every case builds past
-  the origin, and fails beyond it on another row:
+  The inner lens ends inside the cube's face. Every op builds, and only
+  `y ∖ cube` fails 3′, on another row:
   - `y = cut ∪ lens` builds in all six. `y ∖ cube` fails 3′ at the far
     ends (`a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`).
-  - `y = lens ∪ cut` refuses `RingHomingAmbiguous` in all six
-    (`work/tang/a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run.md`).
+  - `y = lens ∪ cut` the same. It refused `RingHomingAmbiguous` until
+    TANG's pending-ring deferral (PR 3954) landed.
   - Notched, with and without a lens in the notch (three struts nested
     at the origin): all six build, and only `y ∖ cube` fails 3′, as
     above.
@@ -49,4 +49,4 @@ flips with `y`'s union order, no longer reaches it.
 
 ## Owed
 
-Flip the pinned cases as their rows land.
+Flip the `y ∖ cube` pins when the carried-row row lands.

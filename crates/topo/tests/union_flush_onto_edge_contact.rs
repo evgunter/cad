@@ -1535,12 +1535,6 @@ enum Want {
     /// every one at a pinch line's far end
     /// (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`).
     Dropped,
-    /// Refuses `RingHomingAmbiguous`
-    /// (`work/tang/a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run.md`).
-    /// The error names only a ring of a body it discards, so where the
-    /// ring lies is pinned by contrast: the same `y` built the other way
-    /// round, and the lenses whose pinch lines leave the face, build.
-    RingHoming,
 }
 
 /// The far ends of the pinch lines `y`'s two pieces touch along: the
@@ -1578,20 +1572,10 @@ fn lens_against_the_cube(
             _ => common,
         };
         let op = format!("{op} (y = {order})");
-        let out = match (want, got) {
-            (
-                Want::RingHoming,
-                Err(BooleanError::Join(topo::SplitJoinError::RingHomingAmbiguous { .. })),
-            ) => continue,
-            (Want::RingHoming, other) => {
-                panic!(
-                    "{op}: want RingHomingAmbiguous, got {:?}",
-                    other.map(|_| ())
-                )
-            }
-            (_, Err(e)) => panic!("{op} refused: {e:?}"),
-            (_, Ok(BooleanResult::Body(out))) => out,
-            (_, Ok(_)) => panic!("{op} came back empty"),
+        let out = match got {
+            Err(e) => panic!("{op} refused: {e:?}"),
+            Ok(BooleanResult::Body(out)) => out,
+            Ok(_) => panic!("{op} came back empty"),
         };
         let got = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
@@ -1680,17 +1664,11 @@ fn two_dangling_null_edges_with_one_segment_build_in_every_op() {
 /// (whose pair crosses the face's corner four times, a third strut,
 /// Out, nested in the lens's), with and without a lens in that notch.
 /// The struts at the origin nest in every one, the Out run holding.
-/// Every one builds past the origin; pinned as they stand where they
-/// fail beyond it:
-/// - `cut ∪ lens` builds in all six; `y ∖ cube` fails 3′ at the far
-///   ends (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`).
-/// - `lens ∪ cut` refuses `RingHomingAmbiguous` in all six: each far
-///   end holds two of `y`'s vertices, each minting a ring in the cube's
-///   face, and the section through one closes before the other's ring
-///   is joined
-///   (`work/tang/a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run.md`).
-/// - Notched, with or without the fill: all six build, and only
-///   `y ∖ cube` fails 3′, as above.
+/// Every op of every one builds at its volume, `y` built both ways, and
+/// passes 3′ except `y ∖ cube`, which drops the carried rows at the
+/// pinch lines' far ends
+/// (`work/fuse/a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped.md`):
+/// pinned as it stands.
 #[test]
 fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face() {
     let tol = Tol::witness();
@@ -1712,46 +1690,29 @@ fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face() {
     let [(_, cut_first), (_, lens_first)] = lens_ys(one_arc_outer(), inner, tol);
     let plain = lens_volumes(one_arc_outer(), inner, None, None);
     let ends = pinch_ends(one_arc_outer(), inner);
-    lens_against_the_cube(
-        &cut_first,
-        plain,
-        ("cut ∪ lens", &ends),
-        |op| {
-            if op == "y ∖ cube" {
-                Want::Dropped
-            } else {
-                Want::Clean
-            }
-        },
-        tol,
-    );
-    lens_against_the_cube(
-        &lens_first,
-        plain,
-        ("lens ∪ cut", &ends),
-        |_| Want::RingHoming,
-        tol,
-    );
-    let notched_want = |op: &str| {
+    let want = |op: &str| {
         if op == "y ∖ cube" {
             Want::Dropped
         } else {
             Want::Clean
         }
     };
+    for (order, y) in [("cut ∪ lens", &cut_first), ("lens ∪ cut", &lens_first)] {
+        lens_against_the_cube(y, plain, (order, &ends), want, tol);
+    }
     let notched_y = notched(&cut_first, notch, None, tol);
     lens_against_the_cube(
         &notched_y,
         lens_volumes(one_arc_outer(), inner, Some(notch), None),
         ("cut ∪ notched lens", &ends),
-        notched_want,
+        want,
         tol,
     );
     lens_against_the_cube(
         &notched(&cut_first, notch, Some(fill), tol),
         lens_volumes(one_arc_outer(), inner, Some(notch), Some(fill)),
         ("cut ∪ notched lens ∪ lens in the notch", &ends),
-        notched_want,
+        want,
         tol,
     );
 }
