@@ -17,6 +17,7 @@ use super::common::latitude_seam::two_arc_sphere;
 use super::common::shell_operands::{tube, vessel};
 use super::shell7_common::{revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
+use sweep::test_support::finished;
 
 /// Every stored row of `body` under the `[r2rows]` tag, then its count
 /// and its tier-3 verdict. NOT `common::pcurve_rows::print_rows`: a
@@ -40,7 +41,12 @@ fn rows(label: &str, body: &Body<f64>) {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) {
-    match topo::shell_open(body, t, open, tol()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), tol()),
+        t,
+        open,
+        tol(),
+    ) {
         Ok(s) => rows(label, &s.body),
         Err(e) => println!("[r2rows] {label}: Err {e}"),
     }
@@ -122,7 +128,9 @@ fn r2_dump_the_corpus() {
     let u = tube(0.6, 1.0, 2.0);
     shelled("tube", &u, 0.1, &[]);
     shelled("tube opened", &u, 0.1, &cap_at_y(&u, 2.0));
-    let hollow = topo::shell(&v, 0.2, tol()).expect("hollows").body;
+    let hollow = topo::shell(&finished("the operand", v.clone(), tol()), 0.2, tol())
+        .expect("hollows")
+        .body;
     shelled("hollow vessel again", &hollow, 0.05, &[]);
 
     let pair = beside(
