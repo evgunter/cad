@@ -2,10 +2,11 @@
 id: one-home-for-where-a-shell-stands
 kind: issue
 title: Where a shell stands against another is read three ways: check 10 and the result sort by one vertex, the boolean by a vertex-edge-face ladder; and a shell's role by three readers
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P2
 cost: M
+branch: fuse/one-home-shell-stands
 ---
 
 Filed by PR 3891 (the piece rule's sort), from its dual review's

@@ -130,3 +130,34 @@ moved to `work/join/` under JOIN-2 (`docs/JOIN-2-SPEC.md`): the REST
 zip reads the join's segments, and `enumerate_segments` and
 `fan_edge_between` go. JOIN-2 edits `boolean/rest.rs`, which is shared
 with TANG, and will announce the seam in its PR. — (JOIN orchestrator)
+
+## 2026-10-06 — picked up; cut along the priority seam
+
+An orchestrator holds the track again (`status: active`). ZIP measured
+48 budget points against its 30. Per `work/README.md` Track size it
+splits along its priority seam: the eight P3 rows moved by `git mv` to
+**ZIPTAIL** (`work/ziptail/`, 18.5 points, `ready`, nobody on it), and
+ZIP keeps its P0 to P2 rows. `a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`
+was unpriced; priced P1/M (a declared union refusing on ordinary
+blocks, its remaining shape unmeasured on main).
+
+FUSE's `fuse/cell-pair-contacts` (PR 3955, open) edits `rest.rs` and
+`zip.rs` and files `a-rest-lane-slit-zip-kills-seam-edges-with-no-substitution-row`
+(P3/E) here; it goes to ZIPTAIL once it lands. TOPO's
+`topo/face-boundary-walks-one-home` (PR 4099, open) edits `rest.rs`.
+
+## 2026-10-06 — dispatched
+
+- **Measure first, no code**: the seam-chord cluster (`zip/chord-probe`:
+  the four `mint_chord` rows, the straight-chord fallback on a curved
+  host, and whether the join's in-face insertion is the same job);
+  the round tube (`zip/tube-seam-orientation`, with JOIN's engraved
+  annular sector beside it); the reflex wrong volume and the rabbet's
+  fold order (`zip/rest-admission`: what `try_rest_union` verifies
+  before it admits a union). Each lane stops at its measurement.
+- **Built**: `survivor-folds-a-corrupt-fusion-list-onto-a-dead-key-outside-the-contact-remap`
+  and `a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence`
+  as one unit (`zip/survivor-and-recourse`). Review tier: **single,
+  style**. Both are small, and they can be read and believed: one
+  closes a debug-only guard, the other checks prose against
+  `RestZipFrontier`'s endings, which postdate the row.
