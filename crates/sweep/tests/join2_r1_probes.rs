@@ -52,7 +52,7 @@ fn prism(pts: &[(f64, f64, f64)], z0: f64, h: f64) -> Body<f64> {
     )
 }
 
-fn rounded(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
+pub(crate) fn rounded(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
     let t = tol();
     Open.at(Point2::new(w / 2.0, 0.0))
         .toward(1.0, 0.0, t)

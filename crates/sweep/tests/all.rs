@@ -920,3 +920,5 @@ mod far_thin_disc_sign;
 mod join1_delta2_harness;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+#[path = "zip_rest_admission_probes.rs"]
+mod zip_rest_admission_probes;
