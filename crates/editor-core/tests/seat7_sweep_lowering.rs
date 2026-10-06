@@ -302,14 +302,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// arc's carrier from its chord: the boss's split rims moved in the
 /// last bits. `cut_cylinder`'s `circle` did not move — its chord
 /// lowering returned the authored centre and radius bit for bit.
+///
+/// Re-blessed when contact records gained the `(vertex, edge)` and
+/// edge-edge kinds: the digest feeds the records' `Debug`, which now
+/// prints empty `ve` and `ee` lists; with those fields stripped every
+/// constant here held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x63de_edf2_4dee_ef58),
-        ("corner_table", 0xd8b1_634f_074f_de08),
+        ("die", 0xfa04_f1a7_d1c4_847d),
+        ("corner_table", 0x5831_a08f_3fa5_04e4),
         ("cut_cylinder", 0xcea6_3bbf_f0ce_47ad),
-        ("boss_union", 0x3954_7f0b_f511_5a9c),
-        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
+        ("boss_union", 0xeb25_210f_2b67_d89b),
+        ("kitchen_sink", 0xadb2_1e39_d9af_1747),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
