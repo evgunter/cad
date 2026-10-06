@@ -4,6 +4,8 @@ kind: issue
 title: extrude rules an arc leg's wall cylinder in the sketch normal, not in w, so an admitted tilted Vector fails untyped
 status: open
 opened: 2026-10-01
+priority: P2
+cost: M
 ---
 
 

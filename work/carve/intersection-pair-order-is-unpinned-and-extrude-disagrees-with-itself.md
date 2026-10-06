@@ -2,11 +2,12 @@
 id: intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself
 kind: issue
 title: EdgeDescription::Intersection's (s1, s2) order is unpinned, and extrude writes it one way on cap rims and another on struts
-status: open
+status: dispatched
 opened: 2026-09-16
 refs: [2842]
 priority: P0
-cost: D
+cost: M
+branch: carve/surface-pair-is-unordered
 ---
 
 
@@ -131,3 +132,57 @@ BLEND's unit 14, closed at its merge (PR #2509) and deleted with
 `work/blend/` at `docs/DOC-LEDGER.md` sweep 17; the finding it pointed
 at (the blend's contact edges routed through the must-carry rule) is
 in the tree, so the reference is dropped rather than re-pointed.
+
+## Weighed (2026-10-06): the pair is unordered, and the type says so
+
+Weighed by two designers (an Opus and a Fable lane, CARVE's sitting of
+2026-10-06), who were given the problem and not the options. They
+agreed on the final state, and neither found it to be Ev's fork, so it
+is built (`memories/orchestration-model.md`).
+
+- **The order carries nothing.** D2's locus is a component of S₁∩S₂,
+  and every predicate the pair feeds is symmetric in it. Edge
+  orientation is topology's (`he_plus`/`he_minus`), and `topo::revert`
+  keeps descriptions verbatim across a swap. Pcurves are per face, and
+  `mate_surface` reads the pair as a set. Roles (the plane against the
+  NURBS wall) are recovered by kind. The tree has about eight local
+  rules for minting the order, and about nine readers that check both
+  ways (`Body::cites_pair` and its callers, an inline copy in
+  `splitting/finish.rs`, `attach::Named::adjacent_to`, `mate_surface`,
+  `certify::plane_nurbs_pair`, step-import's `recognize_pins`). Extrude
+  is consistent with itself under a role rule, `(cap, wall)` on rims and
+  `(prev, next)` on struts. The 8/12 disagreement comes from the test
+  describer's `(he_plus, he_minus)` rule meeting it.
+- **The one positional reader is diagnostic.** `CertCheck::Surface1Residual`,
+  `Surface2Residual`, `WitnessSurface1` and `WitnessSurface2` name a
+  slot, and which surface that slot holds depends on which builder
+  minted the edge.
+- **The final state.** A `geom_brep` `SurfacePair` holds two
+  `SurfaceKey`s in private fields, stored in key order by its one
+  constructor. It derives `Eq`/`Hash`, its `Debug` is set-shaped, and it
+  offers `keys()`, `contains(k)`, `other(k)` and a remap through the
+  constructor. `Intersection` and `TangentIntersection` hold
+  `{ pair, witness }` on `EdgeDescription` and `EdgeDescriptionSpec`,
+  with an `EdgeDescription::pair()` accessor. The both-ways checks
+  collapse onto `==` and `contains`, and `Body::cites_pair` goes. The
+  four position-named checks become key-carrying ones
+  (`SurfaceResidual { surface }`, `WitnessSurfaceResidual { surface }`).
+- **Same-surface** (the designers split; the orchestrator's call): the
+  constructor stays infallible. `IntersectionSameSurface` stays a
+  refusal at the certification door, where the other geometric
+  refusals are and the body is untouched (D4). A fallible constructor
+  would spread one geometric refusal to every mint site.
+- **Rejected.** Ratifying `he_plus`'s face first: it copies topology
+  into the description, so tier 3 would have to police the copy, it is
+  undefined where `chord_join` describes a chord against an auxiliary
+  plane no face wears, and it goes stale whenever an edge's halves
+  swap. Deriving the pair from the edge's faces: the pair is the
+  certificate's subject, which is how a re-chart is caught as stale.
+- **Ratified text.** D2's `{ s1, s2, witness }` and the geom-brep
+  README's C1/C7 notation are re-worded to follow the change. That is
+  not a second decision.
+- **Rides along.** `topo/src/replace_face.rs`'s
+  `(n1, n2) = if s1 == old_key { (old_key, s2) } else { (s1, old_key) }`
+  always equals `(s1, s2)`, so it goes with the change. Stale "`Seam`
+  description" prose in `topo/src/attach.rs` (`set_edge_curve`) and
+  `topo/src/boolean/ops.rs` is fixed in passing.

@@ -115,7 +115,7 @@ impl Built {
     fn refusal(&self) -> (NodeErrorClass, String) {
         let ev = eval::<f64>(&self.doc);
         match ev.result(self.node) {
-            Some(NodeResult::Failed(e)) => (e.kind.class(), e.spoken(&self.doc)),
+            Some(NodeResult::Failed(e)) => (e.kind.class(), e.spoken(&self.doc, &ev)),
             other => panic!("the pattern refuses, got {other:?}"),
         }
     }

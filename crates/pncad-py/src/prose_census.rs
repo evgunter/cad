@@ -1885,15 +1885,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
-    (
-        "crates/viewer/src/idpass.rs",
-        "NameAndPath",
-        POSITIONAL,
-        1,
-        "a positional `{:?}` over `name.path`, an expression this census does not \
-         type; and the field's declared type, `RolePath`, is a `type` alias, which \
-         this census does not index",
-    ),
 ];
 
 /// The raise sites that compose a `Debug` rendering deliberately.

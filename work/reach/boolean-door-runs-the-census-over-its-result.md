@@ -73,3 +73,17 @@ tier-3 gate, and the census predicates (`pm_census_*`) get words in
 `topo::decision_words` or a reason in editor-core's `WORDLESS`
 (`tests/edit_refusal_recourse.rs`), since they then reach every
 evaluation's decision log. Measure again with the meter first.
+
+## Evidence: wrong bodies tier 3′ would have refused (ZIP, 2026-10-06)
+
+ZIP's `zip-reflex` lane measured on main at `3f1e3b0d03`, before the REST
+zip's admission fix (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
+The REST zip shipped `vol a + vol b′` at all 16 runs of what is now
+`crates/sweep/tests/rest_zip_admission.rs`
+`a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice`
+(8 poses, both orders). 12 of those 16 passed the door's tier-3 gate and
+failed `validate_pseudomanifold` over their own `BooleanBody::contacts`
+when the probe ran it. The other 4 passed tier 3′ as well, so the census
+would not have caught every one of them. The admission fix makes the zip
+decline all 16, so the door no longer ships these bodies. It still shows
+that the door's tier-3-only gate lets a body tier 3′ refuses reach the caller.
