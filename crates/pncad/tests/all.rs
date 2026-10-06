@@ -277,7 +277,8 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         Some(
             RunOutPolicy::RunOutStopAtVertex
             | RunOutPolicy::RunOutFeather
-            | RunOutPolicy::CutOffAtTransverseCap,
+            | RunOutPolicy::CutOffAtEndFace
+            | RunOutPolicy::Mitre,
         )
         | None => {}
     }
@@ -296,9 +297,11 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
         CornerConfig::SeamVertex => "seam_vertex",
-        // The ruled band's own termination — a configuration that
-        // CARVES, whose policy is the cut-off the tag's map assigns.
-        CornerConfig::TransverseCap => "transverse_cap",
+        // A straight band's cut-off — a configuration that CARVES,
+        // whose policy is the cut-off the tag's map assigns.
+        CornerConfig::EndFace => "end_face",
+        // Two of three edges requested: the mitre, named and refused.
+        CornerConfig::Turn => "turn",
         CornerConfig::Indeterminate => "indeterminate",
     }
 }

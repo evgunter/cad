@@ -275,10 +275,18 @@ impl<T: Bounds> CapSliver<T> {
     }
 }
 
+/// The two rim pieces' extremes over a sliver: each piece's far extent
+/// from the centre and least height along `toward`, `face_a`'s first,
+/// and the unit tangent `face_a`'s piece leaves its foot along.
+struct RimExtremes<T: Real> {
+    far: [T; 2],
+    low: [T; 2],
+    leaves: Vec3<T>,
+}
+
 impl<T: Decide + Bounds> CapSliver<T> {
     /// The rims' pieces from their feet to the old vertex, read off the
-    /// source, with the far extent of each from `center` and its least
-    /// height along `toward`.
+    /// source ([`RimExtremes`]).
     fn rim_extremes(
         body: &Body<T>,
         crease: EdgeKey,
@@ -286,7 +294,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         rims: [(EdgeKey, Point3<T>); 2],
         center: Point3<T>,
         toward: Vec3<T>,
-    ) -> Result<([T; 2], [T; 2], Vec3<T>), BlendError> {
+    ) -> Result<RimExtremes<T>, BlendError> {
         let unsupported = |rim: EdgeKey| {
             unbuilt_geometry(
                 EntityId::Edge(rim),
@@ -309,7 +317,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 leaves = leaving;
             }
         }
-        Ok((far, low, leaves))
+        Ok(RimExtremes { far, low, leaves })
     }
 
     /// **The region a cut-off on an arc removes**, read off the source
@@ -334,7 +342,11 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let pv = point_of(body, vertex)
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
         let toward = (pv - center).normalize();
-        let (far, low, leaves_a) = Self::rim_extremes(body, crease, vertex, rims, center, toward)?;
+        let RimExtremes {
+            far,
+            low,
+            leaves: leaves_a,
+        } = Self::rim_extremes(body, crease, vertex, rims, center, toward)?;
         let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
         // The cut-off arc, from `face_a`'s foot along the rim's tangent
         // there (the type's docs), to `face_b`'s: its span read in
@@ -379,7 +391,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let half = T::from_f64(0.5);
         let center = foot_a + (foot_b - foot_a) * half;
         let toward = (pv - center).normalize();
-        let (far, low, _) = Self::rim_extremes(body, crease, vertex, rims, center, toward)?;
+        let RimExtremes { far, low, .. } =
+            Self::rim_extremes(body, crease, vertex, rims, center, toward)?;
         let chord_far = (foot_a - center).norm().max((foot_b - center).norm());
         let chord_low = (foot_a - center)
             .dot(toward)
@@ -497,6 +510,10 @@ fn split_rim<T: Decide + Bounds + topo::AtRestPolicy>(
     Ok(frag)
 }
 
+/// One new edge awaiting its description, as
+/// [`Described`](crate::blend::surgery::Described) holds it.
+pub(in crate::blend) type DescribedEdge<T> = (EdgeKey, ContactCarrier<T>, EdgeKey);
+
 /// The two split rims of one cut-off end — `face_a`'s, then `face_b`'s —
 /// as [`cut_off`] leaves them for [`fold_sliver`].
 pub(in crate::blend) struct CutRims {
@@ -523,7 +540,7 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     (face_a, face_b): (FaceKey, FaceKey),
     rec: &mut BlendNaming,
     tol: Tol,
-) -> Result<(CutRims, (EdgeKey, ContactCarrier<T>, EdgeKey)), BlendError> {
+) -> Result<(CutRims, DescribedEdge<T>), BlendError> {
     let v = end.vertex;
     // Live, not planned: an earlier carve on the same end face may have
     // split the rim this end shares with it.

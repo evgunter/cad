@@ -558,6 +558,10 @@ pub(super) struct BoundaryChord {
     pub(super) to: VertexKey,
 }
 
+/// One planned cut-off, as support admission reads it: the old vertex,
+/// the band's two supports, and its foot on each in that order.
+pub(super) type CutOffRow<T> = (VertexKey, [FaceKey; 2], [Point3<T>; 2]);
+
 /// **A support face's requested boundary**: every requested edge in its
 /// cycles, each ending at two stations, and every station a planned
 /// corner or joint that counts this face among its supports, or a
@@ -605,7 +609,7 @@ impl<T: Decide> RequestedBoundary<T> {
         opens: &[AdmittedOpen<'_, T>],
         corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
         joints: &[(&Joint, [Point3<T>; 2])],
-        cut_offs: &[(VertexKey, [FaceKey; 2], [Point3<T>; 2])],
+        cut_offs: &[CutOffRow<T>],
     ) -> Result<Self, BlendError> {
         // Read once so a face that is not a plane refuses at this door
         // rather than deeper in the carve.

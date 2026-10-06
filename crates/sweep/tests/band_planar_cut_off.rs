@@ -11,6 +11,8 @@
 //! independent boolean (the box less the half-space prism beyond each
 //! chamfer plane), which reaches the same solid by another door.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};

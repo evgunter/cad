@@ -171,7 +171,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
 /// The trim and the break, as nodes over the bracket's extrude.
 struct Trimmed {
     doc: Doc<ProfileProgram>,
-    offcuts: RecipeNodeId,
+    split: RecipeNodeId,
     corner: RecipeNodeId,
     chords: Vec<StableName>,
     chamfer: RecipeNodeId,
@@ -186,8 +186,8 @@ fn chord_selector() -> Selector {
     ]))
 }
 
-/// [`Node::Split`] along `x + y = CUT`, [`Node::Part`] for each half,
-/// and [`Node::Chamfer`] on the corner piece's four cap chords.
+/// [`Node::Split`] along `x + y = CUT`, [`Node::Part`] keeping the
+/// corner piece, and [`Node::Chamfer`] on its four cap chords.
 fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> Trimmed {
     let mut doc = doc.clone();
     let tool = insert(
@@ -199,14 +199,6 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
         tol,
     );
     let split = insert(&mut doc, Node::Split { target: body, tool }, tol);
-    let offcuts = insert(
-        &mut doc,
-        Node::Part {
-            of: split,
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
-        tol,
-    );
     let corner = insert(
         &mut doc,
         Node::Part {
@@ -223,7 +215,7 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
     );
     Trimmed {
         doc,
-        offcuts,
+        split,
         corner,
         chords,
         chamfer,
@@ -280,13 +272,24 @@ struct WallProbe {
 fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let Trimmed {
         doc,
-        offcuts,
+        split,
         corner,
         chords,
         chamfer,
     } = trimmed;
-    let (offcuts, corner, chamfer) = (*offcuts, *corner, *chamfer);
-    let ev = eval(doc, tol);
+    let (corner, chamfer) = (*corner, *chamfer);
+    // The offcuts, kept for the walls: a second root the scene's
+    // document does not carry.
+    let mut doc = doc.clone();
+    let offcuts = insert(
+        &mut doc,
+        Node::Part {
+            of: *split,
+            select: PartSelect::SplitHalf(SplitHalf::Above),
+        },
+        tol,
+    );
+    let ev = eval(&doc, tol);
 
     // The halves partition the body: each offcut is a trapezoid of
     // parallel sides 3 − CUT and 4 − CUT across a unit-wide leg.
@@ -414,5 +417,17 @@ pub fn stop(tol: Tol) -> Stop {
         bodies: vec![
             SceneBody::plain("bracket", [0.36, 0.56, 0.86], body).named(&ev, trimmed.chamfer),
         ],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The stop builds: the bracket and its halves at their closed
+    /// forms, the chamfered corner piece at `4·(d²/2)·√2` less, and
+    /// every wall refusing as it pins.
+    #[test]
+    fn the_stop_builds_its_chamfered_corner_piece_and_pins_its_walls() {
+        let stop = super::stop(pncad::geom_core::Tol::witness());
+        assert_eq!(stop.bodies.len(), 1, "the chamfered corner piece");
     }
 }

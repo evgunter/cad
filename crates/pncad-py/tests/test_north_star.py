@@ -611,16 +611,16 @@ class TestBracket(unittest.TestCase):
         expected = 0.75 * (5.25 - math.pi / 16.0)
         self.assertAlmostEqual(volume_of(doc, bracket), expected, delta=1e-12)
 
-    def test_the_trimmed_leg_ends_cannot_be_broken_by_name(self):
-        """The scene's wall 1: split across both legs at x + y = 2.75,
+    def test_the_trimmed_leg_ends_are_broken_by_name(self):
+        """The scene's document: split across both legs at x + y = 2.75,
         keep the corner piece, chamfer its four cap chords by name.
 
         The split partitions the body (each offcut is a trapezoid prism
         of area (3 - 2.75) + 1/2) and names each cap chord by its ends,
-        because the plane crosses each cap twice. The chamfer refuses:
-        a plane-plane band ends only at a corner whose three edges are
-        all requested (work/band/a-plane-plane-blend-cannot-end-at-an-
-        unrequested-corner.md)."""
+        because the plane crosses each cap twice. Each chord's band is cut
+        off where it meets the leg's two side walls, a unit apart at 45
+        degrees, so the corner piece loses 4 * (d^2 / 2) * sqrt(2)
+        (work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md)."""
         doc, bracket = self.build()
         tool = doc.insert(
             Node.datum_plane(
@@ -645,11 +645,9 @@ class TestBracket(unittest.TestCase):
         )
         self.assertEqual(len(chords), 4, "two legs x two caps, each chord named by its ends")
 
+        kept = volume_of(doc, corner)
         broken = doc.insert(Node.chamfer(corner, Formula.length_in(0.1, m), chords))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(broken)
-        self.assertEqual(caught.exception.kind, "chamfer")
-        self.assertEqual(caught.exception.inner_kind, "unsupported_run_out")
+        self.assertAlmostEqual(volume_of(doc, broken), kept - 4 * (0.1**2 / 2) * math.sqrt(2), delta=1e-12)
 
 
 class TestVase(unittest.TestCase):

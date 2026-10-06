@@ -195,7 +195,9 @@ use topo::{
     ShellKey, SolidKey, SurfaceKey, VertexKey,
 };
 
-use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary};
+use super::admit::{
+    AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
+};
 use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
@@ -682,7 +684,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .collect();
     let joint_rows: Vec<(&Joint, [Point3<T>; 2])> =
         joints.iter().map(|j| (j.joint, j.feet)).collect();
-    let cut_rows: Vec<(VertexKey, [FaceKey; 2], [Point3<T>; 2])> = cut_offs
+    let cut_rows: Vec<CutOffRow<T>> = cut_offs
         .iter()
         .map(|c| {
             let l = c.link.link();

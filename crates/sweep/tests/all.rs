@@ -202,6 +202,8 @@ mod band_clearance_screen_reads_every_feature;
 mod band_co_requested_boundary;
 #[path = "band_planar_cut_off.rs"]
 mod band_planar_cut_off;
+#[path = "band_planar_cut_off_interval.rs"]
+mod band_planar_cut_off_interval;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
