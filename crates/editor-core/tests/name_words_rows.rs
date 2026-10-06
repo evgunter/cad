@@ -15,6 +15,8 @@ test_utils::gated_to![
     "crates/editor-core/src/names/role.rs",
     "crates/editor-core/src/names/table.rs",
     "crates/editor-core/src/spoken.rs",
+    "crates/editor-core/tests/corpus/",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use std::collections::BTreeMap;
