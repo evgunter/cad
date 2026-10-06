@@ -2544,6 +2544,8 @@ struct Session {
     /// gate, so from then on an ungated form is no longer proof that no
     /// read moved it, and `rungs` asks the shut walk behind every form.
     froze_gated: bool,
+    d10_reads: IndetMap<[SymId; 3]>,
+    d10_twin: bool,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`], read by rule C, by the decision read and
@@ -2784,6 +2786,8 @@ impl Session {
             forms: IdMap::default(),
             rungs: Default::default(),
             froze_gated: false,
+            d10_reads: IndetMap::default(),
+            d10_twin: false,
 
             params: IndetMap::default(),
             atoms: IndetMap::default(),
@@ -3677,6 +3681,12 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 && matches!(node.op, SymOp::Min | SymOp::Max)
                 && let Some(mut f) = signed::order(node.op, a, b, sess, budget)
             {
+                let k = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
+                if let Some(prev) = sess.d10_reads.insert(k, node.kids)
+                    && prev != node.kids
+                {
+                    sess.d10_twin = true;
+                }
                 f.gated |= a.gated || b.gated;
                 return Some(f);
             }
@@ -3724,6 +3734,16 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             // takes is the arm's, GATED: equal to the atom at every
             // point of the box, not identically in the parameters.
             if read && let Some(le) = signed::decision(a, sess) {
+                let k = indet_atom(
+                    node.op.tag(),
+                    node.payload,
+                    &[a.digest(), b.digest(), third.digest()],
+                );
+                if let Some(prev) = sess.d10_reads.insert(k, node.kids)
+                    && prev != node.kids
+                {
+                    sess.d10_twin = true;
+                }
                 let arm = if le { b } else { third };
                 let mut f = arm.clone();
                 f.gated = true;
@@ -4368,6 +4388,14 @@ fn walk(
     };
     debug_assert!(!shut || !rules.reads_values(), "a shut walk reads no value");
     let kept = core::mem::replace(&mut sess.rules, rules);
+    let kept_budget = sess.budget;
+    if shut
+        && let Some(t) = std::env::var("CAD_D10_SHUT_TERMS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+    {
+        sess.budget.max_terms = sess.budget.max_terms.min(t);
+    }
     #[cfg(feature = "sym-profile-testing")]
     let (t0, outer) = (
         profile::clock(),
@@ -4392,6 +4420,7 @@ fn walk(
     } else {
         rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry))
     };
+    sess.budget = kept_budget;
     #[cfg(feature = "sym-profile-testing")]
     profile::walk_done(
         match kind {
@@ -4644,6 +4673,9 @@ fn rungs(
         if !(reads && (f.gated || sess.froze_gated)) {
             return false;
         }
+        if std::env::var_os("CAD_D10_TWIN").is_some() && !(sess.d10_twin || sess.froze_gated) {
+            return false;
+        }
         let g = walk(sess, id, kind, true, attempt, (rules, bits));
         g.is_zero() && !g.gated
     };
@@ -4671,7 +4703,7 @@ fn rungs(
             return Some((Discharge::Theorem, Rung::Early));
         }
         if e.is_zero() {
-            if reads && top_settles(sess) {
+            if reads && std::env::var_os("CAD_D10_NOTOP").is_none() && top_settles(sess) {
                 return Some((Discharge::Theorem, Rung::Top));
             }
             return Some((Discharge::SignGated, Rung::Early));
