@@ -2699,7 +2699,9 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// loops' regions read the other boundary or too near it, which a
 /// crossing's two flanks cannot both do unless their faces are all
 /// curved (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
-/// No in-band reading is named as the cause: it is about one point.
+/// No in-band reading is named as the cause: it is about one point. A
+/// witness refused near a face the door cannot read is, as it is for a
+/// shell ([`super::shell_witness`]).
 fn loop_roles(
     face: FaceKey,
     (outer, o): (LoopKey, Reading),
@@ -2716,11 +2718,15 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        (Reading::Undecided(_), Reading::Undecided(_)) => {
-            Err(BooleanError::Join(SplitJoinError::SectionLoopUndecided {
-                face,
-            }))
-        }
+        // One ranking over both loops' witnesses ([`crate::ray_walk::Evidence`]):
+        // a limit is named, an in-band reading is not (it is about one
+        // point), so both of those and an empty one read undecided.
+        (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
+            crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
+            crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
+                BooleanError::Join(SplitJoinError::SectionLoopUndecided { face })
+            }
+        }),
     }
 }
 
@@ -2763,11 +2769,12 @@ fn region_faces<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod loop_roles_rows {
-    use super::super::shell_witness::{Reading, Tally};
+    use super::super::shell_witness::Reading;
     use super::super::{BooleanError, SideCode};
     use super::loop_roles;
     use crate::chord_join::SplitJoinError;
     use crate::entity::{FaceKey, LoopKey};
+    use crate::stands::Tally;
     use slotmap::SlotMap;
 
     fn keys() -> (FaceKey, LoopKey, LoopKey) {

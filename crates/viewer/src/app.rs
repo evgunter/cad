@@ -4521,6 +4521,117 @@ mod properties_pane_tests {
         );
     }
 
+    /// **An instance from the part chooser takes the label its field
+    /// holds**: the chooser proposes `InstantiatePart N` above its
+    /// listing, a text typed over the proposal is kept in the field, and
+    /// a pick inserts the instance with that label, spending the draft.
+    #[test]
+    fn the_part_chooser_labels_the_instance_it_inserts() {
+        use crate::pane::create::{ADD_PART, INSTANCE_NOUN};
+        let tol = pncad::tolerance::witness();
+        let dir = std::env::temp_dir().join(format!("part chooser label {}", std::process::id()));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).expect("clear the fixture directory");
+        }
+        std::fs::create_dir_all(&dir).expect("create the fixture directory");
+        let (part, _, _) = crate::test_support::boss_on_block("part-chooser-label-part", tol);
+        let part_file = pncad::workspace::Workspace::open(&dir)
+            .expect("the empty workspace opens")
+            .create(&part, tol)
+            .expect("the part stores");
+        let part_name = part_file
+            .file_name()
+            .expect("a stored part has a file name")
+            .to_string_lossy()
+            .into_owned();
+        let mut driven = Driven::with(vec![SessionOp::Save(dir.join("assembly.pncad"))]);
+        driven.settle();
+        driven.click(ADD_PART);
+
+        let painted = driven.frame(Vec::new());
+        let proposal = Driven::only(&painted, &format!("{INSTANCE_NOUN} 1"));
+        let label_at = Driven::only(&painted, "label");
+        let part_at = Driven::only(&painted, &part_name);
+        assert!(
+            label_at.y < part_at.y,
+            "the label row stands above the listing: {painted:?}"
+        );
+
+        // Typed over the proposal: focus the field, select it all,
+        // type.
+        let press = |pressed| egui::Event::PointerButton {
+            pos: proposal,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        driven.frame(vec![egui::Event::PointerMoved(proposal)]);
+        driven.frame(vec![press(true), press(false)]);
+        driven.frame(vec![egui::Event::Key {
+            key: egui::Key::A,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::COMMAND,
+        }]);
+        driven.frame(vec![egui::Event::Text("left post".to_owned())]);
+        assert_eq!(
+            driven
+                .app
+                .drafts
+                .creation_labels
+                .get(INSTANCE_NOUN)
+                .map(String::as_str),
+            Some("left post"),
+            "the field keeps what was typed"
+        );
+
+        // The part's own `add`, on the row its file name is on.
+        let painted = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let part_at = Driven::only(&painted, &part_name);
+        let add = painted
+            .iter()
+            .filter(|(run, rect)| run == "add" && (rect.center().y - part_at.y).abs() < 1.0)
+            .map(|(_, rect)| rect.center())
+            .next()
+            .unwrap_or_else(|| panic!("the part's row has an add button: {painted:?}"));
+        let press = |pressed| egui::Event::PointerButton {
+            pos: add,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        driven.frame(vec![egui::Event::PointerMoved(add)]);
+        driven.frame(vec![press(true), press(false)]);
+        driven.quiet();
+
+        let doc = driven.app.session.doc();
+        let instances: Vec<_> = doc
+            .order()
+            .iter()
+            .filter(|id| {
+                doc.node(**id)
+                    .is_some_and(|node| pncad::document::node_kind_noun(node) == INSTANCE_NOUN)
+            })
+            .map(|id| doc.label(*id).map(|label| label.as_str().to_owned()))
+            .collect();
+        assert_eq!(
+            instances,
+            [Some("left post".to_owned())],
+            "one instance, labelled as typed"
+        );
+        assert!(
+            driven.app.part_chooser.is_none(),
+            "the pick closes the chooser"
+        );
+        assert_eq!(
+            driven.app.drafts.creation_labels.get(INSTANCE_NOUN),
+            None,
+            "the landed instance spends the draft"
+        );
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
     /// A cap of `node`'s one body, as a face pick on it.
     fn cap_of(node: RecipeNodeId, end: pncad::prelude::CapEnd) -> crate::session::FaceSelection {
         crate::session::FaceSelection {
