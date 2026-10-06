@@ -3532,6 +3532,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ContactSecondOrder,
         BlendDecision::CornerIndependence,
         BlendDecision::CapTransverse,
+        BlendDecision::CutOffFeet,
     ] {
         let refused = BlendError::Escalated {
             site: BlendSite::Link {

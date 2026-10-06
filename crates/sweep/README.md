@@ -158,9 +158,12 @@ exactly when the trim CONTAINS it, metered before any mutation under
 pass, which meters every ring of every touched support face against
 every blend trimline in closed form, every other outer-boundary edge
 of a closed rim's supports — one requested in the same call at its own
-trim — against that support's trim, and every edge
-a convex ruled cut-off leaves on its cap against the sliver it
-removes). A merged cap that is an ANNULUS
+trim — against that support's trim, and every edge a cut-off leaves
+on its end face, on either side, against the sliver it removes; every
+outer-boundary edge a planar band's local carve leaves on a support is
+metered against the strip it removes under predicate 2's
+`fillet3_face_clearance`, the closed form of its sampled screen). A
+merged cap that is an ANNULUS
 therefore carves on both its rims, one call each. A full revolve's plane
 wall is such a host as built: one face with no seam, a ONE-EDGE rim its
 outer cycle or, at an annulus's inner circle, its ring, whose trim then
@@ -194,9 +197,10 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   chamfer ends in a chord at any angle; a fillet in a circle when the
   end face is perpendicular to the edge and an ellipse otherwise,
   `fillet3_cap_transverse` deciding which (one kind per configuration,
-  D3). The end face gains the curve and loses (convex) or gains
-  (concave) the sliver between it and the old vertex; the two
-  unrequested edges end at the feet; the old vertex goes. The ruled
+  D3). The end face gains the curve and loses the sliver between the
+  curve and the old vertex on either side, cut away on the convex side
+  and covered by the fill on the concave side; the two unrequested
+  edges end at the feet; the old vertex goes. The ruled
   band's transverse cut-off below is the perpendicular case.
 - *Two* — the MITRE (`CornerConfig::Turn`, `RunOutPolicy::Mitre`): each
   band is cut off by the other band's support, the two regions overlap,
@@ -227,8 +231,14 @@ shape: a curved end face (a fillet against a cylinder meets it in a
 quartic with no stored carrier); a foot that lands inside a support
 rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
-reflex); an end vertex of valence other than three. A turn whose two
-edges round opposite ways refuses `UnsupportedCorner { MixedConvexity }`.
+reflex); two cut-offs at the two ends of one rim whose feet on it cross
+or coincide, metered before any mutation by `fillet3_cut_off_feet`
+(feet apart only within the band escalate); an end vertex
+of valence other than three. A vertex whose three edges do not round
+one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
+request names there: an edge cut off where its unrequested edges round
+the other way, a turn whose two edges round opposite ways, or one whose
+L does.
 
 Naming: the cut-off curve is `EndArc { vertex, edge }` and the feet
 `FootVertex { vertex, support }`, as the ruled cut-off names them; the
@@ -256,16 +266,18 @@ band ends in that plane's section of it, an exact stored arc of the
 band's radius about the spine's crossing
 (`RunOutPolicy::CutOffAtEndFace`; `CornerConfig::policy` maps
 the tag). The carve (`blend/open/ruled.rs`, beside the planar band's
-`blend/open/planar.rs`; the rim phases stay in `blend/surgery.rs`)
+`blend/open/planar.rs`, both cutting off through `blend/open/end_face.rs`;
+the rim phases stay in `blend/surgery.rs`)
 mints no strut: the cap's two
 rim edges are split at the trimlines' feet, the arc is `mef`'d across
 the cap, one trimline `mef` per support carves its strip along the
 ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the
 slivers in and retires the old vertices — the trimlines described as
 the band's tangent contact with a curved support, the arcs as its
-transverse intersection with the cap, on either material side. On the
-convex side the cut removes the sliver between the arc and the old
-vertex from the cap, and leaves every other edge of the cap where it
+transverse intersection with the cap, on either material side. On
+either side the cap loses the sliver between the arc and the old
+vertex, cut away on the convex side and covered by the fill on the
+concave side, and every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
@@ -281,7 +293,7 @@ curved end face refuses typed.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`
 (`crates/sweep/tests/fillet_h7_transverse_cap.rs`). The CONCAVE
-ruled band — the material-adding side, the cap gaining the region
+ruled band — the material-adding side, the fill covering the region
 under the arc — is pinned through the extrude door too: a rod's section
 standing on a block's top edge (the sunk rod,
 `crates/sweep/tests/review_fillet_h7_r1_probes.rs`, `ΔV = +2·A·L`). The
