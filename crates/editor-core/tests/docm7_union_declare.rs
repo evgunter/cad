@@ -321,7 +321,7 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
     let stranded = run(&doc);
     let refused = failure(&stranded, union).expect("the stranded site refuses at evaluation");
     assert!(
-        matches!(refused, NodeErrorKind::DeclareResolve { error } if matches!(**error, ResolveError::Vanished { .. })),
+        matches!(refused, NodeErrorKind::DeclareResolve { error, .. } if matches!(**error, ResolveError::Vanished { .. })),
         "a stranded site refuses as a vanished name: {refused:?}"
     );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the stranded document saves");
@@ -416,7 +416,9 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     let merged: Vec<&StableName> = t
         .iter()
         .map(|(n, _)| n)
-        .filter(|n| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+        .filter(|n| {
+            n.kind == EntityKind::Face && matches!(n.path.first(), Some(RoleSeg::Merged(_)))
+        })
         .collect();
     assert_eq!(
         merged.len(),
@@ -444,6 +446,28 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
             "the merged face {name} does not resolve"
         );
     }
+    // The four flush rims along x are each joined into one edge across
+    // both members, named for the set of the two members' rims.
+    let joined: Vec<Vec<RecipeNodeId>> = t
+        .iter()
+        .filter(|(n, _)| n.kind == EntityKind::Edge)
+        .filter_map(|(n, _)| match n.path.as_slice() {
+            [RoleSeg::Merged(set)] => Some(
+                set.iter()
+                    .map(|c| match c.path.as_slice() {
+                        [RoleSeg::FromMember { member, of }] if of.kind == EntityKind::Edge => {
+                            *member
+                        }
+                        _ => panic!("a joined edge's constituent is a member edge: {c}"),
+                    })
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .collect();
+    let mut both = vec![m1, m2];
+    both.sort();
+    assert_eq!(joined, vec![both; 4], "four joined rims: {joined:?}");
     // The x-extreme walls are untouched: one `FromMember` wrapper over
     // the prototype's own name, exactly as an undeclared fold gives.
     for (member, seg) in [(m1, 3u32), (m2, 1u32)] {
@@ -526,42 +550,30 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
     );
     // Both spellings merge the same four contacts, so the declaration
     // did the same work at whichever step it landed on.
-    let merged = |ev: &Evaluation<f64>, id: RecipeNodeId| {
+    let merged = |ev: &Evaluation<f64>, id: RecipeNodeId, kind| {
         table(ev, id)
             .iter()
-            .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
             .count()
     };
-    assert_eq!(merged(&ev, union), 4);
-    assert_eq!(merged(&ev2, union2), 4);
+    for kind in [EntityKind::Face, EntityKind::Edge] {
+        assert_eq!(merged(&ev, union, kind), 4, "{kind:?}");
+        assert_eq!(merged(&ev2, union2, kind), 4, "{kind:?}");
+    }
     // Reordering swaps which of the two touching members the pair verb
-    // sees as operand A, and the pair emitter is not symmetric in that
-    // role: the flush stretch is named for the A-side member
-    // (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`).
-    // What does not follow it is which member's rims carry a
-    // `Fragment`: the union names a member edge's pieces by their ends
-    // over the finished body (`emit_union::group_member_edges`), and
-    // qualifies them where that member edge is held in several pieces,
-    // which is the A-side member's in both orders.
-    let fragmented_members = |ev: &Evaluation<f64>, id: RecipeNodeId| {
-        let mut out: Vec<RecipeNodeId> = table(ev, id)
+    // sees as operand A, and nothing published follows it: the output
+    // stage joins each flush rim into one edge across both members,
+    // named for the two rims it spans, so no member edge is held in
+    // pieces and no row carries a `Fragment`, in either order.
+    let fragmented = |ev: &Evaluation<f64>, id: RecipeNodeId| {
+        table(ev, id)
             .iter()
             .filter(|(n, _)| n.path.iter().any(|s| matches!(s, RoleSeg::Fragment(_))))
-            .filter_map(|(n, _)| match n.path.first() {
-                Some(RoleSeg::FromMember { member, .. }) => Some(*member),
-                _ => None,
-            })
-            .collect();
-        out.sort();
-        out.dedup();
-        out
+            .map(|(n, _)| n.clone())
+            .collect::<Vec<_>>()
     };
-    // The A side is the lower member id (the union's pair fold), and
-    // ids are digests of the mint chain, so which of the two it is is
-    // read off the ids rather than pinned.
-    let a_side = a.min(b);
-    assert_eq!(fragmented_members(&ev, union), vec![a_side]);
-    assert_eq!(fragmented_members(&ev2, union2), vec![a_side]);
+    assert_eq!(fragmented(&ev, union), vec![]);
+    assert_eq!(fragmented(&ev2, union2), vec![]);
     // The two documents are built separately, so the ids are the same
     // ones in the same seats: `a` is the first block of both.
     assert_eq!((a, b), (a2, b2));
@@ -1357,7 +1369,7 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     assert!(
         matches!(
             failure(&ev, pair),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::Vanished { .. })
         ),
         "expected rung 3, got {:?}",
@@ -1368,7 +1380,7 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     assert!(
         matches!(
             failure(&ev, pair),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::NodeGone { .. })
         ),
         "expected rung 1, got {:?}",
@@ -1450,7 +1462,7 @@ fn rebind_moves_the_name_and_leaves_the_site() {
     assert!(
         matches!(
             failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::Vanished { .. })
         ),
         "expected rung 3, got {:?}",
@@ -1489,7 +1501,7 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
     assert!(
         matches!(
             failure(&ev, pair),
-            Some(NodeErrorKind::DeclareResolve { error })
+            Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::Vanished { .. })
         ),
         "a name read in the operand its site does not name: {:?}",

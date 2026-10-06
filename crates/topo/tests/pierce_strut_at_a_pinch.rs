@@ -121,6 +121,11 @@ fn every_op(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, rows: &[Row])
             r.body.vertices().count(),
         ];
         assert_eq!(got, counts, "{what}: faces, edges, vertices");
+        assert_eq!(
+            topo::joinable_vertices(&r.body),
+            vec![],
+            "{what}: maximal edges"
+        );
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         let v = topo::mass_properties(&r.body, t()).unwrap().volume;
         assert!(
@@ -182,7 +187,7 @@ fn the_staircase_and_the_plate_build_in_every_op() {
             "X − P",
             Kind::Subtract,
             false,
-            [28, 74, 48],
+            [28, 72, 46],
             x_volume - both,
             false,
         ),
@@ -190,7 +195,7 @@ fn the_staircase_and_the_plate_build_in_every_op() {
             "X ∪ P",
             Kind::Union,
             false,
-            [28, 74, 50],
+            [28, 72, 48],
             x_volume + p_volume - both,
             false,
         ),
@@ -207,7 +212,7 @@ fn the_staircase_and_the_plate_build_in_every_op() {
             "P ∪ X",
             Kind::Union,
             true,
-            [28, 74, 50],
+            [28, 72, 48],
             x_volume + p_volume - both,
             false,
         ),
@@ -393,11 +398,11 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
     // Each op's counts and volume, or `None` where it is empty.
     type Want = Option<([usize; 3], f64)>;
     let rows: [(&str, DeclaredOp, bool, Want); 6] = [
-        ("pinch ∪ B", union_with, false, Some(([13, 32, 21], 4.0))),
+        ("pinch ∪ B", union_with, false, Some(([13, 30, 19], 4.0))),
         ("pinch − B", subtract_with, false, Some(([12, 24, 16], 2.0))),
         ("pinch ∩ B", intersect_with, false, None),
-        ("B ∪ pinch", union_with, true, Some(([13, 32, 21], 4.0))),
-        ("B − pinch", subtract_with, true, Some(([6, 16, 12], 2.0))),
+        ("B ∪ pinch", union_with, true, Some(([13, 30, 19], 4.0))),
+        ("B − pinch", subtract_with, true, Some(([6, 12, 8], 2.0))),
         ("B ∩ pinch", intersect_with, true, None),
     ];
     for (name, op, swap, want) in rows {
@@ -413,6 +418,11 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
                     r.body.vertices().count(),
                 ];
                 assert_eq!(got, counts, "{name}: faces, edges, vertices");
+                assert_eq!(
+                    topo::joinable_vertices(&r.body),
+                    vec![],
+                    "{name}: maximal edges"
+                );
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{name}: tier 3");
                 let v = topo::mass_properties(&r.body, t()).unwrap().volume;
                 assert!(

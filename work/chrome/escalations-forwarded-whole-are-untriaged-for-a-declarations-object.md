@@ -139,7 +139,7 @@ non-coincidence raisers filed) and `ValidationError::CensusEscalated`
 CHROME's ground (`crates/viewer`). They are filed on these programs'
 slates and on `work/issues/`:
 
-- `work/carve/carve-refusals-short-of-the-shape-guard.md`: 13
+- `work/carvetail/carve-refusals-short-of-the-shape-guard.md`: 13
 - `work/shell/shell-refusals-short-of-the-shape-guard.md`: 3
 - `work/wire/wire-refusals-short-of-the-shape-guard.md`: 3
 - `work/paths/paths-refusals-short-of-the-shape-guard.md`: 1, plus a
