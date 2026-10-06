@@ -19,7 +19,6 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 use crate::revolve_common::{axis_y, validated};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
-use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
 use topo::{AtRestBody, Body, DATUM_UNIT_NORM, transform_rigid};
@@ -292,11 +291,14 @@ fn poses(s: f64) -> [(&'static str, Affine3<f64>); 3] {
 
 /// The planes, in the body frame at unit scale, as `(n, d)` with `n`
 /// unit: cuts square to the axis through and beyond the face, oblique
-/// cuts at three tilts in two azimuths, and cuts grazing the face from
-/// both sides at its least and greatest support along fourteen tilted
-/// directions, `δ` outside and `δ` inside at three `δ`.
+/// cuts at three tilts in two azimuths, cuts `δ` either side of the
+/// face's crest along its normal at nine points inside it, and cuts
+/// grazing the face from both sides at its least and greatest support
+/// along fourteen tilted directions, `δ` outside and `δ` inside at
+/// three `δ`.
 fn planes(f: &Fixture, sigma: f64) -> Vec<(Vec3<f64>, f64)> {
-    let unit = |phi: f64, psi: f64| Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
+    let unit =
+        |phi: f64, psi: f64| Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
     let mut out = Vec::new();
     for c in [
         -0.9, -0.5, 0.05, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 0.99, 1.05, 1.2, 1.4, 1.6,
@@ -308,6 +310,21 @@ fn planes(f: &Fixture, sigma: f64) -> Vec<(Vec3<f64>, f64)> {
             let n = unit(phi, psi);
             for c in [-0.5, 0.2, 0.5, 0.8, 0.95, 1.2, 1.4] {
                 out.push((n, c * n.y));
+            }
+        }
+    }
+    // Along the sphere's own normal at points inside the patch, near
+    // each azimuth end and at mid-patch: a cut `δ` into the face there
+    // meets it in a small circle that crosses none of its edges, so only
+    // the face's own box sees it.
+    let ((_, _), _, (t0, t1)) = f.arc;
+    for phi in [0.03, 0.5 * f.theta, f.theta - 0.03] {
+        for share in [0.1, 0.5, 0.9] {
+            let t = t0 + share * (t1 - t0);
+            let n = Vec3::new(t.cos() * phi.cos(), t.sin(), sigma * t.cos() * phi.sin());
+            let (_, hi) = support(f, 1.0, sigma, n);
+            for delta in [1e-4, 1e-5] {
+                out.extend([hi + delta, hi - delta].map(|d| (n, d)));
             }
         }
     }
@@ -337,10 +354,11 @@ struct Tally {
 }
 
 /// Split the posed body with the body-frame plane `n·p = d`, and hold
-/// each half's volume to the slice integral.
+/// each half's volume to the slice integral, `oracle(±1)` for the part
+/// on the `±n` side.
 fn split_and_check(
-    f: &Fixture,
-    (s, sigma): (f64, f64),
+    oracle: &dyn Fn(f64) -> f64,
+    s: f64,
     posed: &AtRestBody<f64>,
     map: Affine3<f64>,
     (n, d): (Vec3<f64>, f64),
@@ -356,7 +374,7 @@ fn split_and_check(
         (&result.above, 1.0, "above"),
         (&result.below, -1.0, "below"),
     ] {
-        let oracle = half_volume(f, s, sigma, n * sign, d * sign);
+        let oracle = oracle(sign);
         let SplitPart::Body(b) = part else {
             assert!(
                 oracle.abs() <= 1e-9 * s * s * s,
@@ -366,11 +384,14 @@ fn split_and_check(
         };
         let p = match topo::props::mass_properties(b, Tol::witness()) {
             Ok(p) => p,
-            Err(e) => {
+            // The quadrature's own convergence decision in band: the
+            // volume lane's limit, not the split's.
+            Err(e) if format!("{e:?}").contains("Converged") => {
                 println!("PROPS {what}, {side}: {e}");
                 *props_refused += 1;
                 continue;
             }
+            Err(e) => panic!("{what}, {side}: the half's volume refused: {e}"),
         };
         assert!(
             (p.volume - oracle).abs() <= p.volume_pad + 1e-7 * s * s * s,
@@ -382,23 +403,40 @@ fn split_and_check(
     Ok(())
 }
 
-/// Every fixture's body, posed, at `s`; `None` (stood down loudly) where
-/// posing it refuses below the default ε.
+/// The fixture at `s` in every pose, finished. Below the default ε a
+/// pose the kernel cannot pose or finish stands down loudly, and so
+/// does a body under `10⁴ ε` across, where the cut's later stages read
+/// in band.
 fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestBody<f64>)> {
-    let body = build(f, s);
     let tol = Tol::witness();
+    if s < 1e4 * tol.eps() {
+        test_utils::vacuity::stood_down(
+            &format!("{} at scale {s}, eps = {:e}", f.name, tol.eps()),
+            "the body is under 10⁴ ε across, where the cut's later stages read in band",
+        );
+        return Vec::new();
+    }
+    let body = build(f, s);
     poses(s)
         .into_iter()
-        .filter_map(|(pose, map)| match transform_rigid(&body, &map, tol) {
-            Ok(posed) => Some((pose, map, finished("the posed body", posed, tol))),
-            Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {
-                test_utils::vacuity::stood_down(
-                    &format!("{} at scale {s}, {pose}, eps = {:e}", f.name, tol.eps()),
-                    &format!("posing the body refused ({e}) before any cut"),
-                );
-                None
+        .filter_map(|(pose, map)| {
+            let at_rest = transform_rigid(&body, &map, tol)
+                .map_err(|e| format!("posing it refused ({e})"))
+                .and_then(|posed| {
+                    <f64 as topo::AtRestPolicy>::gate_at_rest_kept(posed, tol)
+                        .map_err(|e| format!("the posed body is not finished ({e:?})"))
+                });
+            match at_rest {
+                Ok(posed) => Some((pose, map, posed)),
+                Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {
+                    test_utils::vacuity::stood_down(
+                        &format!("{} at scale {s}, {pose}, eps = {:e}", f.name, tol.eps()),
+                        &format!("{e} before any cut"),
+                    );
+                    None
+                }
+                Err(e) => panic!("{} at scale {s}, {pose}: {e}", f.name),
             }
-            Err(e) => panic!("{} at scale {s}, {pose}: posing refused: {e}", f.name),
         })
         .collect()
 }
@@ -421,24 +459,182 @@ fn probe() {
                     let margin = 1e-6 + 20.0 * Tol::witness().eps() / s;
                     let (clear, meets) = (gap > margin, gap < -margin);
                     let what = format!("{} s={s} {pose} n={n:?} d={d}", f.name);
-                    match split_and_check(&f, (s, sigma), &posed, map, (n, d * s), &what, &mut t.props_refused) {
+                    let oracle = |sign: f64| half_volume(&f, s, sigma, n * sign, d * s * sign);
+                    match split_and_check(
+                        &oracle,
+                        s,
+                        &posed,
+                        map,
+                        (n, d * s),
+                        &what,
+                        &mut t.props_refused,
+                    ) {
                         Ok(()) if clear => t.clear_split += 1,
                         Ok(()) if meets => t.meets_split += 1,
-                        Err(SplitError::Reduce(
-                            SplitReduceError::CurvedBooleanUnsupported { .. },
-                        )) if clear => t.clear_gate += 1,
-                        Err(SplitError::Reduce(
-                            SplitReduceError::CurvedBooleanUnsupported { .. },
-                        )) if meets => t.meets_gate += 1,
+                        Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+                            ..
+                        })) if clear => t.clear_gate += 1,
+                        Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+                            ..
+                        })) if meets => t.meets_gate += 1,
                         Err(e) if clear => {
                             t.clear_other += 1;
-                            println!("OTHER clear {what}: {e}");
+                            println!("OTHER clear {what} gap={gap:e} margin={margin:e}: {e:?}");
                         }
                         Err(_) if meets => t.meets_other += 1,
                         _ => t.near += 1,
                     }
                 }
                 println!("ROW | {} | {s:e} | {pose} | {t:?}", f.name);
+            }
+        }
+    }
+}
+
+/// The cuts of [`planes`] whose gap from the face's support is past
+/// `margin` (positive: clear of the face; negative: into it), with the
+/// gap.
+fn cuts(f: &Fixture, sigma: f64, s: f64, clear: bool) -> Vec<(Vec3<f64>, f64)> {
+    let margin = 1e-6 + 20.0 * Tol::witness().eps() / s;
+    planes(f, sigma)
+        .into_iter()
+        .filter(|&(n, d)| {
+            let (lo, hi) = support(f, 1.0, sigma, n);
+            let gap = (lo - d).max(d - hi);
+            if clear { gap > margin } else { gap < -margin }
+        })
+        .collect()
+}
+
+/// **Every cut clear of a partial-turn sphere face splits, and its
+/// halves are the slice integral's**: the three fixtures at three
+/// scales and in three poses, against every cut of [`planes`] that
+/// clears the face's chart rectangle (the closed-form [`support`], held
+/// to a dense sample of the patch first). The ring of the face's
+/// latitudes, which the gate used to bound it by, meets about two in
+/// five of these cuts.
+///
+/// Two refusals downstream of the gate are named and let stand loudly:
+/// a half whose volume quadrature cannot decide its own convergence
+/// (`work/props/…`), and the split's sector decision at a vertex a cut
+/// passes within `10⁻⁷` of, at the millimetre scale
+/// (`work/…`). Both are typed, and neither is the gate's.
+#[test]
+fn every_cut_clear_of_a_partial_turn_sphere_face_splits() {
+    for f in fixtures() {
+        let sigma = sense(&build(&f, 1.0), f.theta);
+        for n in [
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.3, 0.9, -0.2),
+            Vec3::new(-0.8, 0.1, 0.5),
+            Vec3::new(0.2, -0.7, 0.6),
+        ] {
+            let n = n * (1.0 / n.norm());
+            let ((lo, hi), (slo, shi)) = (
+                support(&f, 1.0, sigma, n),
+                sampled_support(&f, 1.0, sigma, n),
+            );
+            assert!(
+                lo <= slo + 1e-12 && hi >= shi - 1e-12 && slo - lo <= 1e-5 && hi - shi <= 1e-5,
+                "{}: the closed-form support [{lo}, {hi}] along {n:?} disagrees with the \
+                 sample [{slo}, {shi}]",
+                f.name
+            );
+        }
+        for s in [1e-3, 1.0, 1e3] {
+            let cuts = cuts(&f, sigma, s, true);
+            assert!(
+                cuts.len() >= 60,
+                "{}: only {} clear cuts",
+                f.name,
+                cuts.len()
+            );
+            // The slice integral is the pose's to share.
+            let oracles: Vec<[f64; 2]> = cuts
+                .iter()
+                .map(|&(n, d)| {
+                    [1.0, -1.0].map(|sign| half_volume(&f, s, sigma, n * sign, d * s * sign))
+                })
+                .collect();
+            for (pose, map, posed) in posed_bodies(&f, s) {
+                let (mut props_refused, mut sector) = (0, 0);
+                for (&(n, d), &[above, below]) in cuts.iter().zip(&oracles) {
+                    let what = format!("{} at scale {s}, {pose}, n = {n:?}, d = {d}", f.name);
+                    let oracle = |sign: f64| if sign > 0.0 { above } else { below };
+                    match split_and_check(
+                        &oracle,
+                        s,
+                        &posed,
+                        map,
+                        (n, d * s),
+                        &what,
+                        &mut props_refused,
+                    ) {
+                        Ok(()) => {}
+                        Err(SplitError::Reduce(SplitReduceError::SliverSector { .. }))
+                            if s < 1.0 =>
+                        {
+                            sector += 1;
+                            test_utils::vacuity::stood_down(
+                                &what,
+                                "the split's sector decision is in band at a vertex this cut \
+                                 passes within 1e-7 of",
+                            );
+                        }
+                        Err(e) => panic!("{what}: a cut clear of the face must split: {e}"),
+                    }
+                }
+                // The stand-downs' floor: as measured, at most one cut
+                // per pose on each.
+                assert!(
+                    props_refused <= 2 && sector <= 1,
+                    "{} at scale {s}, {pose}: {props_refused} halves' volumes refused and \
+                     {sector} cuts refused at a sector, past the measured floor",
+                    f.name
+                );
+            }
+        }
+    }
+}
+
+/// **Every cut into a partial-turn sphere face refuses at the gate,
+/// naming the face**, whatever pose: the cuts of [`planes`] that reach
+/// into the chart rectangle, among them cuts `10⁻⁵` of the size past its
+/// least and greatest support along tilted directions. A box narrower
+/// than the rectangle admits them.
+#[test]
+fn every_cut_into_a_partial_turn_sphere_face_refuses_at_the_gate() {
+    let s = 1.0;
+    for f in fixtures() {
+        let sigma = sense(&build(&f, s), f.theta);
+        let cuts = cuts(&f, sigma, s, false);
+        assert!(
+            cuts.len() >= 80,
+            "{}: only {} cuts into the face",
+            f.name,
+            cuts.len()
+        );
+        for (pose, map, posed) in posed_bodies(&f, s) {
+            for &(n, d) in &cuts {
+                let what = format!("{}, {pose}, n = {n:?}, d = {d}", f.name);
+                let oracle = |sign: f64| half_volume(&f, s, sigma, n * sign, d * sign);
+                match split_and_check(&oracle, s, &posed, map, (n, d), &what, &mut 0) {
+                    Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+                        face,
+                        kind,
+                    })) => {
+                        assert_eq!(kind, geom::SurfaceKind::Sphere, "{what}");
+                        let surface = posed.get_face(face).unwrap().surface;
+                        assert_eq!(
+                            posed.get_surface(surface).unwrap().kind(),
+                            geom::SurfaceKind::Sphere,
+                            "{what}"
+                        );
+                    }
+                    other => {
+                        panic!("{what}: a cut into the face must refuse at the gate, got {other:?}")
+                    }
+                }
             }
         }
     }

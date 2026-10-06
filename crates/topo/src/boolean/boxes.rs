@@ -117,7 +117,8 @@
 //! instantiation at the census's own scalar. **Neither re-derives an
 //! extent**: the per-kind arithmetic lives once, in [`slab_extent`],
 //! [`cone_frustum_extent`], [`ball_extent`], [`torus_extent`],
-//! [`torus_window_extent`], [`conic_extent`] and [`arc_extent`], written
+//! [`torus_window_extent`], [`torus_rect_extent`], [`conic_extent`] and
+//! [`arc_extent`], written
 //! against [`Span`] so a lane on the [`Bounds`] allowlist and a lane
 //! off it can both enter it — the first with `[lo(), hi()]`
 //! brackets at `f64`, the second with degenerate spans at its own
@@ -1243,9 +1244,13 @@ pub(crate) fn conic_extent<T: Real>(
 ///   instead is what makes a pucker read as if it were the whole
 ///   cone, and doors that read overlap as "may meet" pay it in
 ///   refusals.
-/// - [`WholeBall`](Self::WholeBall) — **Sphere.** A band's belly
-///   bulges past its poles and seam arcs, so the box is the whole ball
-///   `center ± r`; every surface point is within `r` of the center.
+/// - [`SphereRect`](Self::SphereRect) — **Sphere.** A band's belly
+///   bulges past its poles and seam arcs, so the boundary does not
+///   bound the face. Where the face is the chart rectangle its boundary
+///   spans, the box is that rectangle's own support along each
+///   coordinate ([`sphere_reach`], read off the certified trim and its
+///   side); otherwise it is the whole ball `center ± r`, within which
+///   every surface point lies.
 /// - [`ControlNet`](Self::ControlNet) — **NURBS.** The patch bulges
 ///   past the hull of its boundary exactly as the sphere does, but it
 ///   lies in the hull of its CONTROL NET (nonnegative basis, strictly
@@ -1294,7 +1299,7 @@ pub(crate) fn conic_extent<T: Real>(
 /// come out POISON (an unboxable boundary edge, a poisoned
 /// description); that is the value, not the rule.
 ///
-/// [`WholeBall`](Self::WholeBall), a windowless
+/// A ball-falling [`SphereRect`](Self::SphereRect), a windowless
 /// [`TorusWindow`](Self::TorusWindow) and the conic-fed
 /// [`BoundaryHull`](Self::BoundaryHull) claim more than the trimmed
 /// face occupies on purpose — a cheap SUPERSET is what the contract
@@ -1338,13 +1343,9 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
         /// The half-angle α ∈ (0, π/2).
         half_angle: T,
     },
-    /// The whole ball `center ± r` — see the type docs.
-    WholeBall {
-        /// The sphere's center.
-        center: Point3<T>,
-        /// The sphere's radius.
-        radius: T,
-    },
+    /// The face's chart rectangle, or the whole ball — see the type
+    /// docs.
+    SphereRect,
     /// The boundary's chart rectangle, sampled, meeting the whole
     /// tube — see the type docs.
     TorusWindow {
@@ -1399,10 +1400,7 @@ pub(crate) fn face_box_rule<T: Decide>(
             axis: UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius)?,
             radius: *radius,
         },
-        Surface::Sphere { center, radius, .. } => FaceBoxRule::WholeBall {
-            center: *center,
-            radius: *radius,
-        },
+        Surface::Sphere { .. } => FaceBoxRule::SphereRect,
         Surface::Nurbs(patch) => FaceBoxRule::ControlNet(patch),
         // The fit IS the face's locus, so the fit's control hull is a
         // genuine superset of it — the same rule, on the same net. The
@@ -1434,6 +1432,274 @@ pub(crate) fn face_box_rule<T: Decide>(
             u_ref: *u_ref,
         },
     })
+}
+
+/// The K funnel name of a sphere face's chart frame, read as unit
+/// directions before its chart rectangle is read in closed form: the
+/// polar axis, and the seam direction `u_ref` the azimuth window is
+/// measured from ([`sphere_reach`]).
+pub(crate) const BOX_SPHERE_AXIS: &str = "bool_box_sphere_axis";
+
+/// The K funnel name of a sphere's seam direction against its polar
+/// axis: their cosine, levered by the radius, decided zero before the
+/// azimuth window is read in the frame they span ([`sphere_reach`]).
+pub(crate) const BOX_SPHERE_SEAM: &str = "bool_box_sphere_seam";
+
+/// A sphere face's chart rectangle as [`sphere_rect`] reads it: the
+/// azimuth window, measured from `u_ref` about the axis (`None` for the
+/// whole turn), and the latitude window, in radians on
+/// `[−π/2, π/2]`.
+struct SphereRect<T: Real> {
+    axis: UnitVec3<T>,
+    /// The azimuth window and the chart's `u_ref` and `axis × u_ref`,
+    /// or `None` for a face that attains every azimuth of its
+    /// latitudes, or one whose chart frame is not decided.
+    az: Option<(Span<T>, Vec3<T>, Vec3<T>)>,
+    lat: Span<T>,
+}
+
+/// **A sphere face's reach, in `frame`**: the support of its chart
+/// rectangle along each coordinate ([`torus_rect_extent`] with `R = 0`)
+/// where [`sphere_rect`] reads one, and the whole ball `center ± r`
+/// otherwise. Both box lanes read it: the census at its own scalar, and
+/// [`face_box`] at the body's scalar before it brackets out to `f64`.
+///
+/// A sphere point is `c + r·(cos v·ê(u) + sin v·â)`, so along a unit `e`
+/// the factor `r·cos v` of the azimuth term is non-negative on the
+/// chart's `[−π/2, π/2]`: the best azimuth does not depend on the
+/// latitude, which is the ring torus's argument with `R = 0`. A face
+/// that wraps the azimuth alone, or whose chart frame is not decided,
+/// reads the whole turn there, which is its latitude zone's support.
+///
+/// # Panics
+///
+/// As [`sphere_rect`].
+pub(crate) fn sphere_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+    frame: &BoxFrame<T>,
+) -> (Point3<T>, Point3<T>) {
+    let f = proven(&body.faces, face, EntityId::Face);
+    let surface = body.face_surface_linked(face, f);
+    let Surface::Sphere { center, radius, .. } = surface else {
+        unreachable!("sphere_reach reads a sphere face")
+    };
+    let c = frame.point(*center);
+    let Some(rect) = sphere_rect(body, face, f, surface, band) else {
+        let ball = ball_extent(&SpanBox::point(c), *radius);
+        return (
+            Point3::new(ball.x.lo, ball.y.lo, ball.z.lo),
+            Point3::new(ball.x.hi, ball.y.hi, ball.z.hi),
+        );
+    };
+    let a = frame.vector(rect.axis.get());
+    let at = |c: T, k: usize| {
+        let pick = |v: Vec3<T>| [v.x, v.y, v.z][k];
+        let ax = pick(a);
+        let (p, q, u) = match rect.az {
+            Some((u, u_ref, v_ref)) => (pick(frame.vector(u_ref)), pick(frame.vector(v_ref)), u),
+            // The whole turn: any frame of the axis's normal plane, of
+            // which the coordinate's share is `√(1 − a²)`.
+            None => (
+                (T::one() - ax.powi(2)).max(T::zero()).sqrt(),
+                T::zero(),
+                Span {
+                    lo: T::zero(),
+                    hi: T::tau(),
+                },
+            ),
+        };
+        torus_rect_extent(c, (p, q, ax), (T::zero(), *radius), (u, rect.lat))
+    };
+    let ((xl, xh), (yl, yh), (zl, zh)) = (at(c.x, 0), at(c.y, 1), at(c.z, 2));
+    (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
+}
+
+/// **A sphere face's chart rectangle**, from the window
+/// `solid_contain::sphere_chart_trim` pins: its latitude extremes and
+/// the azimuth window of its boundary walk.
+///
+/// The trim reads the window off the boundary, and the boundary of a
+/// rectangle is also the boundary of its complement. The rectangle is
+/// therefore taken only when the side the boundary traversal encodes
+/// (`boundary_material_sign`, the iso-rectangle reading tier 3's curved
+/// sense check runs) agrees with the face's `sense`, which places the
+/// face on the rectangle's side of its boundary. The trim's class then
+/// holds no pole inside the face, so the face lies in the rectangle its
+/// boundary spans. A face whose side is unencoded, refused, or in
+/// disagreement, one whose outer loop is a lone vertex or carries null
+/// scaffolding, one outside the trim's class, one whose trim escalates,
+/// and one whose axis is not decided unit all answer `None`, and keep
+/// the ball. A face whose seam direction is not decided a unit normal
+/// of the axis keeps its latitude zone.
+///
+/// `face` resolved to `f` in the caller, so its outer loop is a link,
+/// and a record the flattening of that loop names is one too: a
+/// flattening that refuses past a cycle loop is a torn body and panics
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
+/// a record miss past `face` too, and panics the same way.
+fn sphere_rect<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+    surface: &Surface<T>,
+    band: Band,
+) -> Option<SphereRect<T>> {
+    use super::solid_contain::PointInSolidError;
+    use crate::props::LoopEdgesError;
+    use geom_core::{Margin, Sign};
+    let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        u_ref,
+    } = surface
+    else {
+        return None;
+    };
+    let outer = linked(
+        &body.loops,
+        f.outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    );
+    if matches!(outer.boundary, LoopBoundary::Empty { .. }) {
+        return None;
+    }
+    let outer = match crate::props::loop_edges(body, f.outer) {
+        Ok((outer, _)) => outer,
+        Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
+        Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
+    };
+    let side = if f.sense {
+        Sign::Positive
+    } else {
+        Sign::Negative
+    };
+    if geom_brep::props::boundary_material_sign(surface, &outer, band).ok()
+        != Some(geom_brep::props::MaterialSign::Encoded(side))
+    {
+        return None;
+    }
+    let trim =
+        match super::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band) {
+            Ok(trim) => trim?,
+            Err(PointInSolidError::Escalated { .. }) => return None,
+            Err(refusal) => torn_outer_loop(body, face, f, refusal),
+        };
+    let unit = UnitVec3::new(*axis, BOX_SPHERE_AXIS, band).ok()?;
+    let pole = |sign: T| (sign * *radius, T::zero());
+    let latitude = |(h, rho): (T, T)| h.atan2(rho);
+    let lat = Span {
+        lo: latitude(trim.south.unwrap_or_else(|| pole(T::zero() - T::one()))),
+        hi: latitude(trim.north.unwrap_or_else(|| pole(T::one()))),
+    };
+    let seam = UnitVec3::new(*u_ref, BOX_SPHERE_AXIS, band)
+        .ok()
+        .filter(|seam| {
+            matches!(
+                crate::validate::decide(
+                    BOX_SPHERE_SEAM,
+                    Margin::levered(seam.get().dot(unit.get()), *radius),
+                    band
+                ),
+                Ok(Sign::Zero)
+            )
+        });
+    let az = trim.az.zip(seam).map(|((lo, hi), seam)| {
+        let u_ref = seam.get();
+        (Span { lo, hi }, u_ref, unit.get().cross(u_ref))
+    });
+    Some(SphereRect {
+        axis: unit,
+        az,
+        lat,
+    })
+}
+
+/// The torn hop under `refusal`, a record-miss refusal of a reading of
+/// `face`'s outer loop ([`crate::props::loop_edges`],
+/// `sphere_chart_trim`) past `face`, which resolved to `f`. Each hop
+/// those readings take is re-read as a link, so the one that does not
+/// resolve panics naming its holder, its field and both premises
+/// ([`crate::live::dangling_link`]).
+#[track_caller]
+fn torn_outer_loop<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+    refusal: impl core::fmt::Debug,
+) -> ! {
+    body.face_surface_linked(face, f);
+    let outer = linked(
+        &body.loops,
+        f.outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    );
+    if let LoopBoundary::Cycle { first } = outer.boundary {
+        for he in body.loop_walk(first).closed("loop", first) {
+            let data = proven(&body.half_edges, he, EntityId::HalfEdge);
+            let edge = linked(
+                &body.edges,
+                data.edge,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            body.edge_curve_linked(data.edge, edge);
+            body.linked_vertex_point(data.start, EntityId::HalfEdge(he), "start");
+            body.proven_half_edge_end(he);
+        }
+    }
+    unreachable!(
+        "the outer loop of {} refused {refusal:?} with every record on it resolved",
+        EntityId::Face(face)
+    )
+}
+
+/// **One coordinate of a ring torus's chart rectangle, exactly**: the
+/// least and greatest `e·S(u, v)` over `u ∈ U`, `v ∈ V`, where `e` is
+/// a unit direction, `c` its component of the centre and `(p, q, a)`
+/// its components of `u_ref`, `axis × u_ref` and the axis.
+///
+/// `e·S − c = (R + r·cos v)·(p·cos u + q·sin u) + r·a·sin v`. The
+/// factor `R + r·cos v` is non-negative on a ring torus (`R > r`) and on
+/// a sphere's chart (`R = 0`, `cos v ≥ 0`), so for every `v` the best
+/// `u` is the one that maximizes `p·cos u + q·sin u = A·cos(u − u*)`
+/// over `U`, whatever `v` is: call that greatest value `M`
+/// ([`most_cos`]). What is left is
+/// `R·M + r·(M·cos v + a·sin v) = R·M + r·B·cos(v − v*)` with
+/// `B = √(M² + a²)`, maximized over `V` the same way. The least value is
+/// the same reading of `−e`. Every step is an equality, so the extent
+/// is the rectangle's own and turns with it.
+pub(crate) fn torus_rect_extent<T: Decide>(
+    c: T,
+    (p, q, a): (T, T, T),
+    (major, minor): (T, T),
+    (u, v): TorusWindowPair<T>,
+) -> (T, T) {
+    let most = |p: T, q: T, a: T| {
+        let m = (p.powi(2) + q.powi(2)).sqrt() * most_cos(q.atan2(p), u);
+        major * m + minor * (m.powi(2) + a.powi(2)).sqrt() * most_cos(a.atan2(m), v)
+    };
+    let neg = |x: T| T::zero() - x;
+    (c - most(neg(p), neg(q), neg(a)), c + most(p, q, a))
+}
+
+/// The greatest `cos(t − t*)` over `t ∈ w`: one when `t*` lies in the
+/// window modulo a turn, otherwise the better of the two ends, since a
+/// window that misses the crest is monotone between them. The
+/// membership is read branch-free (`select_le_zero` on the crest's
+/// offset into the window less its width), and a crest a rounding off
+/// an end gives either reading to within that rounding.
+fn most_cos<T: Decide>(crest: T, w: Span<T>) -> T {
+    let into = (crest - w.lo).reduce_periodic(T::tau());
+    let ends = (w.lo - crest).cos().max((w.hi - crest).cos());
+    (into - (w.hi - w.lo)).select_le_zero(T::one(), ends)
 }
 
 /// The face's certified box, padded — [`FaceBoxRule`]'s
@@ -1558,8 +1824,18 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     })?;
     let boxed = match rule {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
-        FaceBoxRule::WholeBall { center, radius } => {
-            aabb_of(ball_extent(&bracket_point(center), radius.hi()))
+        // The reach is read at the body's scalar and bracketed out, end
+        // by end, as the torus window is.
+        FaceBoxRule::SphereRect => {
+            let (lo, hi) = sphere_reach(body, face, band, &BoxFrame::World);
+            Aabb {
+                min_x: lo.x.lo(),
+                min_y: lo.y.lo(),
+                min_z: lo.z.lo(),
+                max_x: hi.x.hi(),
+                max_y: hi.y.hi(),
+                max_z: hi.z.hi(),
+            }
         }
         FaceBoxRule::TorusWindow {
             center,
@@ -2961,10 +3237,11 @@ pub(crate) mod tests {
         }
     }
 
-    /// **`WholeBall`** — `center ± r`, reading nothing from the
-    /// boundary, so the trim the fixture carries must not appear in
-    /// the box at all. No deviation terms: this arm claims exactly
-    /// what its rule states.
+    /// **`SphereRect` outside the rectangle class** — `center ± r`: the
+    /// fixture's boundary is a planar sector's, no chart rectangle of
+    /// the sphere, so its trim must not appear in the box at all. No
+    /// deviation terms: this arm claims exactly what its rule states.
+    /// The rectangle itself is `sphere_rect_rows`'.
     #[test]
     fn the_sphere_arms_box_is_exactly_the_construction_its_rule_states() {
         let pad = pad();
@@ -5244,5 +5521,454 @@ pub(crate) mod tests {
                 );
             }
         }
+    }
+}
+
+/// **The chart rectangles' closed forms are their supports**:
+/// [`torus_rect_extent`] on a ring torus and on a sphere (`R = 0`),
+/// each against a dense grid of the rectangle's own points.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rect_extent_rows {
+    use core::f64::consts::PI;
+
+    use geom_core::Vec3;
+
+    use super::{Span, torus_rect_extent};
+
+    /// The greatest and least of `f` over an `n × n` grid of
+    /// `[a0, a1] × [b0, b1]`.
+    fn sampled(
+        n: usize,
+        (a0, a1): (f64, f64),
+        (b0, b1): (f64, f64),
+        f: impl Fn(f64, f64) -> f64,
+    ) -> (f64, f64) {
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for i in 0..=n {
+            for j in 0..=n {
+                let x = f(
+                    a0 + (a1 - a0) * i as f64 / n as f64,
+                    b0 + (b1 - b0) * j as f64 / n as f64,
+                );
+                lo = lo.min(x);
+                hi = hi.max(x);
+            }
+        }
+        (lo, hi)
+    }
+
+    /// `(lo, hi)` encloses the sampled `(slo, shi)` and exceeds it by no
+    /// more than the grid's own chord error `slack`.
+    fn assert_support(what: &str, (lo, hi): (f64, f64), (slo, shi): (f64, f64), slack: f64) {
+        assert!(
+            lo <= slo + 1e-12 && hi >= shi - 1e-12,
+            "{what}: [{lo}, {hi}] must enclose the samples [{slo}, {shi}]"
+        );
+        assert!(
+            slo - lo <= slack && hi - shi <= slack,
+            "{what}: [{lo}, {hi}] is looser than the samples [{slo}, {shi}] by more than {slack}"
+        );
+    }
+
+    /// **A sphere's chart rectangle has its own extent along a
+    /// direction**: [`torus_rect_extent`] with `R = 0`, against a dense
+    /// grid of the rectangle's own points, for azimuth windows from a
+    /// sliver to a full turn and across the seam's period, and latitude
+    /// windows that reach a pole, hold the equator, and miss it on
+    /// either side, along directions from the axis to across it.
+    #[test]
+    fn the_sphere_rect_extent_is_the_rectangles_support_along_every_direction() {
+        let r = 1.25;
+        // Axis `ŷ`, `u_ref = x̂`, so `axis × u_ref = −ẑ`.
+        let point =
+            |u: f64, v: f64| Vec3::new(r * v.cos() * u.cos(), r * v.sin(), -r * v.cos() * u.sin());
+        for u in [
+            (0.0, 2.0 * PI),
+            (0.2, 1.4),
+            (5.5, 7.0),
+            (2.0, 2.05),
+            (-1.0, 3.0),
+        ] {
+            for v in [
+                (0.6435, PI / 2.0),
+                (-PI / 2.0, -0.3),
+                (-0.4, 0.9),
+                (0.2, 0.5),
+            ] {
+                for e in [
+                    Vec3::new(0.0, 1.0, 0.0),
+                    Vec3::new(0.3, 0.9, -0.2),
+                    Vec3::new(-0.8, 0.1, 0.5),
+                    Vec3::new(0.2, -0.7, 0.6),
+                    Vec3::new(0.0, 0.0, -1.0),
+                ] {
+                    let e = e * (1.0 / e.norm());
+                    let samples = sampled(300, u, v, |a, b| e.dot(point(a, b)));
+                    let span = |(lo, hi)| Span { lo, hi };
+                    let got =
+                        torus_rect_extent(0.0, (e.x, -e.z, e.y), (0.0, r), (span(u), span(v)));
+                    assert_support(
+                        &format!("window {u:?} × {v:?}, e = {e:?}"),
+                        got,
+                        samples,
+                        1e-4,
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A ring torus's chart rectangle has its own extent along a
+    /// direction**: against a dense grid of the rectangle's own points,
+    /// for a full turn, a window that holds no crest, one across the
+    /// seam's period and one wider than a turn, along tilted directions
+    /// on both sides of the axis.
+    #[test]
+    fn the_torus_rect_extent_is_the_rectangles_support_along_every_direction() {
+        let (major, minor) = (0.75, 0.25);
+        // Axis `ŷ`, `u_ref = x̂`, so `axis × u_ref = −ẑ`.
+        let point = |u: f64, v: f64| {
+            let rho = major + minor * v.cos();
+            Vec3::new(rho * u.cos(), minor * v.sin(), -rho * u.sin())
+        };
+        for (u, v) in [
+            ((0.0, 2.0 * PI), (0.0, PI / 2.0)),
+            ((1.0, 2.5), (-0.5, 2.0)),
+            ((5.5, 7.0), (3.0, 4.0)),
+            ((-1.0, 6.0), (2.5, 9.0)),
+        ] {
+            for e in [
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.3, 0.9, -0.2),
+                Vec3::new(-0.8, 0.1, 0.5),
+                Vec3::new(0.2, -0.7, 0.6),
+                Vec3::new(0.0, 0.0, -1.0),
+            ] {
+                let e = e * (1.0 / e.norm());
+                let samples = sampled(600, u, v, |a, b| e.dot(point(a, b)));
+                let span = |(lo, hi)| Span { lo, hi };
+                let got =
+                    torus_rect_extent(0.0, (e.x, -e.z, e.y), (major, minor), (span(u), span(v)));
+                assert_support(
+                    &format!("window {u:?} × {v:?}, e = {e:?}"),
+                    got,
+                    samples,
+                    1e-4,
+                );
+            }
+        }
+    }
+}
+
+/// **A sphere face's box is its chart rectangle's support**, read
+/// alike by both box lanes, and **a torn record under it is a torn
+/// body**, on a sphere zone sheet whose boundary certifies a side.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod sphere_rect_rows {
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{BoxFrame, face_box, sphere_reach};
+    use crate::body::Body;
+    use crate::entity::{EntityId, FaceKey, GeomRef, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use crate::{FaceSurface, MefSite, MevSite};
+
+    /// The unit sphere's zone over azimuths `[u0, u1]` and heights
+    /// `[h0, h1]`: two latitude rims and two meridian arcs, each on its
+    /// exact circle, described as the sphere cut by the circle's plane.
+    fn sphere_zone_sheet(
+        (u0, u1): (f64, f64),
+        (h0, h1): (f64, f64),
+        tol: Tol,
+    ) -> (Body<f64>, FaceKey) {
+        let radial = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
+        let at = |u: f64, h: f64| {
+            let rho = (1.0 - h * h).sqrt();
+            Point3::origin() + radial(u) * rho + Vec3::unit_z() * h
+        };
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(u0, h0), true).unwrap();
+        let sphere = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: Point3::origin(),
+                        radius: 1.0,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
+            let Curve3::Circle { center, axis, .. } = carrier else {
+                unreachable!("a sheet edge is a circle");
+            };
+            let plane = body.add_surface(Surface::Plane {
+                origin: center,
+                normal: axis,
+                // A rim's plane is horizontal and a meridian's vertical.
+                u_ref: if axis.z.abs() > 0.5 {
+                    Vec3::unit_x()
+                } else {
+                    Vec3::unit_z()
+                },
+            });
+            let witness = carrier.mid_point(t0, t1);
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: sphere,
+                    s2: plane,
+                    witness,
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let rim = |h: f64, ascending: bool| {
+            let rho = (1.0 - h * h).sqrt();
+            let centre = Point3::new(0.0, 0.0, h);
+            if ascending {
+                let c = Curve3::Circle {
+                    center: centre,
+                    axis: Vec3::unit_z(),
+                    radius: rho,
+                    u_ref: Vec3::unit_x(),
+                };
+                (c, (u0, u1))
+            } else {
+                let c = Curve3::Circle {
+                    center: centre,
+                    axis: -Vec3::unit_z(),
+                    radius: rho,
+                    u_ref: radial(u1),
+                };
+                (c, (0.0, u1 - u0))
+            }
+        };
+        // A meridian at azimuth `u`, rising (its parameter is the
+        // latitude) or falling (the negated latitude).
+        let meridian = |u: f64, rising: bool| {
+            let up = radial(u).cross(Vec3::unit_z());
+            if rising {
+                let c = Curve3::Circle {
+                    center: Point3::origin(),
+                    axis: up,
+                    radius: 1.0,
+                    u_ref: radial(u),
+                };
+                (c, (h0.asin(), h1.asin()))
+            } else {
+                let c = Curve3::Circle {
+                    center: Point3::origin(),
+                    axis: -up,
+                    radius: 1.0,
+                    u_ref: radial(u),
+                };
+                (c, (-h1.asin(), -h0.asin()))
+            }
+        };
+        let (c, t) = rim(h0, true);
+        let bottom = arc(&mut body, c, t);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(u1, h0),
+                bottom,
+                tol,
+            )
+            .unwrap();
+        let (c, t) = meridian(u1, true);
+        let right = arc(&mut body, c, t);
+        let e_r = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                at(u1, h1),
+                right,
+                tol,
+            )
+            .unwrap();
+        let (c, t) = rim(h1, false);
+        let top = arc(&mut body, c, t);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                at(u0, h1),
+                top,
+                tol,
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let (c, t) = meridian(u0, false);
+        let left = arc(&mut body, c, t);
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                left,
+                FaceSurface::Shared {
+                    key: sphere,
+                    sense: true,
+                },
+                tol,
+            )
+            .unwrap()
+            .face;
+        // The boundary runs clockwise about the outward normal, so the
+        // face's side of it is the sense-false one.
+        body.set_face_sense(face, false).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        (body, face)
+    }
+
+    /// The sheet's support along unit `e`, by a dense grid of its own
+    /// points: the unit sphere about the origin, polar axis `ẑ`,
+    /// `u_ref = x̂`, over `u ∈ [u0, u1]` and `z ∈ [h0, h1]`.
+    fn sampled_support((u0, u1): (f64, f64), (h0, h1): (f64, f64), e: Vec3<f64>) -> (f64, f64) {
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        let n = 600;
+        for i in 0..=n {
+            let u = u0 + (u1 - u0) * f64::from(i) / f64::from(n);
+            for j in 0..=n {
+                let v = h0.asin() + (h1.asin() - h0.asin()) * f64::from(j) / f64::from(n);
+                let x = e.dot(Vec3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin()));
+                lo = lo.min(x);
+                hi = hi.max(x);
+            }
+        }
+        (lo, hi)
+    }
+
+    /// **The sheet's box is its rectangle's own support, in both
+    /// lanes and in a turned frame**: along each world axis (the
+    /// boolean lane's box, at no pad, and the census's reach) and along
+    /// tilted aims (the census's reach in the aimed frame), the box
+    /// encloses a dense grid of the sheet and exceeds it by no more than
+    /// the grid's chord error. The ring of the sheet's latitudes, which
+    /// the zone alone would claim, reaches `x = −ρ` and `y = −ρ`, about
+    /// `0.95` past the sheet's least `x` and `y`.
+    #[test]
+    fn a_sphere_faces_box_is_its_chart_rectangles_support() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (u, h) = ((0.2, 1.4), (-0.3, 0.4));
+        let (body, face) = sphere_zone_sheet(u, h, tol);
+        let close = |what: &str, (lo, hi): (f64, f64), e: Vec3<f64>| {
+            let (slo, shi) = sampled_support(u, h, e);
+            assert!(
+                lo <= slo + 1e-12 && hi >= shi - 1e-12,
+                "{what}: [{lo}, {hi}] must enclose the sheet's [{slo}, {shi}]"
+            );
+            assert!(
+                slo - lo <= 1e-5 && hi - shi <= 1e-5,
+                "{what}: [{lo}, {hi}] is looser than the sheet's [{slo}, {shi}]"
+            );
+        };
+        let boxed = face_box(&body, face, 0.0, band).unwrap();
+        let (lo, hi) = crate::census::face_reach(&body, face, band).unwrap();
+        for (k, e) in [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]
+            .into_iter()
+            .enumerate()
+        {
+            let pick = |p: Point3<f64>| [p.x, p.y, p.z][k];
+            let b = [
+                (boxed.min_x, boxed.max_x),
+                (boxed.min_y, boxed.max_y),
+                (boxed.min_z, boxed.max_z),
+            ][k];
+            close(&format!("the boolean lane's box, axis {k}"), b, e);
+            close(
+                &format!("the census lane's reach, axis {k}"),
+                (pick(lo), pick(hi)),
+                e,
+            );
+        }
+        for aim in [
+            Vec3::new(0.3, 0.9, -0.2),
+            Vec3::new(-0.8, 0.1, 0.5),
+            Vec3::new(0.2, -0.7, 0.6),
+        ] {
+            let aim = aim * (1.0 / aim.norm());
+            let frame =
+                BoxFrame::aimed(geom_core::UnitVec3::new(aim, "sphere_rect_rows", band).unwrap());
+            let (lo, _) = sphere_reach(&body, face, band, &frame);
+            let (_, hi) = crate::census::face_reach_in(&body, face, band, &frame).unwrap();
+            close(&format!("the reach along {aim:?}"), (lo.x, hi.x), aim);
+        }
+    }
+
+    #[test]
+    fn a_torn_record_under_the_sphere_rect_panics() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let frame = BoxFrame::World;
+        let (body, face) = sphere_zone_sheet((0.2, 1.4), (-0.3, 0.4), tol);
+        let reach = |b: &Body<f64>| sphere_reach(b, face, band, &frame);
+        let (lo, hi) = reach(&body);
+        assert!(
+            (lo.z + 0.3).abs() < 1e-9 && (hi.z - 0.4).abs() < 1e-9,
+            "the sound sheet's reach along its axis is its latitude window, not the ball: \
+             [{}, {}]",
+            lo.z,
+            hi.z
+        );
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the zone's outer loop is a cycle");
+        };
+
+        // The flattening's read: a member's curve.
+        let mut torn = body.clone();
+        let edge = torn.get_half_edge(first).unwrap().edge;
+        let curve = torn.get_edge(edge).unwrap().curve;
+        torn.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "sphere_reach (flattening)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b),
+        );
+
+        // The trim's read alone: a boundary vertex's point.
+        let mut torn = body.clone();
+        let v = torn.get_half_edge(first).unwrap().start;
+        let point = torn.get_vertex(v).unwrap().point;
+        torn.points.remove(point);
+        let named = format!(
+            "{}'s point names {}",
+            EntityId::Vertex(v),
+            GeomRef::Point(point)
+        );
+        assert_torn_op_panics(
+            "sphere_reach (trim)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b),
+        );
     }
 }

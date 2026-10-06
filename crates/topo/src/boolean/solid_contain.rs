@@ -2988,10 +2988,10 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
     Ok(verdict)
 }
 
-/// **A sphere face's exact LATITUDE window**, for the face class the
-/// sphere chart rectangle can actually express — the window the
-/// splitter's latitude-zone reach bounds a face by
-/// (`splitting::classify`). Point containment does not read it: a
+/// **A sphere face's exact chart rectangle**, for the face class the
+/// sphere chart rectangle can actually express — the rectangle the
+/// sphere arm of the face boxes bounds a face by
+/// (`boxes::sphere_rect`). Point containment does not read it: a
 /// trimmed sphere face's region is read from its boundary arcs
 /// ([`super::sphere_region`]).
 ///
@@ -3248,10 +3248,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         Err(_) => return Ok(None),
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)
-    // attains every azimuth of its latitude range: the LATITUDE window
-    // still describes it exactly, so no azimuth comparison is needed —
-    // the cylinder's full-turn band ([`full_turn_outline`]) is the same
-    // reading on the same structural test. Any other face trims by its
+    // attains every azimuth of its latitude range, so its azimuth window
+    // is the whole turn (`None`) — the cylinder's full-turn band
+    // ([`full_turn_outline`]) is the same reading on the same structural
+    // test. Any other face trims by its
     // window, which must then be definitely narrower than a period: a
     // window that reads a whole turn on a face that does not wrap alone
     // has a gap the window cannot see (a zone merged with half a cap),
@@ -3262,7 +3262,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // one, and a loop of rims and meridians that steps around a pole is
     // exactly a walk reading a whole turn on a face that does not wrap
     // alone.
-    if wrap_rims(
+    let az = if wrap_rims(
         body,
         face,
         WrapRims::Coaxial {
@@ -3271,8 +3271,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         },
         band,
     )?
-    .is_none()
+    .is_some()
     {
+        None
+    } else {
         match decide(
             "bool_sphere_trim_period",
             Margin::levered(T::tau() - (raw.1 - raw.0), radius),
@@ -3280,25 +3282,30 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         )
         .map_err(escalate)?
         {
-            Sign::Positive => {}
+            Sign::Positive => Some(raw),
             Sign::Zero | Sign::Negative => return Ok(None),
         }
-    }
-    Ok(Some(SphereChartTrim { north, south }))
+    };
+    Ok(Some(SphereChartTrim { az, north, south }))
 }
 
-/// The latitude half of a sphere face's chart rectangle: its two extreme
-/// latitudes, each as its exact `(axial, radial)` pair on the meridian
-/// half-plane.
+/// A sphere face's chart rectangle: the azimuth window its boundary
+/// walk pins, and its two extreme latitudes, each as its exact
+/// `(axial, radial)` pair on the meridian half-plane.
 ///
 /// A `None` END is a constraint the face does not have, not a missing
-/// datum: a latitude window that reaches a POLE cannot be excluded on
-/// that side — every latitude is at least the north pole's and at most
-/// the south pole's. Carrying those as `None` rather than as a margin
-/// against the pole is what keeps the margins honest: `sin(v - v_pole)`
-/// degenerates to `sin v`, which is Zero at BOTH poles and would call the
-/// far pole a graze.
+/// datum: a face that wraps the azimuth alone attains every azimuth of
+/// its latitudes, and a latitude window that reaches a POLE cannot be
+/// excluded on that side — every latitude is at least the north pole's
+/// and at most the south pole's. Carrying those as `None` rather than as
+/// a margin against the pole is what keeps the margins honest:
+/// `sin(v - v_pole)` degenerates to `sin v`, which is Zero at BOTH poles
+/// and would call the far pole a graze.
 pub(crate) struct SphereChartTrim<T> {
+    /// The azimuth window on the surface's chart (`u_ref` at zero,
+    /// increasing about the axis), definitely narrower than a turn, or
+    /// `None` for a face that wraps alone.
+    pub az: Option<(T, T)>,
     /// The extreme latitude nearest the `+axis` pole, or `None` when
     /// the face reaches that pole.
     pub north: Option<(T, T)>,
