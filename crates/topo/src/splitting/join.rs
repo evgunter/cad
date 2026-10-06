@@ -172,15 +172,10 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
-                let segment = SegmentEdge::InPlane {
-                    origin: section.origin,
-                    normal: section.normal,
-                };
+                let plan = joiner.plan(&red.body, (end, half), SegmentEdge::InPlane(section))?;
                 let lane = JoinLane::Split(section);
-                if let Some(curve) =
-                    joiner.segment_curve(&mut red.body, (end, half), lane, segment, leave)?
-                {
-                    joiner.join(&mut red.body, end, half, &curve, segment, tol)?;
+                if let Some(curve) = joiner.segment_curve(&mut red.body, &plan, lane, leave)? {
+                    joiner.join(&mut red.body, &plan, &curve, tol)?;
                 }
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is

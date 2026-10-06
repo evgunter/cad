@@ -1086,11 +1086,15 @@ fn ellipse_arcs(half: &Body<f64>) -> Vec<(String, (f64, f64), Option<String>)> {
 /// `[−0.3, 0.3]² × [0.5, 2]` through its wall at `+z`: the wall's band
 /// there carries the pocket's mouth as a ring. A tilted plane crosses
 /// that band from seam to mouth and from mouth to seam, so the join
-/// reaches the ring across loops (`mekr`) on a cylinder face. Each of
-/// the section's wall arcs the below half keeps is, bit for bit, the
-/// arc the above half keeps run back: the two chords of one segment
-/// are minted on the one curve its join computed. The halves hold the
-/// drum less the pocket, `∫√(1 − x²) − ½` over the bar's section.
+/// reaches the ring across loops (`mekr`) on a cylinder face: the
+/// section passes through the mouth, and neither half's wall keeps a
+/// ring. Each of the section's wall arcs the below half keeps is, bit
+/// for bit, the arc the above half keeps run back: the two chords of
+/// one segment are minted on the one curve its join computed. The
+/// halves hold the drum less the pocket, `∫√(1 − x²) − ½` over the
+/// bar's section, within their certified volume pads — a check on the
+/// halves, not on the chords: a second chord decided apart from the
+/// first misses it by far less than the pads.
 #[test]
 fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
     use core::f64::consts::PI;
@@ -1140,12 +1144,42 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
         tol(),
     );
     let [below, above] = halves_at_rest("the pocketed drum", &body, &plane);
+    for (side, h) in [("below", &below), ("above", &above)] {
+        let ringed = h
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    h.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { .. })
+                ) && !f.rings.is_empty()
+            })
+            .count();
+        assert_eq!(
+            ringed, 0,
+            "{side}: the join took the mouth into a wall's outer loop"
+        );
+        let on_mouth = h
+            .vertices()
+            .filter_map(|(_, v)| h.get_point(v.point))
+            .filter(|p| {
+                ((p.x.abs() - half).abs() < 1e-9)
+                    && (p.x * p.x + p.z * p.z - 1.0).abs() < 1e-9
+                    && (**p - plane.origin).dot(plane.normal.get()).abs() < 1e-9
+            })
+            .count();
+        assert_eq!(
+            on_mouth, 2,
+            "{side}: the section crosses the mouth's two rulings"
+        );
+    }
     let pocket =
         2.0 * half * ((half * (1.0 - half * half).sqrt() + half.asin()) - 2.0 * half * 0.5);
-    let total = volume(&below) + volume(&above);
+    let [pb, pa] = [&below, &above].map(|h| mass_properties(h, tol()).unwrap());
+    let total = pb.volume + pa.volume;
     assert!(
-        (total - (2.0 * PI - pocket)).abs() < 1e-9,
-        "the halves hold {total}, the drum less the pocket {}",
+        (total - (2.0 * PI - pocket)).abs() <= pb.volume_pad + pa.volume_pad,
+        "the halves hold {total} ± {}, the drum less the pocket {}",
+        pb.volume_pad + pa.volume_pad,
         2.0 * PI - pocket
     );
     let (lower, upper) = (ellipse_arcs(&below), ellipse_arcs(&above));
