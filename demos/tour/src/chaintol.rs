@@ -812,6 +812,27 @@ mod tests {
     /// first in evaluation order; the three- and four-link chains still
     /// meet a later pin's check 5 first (measured through `2.4×`).
     #[test]
+    #[ignore]
+    fn sym17_probe() {
+        let tol = Tol::witness();
+        let links: usize = std::env::var("SYM17_LINKS").map(|v| v.parse().unwrap()).unwrap_or(1);
+        let sigmas: Vec<f64> = std::env::var("SYM17_SIGMAS")
+            .unwrap()
+            .split(',')
+            .map(|v| v.parse().unwrap())
+            .collect();
+        for sigma in sigmas {
+            let built = chain(links, sigma, POSITION_BOUND, tol);
+            eprintln!("SYM17 ===== sigma {sigma:e} links {links}");
+            let row = interval_leaf(links, &built.doc);
+            eprintln!(
+                "SYM17 RESULT sigma {sigma:e} links {links} certifies={} refused={} first={:?}",
+                row.certifies, row.refused, row.first
+            );
+        }
+    }
+
+    #[test]
     fn the_wall_is_check_5s_escape_and_continuity_is_next() {
         let tol = Tol::witness();
         for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate() {
