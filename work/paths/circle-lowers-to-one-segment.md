@@ -16,9 +16,14 @@ Unit 4 of the #3218 lowering. `circle(c, r)` lowers through `circle_split`'s ker
 ## From unit 3 (2026-10-06)
 
 - Revolve and loft refuse a one-segment loop (`OneSegmentLoop`) until
-  `a-one-segment-loops-revolve-and-loft-wall-wraps-a-period-with-no-seam`
-  is settled; this unit makes every revolve or loft of a `circle` take
-  that answer.
+  `one-segment-loop-revolves-and-lofts-to-one-wall` builds the wrap
+  edge (#4175); this unit makes every revolve or loft of a `circle`
+  take it.
+- Validate's `ByConstruction` full-turn arm (`seg::full_turn`) decides
+  only the turn's reach: no door constructs a full turn yet, so the
+  arm's consistency rests on this unit's `circle_split` kernel writing
+  b = a and |Δθ| = 2π exactly. The arm is guarded in debug builds;
+  this unit owns showing that construction.
 - An extruded one-segment cylinder cut ACROSS its wall by a plane (a
   slab, a pocket floor) refuses `Join(SingleSiteSectionLoop)`
   (`work/join/closed-in-face-section-loop-has-one-site.md`), where

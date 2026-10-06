@@ -2,10 +2,12 @@
 id: a-one-segment-loops-revolve-and-loft-wall-wraps-a-period-with-no-seam
 kind: issue
 title: A one-segment loop's revolve or loft wall wraps a period no seam is defined on (a torus's tube angle; a spline wall's u), so both verbs refuse it: weigh a new seam kind against splitting the wall
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
+refs: [4175, one-segment-loop-revolves-and-lofts-to-one-wall]
+closed: 2026-10-06
 ---
 
 
@@ -76,3 +78,11 @@ skins the wall; the body assembly refuses).
 
 Unit 4 waits on this: once `circle` lowers to one segment, every revolve
 or loft of a `circle` takes whichever answer this row gets.
+
+## Outcome (#4175)
+
+Decided by Ev on #4175 (2026-10-06): option 1, as D1's **wrap edge** —
+a property of a face, placed where the construction cut, with the
+closed direction read from the carrier's chart class. Its
+implementation is the unit `one-segment-loop-revolves-and-lofts-to-one-wall`;
+until it lands, revolve and loft keep refusing `OneSegmentLoop`.
