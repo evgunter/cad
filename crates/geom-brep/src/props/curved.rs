@@ -3869,9 +3869,87 @@ struct TorusChart<T> {
 
 /// One torus boundary edge on the loop's lift: a rim at lifted level
 /// `v` turning `Δu`, or a meridian turning `Δv`.
+#[derive(Clone, Copy)]
 enum TorusStep<T> {
     Rim { sin_v: T, cos_v: T, du: T, rho: T },
     Meridian { dv: T },
+}
+
+/// One boundary edge as [`torus_chart`] walks it: its step, and what
+/// [`fold_torus_pieces`] needs to rejoin the pieces of one split edge —
+/// the edge, and the ±1 its stored span turns into its step.
+struct TorusPiece<'a, T: Real> {
+    edge: &'a LoopEdge<T>,
+    step: TorusStep<T>,
+    sign: T,
+}
+
+/// The loop's steps with the pieces of one split edge rejoined: loop-
+/// adjacent pieces with one [`CarrierId`](super::CarrierId), one
+/// traversal direction, and intervals that ABUT exactly (the split's
+/// own `t`, decided at the exact-order band) are one step over the span
+/// they assemble, so a split edge reads as the edge it was. Pieces that
+/// do not abut stay apart, each its own step: the Green form sums them
+/// to the same integral, so nothing is refused, only not rejoined.
+fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec<TorusStep<T>> {
+    let joins = |a: &TorusPiece<'_, T>, b: &TorusPiece<'_, T>| {
+        let (ea, eb) = (a.edge, b.edge);
+        let same = ea.forward == eb.forward
+            && matches!((ea.carrier_id, eb.carrier_id), (Some(x), Some(y)) if x == y)
+            && matches!(
+                (&a.step, &b.step),
+                (TorusStep::Rim { .. }, TorusStep::Rim { .. })
+                    | (TorusStep::Meridian { .. }, TorusStep::Meridian { .. })
+            );
+        let gap = if ea.forward { eb.t0 - ea.t1 } else { ea.t0 - eb.t1 };
+        same && matches!(
+            decide("props_torus_pieces_meet", Margin::levered(gap, minor), exact_band()),
+            Ok(Sign::Zero)
+        )
+    };
+    let n = pieces.len();
+    let Some(start) = (0..n).find(|&i| !joins(&pieces[(i + n - 1) % n], &pieces[i])) else {
+        return pieces.into_iter().map(|p| p.step).collect();
+    };
+    let mut pieces = pieces;
+    pieces.rotate_left(start);
+    let mut steps: Vec<TorusStep<T>> = Vec::with_capacity(n);
+    let mut chain: Vec<TorusPiece<'_, T>> = Vec::new();
+    let flush = |chain: &mut Vec<TorusPiece<'_, T>>, steps: &mut Vec<TorusStep<T>>| {
+        let (Some(first), Some(last)) = (chain.first(), chain.last()) else {
+            return;
+        };
+        if chain.len() == 1 {
+            steps.extend(chain.drain(..).map(|p| p.step));
+            return;
+        }
+        let span = if first.edge.forward {
+            last.edge.t1 - first.edge.t0
+        } else {
+            first.edge.t1 - last.edge.t0
+        };
+        let sign = first.sign;
+        steps.push(match first.step {
+            TorusStep::Rim {
+                sin_v, cos_v, rho, ..
+            } => TorusStep::Rim {
+                sin_v,
+                cos_v,
+                du: sign * span,
+                rho,
+            },
+            TorusStep::Meridian { .. } => TorusStep::Meridian { dv: sign * span },
+        });
+        chain.clear();
+    };
+    for p in pieces {
+        if chain.last().is_some_and(|last| !joins(last, &p)) {
+            flush(&mut chain, &mut steps);
+        }
+        chain.push(p);
+    }
+    flush(&mut chain, &mut steps);
+    steps
 }
 
 /// `atan2(y, x)` with its branch cut kept away from the arguments:
@@ -3934,6 +4012,40 @@ fn torus_chart<T: Decide>(
     };
     let mut per_loop: Vec<(T, T)> = Vec::with_capacity(loops.len());
     for edges in loops {
+        // Every edge is certified rim or meridian first, so a face this
+        // inventory has no arm for refuses as itself.
+        let mut pieces: Vec<TorusPiece<T>> = Vec::with_capacity(edges.len());
+        let classified = torus_classify(center, axis, major, minor, edges, band)?;
+        for (edge, e) in classified.into_iter().zip(edges.iter()) {
+            let (step, sign) = match edge {
+                TorusEdge::Rim(rim) => {
+                    let RimLevel::Unit(sin_v, cos_v) = rim.level else {
+                        return Err(PropsError::NotIsoRectangle {
+                            what: "a torus rim carried a non-angle level",
+                        });
+                    };
+                    let sign = t_sign::<T>(rim.d_u_sign);
+                    let step = TorusStep::Rim {
+                        sin_v,
+                        cos_v,
+                        du: sign * rim.dt,
+                        rho: big + r * cos_v,
+                    };
+                    (step, sign)
+                }
+                TorusEdge::Arc(arc) => {
+                    let orient =
+                        torus_meridian_orient((arc.n_c, arc.c_c), center, axis, minor, band)?;
+                    let sign = t_sign::<T>(orient.flip())
+                        * if arc.edge.forward { T::one() } else { -T::one() };
+                    let step = TorusStep::Meridian {
+                        dv: sign * (arc.edge.t1 - arc.edge.t0),
+                    };
+                    (step, sign)
+                }
+            };
+            pieces.push(TorusPiece { edge: e, step, sign });
+        }
         for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
             require_zero(
                 "props_loop_closed",
@@ -3942,33 +4054,7 @@ fn torus_chart<T: Decide>(
                 Premise::Inventory,
             )?;
         }
-        let mut steps = Vec::with_capacity(edges.len());
-        for edge in torus_classify(center, axis, major, minor, edges, band)? {
-            steps.push(match edge {
-                TorusEdge::Rim(rim) => {
-                    let RimLevel::Unit(sin_v, cos_v) = rim.level else {
-                        return Err(PropsError::NotIsoRectangle {
-                            what: "a torus rim carried a non-angle level",
-                        });
-                    };
-                    TorusStep::Rim {
-                        sin_v,
-                        cos_v,
-                        du: t_sign::<T>(rim.d_u_sign) * rim.dt,
-                        rho: big + r * cos_v,
-                    }
-                }
-                TorusEdge::Arc(arc) => {
-                    let orient =
-                        torus_meridian_orient((arc.n_c, arc.c_c), center, axis, minor, band)?;
-                    let along = arc.edge.t1 - arc.edge.t0;
-                    let along = if arc.edge.forward { along } else { T::zero() - along };
-                    TorusStep::Meridian {
-                        dv: t_sign::<T>(orient.flip()) * along,
-                    }
-                }
-            });
-        }
+        let mut steps = fold_torus_pieces(pieces, minor);
         let Some(first) = steps
             .iter()
             .position(|s| matches!(s, TorusStep::Rim { .. }))

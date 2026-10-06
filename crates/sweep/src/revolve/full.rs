@@ -771,12 +771,11 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         unslit_plane_wall(&mut body, hes[i], end)?;
     }
 
-    // ---- Phase 5: meridian upgrades — angle-0 chain edges sit on the
-    // u = 0 seam of their (periodic) wall surfaces; the angle-π copies
-    // are NOT the seam, so they take the wall's chart image WITHOUT
-    // D1's seam obligation (module docs; D3's transience fence — the
-    // wall exists by now, so neither copy needs the scaffolding
-    // door). ----
+    // ---- Phase 5: meridian upgrades — both meridians part a wall's
+    // two π-bands, so each takes the wall's chart image at rest
+    // (`upgrade_meridian_wrap` reads that off its faces; D3's
+    // transience fence — the wall exists by now, so neither copy needs
+    // the scaffolding door). ----
     for i in 0..k {
         if plane[i] {
             continue;

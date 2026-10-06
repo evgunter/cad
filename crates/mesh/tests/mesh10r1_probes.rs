@@ -191,11 +191,13 @@ fn r1_split_seam_donut_mesh_measured() {
 ///
 /// **Inverted: the premise is enforced at the fold.** The shifted
 /// child's interval no longer meets its sibling's (`a.t1 == b.t0`
-/// fails by a period), so every consumer refuses
-/// `props_meridian_pieces_meet` — `mass_properties`, `tessellate`
-/// (`UnsupportedCurvedShape`), the door, the flux lane, the side —
-/// where the merge base refused `props_rim_level` and the first fold
-/// answered twice the volume.
+/// fails by a period), so the fold's consumers refuse
+/// `props_meridian_pieces_meet` — `tessellate`
+/// (`UnsupportedCurvedShape`) and the door — where the merge base
+/// refused `props_rim_level` and the first fold answered twice the
+/// volume. The flux lane and the side fold nothing: the torus's chart
+/// Green form reads each piece's own span, so the shifted child — the
+/// identical arc — measures as the donut and encodes its side.
 #[test]
 fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
     let tol = Tol::witness();
@@ -246,16 +248,20 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
             let meet = geom_brep::props::PropsError::NotIsoRectangle {
                 what: "props_meridian_pieces_meet",
             };
+            let v = mp
+                .unwrap_or_else(|e| panic!("mass_properties reads the identical arc: {e:?}"))
+                .volume;
             assert!(
-                matches!(&mp, Err(topo::MassPropsError::Face { source, .. }) if *source == meet),
-                "mass_properties refuses the shifted child at the fold: {mp:?}"
+                (v - mp0.volume).abs() <= 1e-12 * mp0.volume,
+                "the shifted child measures as the donut: {v} vs {}",
+                mp0.volume
             );
             assert!(
                 matches!(
                     mesh::tessellate(&body, 0.1, tol),
                     Err(mesh::TessellateError::UnsupportedCurvedShape { source, .. }) if source == meet
                 ),
-                "tessellate refuses by the same name"
+                "tessellate refuses at the door"
             );
             let split_face = receipts(&body)
                 .into_iter()
@@ -263,9 +269,9 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
                 .collect::<Vec<_>>();
             assert_eq!(split_face.len(), 1, "one face carries the shifted piece");
             let meet_s = format!("{meet:?}");
-            assert_eq!(split_face[0].1, Err(meet_s.clone()), "the door");
-            assert_eq!(split_face[0].2, Err(meet_s.clone()), "the flux lane");
-            assert_eq!(split_face[0].3, Err(meet_s), "the side");
+            assert_eq!(split_face[0].1, Err(meet_s), "the door");
+            assert!(split_face[0].2.is_ok(), "the flux lane: {:?}", split_face[0].2);
+            assert!(split_face[0].3.is_ok(), "the side: {:?}", split_face[0].3);
         }
     }
 }
