@@ -244,9 +244,12 @@ applies is a fact of the loop's provenance, carried by its type.
   construction: `ConstructedProfile`'s validate doors, `pncad::validated`
   and the loft's constructed sections do not decide the three again. A
   `Center` arc's landing is the path door's own predicate
-  (`path_arc_center_equidistant`), decided inline at every scalar;
-  every other construction's facts are the identities it registers on
-  the values it built (`BuiltArc`, `Facts::Registered`), which an exact
+  (`path_arc_center_equidistant`), and a fillet arc's ends are the
+  door's own decisions where its resolution decided the offset
+  carriers tangent or a leg's fit exact, each made inline at every
+  scalar (`Facts::Decided`); every other construction's facts are the
+  identities it registers on the values it built (`BuiltArc`,
+  `Facts::Registered`), which an exact
   scalar's witness checks and a point scalar takes on the construction's
   proof. Re-deciding them could only confirm Zero or escalate on
   dependency width, never catch an inconsistency.
