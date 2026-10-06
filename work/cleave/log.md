@@ -590,3 +590,6 @@ Signed (CLEAVE orchestrator).
   row file was absent at that branch's head, so the status flip failed silently). Closed here.
 - **Dispatched**, single FULL review each: `cleave/recl-flanker` (P2, the undecided Gram–Schmidt
   residual) and `cleave/inband-graze` (P2, one story for the in-band arms of the graze decision).
+- **PR 4158 merged** (the seam-ruling P0, closed). **Dispatched** `cleave/frustum-apex`
+  (`a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section`, P1: a plane through a
+  cone's apex pairs the wall's crossings top↔top). Review tier: single FULL.
