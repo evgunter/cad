@@ -7455,3 +7455,19 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - PR 4154's CI was red at `db438f67`: five split and tessellate tests. They pass locally on head merged with current main (6 of 6). The red was main's state at 12:28.
   - I pushed a real main merge to the branch at `bb5ae216` to re-run CI.
 - PR 4165: the impl lane re-baselined the m10_9 pin at `b71c2459`; CI is re-running. The reviewer is still running.
+
+## 15:59 (2026-10-06)
+
+- **PR 4165 review** (`session_01KSzFXmPnPwhBovUepd9U7n`, about $9.3, archived). Verdict **fix first**:
+  - **B1:** the five-sample `description_moves` lets a 1.7 cm spline reparameterization on the same locus through. The probe kept the stale row, `Ok`; tier 3 reads `ImageMismatch`.
+  - **B2:** merge conflicts with main in the editor-core pins.
+  - **B3:** the simple rule's regression is really the **missing closing mint in both boolean fallback finishes** (`ops.rs:4440`, `:4499`). The closing mint re-images the sphere circle, 4 of 4 rows.
+  - **B4:** the ends reading and two of the three interior samples have no witness.
+  - Confirmed: the offset drop changes nothing (1348 cases, 0 diffs); one minting path; batteries 0 moved; no `pcurves.rs` conflict with PCERT. `loop_reparenting_pcurve_rows.rs` will conflict with PCERT's re-pin.
+- **Adjudication → fix lane** `session_01W3FjPHqXUikfdBZ3anM1sj`:
+  - merge main;
+  - fix B3 first (closing mint in the fallback finishes, in cleave/hone ground, minimal);
+  - then measure the simple rule (`Every`, `description_moves` deleted) and take it unless it costs a refusal or material time. Otherwise make the predicate sound for NURBS, route the ends reading through `row_interval`'s home, and add witnesses for every sample;
+  - the B1 probe committed as a witness either way;
+  - the text corrections.
+- The PR 4165 impl lane was archived while it was still editing the PR body (about 15:58); the fix lane supersedes it.
