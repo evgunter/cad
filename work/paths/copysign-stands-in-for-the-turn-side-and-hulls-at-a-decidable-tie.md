@@ -2,8 +2,9 @@
 id: copysign-stands-in-for-the-turn-side-and-hulls-at-a-decidable-tie
 kind: issue
 title: profile's fillet turn-side and arc-side copysigns hull at Interval where a value-level decision exists
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-10-06
 ---
 
 
@@ -58,3 +59,22 @@ sites above want a per-site measurement before a respell — does the tie
 arise at a point enclosure in a real fixture, or only at a degenerate
 corner the caller has already refused? — which is this program's call,
 not a mechanical substitution.
+
+## After 5b (#3774)
+
+The first site is gone. `path::fillet_arc_carrier` takes its turn side
+from the decided `path_corner_turn` as a `Sign`, so it is a literal ±1
+and no `copysign` atom, and `path.rs` has left the copysign mint-site
+register (`sym_rule_f_rows`). The second site, `sugar::fillet_bulge`,
+still stands. It is the `b` an arc-side fillet stores as Δθ = `4·atan(b)`
+(`sugar.rs:633` → `path::fillet_arc`).
+
+## Closed (2026-10-06, #3774's fix pass)
+
+The second site is gone too. The arc-carrier fillet's sweep and the
+`Center` arc's are now one spelling, `sugar::quarter_tan_about`,
+`σ·h / (r + σ·p)` with `p` the centre's SIGNED offset from the chord:
+past a half turn `σ·p` changes sign by itself, so no sign is chosen and
+no `copysign` atom enters. `sym_rule_f_rows`'s mint-site register reads
+`sugar.rs` at one, the `tangent_point` sign transfer this item keeps.
+
