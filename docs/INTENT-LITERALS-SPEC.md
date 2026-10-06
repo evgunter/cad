@@ -191,7 +191,7 @@ Review: orchestrator's read. The byte-identical goldens are the check.
 - A variable read on both sides of the cut still refuses, now for anonymous variables as well (`UncutVarReference`).
 
 **Persistence** (`persist/check.rs`). Slot fields serialize as `VarId`. The load walks:
-- **Slot-reads-minted.** A slot's id must be logged as `Minted::Var`, otherwise `SlotReadsUnmintedVar { node, slot }`.
+- **Slot-reads-minted.** A slot's id must be logged as `Minted::Var`, otherwise `ReaderOfUnmintedVar { node, var }`: the existing refusal, which names the variable rather than the slot.
 - **Slot kind (VR4).** A live slot variable's kind must equal `slot.dimension()`, otherwise `SlotVarKind`. The structural divide also refuses: a Count variable in a continuous slot, or the reverse.
 - **Anonymous ⇒ read.** Walk 6 is re-read as live-through-a-reader (a slot, or the definition of a live variable).
 - The existing walks are re-pointed at definitions.
@@ -302,7 +302,7 @@ The second pass greps `-> Expr\b` and `serde_json::from_str::<.*Expr` and takes 
 14. **(D) Load.**
     - A snapshot with `{"Literal":…}` refuses `Unreadable`, naming `Literal`.
     - A ratio `{num:2,den:4}` refuses `PersistError::Dimension`.
-    - A slot of an unminted id refuses `SlotReadsUnmintedVar`.
+    - A slot of an unminted id refuses `ReaderOfUnmintedVar`.
     - A Length slot holding a Count variable refuses `SlotVarKind`.
 15. **(B–D) Python.**
     - `Node.extrude(p, w)` with `w` a `WrittenLength` mints one anonymous variable (`len(doc.vars())` grows by 1).

@@ -1026,8 +1026,7 @@ pub fn slot_edit(
     // value (VARIABLES-DESIGN, INTENT-LITERALS Q6): the variable keeps
     // its identity, its notation and its distribution.
     if let Some(var) = doc.slot(node, slot)
-        && doc.var_name(var).is_none()
-        && doc.free(var).is_some()
+        && doc.is_typed_value(var)
     {
         return Ok(param_edit(var, value));
     }
@@ -1336,8 +1335,7 @@ pub fn slot_unit_edit(
     // The slot's own written value is re-noted in place, keeping the
     // variable (Q6); the check above has refused anything else.
     if let Some(var) = doc.slot(node, slot)
-        && doc.var_name(var).is_none()
-        && doc.free(var).is_some()
+        && doc.is_typed_value(var)
     {
         return Ok(param_unit_edit(var, unit));
     }

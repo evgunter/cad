@@ -267,10 +267,11 @@ impl AnalyzedBox {
     /// interval that is deliberately NOT the analyzed one.
     ///
     /// A parameter with no tolerance is no axis of the box
-    /// [`analyzed_box`] derives (VR8), so this answers `None` for it. An
-    /// axis built with no distribution is FIXED and its tail is `0.0` —
-    /// the analysis is not leaving anything out, because nothing was
-    /// declared to vary.
+    /// [`analyzed_box`] derives (VR8), so this answers `None` for it.
+    /// `analyzed_box` builds no axis without a distribution; the `0.0`
+    /// arm answers a box assembled otherwise, whose distribution-less
+    /// axis is FIXED — nothing was declared to vary, so no tail is left
+    /// out.
     pub fn axis_tail_mass(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
         let axis = self.params.get(&var)?;
         Some(match axis.distribution {
@@ -285,11 +286,10 @@ impl AnalyzedBox {
     /// the document has no such continuous parameter.
     ///
     /// A parameter with no tolerance is no axis of the box
-    /// [`analyzed_box`] derives (VR8). An axis built with no
-    /// distribution is FIXED — a point mass at its nominal — and its
-    /// standard deviation is exactly `0.0`: "a fixed parameter carries
-    /// a measure and spreads nothing", so an RSS over it is available
-    /// and it contributes no term.
+    /// [`analyzed_box`] derives (VR8), and `analyzed_box` builds no axis
+    /// without a distribution. The `0.0` arm answers a box assembled
+    /// otherwise, whose distribution-less axis is FIXED — a point mass
+    /// at its nominal that spreads nothing, so it adds no RSS term.
     pub fn axis_std_deviation(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
         let axis = self.params.get(&var)?;
         Some(match axis.distribution {
@@ -367,6 +367,8 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
                 distribution,
             } => {
                 let offsets = match distribution {
+                    // Not reached: `is_axis` admitted only a toleranced
+                    // variable. Kept total rather than asserted.
                     None => OffsetInterval::FIXED,
                     // The bounded forms ARE their own analyzed
                     // interval: the box is the support, and no mass

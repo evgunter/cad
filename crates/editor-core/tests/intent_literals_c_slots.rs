@@ -234,9 +234,11 @@ fn a_rewritten_slot_retires_the_variable_its_formula_minted() {
     assert!(applied.doc.has_minted_var(formula), "the log keeps its id");
 }
 
-/// Row 7's load half: a file whose anonymous variable is read only by
-/// the definition of an anonymous variable nothing reads refuses
-/// `AnonymousVarUnread` — liveness is through a reader.
+/// Row 7's load half: a file whose slot's own anonymous definition is
+/// left read by nothing — the blend re-pointed at `w` — refuses
+/// `AnonymousVarUnread`. Liveness through a definition (a variable read
+/// only by an anonymous definition nothing reads) is PR A's rows'
+/// (`intent_literals_a_*`) and `an_entry_reads_the_entries_before_it`'s.
 #[test]
 fn an_anonymous_variable_read_only_by_an_unread_definition_refuses_at_load() {
     let doc = ProfileDoc::empty(
@@ -747,9 +749,10 @@ fn an_edit_at_a_path_keeps_a_fresh_entrys_read() {
 
 // -------------------------------------------------- row 14's C half
 
-/// A slot reading an id the document never minted refuses at load; a
-/// length slot reading a `Count` variable refuses `SlotVarKind`, the
-/// structural divide included.
+/// A slot reading an id the document never minted refuses at load
+/// (`ReaderOfUnmintedVar`); a length slot reading a `Count` variable,
+/// and a count slot reading a length one, refuse `SlotVarKind`: the
+/// structural divide, both ways.
 #[test]
 fn the_load_door_reads_every_slots_variable() {
     let doc = empty("intent-literals-c-load");
@@ -791,6 +794,51 @@ fn the_load_door_reads_every_slots_variable() {
             )
         ),
         other => panic!("a length slot reading a count refuses, got {other:?}"),
+    }
+
+    // The divide's other direction (r1 n3): a count slot reading a
+    // continuous variable.
+    let (doc, body) = crate::docm7_union_declare::block(
+        empty("intent-literals-c-load-count"),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: body,
+            count: Formula::count(3),
+            kind: editor_core::PatternKind::Linear {
+                direction: [
+                    crate::fixture::scl(1.0),
+                    crate::fixture::scl(0.0),
+                    crate::fixture::scl(0.0),
+                ],
+                spacing: len(3.0),
+            },
+        },
+    );
+    let doc = declare(&doc, "w", length(0.5));
+    let w = doc.var_named("w").expect("declared");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let measured = crate::wire::doctored(&text, |wire| {
+        wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["count"] =
+            serde_json::json!(w.0);
+    });
+    match load(&measured, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
+            node,
+            slot,
+            declared,
+            referenced,
+            ..
+        })) => assert_eq!(
+            (node.id(), slot, declared, referenced),
+            (pattern, SlotId::Count, Dimension::Length, Dimension::Count)
+        ),
+        other => panic!("a count slot reading a length refuses, got {other:?}"),
     }
 }
 

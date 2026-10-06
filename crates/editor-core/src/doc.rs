@@ -1224,6 +1224,15 @@ impl<P> Doc<P> {
     /// the anonymous variables read by no node and by no definition of
     /// a variable still standing — so a defined variable comes before
     /// the variables only its definition read.
+    /// **Whether `var` is a typed value**: an anonymous free variable,
+    /// what a value written at a slot lowers to. A value gesture or a
+    /// re-notation on a slot reading one moves it in place, keeping its
+    /// identity and its distribution (INTENT-LITERALS Q6).
+    #[must_use]
+    pub fn is_typed_value(&self, var: VarId) -> bool {
+        !self.var_names.contains_key(&var) && self.free(var).is_some()
+    }
+
     /// **The anonymous variables [`Node::written`] would not reproduce**:
     /// one read more than once — by two slots, as a fresh entry shared
     /// within one edit, or by a slot and a definition — which a written

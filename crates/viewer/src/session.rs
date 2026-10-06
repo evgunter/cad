@@ -361,7 +361,7 @@ fn carry_unmoved(
             Formula::from(doc.written(&pncad::document::Expr::var(committed, arg.dimension())));
         match new.expr_mut(moved) {
             Some(held) if held.bit_eq(&reader) || held.bit_eq(&written) => *held = reader,
-            _ if doc.var_name(committed).is_none() && doc.free(committed).is_some() => {}
+            _ if doc.is_typed_value(committed) => {}
             _ => guard_driven(doc, node, slot, notation)?,
         }
     }

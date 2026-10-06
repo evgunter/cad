@@ -524,7 +524,7 @@ fn driver(
     }
 
     // The variables, in declaration order (deterministic in both schedules).
-    let names: Vec<VarId> = continuous_params(doc).collect();
+    let names: Vec<VarId> = toleranced_params(doc).collect();
 
     // One UNSEEDED dual base, threaded into every pass as the memo
     // prior: a node outside a pass's seeded cone carries identical
@@ -1075,16 +1075,17 @@ const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[(20, "Declarations")];
 /// The document's analysis axes ([`crate::analysis::is_axis`]: its
 /// toleranced variables), in declaration order — the entry set of
 /// every driver call.
-fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
+fn toleranced_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = VarId> + '_ {
     doc.free_vars()
         .filter(|(_, free)| crate::analysis::is_axis(free))
         .map(|(id, _)| id)
 }
 
 /// Whether a verdict's root box spans exactly this document's
-/// continuous parameters — the cheap pre-check before the content tie.
+/// analysis axes ([`toleranced_params`]) — the cheap pre-check before
+/// the content tie.
 fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
-    let doc_names: Vec<VarId> = continuous_params(doc).collect();
+    let doc_names: Vec<VarId> = toleranced_params(doc).collect();
     root.axes().len() == doc_names.len() && doc_names.into_iter().all(|n| root.get(n).is_some())
 }
 
