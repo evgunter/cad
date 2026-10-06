@@ -904,8 +904,12 @@ fn run_at<T: editor_core::EvalScalar>(
 /// variable id — with no pose moving: this file's id-free rows (each
 /// pose against the `f64` solve at the box's corners, each tangent
 /// against its central difference) are what say so.
+///
+/// Re-taken once more for INTENT-LITERALS PR C: every slot holds a
+/// variable's id, so every node is minted from other bytes, and the
+/// id-free rows held.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xf48f_16a4_8637_1664),
+    (1e-9, 0x2d31_9da2_2717_1972),
     (1e-6, 0x0ac7_65d7_0799_cca4),
     (1e-12, 0x9fb4_cf13_44e6_9ea8),
 ];

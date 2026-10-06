@@ -275,6 +275,10 @@ fn eps_row(eps: f64) -> usize {
 /// middle station are one [`geom::mid_param`] evaluation, and a second
 /// spelling of that point builds a second chain of forms, which reads
 /// here as `Plain/Decision` forms alone.
+///
+/// INTENT-LITERALS PR C moves the `Plain/Decision` line as it moves
+/// [`PLATE_LEDGER`]'s: one more call, the non-finite door's theorem on
+/// the anonymous definition a slot's formula lowers to.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 980 forms 9426 frozen 0 digest ebd5dc4da3bdeaa10c0afd94b42b2d87\n\
@@ -282,7 +286,7 @@ const SLAB_LEDGER: [&str; 3] = [
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest e5cb8ee95d081c9f651fd197dd80e7e9",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 8494d680ab698df2f3469e823fc87b98\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest e7826bcc06fc0e40f560d482194172fe\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest c4e86cf612989dd24ae45b72f30fd596\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 6fd6d5b744c7357422ed4a8d661ba4d6",
@@ -466,8 +470,14 @@ const PLATE_MAX_TERMS: usize = 252;
 ///   continuity margins come: `Assertion` calls +14 on every walk and
 ///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
 ///   −31. Every digest moves; the freezes hold.
+/// - **A slot holds a variable (INTENT-LITERALS PR C).** A formula
+///   written at a slot lowers to an anonymous defined variable, which
+///   the environment binds through the non-finite door: one more
+///   `Plain/Decision` call, a theorem, and that line's digest. Every
+///   other line holds; the untoleranced variables bind as constants
+///   (VR8), as the literals did.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16596 frozen 696 digest 552c90e3f81bbc1b4c60c2c582b61a1a\n\
+     Plain/Decision calls 1144 forms 16596 frozen 696 digest b9a869dcceb55e1aca168cb6e063c144\n\
      Plain/Assertion calls 664 forms 3944 frozen 372 digest 3fc3c1d6ccf7251c60ae7b7ad0cd5f7d\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 432 forms 9399 frozen 8 digest 7804ce3c229e1f27e2ec128de098ae55\n\

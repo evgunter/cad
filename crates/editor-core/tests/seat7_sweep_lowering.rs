@@ -296,14 +296,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
 /// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
 /// declares nothing held its word.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x63de_edf2_4dee_ef58),
-        ("corner_table", 0xd8b1_634f_074f_de08),
-        ("cut_cylinder", 0x1676_4144_da9e_6975),
-        ("boss_union", 0x9149_8127_2c43_ed66),
-        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
+        ("die", 0xbf6c_6458_1323_e221),
+        ("corner_table", 0xfcce_27c4_6cf3_cb89),
+        ("cut_cylinder", 0xf5bd_61d3_edc5_a2d4),
+        ("boss_union", 0x0176_920e_c7af_193f),
+        ("kitchen_sink", 0x77ca_5ac7_ea66_f681),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

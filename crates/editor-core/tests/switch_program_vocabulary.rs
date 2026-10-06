@@ -1419,7 +1419,7 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 ///
 /// It covers what the corpus reaches, which is every member of all
 /// four document vocabularies (the censuses above are what make that
-/// true) plus the `Expr` records they carry.
+/// true); their arguments are variable ids, which carry no words.
 ///
 /// **It is a SET, and that is its blind spot.** A swapped `Ccw`/`Cw`, a
 /// `spec`/`spec2` exchanged between two fused verbs, a reordered
@@ -1429,18 +1429,13 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 /// one that localises a rename to the word. Neither subsumes the
 /// other, and a reader chasing a red uses which of the two fired to
 /// tell a rename from a rearrangement.
+///
+/// A stored argument is the id of the variable it reads (INTENT-LITERALS
+/// PR C), a bare number on the wire, so the `Expr` record and its closed
+/// tables — `Literal`, `dim`, `unit`, `value` and the dimension and
+/// unit words — left this list then: the program's wire carries no
+/// expression.
 const PERSISTED_SPELLING: &[&str] = &[
-    // The `Expr` record and its closed tables: the dimensionless
-    // literal's display symbol is the empty string.
-    "",
-    "Length",
-    "Literal",
-    "Scalar",
-    "dim",
-    "m",
-    "rad",
-    "unit",
-    "value",
     // `ProfileProgram` and `LoopProgram`.
     "Chain",
     "Circle",

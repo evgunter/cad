@@ -212,12 +212,18 @@ fn both_blends_evaluate_in_one_document() {
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
 /// and with the same pins holding.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xd3bc_cb75_265e_a675u64),
-        ("die_chamfer", 0xe497_df5e_3a54_45f1),
+        ("die_fillet", 0x25c1_6012_c7a6_50ffu64),
+        ("die_chamfer", 0x16a9_3e33_c172_9bd5),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -325,13 +331,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// rows (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`) held
 /// untouched, and every row of a document that declares nothing held
 /// its word.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x681d_d105_677a_1f01u64),
-        ("heat_sink", 0xf3d9_20e7_90d8_8c5f),
-        ("kiss_carry", 0x0bad_41ce_ff6a_c1e6),
+        ("crossing_slots", 0xc561_77ee_275f_588au64),
+        ("heat_sink", 0xf69d_8131_a5c8_49cd),
+        ("kiss_carry", 0x1f80_a42e_273d_86dc),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -383,6 +395,12 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -429,7 +447,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xbfd9_320e_299c_1f44,
+        got, 0x9336_3f9c_d690_f07a,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

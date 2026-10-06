@@ -174,13 +174,19 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// The id-free body rows (`m4_pr8_corpus`'s exact mass pins,
 /// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
 /// declares nothing held its word.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x1676_4144_da9e_6975u64),
-        ("part_select", 0x6145_b1a0_caf1_f51a),
-        ("kitchen_sink", 0x6160_217f_8bea_4d5a),
+        ("cut_cylinder", 0xf5bd_61d3_edc5_a2d4u64),
+        ("part_select", 0xd429_83fa_0ee6_6bbf),
+        ("kitchen_sink", 0x77ca_5ac7_ea66_f681),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -268,6 +274,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -288,7 +300,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xb71f_3b0d_97ba_2ab3,
+        got, 0xec78_d2db_9d61_cc91,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
