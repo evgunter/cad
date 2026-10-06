@@ -326,7 +326,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/DegenerateArcCenter",
     "ProfileReplay/Path/DegenerateArcChord",
     "ProfileReplay/Path/DegenerateArcSpec",
-    "ProfileReplay/Path/ArcSweepPastFullTurn",
+    "ProfileReplay/Path/ArcSweepNotShortOfFullTurn",
     "ProfileReplay/Path/NoCornerForFillet",
     "ProfileReplay/Path/NoCornerForFillet(disjoint)",
     "ProfileReplay/Path/NoCornerOfPair",
@@ -2655,8 +2655,8 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         ),
         ("DegenerateArcSpec", P::DegenerateArcSpec { value: 0.0 }),
         (
-            "ArcSweepPastFullTurn",
-            P::ArcSweepPastFullTurn { angle: 7.0 },
+            "ArcSweepNotShortOfFullTurn",
+            P::ArcSweepNotShortOfFullTurn { angle: 7.0 },
         ),
         ("CircleSplitCount", P::CircleSplitCount { n: 1 }),
         (

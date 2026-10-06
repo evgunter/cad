@@ -136,6 +136,10 @@ pub(crate) struct PendingArc<T: Real> {
     pub radius: T,
     /// The captured resolution machinery (see [`ArcResolver`]).
     pub resolver: ArcResolver<T>,
+    /// The side circle's radius as its mode spells it: the authored
+    /// `|r|` where the mode authors one (`Radius`, `Sweep`, `ArcLen`),
+    /// and otherwise the distance from `centre` to `anchor`.
+    pub circle_radius: T,
     /// Whether the chain head the side's run leaves lies on the side's
     /// circle (about `centre` through `anchor`) by the incoming mode's
     /// own algebra ([`crate::Facts::Registered`]), or only to its
@@ -144,12 +148,13 @@ pub(crate) struct PendingArc<T: Real> {
 }
 
 impl<T: Real> Pending<T> {
-    /// The incoming side's circle run, for an arc side: its anchor and
-    /// whether the chain head lies on its circle by construction.
-    pub(crate) fn run(&self) -> Option<(Point2<T>, crate::Facts)> {
+    /// The incoming side's circle run, for an arc side: its circle's
+    /// radius and whether the chain head lies on that circle by
+    /// construction.
+    pub(crate) fn run(&self) -> Option<(T, crate::Facts)> {
         match self {
             Pending::Ray(_) => None,
-            Pending::Arc(p) => Some((p.anchor, p.head_on_circle)),
+            Pending::Arc(p) => Some((p.circle_radius, p.head_on_circle)),
         }
     }
 }
@@ -410,7 +415,7 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
         PathError::DegenerateArcSpec { value }
     })?;
     gate_positive("path_arc_sweep_full", r * (T::tau() - angle), band, |_| {
-        PathError::ArcSweepPastFullTurn { angle }
+        PathError::ArcSweepNotShortOfFullTurn { angle }
     })?;
     let sgn = side.sign::<T>();
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);

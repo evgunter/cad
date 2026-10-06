@@ -193,30 +193,37 @@ impl<T: Real> Arc2<T> {
         self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
     }
 
-    /// **Registers the centre against another spelling of it**
-    /// ([`Real::register_equal`]), per component: `other` IS
-    /// `centre`. Each answer is handed back with the fact it states, for
-    /// the caller to handle by arm.
+    /// **Registers a tangency at a foot** ([`Real::register_equal`]),
+    /// per component: the centre IS `foot` moved the radius along the
+    /// unit `dir`'s left normal, scaled by the side `sgn` (±1) — the
+    /// arc touches the line through `foot` along `dir` there, on the
+    /// `sgn` side. Each answer is handed back with the fact it states,
+    /// for the caller to handle by arm.
     ///
     /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
-    /// sound only where the CALLER built both spellings so that they are
-    /// one point over the reals at every value of its inputs, and its
-    /// doc comment carries that proof — a fillet's centre spelled from
-    /// one tangent foot and from the other, say.
+    /// sound only where the CALLER built the centre so that this holds
+    /// over the reals at every value of its inputs, and its doc comment
+    /// carries that proof — a fillet's centre spelled from its other
+    /// tangent foot, say. The identity is spelled here, not by the
+    /// caller, so a registrant of any other identity is a new function
+    /// in this file.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
-    pub fn register_centre(
+    pub fn register_tangent_at(
         self,
-        other: Point2<T>,
+        foot: Point2<T>,
+        dir: Vec2<T>,
+        sgn: T,
         tol: Tol,
     ) -> [(&'static str, SymRegistration); 2] {
+        let other = foot + Vec2::new(-dir.y, dir.x) * (sgn * self.radius);
         [
             (
-                "the centre's x from its other spelling",
+                "the centre's x from the tangent foot",
                 self.centre.x.register_equal(other.x, tol),
             ),
             (
-                "the centre's y from its other spelling",
+                "the centre's y from the tangent foot",
                 self.centre.y.register_equal(other.y, tol),
             ),
         ]
@@ -448,24 +455,30 @@ mod tests {
         );
     }
 
-    /// **The centre's other spelling, and a planted lie, at the exact
-    /// witness.** The quarter circle's centre against itself is
-    /// witnessed in both components; against a point off by a half in x
-    /// the x component is refused typed, and y is not.
+    /// **A tangency at a foot, and a planted lie, at the exact witness.**
+    /// The quarter circle about the origin touches the vertical line
+    /// through (1, 0) there, its centre the radius to the left of the
+    /// upward direction: witnessed in both components. Read on the
+    /// other side, the centre would be (2, 0): x is refused typed, and
+    /// y is not.
     #[test]
-    fn register_centre_refuses_a_planted_lie_at_the_exact_witness() {
+    fn register_tangent_at_refuses_a_planted_lie_at_the_exact_witness() {
         let (arc, _, _) = quarter_circle::<Interval>();
-        let answers = |other| arc.register_centre(other, Tol::witness()).map(|(_, a)| a);
+        let foot = Point2::new(Interval::from_f64(1.0), Interval::from_f64(0.0));
+        let up = Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0));
+        let answers = |sgn: f64| {
+            arc.register_tangent_at(foot, up, Interval::from_f64(sgn), Tol::witness())
+                .map(|(_, a)| a)
+        };
         assert_eq!(
-            answers(arc.centre),
+            answers(1.0),
             [SymRegistration::Witnessed; 2],
-            "the centre against itself"
+            "the tangency on its own side"
         );
-        let off = Point2::new(arc.centre.x + Interval::from_f64(0.5), arc.centre.y);
         assert_eq!(
-            answers(off),
+            answers(-1.0),
             [SymRegistration::Contradicted, SymRegistration::Witnessed],
-            "a centre planted off in x"
+            "the tangency read on the other side"
         );
     }
 

@@ -1183,14 +1183,15 @@ pub enum PathError<T: Real> {
         /// The refused authored datum (bulge, angle, or length).
         value: T,
     },
-    /// **An endpoint-free arc leg turning a full turn or more**: a
-    /// `Sweep` angle or an `ArcLen` length whose swept angle is not
-    /// definitely short of 2π. D1 holds a stored sweep to
-    /// 0 < |Δθ| ≤ 2π, and a full turn at a chain vertex is a zero
-    /// chord; the closed carrier is `circle` / `circle_split`'s, never
-    /// a chained leg's. Classified through the funnel
-    /// (`path_arc_sweep_full`, on the arc length short of a full turn).
-    ArcSweepPastFullTurn {
+    /// **An endpoint-free arc leg not definitely short of a full
+    /// turn**: a `Sweep` angle or an `ArcLen` length whose arc length
+    /// short of the full circle, `r(2π − θ)`, is not decided positive
+    /// (`path_arc_sweep_full`) — a turn of 2π or more, and one within
+    /// the band of 2π (escalated, or refused where decided Zero). D1
+    /// admits a one-segment full turn, but a leg leaves its own vertex
+    /// for another: at a full turn its chord is zero, and the closed
+    /// carrier is `circle` / `circle_split`'s, never a chained leg's.
+    ArcSweepNotShortOfFullTurn {
         /// The refused swept angle, radians.
         angle: T,
     },
@@ -1433,8 +1434,8 @@ pub enum PathErrorKind {
     NonpositiveCircleRadius,
     /// [`PathError::DegenerateArcSpec`].
     DegenerateArcSpec,
-    /// [`PathError::ArcSweepPastFullTurn`].
-    ArcSweepPastFullTurn,
+    /// [`PathError::ArcSweepNotShortOfFullTurn`].
+    ArcSweepNotShortOfFullTurn,
     /// [`PathError::CircleSplitCount`].
     CircleSplitCount,
     /// [`PathError::PolygonTooFewVertices`].
@@ -1493,7 +1494,7 @@ impl<T: Real> PathError<T> {
             Self::NonpositiveFilletRadius { .. } => PathErrorKind::NonpositiveFilletRadius,
             Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
-            Self::ArcSweepPastFullTurn { .. } => PathErrorKind::ArcSweepPastFullTurn,
+            Self::ArcSweepNotShortOfFullTurn { .. } => PathErrorKind::ArcSweepNotShortOfFullTurn,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
             Self::PolygonTooFewVertices { .. } => PathErrorKind::PolygonTooFewVertices,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
@@ -1795,7 +1796,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  must be definitely positive",
                 value = num(value)
             ),
-            Self::ArcSweepPastFullTurn { angle } => write!(
+            Self::ArcSweepNotShortOfFullTurn { angle } => write!(
                 f,
                 "this arc leg turns {angle} rad, which is not short of a full turn: a leg \
                  sweeps less than 2π; a whole circle is circle(c, r), or circle_split(c, r, \
@@ -2535,14 +2536,15 @@ impl<T: Real> Core<T> {
 impl<T: Decide> Core<T> {
     /// Sets the segment leaving the current last vertex for `to` — a
     /// line, or the arc its construction built — plus the structural
-    /// first-segment kind pin. `to` is where the segment ends: the
-    /// vertex a push is about to append, or the entry vertex a close
-    /// returns to.
-    fn set_leaving(&mut self, arc: Option<BuiltArc<T>>, to: Point2<T>) -> Result<(), PathError<T>> {
-        let kind = match arc {
-            None => FirstSeg::Line,
-            Some(_) => FirstSeg::Arc,
-        };
+    /// first-segment kind pin, the emitting verb's `kind`. `to` is
+    /// where the segment ends: the vertex a push is about to append, or
+    /// the entry vertex a close returns to.
+    fn set_leaving(
+        &mut self,
+        arc: Option<BuiltArc<T>>,
+        kind: FirstSeg,
+        to: Point2<T>,
+    ) -> Result<(), PathError<T>> {
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
             self.first_seg = kind;
         }
@@ -2562,9 +2564,9 @@ impl<T: Decide> Core<T> {
 
     /// Sets the CLOSING segment, the one leaving the last vertex for
     /// the entry vertex.
-    fn close_leaving(&mut self, arc: Option<BuiltArc<T>>) -> Result<(), PathError<T>> {
+    fn close_leaving(&mut self, arc: Option<BuiltArc<T>>, kind: FirstSeg) -> Result<(), PathError<T>> {
         let to = self.entry()?;
-        self.set_leaving(arc, to)
+        self.set_leaving(arc, kind, to)
     }
 
     /// **Names the segment leaving vertex `segment`** as the piece it
@@ -2617,7 +2619,7 @@ impl<T: Decide> Core<T> {
 
     /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
-        self.set_leaving(None, p)?;
+        self.set_leaving(None, FirstSeg::Line, p)?;
         self.verts.push((p, None));
         Ok(())
     }
@@ -2627,10 +2629,11 @@ impl<T: Decide> Core<T> {
         self.push_leg(p, Some(arc))
     }
 
-    /// Appends a leg ending at `p`: the arc its construction built, or
-    /// a line where the mode's lowering rule stores one.
+    /// Appends an arc verb's leg ending at `p`: the arc its
+    /// construction built, or a line where the mode's lowering rule
+    /// stores one. Its first-segment kind is the verb's, an arc.
     fn push_leg(&mut self, p: Point2<T>, leg: Option<BuiltArc<T>>) -> Result<(), PathError<T>> {
-        self.set_leaving(leg, p)?;
+        self.set_leaving(leg, FirstSeg::Arc, p)?;
         self.verts.push((p, None));
         Ok(())
     }
@@ -2838,18 +2841,8 @@ fn unit<T: Real>(ang: T) -> Vec2<T> {
 
 /// **The arc about a known centre**: Δθ from `a` to `b` about `centre`
 /// on the carrier of `radius`, turning in the `winding` sense, spelled
-/// `4·atan(X)` with `X = σ·h / (r + σ·p)` — `h` the half-chord, `p`
-/// the centre's signed offset from the chord along its left normal, `σ`
-/// the winding's sign. Algebraic in its inputs: no angle is read off
-/// an endpoint.
-///
-/// Over the reals, with both ends on the carrier (`r² = p² + h²`), half
-/// the included angle θ has `sin = h/r` and `cos = σ·p/r`, so X is
-/// `σ·sin/(1 + cos)` = tan(θ/4), and the winding picks θ in (0, 2π) or
-/// (−2π, 0). `r + σ·p` is the sum the half-angle form takes, so a short
-/// arc carries no cancellation; it vanishes only at a full turn. Ends
-/// off the carrier give the sweep the same formula reads off them,
-/// which is for the caller's own decision to have refused.
+/// `4·atan(X)` with X the [`crate::sugar::quarter_tan_about`] the
+/// fillet's sweep is spelled by too.
 fn center_sweep<T: Real>(
     a: Point2<T>,
     b: Point2<T>,
@@ -2857,36 +2850,30 @@ fn center_sweep<T: Real>(
     radius: T,
     winding: ArcSweep,
 ) -> T {
-    let sgn = match winding {
-        ArcSweep::Ccw => T::one(),
-        ArcSweep::Cw => -T::one(),
-    };
-    let chord = b - a;
-    let len = chord.norm();
-    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
-    let x = sgn * (len * T::from_f64(0.5)) / (radius + sgn * offset);
-    T::from_f64(4.0) * x.atan()
+    T::from_f64(4.0)
+        * crate::sugar::quarter_tan_about(a, b, centre, radius, winding.sign::<T>()).atan()
 }
 
 /// **A fillet side's carrier run**: the arc from `a` to `b` about the
-/// side's `centre`, on the side's circle of `radius` (the distance from
-/// `centre` to the side's anchor), in the side's `winding` — the sweep
-/// [`center_sweep`].
+/// side's `centre`, on the side's circle of `radius` (the mode's own
+/// spelling of it, [`verbs::PendingArc::circle_radius`]), in the side's
+/// `winding` — the sweep [`center_sweep`] — with the `facts` its caller
+/// proved.
 ///
 /// **Its endpoint facts are theorems** ([`crate::Facts::Registered`])
 /// wherever both ends lie on that circle by construction: the fillet
-/// resolution defines the side's circle as the one about `centre`
-/// through its anchor and puts its tangent point on it, and the other
-/// end is the anchor itself or a point the incoming mode's algebra put
-/// on the same circle; [`center_sweep`] is then tan(θ/4) exactly. A
-/// caller whose end is on it only to a decision says so by its
-/// `facts`.
+/// resolution puts its tangent point on the side's circle, and the
+/// other end is the anchor itself or a point the incoming mode's
+/// algebra put on the same circle; [`center_sweep`] is then tan(θ/4)
+/// exactly. A caller with an end on it only to a decision passes
+/// [`crate::Facts::Decided`].
 fn side_arc<T: Real>(
     a: Point2<T>,
     b: Point2<T>,
     centre: Point2<T>,
     radius: T,
     winding: ArcSweep,
+    facts: crate::Facts,
 ) -> BuiltArc<T> {
     BuiltArc {
         arc: Arc2 {
@@ -2894,7 +2881,7 @@ fn side_arc<T: Real>(
             radius,
             sweep: center_sweep(a, b, centre, radius, winding),
         },
-        facts: crate::Facts::Registered,
+        facts,
     }
 }
 
@@ -2910,10 +2897,14 @@ fn center_arc<T: Real>(
     centre: Point2<T>,
     winding: ArcSweep,
 ) -> BuiltArc<T> {
-    BuiltArc {
-        facts: crate::Facts::Decided,
-        ..side_arc(a, b, centre, (a - centre).norm(), winding)
-    }
+    side_arc(
+        a,
+        b,
+        centre,
+        (a - centre).norm(),
+        winding,
+        crate::Facts::Decided,
+    )
 }
 
 /// **The `Via` mode's one conversion**: the arc from `a` through `q` to
@@ -3263,31 +3254,45 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> Pat
 /// [`circle_loop`] stores it) and Δθ = 4·atan(b), `b` the resolution's
 /// quarter-tangent, algebraic in the corner's data
 /// ([`line_line_fillet_trims`]'s half-angle identity, or
-/// `arc_fillet`'s chord-and-apothem form).
-///
-/// **Its endpoint facts are theorems** ([`crate::Facts::Registered`]).
-/// The resolution's circle is tangent to both carriers, centred at the
-/// authored radius from each, and its tangent points `t1`, `t2` are the
-/// feet of its centre on them, so the rim at each is the radius over
-/// the reals at every value of the corner's data; `b` is tan(θ/4) of
-/// the turn from `t1` to `t2` about that centre, so the sweep turns
-/// each end onto the other.
-fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T) -> BuiltArc<T> {
+/// `arc_fillet`'s chord-and-apothem form) — with `facts`, which the
+/// caller derives by [`fillet_facts`].
+fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T, facts: crate::Facts) -> BuiltArc<T> {
     BuiltArc {
         arc: Arc2 {
             centre: carrier.center,
             radius: carrier.radius.abs(),
             sweep: T::from_f64(4.0) * bulge.atan(),
         },
-        facts: crate::Facts::Registered,
+        facts,
     }
 }
 
-/// **Registers the fillet's incoming tangency** on the values the
-/// door built: the centre, spelled from the arrival side
-/// ([`fillet_arc_carrier`]), IS `t1 + σ·r·n̂₁` — the incoming tangent
-/// point moved the radius along the incoming ray's left normal to the
-/// turn side ([`Arc2::register_centre`]).
+/// **What a fillet arc's construction proves of its endpoints.** Where
+/// the resolution's centre lies on both offset carriers by its algebra
+/// (`centre`: the line×line centre always, an arc-carrier centre on the
+/// crossing branch) and the arc starts at its own tangent point `t1`
+/// (`fit_in` Positive), the endpoint facts are theorems
+/// ([`crate::Facts::Registered`]): `t1` and `t2` are the feet of the
+/// centre on the two carriers, so the rim at each is the radius over
+/// the reals at every value of the corner's data the door's decisions
+/// hold for, and `b` is tan(θ/4) of the turn from `t1` to `t2` about
+/// that centre. A centre on a decided tangency of the offset carriers,
+/// or an exact fit that springs the arc off the chain head instead of
+/// `t1`, holds them only to that decision ([`crate::Facts::Decided`]).
+/// An arc that ends on a vertex other than `t2` is its caller's to
+/// downgrade ([`BuiltArc::decided`]).
+fn fillet_facts(centre: crate::Facts, fit_in: Sign) -> crate::Facts {
+    match (centre, fit_in) {
+        (crate::Facts::Registered, Sign::Positive) => crate::Facts::Registered,
+        _ => crate::Facts::Decided,
+    }
+}
+
+/// **Registers the line×line fillet's incoming tangency** on the values
+/// the door built: the centre, spelled from the arrival side
+/// ([`fillet_arc_carrier`]), IS the radius along the incoming ray's
+/// unit `u1` normal to the turn side `sgn` from `t1`
+/// ([`Arc2::register_tangent_at`]).
 ///
 /// **A theorem of the construction.** The fillet circle is the circle
 /// of radius r tangent to both carriers on the turn side of each, `t1`
@@ -3298,42 +3303,28 @@ fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T) -> BuiltArc<T> {
 /// construction; this states it for `t1`, which is the tangency the
 /// incoming side's consumers read.
 fn register_incoming_tangency<T: Real>(
-    arc: &ArcData<T>,
+    fillet: &BuiltArc<T>,
     t1: Point2<T>,
     u1: Vec2<T>,
-    turn: Sign,
+    sgn: T,
     tol: Tol,
 ) {
-    let sgn = match turn {
-        Sign::Negative => -T::one(),
-        Sign::Positive | Sign::Zero => T::one(),
-    };
-    let from_t1 = t1 + Vec2::new(-u1.y, u1.x) * (sgn * arc.radius);
-    let carrier = Arc2 {
-        centre: arc.center,
-        radius: arc.radius,
-        sweep: T::zero(),
-    };
-    for (fact, answer) in carrier.register_centre(from_t1, tol) {
+    for (fact, answer) in fillet.arc.register_tangent_at(t1, u1, sgn, tol) {
         answer.handle(fact);
     }
 }
 
 /// The fillet arc's own carrier: tangent to the arrival carrier at
-/// `t2`, centre r to the turn side σ — the corner's decided turn
-/// (`path_corner_turn`), the sign of tan(φ/2) wherever the windows the
-/// door decided hold, spelled as the literal ±1 so no sign atom enters
+/// `t2`, centre r to the turn side `sgn` — the corner's decided turn
+/// (`path_corner_turn`) as the literal ±1, the sign of tan(φ/2)
+/// wherever the windows the door decided hold, so no sign atom enters
 /// the carrier.
 fn fillet_arc_carrier<T: Real>(
     trims: &LineFilletTrims<T>,
     u2: Vec2<T>,
     radius: T,
-    turn: Sign,
+    sgn: T,
 ) -> ArcData<T> {
-    let sgn = match turn {
-        Sign::Negative => -T::one(),
-        Sign::Positive | Sign::Zero => T::one(),
-    };
     let n_hat = Vec2::new(-u2.y, u2.x);
     ArcData {
         center: trims.t2 + n_hat * (sgn * radius),
@@ -3583,7 +3574,7 @@ impl<T: Decide> Core<T> {
                 // vertex retrims to its end and joint 0 is the
                 // constructed seam tangency (the straight seam's rule).
                 let leaving = self.record_fillet_arc(arc.radius, meta.bound_at)?;
-                self.set_leaving(Some(trims.fillet()), trims.t2)?;
+                self.set_leaving(Some(trims.fillet()), FirstSeg::Arc, trims.t2)?;
                 debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
                     Some((v0, _)) => *v0 = trims.t2,
@@ -3647,15 +3638,13 @@ impl<T: Decide> Core<T> {
         // (1) parallel/tangent carriers admit no corner: the turn
         // margin sin φ levered by the anchor separation.
         let cross = u1.perp_dot(u2);
-        let turn = match decide("path_corner_turn", Margin::levered(cross, wn), band) {
-            Ok(Sign::Zero) => {
-                return Err(PathError::NoCornerForFillet {
-                    reason: PathNoCornerReason::CarriersParallel,
-                    radius: pending.radius,
-                });
-            }
-            Ok(turn) => turn,
-            Err(source) => return Err(PathError::Escalated { source }),
+        let turn = decide("path_corner_turn", Margin::levered(cross, wn), band)
+            .map_err(|source| PathError::Escalated { source })?;
+        let Some(sgn) = crate::sugar::turn_side::<T>(turn) else {
+            return Err(PathError::NoCornerForFillet {
+                reason: PathNoCornerReason::CarriersParallel,
+                radius: pending.radius,
+            });
         };
         // (2) the corner must lie ahead of the incoming ray's origin
         // and behind the arrival side's anchor (ray parameters, meters).
@@ -3706,9 +3695,13 @@ impl<T: Decide> Core<T> {
             .guide
             .line_fits(trims.fit_in, trims.fit_out)
             .map_err(PathError::Structure)?;
-        let arc = fillet_arc_carrier(&trims, u2, pending.radius, turn);
-        register_incoming_tangency(&arc, trims.t1, u1, turn, tol);
-        let built = fillet_arc(arc, trims.bulge);
+        let arc = fillet_arc_carrier(&trims, u2, pending.radius, sgn);
+        let built = fillet_arc(
+            arc,
+            trims.bulge,
+            fillet_facts(crate::Facts::Registered, trims.fit_in),
+        );
+        register_incoming_tangency(&built, trims.t1, u1, sgn, tol);
         // (5) incoming side emission: Positive fit emits the straight
         // piece + declared joint (exactly the raw fillet's rule); Zero
         // fit springs the arc off the last vertex — if that joint
@@ -3740,7 +3733,7 @@ impl<T: Decide> Core<T> {
         // the constructed seam tangency.
         let leaving = self.record_fillet_arc(pending.radius, meta.bound_at)?;
         if kind == ArrivalKind::Seam {
-            self.set_leaving(Some(built), trims.t2)?;
+            self.set_leaving(Some(built), FirstSeg::Arc, trims.t2)?;
             match self.verts.first_mut() {
                 Some((v0, _)) => *v0 = trims.t2,
                 None => {
@@ -3793,7 +3786,7 @@ impl<T: Decide> Core<T> {
         t: &arc_fillet::ArcFilletTrims<T>,
         merge: bool,
         meta: &PendingMeta<T>,
-        run: Option<(Point2<T>, crate::Facts)>,
+        run: Option<(T, crate::Facts)>,
     ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
@@ -3809,13 +3802,10 @@ impl<T: Decide> Core<T> {
                 Some((_, sweep)) if merge => self.extend_arc_to(t.t1, sweep)?,
                 Some((centre, sweep)) => {
                     let head = self.head()?;
-                    let (anchor, facts) = run.ok_or(PathError::UnderdeterminedLeg {
+                    let (radius, head_on_circle) = run.ok_or(PathError::UnderdeterminedLeg {
                         site: "an arc side's run without its opened arc side",
                     })?;
-                    let arc = BuiltArc {
-                        facts,
-                        ..side_arc(head, t.t1, centre, (anchor - centre).norm(), sweep)
-                    };
+                    let arc = side_arc(head, t.t1, centre, radius, sweep, head_on_circle);
                     // The incoming carrier is the BINDER's own argument
                     // wherever the arrival finally emits it.
                     if meta.incoming_radius {
@@ -4560,7 +4550,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // construction — declaration BY construction, exactly as
         // `.tangent()` is, and the verify layer re-checks the flag.
         self.core.declare_last();
-        self.core.close_leaving(None)?;
+        self.core.close_leaving(None, FirstSeg::Line)?;
         self.core.build(tol)
     }
 }
@@ -4741,7 +4731,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 tol,
             )?;
         }
-        self.core.close_leaving(g.arc)?;
+        self.core.close_leaving(g.arc, FirstSeg::Arc)?;
         self.core.build(tol)
     }
 }
@@ -4824,7 +4814,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 tol,
             )?;
         }
-        self.core.close_leaving(None)?;
+        self.core.close_leaving(None, FirstSeg::Line)?;
         self.core.build(tol)
     }
 
@@ -5012,7 +5002,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 tol,
             )?;
         }
-        self.core.close_leaving(leg)?;
+        self.core.close_leaving(leg, FirstSeg::Arc)?;
         self.core.build(tol)
     }
 }

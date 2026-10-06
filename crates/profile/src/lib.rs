@@ -302,9 +302,11 @@ pub(crate) enum Facts {
     /// comment; the chain registers them at its close, on the vertices
     /// it closed with.
     Registered,
-    /// The construction proves no endpoint identity: its consistency
-    /// is an ε-decision the path door made inline (a `Center` arc's
-    /// `path_arc_center_equidistant`), and nothing is registered.
+    /// The construction proves no endpoint identity: some endpoint is
+    /// on the carrier only to an ε-decision the path door made inline
+    /// (a `Center` arc's `path_arc_center_equidistant`, a fillet's
+    /// decided offset tangency or exact fit), and nothing is
+    /// registered.
     Decided,
 }
 
@@ -325,6 +327,16 @@ impl<T: Real> BuiltArc<T> {
         Self {
             arc: lower_arc(start, end, x),
             facts: Facts::Registered,
+        }
+    }
+
+    /// The same arc with its endpoint facts held only to a decision:
+    /// for a caller that stores it between vertices other than the ones
+    /// its construction proved them at.
+    pub(crate) fn decided(self) -> Self {
+        Self {
+            facts: Facts::Decided,
+            ..self
         }
     }
 

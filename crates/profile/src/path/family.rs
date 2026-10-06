@@ -136,7 +136,7 @@ use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
-    ArcData as SegArc, Core, Dir, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PAIRED,
+    ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open, PAIRED,
     PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, carriers_are_identical,
     in_state, junction_check, leg_end_tip, linear_band,
 };
@@ -239,14 +239,16 @@ fn merge_of<T: Real>(pending: &verbs::Pending<T>, meta: &PendingMeta<T>) -> bool
 /// carrier run to the authored anchor (the carrier is the verb's own
 /// authored spec, so the emission is axiom-clean) — and the tip lands
 /// as an ordinary directed point at the anchor (a HARD anchor,
-/// uniform with line arrivals).
+/// uniform with line arrivals). `arrival_radius` is the authored
+/// carrier radius `|r|` where the arrival mode authors one; the run
+/// stores it, and otherwise the distance from `centre` to `anchor`.
 pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     mut core: Core<T>,
     resolver: verbs::ArcResolver<T>,
     anchor: Point2<T>,
     centre: Point2<T>,
     winding: crate::sugar::ArcSweep,
-    arrival_radius: bool,
+    arrival_radius: Option<T>,
     tol: Tol,
 ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
     let band = linear_band(tol)?;
@@ -273,8 +275,17 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     core.emit_fillet_arc(&trims, follows, meta.bound_at, tol)?;
     let tip = if trims.fit_out == Sign::Positive {
         let head = core.head()?;
-        let radius = (anchor - centre).norm();
-        let arc = super::side_arc(head, anchor, centre, radius, winding);
+        let radius = arrival_radius.unwrap_or_else(|| (anchor - centre).norm());
+        // `t2` is on the arrival circle by the resolution's projection,
+        // and the anchor by the mode's construction of its centre.
+        let arc = super::side_arc(
+            head,
+            anchor,
+            centre,
+            radius,
+            winding,
+            crate::Facts::Registered,
+        );
         let carrier = SegArc {
             center: centre,
             radius,
@@ -286,7 +297,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         // its director on LATER steps, each of which records itself,
         // so the step under construction here is one of those and
         // holds no radius at all.
-        if arrival_radius {
+        if arrival_radius.is_some() {
             core.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier2)?;
         }
         // The authored arrival arc is the fillet's run out, whichever
@@ -361,14 +372,21 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             tol,
         )?;
         let head = core.head()?;
-        let arc = super::side_arc(head, start_pos, centre, radius, winding);
+        let arc = super::side_arc(
+            head,
+            start_pos,
+            centre,
+            radius,
+            winding,
+            crate::Facts::Registered,
+        );
         // The arrival spec's own step is the fused verb's (see
         // `resolve_arc_arrival`), never the step being lowered.
         if arrival_radius {
             core.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier2)?;
         }
         core.claim(meta.bound_at, crate::structure::PieceRole::RunOut);
-        core.close_leaving(Some(arc))?;
+        core.close_leaving(Some(arc), FirstSeg::Arc)?;
         let chord = (start_pos - head).norm_squared().sqrt();
         junction_check(
             &Incoming {
@@ -386,13 +404,14 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     } else {
         // Exact fit: the FILLET ARC is the whole arrival side and
         // closes the loop; the authored anchor is absorbed into the
-        // tangent point the fit gate classified as coincident with it.
-        // It goes through the shared door like every other fillet arc,
-        // so the close re-reads its STORED form too — the seam
-        // junction check below reads the resolver's computed carrier
-        // and says nothing about what was stored.
+        // tangent point the fit gate classified as coincident with it,
+        // so the arc ends on the entry vertex, which is `t2` only to
+        // that decision. It goes through the shared door like every
+        // other fillet arc, so the close re-reads its STORED form too —
+        // the seam junction check below reads the resolver's computed
+        // carrier and says nothing about what was stored.
         let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
-        core.close_leaving(Some(trims.fillet()))?;
+        core.close_leaving(Some(trims.fillet().decided()), FirstSeg::Arc)?;
         debug_assert_eq!(leaving, core.verts.len() - 1, "{PAIRED}");
         junction_check(
             &Incoming {
@@ -435,14 +454,13 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
     fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
-        let arrival_radius = ArrivalSpec::to_wire(&spec).carries_radius();
         resolve_arc_arrival(
             core,
             arc_fillet::resolve::<T>,
             spec.p,
             spec.c,
             spec.winding,
-            arrival_radius,
+            None,
             tol,
         )
     }
@@ -652,7 +670,7 @@ fn radius_complete<T: geom_core::Decide>(
     // The `Radius` arrival mode IS the radius-bearing one: its `r` is
     // the arrival spec's carrier-radius argument.
     let (centre, winding) = verbs::radius_carrier(DirectedPoint { at, dir }, spec, band)?;
-    resolve_arc_arrival(core, resolver, at, centre, winding, true, tol)
+    resolve_arc_arrival(core, resolver, at, centre, winding, Some(spec.r.abs()), tol)
 }
 
 impl<T: geom_core::Decide> RadiusArrival<T> {
@@ -821,7 +839,7 @@ fn via_complete<T: geom_core::Decide>(
     // A `Via` arrival authors its carrier from a through-point, so
     // nothing of it is a radius argument.
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: p, dir }, q, band)?;
-    resolve_arc_arrival(core, resolver, p, centre, winding, false, tol)
+    resolve_arc_arrival(core, resolver, p, centre, winding, None, tol)
 }
 
 /// A `Via` CLOSE: anchor at the entry, director pending.
@@ -946,15 +964,20 @@ pub trait PointIncoming<T: ArcCarrierScalar> {
     fn to_wire(&self) -> ArcData<T>;
 }
 
-/// Whether an anchored incoming's carrier passes through the tip by its
-/// mode's algebra: a `Bulge` or `Via` carrier is derived from the
-/// chord, so both ends are on it; a `Center` carrier is the authored
-/// centre, on which the tip lies only to the door's
+/// Whether an incoming's carrier passes through the tip by its mode's
+/// algebra: a `Bulge` or `Via` carrier is derived from the chord, so
+/// both ends are on it, and a `Radius`, `Sweep` or `ArcLen` carrier is
+/// centred the radius off the tip along its normal; a `Center` carrier
+/// is the authored centre, on which the tip lies only to the door's
 /// `path_arc_center_equidistant` decision.
 fn head_on_circle<T: Real>(wire: &ArcData<T>) -> crate::Facts {
     match wire {
+        ArcData::Bulge { .. }
+        | ArcData::Via { .. }
+        | ArcData::Radius { .. }
+        | ArcData::Sweep { .. }
+        | ArcData::ArcLen { .. } => crate::Facts::Registered,
         ArcData::Center { .. } => crate::Facts::Decided,
-        _ => crate::Facts::Registered,
     }
 }
 
@@ -1113,9 +1136,9 @@ pub enum FusedIncoming<T: Real> {
     /// An endpoint-full mode's authored side: carrier + derived start
     /// tangent + authored anchor (junction-checked at the tip).
     Anchored(PointCarrier<T>),
-    /// Arc extension: the carrier derived at the tip (centre, winding);
-    /// the anchor is the tip itself.
-    FromTip(Point2<T>, crate::sugar::ArcSweep),
+    /// Arc extension: the carrier derived at the tip (centre, winding,
+    /// and the authored radius as `|r|`); the anchor is the tip itself.
+    FromTip(Point2<T>, crate::sugar::ArcSweep, T),
 }
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for verbs::Bulge<T, Point2<T>> {
@@ -1154,7 +1177,7 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Center<T, Point2<T>> {
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Radius<T> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         let (centre, winding) = verbs::radius_carrier(dp, *self, linear_band(tol)?)?;
-        Ok(FusedIncoming::FromTip(centre, winding))
+        Ok(FusedIncoming::FromTip(centre, winding, self.r.abs()))
     }
     fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         ArcData::Radius {
@@ -1231,6 +1254,7 @@ fn entry_arc_open<T: ArcCarrierScalar>(
             winding: spec.winding,
             radius,
             resolver: arc_fillet::resolve::<T>,
+            circle_radius: (spec.p - spec.c).norm(),
             // The chain is seeded at the anchor itself.
             head_on_circle: crate::Facts::Registered,
         },
@@ -1320,6 +1344,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 winding: leg.winding,
                 radius,
                 resolver: arc_fillet::resolve::<T>,
+                circle_radius: leg.arc.radius,
                 // The leg's end is its start rotated about the centre.
                 head_on_circle: crate::Facts::Registered,
             },
@@ -1424,6 +1449,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
                 winding,
                 radius,
                 resolver: arc_fillet::resolve::<T>,
+                circle_radius: (anchor - centre).norm(),
                 head_on_circle: head_on_circle(&spec.to_wire()),
             },
             spec.to_wire().carries_radius(),
@@ -1552,13 +1578,14 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         winding,
                         radius,
                         resolver: arc_fillet::resolve::<T>,
+                        circle_radius: (anchor - centre).norm(),
                         head_on_circle: head_on_circle(&spec.to_wire(tol)),
                     },
                     incoming_radius,
                     tol,
                 )
             }
-            FusedIncoming::FromTip(centre, winding) => {
+            FusedIncoming::FromTip(centre, winding, circle_radius) => {
                 let derived = SegArc {
                     center: centre,
                     radius: (at - centre).norm_squared().sqrt(),
@@ -1581,6 +1608,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         winding,
                         radius,
                         resolver: arc_fillet::resolve::<T>,
+                        circle_radius,
                         // The anchor is the chain head itself.
                         head_on_circle: crate::Facts::Registered,
                     },

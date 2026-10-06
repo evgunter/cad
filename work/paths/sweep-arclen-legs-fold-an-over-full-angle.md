@@ -30,7 +30,7 @@ Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for 
 ## Closed (2026-10-02, #3774)
 
 `Sweep` and `ArcLen` refuse an angle not definitely short of 2π, typed
-`PathError::ArcSweepPastFullTurn` (Python tag `arc_sweep_past_full_turn`),
+`PathError::ArcSweepNotShortOfFullTurn` (Python tag `arc_sweep_not_short_of_full_turn`),
 decided by `path_arc_sweep_full` on the arc length `r(2π − θ)`, so the
 band is the run's linear one. The rows are in
 `crates/profile/tests/arc_leg_full_turn.rs`:

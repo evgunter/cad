@@ -57,10 +57,12 @@
 #     Its callers are now every profile construction that proves its
 #     arc's endpoint facts (`profile::BuiltArc::register`, each
 #     construction's doc carrying the proof), and beside it
-#     `Arc2::register_centre`, a centre against another spelling of it,
-#     which the line×line fillet calls with its incoming foot's
-#     spelling (`profile/src/path.rs`, `register_incoming_tangency`,
-#     whose doc carries the proof).
+#     `Arc2::register_tangent_at`, the centre as the radius along a
+#     side normal from a tangent foot, which the line×line fillet calls
+#     at its incoming foot (`profile/src/path.rs`,
+#     `register_incoming_tangency`, whose doc carries the proof). Each
+#     spells its identity here, so a registrant of another identity is
+#     a new function in this file.
 #   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,
 #     both facts it places: `register_rigidity` (the placed rim
 #     `‖q_from − c‖` is the sketch rim) and `register_placed_landing`
