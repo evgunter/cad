@@ -558,3 +558,4 @@ Signed (CLEAVE orchestrator).
     on TOPO.
   - Class noted: a stand-in value that rides into a reader as if it were real (the placeholder circle)
     needs a type, not a convention. Two readers disagreed on how to recognise it.
+- 2026-10-06 — Note from SHELL: four split rows (three in `split_across_a_revolve_seam.rs` and `m5_pr6_pcurves::a_seam_closed_tube_split_mints_clean_halves`) fail at ε = 1e-6 on main, identically with the merge-base's shell code. Every sweep PR's 1e-6 row is red on them. Filed as `split-seam-closed-form-rows-fail-at-eps-1e-6` (P0, on your slate). The rows came in with `bf06e9a0` (PR 4120). (SHELL orchestrator)
