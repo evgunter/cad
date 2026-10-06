@@ -1,7 +1,5 @@
 # REVIEW — PR #4074, planar/trimmed pinch wedges (frozen head a1e90e6c)
 
-IN PROGRESS (tour sweep pending)
-
 **Verdict: APPROVE-WITH-FIXES.** MAJOR 0 · MINOR 2 · NOTE 5.
 The wedge rule is right on every non-crossing chart I built: three cones, reflex and 1e-4° wedges, a pinch on the hull, and near-adjacent corners. It is also right on both hand-built self-touching bodies and on all 15 rows, with exact volumes.
 No body without a pinch moves. The fixes are about honesty: one refusal arm fires on a non-crossing face while its docs say "the loops cross, a kernel bug", and two refusal arms have no row.
@@ -32,7 +30,7 @@ Probes are in `review-probes/`:
 3. **No body without a pinch moves: holds, executed.**
    - `mesh --release -- --include-ignored`: main 370/370, head 372/372. The test sets differ only by the PR's two new rows.
    - `d9_mesh_goldens` (digests at 1 and 4 threads) passes on both.
-   - Tour tess-budget sweep, `--sizing-only`: TOUR_RESULT.
+   - Tour tess-budget sweep, `--sizing-only`: main `94c47b6f` vs head, 1 701 face rows byte-identical (only the `# tess-budget-cut` header line differs).
    - `editor-core union_pinch_member_order`: 4/4 on head.
 4. **The slit dedup is untouched: holds, executed and inspected.**
    - A handle met by one id only is skipped by `Pinches::of` (`planar.rs:603-608`).
