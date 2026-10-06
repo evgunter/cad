@@ -1014,3 +1014,21 @@ before acting on it.
 SHELL now carries 28 points, as the seven units in `plan.md`.
 Pole-touching ball: the premise drifted with f28c201d, so its lane
 measures before it fixes.
+
+## Dispatch (2026-10-06, ~05:57 UTC)
+
+The cut merged as PR 4109. Four implementer lanes run as their own
+cloud sessions (this container holds one heavy build at a time), each
+on its own `shell/` branch, each a **single full review** at review
+time — every one of them carries a meaningful chance of a correctness
+bug (a P0 measurement, a door type change, a gate's soundness, a
+certified projection):
+
+- unit 1 `shell/pole-ball` — the pole-touching ball, measure first;
+- unit 2 `shell/operand-at-rest` — `AtRestBody` operand (two rows);
+- unit 3 `shell/planar-gate-misses` — footprint arcs + antiparallel lever;
+- unit 4 `shell/lofted-wall-seam` — certified NURBS/ellipse re-anchor.
+
+Unit 7's designer pair (`shell-open-refuses-a-curved-designated-face`)
+runs locally; blinding byte on `analysis/design-fork/shell-curved-designation`.
+Units 5 and 6 wait for a lane: 5 follows 4 in `replace_face.rs`.
