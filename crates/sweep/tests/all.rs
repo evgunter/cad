@@ -507,14 +507,14 @@ mod seam_vertex_sites;
 mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_along_a_face_plane.rs"]
+mod split_along_a_face_plane;
 #[path = "split_cylindrical_feature_box.rs"]
 mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
-#[path = "split_along_a_face_plane.rs"]
-mod split_along_a_face_plane;
 #[path = "split_tangent_edge_curved.rs"]
 mod split_tangent_edge_curved;
 #[path = "turning_orientation.rs"]
