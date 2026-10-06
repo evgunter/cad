@@ -636,31 +636,34 @@ mod meetings_rows {
         assert!(meet(&beside(0.0), &cut, b).unwrap().is_none());
     }
 
-    /// **A swept line's tilt is read over its whole reach.** A line
-    /// `1e-7` above the plane of a unit-major ellipse at its origin and
-    /// sloping down `5e-10` crosses the plane at `(1, 0, 0)`, `200 m` on:
-    /// its tilt is under the band at the ellipse's size, but over a
-    /// `300 m` swept edge it carries `1.5e-7`, so the crossing is a
-    /// candidate. The same line sloping `1e-12` carries `3e-10` over that
-    /// reach and is read parallel: `1e-7` off the plane at the span's
-    /// middle, its span certainly misses it.
+    /// **A swept line's tilt is read over its whole reach.** With `z` the
+    /// band's zero threshold: a line `100·z` above the plane of a
+    /// unit-major ellipse at its origin and sloping down `z/2` crosses
+    /// the plane at `(1, 0, 0)`, `200 m` on. Its tilt is under the band
+    /// at the ellipse's size, but over a `300 m` swept edge it carries
+    /// `150·z`, so the crossing is a candidate. The same line sloping
+    /// `z/3000` carries `z/10` over that reach and is read parallel:
+    /// about `100·z` off the plane at the span's middle, its span
+    /// certainly misses it. (At the witness band the first line is the
+    /// `1e-7` offset and `5e-10` slope.)
     #[test]
     fn a_swept_lines_tilt_is_read_over_its_reach() {
         let b = band();
+        let z = b.zero();
         let cut = ellipse([0.0; 3], [0.0, 0.0, 1.0], 1.0, 0.5);
         let sloped = |slope: f64| {
             let dir = Vec3::new(1.0, 0.0, -slope).normalize();
-            let origin = Point3::new(1.0, 0.0, 0.0) + dir * (-1e-7 / slope);
+            let origin = Point3::new(1.0, 0.0, 0.0) + dir * (-100.0 * z / slope);
             Curve3::Line { origin, dir }
         };
         let swept = |l: &Curve3<f64>| meetings(l, &cut, 300.0, l.eval(150.0), b);
-        let steep = sloped(5e-10);
+        let steep = sloped(z / 2.0);
         let Curve3::Line { origin, .. } = steep else {
             unreachable!("a line")
         };
         assert!(
-            (origin.z - 1e-7).abs() < 1e-15,
-            "1e-7 above the plane: {origin:?}"
+            (origin.z - 100.0 * z).abs() < 1e-3 * z,
+            "100·z above the plane: {origin:?}"
         );
         let got = swept(&steep).unwrap().unwrap();
         assert!(
@@ -668,7 +671,7 @@ mod meetings_rows {
                 .any(|p| p.distance(Point3::new(1.0, 0.0, 0.0)) < 1e-6),
             "the crossing 200 m on is a candidate: {got:?}"
         );
-        let flat = line([0.0, 0.0, 1e-7], [1.0, 0.0, -1e-12]);
+        let flat = line([0.0, 0.0, 100.0 * z], [1.0, 0.0, -z / 3000.0]);
         assert_eq!(
             swept(&flat).unwrap().map(|v| v.len()),
             Some(0),
