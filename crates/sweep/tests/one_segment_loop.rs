@@ -343,52 +343,210 @@ fn y_axis<T: Real>() -> sweep::RevolveAxis<T> {
     }
 }
 
-/// **A one-segment loop does not revolve yet, and says so.** Its wall
-/// would be one torus face wrapping the tube's own angle, cut only by
-/// the latitude strut at its vertex; a seam here is a `u_ref`
-/// meridian, so no chart describes that cut (built, the patch reads
-/// inside out: tier 3's `CurvedSenseInverted` and a negated volume).
-/// Every case refuses `OneSegmentLoop` naming the loop — the outer,
-/// a hole, part of a turn either way and a full turn, at `f64` and at
-/// `Interval` — and nothing panics on the way.
+/// The circle about `(cx, cy)` of radius `r` as two arcs, its vertices
+/// at carrier angles `phase` and `phase + π`: the form a one-segment
+/// circle is held against.
+fn two_arcs_at(cx: f64, cy: f64, r: f64, phase: f64, sweep: f64) -> ProfileLoop<f64> {
+    let half = Segment::Arc(Arc2 {
+        centre: Point2::new(cx, cy),
+        radius: r,
+        sweep: sweep / 2.0,
+    });
+    let (c, s) = (r * phase.cos(), r * phase.sin());
+    RawLoop::new([
+        (Point2::new(cx + c, cy + s), half),
+        (Point2::new(cx - c, cy - s), half),
+    ])
+}
+
+fn revolved<T: geom_core::Decide + topo::AtRestPolicy>(
+    loops: Vec<ProfileLoop<T>>,
+    turn: sweep::Revolution<T>,
+    what: &str,
+) -> sweep::Revolved<T> {
+    sweep::revolve(&validated(loops), y_axis(), turn, tol())
+        .unwrap_or_else(|e| panic!("{what}: the revolve builds: {e}"))
+}
+
+/// The turns every revolve row sweeps: part of a turn either way, and
+/// the full turn, with the angle each sweeps.
+fn turns() -> [(sweep::Revolution<f64>, f64); 3] {
+    [
+        (sweep::Revolution::Partial(1.25), 1.25),
+        (sweep::Revolution::Partial(-1.25), 1.25),
+        (sweep::Revolution::Full, TAU),
+    ]
+}
+
+/// Each wall's wrap edges: the edges with both halves in it,
+/// described as its wrap edges (D1). Every edge with both halves in
+/// one face is one.
+fn wrap_edges<T: Real>(body: &Body<T>) -> Vec<(topo::FaceKey, EdgeKey)> {
+    let mut out = Vec::new();
+    for (edge, _) in body.edges() {
+        let sides = topo::readback::edge_sides(body, edge).unwrap();
+        let (a, b) = sides.faces();
+        assert_eq!(a == b, is_seam(body, edge), "{edge:?}: wrap flag against its faces");
+        if a == b {
+            out.push((a, edge));
+        }
+    }
+    out
+}
+
+/// **A revolved one-segment circle is one torus wall** (D1's wrap
+/// edge, #4175). Part of a turn: two planar caps, one torus wall, three
+/// edges (the two meridian circles and the strut, the wall's wrap edge
+/// in `v`), two vertices. The full turn: ONE face closed on itself both
+/// ways — the meridian wraps `u`, the latitude circle wraps `v` — two
+/// edges and one vertex. Every case at all three tiers, at the vertex
+/// phases 0, 1 and π (the inner equator), both windings of the turn;
+/// its volume is Pappus' `θ·πr²·R` and the two-arc circle's, and the
+/// body meshes closed.
 #[test]
-fn a_one_segment_loop_revolve_refuses_typed() {
-    let cases: Vec<(&str, Vec<ProfileLoop<f64>>, usize)> = vec![
-        ("an off-axis circle", vec![circle(3.0, 0.25, 0.5, TAU)], 0),
+fn a_revolved_one_segment_circle_is_one_torus_wall_with_a_wrap_strut() {
+    let (cx, cy, r) = (3.0, 0.25, 0.5);
+    for phase in [0.0, 1.0, PI] {
+        for (turn, theta) in turns() {
+            let what = format!("phase {phase}, {turn:?}");
+            let one = revolved(vec![circle_at(cx, cy, r, phase, TAU)], turn, &what);
+            let full = matches!(turn, sweep::Revolution::Full);
+            tiers(&one.body, &what);
+            let want = theta * PI * r * r * cx;
+            close(volume(&one.body), want, &what);
+            let two = revolved(vec![two_arcs_at(cx, cy, r, phase, TAU)], turn, &what);
+            close(volume(&two.body), want, &format!("{what}, the two-arc circle"));
+            let walls = one.walls();
+            let wall = walls[0][0].expect("the circle sweeps a wall");
+            assert!(
+                matches!(
+                    one.body.get_surface(one.body.get_face(wall).unwrap().surface),
+                    Some(geom::Surface::Torus { .. })
+                ),
+                "{what}: the wall is a torus"
+            );
+            let wraps = wrap_edges(&one.body);
+            if full {
+                assert_eq!(census(&one.body), (1, 2, 1), "{what}");
+                assert_eq!(wraps.len(), 2, "{what}: the meridian and the parallel");
+            } else {
+                assert_eq!(census(&one.body), (2, 3, 3), "{what}");
+                assert_eq!(wraps.len(), 1, "{what}: the strut");
+            }
+            assert!(wraps.iter().all(|&(f, _)| f == wall), "{what}: {wraps:?}");
+            let rim = one.rims[0][0].expect("the strut is the vertex's rim");
+            assert!(wraps.iter().any(|&(_, e)| e == rim), "{what}: the strut wraps");
+            let mesh = mesh::tessellate(&one.body, 1e-2, tol())
+                .unwrap_or_else(|e| panic!("{what}: meshes: {e}"));
+            assert_eq!(mesh::validate::check_mesh(&mesh), Ok(()), "{what}: closed");
+            let got = mesh::validate::signed_volume(&mesh);
+            assert!(
+                (got - want).abs() < 0.02 * want,
+                "{what}: mesh volume {got} vs {want}"
+            );
+        }
+    }
+}
+
+/// One-segment circles as holes, and as the outer around a polygonal
+/// hole, revolved: a rectangle with a round hole, a circle with a
+/// square hole, and an annulus of two circles. A full revolve's hole is
+/// a cavity, its own one-face torus.
+#[test]
+fn one_segment_circles_revolve_as_holes_and_around_them() {
+    let sq = |c: f64, h: f64| rect(c - h, -h, c + h, h);
+    type Case = (
+        &'static str,
+        Vec<ProfileLoop<f64>>,
+        f64,
+        (usize, usize, usize),
+        (usize, usize, usize),
+    );
+    // (what, loops, area × centroid radius, partial census, full census)
+    let cases: Vec<Case> = vec![
         (
             "a rectangle with a round hole",
             vec![rect(2.0, -1.0, 4.0, 1.0), circle(3.0, 0.0, 0.5, -TAU)],
-            1,
+            (4.0 - PI * 0.25) * 3.0,
+            (10, 15, 7),
+            (5, 8, 5),
+        ),
+        (
+            "a circle with a square hole",
+            vec![circle_at(3.0, 0.0, 1.0, 0.5, TAU), sq(3.0, 0.25)],
+            (PI - 0.25) * 3.0,
+            (10, 15, 7),
+            (5, 8, 5),
+        ),
+        (
+            "an annulus of two circles",
+            vec![circle(3.0, 0.0, 1.0, TAU), circle_at(3.0, 0.0, 0.5, 2.0, -TAU)],
+            (PI - PI * 0.25) * 3.0,
+            (4, 6, 4),
+            (2, 4, 2),
         ),
     ];
-    for (what, loops, want) in cases {
-        for turn in [
-            sweep::Revolution::Partial(1.25),
-            sweep::Revolution::Partial(-1.25),
-            sweep::Revolution::Full,
-        ] {
-            let got = sweep::revolve(&validated(loops.clone()), y_axis(), turn, tol());
-            assert!(
-                matches!(got, Err(sweep::RevolveError::OneSegmentLoop { loop_index }) if loop_index == want),
-                "{what}, {turn:?}: {:?}",
-                got.err()
-            );
+    for (what, loops, moment, partial, full) in cases {
+        for (turn, theta) in turns() {
+            let what = format!("{what}, {turn:?}");
+            let t = revolved(loops.clone(), turn, &what);
+            tiers(&t.body, &what);
+            let counts = if matches!(turn, sweep::Revolution::Full) {
+                full
+            } else {
+                partial
+            };
+            assert_eq!(census(&t.body), counts, "{what}");
+            close(volume(&t.body), theta * moment, &what);
+            let wraps = wrap_edges(&t.body);
+            assert!(!wraps.is_empty(), "{what}: a wrap edge");
         }
-        let at_i: Vec<ProfileLoop<Interval>> = loops
-            .iter()
-            .map(|l| l.map_scalar(Interval::from_f64))
-            .collect();
-        let got = sweep::revolve(
-            &validated(at_i),
-            y_axis(),
-            sweep::Revolution::Partial(Interval::from_f64(1.25)),
-            tol(),
-        );
-        assert!(
-            matches!(got, Err(sweep::RevolveError::OneSegmentLoop { loop_index }) if loop_index == want),
-            "{what} at Interval: {:?}",
-            got.err()
-        );
+    }
+}
+
+/// **The same revolves at `Interval`**, outer and hole, at two vertex
+/// phases, part of a turn either way and the full turn: all three
+/// tiers, the census, and a volume enclosure that holds the closed
+/// form.
+#[test]
+fn one_segment_circles_revolve_at_interval() {
+    let i = Interval::from_f64;
+    for phase in [0.0, 1.0] {
+        for (turn, theta) in [
+            (sweep::Revolution::Partial(i(1.25)), 1.25),
+            (sweep::Revolution::Partial(i(-1.25)), 1.25),
+            (sweep::Revolution::Full, TAU),
+        ] {
+            let full = matches!(turn, sweep::Revolution::Full);
+            for hole in [false, true] {
+                let what = format!("phase {phase}, {turn:?}, hole {hole}");
+                let (loops, moment, counts) = if hole {
+                    (
+                        vec![
+                            rect::<Interval>(2.0, -1.0, 4.0, 1.0),
+                            circle_at::<Interval>(3.0, 0.0, 0.5, phase, -TAU),
+                        ],
+                        (4.0 - PI * 0.25) * 3.0,
+                        if full { (5, 8, 5) } else { (10, 15, 7) },
+                    )
+                } else {
+                    (
+                        vec![circle_at::<Interval>(3.0, 0.25, 0.5, phase, TAU)],
+                        PI * 0.25 * 3.0,
+                        if full { (1, 2, 1) } else { (2, 3, 3) },
+                    )
+                };
+                let t = revolved(loops, turn, &what);
+                tiers(&t.body, &what);
+                assert_eq!(census(&t.body), counts, "{what}");
+                let want = theta * moment;
+                let v = topo::mass_properties(&t.body, tol()).unwrap().volume;
+                assert!(
+                    v.lo() <= want && want <= v.hi(),
+                    "{what}: volume {v:?} does not hold the closed form {want}"
+                );
+            }
+        }
     }
 }
 

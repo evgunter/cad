@@ -120,6 +120,7 @@ mod full;
 mod partial;
 mod surfaces;
 pub mod tube;
+mod turn;
 mod upgrade;
 
 use core::fmt;
@@ -897,12 +898,6 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
-    // After the axis classes, which refuse a full turn that reaches the
-    // axis by what is wrong with it.
-    if let Some(loop_index) = loops.iter().position(|segs| profile::is_full_turn(segs)) {
-        return Err(RevolveError::OneSegmentLoop { loop_index });
-    }
-
     let mut out = if full {
         full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
