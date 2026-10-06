@@ -4625,7 +4625,17 @@ fn rungs(
         if !(reads && (f.gated || sess.froze_gated)) {
             return false;
         }
+        let t0 = std::time::Instant::now();
         let g = walk(sess, id, kind, attempt, (rules, bits));
+        if std::env::var_os("CAD_REVIEW_SHUT").is_some() {
+            eprintln!(
+                "REVIEW-SHUT kind={kind:?} gated={} froze_gated={} settles={} us={}",
+                f.gated,
+                sess.froze_gated,
+                g.is_zero() && !g.gated,
+                t0.elapsed().as_micros()
+            );
+        }
         g.is_zero() && !g.gated
     };
     if rules.early {
