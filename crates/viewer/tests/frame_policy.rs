@@ -50,6 +50,25 @@ use viewer::session::{
     Step,
 };
 
+/// An empty document and its evaluation: the landed pair a door that
+/// says its names within an evaluation is handed where nothing is drawn.
+fn empty_landed(
+    name: &str,
+) -> (
+    Doc<pncad::document::ProfileProgram>,
+    pncad::document::Evaluation<f64>,
+) {
+    let doc = Doc::empty_derived(name, Tol::witness());
+    let evaluation = pncad::document::evaluate(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        Tol::witness(),
+    );
+    (doc, evaluation)
+}
+
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     let mut session = DocSession::inline(doc, tol);
@@ -572,6 +591,7 @@ fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back
 /// that names it.
 #[test]
 fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
+    let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
     let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
@@ -581,9 +601,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         from_ray: Vec::new(),
     };
     assert_eq!(
-        disagreement
-            .notice(&Doc::empty_derived("cursor", Tol::witness()))
-            .subject(),
+        disagreement.notice((&cursor.0, &cursor.1)).subject(),
         frame::Subject::Cursor,
         "what the two picking paths said is about THIS cursor"
     );
@@ -629,7 +647,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         (
             frame::pick_refusal(
                 &pickindex::PickError::Camera(projection),
-                &Doc::empty_derived("pick", Tol::witness()),
+                (&pick.0, &pick.1),
             ),
             "a cursor action the pick index refused",
         ),
@@ -1874,23 +1892,19 @@ fn answer(serial: u32, id: u32) -> u64 {
 /// **The status line tells two tied faces apart.**
 ///
 /// A refusal whose whole subject is that two answers cannot be
-/// separated cannot render them as the same words. The kernel's own
-/// message numbers its faces by name alone — `StableName`'s `Display`
-/// omits the role path on purpose, so two faces of ONE node come out
-/// as one phrase twice, and the ordinal is all a reader has. That is
-/// right for the kernel, whose typed payload carries the path; it is
-/// not enough on a status line, where there is no payload to open.
-///
-/// So `frame::pick_refusal` renders each tied face the way
-/// `idpass::Disagreement` does — kind and minting node, then the role
-/// path. The premise is asserted first: these two names really do
-/// render identically through `Display` alone.
+/// separated cannot render them as the same words. Two faces of ONE
+/// node are told apart by their words alone — the full form never says
+/// two names of one table alike, which `name_words_corpus` gates over
+/// the corpus, so no pair whose words collide is left to build this
+/// premise from — and `frame::pick_refusal` says each tied face in its
+/// words within the landed evaluation's table, never its role path: the
+/// status line is a user surface.
 #[test]
 fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
     let index = plate_index(&session);
-    let (landed, _) = session.landed_pair().expect("landed");
+    let (landed, evaluation) = session.landed_pair().expect("landed");
     let names: Vec<StableName> = index
         .ids()
         .ids()
@@ -1900,8 +1914,8 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let first = names.first().expect("the plate draws a face").clone();
     let second = names
         .iter()
-        .find(|name| name.path != first.path && name.to_string() == first.to_string())
-        .expect("the plate draws two faces of one node, which render as one phrase")
+        .find(|name| name.node == first.node && name.path != first.path)
+        .expect("the plate draws two faces of one node")
         .clone();
     let hit_at = |name: StableName, t: f64| pncad::select::PickHit {
         name,
@@ -1916,25 +1930,37 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
         hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
     });
 
-    // The premise: by name alone the two faces are one phrase.
-    assert_eq!(
+    // By name alone the two faces are two phrases: their words tell
+    // them apart.
+    assert_ne!(
         first.to_string(),
         second.to_string(),
-        "the two faces render identically through `Display` alone"
+        "two faces of one node render apart through `Display` alone"
     );
 
-    let text = frame::pick_refusal(&refusal, landed).text().to_owned();
+    let text = frame::pick_refusal(&refusal, (landed, evaluation))
+        .text()
+        .to_owned();
     let rendered = |name: &StableName| {
-        idpass::NameAndPath(name, pncad::document::Speaker::of(landed)).to_string()
+        pncad::document::Speaker::of(landed)
+            .within(evaluation)
+            .name(name)
+            .to_string()
     };
     assert!(
-        text.contains("minted by Extrude"),
-        "each tied face's minter is said as the landed document holds it: {text}"
+        text.contains("of Extrude"),
+        "each tied face's feature is said as the landed document holds it: {text}"
     );
     assert!(
         text.contains(&rendered(&first)) && text.contains(&rendered(&second)),
-        "each tied face is rendered with its role path: {text}"
+        "each tied face is said in its words within the landed table: {text}"
     );
+    for path in [&first.path, &second.path] {
+        assert!(
+            !text.contains(&format!("{path:?}")),
+            "no role path reaches the status line: {text}"
+        );
+    }
     assert_ne!(
         rendered(&first),
         rendered(&second),
@@ -3427,6 +3453,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
 /// and the store's, which nothing is sure to write again, rides.
 #[test]
 fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
+    let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
     let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let StatusUpdate::Show(fold) = frame::fold_status(&viewer::camera::Folded {
         camera,
@@ -3464,7 +3491,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
                 &pickindex::PickError::HitTest(HitTestError::Ambiguous {
                     hits: vec![tied(1.0), tied(1.0)],
                 }),
-                &Doc::empty_derived("pick", Tol::witness()),
+                (&pick.0, &pick.1),
             ),
             frame::Retold::Again,
         ),
@@ -3475,7 +3502,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
                     what: "x",
                     value: f64::NAN,
                 }),
-                &Doc::empty_derived("pick", Tol::witness()),
+                (&pick.0, &pick.1),
             ),
             frame::Retold::Again,
         ),
@@ -3500,7 +3527,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
                 from_gpu: idpass::IdAnswer::Nothing,
                 from_ray: Vec::new(),
             }
-            .notice(&Doc::empty_derived("cursor", Tol::witness())),
+            .notice((&cursor.0, &cursor.1)),
             frame::Retold::Again,
         ),
         (

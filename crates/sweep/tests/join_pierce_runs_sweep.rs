@@ -1042,8 +1042,10 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 /// - edges that share no end point lie farther apart than the band;
 /// - edges that share an end vertex part by more than it at the
 ///   shorter one's far end;
-/// - edges that end on one point at two vertices meet at `v`, where the
-///   pierce's copies stay apart (no face meets both, PR 3813). Those
+/// - edges that meet at `v`, where the pierce's copies stay apart (no
+///   face meets both, PR 3813): edges that end there at two vertices,
+///   or an edge ending there on the interior of a seam edge the output
+///   stage joined through the other copy's point. Those
 ///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
 ///   within the band for a
 ///   stretch, which the census passes: that class is filed
@@ -1107,15 +1109,16 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
         let ends: Vec<_> = bb
             .body
             .edges()
-            .map(|(_, ed)| (end(ed.he_plus), end(ed.he_minus)))
+            .map(|(k, ed)| (end(ed.he_plus), end(ed.he_minus), k))
             .collect();
+        let joined: Vec<_> = bb.naming.edge_joins.iter().map(|j| j.kept).collect();
         let len = |(a, b): ([f64; 3], [f64; 3])| {
             let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
             dot(d, d).sqrt()
         };
         let mut at_copies = 0;
-        for (i, &(a0, a1)) in ends.iter().enumerate() {
-            for &(b0, b1) in &ends[i + 1..] {
+        for (i, &(a0, a1, ka)) in ends.iter().enumerate() {
+            for &(b0, b1, kb) in &ends[i + 1..] {
                 let (g1, g2) = ((a0.1, a1.1), (b0.1, b1.1));
                 let vertex = [a0.0, a1.0].into_iter().find(|k| [b0.0, b1.0].contains(k));
                 let point = [g1.0, g1.1].into_iter().find(|p| [g2.0, g2.1].contains(p));
@@ -1138,7 +1141,25 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
                         at_copies += 1;
                         continue;
                     }
-                    (None, None) => segment_distance(g1, g2),
+                    (None, None) => {
+                        // The output stage joins the copy lying on a seam
+                        // line away (maximal edges), so the other copy's
+                        // edge ends at `v` on the interior of that joined
+                        // seam: one edge ends at `v`, and the other is a
+                        // joined edge with `v` inside it, both its ends
+                        // clear of `v`.
+                        let at_v = |g: ([f64; 3], [f64; 3])| {
+                            len((g.0, v)) <= band || len((g.1, v)) <= band
+                        };
+                        let through_v = |g: ([f64; 3], [f64; 3]), k| {
+                            joined.contains(&k) && !at_v(g) && point_segment_distance(v, g) <= band
+                        };
+                        if (at_v(g1) && through_v(g2, kb)) || (at_v(g2) && through_v(g1, ka)) {
+                            at_copies += 1;
+                            continue;
+                        }
+                        segment_distance(g1, g2)
+                    }
                 };
                 assert!(
                     gap > band,

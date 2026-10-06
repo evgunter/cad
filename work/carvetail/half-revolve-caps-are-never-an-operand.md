@@ -2,11 +2,12 @@
 id: half-revolve-caps-are-never-an-operand
 kind: issue
 title: A pi revolve of an axis-touching profile returns coplanar co-oriented Start and End caps on different keys, so it can never be a boolean operand
-status: open
+status: parked
 opened: 2026-09-25
 priority: P2
-cost: D
+cost: M
 refs: [full-revolve-emits-split-planar-walls]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -27,3 +28,7 @@ recognise an exact half turn as a recorded, flagged verdict, the way the
 recipe layer recognises `Full` from |θ| − τ at the band, and emit one cap
 spanning both sides of the axis. Their reports are in the `[ev]` PR that
 ruled `full-revolve-emits-split-planar-walls`.
+
+## Parked on the D10 hold (CARVE, 2026-10-06)
+
+The refusal this row is about is the boolean's `UndeclaredCoincidence` on two caps whose coplanarity is a value-decided coincidence. D10 retires the undeclared-coincidence refusals into the `unproven-coincidence` lint and makes the boolean glue what its verdicts decide Zero (INTENT stage 4), which changes what this row asks for. It waits on that build.
