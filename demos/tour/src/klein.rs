@@ -598,7 +598,7 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, lofted: bool, tol: Tol) -> Vec<Cons
 /// `sweep_body` takes them so; the body comes out at `S`.
 ///
 /// GAP (library finding,
-/// `work/carve/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
+/// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
 /// the scene's loop rides a float knife edge (finding 11).
 /// `sweep_places` carries every station by ONE minimal rotation from
 /// the base tangent, and the loop's spine turns exactly a half turn,

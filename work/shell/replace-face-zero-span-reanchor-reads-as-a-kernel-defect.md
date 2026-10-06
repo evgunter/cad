@@ -2,11 +2,13 @@
 id: replace-face-zero-span-reanchor-reads-as-a-kernel-defect
 kind: issue
 title: an offset that collapses an untouched edge to zero span refuses at the attach door with "a kernel defect worth reporting", which is false for a user-reachable input
-status: open
+status: review
 opened: 2026-10-06
 priority: P3
 cost: E
 rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
+pr: 4163
+branch: shell/refusal-text
 ---
 
 

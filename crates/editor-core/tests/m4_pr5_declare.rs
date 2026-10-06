@@ -232,14 +232,16 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         topo::validate::validate_geometric(body, Tol::witness()),
         Ok(())
     );
-    let merged_rows = ev
-        .value(u)
-        .unwrap()
-        .name_table
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-        .count();
-    assert_eq!(merged_rows, 4, "caps + flush y-walls glue");
+    let merged = |kind| {
+        ev.value(u)
+            .unwrap()
+            .name_table
+            .iter()
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .count()
+    };
+    assert_eq!(merged(EntityKind::Face), 4, "caps + flush y-walls glue");
+    assert_eq!(merged(EntityKind::Edge), 4, "the rims between them join");
 
     // Decoupled variant (no coincident planes): untouched — nothing
     // to declare, transversal union works as before.

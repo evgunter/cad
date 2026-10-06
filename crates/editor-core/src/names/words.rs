@@ -854,7 +854,13 @@ fn role<'n, 's>(
             cites.one(b),
         ],
         RoleSeg::Merged(set) => {
-            let mut items = vec![text("the merged face of ")];
+            // A set on an edge is the edge a join made of its members.
+            let what = if leaf.kind == EntityKind::Edge {
+                "the joined edge of "
+            } else {
+                "the merged face of "
+            };
+            let mut items = vec![text(what)];
             items.extend(cites.list(set));
             items
         }
@@ -1198,6 +1204,16 @@ mod tests {
         assert!(
             words(&merged, Speaker::TAG, &open(&[&[0], &[1]])).contains(" and 1 more of node"),
             "two in full, then how many more"
+        );
+        // A set on an edge is the edge a join made of its members.
+        let joined = name(
+            EntityKind::Edge,
+            OP,
+            vec![RoleSeg::Merged(vec![rim(1), rim(2)])],
+        );
+        assert_eq!(
+            words(&joined, Speaker::TAG, &open(&[])),
+            "the joined edge of 2 edges of node 000000000003"
         );
     }
 

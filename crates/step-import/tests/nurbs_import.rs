@@ -343,7 +343,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                         "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {msg}"
                     );
                     assert!(
-                        msg.contains("the certified quadrature enclosure cannot reach the"),
+                        msg.contains("this tolerance targets"),
                         "the only surviving refusal is the quadrature budget, with its number: \
                          {msg}"
                     );

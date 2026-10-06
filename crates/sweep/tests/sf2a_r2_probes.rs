@@ -293,11 +293,9 @@ fn r2a_a_face_named_twice_across_moves() {
     }
 }
 
-/// **`ChartMove.faces` docs say "they must share one surface key" —
-/// nothing checks it.** One move naming faces of TWO different planes
-/// re-points the second face at the first's minted surface in the
-/// mutation pass. This row measures whether anything downstream
-/// refuses before that body is adopted.
+/// **One move naming faces of TWO different planes refuses**
+/// (`TogetherChartMixed`): a move names one chart, and re-pointing the
+/// second face at the first's minted surface would be a wrong body.
 #[test]
 fn r2a_one_move_spanning_two_planes() {
     let tol = Tol::witness();
@@ -324,14 +322,11 @@ fn r2a_one_move_spanning_two_planes() {
             distance: d,
         });
     }
-    match topo::offset_planes_together(&mut body, &moves, band(), tol) {
-        Err(e) => println!("[r2a] two-plane ChartMove: refused, {e}"),
-        Ok(()) => {
-            let tier3 = topo::validate_geometric(&body, tol);
-            let vol = topo::mass_properties(&body, tol).map(|p| p.volume);
-            println!("[r2a] two-plane ChartMove: BUILT; tier3 = {tier3:?}, volume = {vol:?}");
-        }
-    }
+    let got = topo::offset_planes_together(&mut body, &moves, band(), tol);
+    assert!(
+        matches!(got, Err(ReplaceFaceError::TogetherChartMixed { .. })),
+        "a two-plane move refuses as a mixed chart: {got:?}"
+    );
 }
 
 // ---------------------------------------------------------------------
