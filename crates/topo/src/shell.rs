@@ -2704,6 +2704,7 @@ fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::test_support::finished;
 
     /// A vertex whose orbit does not walk has no valence to answer, so
     /// the read panics naming the walk rather than answer zero, which
@@ -2747,7 +2748,7 @@ mod tests {
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = shell(&body, 0.1, tol);
+            let _ = shell(&finished("the operand", body.clone(), tol), 0.1, tol);
         }));
         let premise = format!(
             "{}'s surface names {}, which does not resolve",
@@ -2799,7 +2800,7 @@ mod tests {
         let body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
         let stale = FaceKey::default();
         assert!(matches!(
-            shell_open(&body, 0.1, &[stale], tol),
+            shell_open(&finished("the operand", body.clone(), tol), 0.1, &[stale], tol),
             Err(ShellError::OpenFaceStale { face }) if face == stale
         ));
     }

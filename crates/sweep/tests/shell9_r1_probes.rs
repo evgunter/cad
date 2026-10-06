@@ -26,6 +26,7 @@ use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
 use super::common::shell_operands::{hollow_box, two_void_box, vessel};
 use super::shell7_common::{point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
+use sweep::test_support::finished;
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -156,7 +157,12 @@ fn dump_rows(label: &str, body: &Body<f64>) {
 }
 
 fn dump_shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) -> Option<Body<f64>> {
-    match topo::shell_open(body, t, open, tol()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), tol()),
+        t,
+        open,
+        tol(),
+    ) {
         Ok(s) => {
             dump_rows(label, &s.body);
             Some(s.body)
@@ -200,9 +206,13 @@ fn r1_rows_corpus() {
         10.0,
     );
     dump_shelled("box beside vessel sealed", &pair, 0.1, &[]);
-    let hollow_vessel = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
-        .expect("hollows")
-        .body;
+    let hollow_vessel = topo::shell(
+        &finished("the operand", vessel(1.0, 2.0), tol()),
+        0.1,
+        tol(),
+    )
+    .expect("hollows")
+    .body;
     let pair_h = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hollow_vessel, 10.0);
     dump_rows("operand box beside hollow vessel", &pair_h);
     let vessel_solid = pair_h
@@ -329,7 +339,8 @@ fn r1_end_to_end() {
     // 1. The two-arc sphere.
     let (r, t): (f64, f64) = (1.0, 0.05);
     let sphere = two_arc_sphere();
-    let out = topo::shell(&sphere, t, tol()).expect("the two-arc sphere shells");
+    let out = topo::shell(&finished("the operand", sphere.clone(), tol()), t, tol())
+        .expect("the two-arc sphere shells");
     let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - t).powi(3));
     check_result("two-arc sphere", &out.body, want, 1e-12);
     // Every inner vertex — poles and seam ring alike — is concentric at r − t.
@@ -357,14 +368,21 @@ fn r1_end_to_end() {
     let vase = sphere_zone_vase(rv, h);
     let big = (rv * rv + (h / 2.0) * (h / 2.0)).sqrt();
     let outer = zone(big, h / 2.0, 0.0, h);
-    let sealed = topo::shell(&vase, tv, tol()).expect("the vase hollows");
+    let sealed = topo::shell(&finished("the operand", vase.clone(), tol()), tv, tol())
+        .expect("the vase hollows");
     check_result(
         "vase sealed",
         &sealed.body,
         outer - zone(big - tv, h / 2.0, tv, h - tv),
         1e-11,
     );
-    let opened = topo::shell_open(&vase, tv, &cap_at_y(&vase, h), tol()).expect("the vase opens");
+    let opened = topo::shell_open(
+        &finished("the operand", vase.clone(), tol()),
+        tv,
+        &cap_at_y(&vase, h),
+        tol(),
+    )
+    .expect("the vase opens");
     check_result(
         "vase opened top",
         &opened.body,
@@ -374,9 +392,13 @@ fn r1_end_to_end() {
     assert_eq!(opened.naming.rims.len(), 1);
 
     // 3. SHELL-8: a box beside a hollow vessel, opened on the void ceiling.
-    let hv = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
-        .expect("the vessel hollows")
-        .body;
+    let hv = topo::shell(
+        &finished("the operand", vessel(1.0, 2.0), tol()),
+        0.1,
+        tol(),
+    )
+    .expect("the vessel hollows")
+    .body;
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hv, 10.0);
     let vessel_solid = pair
         .solids()
@@ -386,7 +408,13 @@ fn r1_end_to_end() {
     let (_, void) = outer_and_void_of(&pair, vessel_solid);
     let ceiling = cap(&pair, void, Vec3::new(0.0, 1.0, 0.0), 1.9);
     let t8 = 0.02;
-    let out8 = topo::shell_open(&pair, t8, &ceiling, tol()).expect("opens on the void ceiling");
+    let out8 = topo::shell_open(
+        &finished("the operand", pair.clone(), tol()),
+        t8,
+        &ceiling,
+        tol(),
+    )
+    .expect("opens on the void ceiling");
     let cyl = |rr: f64, hh: f64| PI * rr * rr * hh;
     let box_wall = 2.0 * 3.0 * 4.0 - (2.0 - 2.0 * t8) * (3.0 - 2.0 * t8) * (4.0 - 2.0 * t8);
     let outer_wall = cyl(1.0, 2.0) - cyl(1.0 - t8, 2.0 - 2.0 * t8);
@@ -423,7 +451,8 @@ fn r1_drum_reverted_cavity_alone() {
         }]),
         "the reversal mirrors the cap plane's images: only the complement's volume fails"
     );
-    let out = topo::shell(&drum, 0.05, tol()).expect("the drum shells");
+    let out = topo::shell(&finished("the operand", drum.clone(), tol()), 0.05, tol())
+        .expect("the drum shells");
     println!("[r1drum] shell: {} shells", out.body.shells().count());
     // The sphere's reverted cavity for contrast.
     let cavity = door_cavity(&two_arc_sphere(), 0.05);
@@ -456,7 +485,7 @@ fn r1_hunt_the_pcurve_arm() {
     ];
     for (name, body, t) in cases {
         let v = topo::validate_geometric(&body, tol());
-        let out = topo::shell(&body, t, tol());
+        let out = topo::shell(&finished("the operand", body.clone(), tol()), t, tol());
         match &out {
             Ok(s) => println!(
                 "[r1hunt] {name}: operand tier3 {} -> shells, rows {}, tier3 {:?}",

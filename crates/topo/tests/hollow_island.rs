@@ -430,7 +430,7 @@ fn every_verb_refuses_a_body_whose_pieces_cannot_be_read() {
         Err(topo::SplitError::Pieces(topo::PieceSortError::Crossing { .. })) => {}
         other => panic!("the split at a dual: {:?}", other.map(|_| ())),
     }
-    match topo::shell(&body, 0.05, tol()) {
+    match topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol()) {
         Err(topo::ShellError::Pieces {
             error: topo::PieceSortError::Crossing { .. },
         }) => {}

@@ -77,9 +77,14 @@ fn teapot_cup(tol: Tol) -> Body<f64> {
     let body = teapot_pot(tol);
     let chart = plane_chart_at(&body, TOP);
     assert_eq!(chart.len(), 1, "a full revolve builds its cap whole");
-    topo::shell_open(&body, 1.0 / 128.0, &chart, tol)
-        .expect("the cup opens")
-        .body
+    topo::shell_open(
+        &finished("the operand", body.clone(), tol),
+        1.0 / 128.0,
+        &chart,
+        tol,
+    )
+    .expect("the cup opens")
+    .body
 }
 
 /// A cutter box: `x in [0.02, 0.2]`, `y in [-0.01, 0.1]`, `z in [0, 0.3]`.

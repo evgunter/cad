@@ -19,6 +19,7 @@ use super::common::latitude_seam::two_arc_sphere;
 use super::common::shell_operands::vessel;
 use super::shell7_common::{polyline, revolved, tol};
 use super::shell8_common::beside;
+use sweep::test_support::finished;
 
 /// `sf2b_axial`'s sphere-zone vase.
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
@@ -108,7 +109,7 @@ fn consume(label: &str, body: &Body<f64>, want_volume: f64, want_shells: usize) 
 fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
     let (r, t) = (1.0, 0.05);
     let body = two_arc_sphere();
-    let out = topo::shell(&body, t, tol()).expect("shells");
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), t, tol()).expect("shells");
     let want = 4.0 / 3.0 * PI * (r * r * r - (r - t) * (r - t) * (r - t));
     // The two closed forms the spec, the PR and the item file quote, as
     // this tree's f64 actually evaluates them, beside the measured
@@ -139,7 +140,7 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
 fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     let (r, h, t) = (1.0, 1.5, 0.1);
     let v = sphere_zone_vase(r, h);
-    let sealed = topo::shell(&v, t, tol()).expect("shells");
+    let sealed = topo::shell(&finished("the operand", v.clone(), tol()), t, tol()).expect("shells");
     let sealed_vol = topo::mass_properties(&sealed.body, tol())
         .expect("props")
         .volume;
@@ -147,7 +148,8 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     let caps = cap_at_y(&v, h);
     assert!(!caps.is_empty(), "a top cap");
     println!("[r2] vase top cap faces: {}", caps.len());
-    let opened = topo::shell_open(&v, t, &caps, tol()).expect("opens");
+    let opened = topo::shell_open(&finished("the operand", v.clone(), tol()), t, &caps, tol())
+        .expect("opens");
     let opened_vol = topo::mass_properties(&opened.body, tol())
         .expect("props")
         .volume;
@@ -170,7 +172,8 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
     let b = block(2.0, 2.0, 2.0, Tol::witness());
     let v = vessel(1.0, 2.0);
     let pair = beside(&b, &v, 6.0);
-    let sealed = topo::shell(&pair, 0.2, tol()).expect("shells the pair");
+    let sealed = topo::shell(&finished("the operand", pair.clone(), tol()), 0.2, tol())
+        .expect("shells the pair");
     let sealed_vol = topo::mass_properties(&sealed.body, tol())
         .expect("props")
         .volume;
@@ -184,7 +187,13 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
     // the placed copy.
     let caps = cap_at_y(&pair, 2.0);
     println!("[r2] caps at y=2: {}", caps.len());
-    let opened = topo::shell_open(&pair, 0.2, &caps, tol()).expect("opens the pair");
+    let opened = topo::shell_open(
+        &finished("the operand", pair.clone(), tol()),
+        0.2,
+        &caps,
+        tol(),
+    )
+    .expect("opens the pair");
     let opened_vol = topo::mass_properties(&opened.body, tol())
         .expect("props")
         .volume;
@@ -227,7 +236,8 @@ fn r2_drum_reverted_cavity_alone_is_the_reason() {
 fn r2_the_closing_mint_launders_an_invalid_operand() {
     let v = vessel(1.0, 2.0);
     assert_eq!(topo::validate_geometric(&v, tol()), Ok(()), "operand valid");
-    let good = topo::shell(&v, 0.2, tol()).expect("the sound operand shells");
+    let good = topo::shell(&finished("the operand", v.clone(), tol()), 0.2, tol())
+        .expect("the sound operand shells");
     let good_rows: Vec<String> = good
         .body
         .pcurves()
@@ -256,7 +266,8 @@ fn r2_the_closing_mint_launders_an_invalid_operand() {
     // the sound operand's, bit for bit. A gate on the operand's rows
     // would flip this row; that is a posture-table decision
     // (`work/shell/shell-launders-a-stale-operand-row.md`).
-    let s = topo::shell(&maimed, 0.2, tol()).expect("the verb takes the tier-3-invalid operand");
+    let s = topo::shell(&finished("the operand", maimed.clone(), tol()), 0.2, tol())
+        .expect("the verb takes the tier-3-invalid operand");
     assert_eq!(
         topo::validate_geometric(&s.body, tol()),
         Ok(()),
@@ -316,7 +327,8 @@ fn r2_the_closing_mint_launders_a_stale_row() {
     // before re-deriving, so the wrong row is laundered — the verb
     // returns `Ok` and a tier-3-valid body. Same disposition as the
     // row above.
-    let s = topo::shell(&maimed, 0.2, tol()).expect("the verb takes the stale-row operand");
+    let s = topo::shell(&finished("the operand", maimed.clone(), tol()), 0.2, tol())
+        .expect("the verb takes the stale-row operand");
     assert_eq!(
         topo::validate_geometric(&s.body, tol()),
         Ok(()),
@@ -331,16 +343,17 @@ fn r2_multi_solid_pays_one_mint() {
     let b = block(2.0, 2.0, 2.0, Tol::witness());
     let v = vessel(1.0, 2.0);
     let pair = beside(&b, &v, 6.0);
-    let one = topo::shell(&pair, 0.2, tol()).expect("the pair shells");
+    let one = topo::shell(&finished("the operand", pair.clone(), tol()), 0.2, tol())
+        .expect("the pair shells");
     println!(
         "[r2] pair rows {} vs box {} + vessel {}",
         one.body.pcurves().count(),
-        topo::shell(&b, 0.2, tol())
+        topo::shell(&finished("the operand", b.clone(), tol()), 0.2, tol())
             .expect("box")
             .body
             .pcurves()
             .count(),
-        topo::shell(&v, 0.2, tol())
+        topo::shell(&finished("the operand", v.clone(), tol()), 0.2, tol())
             .expect("vessel")
             .body
             .pcurves()

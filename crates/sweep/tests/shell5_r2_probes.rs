@@ -16,6 +16,7 @@ use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
 use crate::common::cavity::cut;
 use crate::common::shell_operands::{hollow_box, two_void_box};
+use sweep::test_support::finished;
 use sweep::test_support::{block, brick};
 
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
@@ -85,7 +86,8 @@ fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     // y; 2t = 0.6 exceeds both, so the grown footprints overlap and
     // the gap is short.
     let t = 0.3;
-    let e = topo::shell(&body, t, tol).expect_err("the diagonal pair is read as facing");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect_err("the diagonal pair is read as facing");
     let ShellError::WallClearance {
         face, other, gap, ..
     } = e
@@ -127,11 +129,13 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     assert_eq!(body.shells().count(), 1, "notches, not voids");
 
     let t = 0.3;
-    let e = topo::shell(&body, t, tol).expect_err("the notches' concave faces are read as facing");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect_err("the notches' concave faces are read as facing");
     assert!(matches!(e, ShellError::WallClearance { .. }), "got {e}");
     // Below the wall it builds: at t = 0.1 the notch walls (0.4 apart
     // in x, footprints 0.5 apart in y) clear.
-    let s = topo::shell(&body, 0.1, tol).expect("clear of every wall");
+    let s = topo::shell(&finished("the operand", body.clone(), tol), 0.1, tol)
+        .expect("clear of every wall");
     assert_eq!(topo::validate_geometric(&s.body, tol), Ok(()));
     let props = topo::mass_properties(&s.body, tol).expect("props");
     // Erode every plane by t: the box to 5.8 × 3.8 × 3.8, each notch
@@ -215,7 +219,8 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
     assert_eq!(body.shells().count(), 2, "outer plus one cylindrical void");
 
     let t = 0.15; // 2t = 0.30 > 0.20, the radial wall.
-    let shelled = topo::shell(&body, t, tol).expect("MEASURED: it builds silently");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect("MEASURED: it builds silently");
     let out = &shelled.body;
     assert_eq!(topo::validate_geometric(out, tol), Ok(()), "tier 3 green");
     assert_eq!(out.solids().count(), 2);
@@ -287,7 +292,8 @@ fn r2_an_island_under_its_walls_solid_is_sorted_then_shelled() {
     let roles = topo::classify_shells(&body, tol).expect("classifies");
     let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
     assert_eq!(outer, 2, "two Outer shells under one solid");
-    let shelled = topo::shell(&body, 0.05, tol).expect("the verb sorts, then shells");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol), 0.05, tol)
+        .expect("the verb sorts, then shells");
     assert_eq!(
         shelled.body.solids().count(),
         3,
@@ -295,7 +301,11 @@ fn r2_an_island_under_its_walls_solid_is_sorted_then_shelled() {
     );
 
     let inner = topo::shell(
-        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        &finished(
+            "the operand",
+            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            tol,
+        ),
         0.25,
         tol,
     )
@@ -311,7 +321,8 @@ fn r2_an_island_under_its_walls_solid_is_sorted_then_shelled() {
         2,
         "the island is a solid of its own"
     );
-    let shelled = topo::shell(&cut_body, 0.05, tol).expect("each solid shells");
+    let shelled = topo::shell(&finished("the operand", cut_body.clone(), tol), 0.05, tol)
+        .expect("each solid shells");
     assert_eq!(
         shelled.body.solids().count(),
         3,
@@ -342,7 +353,8 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
     let voids = void_shells(&body);
     assert_eq!(voids.len(), 2);
 
-    let shelled = topo::shell(&body, 0.15, tol).expect("well clear of every wall");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol), 0.15, tol)
+        .expect("well clear of every wall");
     let out = &shelled.body;
     assert_eq!(out.solids().count(), 3);
     // `naming.inner` rows are (RESULT twin, SOURCE operand face).
