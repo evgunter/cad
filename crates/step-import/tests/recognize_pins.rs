@@ -375,12 +375,13 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 ///
 /// That is what puts the UNPERTURBED body on the intrinsic rung: the
 /// three exactly-planar walls promote and the arc wall stays NURBS.
-/// Both arc-wall seams carry the arc's own stored endpoints in their
-/// bits — the skin's `segment_curve` places the arc wall's boundary
-/// columns at the vertices the section stores, not at a point
-/// re-derived from a radius — so each seam's carrier IS the wall's
-/// boundary column, bit for bit, and the bitwise `IsoCurve` rung
-/// answers. Declare-and-check is not reached on this body; the planted
+/// Both arc-wall seams carry the wall's boundary columns in their
+/// bits: the skin's `segment_curve` places the first column at the
+/// vertex the section stores and the last at `eval(1)`, the start
+/// turned through the stored sweep, never at a point re-derived from a
+/// radius. `eval(1)` is the stored end vertex bit for bit in THIS
+/// fixture, not on every chord, so here each seam's carrier IS the
+/// wall's boundary column and the bitwise `IsoCurve` rung answers. Declare-and-check is not reached on this body; the planted
 /// falsifier below forces it by moving the file's carrier off the
 /// column.
 ///

@@ -241,9 +241,10 @@ pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> S
     Segment::Arc(lower_arc(start, end, bulge))
 }
 
-/// **The bulge mode's one conversion** in the lattice: [`lower_to`]'s
-/// rule with the lowered arc's facts — `None`, a line, exactly at a
-/// zero bulge, and otherwise [`BuiltArc::lowered`].
+/// **The bulge mode's one conversion** in the lattice: `None`, a line,
+/// exactly at a zero bulge (either sign), and otherwise the arc
+/// [`lower_arc`] builds with its endpoint facts,
+/// [`BuiltArc::lowered`].
 pub(crate) fn bulge_leg<T: Real>(
     start: Point2<T>,
     end: Point2<T>,

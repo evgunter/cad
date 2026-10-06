@@ -2120,7 +2120,7 @@ enum ArrivalKind {
 struct TangentArcGeom<T: Real> {
     /// The leg, as [`tangent_arc`] built it.
     arc: Option<BuiltArc<T>>,
-    /// The arc's end tangent (departure + 2Δ).
+    /// The arc's end tangent: the departure reflected across the chord.
     end_ang: Dir<T>,
     /// The leg's carrier circle (none for a line).
     carrier: Option<ArcData<T>>,
@@ -2169,7 +2169,9 @@ impl<T: Real> Dir<T> {
     /// its own band — `unit_from_components` under
     /// `path_director_norm`, [`arc_fillet::carrier_tangent`] under
     /// `path_arc_center_radius` — or holds a ray that is unit by
-    /// construction, which is [`Dir::reversed`]'s exact negation. A
+    /// construction: [`Dir::reversed`]'s exact negation, and
+    /// [`reflected_across`]'s reflection of a unit ray, unit over the
+    /// reals and to its rounding in the floats. A
     /// second decision here would either re-ask a question already
     /// answered (a second name in the K census for one length) or,
     /// worse, re-derive the ray and lose the exactness this type
@@ -2303,8 +2305,9 @@ impl<T: Decide> PendingRunOut<T> {
 }
 
 /// What kind of segment leaves the entry vertex — pinned at first
-/// emission so the seam knows side 1's carrier kind structurally
-/// (never by comparing a bulge to zero).
+/// emission from the emitting verb's kind, so the seam knows side 1's
+/// kind structurally (an arc verb whose lowering stores a line, a zero
+/// bulge, is an arc side all the same).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FirstSeg {
     NotYet,
@@ -2398,7 +2401,7 @@ pub struct Core<T: Real> {
     /// [`Core::step_spans`] does that arithmetic once, at the close.
     step_starts: Vec<usize>,
     /// **The piece each emitted segment is**, indexed by the vertex the
-    /// segment leaves — written when the segment's bulge is set
+    /// segment leaves — written when the segment is set
     /// ([`Core::set_leaving`], every emission's one door) and reported
     /// beside the spans ([`Core::finish`]).
     pieces: Vec<Option<crate::structure::Piece>>,
@@ -2659,7 +2662,7 @@ impl<T: Real> Core<T> {
     }
 
     /// Records that the radius argument at `(step, role)` drew the arc
-    /// whose bulge is about to be set, and hands back the segment it
+    /// about to be set, and hands back the segment it
     /// recorded — the one leaving the chain's last vertex, which is the
     /// one spelling for every emission: the interior arc that pushes
     /// its end vertex, the seam arc that retrims the entry vertex, and
@@ -2786,8 +2789,8 @@ impl<T: Real> Core<T> {
     }
 
     /// The piece every segment of the closed chain is, in segment
-    /// order. Every segment of a closed chain had its bulge set, and so
-    /// was named ([`Core::set_leaving`]); a segment that was not would
+    /// order. Every segment of a closed chain was set, and so was named
+    /// ([`Core::set_leaving`]); a segment that was not would
     /// be an emission that bypassed the door.
     fn segment_pieces(&self) -> Vec<crate::structure::Piece> {
         (0..self.verts.len())
@@ -2944,7 +2947,9 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> Option<BuiltA
     let d = b - a;
     let (along, across) = (u.dot(d), u.perp_dot(d));
     let x = across / (d.norm() + along);
-    crate::bulge_leg(a, b, x)?;
+    if crate::is_exact_zero(x) {
+        return None;
+    }
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
     Some(BuiltArc {
         arc: Arc2 {
@@ -2954,6 +2959,16 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> Option<BuiltA
         },
         facts: crate::Facts::Registered,
     })
+}
+
+/// **A tangent arc's end direction**: the arc leaves along the unit `u`
+/// and arrives along `u` reflected across its chord `d` (the
+/// tangent-chord angle is the same at both ends), spelled on the ray
+/// with no angle read and no root: `2(u·d)d/(d·d) − u`. A reflection
+/// keeps length, so the ray is unit over the reals wherever `u` is, and
+/// is not normalized again ([`Dir::from_unit`]).
+fn reflected_across<T: Real>(u: Vec2<T>, d: Vec2<T>) -> Dir<T> {
+    Dir::from_unit(d * (T::from_f64(2.0) * u.dot(d) / d.norm_squared()) - u)
 }
 
 /// The tip's record of a leg's carrier, read off the stored arc (none
@@ -4629,9 +4644,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         ))
     }
 
-    /// The tangent arc's geometry toward `p`: the tangent-chord angle
-    /// Δ in the departure frame, bulge tan(Δ/2), end tangent
-    /// departure + 2Δ, and the §4 item 4 refusals under an inherited
+    /// The tangent arc's geometry toward `p`: the leg [`tangent_arc`]
+    /// builds, its end tangent (the departure reflected across the
+    /// chord), and the §4 item 4 refusals under an inherited
     /// (declared) departure: a collinear target degenerates the arc
     /// onto a straight incoming carrier (same line), a cocircular
     /// carrier is the incoming circle itself.
@@ -4668,12 +4683,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             }
         }
         let arc = tangent_arc(at, u, p);
-        // The arc leaves along `u` and arrives along `u` reflected
-        // across its chord (the tangent-chord angle is the same at both
-        // ends), spelled on the ray with no angle read and no root:
-        // `2(u·d)d/(d·d) − u`.
         let chord = d.norm_squared().sqrt();
-        let end_ang = Dir::from_unit(d * (T::from_f64(2.0) * u.dot(d) / d.norm_squared()) - u);
+        let end_ang = reflected_across(u, d);
         Ok(TangentArcGeom {
             arc,
             end_ang,
@@ -5280,7 +5291,7 @@ mod tests {
     /// **Each producing door decides its own length and stores a unit
     /// ray** — the two halves of [`Dir::from_unit`]'s contract that a
     /// test can reach. It does NOT prove the contract holds for every
-    /// caller: nothing here can see a fourth caller appear, which is
+    /// caller: nothing here can see a fifth caller appear, which is
     /// what the constructor's privacy and its doc are for.
     ///
     /// The two producing doors are walked here, refusal and success:
@@ -5290,7 +5301,9 @@ mod tests {
     /// so the arithmetic is exact in binary and a "close enough"
     /// assertion cannot hide a door that stopped normalizing. The
     /// third caller, [`Dir::reversed`], is unit by exact negation and
-    /// is pinned by the row above.
+    /// is pinned by the row above; the fourth, [`reflected_across`],
+    /// is walked last, on an exact reflection and on one whose rounding
+    /// leaves it an ulp off.
     #[test]
     fn each_producing_door_decides_its_length_and_stores_a_unit_ray() {
         let tol = Tol::witness();
@@ -5329,6 +5342,17 @@ mod tests {
             arc_fillet::carrier_tangent::<f64>(Point2::new(4.0, 2.0), centre, ArcSweep::Ccw, band)
                 .expect("a real tangent");
         assert_eq!((t.unit.x, t.unit.y), (0.0, 1.0), "the stored ray is unit");
+
+        // The tangent arc's end ray: +x reflected across the chord
+        // (1, 1) is +y, exactly; across (3, 4) it is unit to an ulp.
+        let r = reflected_across(Vec2::new(1.0, 0.0), Vec2::new(1.0, 1.0));
+        assert_eq!((r.unit.x, r.unit.y), (0.0, 1.0), "an exact reflection");
+        let r = reflected_across(Vec2::new(1.0, 0.0), Vec2::new(3.0, 4.0));
+        assert!(
+            (r.unit.norm() - 1.0).abs() <= 2.0 * f64::EPSILON,
+            "a reflection keeps the length: {:?}",
+            r.unit
+        );
     }
 
     /// **The overflow end of both 2-D director doors.** Components
@@ -5903,8 +5927,9 @@ mod tests {
 /// check, over four decades of corner turn at whatever ε the run
 /// commits.
 ///
-/// A fillet arc is emitted as a chord plus a bulge. Its sagitta,
-/// `L·b/2 = r(1 − cos(θ/2))`, is the margin `segment_straightness`
+/// A fillet arc is stored as its carrier and sweep between two
+/// vertices. Its sagitta, `L·b/2 = r(1 − cos(θ/2))` with `b` the
+/// sweep's quarter-tangent, is the margin `segment_straightness`
 /// classifies, so a fillet whose turn is small enough that
 /// `r·θ²/8 ≤ ε` is stored as a segment the validator reads as a
 /// **line**: the carrier the door computed is not in the stored form at
@@ -6226,7 +6251,7 @@ mod fillet_stored_form {
     /// loses it.** At every turn the door builds, the carrier the door
     /// computed — radius `r`, centred `r` off the arrival carrier at the
     /// arc's end — is tangent to both legs to within a few ulps of `r`,
-    /// whatever the stored chord-and-bulge form reads back as. The table
+    /// whatever the stored segment reads back as. The table
     /// this prints (`--nocapture`) is the per-decade measurement: the
     /// stored kind, the two carrier errors, the margins both sides
     /// decide on, and both verdicts.

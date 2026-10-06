@@ -82,20 +82,14 @@ fn segs_of(verts: &[((f64, f64), f64)]) -> Vec<Seg> {
 /// (center, radius, start angle, signed sweep) of a bulged segment.
 fn arc_of(s: &Seg) -> ((f64, f64), f64, f64, f64) {
     let (ax, ay) = s.a;
-    let (bx, by) = s.b;
-    let l = ((bx - ax).powi(2) + (by - ay).powi(2)).sqrt();
-    let u = ((bx - ax) / l, (by - ay) / l);
-    let nrm = (-u.1, u.0);
-    let b = s.bulge;
-    let apothem = l * (1.0 - b * b) / (4.0 * b);
-    let c = (
-        0.5 * (ax + bx) + nrm.0 * apothem,
-        0.5 * (ay + by) + nrm.1 * apothem,
+    let arc = geom_core::Arc2::from_chord(
+        Point2::new(ax, ay),
+        Point2::new(s.b.0, s.b.1),
+        s.bulge,
     );
-    let r = l * (1.0 + b * b) / (4.0 * b.abs());
+    let c = (arc.centre.x, arc.centre.y);
     let start = (ay - c.1).atan2(ax - c.0);
-    let sweep = 4.0 * b.atan();
-    (c, r, start, sweep)
+    (c, arc.radius, start, arc.sweep)
 }
 
 /// Is the 2-D point on this segment's locus (line or arc), strictly

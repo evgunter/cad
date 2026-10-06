@@ -70,7 +70,8 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Real, Vec3};
 /// - `sweep::skin::segment_curve`, public through `sweep` and `pncad`,
 ///   converts that same locus: its on-arc control points are `eval`'s
 ///   own points and its others the spoke `a − centre` turned about the
-///   centre. It reads neither `b` nor the radius.
+///   centre. It reads `b` only for its zero-chord gate, and never the
+///   radius.
 ///
 /// The radius is read by the carrier a sweep builds beside the
 /// description, and certification meters the one against the other. A
