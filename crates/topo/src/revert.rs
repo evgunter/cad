@@ -536,6 +536,73 @@ mod tests {
         }
     }
 
+    /// **A chart image's surface is a link.** A half-circle at rest in
+    /// a plane face's chart, the face then moved onto a copy of its
+    /// plane and the original dropped: every face resolves its chart,
+    /// and the image names a surface that does not resolve. The panic
+    /// names the curve and the surface. The read sweep cannot tell this
+    /// link from the face's, since a sound image names its own face's
+    /// surface and the face is read first.
+    #[test]
+    fn revert_panics_naming_a_chart_images_dangling_surface() {
+        use crate::entity::GeomRef;
+        use crate::review_d18::ROW_FOUR;
+        use crate::{FaceSurface, MevSite};
+        use geom::{Curve3, Surface};
+        use geom_brep::EdgeCurveSpec;
+        use geom_core::{Point3, Vec3};
+        let tol = Tol::witness();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(circle.eval(0.0), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: plane.clone(),
+                sense: true,
+            },
+        )
+        .unwrap();
+        let chart = body.get_face(seed.face).unwrap().surface;
+        let end = circle.eval(core::f64::consts::PI);
+        let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::PI)
+            .unwrap()
+            .at_rest_in_chart(chart, false);
+        body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            end,
+            spec,
+            tol,
+        )
+        .unwrap();
+        let curve = body.edges().next().unwrap().1.curve;
+        let copy = body.surfaces.insert(plane);
+        body.faces.get_mut(seed.face).unwrap().surface = copy;
+        body.surfaces.remove(chart).unwrap();
+        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            drop(body.revert());
+        }));
+        for fragment in [
+            format!("{}'s chart image's surface names", GeomRef::Curve(curve)),
+            GeomRef::Surface(chart).to_string(),
+            ROW_FOUR.to_owned(),
+        ] {
+            assert!(report.contains(&fragment), "want {fragment:?} in: {report}");
+        }
+    }
+
     /// **A plane `Chart` image with a `v` channel survives the map.**
     /// One plane face (`z = 0`, `u_ref = +x`) carrying a half-circle
     /// at rest in its chart, built through the Euler door alone: the
