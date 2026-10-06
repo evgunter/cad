@@ -757,4 +757,37 @@ mod tests {
             assert_eq!(fusions.survivor(c), c, "{case}: c folds onto no dead key");
         }
     }
+
+    /// **An extend that refuses at a later row appends none of its
+    /// rows.** `later`'s first row is sound against `fusions` and its
+    /// second keeps the key `fusions` killed. Red if `extend` pushes
+    /// row by row into the list it extends: the sound first row would
+    /// stay, and `d` would fold onto `e`.
+    #[test]
+    fn an_extend_that_refuses_partway_leaves_the_list_as_it_was() {
+        let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
+        let [a, b, c, d, e] = [(); 5].map(|()| arena.insert(()));
+        let mut fusions = Fusions::default();
+        fusions.push((a, b)).unwrap();
+        let mut later = Fusions::default();
+        later.push((d, e)).unwrap();
+        later.push((c, a)).unwrap();
+        assert!(
+            matches!(
+                fusions.extend(&later),
+                Err(BooleanError::JoinDesync {
+                    what: "a fusion row names a key an earlier row killed"
+                })
+            ),
+            "the second row keeps the killed a"
+        );
+        assert_eq!(fusions.rows(), [(a, b)], "no row of a refused extend stays");
+        assert_eq!(fusions.survivor(d), d, "d is not fused");
+        fusions.push((d, e)).unwrap();
+        assert_eq!(
+            fusions.rows(),
+            [(a, b), (d, e)],
+            "the list still takes rows"
+        );
+    }
 }
