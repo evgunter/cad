@@ -7,6 +7,8 @@ opened: 2026-09-30
 priority: P2
 cost: M
 design: true
+needs_ev: true
+branch: emit/ev-least-name-is-first-minted
 parent: sibling-branches-mint-one-node-id-for-different-nodes
 ---
 
@@ -76,3 +78,14 @@ far, unweighed:
 evidence order were restated in `Doc::order` on the same branch,
 because they have the document in hand. The emitter works from a
 node's inputs and does not.
+
+## Reachability (designer runs, 2026-10-06)
+
+The re-authored-member loss in "Evidence" is not reachable through
+today's doors. `DeleteNode` of a live union member is refused
+(`DeleteWouldDangle`). Re-declaring a re-drawn member that `SetMembers`
+added is refused `DeclaredNameNotUpstream` by `declared_side_fault`
+(`node.rs`), which reads document position where it means "an operand
+can hold this name". The loss becomes reachable once that refusal reads
+membership. What is visible today, with no edit: digest order names a
+flush stretch for the later-placed member about half the time.

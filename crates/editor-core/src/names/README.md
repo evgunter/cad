@@ -71,9 +71,12 @@ DM4) follow this rule, and so do profile pieces:
   states it, which holds its inputs' and names' ids but not its own; the
   insert then extends the chain once more and takes the node's
   `RecipeNodeId` from it. The steps one edit mints take the chain's next
-  digests, one per step in authored order; an id is the first 64 bits of
-  its digest. So a node's or a step's id is a function of the edit
-  sequence that minted it:
+  digests, one per step in authored order. An id is its mint ordinal (the
+  mint log's length when it was drawn, plus one) in its high 24 bits, over
+  the first 40 bits of its digest, so ids order as they were minted: of two
+  nodes or steps in one document, the one minted first has the lesser id.
+  So a node's or a step's id is a function of the edit sequence that
+  minted it:
   - the same sequence of edits from one value mints the same ids (D9);
   - two documents that branch from one value — an undo followed by a
     different edit, or two edits applied to one base — mint different ids
@@ -83,8 +86,9 @@ DM4) follow this rule, and so do profile pieces:
     parent's name on a step one such version minted, held across a pin
     update to the other, resolves `Vanished`.
 
-  Like a `RecipeNodeId`, a step id is never positional and never reused,
-  and it is unique across the whole document. The document keeps every
+  Like a `RecipeNodeId`, a step id is never reused and is unique across the
+  whole document; its order is mint order, which is the order the author
+  placed things in, and nothing else. The document keeps every
   id it has minted, node and step, in one mint log, deleted nodes' and
   dropped steps' included, and a mint whose id is already in the log is
   refused. The load door checks what minting makes true: every node's id
@@ -234,10 +238,14 @@ The qualifier depends on what was split:
   loop of the pair's first side runs along it); an equal pair ties.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
-name order changes nothing.
+name order changes nothing. Name order spells a set; the flush rule below is
+the one place it chooses an entity.
 
 **Flush edges at a union.** An edge that lies along several members' edges,
-where they run flush, is a piece of the least of them in name order, and an
+where they run flush, is a piece of the first minted of them (the least in
+name order, since name order compares the minting node's id first and ids
+order as minted), so a member added later never takes a stretch from an
+earlier one; and an
 edge lying along a member edge is a piece of it whatever the fold named it
 (`emit_union::Flush`). A seam vertex cites such an edge whole,
 `FromMember(m, e)`, never a piece; a vertex at a member vertex is that vertex,
