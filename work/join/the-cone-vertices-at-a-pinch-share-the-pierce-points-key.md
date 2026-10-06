@@ -85,3 +85,18 @@ records alone. No position is read to find it.
   the six distinct poses of the nine lines, each union in both orders:
   `SOUND`, one vertex per cone on one key, meshing. Red with the
   rebinding removed.
+
+## Measured (main `3e9d1a96` vs head, release)
+
+- The nine lines: `BAD` → `SOUND`, 2 vertices for 2 cones, all meshing
+  (main: 1 vertex; 2 refuse `Triangulation`, 2 panic the mesher).
+- r2's pinched-operand battery: 75 lines `BAD` → `SOUND`. Every
+  tier-3′ `VertexVertex` at the pinch clears (236 on main, 0 on
+  head). The 120 lines still `BAD` fail only on a
+  `StaleContactDeclaration { VertexOnFace }` that main reports on the
+  same lines.
+- Everything else is byte-identical: r1's other families (`nt`,
+  `stair3`, `islnotch`, `cyl`, `multi`, `pair`, `x4`), the rest of
+  `dbl`, r2's tri-cone battery, and the pierce, pinch, corner-pair,
+  both reflex and `rc_wide` ×84 batteries. No line goes `SOUND` →
+  refusal.
