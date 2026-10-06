@@ -1632,29 +1632,49 @@ mod tests {
     }
 
     /// **A stretch whose sign is not resolved within the side's halvings
-    /// reads `Refused`, not clear and not the side's.** On
-    /// [`loose_wall`], the first of the stretch's pieces spends one
-    /// halving and reads clear; with none to spend the stretch is
-    /// refused. Red under the refusal read as no sign (`Within`).
+    /// reads `Refused`, not clear and not the side's, and its pieces share
+    /// one side's halvings.** On [`loose_wall`] rising inward, the first
+    /// of the stretch's 64 pieces spends one halving and reads clear; with
+    /// none to spend the stretch is refused. Falling inward, no piece
+    /// clears, and the 64 pieces, one span each, spend 64 halvings
+    /// between them: 63 refuse. Red under the refusal read as no sign
+    /// (`Within`), and under a budget per piece.
     #[test]
     fn a_stretch_past_its_halvings_reads_refused() {
-        let wall = loose_wall(10.0, 64, (0.6e-9, 0.2e-9));
-        let boxes = NurbsBoxes::new(&wall);
-        let readers = super::side_readers(&boxes, ground());
-        let side = super::SIDES[0];
-        let reader = super::reader_of(&readers, side).unwrap();
         let r = rect((0.0, 0.2), (0.0, 1.0));
-        let read = |halvings| {
-            super::super::boundary::stretch_within(
-                &boxes,
-                ground().0,
-                reader,
-                (side, r),
-                (band().zero(), halvings),
-            )
-        };
-        assert_eq!(read(1), super::Reading::Clear, "one halving");
-        assert_eq!(read(0), super::Reading::Refused, "none");
+        let side = super::SIDES[0];
+        for (k, rows) in [
+            (
+                10.0,
+                [(1, super::Reading::Clear), (0, super::Reading::Refused)],
+            ),
+            (
+                -10.0,
+                [
+                    (64, super::Reading::Within(0.0)),
+                    (63, super::Reading::Refused),
+                ],
+            ),
+        ] {
+            let wall = loose_wall(k, 64, (0.6e-9, 0.2e-9));
+            let boxes = NurbsBoxes::new(&wall);
+            let readers = super::side_readers(&boxes, ground());
+            let reader = super::reader_of(&readers, side).unwrap();
+            for (halvings, want) in rows {
+                let got = super::super::boundary::stretch_within(
+                    &boxes,
+                    ground().0,
+                    reader,
+                    (side, r),
+                    (band().zero(), halvings),
+                );
+                let same = match (got, want) {
+                    (super::Reading::Within(_), super::Reading::Within(_)) => true,
+                    _ => got == want,
+                };
+                assert!(same, "k {k}, {halvings} halvings: {got:?}, not {want:?}");
+            }
+        }
     }
 
     /// A polyline pcurve through `pts`, one span per segment.
