@@ -297,6 +297,8 @@ fn refined_sign(
     let mut reads = 0usize;
     while let Some((hc, wc)) = stack.pop() {
         reads += 1;
+        #[cfg(test)]
+        probe_r2::READS.with(|r| r.set(r.get() + 1));
         if reads > super::SSI_MAX_CELLS {
             return Err(SsiError::CellBudget {
                 budget: super::SSI_MAX_CELLS,
@@ -755,3 +757,7 @@ mod tests {
         assert_eq!(got.ok(), Some(None));
     }
 }
+
+#[cfg(test)]
+#[path = "section_probe_r2.rs"]
+mod probe_r2;

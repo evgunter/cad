@@ -859,3 +859,74 @@ fn a_side_whose_hull_is_loose_reads_clear_at_both_doors() {
         );
     }
 }
+
+/// Review probe (r2): a side of `m` C0 spans each touching the plane at a
+/// non-dyadic point (`(t − ⅓)²` and its mirror, scaled to `s·ε`).
+#[test]
+fn r2_probe_a_side_of_many_non_dyadic_touches() {
+    let e = eps();
+    let (plane, _) = ground();
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    for s in [0.5, 0.05] {
+        for m in [16usize, 64, 128, 256, 512, 1024] {
+            let mut hs = vec![];
+            for i in 0..m {
+                let c = if i % 2 == 0 {
+                    [1.0 / 9.0, -2.0 / 9.0, 4.0 / 9.0]
+                } else {
+                    [4.0 / 9.0, -2.0 / 9.0, 1.0 / 9.0]
+                };
+                if i == 0 {
+                    hs.push(c[0] * s * e);
+                }
+                hs.push(c[1] * s * e);
+                hs.push(c[2] * s * e);
+            }
+            let wall = c0_wall(10.0, &hs);
+            let t = std::time::Instant::now();
+            let out = ssi::plane_nurbs_ssi(&plane, &wall, domain, band());
+            let el = t.elapsed();
+            match out {
+                Ok(o) => eprintln!(
+                    "r2 touches s {s} m {m}: ok branches {} boundary {:?} in {el:?}",
+                    o.branches.len(),
+                    o.boundary
+                ),
+                Err(err) => eprintln!("r2 touches s {s} m {m}: REFUSED {err} in {el:?}"),
+            }
+        }
+    }
+}
+
+/// Review probe (r2): cost on a dense loose wall.
+#[test]
+fn r2_probe_dense_loose_wall_cost() {
+    let e = eps();
+    let (plane, _) = ground();
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    for m in [1024usize, 4096, 16384] {
+        let hs: Vec<f64> = (0..=2 * m).map(|j| if j % 2 == 0 { 0.6 * e } else { -0.2 * e }).collect();
+        let wall = c0_wall(10.0, &hs);
+        let t = std::time::Instant::now();
+        let out = ssi::plane_nurbs_ssi(&plane, &wall, domain, band());
+        let a = t.elapsed();
+        let t = std::time::Instant::now();
+        let d = declared(&wall, (0.0, 1.0));
+        let b = t.elapsed();
+        eprintln!(
+            "r2 dense m {m}: search {:?} in {a:?}; declared {:?} in {b:?}",
+            out.map(|o| (o.branches.len(), o.boundary.len())).map_err(|e| e.to_string()),
+            d.map(|_| ()).map_err(|e| format!("{e:?}").chars().take(80).collect::<String>())
+        );
+    }
+}
