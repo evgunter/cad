@@ -215,16 +215,12 @@ pub(crate) fn carried_cause(
     };
     let (linked, folded) = levels.split_at(levels.len().min(LINKED_LEVELS).saturating_sub(1));
     let raise = |level: &d::CarriedLevel<'_>, message: String| {
-        let document = match level.document {
-            d::CarriedIn::ThisDocument => None,
-            d::CarriedIn::Part(doc_ref) => Some(doc_ref),
-        };
         refused(
             py,
             NodeId(level.node),
             level.refusal.kind(),
             message,
-            document,
+            level.document.doc_ref(),
         )
     };
     let deepest = folded.last()?;

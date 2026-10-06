@@ -2,10 +2,13 @@
 id: a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part
 kind: unit
 title: No frame holds a resolved part, so a part's carried level and fault keep their tags (line_in_part and PartFault::spoken have no caller)
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-06
 priority: P3
 cost: M
+pr: 4090
+branch: emit/part-labels-at-the-seam
 parent: node-labels-are-document-data
 refs: [viewer-panes-speak-the-kernel-refusals-they-draw]
 ---

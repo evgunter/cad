@@ -183,7 +183,8 @@ DM4) follow this rule, and so do profile pieces:
   locators. If a value edit changes which pieces pair, the old wall's name
   vanishes; it does not follow `k` to the new pairing.
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
-  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
+  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"; a
+  partial revolve builds cocircular arcs one wall each, named per piece). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
   the run: its piece locators in authored order, a one-piece run spelled as
   one locator; a run that wraps through the loop's start begins at its first

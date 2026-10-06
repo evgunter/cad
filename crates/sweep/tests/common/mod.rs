@@ -477,6 +477,7 @@ pub fn tilted_cut_upper() -> Body<f64> {
     )
     .expect("the cylinder extrudes")
     .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let phi = 0.3f64;
     let result = topo::splitting::split(
         &cylinder,
@@ -525,6 +526,7 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         2.5,
         tol,
     );
+    let tall = sweep::test_support::finished("the tall", tall, tol);
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
         tilted_cut_normal(),

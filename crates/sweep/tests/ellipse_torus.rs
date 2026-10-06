@@ -33,6 +33,7 @@ fn drum_lower() -> Body<f64> {
         1.0,
         tol,
     );
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol);
     let plane = topo::splitting::SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: UnitVec3::new(

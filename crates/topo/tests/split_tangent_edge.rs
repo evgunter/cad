@@ -29,14 +29,13 @@ fn plane(o: (f64, f64, f64), n: (f64, f64, f64)) -> SplitPlane<f64> {
     )
 }
 
-fn unite(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
+fn unite(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
     union(a, b, Tol::witness())
         .unwrap()
         .body()
         .expect("the operands overlap")
         .body
         .clone()
-        .into_body()
 }
 
 /// A closed half's volume; `None` for an empty one.
@@ -52,7 +51,7 @@ fn volume(label: &str, part: &SplitPart<f64>) -> Option<f64> {
 /// the two results, `n` first.
 fn both_ways(
     label: &str,
-    body: &Body<f64>,
+    body: &AtRestBody<f64>,
     o: (f64, f64, f64),
     n: (f64, f64, f64),
     want: (Option<f64>, Option<f64>),
@@ -166,19 +165,23 @@ fn a_tangent_contact_meeting_a_real_section_cuts_only_the_slab() {
 /// (4, 1) alone; x + y = 3 passes through the reflex corner.
 #[test]
 fn a_step_cut_along_each_of_its_edges() {
-    let step = prism::<f64>(
-        &[
-            (0.0, 0.0),
-            (4.0, 0.0),
-            (4.0, 1.0),
-            (2.0, 1.0),
-            (2.0, 2.0),
-            (0.0, 2.0),
-        ],
-        1.0,
+    let step = finished(
+        "the step",
+        prism::<f64>(
+            &[
+                (0.0, 0.0),
+                (4.0, 0.0),
+                (4.0, 1.0),
+                (2.0, 1.0),
+                (2.0, 2.0),
+                (0.0, 2.0),
+            ],
+            1.0,
+            Tol::witness(),
+        )
+        .body,
         Tol::witness(),
-    )
-    .body;
+    );
     let n = (1.0, 1.0, 0.0);
     both_ways(
         "convex (2,2)",
@@ -202,20 +205,24 @@ fn a_step_cut_along_each_of_its_edges() {
 /// area 1.
 #[test]
 fn a_ridge_cut_along_its_apex() {
-    let ridge = prism::<f64>(
-        &[
-            (0.0, 0.0),
-            (8.0, 0.0),
-            (8.0, 1.0),
-            (5.0, 1.0),
-            (4.0, 2.0),
-            (3.0, 1.0),
-            (0.0, 1.0),
-        ],
-        1.0,
+    let ridge = finished(
+        "the ridge",
+        prism::<f64>(
+            &[
+                (0.0, 0.0),
+                (8.0, 0.0),
+                (8.0, 1.0),
+                (5.0, 1.0),
+                (4.0, 2.0),
+                (3.0, 1.0),
+                (0.0, 1.0),
+            ],
+            1.0,
+            Tol::witness(),
+        )
+        .body,
         Tol::witness(),
-    )
-    .body;
+    );
     let o = (4.0, 2.0, 0.0);
     both_ways("apex alone", &ridge, o, (0.0, 1.0, 0.0), (None, Some(9.0)));
     both_ways(
@@ -232,24 +239,28 @@ fn a_ridge_cut_along_its_apex() {
 /// walls. Area 15, of which 17/3 is above.
 #[test]
 fn a_convex_and_a_reflex_edge_in_one_plane() {
-    let saw = prism::<f64>(
-        &[
-            (0.0, 0.0),
-            (10.0, 0.0),
-            (10.0, 2.0),
-            (9.0, 2.0),
-            (8.0, 1.0),
-            (7.0, 2.0),
-            (6.0, 0.5),
-            (5.0, 1.0),
-            (4.0, 0.5),
-            (3.0, 2.0),
-            (0.0, 2.0),
-        ],
-        1.0,
+    let saw = finished(
+        "the saw",
+        prism::<f64>(
+            &[
+                (0.0, 0.0),
+                (10.0, 0.0),
+                (10.0, 2.0),
+                (9.0, 2.0),
+                (8.0, 1.0),
+                (7.0, 2.0),
+                (6.0, 0.5),
+                (5.0, 1.0),
+                (4.0, 0.5),
+                (3.0, 2.0),
+                (0.0, 2.0),
+            ],
+            1.0,
+            Tol::witness(),
+        )
+        .body,
         Tol::witness(),
-    )
-    .body;
+    );
     let want = (Some(17.0 / 3.0), Some(15.0 - 17.0 / 3.0));
     both_ways("sawtooth", &saw, (0.0, 1.0, 0.0), (0.0, 1.0, 0.0), want);
 }
@@ -292,6 +303,7 @@ fn a_holed_block_cut_along_its_corner_edges() {
     let t = Tol::witness();
     let mut hb = holed_block::<f64>(4.0, &[2.0], t);
     describe_as_intersections(&mut hb, t);
+    let hb = finished("the holed block", hb, t);
     let n = (1.0, 1.0, 0.0);
     both_ways(
         "hole corner",

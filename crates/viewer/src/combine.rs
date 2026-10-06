@@ -90,6 +90,11 @@ impl BooleanTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**: the session op that inserts the
     /// boolean node through the ordinary commit door, declaring no
     /// contact. A contact the door refuses is declared through the
@@ -167,6 +172,11 @@ impl SplitTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**.
     ///
     /// # Errors
@@ -226,6 +236,11 @@ impl TransformTool {
     /// The survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         self.seats.reconcile(doc)
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
     }
 
     /// **The one committed edit**: the rigid placement.
@@ -349,6 +364,11 @@ impl PatternTool {
     /// The survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         self.seats.reconcile(doc)
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
     }
 
     /// **The one committed edit**, stepping along a direction.
@@ -533,6 +553,11 @@ impl PartTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**, selecting a split's named half.
     ///
     /// # Errors
@@ -620,6 +645,11 @@ impl DuplicateTool {
     /// The survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         self.seats.reconcile(doc)
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
     }
 
     /// **The one committed edit**.

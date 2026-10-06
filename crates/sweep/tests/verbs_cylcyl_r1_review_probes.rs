@@ -289,6 +289,7 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 2.0, 0.0, 6.0);
+    let post = sweep::test_support::finished("the post", post, tol);
     let phi = 0.9_f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 3.0),

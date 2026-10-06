@@ -2,11 +2,13 @@
 id: split-answers-an-inside-out-operand-with-two-inside-out-halves
 kind: issue
 title: topo::split answers an inside-out operand with two inside-out halves: its operand gate reads no orientation
-status: dispatched
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 branch: cleave/split-operand-gate
+closed: 2026-10-06
+pr: 4084
 ---
 
 
@@ -45,3 +47,54 @@ it with `split-gates-its-operand-on-null-edges-not-on-tier-2` into one
 operand gate is the natural shape; the finished-body adoption
 (`work/reach/boolean-door-adopts-the-finished-body-type.md`, "the other
 verb doors … adopt the type each in its own unit") subsumes both.
+
+## Built (branch cleave/split-operand-gate)
+
+The split's doors take the finished-body type, as the Boolean's do:
+`split`, `split_reduce`, `plane_section`, `vertex_sides` (and the
+test-support `split_through_the_join`) take `&AtRestBody<T>`;
+`verbs::Verb::run_split` takes it too, and the editor's split node
+finishes its operand at the seat (`finished_operand`, as the Boolean's
+does). At a certifying scalar an inside-out body never reaches the door:
+`AtRestBody::validate` refuses it `NegativeVolume`. Where no verdict
+rides the operand (a dual), the door reads tier 2 and then check 7 per
+solid, before `merge_all_solids` reads a several-solid operand as one,
+and refuses `SplitReduceError::InsideOutOperand { solid }`.
+
+The per-solid read has one home, shared with the Boolean:
+`AtRestBody::gate_unverdicted` (`validate.rs`), which
+`boolean::reduce::gate_unverdicted_operand` now calls; the Boolean's
+tier-2 read and the split's go through `validate::operand_scaffolding`.
+
+Measured on main `575b309d`, `Tol::witness()`, the clockwise wedge
+(volume −0.23492) split at z = 0.75: `Ok` with both halves at −0.11746
+at `f64`, `Interval` and `Dual64` alike. On the branch: refused at the
+at-rest gate (`f64`, `Interval`) and `InsideOutOperand` at every split
+door (`Dual64`); a two-solid body whose total is positive refuses naming
+the wedge's solid; the counterclockwise control splits into two halves of
++0.11746 (`topo/tests/split_operand_gate.rs`).
+
+Corpus, main `575b309d`, the workspace's `ci` profile with a probe at
+`split` and `plane_section`: 1,916 door calls; 1,849 operands pass the
+at-rest gate, 54 are duals (no verdict), and 13 calls in 11 tests hand in
+an operand the gate refuses. Those rows were restated: described
+fixtures (`describe_as_intersections`) where the pose finishes, the
+operand's refusal pinned where it cannot (straight profile corners,
+relabelled faces, a two-outer-shell solid), and rows that read the
+carrier gate or the reduction past the door through
+`topo::test_support::{split_carrier_gate, split_reduce_unfinished}`.
+Filed: `split-result-gates-have-no-row-past-the-finished-operand`,
+`split-carrier-gate-rows-read-the-gate-past-the-door`.
+
+## Closed (PR 4084, 2026-10-06)
+
+The split's doors take `AtRestBody`. The no-verdict operand gate (tier 2, then check 7 per solid,
+then check 10's winding per shell) has one home, `AtRestBody::gate_unverdicted`, shared with the
+Boolean. Review tier: single FULL. Verdict APPROVE-WITH-FIXES, no MAJOR. The fix pass:
+- extended the gate to an inside-out shell under one solid;
+- restated the `Pieces` witnesses at Dual64;
+- pinned the lune stand-down to its refusal by type;
+- took the style items.
+
+The residue is its own row:
+`a-stray-inside-out-shell-beside-two-outer-shells-passes-the-no-verdict-gate`.
