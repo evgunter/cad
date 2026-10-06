@@ -521,17 +521,28 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     let creases = keyhole_creases(plate);
     assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
 
-    // The plate's own blend radius: the ball rolls OUTSIDE the disc's
-    // wall, where its curvature sets no limit, but the headroom
-    // predicate reads `(1 − r/R)·r` whichever side the ball is on.
+    // The plate's own blend radius. The ball rolls OUTSIDE the disc's
+    // wall, where the wall's curvature turns away from it and sets no
+    // limit, so the headroom predicate passes; but R_BLEND lies past
+    // wall 2's onset, and the cap meter refuses it as it does wall 2.
+    let at_the_cap_meter = |e: &BlendError| {
+        matches!(
+            e,
+            BlendError::RingClearance {
+                face,
+                chain: Convexity::Convex,
+                bounded: false,
+                ..
+            } if *face == plate.bottom || *face == plate.top
+        )
+    };
     crate::walls::wall(
         "rocker",
         1,
         "round the keyhole's creases at the outline's blend radius R_BLEND = R_disc",
         fillet_edges(&plate.body, &creases, R_BLEND, tol),
-        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
-        "re-pin it: with headroom sided, r = R_BLEND lies past wall 2's onset and meets \
-         RingClearance next, so R_CREASE can move to R_BLEND only once both are fixed",
+        |e| at_the_cap_meter(&e.error),
+        "raise R_CREASE to R_BLEND: the cap meter was the last refusal at the outline's radius",
     );
     // From `ring_clearance_onset` on, the slot end's corner is inside
     // the region the cap meter encloses the sliver with (an annulus
@@ -554,17 +565,7 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
         "round the keyhole's creases 1 % past the derived onset r* = 0.3097, where the \
          sliver stays clear of the slot's end",
         fillet_edges(&plate.body, &creases, 1.01 * onset, tol),
-        |e| {
-            matches!(
-                e.error,
-                BlendError::RingClearance {
-                    face,
-                    chain: Convexity::Convex,
-                    bounded: false,
-                    ..
-                } if face == plate.bottom || face == plate.top
-            )
-        },
+        |e| at_the_cap_meter(&e.error),
         "raise R_CREASE to the largest radius the slot admits",
     );
 
@@ -592,8 +593,8 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
          description alone also matches the outline's six tangent seams, and the door \
          refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
-         measured {dv:.6e}. The outline's blend radius ({R_BLEND}) is refused (wall 1), \
-         and so is every radius from r* = {onset:.4} (wall 2)."
+         measured {dv:.6e}. Every radius from r* = {onset:.4} is refused by the cap \
+         meter (wall 2), the outline's blend radius ({R_BLEND}) among them (wall 1)."
     )
 }
 

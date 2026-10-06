@@ -1153,8 +1153,9 @@ pub enum BlendError {
     RadiusHeadroom {
         /// The support face whose curvature ran out.
         face: FaceKey,
-        /// `(1 − r·κ_max)·r`, meters (the headroom at lever arm `r`),
-        /// as `fillet3_radius_headroom` classified it.
+        /// `(1 − r·κ)·r`, meters, `κ` the face's hardest bend toward
+        /// the ball (the headroom at lever arm `r`), as
+        /// `fillet3_radius_headroom` classified it.
         margin: ClassifiedMargin,
         /// The blend radius, meters — the lever arm. A bare `f64`
         /// deliberately, as [`BlendError::NonpositiveSize`]'s `size`

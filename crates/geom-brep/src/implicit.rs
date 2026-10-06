@@ -341,6 +341,42 @@ pub fn min_radius_of_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     }
 }
 
+/// **The smallest radius of curvature among the bends of `s` that turn
+/// TOWARD one side of it** — [`min_radius_of_curvature`] with each
+/// principal curvature signed, `f64::MAX` where nothing bends toward that
+/// side, poison for [`Surface::Nurbs`].
+///
+/// `inner` names the side: `true` for the side the chart normal (the
+/// implicit gradient) points AWAY from — inside a sphere, cylinder or
+/// cone, inside a torus's tube — and `false` for the side it points into.
+/// A normal curvature turns toward the inner side exactly where
+/// [`implicit_hessian_form`] is positive.
+///
+/// Per kind, inner | outer: plane — none | none; sphere/cylinder — the
+/// radius | none; cone — the radial distance ρ of `p`, the same
+/// conservative bound on ρ/cos α | none, the generator being straight;
+/// torus — the tube radius `r` | `R − r`. On the torus the tube bend
+/// `1/r` turns inward everywhere, and the circumferential bend
+/// `(ρ − R)/(ρ·r)` turns inward where `ρ > R`, more gently than the tube,
+/// and outward where `ρ < R`, hardest on the inner equator at `1/(R − r)`;
+/// the outer bound is global over the ring for the reason
+/// [`min_radius_of_curvature`]'s is, and is ZERO on a spindle or horn
+/// torus (`R ≤ r`), whose axis points bend outward without bound.
+pub fn min_radius_of_curvature_toward<T: Real>(s: &Surface<T>, p: Point3<T>, inner: bool) -> T {
+    match *s {
+        Surface::Plane { .. } => T::from_f64(f64::MAX),
+        Surface::Sphere { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !inner => {
+            T::from_f64(f64::MAX)
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } if !inner => (major_radius - minor_radius).max(T::zero()),
+        _ => curvature_lever_arm(s, p),
+    }
+}
+
 /// The quadratic form `dᵀ (∇²F) d` of [`implicit_residual`]'s Hessian
 /// at `p`, along direction `d` (NOT normalized — the form is
 /// homogeneous of degree 2 in `d`). With `d` a unit surface tangent,

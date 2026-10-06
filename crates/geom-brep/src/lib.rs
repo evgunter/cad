@@ -115,7 +115,7 @@ pub use implicit::{
     conic_cylinder_harmonics, conic_residual_extremes, conic_sphere_harmonics,
     conic_torus_harmonics, conic_torus_residual, curvature_lever_arm, implicit_gradient,
     implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
-    implicit_residual, min_radius_of_curvature, rounding_charge,
+    implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward, rounding_charge,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,

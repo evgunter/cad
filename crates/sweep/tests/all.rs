@@ -362,6 +362,8 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
 mod r2_sense_fold_probes;
+#[path = "radius_headroom_sides.rs"]
+mod radius_headroom_sides;
 #[path = "ray_wall_margin_twins.rs"]
 mod ray_wall_margin_twins;
 #[path = "reach_aligned_half_rods.rs"]
