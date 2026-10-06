@@ -480,8 +480,9 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   `cap_plane_orientation` once: `Assertion` calls +6 on both walks
 ///   and `Door` +4 on each line here, +4 per walk on the slab at every
 ///   ε row. `Decision` calls hold; the plate's `Plain` and `Early`
-///   `Decision` forms fall 10 and 56, every digest of a line that
-///   builds forms moves, and the freezes hold.
+///   `Decision` forms fall 10 and 56 (and `Door/Decision`'s 72 on the tree that
+///   merged main at this PR's head), every digest of a
+///   line that builds forms moves, and the freezes hold.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1143 forms 16218 frozen 252 digest d1fe4c827d6e4234e575f397f26d102b\n\
      Plain/Assertion calls 670 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
@@ -489,7 +490,7 @@ const PLATE_LEDGER: &str = "\
      Early/Decision calls 432 forms 9061 frozen 0 digest e7dbcea0ef62fc2fc894a3fe531ba637\n\
      Early/Assertion calls 670 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
      Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 452 forms 7465 frozen 0 digest ec86ded33a2c465af3db04cdd169dd20\n\
+     Door/Decision calls 452 forms 7393 frozen 0 digest c4b3d232553b6e9e006a25c72bb24418\n\
      Door/Assertion calls 412 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
