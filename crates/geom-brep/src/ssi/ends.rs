@@ -63,7 +63,13 @@ fn probe_tube_scale(extent: f64, wall: &SsiOperand<'_, f64>) -> TubeScale<f64> {
                 if std::env::var_os("LEVER_PROBE_TRACE").is_some() {
                     eprintln!("LEVERTUBE wall arm {arm:e} extent {extent:e}");
                 }
-                TubeScale::split(arm.min(extent), extent)
+                // Unclamped: the sagitta form needs ρ itself; the
+                // transversality lever clamps to the extent downstream.
+                if std::env::var_os("LEVER_SAGITTA").is_some() {
+                    TubeScale::split(arm, extent)
+                } else {
+                    TubeScale::split(arm.min(extent), extent)
+                }
             }
             SsiOperand::Analytic(_) => TubeScale::uniform(extent),
         },

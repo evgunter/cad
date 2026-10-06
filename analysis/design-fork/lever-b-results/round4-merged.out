@@ -1,0 +1,26 @@
+=== parabola eps=1e-9 merged
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: whether the crossing angle's lever arm (the surfaces' curvature radius, or the feature extent) is a positive length is too close to call: margin 6.0349702846303584e-9 lies inside the ambiguity band (1e-9, 1
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: whether the crossing angle's lever arm (the surfaces' curvature radius, or the feature extent) is a positive length is too close to call: margin 8.009374144095267e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the surfaces meet nearly tangentially at a state the trace reads, a marched state or a refined gap's chord midpoint (sin θ = 2.4065375321997386e-5, arm = 1.2032687671451649e-8 m, σ₂ = 4.812112739468321e-7): the tangency regime (TangentIntersection), not a 
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the surfaces meet nearly tangentially at a state the trace reads, a marched state or a refined gap's chord midpoint (sin θ = 4.000961777394359e-5, arm = 2.0004808935006426e-8 m, σ₂ = 8.000323656436528e-7): the tangency regime (TangentIntersection), not a l
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the surfaces meet nearly tangentially at a state the trace reads, a marched state or a refined gap's chord midpoint (sin θ = 1.0006129691666904e-4, arm = 5.003064920971455e-8 m, σ₂ = 2.000825823195656e-6): the tangency regime (TangentIntersection), not a 
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 27.12s
+=== cylinder eps=1e-9 merged
+test rev3983_probes::leverb_near_tangent_cylinder ... LEVERB4 sinθ=1e-3 δ=5.00e-7 eps=1e-9: Ok 2 branches ["x -1.00e-3->-1.00e-3 y 0.00e0->2.00e-2", "x 1.00e-3->1.00e-3 y 0.00e0->2.00e-2"] cells 4455
+LEVERB4 sinθ=1e-4 δ=5.00e-9 eps=1e-9: Err ssi: whether the surfaces cross at a clear angle at the state the trace reads is too close to call: margin 5.000050093027467e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB4 sinθ=3e-5 δ=4.50e-10 eps=1e-9: Err ssi: the surfaces meet nearly tangentially at a state the trace reads, a marched state or a refined gap's chord midpoint (sin θ = 3.0000209794849798e-5, arm = 1.5000104917675322e-5 m, σ₂ = 5.99884231316024e-7): the tangency regime (TangentIntersection), not a locus to ma
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 1.30s
+=== hyperbola eps=1e-6 merged
+thread 'm5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right' (12060) panicked at crates/geom-brep/tests/m5_pr7_ssi.rs:5880:21:
+c = -1e-4 on the near-degenerate chart at ε 1e-6: expected the march's step in the band, got Err(Escalated { decision: Transversality, cause: Indeterminate { margin: MarginDiag(Value(4.610074326349114e-6, None)), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ssi_tr
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 705 filtered out; finished in 69.12s
+=== hyperbola eps=1e-9 merged
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 92.07s
+=== bent chart path eps=1e-9 merged
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+LEVERB mu=0.1 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+LEVERB mu=0.2 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(0.00e0,5.00e-1) off-line 3.0e-10 samples 9"]
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 7.59s
+=== witness eps=1e-9 merged
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 16.24s

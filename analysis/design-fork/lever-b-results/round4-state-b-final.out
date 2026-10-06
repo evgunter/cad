@@ -1,0 +1,18 @@
+=== cylinder eps=1e-9 final state B
+test rev3983_probes::leverb_near_tangent_cylinder ... LEVERB4 sinθ=1e-3 δ=5.00e-7 eps=1e-9: Ok 2 branches ["x -1.00e-3->-1.00e-3 y 0.00e0->2.00e-2", "x 1.00e-3->1.00e-3 y 0.00e0->2.00e-2"] cells 279
+LEVERB4 sinθ=1e-4 δ=5.00e-9 eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.960938e-1, 5.000000e-1] v [0.000000e0, 7.812500e-3] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 1.1853027343233145e-9 m, too close to call (in band)
+LEVERB4 sinθ=3e-5 δ=4.50e-10 eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.960938e-1, 5.000000e-1] v [0.000000e0, 7.812500e-3] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent (Zero)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 1.38s
+=== hyperbola eps=1e-6 final state B
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 48.45s
+=== hyperbola eps=1e-9 final state B
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 64.99s
+=== bent chart path eps=1e-9 final state B
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [5.000000e-1, 1.000000e0] v [0.000000e0, 1.000000e0] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent
+LEVERB mu=0.1 eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [5.000000e-1, 1.000000e0] v [0.000000e0, 1.000000e0] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent (Zero)
+LEVERB mu=0.2 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(0.00e0,5.00e-1) off-line 3.0e-10 samples 9"]
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 4.77s
+=== witness eps=1e-9 final state B
+thread 'm5_pr7_ssi::a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is' (11466) panicked at crates/geom-brep/tests/m5_pr7_ssi.rs:5291:23:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 705 filtered out; finished in 0.24s

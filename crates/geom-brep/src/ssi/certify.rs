@@ -1145,7 +1145,15 @@ fn limb_three<T: Decide>(
                 // ANALYSIS BRANCH ONLY: with `LEVER_DESCEND`, a one-arc rung
                 // whose levered clearance is in band gives way to a narrower
                 // rung (A's descent); the last refusal stands if none clears.
-                match tube_transversality(rung.margin, arm, rung.boxes, band) {
+                // ANALYSIS BRANCH ONLY (round 4): `LEVER_SAGITTA` with
+                // `LEVER_TUBE_ARM=wall` reads A's region form, the arm
+                // `min(E, ½ · inf sin θ · ρ_wall)`.
+                let a = if std::env::var_os("LEVER_SAGITTA_REGION").is_some() {
+                    T::from_f64(extent).min(T::from_f64(0.5 * rung.margin) * arm)
+                } else {
+                    arm
+                };
+                match tube_transversality(rung.margin, a, rung.boxes, band) {
                     Ok(t) => return Ok((rung, t)),
                     Err(e) if std::env::var_os("LEVER_DESCEND").is_some() => {
                         if std::env::var_os("LEVER_PROBE_TRACE").is_some() {

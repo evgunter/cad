@@ -877,8 +877,13 @@ fn leverb_warp_chart_path() {
 #[test]
 fn leverb_near_tangent_parabola() {
     let rho = 1e-3;
-    let w = 0.01;
+    // `LEVERB_W` narrows the wall (its sup chart speed with it).
+    let w = std::env::var("LEVERB_W").ok().and_then(|v| v.parse().ok()).unwrap_or(0.01);
+    let only: Option<f64> = std::env::var("LEVERB_D").ok().and_then(|v| v.parse().ok());
     for dk in [12.0, 16.0, 24.0, 40.0, 100.0] {
+        if only.is_some_and(|o| o != dk) {
+            continue;
+        }
         let d = dk * eps();
         let delta = d * d / (2.0 * rho);
         let xp = lin(-w, 2.0 * w, 0.0);
@@ -920,6 +925,60 @@ fn leverb_near_tangent_parabola() {
                 eprintln!("LEVERB2 {tag}: Ok {} branches {desc:?} exhaustiveness {:?}", out.branches.len(), out.exhaustiveness);
             }
             Err(e) => eprintln!("LEVERB2 {tag}: Err {e}"),
+        }
+    }
+}
+
+/// Lever B, round 4: A's cylinder case as its local model — the wall
+/// `z = x²/2` (radius of curvature 1 m at the vertex) over `x ∈ [−1, 1] cm`,
+/// `y ∈ [0, 2] cm`, cut by `z = δ` with `δ = ½ sin²θ · ρ`: at `sin θ` 1e-4
+/// the lines lie 0.2 mm apart and the pose is 5e-9 m from tangent. Also
+/// `sin θ` 1e-3 (pose 5e-7 from tangent, clear) and 3e-5 (4.5e-10, Zero).
+#[test]
+fn leverb_near_tangent_cylinder() {
+    let rho = 1.0;
+    let w = 0.01;
+    for sin in [1e-3, 1e-4, 3e-5] {
+        let delta = 0.5 * sin * sin * rho;
+        let xp = lin(-w, 2.0 * w, 0.0);
+        let zp = xp.mul(&xp).scale(1.0 / (2.0 * rho));
+        let (n, m) = (2, 1);
+        let xn = bernstein(&xp, n, m);
+        let zn = bernstein(&zp, n, m);
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for i in 0..=n {
+            for j in 0..=m {
+                control.push(Point3::new(xn[i][j], 0.02 * j as f64, zn[i][j]));
+            }
+        }
+        let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, delta),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let domain = SsiDomain {
+            center: Point3::new(0.0, 0.01, 0.0),
+            half_extent: 1.0,
+            extent: 0.02,
+            floor_scale: 1.0,
+        };
+        let tag = format!("sinθ={sin:e} δ={delta:.2e} eps={:e}", eps());
+        match ssi::plane_nurbs_ssi(&plane, &wall, domain, band()) {
+            Ok(out) => {
+                let desc: Vec<String> = out
+                    .branches
+                    .iter()
+                    .map(|b| {
+                        let (p, q) = (b.carrier.eval(b.params.0), b.carrier.eval(b.params.1));
+                        format!("x {:.2e}->{:.2e} y {:.2e}->{:.2e}", p.x, q.x, p.y, q.y)
+                    })
+                    .collect();
+                eprintln!("LEVERB4 {tag}: Ok {} branches {desc:?} cells {}", out.branches.len(), out.exhaustiveness.examined);
+            }
+            Err(e) => eprintln!("LEVERB4 {tag}: Err {e}"),
         }
     }
 }

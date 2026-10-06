@@ -1,0 +1,25 @@
+=== hyperbola eps=1e-6 state=A (sagitta point+region, wall rho, descent)
+      1 LEVERDESCEND rung 1.220703125e-4 clearance 9.736178258626962e-3 in band, descending
+      1 LEVERDESCEND rung 1.52587890625e-5 clearance 9.873722735881402e-3 in band, descending
+      1 LEVERDESCEND rung 1.953125e-3 clearance 7.378467886754941e-3 in band, descending
+      1 LEVERDESCEND rung 2.44140625e-4 clearance 9.578986054634798e-3 in band, descending
+      1 LEVERDESCEND rung 3.0517578125e-5 clearance 9.85407345092075e-3 in band, descending
+      1 LEVERDESCEND rung 3.90625e-3 clearance 4.864013453198581e-3 in band, descending
+      1 LEVERDESCEND rung 4.8828125e-4 clearance 9.264606441403058e-3 in band, descending
+      1 LEVERDESCEND rung 6.103515625e-5 clearance 9.81477495484902e-3 in band, descending
+      1 LEVERDESCEND rung 7.8125e-3 clearance 5.61382856226395e-3 in band, descending
+      1 LEVERDESCEND rung 7.8125e-3 clearance 5.877292459877538e-3 in band, descending
+      1 LEVERDESCEND rung 9.765625e-4 clearance 8.635866718658836e-3 in band, descending
+      3 LEVERTUBE wall arm 2.177727423155001e-3 extent 1e0
+      4 LEVERTUBE wall arm 4.960254774486065e-1 extent 1e0
+      1 c = 1e-4 on the near-degenerate chart at ε 1e-6: TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(1.061537595113363e-7, None)), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 30 }
+      1 test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 705 filtered out; finished in 34.32s
+      1 thread 'm5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right' (9878) panicked at crates/geom-brep/tests/m5_pr7_ssi.rs:5892:44:
+=== hyperbola eps=1e-9 state=A (sagitta point+region, wall rho, descent)
+      1 LEVERDESCEND rung 7.8125e-3 clearance 1.155102833527679e-3 in band, descending
+      1 LEVERDESCEND rung 7.8125e-3 clearance 1.3725368895838943e-3 in band, descending
+      8 LEVERTUBE wall arm 2.177727423155001e-3 extent 1e0
+      8 LEVERTUBE wall arm 4.960254774486065e-1 extent 1e0
+      1 c = -1e-4 on the near-degenerate chart at ε 1e-9: CellBudget { budget: 200000 }
+      1 test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 705 filtered out; finished in 95.94s
+      1 thread 'm5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right' (9897) panicked at crates/geom-brep/tests/m5_pr7_ssi.rs:5892:44:

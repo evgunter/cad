@@ -1,0 +1,53 @@
+=== parabola eps=1e-9 state=B(gap)
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 126.99s
+=== cylinder eps=1e-9 state=B(gap)
+test rev3983_probes::leverb_near_tangent_cylinder ... LEVERB4 sinθ=1e-3 δ=5.00e-7 eps=1e-9: Ok 2 branches ["x -1.00e-3->-1.00e-3 y 0.00e0->2.00e-2", "x 1.00e-3->1.00e-3 y 0.00e0->2.00e-2"] cells 4455
+LEVERB4 sinθ=1e-4 δ=5.00e-9 eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.999695e-1, 5.000000e-1] v [0.000000e0, 6.103516e-5] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 1.9481956213743208e-9 m, too close to call (in band)
+LEVERB4 sinθ=3e-5 δ=4.50e-10 eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.999390e-1, 5.000000e-1] v [0.000000e0, 1.220703e-4] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent (Zero)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 26.38s
+=== cylinder eps=1e-9 point-rule-only (no gap decision)
+test rev3983_probes::leverb_near_tangent_cylinder ... LEVERB4 sinθ=1e-3 δ=5.00e-7 eps=1e-9: Ok 2 branches ["x -1.00e-3->-1.00e-3 y 0.00e0->2.00e-2", "x 1.00e-3->1.00e-3 y 0.00e0->2.00e-2"] cells 4455
+LEVERB4 sinθ=1e-4 δ=5.00e-9 eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB4 sinθ=3e-5 δ=4.50e-10 eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 18.57s
+=== hyperbola eps=1e-6 state=B(gap)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 65.57s
+=== hyperbola eps=1e-9 state=B(gap)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 89.33s
+=== bent chart path eps=1e-9 state=B(gap)
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+LEVERB mu=0.1 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+LEVERB mu=0.2 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(0.00e0,5.00e-1) off-line 3.0e-10 samples 9"]
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 10.44s
+=== leverb_near_tangent_parabola eps=1e-9 state=B(gap) breadth-first sweep
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 279.41s
+=== leverb_near_tangent_cylinder eps=1e-9 state=B(gap) breadth-first sweep
+test rev3983_probes::leverb_near_tangent_cylinder ... LEVERB4 sinθ=1e-3 δ=5.00e-7 eps=1e-9: Ok 2 branches ["x 1.00e-3->1.00e-3 y 0.00e0->2.00e-2", "x -1.00e-3->-1.00e-3 y 0.00e0->2.00e-2"] cells 4455
+LEVERB4 sinθ=1e-4 δ=5.00e-9 eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB4 sinθ=3e-5 δ=4.50e-10 eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 66.15s
+=== parabola eps=1e-9 state=B, gap check on cell-cut derivative boxes [LEVER_GAP=1]
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 518.81s
+=== parabola eps=1e-9 state=B, gap check on cell-cut derivative boxes [LEVER_GAP=1 LEVER_TIGHT=1]
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.998779e-1, 5.000000e-1] v [0.000000e0, 2.441406e-4] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is 
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.998779e-1, 5.000000e-1] v [0.000000e0, 2.441406e-4] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent (Zero)
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.998779e-1, 5.000000e-1] v [0.000000e0, 2.441406e-4] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent (Zero)
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.998779e-1, 5.000000e-1] v [0.000000e0, 2.441406e-4] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent (Zero)
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: PROBE tangential contact to tolerance: over the chart cell u [4.998779e-1, 5.000000e-1] v [0.000000e0, 2.441406e-4] the plane lies within K·ε of the wall and the wall's slope to it vanishes; gap 0e0 m, the pose is tangent (Zero)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 705 filtered out; finished in 15.20s

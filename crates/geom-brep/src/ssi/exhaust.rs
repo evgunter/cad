@@ -851,7 +851,11 @@ fn sweep<C: SweepCell>(
     let mut stats = SweepTally::default();
     let mut out = Vec::new();
     let mut stack = vec![(floor.root, 0u32)];
-    while let Some((cell, depth)) = stack.pop() {
+    // ANALYSIS BRANCH ONLY (lever B, round 4): `LEVER_BFS` visits cells
+    // breadth-first, so a shallow refusal is reached before the budget
+    // is spent deep along one branch. Same cells, another fixed order.
+    let bfs = std::env::var_os("LEVER_BFS").is_some();
+    while let Some((cell, depth)) = if bfs && !stack.is_empty() { Some(stack.remove(0)) } else { stack.pop() } {
         if stats.examined as usize >= SSI_MAX_CELLS {
             return Err(SsiError::CellBudget {
                 budget: SSI_MAX_CELLS,
@@ -859,6 +863,12 @@ fn sweep<C: SweepCell>(
         }
         stats.examined += 1;
         stats.max_depth = stats.max_depth.max(depth);
+        if std::env::var_os("LEVER_SWEEP_TRACE").is_some() && stats.examined % 50_000 == 0 {
+            eprintln!(
+                "LEVERSWEEP examined {} depth {depth} max_depth {} excluded {} accounted {} refined {} width {:e}",
+                stats.examined, stats.max_depth, stats.excluded, stats.accounted, stats.refined, cell.width()
+            );
+        }
 
         // (i) exclusion: no solution can be in this cell.
         if excluded(cell)? {
@@ -1212,6 +1222,81 @@ fn sweep_chart_plane(
                        a weight so small that the rational's own denominator \
                        underflows to zero",
             });
+        }
+        // ANALYSIS BRANCH ONLY (lever B, round 4): `LEVER_GAP` adds the
+        // chart lane's tangential-contact decision. A cell over which the
+        // plane lies within K·ε of the wall everywhere, and whose
+        // plane-gradient enclosure (both chart partials) contains zero,
+        // holds a tangent pose to tolerance: its gap (the zero-free lower
+        // bound of φ) is decided against the band, and a Zero or in-band
+        // verdict refuses toward C7. A transversal crossing never meets
+        // the first condition except in a cell so small that its gradient
+        // enclosure is one-signed, so the rule reads tangency, not size.
+        // The plane distance over the cell by the mean value theorem on
+        // the derivative boxes CUT to the cell (`deriv_box`), which
+        // shrink with the cell; `rect_box`'s own slope bound is over the
+        // whole span. `LEVER_TIGHT` lets exclusion read it too.
+        let tight = std::env::var_os("LEVER_GAP").is_some() || std::env::var_os("LEVER_TIGHT").is_some();
+        let phi_and_readings = if tight {
+            let n = [plane_normal.x, plane_normal.y, plane_normal.z].map(Interval::point);
+            let dot = |b: Box3| n[0] * b.x + n[1] * b.y + n[2] * b.z;
+            let pu = dot(boxes.deriv_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1, true));
+            let pv = dot(boxes.deriv_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1, false));
+            let (um, vm) = (0.5 * (cell.u.0 + cell.u.1), 0.5 * (cell.v.0 + cell.v.1));
+            let (hu, hv) = (0.5 * (cell.u.1 - cell.u.0), 0.5 * (cell.v.1 - cell.v.0));
+            let c = surface.eval(um, vm);
+            let mid = Interval::point(plane_normal.x) * (Interval::point(c.x) - Interval::point(plane_origin.x))
+                + Interval::point(plane_normal.y) * (Interval::point(c.y) - Interval::point(plane_origin.y))
+                + Interval::point(plane_normal.z) * (Interval::point(c.z) - Interval::point(plane_origin.z));
+            let phi_t = mid + pu * Interval::from_bounds(-hu, hu) + pv * Interval::from_bounds(-hv, hv);
+            let phi_use = if std::env::var_os("LEVER_TIGHT").is_some() && phi_t.is_certified() {
+                Interval::from_bounds(phi.lo().max(phi_t.lo()), phi.hi().min(phi_t.hi()))
+            } else {
+                phi
+            };
+            (phi_use, Some((phi_t, pu, pv)))
+        } else {
+            (phi, None)
+        };
+        let (phi, tight_readings) = phi_and_readings;
+        if let (Some((phi_t, pu, pv)), true) = (tight_readings, std::env::var_os("LEVER_GAP").is_some()) {
+            let band = geom_core::Band::linear(geom_core::Tol::witness())
+                .expect("probe: the run's band");
+            let k_eps = band.escalate();
+            let phi = phi_t;
+            if phi.is_certified() && phi.lo() >= -k_eps && phi.hi() <= k_eps {
+                let holds_zero = |i: Interval| i.is_certified() && i.lo() <= 0.0 && i.hi() >= 0.0;
+                if std::env::var_os("LEVER_SWEEP_TRACE").is_some() {
+                    eprintln!(
+                        "LEVERGAPCELL u [{:e},{:e}] v [{:e},{:e}] phi [{:e},{:e}] pu [{:e},{:e}] pv [{:e},{:e}] cert {} {}",
+                        cell.u.0, cell.u.1, cell.v.0, cell.v.1, phi.lo(), phi.hi(), pu.lo(), pu.hi(), pv.lo(), pv.hi(), pu.is_certified(), pv.is_certified()
+                    );
+                }
+                if holds_zero(pu) && holds_zero(pv) {
+                    let gap = super::enclose::zero_free_lower_bound(phi);
+                    if let Some(verdict) = super::section::band_verdict(
+                        "ssi_chart_tangent_pose",
+                        geom_core::Margin::of(gap),
+                        band,
+                    ) {
+                        let what: &'static str = Box::leak(
+                            format!(
+                                "PROBE tangential contact to tolerance: over the chart cell \
+                                 u [{:.6e}, {:.6e}] v [{:.6e}, {:.6e}] the plane lies within \
+                                 K·ε of the wall and the wall's slope to it vanishes; gap {gap:e} m, \
+                                 {}",
+                                cell.u.0, cell.u.1, cell.v.0, cell.v.1,
+                                match verdict {
+                                    super::section::BandVerdict::Refused(_) => "the pose is tangent (Zero)",
+                                    super::section::BandVerdict::Undecided(_) => "too close to call (in band)",
+                                }
+                            )
+                            .into_boxed_str(),
+                        );
+                        return Err(SsiError::UnsupportedCertificate { what });
+                    }
+                }
+            }
         }
         Ok(excludes_zero(phi))
     })

@@ -923,7 +923,14 @@ pub(crate) fn decide_transversality<const N: usize>(
 ) -> Result<(), SsiError> {
     let (n1, n2) = sys.normals(x);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-    let arm = Real::min(sys.lever_arm(x), extent);
+    // ANALYSIS BRANCH ONLY (lever B, round 4): `LEVER_SAGITTA` reads A's
+    // point form, `sin θ · min(E, ½ sin θ · ρ)`, by handing the sagitta's
+    // half-chord as the arm.
+    let arm = if std::env::var_os("LEVER_SAGITTA").is_some() {
+        Real::min(0.5 * sin_theta * sys.lever_arm(x), extent)
+    } else {
+        Real::min(sys.lever_arm(x), extent)
+    };
     decide_positive("ssi_transversality_arm", Margin::of(arm), band)
         .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
     let transversality = Margin::levered(sin_theta, arm);
