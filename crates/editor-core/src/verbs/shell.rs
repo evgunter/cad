@@ -319,6 +319,12 @@ fn fold_replace_face_error<T: Real>(
             edge,
             gap: end(gap, Supremum),
         },
+        R::ReanchorPastCarrierEnd { edge, gap } => R::ReanchorPastCarrierEnd {
+            edge,
+            gap: end(gap, Supremum),
+        },
+        R::ReanchorInconclusive { edge, error } => R::ReanchorInconclusive { edge, error },
+        R::ReanchorLaneUnsupported { edge, scalar } => R::ReanchorLaneUnsupported { edge, scalar },
         R::TogetherNonPlanar { face, kind } => R::TogetherNonPlanar { face, kind },
         R::TogetherPartialSet { face } => R::TogetherPartialSet { face },
         R::TogetherCorner {

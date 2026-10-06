@@ -1289,6 +1289,11 @@ impl<T: Decide> EdgeCurve<T> {
 /// NURBS wall with [`CertifyError::NurbsLaneNotSupplied`]: no door
 /// accepts the description without the certificate.
 ///
+/// The same bracket read is what a NURBS carrier's foot point needs, so
+/// the lane also carries [`NurbsLane::carrier_foot`]: a door that moves
+/// an endpoint along a spline carrier reads its new parameter here, and
+/// a scalar that holds no lane cannot read it at all.
+///
 /// Its one constructor is [`NurbsLane::certified`], bounded on
 /// [`geom_core::CertifiedBounds`], so holding a value of this type IS
 /// the statement that the scalar it is parameterised by may certify,
@@ -1376,15 +1381,27 @@ pub struct NurbsLane<T: Real> {
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
+    /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
+    foot: fn(
+        &geom::NurbsCurve3<T>,
+        Point3<T>,
+        T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     /// The certified plane × NURBS lane, and the only constructor
-    /// there is: [`crate::plane_nurbs_limbs`] instantiated at `T`.
+    /// there is: [`crate::plane_nurbs_limbs`] instantiated at `T`, and
+    /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
+    /// midpoint of the old parameter.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
+            foot: |carrier, point, seed| {
+                let (lo, hi) = (seed.lo(), seed.hi());
+                carrier.project_from_seed(point, lo + 0.5 * (hi - lo))
+            },
         }
     }
 }
@@ -1400,6 +1417,25 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, plane, wall, extent, band)
+    }
+
+    /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
+    /// the parameter of a point moved along the carrier, read on the
+    /// branch it was moved from. The foot carries its own residuals and
+    /// certifies nothing; the caller gates the distance. A foot the
+    /// domain clamp stopped at an end is the carrier's nearest END, not
+    /// a point of it the move reached.
+    ///
+    /// # Errors
+    ///
+    /// [`geom::ProjectionInconclusive`] when Newton's budget expires.
+    pub fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        (self.foot)(carrier, point, seed)
     }
 }
 

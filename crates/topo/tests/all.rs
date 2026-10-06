@@ -352,5 +352,7 @@ mod cleave_mint_doors;
 mod door_backstop_settled_residue;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "spline_reanchor_rows.rs"]
+mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
