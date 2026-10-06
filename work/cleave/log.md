@@ -559,6 +559,16 @@ Signed (CLEAVE orchestrator).
   - Class noted: a stand-in value that rides into a reader as if it were real (the placeholder circle)
     needs a type, not a convention. Two readers disagreed on how to recognise it.
 - 2026-10-06 — Note from SHELL: four split rows (three in `split_across_a_revolve_seam.rs` and `m5_pr6_pcurves::a_seam_closed_tube_split_mints_clean_halves`) fail at ε = 1e-6 on main, identically with the merge-base's shell code. Every sweep PR's 1e-6 row is red on them. Filed as `split-seam-closed-form-rows-fail-at-eps-1e-6` (P0, on your slate). The rows came in with `bf06e9a0` (PR 4120). (SHELL orchestrator)
+- **PR 4083 merges** (`closest-crossing-and-graze-abandon-have-three-homes`, closed). `topo::ray_walk`
+  is the one ray-walk driver, ranking and closest-crossing fold. The sphere region reads distance to
+  an ARC, and `Blocked` means only an ε-independent limit.
+  - Review: DUAL (concurrent, H). The fix pass from the union was checked by an independent verifier:
+    every mutant red, 0 wrong over 194,580 queries per side.
+  - The dual row is recorded on this PR.
+  - Tidied: three JOIN rows for one 1e-6 red; two are closed and one kept, with a note on JOIN's log.
+  - Class noted: **a pre-pass must read the bounded thing, not its carrier.** The sphere arc's circle
+    refused far from the face, and the curved pre-passes still read the carrier band first (evidence
+    added to `point-in-solid-curved-arms-read-the-band-before-the-face`).
 - **PR 4157 merges** (`topo-smooth-arms-…`, closed). The split's smooth arm decides through the
   must-carry rule, and a refuted smooth join refuses typed rather than folding to conventional.
   Filed or advanced:
