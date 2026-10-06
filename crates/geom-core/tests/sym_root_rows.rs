@@ -834,8 +834,8 @@ fn a_cancellation_above_a_frozen_read_is_a_theorem() {
     }
 }
 
-/// `Q = (s·P)·s − y·P` with `s = sqrt(y)`, `y ∈ [3, 4]` and `P = (1 + u
-/// + v + w)^n`: zero by rule A, but `P^13` is 560 terms, past the early
+/// `Q = (s·P)·s − y·P` with `s = sqrt(y)`, `y ∈ [3, 4]` and
+/// `P = (1 + u + v + w)^n`: zero by rule A, but `P^13` is 560 terms, past the early
 /// walk's per-node reduction (`EARLY_AB_TERMS`), so only the TOP rung's
 /// reduction of the plain residual proves it.
 fn q(n: i32) -> Sym<Interval> {

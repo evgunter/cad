@@ -376,3 +376,93 @@ gated decisions per leaf (Phase 1's 1h count).
   key that makes S8 non-zero, and a reach loss of its own (C6).
 - `the-registration-contradiction-check-misses-a-door-zero-the-read-gated`
   (P3): `door_zero`, the one door reader this unit left alone.
+
+## The fix pass (DECIDE-10 review: APPROVE-WITH-FIXES)
+
+The review's probe branch is `decide/10-review` @ `e746d2c33c`. The
+option probes below are on `decide/10-fix-pass-options`; neither is
+for merge.
+
+- **A, a read-free proof at the top rung.** On the decision path, a
+  gated early zero is now asked of the top rung (rules A/B over the
+  plain residual, which reads no value) before it is counted
+  `sign_gated`.
+  - The review's shapes are the row
+    `a_top_rung_theorem_above_the_read_is_a_theorem`: `max(x, 3)·Q −
+    3·Q` and `(max(x, 3) − 3)·Q`, with `|P| = 560`, past
+    `EARLY_AB_TERMS`. Both are `theorem` with the read on and shut.
+  - With the check patched off, that row reds alone.
+  - Its cost on the tilted rows is within noise of B alone (below), far
+    under the 1.5× bound, so it ships.
+- **B, the cost where the class lives.** Measured with a shut-walk
+  instrument and the cost profile's new `EarlyShut` bucket, on the boss
+  document (dev):
+  - The shut walks are NOT repeats: 400 walks over 368 distinct roots.
+  - All 400 sit behind a gated early ZERO, so every one has the same
+    read-on early form, and a memo keyed by it cannot tell them apart.
+  - They build few new nodes (median 8), but big ones: read-free frames
+    reach 1,391 terms, and `reduce_steps` takes 5.2 s of the 10.5 s.
+  - `froze_gated` is never set.
+  - Lending the shut walk the read-on form of every ungated node cut
+    6,105 forms to 5,674 and no time; it was dropped.
+
+  Release, best of 3, each row's whole wall time:
+
+  | build | start-cap/FlipZ row | boss row | tilted labels |
+  | --- | --- | --- | --- |
+  | before the unit (`all-before`) | 0.525 s | 0.130 s | 572 / 400 everywhere |
+  | B + A (this head) | 13.35 s (25×) | 2.74 s (21×) | start cap 972 / 0, end cap and FlipZ 692 / 280 |
+  | B alone (A patched off) | 13.09 s | 2.85 s | the same |
+  | shut walk only where two distinct read nodes share an atom key ("twin" reads) | 1.16 s, row reds | 0.47 s, row reds | 572 / 400: no tilted decision has a twin read |
+  | shut walk at a 128-term budget | 1.80 s, row reds | 0.77 s, row reds | end cap 596 / 376 (dev) |
+
+  The new rows run seven and three evaluations where the old ones ran
+  six and two, but the added evaluations read no value. The 2× target
+  is not reachable without narrowing what the shut walk is asked for,
+  so this pass stops for the orchestrator's choice between shipping the
+  cost (disclosed in the read's header and its rules-table row) and
+  narrowing. The guard row: `m10_the_tilt_u_derived_boss_…` asserts at
+  most `SHUT_WALKS = 400` shut walks on the shipped evaluation, read off
+  the profile. A plant that asks the shut walk on the contradiction path
+  too reads 618 and reds it. A plant that asks it on every
+  decision-path form reads 400 and does not: that row's decision path
+  reaches the shut walk only behind its 400 gated zeros.
+- **C.**
+  - `discharge_retried`'s doc now says the cross-check sees only the
+    first attempt's read-on rungs.
+  - The P3 `the-registration-contradiction-check-misses-a-door-zero-the-read-gated`
+    is widened to the class (S8, S13, the door through an atom,
+    `door_zero`) and retitled, keeping its id.
+- **D.** The guard counts the read-on pair only (`RetryMemo::len`, which
+  says why). "What a ladder holds", `SymRetry::max_forms` and
+  `RETRY_FORMS` now say which memos they count.
+- **E.** No gate. The commonest gate drop is a fresh form returned
+  without its kids' flag (the freeze's `Form::poly(Poly::indet(id))`),
+  which a text scan cannot tell from a leaf's own fresh form.
+  `Form::gated`'s doc says how the list is kept: the sweep over writes,
+  struct-literal `gated:` sites and the `gated,` shorthand, and fresh
+  forms a walk site returns.
+- **F.**
+  - N1: filed as `rule-ds-closed-form-cache-is-keyed-without-the-rules`
+    (P3). It is not keyed here, because keying by the rules changes what
+    a retry builds and the kept-atom ladder's recoveries are pinned.
+    `without_value_reads`' doc names it.
+  - N2: `profile::Walk::{EarlyShut, DoorShut}`.
+  - N3: `walk` asserts the session's rules at the first attempt again,
+    and that a shut walk's rules read no value.
+  - N4: the header, the field doc and the rules-table row name both
+    triggers, the decision path only, the top rung, and S9's exception.
+  - N5: the start-cap row asserts the start cap's labelled receipt
+    equals its read-shut receipt.
+- **G.**
+  - Q1: `without_the_reads` is `shipped().without_value_reads()`, and
+    `reads_values` is derived from the door.
+  - Q7: `WalkKind` is back to three kinds. A walk takes a `shut` flag,
+    and the memos are `RungMemos` pairs indexed by it.
+  - Q2: `rungs`' doc is trimmed.
+
+Unmoved, re-checked on this head:
+- the pad leaf (release) `1137 / 2 / 156 / 1373`;
+- the bracket at `certifies_at` (dev) `1282 / 37 / 154 / 1092`;
+- `m10_9_pins`, `m10_10_pins`, `sym_9_retry`'s gating rows and the
+  tilted file, green.
