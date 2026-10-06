@@ -2,11 +2,12 @@
 id: the-rim-routings-sense-guard-has-no-finished-fixture
 kind: issue
 title: The rim routing's second-sense guard has no finished fixture: its row reversed a torus's walls, which the at-rest gate refuses
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
 refs: [boolean-door-adopts-the-finished-body-type]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

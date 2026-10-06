@@ -61,3 +61,15 @@ radius equality structural or declared).
 Not yet built: the mitre is step 4 of PR 4085's build order. BAND will
 land the cut-off steps first; the mitre waits for this row's answer or
 lands under (b).
+
+## Answer (Ev, 2026-10-06)
+
+**Now: (b).** BAND lands the mitre and records the verdict as a value-decided coincidence. Nothing reads that record until stage 4 builds the `unproven-coincidence` lint.
+
+**Stage 4: output definitions plus rung 3, not node theorems.** D10 already makes a node an operation that defines its outputs (stage 2). With a face's carrier defined as a formula over the node's inputs, any relation between outputs follows from those definitions, so no node has to state it.
+
+Take an extrude in direction `d` over a profile edge with tangent `t`. The cap normal is `d`, and the wall normal is `cross(d, t)` normalised. The cosine of the dihedral is then `dot(d, cross(d, t))`, which is identically 0. Comparing canonical forms (rung 2) does not see that identity, but polynomial-identity reduction (rung 3, the symbolic tier) proves it. This is the first case that needs the "extend to (3) later if necessary" Ev allowed when ruling D10.
+
+Stage 4 measures this on box mitres. The expressions are small, and only coincidences decided from values are checked. Per-node theorems, meaning an operation listing the identities it guarantees, are kept only as a possible cache. One is added only where the algebra is measured too slow or undecidable, because a second hand-written description of an operation can drift from its code.
+
+The fillet sibling is already structural under rung 2: two cylinder radii that read one variable compare equal.

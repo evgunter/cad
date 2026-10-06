@@ -76,3 +76,16 @@ Not the cylinder or torus twin: with no pole, both junctions of a
 coincident-edge slit are continuations, the loop opens one iso side, and
 TESS-5's guard refuses it (measured by the reviewer). **The residue is
 the sphere's and the cone's.**
+
+## Measured (PR 4074, `join/pinch-one-vertex-per-cone`)
+
+The curved lane now refuses `TessellateError::PinchWedge`, typed and
+in every profile, where a CDT handle receives a second distinct mesh id
+(`curved.rs`'s insert closure). The two coincident edges' chord points
+land on one handle, so this body refuses there. It no longer panics at
+the census (debug assertions on), nor meshes two empty patches with
+assertions off. `loops_with_no_rim::two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers`
+is re-pinned to the refusal and passes in both profiles. The guard this
+row asks for, telling two coincident edges from two distinct columns at
+`walk::require_two_columns`, is still not built: the refusal lands at
+the CDT, after the walk.
