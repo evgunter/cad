@@ -1036,8 +1036,9 @@ pub enum RoleSeg {
     /// A side-wall face swept from a run of profile pieces on one
     /// carrier (N1, "Swept walls over a run").
     Lateral(PieceRun),
-    /// A cap–wall rim edge (cap end × profile segment).
-    RimEdge(CapEnd, ProfileEdgeRef),
+    /// A cap–wall rim edge: the cap end, and the run of profile pieces
+    /// its wall sweeps (N1, "Swept walls over a run").
+    RimEdge(CapEnd, PieceRun),
     /// A strut (join) edge swept from a profile vertex.
     LateralEdge(ProfileVertexRef),
     /// A cap vertex over a profile vertex.
@@ -1065,8 +1066,7 @@ pub enum RoleSeg {
     /// Full, wire case: a CURVED wall's π…2π band face. A plane wall is
     /// built whole and named by [`RoleSeg::Band`] alone.
     BandPi(PieceRun),
-    /// A meridian edge (per meridian, per wall run: a partial revolve's
-    /// stations split its meridian chains, so there it is per piece).
+    /// A meridian edge (per meridian, per wall run).
     Meridian(MeridianEnd, PieceRun),
     /// A meridian vertex: the copy of a profile vertex on a wedge
     /// cap plane (partial) or the surviving meridian vertex (full).
@@ -1075,8 +1075,9 @@ pub enum RoleSeg {
     RevolveCap(MeridianEnd),
     /// An on-axis (pole) vertex at a profile vertex on the axis.
     Pole(ProfileVertexRef),
-    /// The shared axis edge of an on-axis profile segment (partial).
-    AxisEdge(ProfileEdgeRef),
+    /// The shared axis edge of a run of on-axis profile pieces
+    /// (partial).
+    AxisEdge(PieceRun),
 
     // ---- Booleans ----
     /// An entity surviving from operand A (argument: its name in the
@@ -2209,7 +2210,7 @@ impl RoleSeg {
             inert_seg!() => self.clone(),
             // The locators.
             R::Lateral(run) => R::Lateral(run.try_map(|e| w.edge(e))?),
-            R::RimEdge(c, e) => R::RimEdge(*c, w.edge(*e)?),
+            R::RimEdge(c, run) => R::RimEdge(*c, run.try_map(|e| w.edge(e))?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
             R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
             R::LoftWall(es) => {
@@ -2225,7 +2226,7 @@ impl RoleSeg {
             R::Meridian(m, run) => R::Meridian(*m, run.try_map(|e| w.edge(e))?),
             R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
             R::Pole(v) => R::Pole(w.vertex(*v)?),
-            R::AxisEdge(e) => R::AxisEdge(w.edge(*e)?),
+            R::AxisEdge(run) => R::AxisEdge(run.try_map(|e| w.edge(e))?),
             // The carried names.
             R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
             R::FromB(n) => R::FromB(rewrite_ref(n, w)?),

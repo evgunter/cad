@@ -17,7 +17,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
+use super::role::{CapEnd, MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -97,6 +97,7 @@ pub(crate) fn edge_set(
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RunRole {
     Lateral,
+    RimEdge(CapEnd),
     Band,
     BandPi,
     Meridian(MeridianEnd),
@@ -107,6 +108,7 @@ impl RunRole {
     fn seg(self, run: PieceRun) -> RoleSeg {
         match self {
             Self::Lateral => RoleSeg::Lateral(run),
+            Self::RimEdge(end) => RoleSeg::RimEdge(end, run),
             Self::Band => RoleSeg::Band(run),
             Self::BandPi => RoleSeg::BandPi(run),
             Self::Meridian(end) => RoleSeg::Meridian(end, run),
@@ -118,6 +120,7 @@ impl RunRole {
 fn run_foot(foot: &StableName) -> Option<(RunRole, &PieceRun)> {
     match foot.path.as_slice() {
         [RoleSeg::Lateral(run)] => Some((RunRole::Lateral, run)),
+        [RoleSeg::RimEdge(end, run)] => Some((RunRole::RimEdge(*end), run)),
         [RoleSeg::Band(run)] => Some((RunRole::Band, run)),
         [RoleSeg::BandPi(run)] => Some((RunRole::BandPi, run)),
         [RoleSeg::Meridian(end, run)] => Some((RunRole::Meridian(*end), run)),
@@ -135,9 +138,9 @@ fn peel(name: &StableName) -> Option<(bool, &StableName)> {
     }
 }
 
-/// The one-piece walls (or meridian edges) a run of two or more pieces
-/// stands for — its `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`
-/// segment spelled once per piece — read through its descent wrappers
+/// The one-piece walls (or rim or meridian edges) a run of two or more
+/// pieces stands for — its `Lateral`, `RimEdge(end, ·)`, `Band`,
+/// `BandPi` or `Meridian(end, ·)` segment spelled once per piece — read through its descent wrappers
 /// and re-wrapped by that same chain, or `None` when the name, peeled
 /// to its foot, holds no such run. A run wall is not a merge: it holds
 /// its pieces' walls the way a merged face holds its constituents, and
@@ -308,7 +311,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::names::role::{CapEnd, EntityKind, ProfileEdgeRef};
+    use crate::names::role::{EntityKind, ProfileEdgeRef};
     use crate::node::RecipeNodeId;
 
     fn face(node: u64, path: Vec<RoleSeg>) -> StableName {

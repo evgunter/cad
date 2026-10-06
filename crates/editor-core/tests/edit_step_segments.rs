@@ -588,7 +588,7 @@ fn rim(
     e: CanonicalSegment,
 ) -> Option<EdgeKey> {
     let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
-    let name = fixture::ename(node, RoleSeg::RimEdge(end, piece));
+    let name = fixture::ename(node, RoleSeg::RimEdge(end, piece.into()));
     match ev.value(node)?.name_table.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Edge(k) => Some(k),

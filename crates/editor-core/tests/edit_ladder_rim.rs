@@ -345,7 +345,7 @@ fn host_support(block: RecipeNodeId, fillet: RecipeNodeId) -> StableName {
 fn position_of(doc: &ProfileDoc, block: RecipeNodeId, n: &StableName) -> (u32, u32) {
     let v = match n.path.first() {
         Some(RoleSeg::LateralEdge(v) | RoleSeg::CapVertex(_, v)) => *v,
-        Some(RoleSeg::RimEdge(_, e)) => e.start(),
+        Some(RoleSeg::RimEdge(_, run)) => run.pieces()[0].start(),
         other => panic!("{other:?} is not anchored at a profile piece"),
     };
     let pieces = fixture::pieces(doc, fixture::swept(doc, block));

@@ -97,7 +97,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
                 t.lookup(&minted(
                     EntityKind::Edge,
                     ext,
-                    RoleSeg::RimEdge(end, pe(&doc, ext, 0, s))
+                    RoleSeg::RimEdge(end, pe(&doc, ext, 0, s).into())
                 ))
                 .is_some()
             );
@@ -296,7 +296,7 @@ fn partial_revolve_on_axis_names_axis_edge_and_poles() {
         t.lookup(&minted(
             EntityKind::Edge,
             rev,
-            RoleSeg::AxisEdge(pe(&doc, rev, 0, 3))
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 3).into())
         ))
         .is_some()
     );
@@ -593,7 +593,7 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
         t.lookup(&minted(
             EntityKind::Edge,
             rev,
-            RoleSeg::AxisEdge(pe(&doc, rev, 0, 1))
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 1).into())
         ))
         .is_some(),
         "the on-axis diameter is the caps' shared axis edge"

@@ -127,7 +127,7 @@ fn crossing(
         a,
         ename(
             a,
-            RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
+            RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2).into()),
         ),
         EntityKind::Edge,
     );

@@ -108,7 +108,7 @@ pub(super) enum RoleSeg {
 
     Cap(CapEnd),
     Lateral(PieceRun),
-    RimEdge(CapEnd, ProfileEdgeRef),
+    RimEdge(CapEnd, PieceRun),
     LateralEdge(ProfileVertexRef),
     CapVertex(CapEnd, ProfileVertexRef),
 
@@ -123,7 +123,7 @@ pub(super) enum RoleSeg {
     MeridianVertex(MeridianEnd, ProfileVertexRef),
     RevolveCap(MeridianEnd),
     Pole(ProfileVertexRef),
-    AxisEdge(ProfileEdgeRef),
+    AxisEdge(PieceRun),
 
     FromA(NameRef),
     FromB(NameRef),
