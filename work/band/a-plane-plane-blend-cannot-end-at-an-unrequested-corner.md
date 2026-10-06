@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P0
 cost: H
-pr: 4085
+pr: 4121
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene
