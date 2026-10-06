@@ -1721,3 +1721,27 @@ Two twin-id tests were folded in, each mutation-checked:
 - an unplaced group whose id the outer document holds as "twin group".
 The two-nouns-per-route reading (kind noun for the first hop,
 "instance" for later ones) stays as `NodeAs` makes it.
+
+## 2026-10-06 — PR 4086: a deleted selection says the last label its node had
+
+The selection keeps its nodes as they were said (`Derived::said`,
+written by `Select`). After every operation, `DocSession::perform`
+re-speaks them from the shown document under the `respoken` keep rule.
+`Speaker::or_held` says a node from the document while the document
+holds it, then from the kept nodes, then by tag. Picks are spoken from
+the shown document first and the landed run's second (`spoken_now`).
+The row asked each door to name its document instead. The review judged
+this better: it picks up a rename made after the landing.
+
+The datum face form keeps its own kept nodes (`Drafts::datum_face_said`),
+so it no longer reads a snapshot that belongs to a later selection. That
+fault was filed and folded in the same PR.
+
+Review folds, each mutation-checked:
+- the per-op re-speak;
+- the shown-first test;
+- the datum face test.
+
+Filed:
+- `a-verdicts-other-nodes-are-said-by-tag-once-deleted`;
+- `the-tools-pick-time-snapshots-never-follow-a-rename`.

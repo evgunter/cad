@@ -411,6 +411,9 @@ impl<P> Doc<P> {
 pub struct Speaker<'a> {
     /// The document each node is read off, `None` for the tag.
     doc: Option<&'a dyn HoldsNodes>,
+    /// The nodes a node `doc` does not hold is said as
+    /// ([`Speaker::or_held`]).
+    kept: Option<&'a HeldNodes>,
     /// The node the enclosing sentence is about ([`Speaker::about`]).
     subject: Option<RecipeNodeId>,
 }
@@ -442,7 +445,29 @@ pub struct HeldNodes {
     vars: Box<[SpokenVar]>,
 }
 
+impl FromIterator<SpokenNode> for HeldNodes {
+    /// The nodes, each as it was spoken; of two for one id, the first.
+    fn from_iter<I: IntoIterator<Item = SpokenNode>>(nodes: I) -> Self {
+        let mut held: Vec<SpokenNode> = Vec::new();
+        for node in nodes {
+            if held.iter().all(|kept| kept.id() != node.id()) {
+                held.push(node);
+            }
+        }
+        Self {
+            nodes: held.into_boxed_slice(),
+            vars: Box::default(),
+        }
+    }
+}
+
 impl HeldNodes {
+    /// The node `id` as it was kept, `node <tag>` when it was not.
+    #[must_use]
+    pub fn spoken(&self, id: RecipeNodeId) -> SpokenNode {
+        self.speak(id)
+    }
+
     /// These nodes spoken again from `doc`, a later version of the
     /// document they were held from ([`SpokenNode::respoken`]).
     #[must_use]
@@ -511,6 +536,7 @@ pub fn held_by<T: Say + ?Sized, P>(value: &T, doc: &Doc<P>) -> HeldNodes {
     };
     let speaker = Speaker {
         doc: Some(&recording),
+        kept: None,
         subject: None,
     };
     // The sentence is written only to be heard: the nodes it names are
@@ -526,6 +552,7 @@ impl<'a> Speaker<'a> {
     /// Each node by its tag: `node <tag>`.
     pub const TAG: Speaker<'static> = Speaker {
         doc: None,
+        kept: None,
         subject: None,
     };
 
@@ -534,6 +561,7 @@ impl<'a> Speaker<'a> {
     pub fn of<P>(doc: &'a Doc<P>) -> Self {
         Self {
             doc: Some(doc),
+            kept: None,
             subject: None,
         }
     }
@@ -544,7 +572,21 @@ impl<'a> Speaker<'a> {
     pub fn held(nodes: &'a HeldNodes) -> Self {
         Self {
             doc: Some(nodes),
+            kept: None,
             subject: None,
+        }
+    }
+
+    /// **This speaker, saying a node its document does not hold as
+    /// `kept` says it** — the nodes a value was spoken with when it was
+    /// made, from an earlier version of the speaker's document
+    /// ([`SpokenNode::respoken`]'s rule, and its soundness paragraph).
+    /// A node neither holds is said by its tag.
+    #[must_use]
+    pub fn or_held(self, kept: &'a HeldNodes) -> Self {
+        Self {
+            kept: Some(kept),
+            ..self
         }
     }
 
@@ -570,9 +612,13 @@ impl<'a> Speaker<'a> {
     /// The node `id` as this speaker's document holds it, its subject
     /// or not.
     fn spoken(self, id: RecipeNodeId) -> SpokenNode {
-        match self.doc {
+        let said = match self.doc {
             None => SpokenNode::absent(id),
             Some(doc) => doc.speak(id),
+        };
+        match self.kept {
+            Some(kept) if said.kind().is_none() => kept.speak(id),
+            Some(_) | None => said,
         }
     }
 
@@ -732,9 +778,10 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
 mod tests {
     use geom_core::Tol;
 
-    use super::{FullId, node_kind_noun};
+    use super::{FullId, HeldNodes, Speaker, SpokenNode, node_kind_noun};
     use crate::doc::Doc;
     use crate::edit::DocEdit;
+    use crate::label::Label;
     use crate::node::{RecipeNodeId, StepId};
     use crate::program::ProfileProgram;
     use crate::{RefusingReach, test_support};
@@ -785,6 +832,55 @@ mod tests {
         assert_eq!(
             gone.to_string(),
             format!("node {}", test_utils::refusal::tag(id.0))
+        );
+    }
+
+    /// A speaker that keeps nodes says a node its document holds as the
+    /// document does, and one it does not hold as kept; one neither
+    /// holds, by its tag.
+    #[test]
+    fn a_kept_node_is_said_only_where_the_document_does_not_hold_it() {
+        let tol = Tol::witness();
+        let empty: Doc<ProfileProgram> = Doc::empty_derived("spoken-kept", tol);
+        let doc = empty
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Box::new(test_support::xy_frame()),
+                },
+                tol,
+                &RefusingReach,
+            )
+            .expect("the frame inserts")
+            .doc;
+        let id = *doc.order().last().expect("the inserted frame");
+        let stranger = RecipeNodeId(test_utils::refusal::tagged(7));
+        let forged = SpokenNode::forged(
+            id,
+            Some("Datum frame"),
+            Some(Label::new("floor").expect("a label")),
+        );
+        let kept: HeldNodes = [forged.clone()].into_iter().collect();
+        let t = test_utils::refusal::tag(id.0);
+        let said = |by: Speaker<'_>, id| by.node(id).to_string();
+        assert_eq!(
+            said(Speaker::of(&doc).or_held(&kept), id),
+            format!("Datum frame {t}"),
+            "the document holds it, so the document says it"
+        );
+        assert_eq!(
+            said(Speaker::of(&empty).or_held(&kept), id),
+            format!("Datum frame \"floor\" ({t})"),
+            "the document does not hold it, so it is said as kept"
+        );
+        assert_eq!(
+            said(Speaker::TAG.or_held(&kept), id),
+            forged.to_string(),
+            "with no document, as kept"
+        );
+        assert_eq!(
+            said(Speaker::of(&empty).or_held(&kept), stranger),
+            format!("node {}", test_utils::refusal::tag(stranger.0)),
+            "neither holds it: its tag"
         );
     }
 }
