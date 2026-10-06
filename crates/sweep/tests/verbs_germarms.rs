@@ -79,15 +79,30 @@ fn rect_disc_area((x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
     }
 }
 
-/// `a` and `b` under ∪, ∩ and both ∖, each held to every validation
-/// tier and to its closed form, from the operands' volumes and the
-/// volume they share.
+/// A body's `(solids, vertices, edges, faces, loops)`.
+type Census = (usize, usize, usize, usize, usize);
+
+fn census(body: &topo::Body<f64>) -> Census {
+    (
+        body.solids().count(),
+        body.vertices().count(),
+        body.edges().count(),
+        body.faces().count(),
+        body.loops().count(),
+    )
+}
+
+/// `a` and `b` under ∪ and ∩ in both member orders and under both ∖,
+/// each held to every validation tier, tier 3′ included, and to its
+/// closed form, from the operands' volumes and the volume they share.
+/// The two member orders of ∪ and of ∩ must agree on the census;
+/// returns the census of ∪, ∩, `a ∖ b` and `b ∖ a`.
 fn assert_every_op(
     label: &str,
     (a, v_a): (&AtRestBody<f64>, f64),
     (b, v_b): (&AtRestBody<f64>, f64),
     shared: f64,
-) {
+) -> [Census; 4] {
     let tol = Tol::witness();
     let run = |op: &str, out: Result<topo::BooleanResult<f64>, BooleanError>, truth: f64| {
         let label = format!("{label}, {op}");
@@ -102,6 +117,11 @@ fn assert_every_op(
             Ok(()),
             "{label}: tier 3"
         );
+        assert_eq!(
+            topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+            Ok(()),
+            "{label}: tier 3′"
+        );
         let m = topo::mass_properties(&out.body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
         assert_eq!(m.volume_pad, 0.0, "{label}: closed-form faces only");
@@ -110,23 +130,43 @@ fn assert_every_op(
             "{label}: volume {} against the closed form {truth}",
             m.volume
         );
+        census(&out.body)
     };
-    run("∪", topo::union(a, b, tol), v_a + v_b - shared);
-    run("∩", topo::intersect(a, b, tol), shared);
-    run("a ∖ b", topo::subtract(a, b, tol), v_a - shared);
-    run("b ∖ a", topo::subtract(b, a, tol), v_b - shared);
+    let union = run("a ∪ b", topo::union(a, b, tol), v_a + v_b - shared);
+    let meet = run("a ∩ b", topo::intersect(a, b, tol), shared);
+    assert_eq!(
+        run("b ∪ a", topo::union(b, a, tol), v_a + v_b - shared),
+        union,
+        "{label}: ∪ census in both member orders"
+    );
+    assert_eq!(
+        run("b ∩ a", topo::intersect(b, a, tol), shared),
+        meet,
+        "{label}: ∩ census in both member orders"
+    );
+    [
+        union,
+        meet,
+        run("a ∖ b", topo::subtract(a, b, tol), v_a - shared),
+        run("b ∖ a", topo::subtract(b, a, tol), v_b - shared),
+    ]
 }
 
 /// The pipe and a bar through its wall under ∪, ∩ and both ∖ (
 /// [`assert_every_op`]): the shared volume is the bar's height times
 /// [`rect_disc_area`].
-fn assert_bar_through_the_pipe(x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
-    assert_bar_through_the_pipe_at((0.0, 0.0), x, y, z);
+fn assert_bar_through_the_pipe(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> [Census; 4] {
+    assert_bar_through_the_pipe_at((0.0, 0.0), x, y, z)
 }
 
 /// [`assert_bar_through_the_pipe`] with the pipe's axis through `c`
 /// and the bar moved with it, so the volumes are the same.
-fn assert_bar_through_the_pipe_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
+fn assert_bar_through_the_pipe_at(
+    c: (f64, f64),
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+) -> [Census; 4] {
     let bar = finished(
         "the bar",
         brick(
@@ -144,7 +184,7 @@ fn assert_bar_through_the_pipe_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z
         (&pipe_at(c), PI * 4.0),
         (&bar, v_bar),
         shared,
-    );
+    )
 }
 
 /// A block `[cx ± 2] × [cy ± 2] × [−1, 1]` bored through by [`pipe_at`]
@@ -173,7 +213,12 @@ fn bored_block_at(c: (f64, f64)) -> (AtRestBody<f64>, f64) {
 /// The bored block and a bar crossing its bore under every op: the bar
 /// shares all of itself with the block's material but the part in the
 /// bore, its height times [`rect_disc_area`].
-fn assert_bar_across_the_bore_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z: (f64, f64)) {
+fn assert_bar_across_the_bore_at(
+    c: (f64, f64),
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+) -> [Census; 4] {
     let (bored, v_bored) = bored_block_at(c);
     let bar = finished(
         "the bar",
@@ -192,7 +237,7 @@ fn assert_bar_across_the_bore_at(c: (f64, f64), x: (f64, f64), y: (f64, f64), z:
         (&bored, v_bored),
         (&bar, v_bar),
         shared,
-    );
+    )
 }
 
 /// **The row the ring lane exists for.** A bar driven straight through
@@ -223,13 +268,80 @@ fn a_bar_leaving_through_one_side_of_a_wall_builds() {
 /// azimuths 8.6° to 44.4°, clear of every seam — so the wall is left
 /// with a hole: the section's chords join ring to ring, the island's
 /// role order is wound on the wall's chart, and the ringed wall
-/// measures. Rings whose arcs are wider than the gap between them
-/// (`asin y1 − asin y0 > π − 2·asin y1`) refuse instead,
-/// `RingHomingAmbiguous`: the loose ends pair across the gap
-/// (`work/tang/in-face-pierce-rings-pair-across-the-gap.md`).
+/// measures.
 #[test]
 fn a_bar_whose_section_closes_inside_one_wall_face_builds() {
     assert_bar_through_the_pipe((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1));
+}
+
+/// **In-face rings pair along the wall, whatever each ring's arc
+/// against the gap between them.** A bar `y ∈ [y0, y1]`, `0 < y0 < y1 <
+/// 1`, leaves two rings in one half-wall, at azimuths `[asin y0, asin
+/// y1]` and its mirror about `x = 0`. Each loose end has two candidate
+/// partners, one on its own ring and one across the gap, and once a
+/// ring's arc is wider than the gap (`asin y1 − asin y0 > π − 2·asin
+/// y1`) the nearer of them by chord is the one across it. Pairing has to
+/// read the wall's germ line along its section, not the chord, on both
+/// sides of that inequality: `WIDE` lies past it, `NARROW` short of it,
+/// and `y1 = 0.9` with `y0` either side of `0.2149` straddles it. Every
+/// pose holds the family's census, which no pose's arc or gap moves:
+///
+/// - **pipe ∪ bar**: the pipe with two stubs; the ringed half-wall has
+///   two inner loops, each stub five faces — `(1, 20, 30, 14, 16)`;
+/// - **pipe ∩ bar**: a box-shaped piece, two of its faces wall
+///   patches — `(1, 8, 12, 6, 6)`;
+/// - **pipe ∖ bar**: the pipe tunnelled, genus 1 — `(1, 12, 18, 8, 10)`;
+/// - **bar ∖ pipe**: the two stubs, six faces each — `(2, 16, 24, 12, 12)`.
+///
+/// The bored block mirrors it (bore ∪ bar plugs the bore, genus 2;
+/// bore ∖ bar leaves two blind pockets in the bore's walls), at the
+/// origin and off it, and so does a bar off centre in `x`.
+#[test]
+fn in_face_rings_pair_along_the_wall_whatever_the_arc_and_the_gap() {
+    const PIPE: [Census; 4] = [
+        (1, 20, 30, 14, 16),
+        (1, 8, 12, 6, 6),
+        (1, 12, 18, 8, 10),
+        (2, 16, 24, 12, 12),
+    ];
+    const BORE: [Census; 4] = [
+        (1, 20, 30, 12, 16),
+        (2, 16, 24, 12, 12),
+        (1, 28, 42, 18, 22),
+        (1, 8, 12, 6, 6),
+    ];
+    const WIDE: [(f64, f64); 5] = [
+        (0.1, 0.9),
+        (0.15, 0.95),
+        (0.2, 0.9),
+        (0.5, 0.95),
+        (0.3, 0.99),
+    ];
+    const NARROW: [(f64, f64); 5] = [
+        (0.15, 0.7),
+        (0.23, 0.9),
+        (0.3, 0.8),
+        (0.4, 0.6),
+        (0.02, 0.6),
+    ];
+    let z = (-0.4, 0.1);
+    for y in WIDE.into_iter().chain(NARROW) {
+        for x in [(-1.1, 1.1), (-1.4, 1.2)] {
+            for c in [(0.0, 0.0), (3.0, -2.0)] {
+                let pose = format!("y {y:?}, x {x:?}, axis at {c:?}");
+                assert_eq!(
+                    assert_bar_through_the_pipe_at(c, x, y, z),
+                    PIPE,
+                    "{pose}: the pipe's census (∪, ∩, pipe ∖ bar, bar ∖ pipe)"
+                );
+                assert_eq!(
+                    assert_bar_across_the_bore_at(c, x, y, z),
+                    BORE,
+                    "{pose}: the bore's census (∪, ∩, bore ∖ bar, bar ∖ bore)"
+                );
+            }
+        }
+    }
 }
 
 /// **The rows above, with the pipe's axis off the world origin.** A
