@@ -756,7 +756,10 @@ impl ChecksReport {
     ///
     /// When `doc` is not the document the checks were run over.
     #[must_use]
-    pub fn speaker<'a, P>(&self, doc: &'a Doc<P>) -> crate::spoken::Speaker<'a> {
+    pub fn speaker<'a, P: crate::ProfilePayload>(
+        &self,
+        doc: &'a Doc<P>,
+    ) -> crate::spoken::Speaker<'a> {
         crate::spoken::assert_taken_of("this checks report", self.document, doc);
         crate::spoken::Speaker::of(doc)
     }
@@ -768,7 +771,7 @@ impl ChecksReport {
     ///
     /// When `doc` is not the document the checks were run over.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::Said(self, self.speaker(doc)).to_string()
     }
 }
@@ -875,7 +878,7 @@ impl ChecksError {
     /// it**: each node, a root's or the gather's, as `doc` holds it now
     /// ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -920,7 +923,7 @@ impl CheckRefusal {
     ///
     /// When `doc` is not the document the refused report was run over.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::Said(self, self.speaker(doc)).to_string()
     }
 
@@ -931,7 +934,10 @@ impl CheckRefusal {
     ///
     /// When `doc` is not the document the refused report was run over.
     #[must_use]
-    pub fn speaker<'a, P>(&self, doc: &'a Doc<P>) -> crate::spoken::Speaker<'a> {
+    pub fn speaker<'a, P: crate::ProfilePayload>(
+        &self,
+        doc: &'a Doc<P>,
+    ) -> crate::spoken::Speaker<'a> {
         crate::spoken::assert_taken_of("this check refusal", self.document, doc);
         crate::spoken::Speaker::of(doc)
     }

@@ -220,7 +220,7 @@ fn r2_drum_reverted_cavity_alone_is_the_reason() {
         Ok(()),
         "the cavity itself is tier-3 valid"
     );
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let verdict = topo::validate_geometric(&reverted, tol());
     println!("[r2] reverted drum cavity alone: {verdict:?}");
     assert!(
