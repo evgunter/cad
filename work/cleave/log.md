@@ -454,6 +454,21 @@ The previous orchestrator has exited; this session holds the track (`status: act
   to Ev only if the reports leave a fork that is Ev's.
 
 Signed (CLEAVE orchestrator).
+- **The ray-walk design question is decided without Ev** (`closest-crossing-and-graze-abandon-have-three-homes`).
+  Both designers' first reports agree on the final state, and neither touches ratified text:
+  - one walk driver (the retry ladder: graze → next ray, a ray-level in-band reading abandons and the
+    first is kept, refuse, exhausted → typed) and one closest-crossing fold, in `topo::ray_walk`, grown
+    from `ray_parity`;
+  - the per-ray reading stays two kinds: parity (planar, chart) and closest crossing (solid, sphere);
+  - each geometry keeps its schedule, crossings, no-hit verdict, K rows and error enum.
+
+  Both corrected the row's premise: the planar walk is parity, and there are five driver copies in
+  `topo` plus `profile`'s, not three. Their differences are of detail (a set-aside kind for confined
+  limits; a sphere boundary pre-pass; geom-core against topo). The orchestrator reconciled them: `topo`;
+  one precedence rule written once in the driver, decided on semantics; the sphere pre-pass measured
+  first. Re-priced H, `design` cleared. Dispatched as `cleave/ray-walk`. Review tier: DUAL (concurrent,
+  H) — a protocol consolidated across five readers, with refusal semantics that are hard to change later.
+  It is not a design-fork row: nothing went to Ev. The blinding record stays on its analysis branch.
 - **PR 4081 merges** (`split-lane-second-chord-recomputes-the-first-chords-arc`, closed). The split's
   segment curve and its chord plan are each decided once (`ChordJoiner::segment_curve`, `JoinPlan`),
   shared with the Boolean lane. The row's `NoChartedRun` premise had been dead on main since
@@ -468,3 +483,9 @@ Signed (CLEAVE orchestrator).
     measured further.
   - Class noted from the review: "decided once" has to cover the plan as well as the value. A
     computed value that is shared while the plan choosing it is re-derived is the shape to grep for.
+- **Re-homed off CLEAVE's ground**: the lamina validator row went to RESTFRONT and the self-slit
+  tessellator panic to TESS, each with a note on its owner's log.
+- **Dispatched** (single FULL review each: both are refusal paths whose cause is untraced):
+  - `cleave/concave-graze`: `a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`;
+  - `cleave/pierce-strut-after`: `a-pierce-strut-after-half-may-be-moved-by-the-other-run` (prove,
+    or refuse typed).

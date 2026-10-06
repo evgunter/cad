@@ -3406,7 +3406,7 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// body as stale: such a key resolves, so the miss was a record's and
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
-const READ_DOORS: [&str; 18] = [
+const READ_DOORS: [&str; 19] = [
     "face_carrier",
     "carrier_pair_relation",
     "carrier_pair_verdict",
@@ -3425,20 +3425,23 @@ const READ_DOORS: [&str; 18] = [
     "contfp",
     "curved_face_containment",
     "classify_neighborhood",
+    "face_azimuth_window_traces",
 ];
 
 /// The doors the read sweep floors on a premise panic: the split, which
 /// reads every face, edge and vertex before it builds, the containment
-/// and neighborhood doors, whose walks a torn loop or orbit reaches,
-/// and the carrier doors, which a dropped surface reaches.
+/// and neighborhood doors and the azimuth window walk, whose walks a
+/// torn loop or orbit reaches, and the carrier doors, which a dropped
+/// surface reaches.
 #[cfg(not(debug_assertions))]
-const PREMISE_DOORS: [&str; 6] = [
+const PREMISE_DOORS: [&str; 7] = [
     "split_reduce",
     "contfp",
     "classify_neighborhood",
     "face_carrier",
     "carrier_pair_verdict",
     "flush_pair_relation",
+    "face_azimuth_window_traces",
 ];
 
 /// The read sweep's bodies: [`FIXTURES`], whose faces decline their
@@ -3694,6 +3697,15 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         });
         judge_read(capture, &mut census, "curved_face_containment", || {
             contain(crate::boolean::curved_face_containment(body, face, q, band).map(|_| true))
+        });
+        // The window walk: the face is the caller's key; a record past
+        // it that does not resolve had to panic.
+        judge_read(capture, &mut census, "face_azimuth_window_traces", || {
+            use crate::chord_join::SplitJoinError;
+            match crate::chord_join::face_azimuth_window_traces(body, face, band) {
+                Err(e @ SplitJoinError::Corrupt { .. }) => Err(e.to_string()),
+                answer => Ok(answer.is_ok()),
+            }
         });
     }
     // The split plane crosses every fixture; the side map holds a
