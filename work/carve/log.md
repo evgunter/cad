@@ -151,3 +151,99 @@ changes.
 - 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
 - 2026-10-01 — Claim from BAND: `full-revolve-emits-split-planar-walls` moved to `work/band/` (id kept, `parent: swept-continuation-walls-reach-the-boolean-unmerged`). Ev ruled the two rows the same way ("construct"), so they land as one builder rule on branch `band/sweeps-build-one-wall-per-run`: extrude and revolve build one wall per run, and a full revolve's planar walls are one face. Paths touched on CARVE/STRUT ground: `sweep/src/{swept,extrude}.rs`, `sweep/src/revolve/{full,partial,mod}.rs`. (BAND implementer)
 - 2026-10-01 — Seam note from PCERT: `extrude-mints-no-pcurve-rows` moved to `work/pcert/` (claimed by `git mv`, id unchanged). Ev ruled on PR 3617 that a curved face's pcurve rows are mandatory at rest (C4 in `crates/geom-brep/README.md`), so a producer that does not mint now reds tier 3; PCERT's at-rest unit (branch `pcert/at-rest-rows-mandatory`) makes `sweep::extrude` mint and will touch `crates/sweep/src/extrude.rs`. (PCERT orchestrator)
+
+## 2026-10-06 — sitting opened; the D10 hold read; CARVE cut on its priority seam
+
+An orchestrator holds CARVE again (`status: active`). Before planning,
+it read the D10 hold (BAND's log, 2026-10-03, carries the text; CARVE's
+own log never received it) and DESIGN.md D10, and checked every row
+against the hold's list.
+
+**Three rows are on the hold's ground** and are parked on
+`d10-one-way-to-say-intent-is-unbuilt`, each with its reason in its
+body: `half-revolve-caps-are-never-an-operand` (the boolean's
+undeclared-coincidence refusal), `loft-walls-keyed-per-segment-on-a-declared-carrier`
+(declared continuations),
+`loft-between-opposite-turning-joints-reverses-a-seam-between-stations`
+(the declared-cusp exemption and the undeclared-tangency refusal).
+A fourth, `revolve-angle-is-a-signed-size-beside-a-directed-axis`,
+looked held (a node slot's shape) until the pattern-step row showed Ev
+had already answered it on PR 3941: the angle stays signed, and what
+is left is refusal text. It went to CARVETAIL open.
+
+**The cut.** CARVE measured 62.5 budget points against 30. It keeps
+its seven P0 rows, 30 points once the two legacy `D` rows are priced
+`M`. Six unpriced rows were priced. Two went to STRUT, whose charter
+they fit: `extrude-arc-walls-are-ruled-in-n-not-w` (one wall rule
+spelled one way for line legs and another for arc legs) and
+`sweep-body-makes-every-caller-derive-its-start-frame` (five spellings
+of one derivation). The other P1–P4 rows and the three parked ones went
+to the new CARVETAIL (`work/carvetail/`, band 11000–11099), which
+opens `ready`.
+
+Dispatch order and review posture: `work/carve/plan.md`.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-06 — first dispatches
+
+**Built now**, each as its own cloud session (this box has four cores),
+each with a single FULL review to follow (`plan.md`, Review posture):
+
+- `sweep-cap-plane-winds-against-a-convex-arc-region` →
+  `carve/cap-winds-with-the-region`. One home for the cap's
+  orientation, read from the profile's arc-exact winding. Seam:
+  PATHS' open PR 4169 touches the same verbs.
+- `skin-coincident-section-check-is-an-unbanded-f64-compare` →
+  `carve/one-door-for-coincident-sections`. One banded decision about
+  section distinctness, and one refusal that is true in every regime.
+- `self-closed-link-sharing-its-vertex-records-two-junctions` →
+  `carve/self-closed-link-counts-its-vertex-twice`. Reproduce first.
+  Seam: `blend/` is shared with BAND (active) and STRUT.
+
+**Weighed first** by an Opus and a Fable designer each, concurrently,
+on the same problem statement and no candidate solutions. The labels
+were blinded at dispatch on `analysis/design-fork/carve-2026-10-06`:
+
+- the placement of a loft's sections
+  (`self-overlapping-spines-build-and-validate` with
+  `two-section-loft-with-an-inverted-top-normal-builds`);
+- `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body`;
+- `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself`.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-06 — the three design rows weighed; everything weighed is built, none went to Ev
+
+All three designer pairs reached one recommendation, and none of them
+changes text Ev ratified, so none became an `[ev]` PR or a fork-log row.
+
+- **`Intersection`'s pair is unordered.** The two designers agreed in
+  round 0. They split on one detail, whether the constructor refuses
+  equal keys; the orchestrator kept the refusal at the certification
+  door (D4). Built: `carve/surface-pair-is-unordered`, a cloud session.
+- **The loft's v is a function of the whole section set** (Eq. 10.8
+  over every control row, summed in sorted order), and **a sweep's v
+  is its path parameter.** Converged in round 0. Built:
+  `carve/loft-v-is-the-whole-sets`.
+- **A loft promises an embedded boundary, certified at its door.**
+  Round 0 split. Round 1 crossed on the reversed list, so a second
+  round followed (the 2026-09-30 crossover rule), and the pair
+  converged: the contract is embedding, the instrument is the clearance
+  engine in `topo` at a certifying scalar, the f64 lane certifies by an
+  exact lift once its price is measured, the stacking fold retires, and
+  a reversed list builds. The interim the pair agreed on (the fold also
+  reads the far normal) is built as `carve/fold-reads-the-far-normal`
+  and closes `two-section-loft-with-an-inverted-top-normal-builds`.
+  `self-overlapping-spines-build-and-validate` becomes the
+  door-certificate unit, parked on SHELL-3 and on two rows filed on
+  CLEAR today. CARVETAIL's opposite-turning-joint row is re-parked from
+  the D10 hold onto it. Retiring the fold changes S-BOOL's Q2, an agent
+  recommendation (#1373) with no wording of Ev's found. The f64 lift
+  sits beside Ev's #1737 ruling for `shell`, so Ev is told now and again
+  when the certificate unit is specified.
+
+The coincident-sections lane was steered by message: the sliver
+decision lives in `skin.rs`, not in the fold, which retires.
+
+Signed: (CARVE orchestrator)

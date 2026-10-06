@@ -157,8 +157,14 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
             true,
         ),
         (
-            "axis-parallel plane off the axis (a spiric)",
+            "axis-parallel plane off the axis (a spiric's two ovals)",
             plane(Point3::new(0.05, 0.0, 0.0), Vec3::unit_x()),
+            &tor,
+            true,
+        ),
+        (
+            "axis-parallel plane past the inner equator (one folded loop)",
+            plane(Point3::new(1.8, 0.0, 0.0), Vec3::unit_x()),
             &tor,
             false,
         ),

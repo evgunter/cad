@@ -350,7 +350,16 @@ impl VerbKind {
 /// the verb and names a door that does not exist.
 impl fmt::Display for VerbKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+        f.write_str(self.noun())
+    }
+}
+
+impl VerbKind {
+    /// The verb's word, the one its `Display` writes, for a sentence
+    /// that says it as a node's kind (`Subtract 1669`).
+    #[must_use]
+    pub const fn noun(self) -> &'static str {
+        match self {
             Self::Fillet => "Fillet",
             Self::Chamfer => "Chamfer",
             Self::Extrude => "Extrude",
@@ -360,7 +369,7 @@ impl fmt::Display for VerbKind {
             Self::Boolean(BooleanOp::Subtract) => "Subtract",
             Self::Split => "Split",
             Self::Shell => "Shell",
-        })
+        }
     }
 }
 

@@ -80,3 +80,32 @@ scenes. `curved_mergedoor.rs`
 volume, tiers 2, 3 and 3′, and the one cylinder-pair record. Whether
 the REST zip still mints a chord on some other pose is unmeasured.
 These two scenes were its only reproducer.
+
+## Measured on main (2026-10-06)
+
+Measured on `origin/main` 3f1e3b0d, with `realize_seam` and
+`mirror_edges` instrumented at every `mint_chord` call (a lane-private
+probe on `zip/chord-probe`).
+
+The runs: the topo, sweep and editor-core suites (7278 rows), plus the
+17 ignored rows of the REST-lane probe files (`join1_delta2_harness`,
+`join_rc_probes`, `join1_delta_probes`,
+`pi_seam_and_kiss_through_the_boolean`, `join2_r2_probes`,
+`verbs_shell`).
+
+- **Every `mint_chord` call answers `Ok`:** 832 in the suites and 866
+  in the ignored rows.
+- **No call has `twin == None`.**
+- **193 calls mint a straight chord on a host that is not a plane.**
+  All of them are `mirror_edges` calls with a `Twin::Line` on a
+  cylinder, and every one is parallel to the cylinder's axis (largest
+  `|d × axis| / |d|` is 4.5e-16), so each is a ruling of its face.
+- **No `Circle` twin's arc spec fails.**
+
+The calls with no twin come only from the A side of `realize_seam`,
+where the twin is `b_cell.edge()`. B's twin is always A's minted edge,
+and `mirror_edges` always passes an edge. So a straight chord with no
+twin needs a segment whose cell is `InFace` on both operands.
+
+Not run: crates outside these three, the suites at the 1e-6 and 1e-12
+rows, and poses outside the rows'.

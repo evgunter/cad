@@ -940,6 +940,8 @@ mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
+#[path = "boss_flush_with_a_block_edge.rs"]
+mod boss_flush_with_a_block_edge;
 #[path = "far_thin_disc_sign.rs"]
 mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
@@ -948,6 +950,8 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+#[path = "rest_zip_admission.rs"]
+mod rest_zip_admission;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;

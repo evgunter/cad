@@ -61,8 +61,10 @@ struct Torus {
     o: f64,
 }
 
-/// Every admitted regime: plane through the axis, near-tangent cuts
-/// (`|o| → R − r`), very thin and very fat rings, negative offsets.
+/// Every regime the rate bounds cover: zero offset (a plane through
+/// the axis — [`geom::Curve3::spiric`] refuses it, the bounds' algebra
+/// does not), near-tangent cuts (`|o| → R − r`), very thin and very fat
+/// rings, negative offsets.
 fn torus(rng: &mut Rng) -> Torus {
     let big = 10f64.powf(rng.range(-2.0, 2.0));
     let r = big
@@ -116,7 +118,7 @@ fn oval<T: Decide>(t: Torus, c: Point3<f64>, (axis, u): (Vec3<f64>, Vec3<f64>)) 
 }
 
 /// **`|P′| ≤ S` and `|P″| ≤ A` over every admitted regime, on every
-/// window**: random tori — planes through the axis, near-tangent cuts
+/// window**: random tori — zero offset, near-tangent cuts
 /// (`|o| → R − r`), very thin and very fat rings, negative offsets —
 /// and on each a whole period and random pieces, sampled densely
 /// against the piece's own bounds.
