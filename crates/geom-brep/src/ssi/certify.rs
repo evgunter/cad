@@ -1135,20 +1135,36 @@ fn limb_three<T: Decide>(
     }
     let mut not_one_arc = 0u32;
     let mut narrowest: Option<Rung> = None;
+    let mut last_refusal: Option<SsiError> = None;
     for radius in ladder.iter().copied() {
         let Some(rung) = probe(radius)? else {
             continue;
         };
         match (rung.margin > 0.0, rung.one_arc) {
             (true, Some(Ok(()))) => {
-                let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
-                return Ok((rung, t));
+                // ANALYSIS BRANCH ONLY: with `LEVER_DESCEND`, a one-arc rung
+                // whose levered clearance is in band gives way to a narrower
+                // rung (A's descent); the last refusal stands if none clears.
+                match tube_transversality(rung.margin, arm, rung.boxes, band) {
+                    Ok(t) => return Ok((rung, t)),
+                    Err(e) if std::env::var_os("LEVER_DESCEND").is_some() => {
+                        if std::env::var_os("LEVER_PROBE_TRACE").is_some() {
+                            eprintln!("LEVERDESCEND rung {radius:e} clearance {:e} in band, descending", rung.margin);
+                        }
+                        last_refusal = Some(e);
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                }
             }
             // A graph whose proof did not run never reads as proved.
             (true, _) => not_one_arc += 1,
             (false, _) => {}
         }
         narrowest = Some(rung);
+    }
+    if let Some(e) = last_refusal {
+        return Err(e);
     }
     let Some(rung) = narrowest else {
         // Rungs were offered and none answered. Structural, and it

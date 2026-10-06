@@ -55,9 +55,22 @@ use super::{
 /// levers the chart tube's clearance by that arm (designer A's region
 /// rule, the wall's least curvature radius handed in) instead of the
 /// extent alone.
-fn probe_tube_scale(extent: f64) -> TubeScale<f64> {
-    match std::env::var("LEVER_TUBE_ARM").ok().and_then(|v| v.parse::<f64>().ok()) {
-        Some(arm) => TubeScale::split(arm.min(extent), extent),
+fn probe_tube_scale(extent: f64, wall: &SsiOperand<'_, f64>) -> TubeScale<f64> {
+    match std::env::var("LEVER_TUBE_ARM").ok().as_deref() {
+        Some("wall") => match wall {
+            SsiOperand::Nurbs(n) => {
+                let arm = super::system::sampled_wall_arm(n.surface());
+                if std::env::var_os("LEVER_PROBE_TRACE").is_some() {
+                    eprintln!("LEVERTUBE wall arm {arm:e} extent {extent:e}");
+                }
+                TubeScale::split(arm.min(extent), extent)
+            }
+            SsiOperand::Analytic(_) => TubeScale::uniform(extent),
+        },
+        Some(v) => match v.parse::<f64>() {
+            Ok(arm) => TubeScale::split(arm.min(extent), extent),
+            Err(_) => TubeScale::uniform(extent),
+        },
         None => TubeScale::uniform(extent),
     }
 }
@@ -484,7 +497,7 @@ impl<'a> Ends<'a> {
                         wall: *wall,
                         pcurve,
                     },
-                    probe_tube_scale(self.ctx.extent),
+                    probe_tube_scale(self.ctx.extent, self.wall),
                     self.band,
                     limbs,
                 )?;
@@ -515,7 +528,7 @@ impl<'a> Ends<'a> {
                 wall: *wall,
                 pcurve,
             },
-            probe_tube_scale(self.ctx.extent),
+            probe_tube_scale(self.ctx.extent, self.wall),
             self.band,
             certify::Limbs::All,
             &mut Vec::new(),

@@ -1,0 +1,56 @@
+=== eps=1e-6 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=extent descend=no
+=== eps=1e-6 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=extent descend=yes
+=== eps=1e-6 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=wall descend=no
+      5 LEVERTUBE wall arm 2.177727423155001e-3 extent 1e0
+      4 LEVERTUBE wall arm 4.960254774486065e-1 extent 1e0
+      1 thread 'm5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right' (31920) panicked at crates/geom-brep/tests/m5_pr7_ssi.rs:5892:44:
+=== eps=1e-6 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=wall descend=yes
+      1 LEVERDESCEND rung 7.8125e-3 clearance 8.819740887377941e-5 in band, descending
+      6 LEVERTUBE wall arm 2.177727423155001e-3 extent 1e0
+      8 LEVERTUBE wall arm 4.960254774486065e-1 extent 1e0
+=== eps=1e-9 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=extent descend=no
+=== eps=1e-9 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=extent descend=yes
+=== eps=1e-9 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=wall descend=no
+      8 LEVERTUBE wall arm 2.177727423155001e-3 extent 1e0
+      8 LEVERTUBE wall arm 4.960254774486065e-1 extent 1e0
+=== eps=1e-9 case=m5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right tube_arm=wall descend=yes
+      8 LEVERTUBE wall arm 2.177727423155001e-3 extent 1e0
+      8 LEVERTUBE wall arm 4.960254774486065e-1 extent 1e0
+=== eps=1e-9 case=rev3983_probes::leverb_near_tangent_parabola tube_arm=extent descend=no
+      1 LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+=== eps=1e-9 case=rev3983_probes::leverb_near_tangent_parabola tube_arm=extent descend=yes
+      1 LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+=== eps=1e-9 case=rev3983_probes::leverb_near_tangent_parabola tube_arm=wall descend=no
+      1 LEVERB2 d=100ε δ=5.00e-12 tube_arm=Some("wall") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=12ε δ=7.20e-14 tube_arm=Some("wall") eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 4.472353006935759e-9 lies inside the ambiguity band (1e-9, 1e-8)
+      1 LEVERB2 d=16ε δ=1.28e-13 tube_arm=Some("wall") eps=1e-9: Err ssi: over its 1-box chain the uniqueness tube cannot certify the surfaces crossing clear of the tolerance band (certified clearance 8.326821155490215e-10 m), so a second branch may lie inside the tube
+      1 LEVERB2 d=24ε δ=2.88e-13 tube_arm=Some("wall") eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 8.879352808214889e-9 lies inside the ambiguity band (1e-9, 1e-8)
+      1 LEVERB2 d=40ε δ=8.00e-13 tube_arm=Some("wall") eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 9.642111547146097e-9 lies inside the ambiguity band (1e-9, 1e-8)
+     11 LEVERTUBE wall arm 9.999999999999998e-4 extent 2e-2
+=== eps=1e-9 case=rev3983_probes::leverb_near_tangent_parabola tube_arm=wall descend=yes
+      1 LEVERB2 d=100ε δ=5.00e-12 tube_arm=Some("wall") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=12ε δ=7.20e-14 tube_arm=Some("wall") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=16ε δ=1.28e-13 tube_arm=Some("wall") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=24ε δ=2.88e-13 tube_arm=Some("wall") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERB2 d=40ε δ=8.00e-13 tube_arm=Some("wall") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+      1 LEVERDESCEND rung 1.52587890625e-7 clearance 7.58645615705041e-7 in band, descending
+      1 LEVERDESCEND rung 1.52587890625e-7 clearance 8.326821155490217e-7 in band, descending
+      1 LEVERDESCEND rung 1.52587890625e-7 clearance 8.804859292993354e-6 in band, descending
+      1 LEVERDESCEND rung 1.52587890625e-7 clearance 8.879352808214891e-6 in band, descending
+      1 LEVERDESCEND rung 3.0517578125e-7 clearance 9.567618033160537e-6 in band, descending
+      1 LEVERDESCEND rung 3.0517578125e-7 clearance 9.6421115471461e-6 in band, descending
+      1 LEVERDESCEND rung 3.814697265625e-8 clearance 8.189716507589789e-6 in band, descending
+      1 LEVERDESCEND rung 3.814697265625e-8 clearance 8.262838983950232e-6 in band, descending
+      1 LEVERDESCEND rung 7.62939453125e-8 clearance 4.398316508139026e-6 in band, descending
+      1 LEVERDESCEND rung 7.62939453125e-8 clearance 4.47235300693576e-6 in band, descending
+      1 LEVERDESCEND rung 7.62939453125e-8 clearance 8.346929829535787e-6 in band, descending
+      1 LEVERDESCEND rung 7.62939453125e-8 clearance 8.421880362109362e-6 in band, descending
+     15 LEVERTUBE wall arm 9.999999999999998e-4 extent 2e-2

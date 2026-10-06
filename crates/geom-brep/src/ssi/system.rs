@@ -409,8 +409,8 @@ pub(crate) fn probe_mode() -> ProbeMode {
 /// jet — the shape operator's spectral radius from the first and second
 /// fundamental forms. Zero where the chart is flat there; poison where
 /// the jet is.
-pub(crate) fn max_normal_curvature(j: &SurfaceJet3<f64>) -> f64 {
-    let (su, sv) = (j.jet.du, j.jet.dv);
+pub(crate) fn max_normal_curvature(j: &geom::SurfaceJet<f64>) -> f64 {
+    let (su, sv) = (j.du, j.dv);
     let n = su.cross(sv);
     let nn = n.norm();
     if nn == 0.0 {
@@ -418,7 +418,7 @@ pub(crate) fn max_normal_curvature(j: &SurfaceJet3<f64>) -> f64 {
     }
     let n = n * (1.0 / nn);
     let (e, f, g) = (su.dot(su), su.dot(sv), sv.dot(sv));
-    let (l, m, nn2) = (n.dot(j.jet.duu), n.dot(j.jet.duv), n.dot(j.jet.dvv));
+    let (l, m, nn2) = (n.dot(j.duu), n.dot(j.duv), n.dot(j.dvv));
     let det = e * g - f * f;
     if det <= 0.0 {
         return f64::NAN;
@@ -427,6 +427,25 @@ pub(crate) fn max_normal_curvature(j: &SurfaceJet3<f64>) -> f64 {
     let mean = (e * nn2 - 2.0 * f * m + g * l) / (2.0 * det);
     let disc = (mean * mean - gauss).max(0.0).sqrt();
     (mean + disc).abs().max((mean - disc).abs())
+}
+
+/// ANALYSIS BRANCH ONLY (round 3): the wall's least radius of normal
+/// curvature, sampled on a 33×33 grid over its whole domain (A's
+/// region arm; a stand-in for a certified enclosure).
+pub(crate) fn sampled_wall_arm(wall: &NurbsSurface<f64>) -> f64 {
+    let (ud, vd) = (wall.knots_u().domain(), wall.knots_v().domain());
+    let mut arm = f64::MAX;
+    for i in 0..=32 {
+        for j in 0..=32 {
+            let u = ud.0 + (ud.1 - ud.0) * f64::from(i) / 32.0;
+            let v = vd.0 + (vd.1 - vd.0) * f64::from(j) / 32.0;
+            let k = max_normal_curvature(&wall.ders(u, v));
+            if k.is_finite() && k > 0.0 {
+                arm = arm.min(1.0 / k);
+            }
+        }
+    }
+    arm
 }
 
 /// ANALYSIS BRANCH ONLY: the chart arm as main reads it, for the trace.
@@ -473,7 +492,7 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
                     }
                 }
                 ProbeMode::Normal => {
-                    let k = max_normal_curvature(&j);
+                    let k = max_normal_curvature(&j.jet);
                     if k != 0.0 {
                         arm = Real::min(arm, 1.0 / k);
                     }
@@ -488,7 +507,7 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
             eprintln!(
                 "LEVERTRACE x=({:.6e},{:.6e},{:.6e},{:.6e}) p=({:.4e},{:.4e},{:.4e}) sin={sin:.4e} chart_arm={:.4e} normal_arm={:.4e} chosen={arm:.4e}",
                 x[0], x[1], x[2], x[3], jb.jet.point.x, jb.jet.point.y, jb.jet.point.z,
-                chart_arm(&jb), { let k = max_normal_curvature(&jb); if k == 0.0 { f64::MAX } else { 1.0 / k } }
+                chart_arm(&jb), { let k = max_normal_curvature(&jb.jet); if k == 0.0 { f64::MAX } else { 1.0 / k } }
             );
         }
         arm
