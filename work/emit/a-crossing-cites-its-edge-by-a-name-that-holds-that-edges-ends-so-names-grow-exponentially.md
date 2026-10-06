@@ -75,3 +75,11 @@ sense and holds `Ends`-always back until this is settled.
 When it lands, it also owes a union seam's lone piece. A seam a later
 member cuts to one piece is published as the seam's one edge, bare, and
 gains `Ends` when a second piece appears.
+
+## Note (2026-10-06): the README already states `Ends`-always
+
+The names README's N2 *Edge pieces* bullet (ratified on PR 4134, commit
+3d8433c0af) says `Ends` covers every piece of a parent edge, "a lone piece
+on its side of a cut included". The code does not do this yet: PR 4203
+reverted it pending this item. Until this item lands, the ratified text
+states the intended invariant ahead of the code, on purpose.
