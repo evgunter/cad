@@ -12,7 +12,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use super::expr::Formula;
+use super::expr::SlotArg;
 use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -466,7 +466,7 @@ impl PatternKind {
     #[staticmethod]
     fn linear(
         py: Python<'_>,
-        direction: (Formula, Formula, Formula),
+        direction: (SlotArg, SlotArg, SlotArg),
         spacing: SlotArg,
     ) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
@@ -483,7 +483,7 @@ impl PatternKind {
     /// (`degenerate_step`), and so does one at or past a full turn
     /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Formula) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: SlotArg) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.0,
             step: super::doc::slot_expr(py, d::SlotId::Step, &step)?,
@@ -535,18 +535,28 @@ impl Placement {
     #[staticmethod]
     #[pyo3(signature = (*, translation, axis, angle))]
     pub(crate) fn rigid(
-        translation: (Formula, Formula, Formula),
-        axis: (Formula, Formula, Formula),
+        py: Python<'_>,
+        translation: (SlotArg, SlotArg, SlotArg),
+        axis: (SlotArg, SlotArg, SlotArg),
         angle: SlotArg,
-    ) -> Self {
-        Self(
+    ) -> PyResult<Self> {
+        let (length, scalar) = (d::Dimension::Length, d::Dimension::Scalar);
+        Ok(Self(
             d::Step::Rigid {
-                translation: [translation.0.0, translation.1.0, translation.2.0],
-                axis: [axis.0.0, axis.1.0, axis.2.0],
-                angle: angle.0.clone(),
+                translation: [
+                    translation.0.formula(py, length)?,
+                    translation.1.formula(py, length)?,
+                    translation.2.formula(py, length)?,
+                ],
+                axis: [
+                    axis.0.formula(py, scalar)?,
+                    axis.1.formula(py, scalar)?,
+                    axis.2.formula(py, scalar)?,
+                ],
+                angle: angle.formula(py, d::Dimension::Angle)?,
             }
             .into(),
-        )
+        ))
     }
 
     /// The empty chain: the identity, and the unit of `compose` — the

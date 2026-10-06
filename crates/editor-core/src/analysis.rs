@@ -19,11 +19,12 @@
 //!
 //! **Distributions are opt-in, and the analysis varies exactly what
 //! the user declared variable.** A continuous parameter with NO
-//! distribution is FIXED: its analyzed interval has width zero at the
-//! nominal and it contributes mass 1. That is a modelling statement,
-//! not a fallback — nothing here guesses a spread for a parameter
-//! whose author did not state one. `Count` parameters are structural
-//! and are not box axes at all (E0's term hygiene).
+//! distribution is FIXED: it is no axis at all (VARIABLES-DESIGN VR8,
+//! [`is_axis`]) but a constant of every lane, read at its nominal.
+//! That is a modelling statement, not a fallback — nothing here
+//! guesses a spread for a parameter whose author did not state one.
+//! `Count` parameters are structural and are not box axes either (E0's
+//! term hygiene).
 //!
 //! **The analyzed box is the analysis's knob, not the distribution's
 //! property** (E2). A [`Normal`](Distribution::Normal) has unbounded
@@ -265,8 +266,10 @@ impl AnalyzedBox {
     /// doors stay, because a driver pricing a leaf is asking about an
     /// interval that is deliberately NOT the analyzed one.
     ///
-    /// An unannotated axis is FIXED and its tail is `0.0` — the
-    /// analysis is not leaving anything out, because nothing was
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8), so this answers `None` for it. An
+    /// axis built with no distribution is FIXED and its tail is `0.0` —
+    /// the analysis is not leaving anything out, because nothing was
     /// declared to vary.
     pub fn axis_tail_mass(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
         let axis = self.params.get(&var)?;
@@ -281,10 +284,12 @@ impl AnalyzedBox {
     /// [`Self::axis_tail_mass`] gives, for the E5 RSS column. `None` if
     /// the document has no such continuous parameter.
     ///
-    /// An unannotated axis is FIXED — a point mass at its nominal — and
-    /// its standard deviation is exactly `0.0`: the typed spelling of
-    /// "a fixed parameter carries a measure and spreads nothing", so an
-    /// RSS over it is available and it contributes no term.
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8). An axis built with no
+    /// distribution is FIXED — a point mass at its nominal — and its
+    /// standard deviation is exactly `0.0`: "a fixed parameter carries
+    /// a measure and spreads nothing", so an RSS over it is available
+    /// and it contributes no term.
     pub fn axis_std_deviation(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
         let axis = self.params.get(&var)?;
         Some(match axis.distribution {
@@ -298,9 +303,10 @@ impl AnalyzedBox {
     /// [`Self::axis_tail_mass`] gives, for the leaf-pricing door.
     /// `None` if the document has no such continuous parameter.
     ///
-    /// An unannotated axis is a point mass at its nominal, so it
-    /// answers `1.0` for any `sub` containing offset zero and `0.0`
-    /// otherwise.
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8). An axis built with no
+    /// distribution is a point mass at its nominal, so it answers `1.0`
+    /// for any `sub` containing offset zero and `0.0` otherwise.
     pub fn axis_box_mass(
         &self,
         var: VarId,
@@ -842,7 +848,8 @@ impl core::fmt::Display for ParamBoxError {
 
 impl ParamBox {
     /// The root box of an analyzed box: every axis at its full analyzed
-    /// offsets, and every unannotated parameter [`BoxAxis::Fixed`].
+    /// offsets, and every axis with zero width [`BoxAxis::Fixed`] (a
+    /// parameter with no tolerance is no axis, [`is_axis`]).
     pub fn of(analyzed: &AnalyzedBox) -> Self {
         let axes = analyzed
             .params()

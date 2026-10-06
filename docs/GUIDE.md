@@ -2002,8 +2002,10 @@ them are claims, not conveniences:
 | `TruncatedNormal { sigma, lo, hi }` | that normal, restricted to `[lo, hi]` and renormalized |
 
 Annotating is opt-in and it means something: a continuous parameter
-with **no** distribution is FIXED — the analysis varies exactly what you
-declared variable, and never guesses a spread you did not state.
+with **no** distribution is FIXED — a constant of every analysis lane,
+read at its nominal, and no axis of the box — so the analysis varies
+exactly what you declared variable, and never guesses a spread you did
+not state.
 `Count` parameters cannot be annotated at all; there is no spelling for
 it, because a structural count is fixed under any error analysis.
 
@@ -2054,8 +2056,8 @@ assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 // The band's box IS its support, so nothing escapes it...
 let plate = boxed.get(id("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
-// ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(id("web_t")).expect("an axis").offsets.is_fixed());
+// ...and the unannotated parameter is no axis at all: a constant.
+assert!(boxed.get(id("web_t")).is_none());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
@@ -2123,7 +2125,7 @@ bore = boxed.get(VarName("bore_r"))
 assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
 assert abs(boxed.tail_mass(VarName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
 assert boxed.get(VarName("plate_t")).offsets[0] == -0.1 * mm
-assert boxed.get(VarName("web_t")).is_fixed       # unannotated is FIXED
+assert boxed.get(VarName("web_t")) is None        # unannotated: a constant, no axis
 assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]  # declaration order
 
 # The band refuses to price anything its shape would decide, and the

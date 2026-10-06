@@ -1562,6 +1562,14 @@ impl Doc {
         self.inner.var_named(name.0.as_str()).map(Var)
     }
 
+    /// **The variable a node's slot reads** (`Doc::slot`), or `None`
+    /// for a node or a slot the document does not hold. Every slot
+    /// reads one: a value written there is its own anonymous variable,
+    /// and passing the handle to another slot is how two slots share it.
+    fn slot(&self, node: &NodeId, slot: &str) -> PyResult<Option<Var>> {
+        Ok(self.inner.slot(node.0, slot_from_text(slot)?).map(Var))
+    }
+
     /// The name this document holds for `var`, or `None` — for an
     /// anonymous variable, or one the document no longer holds.
     fn var_name(&self, var: &Var) -> Option<VarName> {
@@ -1845,11 +1853,11 @@ impl PartSelect {
     /// neither is wrapped nor clamped, because either would hand back
     /// a body the author did not name.
     #[staticmethod]
-    fn instance(py: Python<'_>, index: &super::expr::Formula) -> PyResult<Self> {
+    fn instance(py: Python<'_>, index: super::expr::SlotArg) -> PyResult<Self> {
         Ok(Self(d::PartSelect::Instance(super::doc::slot_expr(
             py,
             d::SlotId::Instance,
-            index,
+            &index,
         )?)))
     }
 }
@@ -2117,7 +2125,7 @@ impl Node {
     #[staticmethod]
     fn polygon(
         py: Python<'_>,
-        points: Vec<(super::expr::Formula, super::expr::Formula)>,
+        points: Vec<(super::expr::SlotArg, super::expr::SlotArg)>,
         plane: NodeId,
     ) -> PyResult<Self> {
         let plane = plane.0;
@@ -2130,7 +2138,7 @@ impl Node {
         // at `insert`.
         let point = |py2: Python<'_>,
                      step: usize,
-                     p: &(super::expr::Formula, super::expr::Formula)|
+                     p: &(super::expr::SlotArg, super::expr::SlotArg)|
          -> PyResult<[d::Formula; 2]> {
             let at = |arg| d::SlotId::Profile {
                 loop_: 0,
@@ -2283,9 +2291,9 @@ impl Node {
         py: Python<'_>,
         spine: &NodeId,
         u_ref: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
@@ -2334,9 +2342,9 @@ impl Node {
         py: Python<'_>,
         spine: &NodeId,
         u_ref: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
@@ -2452,14 +2460,14 @@ impl Node {
     fn datum_axis(
         py: Python<'_>,
         origin: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         direction: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
     ) -> PyResult<Self> {
         let origin = direction_expr(py, d::VectorSlot::Origin, &origin)?;
@@ -2485,8 +2493,8 @@ impl Node {
     fn datum_axis_in_plane(
         py: Python<'_>,
         plane: NodeId,
-        origin: (super::expr::Formula, super::expr::Formula),
-        direction: (super::expr::Formula, super::expr::Formula),
+        origin: (super::expr::SlotArg, super::expr::SlotArg),
+        direction: (super::expr::SlotArg, super::expr::SlotArg),
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::AxisInPlane {
@@ -2582,19 +2590,19 @@ impl Node {
     fn datum_frame(
         py: Python<'_>,
         origin: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         u: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         v: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
     ) -> PyResult<Self> {
         Ok(Self {
@@ -2617,14 +2625,14 @@ impl Node {
     fn datum_plane(
         py: Python<'_>,
         origin: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         normal: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
     ) -> PyResult<Self> {
         Ok(Self {
@@ -2654,9 +2662,9 @@ impl Node {
     fn datum_point(
         py: Python<'_>,
         position: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
     ) -> PyResult<Self> {
         Ok(Self {
@@ -2848,21 +2856,21 @@ impl Node {
         py: Python<'_>,
         input: &NodeId,
         translation: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         rotation_axis: (
-            super::expr::Formula,
-            super::expr::Formula,
-            super::expr::Formula,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
+            super::expr::SlotArg,
         ),
         rotation_angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Self::transform_by(
             py,
             input,
-            &super::place::Placement::rigid(translation, rotation_axis, rotation_angle),
+            &super::place::Placement::rigid(py, translation, rotation_axis, rotation_angle)?,
         )
     }
 
@@ -3316,7 +3324,7 @@ impl Node {
     fn assertion(
         measure: &NodeId,
         dir: super::measure::AssertionDir,
-        bound: super::expr::SlotArg,
+        bound: &super::expr::Formula,
     ) -> Self {
         Self {
             inner: d::Node::Assertion {
@@ -3903,6 +3911,7 @@ impl DocEdit {
         Self {
             inner: d::DocEdit::InsertNode {
                 node: Box::new(node.inner.clone()),
+                fresh: Vec::new(),
             },
         }
     }
@@ -4028,12 +4037,19 @@ impl DocEdit {
     /// `slot_unknown_var_name` / `slot_var_kind` for a
     /// parameter reference the document does not answer.
     #[staticmethod]
-    fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Formula) -> PyResult<Self> {
+    fn set_param(
+        py: Python<'_>,
+        node: &NodeId,
+        slot: &str,
+        expr: super::expr::SlotArg,
+    ) -> PyResult<Self> {
+        let slot = slot_from_text(slot)?;
         Ok(Self {
             inner: d::DocEdit::SetParam {
                 node: node.0,
-                slot: slot_from_text(slot)?,
-                expr: expr.0.clone(),
+                slot,
+                expr: expr.formula(py, slot.dimension())?,
+                fresh: Vec::new(),
             },
         })
     }
@@ -4099,6 +4115,7 @@ impl DocEdit {
             inner: d::DocEdit::DefineVar {
                 var: var.var_ref(),
                 def: value.decl(),
+                fresh: Vec::new(),
             },
         }
     }
@@ -4282,6 +4299,7 @@ impl DocEdit {
                 node: node.0,
                 slot: d::SlotId::Count,
                 expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
+                fresh: Vec::new(),
             },
         }
     }
@@ -4323,6 +4341,7 @@ impl DocEdit {
                 node: node.0,
                 slot: d::SlotId::Instance,
                 expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
+                fresh: Vec::new(),
             },
         }
     }
@@ -4352,6 +4371,7 @@ impl DocEdit {
                 node: node.0,
                 slot: d::SlotId::VDegree,
                 expr: d::Formula::named(name.0.clone(), d::Dimension::Count),
+                fresh: Vec::new(),
             },
         }
     }
@@ -4398,6 +4418,7 @@ impl DocEdit {
             inner: d::DocEdit::SetOffset {
                 instance: instance.0,
                 offset: offset.map(|p| p.0.clone()),
+                fresh: Vec::new(),
             },
         }
     }
@@ -4605,6 +4626,7 @@ impl DocEdit {
                 node: node.0,
                 loops,
                 ids,
+                fresh: Vec::new(),
             },
         })
     }
@@ -4682,9 +4704,9 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
 fn u_ref_expr(
     py: Python<'_>,
     u: (
-        super::expr::Formula,
-        super::expr::Formula,
-        super::expr::Formula,
+        super::expr::SlotArg,
+        super::expr::SlotArg,
+        super::expr::SlotArg,
     ),
 ) -> PyResult<[d::Formula; 3]> {
     direction_expr(py, d::VectorSlot::Direction, &u)
@@ -4696,9 +4718,9 @@ pub(crate) fn direction_expr(
     py: Python<'_>,
     slot: d::VectorSlot,
     v: &(
-        super::expr::Formula,
-        super::expr::Formula,
-        super::expr::Formula,
+        super::expr::SlotArg,
+        super::expr::SlotArg,
+        super::expr::SlotArg,
     ),
 ) -> PyResult<[d::Formula; 3]> {
     Ok([
@@ -4744,7 +4766,7 @@ impl TubeWindow {
     /// span reaching one full period (which must say `full()`), are
     /// the kernel's own typed refusals at `evaluate`.
     #[staticmethod]
-    fn arc(py: Python<'_>, t0: super::expr::SlotArg, t1: &super::expr::Formula) -> PyResult<Self> {
+    fn arc(py: Python<'_>, t0: super::expr::SlotArg, t1: super::expr::SlotArg) -> PyResult<Self> {
         Ok(Self {
             inner: d::TubeWindow::Arc {
                 t0: slot_expr(py, d::SlotId::TubeWindowStart, &t0)?,
