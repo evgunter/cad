@@ -444,3 +444,12 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   row stays, because #3955 (started before the hold) folds it in.
   Dispatched `one-home-for-where-a-shell-stands` (P2, off the held
   ground) on `fuse/one-home-shell-stands`.
+
+- 2026-10-06 — PR 3955 lands as step 1 of the PR 3881 build: cell-pair
+  records (`VeContact`, `EeContact`), census both ways, one substitution
+  door, edge-split lineage, and the unwired join. The dual review's
+  MAJORs were fixed and re-checked. Lane 2's n2: the fix pass deleted
+  ZIP's slit-zip row although it still holds in part, so the
+  orchestrator re-filed it with the corrected premise and folded in n1
+  (the REST lane's new edge rows are untested). The unit row returns to
+  `open` for step 2.
