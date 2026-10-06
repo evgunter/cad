@@ -80,3 +80,23 @@ flips, at `CAD_TOLERANCE_EPS=1e-8` (off the gated rows): tier 3 refuses
 At the gated rows (default, 1e-6, 1e-12) the same sliver face runs out
 its round budget instead (`QuadratureBudget`), which the row
 tolerates as `volume refused`.
+
+## 2026-10-06 — a split operand that does not finish at ε = 1e-6 (CLEAVE)
+
+With the split's doors taking `AtRestBody` (branch
+`cleave/split-operand-gate`), `sweep/tests/rehome_rings_lune.rs`
+`an_oblique_cut_carries_a_lune_bore_with_its_half` splits the bored disc
+on `z = 0.5 − 0.2y` and then finishes the lower piece to split it again.
+At `CAD_TOLERANCE_EPS=1e-6` the at-rest gate refuses that piece
+`VolumeUncomputable { source: Face { face 3v3, Escalated { margin
+8.454e-6, band (1e-6, 1e-5), predicate "props_quad_converged" } } }`; at
+the default ε and at 1e-12 it finishes. All three bore poses refuse
+there.
+
+That is a regression in what the split answers. On main the second split
+of that piece answered at 1e-6, and now it refuses, because the split
+serves finished bodies and the piece does not finish. The row pins the
+refusal by type at exactly 1e-6 (`QUAD_ESCALATES_AT`;
+`PropsError::Escalated { check: PropsCheck::Converged }`). At that ε it
+asserts nothing past "the lower piece is non-empty". The pin goes red
+when this lands, and the row's assertions then come back at 1e-6.

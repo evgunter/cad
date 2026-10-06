@@ -3730,7 +3730,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         });
     }
     judge_read(capture, &mut census, "split_reduce", || {
-        Ok(crate::splitting::split_reduce(body, &plane, Tol::witness()).is_ok())
+        Ok(crate::splitting::reduce(body, &plane, Tol::witness()).is_ok())
     });
     census
 }

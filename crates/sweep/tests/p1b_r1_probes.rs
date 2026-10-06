@@ -754,6 +754,7 @@ fn coplanar_split_products_carry_no_scaffold_at_rest() {
         .map(|(x, y)| Point2::new(x, y)),
     );
     let body = extruded(vec![notched], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     fence_crosscheck(&body, "notched block (extruded)");
     let result = topo::split(
         &body,
