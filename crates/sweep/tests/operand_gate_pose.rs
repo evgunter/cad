@@ -102,7 +102,8 @@ fn posed(what: &str, body: &Body<f64>, map: &Affine3<f64>, tol: Tol) -> AtRestBo
 }
 
 /// `a` and `b`, disjoint, under ∪, ∩ and both ∖: each body held to
-/// every validation tier and to the closed form, `∩` empty.
+/// every validation tier, to being a legal operand of the next boolean,
+/// and to the closed form, `∩` empty.
 fn assert_apart_every_op(
     label: &str,
     (a, v_a): (&AtRestBody<f64>, f64),
@@ -122,6 +123,7 @@ fn assert_apart_every_op(
             Ok(()),
             "{label}: tier 3"
         );
+        sweep::test_support::assert_legal_operand(&label, &out.body, tol);
         let m = topo::mass_properties(&out.body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
         assert!(

@@ -3350,7 +3350,15 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !y_row.bbox.overlaps(&ball_box) {
+                        if !y_row.bbox.overlaps(&ball_box)
+                            || super::separating::apart(
+                                (y, super::separating::Item::Face(yf)),
+                                (x, super::separating::Item::Face(face)),
+                                &super::separating::operand_axes(a, b, band),
+                                pad,
+                                band,
+                            )
+                        {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {
