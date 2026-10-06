@@ -2,10 +2,11 @@
 id: shell-mouth-chart-designated-in-full
 kind: issue
 title: A full revolve's mouth must be designated as both half-faces: the chart-completion friction, one coat later
-status: open
+status: closed
 opened: 2026-09-06
 priority: P0
-cost: D
+cost: M
+closed: 2026-10-06
 ---
 
 On a FULL revolve every profile segment is emitted as two faces on
@@ -45,3 +46,12 @@ Moved from `work/lib/` to `work/shell/`: the choice is a chart-taking designatio
 are unchanged; the directory is the claim (`work/README.md`). LIB's
 half — the Python/façade rows that move when this closes — is named in
 the body and stays LIB's to execute once the kernel side lands.
+
+## Closed (SHELL orchestrator, 2026-10-06)
+
+The sweep half of the choice landed: commit 8c9e6968 ("a full
+revolve's plane walls are one face") builds the mouth disc as ONE
+face, and `editor-core/tests/corpus/vessel.rs` designates it by one
+name. `ShellError::OpenFaceChartPartial` is now reachable only on a
+curved chart, which `OpenFaceRingUnsupported` refuses first — that
+remainder is `work/shell/shell-open-refuses-a-curved-designated-face`.

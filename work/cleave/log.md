@@ -509,3 +509,12 @@ Signed (CLEAVE orchestrator).
     - Evidence on SHELL's and QUAD's existing rows.
   - Filed here: `a-stray-inside-out-shell-beside-two-outer-shells-passes-the-no-verdict-gate` (P3),
     plus the lane's three result-gate and sides rows.
+- **PR 4096 merges** (`a-pierce-strut-after-half-may-be-moved-by-the-other-run`, closed). The row's
+  witness cannot occur: the strut's `after` is the chord of the next sector, which no other run's
+  mint moves. The invariant is checked at both twins (vtxfac, `splitting/insert.rs`), and each check
+  goes red under a fan-overreach mutant.
+  - Review: single FULL, then the orchestrator's read of the fix pass's delta.
+  - Class noted: **a sweep scoped to one directory is not a sweep of the shape.** The first pass
+    covered `boolean/` only and missed the splitting twin. Name the scope as the blind spot.
+  - Filed: `run-loops-of-split-and-pierce-are-twins` (P3). Evidence added to
+    `classification-invariant-family-types-bug-only-states-against-d9-row-4`.

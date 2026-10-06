@@ -56,3 +56,16 @@ refusal with the class named in prose. Today the sphere reads as
 plain ball finds otherwise.
 
 Refs SHELL-9 (#2223).
+
+## Premise drifted — measure first (SHELL orchestrator, 2026-10-06)
+
+f28c201d ("full revolve builds one wall per run of cocircular arcs")
+changed the fixtures: the revolved "two-arc sphere" is now one wall in
+two π-bands, so the contrast this row draws is gone, and
+`shell7_seam_corner::a_sphere_from_an_arc_run_hollows_to_its_closed_form`
+proves only the direct door (`offset_charts_together`), not
+`topo::shell`. The answering probes exist but only print
+(`sf2b_r1_probes`, `shell9_r1_probes`). The first lane re-measures
+`topo::shell` on a pole-touching ball: if it hollows, assert
+`4/3·π(r³−(r−t)³)` and close; if it refuses, the measured refusal is
+this row's evidence and the H fix proceeds.
