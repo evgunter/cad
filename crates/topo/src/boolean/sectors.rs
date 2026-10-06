@@ -1129,15 +1129,7 @@ fn tangent_face<T: Decide>(
         }
     }
     let at_site = faces_at(side.body, side.site).map_err(stale_site)?;
-    Ok(sole_common_face(&at_site, &far_faces))
-}
-
-/// The one face in both `xs` and `ys`; `None` when not exactly one is.
-pub(super) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey> {
-    match xs.iter().filter(|f| ys.contains(f)).collect::<Vec<_>>()[..] {
-        [&f] => Some(f),
-        _ => None,
-    }
+    Ok(crate::chord_join::sole_common_face(&at_site, &far_faces))
 }
 
 /// The faces around a site of `body` (every copy null edges tie

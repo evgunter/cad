@@ -93,6 +93,7 @@ use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
 use slotmap::SecondaryMap;
+use std::collections::BTreeSet;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -574,16 +575,50 @@ pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
 /// order (naming emission, M4 PR 3).
 pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
 
-/// `face` and every fragment the rows divide off it or off one of its
-/// fragments: the faces a key read before those mefs may now name.
-pub(crate) fn lineage(face: FaceKey, rows: &[(FaceKey, FaceKey)]) -> Vec<FaceKey> {
-    let mut out = vec![face];
-    for &(new, from) in rows {
-        if out.contains(&from) {
-            out.push(new);
+/// **A face's lineage**: the face and every face the fragment rows
+/// (`(new face, divided-from face)`, in any order) divide off it or off
+/// one of its fragments — the faces a key read before those divisions
+/// may now name.
+pub(crate) struct Lineage(BTreeSet<FaceKey>);
+
+impl Lineage {
+    /// `face`'s lineage through `rows`.
+    pub(crate) fn of<'r>(
+        face: FaceKey,
+        rows: impl IntoIterator<Item = &'r (FaceKey, FaceKey)>,
+    ) -> Self {
+        let rows: Vec<_> = rows.into_iter().collect();
+        let mut faces = BTreeSet::from([face]);
+        let mut todo = vec![face];
+        while let Some(f) = todo.pop() {
+            for &&(new, from) in &rows {
+                if from == f && faces.insert(new) {
+                    todo.push(new);
+                }
+            }
         }
+        Self(faces)
     }
-    out
+
+    /// Whether `face` is of the lineage.
+    pub(crate) fn contains(&self, face: FaceKey) -> bool {
+        self.0.contains(&face)
+    }
+
+    /// The face of the lineage holding both ends of a segment, `at_u`
+    /// and `at_v` the faces at each end ([`sole_common_face`]).
+    pub(crate) fn holding_both(&self, at_u: &[FaceKey], at_v: &[FaceKey]) -> Option<FaceKey> {
+        let at_u: Vec<FaceKey> = at_u.iter().copied().filter(|&f| self.contains(f)).collect();
+        sole_common_face(&at_u, at_v)
+    }
+}
+
+/// The one face in both `xs` and `ys`; `None` when not exactly one is.
+pub(crate) fn sole_common_face(xs: &[FaceKey], ys: &[FaceKey]) -> Option<FaceKey> {
+    match xs.iter().filter(|f| ys.contains(f)).collect::<Vec<_>>()[..] {
+        [&f] => Some(f),
+        _ => None,
+    }
 }
 
 /// The point of `v`, a vertex the join read out of its working body: a
@@ -2600,6 +2635,30 @@ fn second_chord<T: Decide>(
     }))
 }
 
+/// The face holding both `halves`, a join's: the face of their loops
+/// ([`sole_common_face`]). A `mef` divides one loop and a `mekr` joins
+/// two loops of one face, so halves on two faces have no chord between
+/// them, refused typed. The split pairs ends on one face only; a
+/// boolean match's germs can face two (a tangent or ring-vertex
+/// segment).
+fn face_holding<T: Real>(
+    body: &Body<T>,
+    halves: (HalfEdgeKey, HalfEdgeKey),
+) -> Result<FaceKey, SplitJoinError> {
+    let face_of = |he: HalfEdgeKey| -> Result<FaceKey, SplitJoinError> {
+        let l = body
+            .get_half_edge(he)
+            .ok_or_else(|| corrupt_he(he))?
+            .parent_loop;
+        Ok(body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face)
+    };
+    let face = face_of(halves.0)?;
+    sole_common_face(&[face], &[face_of(halves.1)?]).ok_or(SplitJoinError::SectionInvariant {
+        face,
+        what: "a join's two halves sit on two faces, and no chord joins loops of two faces",
+    })
+}
+
 /// **A join's two chords, planned once** — each one's site, end
 /// vertices and the half its curve runs from, or `None` where the
 /// adjacency skip drops it — read by everything that curves or mints
@@ -2613,6 +2672,8 @@ fn second_chord<T: Decide>(
 /// adjacent before the surgery or after it.
 pub(crate) struct JoinPlan {
     halves: (HalfEdgeKey, HalfEdgeKey),
+    /// The face holding both halves ([`face_holding`]).
+    face: FaceKey,
     first: Option<ChordPlan>,
     second: Option<ChordPlan>,
     /// The edge the segment is, where a locus names one.
@@ -2628,15 +2689,12 @@ impl JoinPlan {
         segment: SegmentEdge<'_, T>,
         band: Band,
     ) -> Result<Self, SplitJoinError> {
-        let l1 = body
-            .get_half_edge(halves.0)
-            .ok_or_else(|| corrupt_he(halves.0))?
-            .parent_loop;
-        let face = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
+        let face = face_holding(body, halves)?;
         let shape = join_shape(body, halves)?;
         let mut skip = |b: &Body<T>, he| segment.is(b, he, face, band);
         Ok(Self {
             halves,
+            face,
             first: first_chord(body, halves, &shape, &mut skip)?,
             second: second_chord(body, halves, &mut skip)?,
             locus: segment.locus(),
@@ -2646,6 +2704,11 @@ impl JoinPlan {
     /// The halves joined, in the plan's order.
     pub(crate) fn halves(&self) -> (HalfEdgeKey, HalfEdgeKey) {
         self.halves
+    }
+
+    /// The face holding both halves.
+    pub(crate) fn face(&self) -> FaceKey {
+        self.face
     }
 
     /// The chords' sites, `(first, second)`.
@@ -2684,9 +2747,9 @@ impl ChordJoiner {
     /// **The segment's chord curve** ([`SegmentCurve`]) for a planned
     /// join, computed once, in the lane the caller selects: the edge's
     /// own copy on [`JoinLane::AlongEdge`] ([`along_edge_spec`]), else
-    /// the section chord [`chord_spec`] mints in the face the halves sit
-    /// in. Both lanes that join — a boolean match and the plane split —
-    /// take their chords' geometry here.
+    /// the section chord [`chord_spec`] mints in the plan's face, the one
+    /// holding both halves. Both lanes that join — a boolean match and
+    /// the plane split — take their chords' geometry here.
     ///
     /// It is computed for the chord the plan mints first: from that
     /// chord's end, leaving it along `leave`. The curve is computed only
@@ -2700,12 +2763,7 @@ impl ChordJoiner {
         lane: JoinLane<'_, T>,
         leave: Leave<T>,
     ) -> Result<Option<SegmentCurve<T>>, SplitJoinError> {
-        let halves = plan.halves;
-        let l1 = body
-            .get_half_edge(halves.0)
-            .ok_or_else(|| corrupt_he(halves.0))?
-            .parent_loop;
-        let face = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
+        let (halves, face) = (plan.halves, plan.face);
         let Some(chord) = plan.first.as_ref().or(plan.second.as_ref()) else {
             return Ok(None);
         };
@@ -2745,12 +2803,7 @@ impl ChordJoiner {
         curve: &SegmentCurve<T>,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
-        let h2 = plan.halves.1;
-        let l1 = body
-            .get_half_edge(plan.halves.0)
-            .ok_or_else(|| corrupt_he(plan.halves.0))?
-            .parent_loop;
-        let oldf = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
+        let (h2, oldf) = (plan.halves.1, plan.face);
         let mut minted = Vec::new();
         let mut newf = None;
         if let Some(chord) = &plan.first {

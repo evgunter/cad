@@ -100,6 +100,7 @@ use super::{
     BooleanResult, BooleanResultKind, Locus, Operand, OperandKeys,
 };
 use crate::body::Body;
+use crate::chord_join::{Lineage, sole_common_face};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
@@ -1092,13 +1093,8 @@ fn fragment_holding<T: Decide>(
     v: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Option<FaceKey>, BooleanError> {
-    let lineage = crate::chord_join::lineage(face, fragments);
-    let at_u: Vec<FaceKey> = incident_faces(body, u, rings)?
-        .into_iter()
-        .filter(|f| lineage.contains(f))
-        .collect();
-    Ok(super::sectors::sole_common_face(
-        &at_u,
+    Ok(Lineage::of(face, fragments).holding_both(
+        &incident_faces(body, u, rings)?,
         &incident_faces(body, v, rings)?,
     ))
 }
@@ -1174,7 +1170,7 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
         if joined(body, u, v)? {
             continue;
         }
-        let Some(host) = super::sectors::sole_common_face(
+        let Some(host) = sole_common_face(
             &incident_faces(body, u, rings)?,
             &incident_faces(body, v, rings)?,
         ) else {

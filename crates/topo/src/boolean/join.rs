@@ -310,17 +310,11 @@ impl SolidJoin {
             .joiner
             .segment_curve(body, plan, lane, leave)
             .map_err(BooleanError::Join)?;
-        let h1 = plan.halves().0;
-        curve.ok_or_else(|| {
-            BooleanError::Join(match body.face_of_half_edge(h1) {
-                Some(face) => SplitJoinError::SectionInvariant {
-                    face,
-                    what: "both chords of a matched segment are its own edge (a loop holding \
-                           both halves of that edge)",
-                },
-                None => crate::chord_join::corrupt_he(h1),
-            })
-        })
+        curve.ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
+            face: plan.face(),
+            what: "both chords of a matched segment are its own edge (a loop holding both \
+                   halves of that edge)",
+        }))
     }
 
     /// The wall-side curve against the germ plane through `origin` with

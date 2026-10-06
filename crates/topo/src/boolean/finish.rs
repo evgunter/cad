@@ -44,6 +44,7 @@ use super::shell_witness::{
 use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
+use crate::chord_join::Lineage;
 use crate::entity::{
     EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -610,14 +611,14 @@ impl Welds {
 /// After the zips, [`weld_pierce_copies`] joins one pierce's own copies
 /// by the same fusion ([`weld_pair`]).
 ///
-/// The site is read from lineage: the pierced face's fragments
-/// (`lineage`, `(new face, divided-from face)` rows), section faces
+/// The site is read from the pierced face's [`Lineage`] through the
+/// join's fragment `rows` and the welds' own, section faces
 /// (`sections`) aside. Pierces that survive on different fragments, or
 /// meet only on a section face, stay apart, as the contact's own
 /// vertices do.
 fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    (operand, lineage, sections): (
+    (operand, rows, sections): (
         Operand,
         &[(FaceKey, FaceKey)],
         &SecondaryMap<FaceKey, SideCode>,
@@ -670,8 +671,8 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 })? {
                     continue;
                 }
-                let fragments = descendants(pierced, lineage.iter().chain(&welds.fragments));
-                let in_lineage = |f: FaceKey| fragments.contains(&f) && !sections.contains_key(f);
+                let lineage = Lineage::of(pierced, rows.iter().chain(&welds.fragments));
+                let in_lineage = |f: FaceKey| lineage.contains(f) && !sections.contains_key(f);
                 let Some((face, joint)) = pinch_site(body, u, w, in_lineage)? else {
                     continue;
                 };
@@ -684,25 +685,6 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(welds)
-}
-
-/// `face` and every face divided from it, through `rows` (`(new face,
-/// divided-from face)`, in any order).
-fn descendants<'r>(
-    face: FaceKey,
-    rows: impl Iterator<Item = &'r (FaceKey, FaceKey)>,
-) -> BTreeSet<FaceKey> {
-    let rows: Vec<_> = rows.collect();
-    let mut out = BTreeSet::from([face]);
-    let mut todo = vec![face];
-    while let Some(f) = todo.pop() {
-        for &&(new, from) in &rows {
-            if from == f && out.insert(new) {
-                todo.push(new);
-            }
-        }
-    }
-    out
 }
 
 /// The one face `allowed` admits whose boundary runs through both `u`
