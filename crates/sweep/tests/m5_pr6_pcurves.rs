@@ -510,11 +510,11 @@ fn caches_certify_on_the_interval_lane() {
 
 /// The seam-closed tube split by a tilted plane: its wall pieces' loops
 /// contain seam-meridian fragments AND section arcs, so the walk must
-/// keep one branch across a boundary that crosses the chart seam.
-/// Whatever the outcome, it must be TYPED — mint success with clean
-/// validation, or a typed refusal; never a wrong branch shipped.
+/// keep one branch across a boundary that crosses the chart seam. Both
+/// halves mint clean caches and hold `0.144π` each: the plane passes
+/// through the tube's centre, whose point reflection swaps the sides.
 #[test]
-fn a_seam_closed_tube_split_is_typed_either_way() {
+fn a_seam_closed_tube_split_mints_clean_halves() {
     let tube = revolved_tube();
     let tube = sweep::test_support::finished("the tube", tube, Tol::witness());
     let phi = 0.25f64;
@@ -523,32 +523,14 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
         Vec3::new(phi.sin(), phi.cos(), 0.0),
         geom_core::Tol::witness(),
     );
-    match split(&tube, &plane, Tol::witness()) {
-        Ok(result) => {
-            let band = Band::linear(Tol::witness()).unwrap();
-            for part in [result.above.body(), result.below.body()]
-                .into_iter()
-                .flatten()
-            {
-                let findings = topo::pcurves::validate_pcurves(part, band);
-                assert!(findings.is_empty(), "{findings:?}");
-            }
-        }
-        Err(e) => {
-            // A typed refusal is an acceptable outcome for a frontier
-            // configuration; a panic or a silently wrong body is not.
-            // `split`'s signature is what makes the refusal typed, so
-            // what is left to check at runtime is that it reaches a
-            // human as prose, and none of them renders a payload's
-            // `Debug`. The door is named once, by the layer that
-            // raised the split, so this arm names no stage.
-            let msg = format!("{e}");
-            assert!(
-                !msg.contains("split_reduce") && !msg.contains("split join"),
-                "no stage prefix: {msg}"
-            );
-            assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
-        }
+    let result = split(&tube, &plane, Tol::witness()).unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
+    for part in [&result.above, &result.below] {
+        let part = part.body().expect("material on both sides");
+        let findings = topo::pcurves::validate_pcurves(part, band);
+        assert!(findings.is_empty(), "{findings:?}");
+        let v = topo::mass_properties(part, Tol::witness()).unwrap().volume;
+        assert!((v - 0.144 * core::f64::consts::PI).abs() < 1e-8, "{v}");
     }
 }
 

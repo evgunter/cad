@@ -270,7 +270,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("cone", [0xbeb5_569e_177b_e0f5, 0x5880_b4f5_0c8e_167c]),
     ("cone_wedge", [0x2a10_1aee_9f5a_1b91, 0x83f2_5aac_9243_68ce]),
     ("donut", [0x7673_a909_57aa_a0f3, 0xe549_2aa4_78a6_d185]),
-    ("washer", [0xb5e6_4707_7081_1521, 0xd261_a4a3_e2d2_f19d]),
+    ("washer", [0x540e_b2df_ace5_aa6d, 0x439b_f735_4bfe_96f1]),
     (
         "tilted_above",
         [0x05de_30f5_be30_29e1, 0xb957_d220_dd6d_cd8e],
@@ -296,7 +296,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("loft_prism", [0x2d6a_6bd0_bdce_2300, 0x6109_b327_f166_6647]),
     (
         "swept_elbow",
-        [0xd90e_27e6_5762_0090, 0xb1a5_2588_0e2c_329d],
+        [0xa641_6efc_aabc_ab58, 0x9d69_b691_1dd3_be28],
     ),
 ];
 

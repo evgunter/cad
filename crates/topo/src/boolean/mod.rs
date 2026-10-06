@@ -92,6 +92,7 @@ mod ellipse_torus;
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
 mod finish;
+mod fragments;
 pub(crate) mod insert;
 mod join;
 mod ops;

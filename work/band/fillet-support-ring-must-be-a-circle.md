@@ -2,9 +2,12 @@
 id: fillet-support-ring-must-be-a-circle
 kind: issue
 title: A fillet whose planar support carries a polygonal ring refuses: the ring carry-through check reads only circles
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
+cost: M
+pr: 4119
+closed: 2026-10-06
 ---
 
 ## What
@@ -43,3 +46,26 @@ circle cases are.
 
 When it lands, the heat sink's wall 1 refuses no longer and its probe
 says what to change in the scene.
+
+## Findings (BAND lane, 2026-10-06)
+
+Measured against the tree, the claims hold: `ring_circle` refused
+every ring with a line edge, at both of the pass's ring readers (arm
+(a), a ring against an open link's trimline; arm (b), a ring of a
+closed rim's host against its trim circle), and the heat sink's wall 1
+refused with exactly the quoted detail.
+
+One further defect in the same reader: an all-ARC ring adopted its
+first arc's circle for the whole ring. Two overlapping bores leave a
+ring of arcs of two circles, and in one subtraction order a fillet at
+r = 0.252 carved through the second bore's arc into a body that failed
+tier 3 (`RingMeetsOuter`), while the other order refused. Main also
+built tier-3-invalid bodies for a ring of three bores' arcs (r = 0.2502
+and 0.252) and for a lens ring on a hostless annulus (r = 0.191). Every
+ring is now metered piece by piece (`ring_pieces`), exactly, in arm (a)
+against the trimline and in the support-boundary walk against the trim
+circle, and each cycle refuses at its least margin. The whole-circle
+readings (`CircleMargins`) are retired: no ring of a face encloses a
+ladder trim, which encloses its rim, another ring of that face. Pinned
+by `review_fillet_e2_probes::a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc`
+and `ring_carry_through_by_piece`.
