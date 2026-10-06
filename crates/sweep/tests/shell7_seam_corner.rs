@@ -678,7 +678,7 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     assert_eq!(vertex, split);
     assert_eq!(surfaces, 2);
     assert!(
-        what.starts_with("a line profile and a plane containing the axis meet here off the axis"),
+        what.starts_with("a line profile and a plane parallel to the axis meet here off the axis"),
         "got {what:?}"
     );
 }
@@ -688,7 +688,7 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
 /// [torus, meridian cap] corner whose azimuth the MOVED cap fixes — off
 /// the sketch plane — and the rim edge between the torus and the cap
 /// is minted as the spiric it is, its window read forward of its start
-/// (`offset_axial_rim_window`). Its two equator seams are
+/// (`offset_axial_edge_window`). Its two equator seams are
 /// `RevolvedPoint` declarations whose ends the moved caps turn about
 /// the axis, and they re-author onto the moved corners. The hollow
 /// reaches tier 3's check 7, `VolumeUncomputable` — the klein elbow's
