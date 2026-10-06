@@ -2113,7 +2113,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         // to execute: this census does not reach them.
         | BooleanErrorKind::CrossingInsertion
         | BooleanErrorKind::Containment
-        | BooleanErrorKind::Revert
         | BooleanErrorKind::Merge
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler

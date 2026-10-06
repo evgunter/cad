@@ -530,3 +530,22 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   and it is filed on PATHS as
   `a-klein-wall-radius-pin-fires-on-main-since-paths-5b` (P0). PR 3953
   and PR 4108 stay held on both main reds.
+- 2026-10-06 — Both main reds are fixed on main. JOIN's 1e-6 row was
+  folded and closed in PR 4083 (cleave/ray-walk), and the Klein
+  tripwire was retired in 65b1b0a8 (SHELL, PR 4168). The PATHS row the
+  orchestrator filed is closed against that commit. PR 3953 and
+  PR 4108 are told to merge main and land when green.
+- 2026-10-06 — PR 4108 lands (one home for where a shell stands,
+  `stands.rs`), green after main's reds were fixed. The row closes.
+  RESTFRONT's `check-ten-falls-silent-on-a-shell-whose-every-vertex-touches-another`
+  is answered by it, so its owner may close it (noted on RESTFRONT's
+  log).
+  The 4108 lane's merge of main resolved PR 4083's ray-walk tally into
+  `stands.rs` by hand: a `Blocked` witness arm, ranked evidence, and
+  check 10 inheriting "the next witness decides". It is green at
+  7330 tests. Two P3 rows were filed from its report: the zero-outer
+  `OperandOuterShells` arm may be unreachable, and the two-void
+  `shell` row runs about 6% slower at 4 threads.
+- 2026-10-06 — PR 3953 lands (two dangling null edges with one
+  segment). Every one-arc lens case builds in every op and passes 3′.
+  The P0 row closes.

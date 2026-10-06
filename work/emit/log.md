@@ -1965,3 +1965,7 @@ Ev approved removing `Doc::order` and folding seniority in next to the id,
 as a custom pair type `(u32, u64)` rather than bit packing, unless
 something needs one integer. The row stays open for the build, with a
 Ruled section.
+
+## 2026-10-06 — PR 4166: the part chooser proposes an editable label
+
+`add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
