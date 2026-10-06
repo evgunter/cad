@@ -2,10 +2,11 @@
 id: the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction
 kind: issue
 title: m10_the_derived_frames_refusal_is_not_a_freeze's none rung is a golden of the plain form's first refusal, and on the sign-hull that refusal is a clause-1 Invalid no dial can reach
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
+closed: 2026-10-06
 ---
 
 
@@ -58,3 +59,16 @@ value channel's refusal) is put to Ev with SYM-10's Phase 1 tables.
 `crates/editor-core/tests/m10_derived_frame_interval.rs` (the row and
 the `sym10_phase1_*` probe beside it); `crates/geom-core/src/sym.rs`'s
 `Decide for Sym<T>`. Filed by SYM-10's lane.
+
+## Closed (2026-10-06): the row was re-aimed by DECIDE-3
+
+DECIDE-3's Phase 2 (`b07a01b8b6`, 2026-09-21), under Ev's ruling that
+day that a re-baseline is never skipped, re-aimed the row's `none` rung
+to what the tier now does. `m10_the_derived_frames_refusal_is_not_a_freeze`
+asserts that with every rule off the one refusal is the boss's side
+plane's `newell_plane_residual`, "margin is invalid", with nothing
+frozen, and that A0 alone reaches the same refusal, also with nothing
+frozen. Its doc cites this item for the measurement. The question this
+row put to Ev ("re-aimed … is put to Ev") was answered in the code
+before it was asked; the orchestrator found it on 2026-10-06 when Ev
+asked what it was. Nothing is left to do.
