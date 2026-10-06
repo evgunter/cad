@@ -157,20 +157,67 @@ pub(super) type Orbits<'a, T> = (&'a [BoolSector<T>], &'a [BoolSector<T>]);
 
 #[cfg(any(test, feature = "test-support"))]
 thread_local! {
-    /// While [`with_vertex_pairs_reversed`] runs: how many reductions on
-    /// this thread took, in reverse, vertex pairs two of which cross at
-    /// one vertex.
+    /// While [`with_vertex_pairs_reversed`] runs: how many reductions
+    /// inside [`ops_under_test`] took, in reverse, vertex pairs two of
+    /// which cross at one vertex.
     static REVERSED: core::cell::Cell<Option<usize>> = const { core::cell::Cell::new(None) };
+    /// Whether [`ops_under_test`] is running.
+    static UNDER_TEST: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+/// Puts a thread-local back as it was when dropped, so a panic inside
+/// the scope that set it cannot leak the setting into the thread's next
+/// test.
+#[cfg(any(test, feature = "test-support"))]
+struct Restore<V: Copy + 'static> {
+    cell: &'static std::thread::LocalKey<core::cell::Cell<V>>,
+    prior: V,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl<V: Copy + 'static> Drop for Restore<V> {
+    fn drop(&mut self) {
+        self.cell.set(self.prior);
+    }
 }
 
 /// Runs `f` with every reduction on this thread taking its vertex pairs
-/// in reverse order, and returns how many of them held two crossing
-/// pairs at one vertex: what the results must not depend on.
+/// in reverse order, and each pair's records too ([`pairs_reversed`]),
+/// and returns how many reductions inside [`ops_under_test`] held two
+/// crossing pairs at one vertex: what the results must not depend on.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn with_vertex_pairs_reversed<R>(f: impl FnOnce() -> R) -> (R, usize) {
-    let prior = REVERSED.replace(Some(0));
+    let _restore = Restore {
+        cell: &REVERSED,
+        prior: REVERSED.replace(Some(0)),
+    };
     let out = f();
-    (out, REVERSED.replace(prior).unwrap_or(0))
+    (out, REVERSED.get().unwrap_or(0))
+}
+
+/// Runs `f` as the ops a row tests, apart from the booleans that built
+/// their operands: [`with_vertex_pairs_reversed`] counts only these.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn ops_under_test<R>(f: impl FnOnce() -> R) -> R {
+    let _restore = Restore {
+        cell: &UNDER_TEST,
+        prior: UNDER_TEST.replace(true),
+    };
+    f()
+}
+
+/// Whether this thread's reductions take their vertex pairs and each
+/// pair's records in reverse ([`with_vertex_pairs_reversed`]).
+#[cfg(any(test, feature = "test-support"))]
+fn pairs_reversed() -> bool {
+    REVERSED.get().is_some()
+}
+
+/// Whether this thread's reductions take their vertex pairs and each
+/// pair's records in reverse: never, outside tests.
+#[cfg(not(any(test, feature = "test-support")))]
+const fn pairs_reversed() -> bool {
+    false
 }
 
 /// Reverses `plans` and `orbits` inside [`with_vertex_pairs_reversed`].
@@ -193,7 +240,7 @@ pub(super) fn reverse_when_asked<T: geom_core::Real>(
         .iter()
         .enumerate()
         .any(|(i, c)| crossing[i + 1..].iter().any(|d| d.a == c.a || d.b == c.b));
-    REVERSED.set(Some(n + usize::from(shared)));
+    REVERSED.set(Some(n + usize::from(shared && UNDER_TEST.get())));
 }
 
 /// A cut in a vertex's orbit: its sector entry and its direction.
@@ -263,11 +310,15 @@ pub(super) fn plan_null_pairs<T: Decide>(
     op: BooleanOp,
     band: Band,
 ) -> Result<NullPlan<T>, BooleanError> {
-    let (survivors, raw): (Vec<&PairRecord>, Vec<&PairRecord>) = records
+    let (mut survivors, mut raw): (Vec<&PairRecord>, Vec<&PairRecord>) = records
         .iter()
         .zip(raw)
         .filter(|(r, _)| r.survives())
         .unzip();
+    if pairs_reversed() {
+        survivors.reverse();
+        raw.reverse();
+    }
     let mut plan = NullPlan {
         contact,
         runs: Vec::new(),
@@ -772,8 +823,14 @@ fn nests<T: Decide>(
         )?)
 }
 
-/// A strut's segment: its germs in walk order ([`run_ends`]), and its
-/// piece's code between them, the lower germ's forward code.
+/// A run's two ends in walk order, and its piece's code between them,
+/// the first end's forward code. The walk order is a fan's leaving germ
+/// then its closing germ, a strut's earlier germ through their one
+/// physical sector then its later. A pair of more than two survivors
+/// runs from the earlier in its solid's walk order already; one of two
+/// runs in record order, so its strut's ends may come reversed. A strut
+/// whose germs lie along one direction is an invariant: a pair's two
+/// crossings are distinct.
 type Segment<T> = (Cut<T>, Cut<T>, SideCode);
 
 /// `run`'s [`Segment`].
@@ -782,13 +839,12 @@ fn segment<T: Decide>(
     run: SideRun<T>,
     band: Band,
 ) -> Result<Segment<T>, BooleanError> {
-    let (lo, hi) = run_ends(secs, run, band)?;
-    let code = if leads(secs, run, band)? {
-        run.from.1.0
+    let (from, to) = ((run.from.0, run.from.3), (run.to.0, run.to.3));
+    Ok(if leads(secs, run, band)? {
+        (from, to, run.from.1.0)
     } else {
-        run.to.1.0
-    };
-    Ok((lo, hi, code))
+        (to, from, run.to.1.0)
+    })
 }
 
 /// **Whether the strut segment `outer` holds the strut segment `inner`
@@ -798,13 +854,13 @@ fn segment<T: Decide>(
 /// inner strut then hangs at the outer's tip ([`mint_plans`]).
 ///
 /// Two struts tied at both ends (one arc) are two pieces touching along
-/// both directions, one In on the segment and the other Out (two Ins,
-/// or two Outs, would overlap). The Out one holds: the vertex between
-/// the two, the holder's tip and the inner's root, keeps the corner
-/// outside both pieces, which is empty in the corner's face. The other
-/// way round it would be inside both. Two tied struts with one code
-/// hold neither, and refuse [`BooleanError::SharedVertexCrossings`]
-/// ([`tied_held`]).
+/// both directions, one In on the segment and the other Out. The Out
+/// one holds: the vertex between the two, the holder's tip and the
+/// inner's root, keeps the corner outside both pieces, which is empty
+/// in the corner's face. The other way round it would be inside both.
+/// One code for both is an invariant: two pieces of one operand In on
+/// the segment would overlap there, and two Out on it are each In
+/// on the rest of the orbit, and overlap there.
 fn holds_whole<T: Decide>(
     secs: &[BoolSector<T>],
     (lo, hi, code): Segment<T>,
@@ -823,7 +879,14 @@ fn holds_whole<T: Decide>(
     // starts at the physical sector's first entry, since from `lo`'s an
     // inner segment straddling `lo` would wrap round to look held.
     if (at_lo, at_hi) == (None, None) {
-        return Ok((code, icode) == (SideCode::Out, SideCode::In));
+        return match (code, icode) {
+            (SideCode::Out, SideCode::In) => Ok(true),
+            (SideCode::In, SideCode::Out) => Ok(false),
+            _ => Err(BooleanError::ClassificationInvariant {
+                what: "two dangling null edges with one segment and one code: two pieces of one \
+                       operand overlap at the point",
+            }),
+        };
     }
     let inside = |o: Option<bool>| o != Some(false);
     Ok(inside(at_lo) && inside(at_hi))
@@ -850,9 +913,9 @@ fn holds_whole<T: Decide>(
 /// cuts lie in the segment, and its run is a strut that nests (the
 /// other way round would be the whole orbit). A null edge both of
 /// whose runs hold another pair's cut otherwise refuses
-/// [`BooleanError::SharedVertexCrossings`]: two struts with one
-/// segment and one code, or a fan whose two ways round both hold one,
-/// which needs a pair paired across the arcs outside its piece. Two crossing pairs that share both their
+/// [`BooleanError::SharedVertexCrossings`]: a fan whose two ways round
+/// both hold one, which needs a pair paired across the arcs outside its
+/// piece. Two crossing pairs that share both their
 /// vertices refuse
 /// [`BooleanError::NonManifoldResult`]: the result would hold a
 /// shared-entity wedge fan there.
@@ -1018,27 +1081,7 @@ struct OtherCut<T: geom_core::Real> {
     code: SideCode,
 }
 
-/// A run's two ends in walk order: a fan's leaving germ then its
-/// closing germ, a strut's earlier germ through their one physical
-/// sector then its later. A pair of more than two survivors runs from
-/// the earlier in its solid's walk order already; one of two runs in
-/// record order, so its strut's ends may come reversed. A strut whose
-/// germs lie along one direction is an invariant: a pair's two
-/// crossings are distinct.
-fn run_ends<T: Decide>(
-    secs: &[BoolSector<T>],
-    run: SideRun<T>,
-    band: Band,
-) -> Result<(Cut<T>, Cut<T>), BooleanError> {
-    let (from, to) = ((run.from.0, run.from.3), (run.to.0, run.to.3));
-    Ok(if leads(secs, run, band)? {
-        (from, to)
-    } else {
-        (to, from)
-    })
-}
-
-/// Whether `run`'s first end in walk order ([`run_ends`]) is its `from`.
+/// Whether `run`'s first end in walk order ([`Segment`]) is its `from`.
 fn leads<T: Decide>(
     secs: &[BoolSector<T>],
     run: SideRun<T>,
@@ -1112,14 +1155,14 @@ fn nested<T: Decide>(
 /// **Another pair's cut along one end germ's direction** (a pinch line
 /// lying flat in a face of the shared corner): whether `run` holds it.
 /// Each pair's run lies on the side of the line its codes, read off its
-/// own piece's faces, give it, which [`run_ends`] records as after or
+/// own piece's faces, give it, which [`segment`] records as after or
 /// before the cut. Runs on opposite sides are disjoint: not held. Runs
 /// on one side are nested: not held either, as the longer holds the
 /// shorter's far cut strictly and turns ([`reconcile_shared`]'s fixed
 /// point); unless both ends tie, one arc, which holds, and the other
 /// way round is the complement, on the opposite side, so a fan turns,
 /// while a strut's is the whole orbit. Struts nest before this reading
-/// ([`nested`]), at one arc too unless their codes agree. No witness
+/// ([`nested`]), at one arc too. No witness
 /// reaches a fan's one arc, nor the invariant that the two directions
 /// are opposite rays (a convex sector holds none).
 fn tied_held<T: Decide>(

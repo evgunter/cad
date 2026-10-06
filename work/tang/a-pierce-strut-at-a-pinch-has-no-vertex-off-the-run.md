@@ -100,14 +100,22 @@ carrying its two v-v rows. The results are the same on main.
 
 ## A fifth witness: a pinch line's two far ends in a face (FUSE, 2026-10-03)
 
+**This one depends on construction order, not on geometry.** Two
+bodies that are the same up to key order give opposite outcomes, and
+that dependence lives in the join.
+
 `two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`
 (`crates/topo/tests/union_flush_onto_edge_contact.rs`):
 - `y` is a block less a lens, with a smaller lens put back along both
   of its rays. Its two pinch lines end at (0.5, 0.15, 0) and
   (0.15, 0.5, 0), inside the unit cube's bottom face.
-- With `y = lens ∪ cut`, all six ops refuse `Join(RingHomingAmbiguous)`.
-  With `y = cut ∪ lens`, all six build. The bodies are the same up to
-  key order.
+- With `y = lens ∪ cut`, all six ops against the cube refuse
+  `Join(RingHomingAmbiguous)`.
+- With `y = cut ∪ lens`, all six build. The two `y`s are the same body
+  up to key order.
+- The same lenses with the pinch lines leaving the face
+  (`two_dangling_null_edges_with_one_segment_build_in_every_op`) build
+  in both orders.
 
 Measured on `fuse/one-arc-struts`:
 - In `cube ∪ y`, the lens's section triangle (0,0) → (0.15, 0.5) →
@@ -117,5 +125,9 @@ Measured on `fuse/one-arc-struts`:
   `OnBoundary`.
 - In the order that builds, the join consumes that ring before the
   triangle closes, so homing never meets it.
-- `with_vertex_pairs_reversed` (the v-v plan order) does not change
-  either outcome.
+- **What decides it is the join's scan order, which follows the
+  operands' keys.** Reversing the reduction's vertex pairs and each
+  pair's records (`with_vertex_pairs_reversed`) does not change either
+  outcome.
+- This row's title names the ring-homing mechanism; the defect this
+  witness shows is the order dependence.
