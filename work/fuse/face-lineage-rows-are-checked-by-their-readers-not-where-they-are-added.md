@@ -21,10 +21,10 @@ vertex list. The boolean's face lineage rows did not get the same
 move. They are plain `Vec`/`BTreeMap` rows, any row is accepted where
 it is added, and each reader checks for a cycle as it chases:
 
-- `Descendants.faces` (`boolean/ops.rs`), written by
-  `Descendants::absorb_faces` and `Descendants::absorb_merge`, refused
-  for a cycle at its reader `Descendants::live_face` ("a face's
-  absorption rows are cyclic");
+- `Descendants.faces` and `Descendants.cells` (`boolean/ops.rs`),
+  written by `Descendants::absorb_faces`, `Descendants::absorb_merge`
+  and `Descendants::substitute`, refused for a cycle at their reader
+  `Descendants::live` ("a cell's substitution rows are cyclic");
 - `BooleanNaming::face_fragments_a` / `face_fragments_b`, read through
   `lineage_root` in `discard.rs` (`stretches`: "a face's fragment
   lineage is cyclic") and by editor-core's naming
