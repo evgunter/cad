@@ -776,6 +776,7 @@ impl<T: Decide> Sweep<T> {
         };
         let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
         let mut straight = Vec::with_capacity(hes.len());
+        let mut placeholders = 0;
         for &he in &hes {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
             let edge = body
@@ -789,6 +790,14 @@ impl<T: Decide> Sweep<T> {
             let CurveGeom::Certified(curve) = entry else {
                 continue;
             };
+            let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
+            // A scaffold self-loop is a lone site's placeholder circle
+            // (`EdgeCurveSpec::self_loop_circle_at`), not a section arc:
+            // it bounds nothing, whatever plane its circle lies in.
+            if end == he_data.start && curve.description().is_scaffold() {
+                placeholders += 1;
+                continue;
+            }
             let Some(crate::loop_winding::ConicFrame {
                 center: c_e,
                 axis: axis_e,
@@ -803,7 +812,7 @@ impl<T: Decide> Sweep<T> {
             let span = t1 - t0;
             let forward = edge.he_plus == he;
             let a_pt = vertex_point(body, he_data.start);
-            let b_pt = vertex_point(body, body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?);
+            let b_pt = vertex_point(body, end);
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
@@ -824,6 +833,11 @@ impl<T: Decide> Sweep<T> {
         // predicate. `chart_region_area` asks the same question two
         // dimensions down through the same door; the accumulators
         // stay separate, for the reasons written at that site.
+        // A loop of placeholders alone is a point, with no perimeter
+        // to lever its area over.
+        if placeholders == hes.len() {
+            return Err(SplitJoinError::DegenerateSection { face });
+        }
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
             // A positive NET area can still carry a zero-area spur.

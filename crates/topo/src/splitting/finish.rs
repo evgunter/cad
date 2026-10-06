@@ -59,7 +59,7 @@
 //! restatement meters the section chart's containment and refuses
 //! typed through certification when the band cannot decide it.
 
-use geom_core::{Decide, Real, Vec3};
+use geom_core::{Decide, Real, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
@@ -386,7 +386,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         } else {
             return Err(SplitFinishError::Corrupt);
         };
-        let u_ref = below_chord_u_ref(&body, section)?;
+        let u_ref = below_chord_u_ref(&body, section, red.plane.normal)?;
         let normal_of =
             |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
         let plane_for = |side: PlaneSide| Surface::Plane {
@@ -905,12 +905,13 @@ fn whole_body_side<T: Decide>(
 fn below_chord_u_ref<T: Decide>(
     body: &Body<T>,
     section: &CompletedSection,
+    normal: UnitVec3<T>,
 ) -> Result<Vec3<T>, SplitFinishError> {
     let points = loop_points_of(body, section.below_loop).map_err(|e| match e {
         SplitJoinError::Euler(err) => SplitFinishError::Euler(err),
         _ => SplitFinishError::Corrupt,
     })?;
-    section_loops::chord_u_ref(&points).ok_or(SplitFinishError::Corrupt)
+    Ok(section_loops::chord_u_ref(&points, normal))
 }
 
 /// The sense of the section face `face`'s loop `l` will bound, on a

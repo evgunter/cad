@@ -920,27 +920,28 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
 
 /// The candidate arc of `conic` from `th1` to `th2` (exact conic
 /// parameters of the chord's ends) running forward `p1 → p2`: the ccw
-/// arc as it stands, the cw arc on the axis-flipped carrier.
+/// arc as it stands, the cw arc on the axis-flipped carrier. `th2 =
+/// None` is a self-loop chord's: the whole conic from `th1`.
 fn oriented_arc<T: Real>(
     conic: &SectionConic<T>,
     face: FaceKey,
     th1: T,
-    th2: T,
+    th2: Option<T>,
     ccw: bool,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
     let tau = T::tau();
-    // The arc's own span, forward from `th1`, in `[0, τ)`: a chord may
-    // span more than half the conic. The window's jump is at a span of
-    // zero, two ends sharing a conic parameter — a zero-length or a
-    // whole-conic arc. Nothing here gates it: the boolean joins only
-    // distinct sites (`bool_join_chord`); that the split's pairing does
-    // is not established here.
+    // The ccw span forward from `th1`, in `[0, τ)` between distinct
+    // ends: a chord may span more than half the conic. Its window jumps
+    // at a span of zero, two distinct ends sharing a conic parameter —
+    // a zero-length or a whole-conic arc. Nothing here gates that: the
+    // boolean joins only distinct sites (`bool_join_chord`); that the
+    // split's pairing does is not established here.
+    let ccw_span = th2.map(|th2| (th2 - th1).reduce_periodic(tau));
     if ccw {
-        let span = (th2 - th1).reduce_periodic(tau);
-        Ok((conic.carrier.clone(), th1, th1 + span))
+        Ok((conic.carrier.clone(), th1, th1 + ccw_span.unwrap_or(tau)))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
-        let span = tau - (th2 - th1).reduce_periodic(tau);
+        let span = ccw_span.map_or(tau, |s| tau - s);
         let flipped = conic
             .carrier
             .reversed()
@@ -1087,8 +1088,10 @@ fn chord_spec<T: Decide>(
     u2: VertexKey,
     leave: Departure<T>,
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-    // Self-loop chords keep the scaffolding-circle convention.
-    if u1 == u2 {
+    // A self-loop chord is a lone site, on the scaffolding circle,
+    // everywhere but a curved face the split divides, where a conic
+    // section is the whole conic.
+    if u1 == u2 && !matches!(lane, JoinLane::Split(_)) {
         return Ok(None);
     }
     body.get_vertex(u1).ok_or(SplitJoinError::Corrupt {
@@ -1140,6 +1143,7 @@ fn chord_spec<T: Decide>(
     let conic = match case {
         // Ruling sections: the straight chord is the honest carrier.
         SectionCase::Straight => return Ok(None),
+        SectionCase::Tangent(_) if u1 == u2 => return Ok(None),
         // C7 (M5 PR 9): the tangent ruling is described
         // `TangentIntersection { wall, aux plane }` and pushed through
         // the ordinary certification gate by the mef/mekr caller. No
@@ -1208,8 +1212,8 @@ fn chord_spec<T: Decide>(
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
-    let (carrier, t_start, t_end) =
-        oriented_arc(&conic, face, conic.param(p1), conic.param(p2), ccw)?;
+    let to = (u1 != u2).then(|| conic.param(p2));
+    let (carrier, t_start, t_end) = oriented_arc(&conic, face, conic.param(p1), to, ccw)?;
     // The aux plane surface (honest u_ref: the section's major
     // direction, ⊥ normal by construction), minted once per split.
     let plane_key = match ctx.plane_key {
@@ -1421,7 +1425,7 @@ fn bool_planar_chord_spec<T: Decide>(
     let p2 = vertex_point(body, u2);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
     let (carrier, t_start, t_end) =
-        oriented_arc(&conic, face, conic.param(p1), conic.param(p2), ccw)?;
+        oriented_arc(&conic, face, conic.param(p1), Some(conic.param(p2)), ccw)?;
     // The aux WALL surface in this body (honest full copy of the
     // mate's wall; minted once per germ wall face, caller-cached).
     let wall_aux = match *partner_key {

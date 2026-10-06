@@ -13,7 +13,7 @@
 //! `n_SP·m < 0` ⇒ **m = −n_SP**; symmetrically the below body's
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
-use geom_core::{Decide, Indeterminate, Point3, Real, Vec3};
+use geom_core::{Decide, Indeterminate, Point3, Real, UnitVec3, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -37,13 +37,14 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
     }
 }
 
-/// The in-plane `u` axis a section loop is charted with: its first
-/// chord, normalized — deterministic data, no comparisons. `None` for
-/// a loop of fewer than two corners.
-pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>]) -> Option<Vec3<T>> {
+/// The in-plane `u` axis a section loop on the plane of normal `n` is
+/// charted with: its first chord, normalized, or for a loop of one
+/// corner (a whole section conic on a self-loop chord) the first axis
+/// of `n`'s own basis — deterministic data, no comparisons.
+pub(super) fn chord_u_ref<T: Real>(points: &[Point3<T>], n: UnitVec3<T>) -> Vec3<T> {
     match points {
-        [a, b, ..] => Some((*b - *a).normalize()),
-        _ => None,
+        [a, b, ..] => (*b - *a).normalize(),
+        _ => n.orthonormal_basis().0,
     }
 }
 
