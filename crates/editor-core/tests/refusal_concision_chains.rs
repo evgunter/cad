@@ -3961,7 +3961,8 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
 
 /// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
 /// renders that one per fit refusal), and every `OffsetError` arm
-/// through `Offset`. A `what` is the longest its raise sites pass.
+/// through `Offset`. `TogetherAxialCorner` carries the longest `what`
+/// any raise site passes.
 fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
     use geom::SurfaceKind::{Cone, Plane, Torus};
     use geom_brep::OffsetError as O;
