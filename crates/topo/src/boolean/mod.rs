@@ -86,6 +86,7 @@ mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
+mod edge_join;
 mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
@@ -150,6 +151,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
+pub use edge_join::{EdgeJoin, joinable_vertices};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -414,6 +416,74 @@ pub struct VfContact {
     pub face: FaceKey,
 }
 
+/// A vertex-on-edge record: `vertex` rests on the interior of `edge`,
+/// a cell of the other touching side ([`Cell`]). It is what a join leaves of a v-v record whose partner it
+/// joined away, and what an edge split hands the piece the vertex lies
+/// on: the cell pair `(vertex, edge)`, never a point or a parameter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VeContact {
+    /// The resting vertex.
+    pub vertex: VertexKey,
+    /// The edge whose interior holds it.
+    pub edge: crate::entity::EdgeKey,
+}
+
+/// An edge-edge record: the interiors of edges `a` and `b`, of the two
+/// touching sides ([`Cell`]), meet — at a point where they cross, or along a
+/// segment where they overlap. A crossing has no bound a vertex record
+/// can hold, so this record is what backs it; an overlap is certified
+/// from its bounds whether or not it is held. The cell pair `(a, b)`,
+/// unordered: what a substitution leaves of a v-v record whose two
+/// vertices were both joined into edges.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EeContact {
+    /// One edge.
+    pub a: crate::entity::EdgeKey,
+    /// The other.
+    pub b: crate::entity::EdgeKey,
+}
+
+/// One edge split a boolean's reduction made in an operand clone:
+/// `parent` keeps its key and its leading span, from its start to the
+/// new `vertex`, and `child` runs from `vertex` to the parent's old
+/// end. In split order, these rows are the lineage a carried
+/// `(vertex, edge)` record follows onto the piece it rests on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct EdgeSplit {
+    /// The operand whose clone was split.
+    pub(crate) operand: Operand,
+    /// The split edge, which keeps the leading piece.
+    pub(crate) parent: crate::entity::EdgeKey,
+    /// The vertex the split minted.
+    pub(crate) vertex: VertexKey,
+    /// The trailing piece.
+    pub(crate) child: crate::entity::EdgeKey,
+}
+
+/// One cell of a body: what a contact record names, two at a time.
+///
+/// A record is a pair of cells, one from each touching side, whose
+/// interiors meet. Its kind is the pair's dimensions: vertex/vertex
+/// ([`VvContact`]), vertex/edge ([`VeContact`]), vertex/face
+/// ([`VfContact`]), edge/edge ([`EeContact`]), face/face
+/// ([`CurveContact`], [`PatchContact`]). Edge/face contacts are
+/// certified from their bounds, each a vertex event of one of the kinds
+/// above (`topo::census`, the D3 rule): an edge resting in a face
+/// overlaps it, and a transverse pierce is never contact, so the kind
+/// is not stored.
+///
+/// A side is a shell, or one side of a shell's pinch: a pinch's two
+/// sides touch within one shell, and their records name its cells.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Cell {
+    /// A vertex.
+    Vertex(VertexKey),
+    /// An edge.
+    Edge(crate::entity::EdgeKey),
+    /// A face.
+    Face(FaceKey),
+}
+
 /// A **certified curve touch** (C3): two faces meeting along the
 /// locus carried by `witness`.
 ///
@@ -481,11 +551,136 @@ pub struct ContactRecords {
     pub a_on_b: Vec<VfContact>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<VfContact>,
+    /// Vertices resting on the other side's edge interiors.
+    pub ve: Vec<VeContact>,
+    /// Edges whose interiors meet the other side's.
+    pub ee: Vec<EeContact>,
     /// Curve-granularity contacts (C3).
     pub curves: Vec<CurveContact>,
     /// Patch-granularity contacts (C3) — see [`PatchContact`] for the
     /// not-yet-certifiable posture this list ships under.
     pub patches: Vec<PatchContact>,
+}
+
+impl ContactRecords {
+    /// Every record as the cell pair it names, kind by kind in field
+    /// order. A face/face record's witness edge is not a cell of the
+    /// pair: it is where the pair's contact is certified.
+    pub fn cell_pairs(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
+        // Every field, by name: a new kind fails to compile here until
+        // it says which pair it is.
+        let Self {
+            vv,
+            a_on_b,
+            b_on_a,
+            ve,
+            ee,
+            curves,
+            patches,
+        } = self;
+        let vv = vv.iter().map(|c| (Cell::Vertex(c.a), Cell::Vertex(c.b)));
+        let vf = a_on_b
+            .iter()
+            .chain(b_on_a)
+            .map(|c| (Cell::Vertex(c.vertex), Cell::Face(c.face)));
+        let ve = ve
+            .iter()
+            .map(|c| (Cell::Vertex(c.vertex), Cell::Edge(c.edge)));
+        let ee = ee.iter().map(|c| (Cell::Edge(c.a), Cell::Edge(c.b)));
+        let ff = curves
+            .iter()
+            .map(|c| (c.face_a, c.face_b))
+            .chain(patches.iter().map(|c| (c.face_a, c.face_b)))
+            .map(|(a, b)| (Cell::Face(a), Cell::Face(b)));
+        vv.chain(vf).chain(ve).chain(ee).chain(ff)
+    }
+
+    /// The same records with every cell re-keyed through `key`, a map
+    /// that keeps each cell's kind (a graft into another arena). The
+    /// first cell `key` cannot map refuses with that cell.
+    ///
+    /// # Errors
+    ///
+    /// The cell that has no image.
+    pub fn rekeyed(&self, key: impl Fn(Cell) -> Option<Cell>) -> Result<Self, Cell> {
+        let vertex = |v| match key(Cell::Vertex(v)) {
+            Some(Cell::Vertex(k)) => Ok(k),
+            _ => Err(Cell::Vertex(v)),
+        };
+        let edge = |e| match key(Cell::Edge(e)) {
+            Some(Cell::Edge(k)) => Ok(k),
+            _ => Err(Cell::Edge(e)),
+        };
+        let face = |f| match key(Cell::Face(f)) {
+            Some(Cell::Face(k)) => Ok(k),
+            _ => Err(Cell::Face(f)),
+        };
+        let vf = |c: &VfContact| {
+            Ok(VfContact {
+                vertex: vertex(c.vertex)?,
+                face: face(c.face)?,
+            })
+        };
+        let Self {
+            vv,
+            a_on_b,
+            b_on_a,
+            ve,
+            ee,
+            curves,
+            patches,
+        } = self;
+        Ok(Self {
+            vv: vv
+                .iter()
+                .map(|c| {
+                    Ok(VvContact {
+                        a: vertex(c.a)?,
+                        b: vertex(c.b)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            a_on_b: a_on_b.iter().map(vf).collect::<Result<_, _>>()?,
+            b_on_a: b_on_a.iter().map(vf).collect::<Result<_, _>>()?,
+            ve: ve
+                .iter()
+                .map(|c| {
+                    Ok(VeContact {
+                        vertex: vertex(c.vertex)?,
+                        edge: edge(c.edge)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            ee: ee
+                .iter()
+                .map(|c| {
+                    Ok(EeContact {
+                        a: edge(c.a)?,
+                        b: edge(c.b)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            curves: curves
+                .iter()
+                .map(|c| {
+                    Ok(CurveContact {
+                        face_a: face(c.face_a)?,
+                        face_b: face(c.face_b)?,
+                        witness: edge(c.witness)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            patches: patches
+                .iter()
+                .map(|c| {
+                    Ok(PatchContact {
+                        face_a: face(c.face_a)?,
+                        face_b: face(c.face_b)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+        })
+    }
 }
 
 /// Operand-internal contact records carried by recipe intent (F5, M4
@@ -500,6 +695,10 @@ pub struct CarriedContacts {
     pub vv: Vec<CarriedVv>,
     /// Vertex-on-face rests within the operand.
     pub vf: Vec<CarriedVf>,
+    /// Vertex-on-edge records within the operand, carried back in: a
+    /// coincidence an op decided and recorded (D10), which asserts no
+    /// class.
+    pub ve: Vec<VeContact>,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -531,7 +730,8 @@ pub struct CarriedVf {
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        self.vv.is_empty() && self.vf.is_empty()
+        let Self { vv, vf, ve } = self;
+        vv.is_empty() && vf.is_empty() && ve.is_empty()
     }
 }
 
@@ -1454,6 +1654,8 @@ pub struct BooleanReduction<T: Real> {
     /// pair here was inferred from values. The whole-shell `On` verdict
     /// reads these (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
+    /// Every edge split the reduction made, both clones, split order.
+    pub(crate) edge_splits: Vec<EdgeSplit>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -3913,6 +4115,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         [None, None],
         tol,
     )?;
+    let edge_splits = core::mem::take(&mut acc.splits);
     let contacts = acc.finish();
 
     let mut null_edges = Vec::new();
@@ -4099,6 +4302,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         held,
         rest_contacts,
         coincident,
+        edge_splits,
     })
 }
 
@@ -4983,6 +5187,14 @@ fn validate_declarations<T: Decide>(
             }
             if body.get_face(rest.face).is_none() {
                 return Err(bad(operand, "carried v-on-f face key does not resolve"));
+            }
+        }
+        for rest in &c.ve {
+            if body.get_vertex(rest.vertex).is_none() {
+                return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
+            }
+            if body.get_edge(rest.edge).is_none() {
+                return Err(bad(operand, "carried v-on-e edge key does not resolve"));
             }
         }
         Ok(())
