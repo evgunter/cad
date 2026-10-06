@@ -44,18 +44,29 @@ impl FaceBoxes {
     ///
     /// # Errors
     ///
-    /// [`BooleanError`] — the box builder's own refusals: a cylinder
-    /// carrier whose axis has no decided length.
-    pub fn of<T: Decide + Bounds>(body: &Body<T>, band: Band) -> Result<Self, BooleanError> {
+    /// The face that could not be boxed, with the box builder's own
+    /// [`BooleanError`]: a cylinder carrier whose axis has no decided
+    /// length.
+    pub fn of<T: Decide + Bounds>(
+        body: &Body<T>,
+        band: Band,
+    ) -> Result<Self, (FaceKey, BooleanError)> {
         let pad = sweep_pad(band);
         let mut faces = Vec::new();
         let mut boxes = Vec::new();
         for (face, _) in body.faces() {
             faces.push(face);
-            boxes.push(face_box(body, face, pad, band)?);
+            boxes.push(face_box(body, face, pad, band).map_err(|e| (face, e))?);
         }
         let tree = Bvh::build(&boxes);
         Ok(Self { faces, boxes, tree })
+    }
+
+    /// How far every box reaches past its face's locus: a box's cells
+    /// that lie outside the face lie within this of it.
+    #[must_use]
+    pub fn pad(band: Band) -> f64 {
+        sweep_pad(band)
     }
 
     /// The faces whose box meets the closed box `[lo, hi]`, each with its

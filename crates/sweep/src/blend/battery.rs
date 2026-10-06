@@ -1604,7 +1604,10 @@ fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
 }
 
 /// **Run the battery** — C8's six predicates over the request's
-/// inputs, in C8's order, before any construction.
+/// inputs, in C8's order, before any construction — all but predicate
+/// 2's reach arm, which needs the plan's feet and runs in the surgery
+/// before any mutation. So an `Ok` here does not yet say that no band
+/// reaches a face it does not blend; `fillet_edges` asks that too.
 ///
 /// # Errors
 ///

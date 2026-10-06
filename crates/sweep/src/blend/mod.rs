@@ -30,7 +30,10 @@
 //! its units, and its lever arm:
 //!
 //! 1. [`battery::radius_headroom`] — `fillet3_radius_headroom`
-//! 2. [`battery::face_clearance`] — `fillet3_face_clearance`
+//! 2. [`battery::face_clearance`] — `fillet3_face_clearance`; its
+//!    reach arm (`reach`), every band against every face of the body,
+//!    needs the plan's feet and runs in the surgery after 6, before any
+//!    mutation
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
 //! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
@@ -1233,8 +1236,10 @@ pub enum BlendError {
     /// what a concave one adds — or could not be certified clear of it
     /// (`blend::reach`).
     FaceClearance {
-        /// The face the band reaches.
-        face: FaceKey,
+        /// The face the band reaches; or, where what it reaches is the
+        /// band of another chain of the request (which has no face yet),
+        /// that chain's first edge.
+        at: EntityId,
         /// The convexity of the chain whose band reaches it: which of
         /// the two things the band does to the material there.
         chain: Convexity,
@@ -1623,10 +1628,10 @@ impl fmt::Display for BlendError {
                 )
             }
             Self::FaceClearance {
+                at,
                 margin,
                 chain,
                 bounded,
-                ..
             } => {
                 let what = match chain {
                     Convexity::Convex => "removes",
@@ -1637,10 +1642,13 @@ impl fmt::Display for BlendError {
                 } else {
                     "lies in"
                 };
+                let whom = match at {
+                    EntityId::Edge(_) => "the band of another chain of the request",
+                    _ => "a face the blend does not round",
+                };
                 write!(
                     f,
-                    "a face the blend does not round {how} the material its band {what} \
-                     ({margin}). {}",
+                    "{whom} {how} the material its band {what} ({margin}). {}",
                     BlendDecision::FaceClearance.recourse(margin.arm())
                 )
             }
@@ -1958,13 +1966,13 @@ mod recourse_tests {
                 cross_chain: true,
             },
             BlendError::FaceClearance {
-                face: FaceKey::default(),
+                at: EntityId::Face(FaceKey::default()),
                 chain: Convexity::Convex,
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
                 bounded: false,
             },
             BlendError::FaceClearance {
-                face: FaceKey::default(),
+                at: EntityId::Face(FaceKey::default()),
                 chain: Convexity::Concave,
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
                 bounded: true,
