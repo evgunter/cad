@@ -2,10 +2,11 @@
 id: a-cylinder-split-through-its-seam-ruling-refuses-rechart-undescribed
 kind: issue
 title: A solid cylinder split by a plane through its seam ruling (0.4 rad off tangency) refuses Finish(Euler(RechartUndescribed{seam})) with both normals at every eps; off the seam the same pose builds
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P0
 cost: M
+branch: cleave/seam-ruling-split
 ---
 
 
