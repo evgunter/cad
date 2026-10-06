@@ -226,6 +226,45 @@ pub struct SplitReduction<T: Real> {
     pub null_edges: Vec<NullEdgeRecord>,
 }
 
+/// **A knife edge the split would mint and cannot declare.** The plane
+/// is tangent to a curved wall that bends away from its material (a
+/// hole's wall touched from inside): material lies on both sides of the
+/// plane at the contact, and the piece on the wall's side meets the cut
+/// face tangentially along it, tapering to an edge of wedge 0. A split
+/// has no declaration channel, so it refuses every such edge (D1). One
+/// refusal, raised by whichever stage reads the contact first
+/// ([`SplitReduceError::KnifeEdge`], [`SplitFinishError::KnifeEdge`];
+/// [`SplitError::knife_edge`] reads either).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KnifeEdge {
+    /// The curved wall the plane is tangent to.
+    pub wall: FaceKey,
+    /// Where the contact was read.
+    pub at: KnifeEdgeSite,
+}
+
+/// Where a [`KnifeEdge`]'s contact was read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KnifeEdgeSite {
+    /// An edge that runs along the contact: a seam of the wall, or the
+    /// edge between the wall and a face in the plane.
+    Edge(EdgeKey),
+    /// An ON vertex the contact passes through where no edge runs along
+    /// it (the contact crosses a rim mid-wall).
+    Vertex(VertexKey),
+}
+
+impl core::fmt::Display for KnifeEdge {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the split plane is tangent to a curved face where it cuts, so a piece would \
+             taper to a knife edge nobody asked for. Recourse: move the split plane off the \
+             tangency"
+        )
+    }
+}
+
 /// Typed failure of [`split_reduce`]; the returned operand clone is
 /// dropped, the operand itself was never touched.
 #[derive(Debug)]
@@ -275,6 +314,11 @@ pub enum SplitReduceError {
         /// The ON vertex where the contact was classified.
         vertex: VertexKey,
     },
+    /// The plane is tangent to a curved wall that bends away from its
+    /// material, read where the reduction finds the wall tangent at an
+    /// ON vertex (`rules::apply_rule_a`): the knife edge [`KnifeEdge`]
+    /// names.
+    KnifeEdge(KnifeEdge),
     /// The operand is well-formed but not a closed solid at rest: tier 2
     /// ([`crate::validate_closed`]) refuses it for construction
     /// scaffolding an edit left behind — a strut's valence-1 vertex, an
@@ -484,6 +528,7 @@ impl core::fmt::Display for SplitReduceError {
                 "the split plane is tangent to a curved face at a vertex, and a tangent \
                  cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
+            Self::KnifeEdge(k) => write!(f, "{k}"),
             Self::ScaffoldingOperand { .. } => write!(
                 f,
                 "the body is not a finished solid: it still carries what an edit left \
@@ -710,6 +755,18 @@ impl From<crate::pcurves::PcurveMintError> for SplitError {
     }
 }
 
+impl SplitError {
+    /// The knife edge this refusal names, whichever stage raised it.
+    #[must_use]
+    pub fn knife_edge(&self) -> Option<&KnifeEdge> {
+        match self {
+            Self::Reduce(SplitReduceError::KnifeEdge(k))
+            | Self::Finish(SplitFinishError::KnifeEdge(k)) => Some(k),
+            _ => None,
+        }
+    }
+}
+
 // A stage that names itself is not re-named here: `split_reduce`,
 // `split join` and `split finish` each lead with their own stage, so a
 // prefix would only stutter once this error is forwarded — the node
@@ -834,22 +891,10 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
 ///
-/// **The rerun also receives concave grazes of curved faces.** A plane
-/// tangent to a hole's wall from inside closes a zero-area polygon too,
-/// and the refusal cannot say which of the two it is, so the mirrored
-/// run is tried for both. (A plane tangent along a convex edge, or to a
-/// convex wall, never gets here: rule (b) classifies the entry with its
-/// material.) A graze alone refuses again there. A graze whose contact
-/// meets a real section elsewhere would, in the mirrored run, join that
-/// contact into the real section's loop as a zero-width spur of
-/// positive net area — a success with a slit in both halves — and the
-/// join refuses it ([`SplitJoinError::SectionSpur`]), so the direct
-/// run's `DegenerateSection` surfaces. A graze whose mirrored run
-/// completes the join and then refuses
-/// [`SplitFinishError::SectionCusp`] surfaces THAT refusal: the mirror
-/// resolved the direct run's degenerate polygon, so the knife edge is
-/// why the cut cannot be made. A both-sided pinch never takes this path
-/// — it refuses at the join in both directions.
+/// A plane grazing a curved wall never reaches the rerun: rule (b)
+/// lands a convex graze with its material, and rule (a) refuses a
+/// concave one in the reduction ([`SplitReduceError::KnifeEdge`]), which
+/// the mirrored run shares.
 /// The result's section-face normals still follow THIS
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.
@@ -862,10 +907,8 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 ///
 /// # Errors
 ///
-/// [`SplitError`], each stage's typed refusals passed through whole —
-/// including the degenerate section/side refusals of a curved face's
-/// concave graze (no degenerate body is ever emitted), and
-/// [`SplitFinishError::SectionCusp`] from either run. Each run gates
+/// [`SplitError`], each stage's typed refusals passed through whole (no
+/// degenerate body is ever emitted). Each run gates
 /// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
 /// mirrored run whose side is not a closed solid surfaces the direct
 /// run's refusal, as any other mirror failure does. Tier 3 is
@@ -911,8 +954,7 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
     }
     // D7: the pinch lane — rerun mirrored (the below fans become
     // above runs and mint their copies), swap the sides back. A
-    // mirror that also refuses surfaces the DIRECT run's error, save a
-    // `SectionCusp` (the docs above).
+    // mirror that also refuses surfaces the DIRECT run's error.
     let mirrored = SplitPlane {
         origin: plane.origin,
         normal: -plane.normal,
@@ -942,9 +984,6 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 vertex_pairs: naming.vertex_pairs,
             },
         }),
-        // Reached only past the mirror's join, so the direct run's
-        // degenerate polygon was resolved and the knife edge is why.
-        Err(cusp @ SplitError::Finish(SplitFinishError::SectionCusp { .. })) => Err(cusp),
         Err(_) => split_direct(operand, plane, tol),
     }
 }
