@@ -130,7 +130,7 @@ fn assert_reverted(label: &str, body: &Body<f64>) {
         Ok(()),
         "{label}: the source is tier-3 valid"
     );
-    let reverted = body.revert().expect("revert");
+    let reverted = body.revert();
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
         Err(vec![ValidationError::NegativeVolume {
@@ -165,7 +165,7 @@ fn assert_reverted(label: &str, body: &Body<f64>) {
         "{label}: chart_boundary answers the same kind for every face of the reversed body"
     );
     assert_eq!(
-        format!("{:?}", reverted.revert().unwrap()),
+        format!("{:?}", reverted.revert()),
         format!("{body:?}"),
         "{label}: bitwise involution"
     );

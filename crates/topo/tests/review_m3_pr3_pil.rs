@@ -209,7 +209,7 @@ fn boundary_pre_pass_edges() {
 /// walk arithmetic reds it too. **Measured on this branch**, by
 /// mutating the tree and running this row: a `side_axis` that branches
 /// on the normal's sign reds this row and nothing else in the file; an
-/// unsigned crossing lever (`(yⱼ − yᵢ).abs()` in `ray_parity.rs`) reds
+/// unsigned crossing lever (`(yⱼ − yᵢ).abs()` in `ray_walk.rs`) reds
 /// this row *and* the four beside it, through the tilted block's
 /// absolute expectations rather than through the differential
 /// comparison.

@@ -1837,7 +1837,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
-    let reverted = p.body.revert().unwrap();
+    let reverted = p.body.revert();
     assert_eq!(validate(&reverted), Ok(()));
     assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
     assert_eq!(
@@ -1859,7 +1859,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     // this body's wedges.
     // Bit-faithful: revert is an involution, so the pair really is one
     // body read two ways.
-    let back = reverted.revert().unwrap();
+    let back = reverted.revert();
     assert_eq!(
         crate::fixtures::deep_snapshot(&back),
         crate::fixtures::deep_snapshot(&p.body)
@@ -2795,7 +2795,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         (Outer, Outer),
         "upright: the roles"
     );
-    let inverted = upright.revert().expect("the slab reverts");
+    let inverted = upright.revert();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -2835,9 +2835,7 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
     let band = geom_core::Band::linear(tol).expect("a band");
     let t = 4.0 * band.escalate();
     for far in [0.0, 1e3, 5e3] {
-        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol)
-            .revert()
-            .expect("the slab reverts");
+        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert();
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
             validate_geometric(&inverted, tol),
@@ -3019,7 +3017,7 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     }
     // Check 7 on the inside-out body first: an enclosure that lets it
     // pass is the defect this row exists to see.
-    let inverted = upright.revert().expect("the half-disc reverts");
+    let inverted = upright.revert();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -3061,7 +3059,7 @@ fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
         cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
         let mut slab = far_anchored_slab(3.0, 1e-3, t, 1e3, tol);
         if inside_out {
-            slab = slab.revert().expect("the slab reverts");
+            slab = slab.revert();
         }
         crate::graft_disjoint_all_keyed(&mut body, &slab).expect("the slab grafts");
         let [keeper, donor] = solids_of(&body)[..] else {

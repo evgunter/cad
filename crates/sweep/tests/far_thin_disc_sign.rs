@@ -78,7 +78,7 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
         read += 1;
         let inside = Point3::new(foot.x, foot.y, foot.z + 0.5 * h);
         let beside = Point3::new(foot.x + 10.0 * R, foot.y, foot.z + 0.5 * h);
-        let inverted = upright.revert().expect("the disc reverts");
+        let inverted = upright.revert();
         let solid = inverted.solids().next().expect("one solid").0;
         for (body, name, check7, role, at) in [
             (&upright, "upright", Ok(()), ShellRole::Outer, [In, Out]),
@@ -229,7 +229,7 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                         continue;
                     };
                     read += 1;
-                    let inverted = upright.revert().expect("the disc reverts");
+                    let inverted = upright.revert();
                     let solid = inverted.solids().next().expect("one solid").0;
                     for (body, name, check7, role) in [
                         (&upright, "upright", Ok(()), ShellRole::Outer),

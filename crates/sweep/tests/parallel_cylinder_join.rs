@@ -208,32 +208,54 @@ fn an_island_and_a_turned_pose_join_along_their_rulings() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// **The row's rods pass the join and stop at the at-infinity probe.**
-/// Their walls join along the rulings like the poses above, and every op
-/// then refuses `Containment(VolumeUncertified)`: the classification's
-/// probe measures the drum's cut wall, trimmed by an ellipse, in closed
-/// form only (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
-/// Each pose's volumes are written down for the day that door opens.
+/// **The row's rods build in every op and order.** Their walls join
+/// along the rulings like the poses above. The classification's probe
+/// measures the drum's cut wall, trimmed by an ellipse, in closed form
+/// only (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
+/// so a probe ray that meets nothing cannot side its point; that ray is
+/// set aside, and the query refuses `Containment(VolumeUncertified)` only
+/// where no ray settles, which none of these poses reaches. Each build
+/// passes tiers 2 and 3′, the certificate and its closed-form volume.
+/// They are not yet legal operands (their union with a far brick
+/// refuses; why is not measured here).
 #[test]
-fn the_rim_crossing_rods_stop_at_the_volume_probe() {
+fn the_rim_crossing_rods_build_in_every_op() {
+    let tol = Tol::witness();
     for pose in rim_poses() {
         assert!(
             pose.shared > 0.0 && pose.shared < pose.vb,
             "{}: the rod is part in, part out",
             pose.label
         );
-        for (op, r, _) in pose.runs() {
-            assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::Containment(
-                        topo::PointInSolidError::VolumeUncertified
-                    ))
-                ),
-                "{} | {op}: {:?}",
-                pose.label,
-                r.map(|_| "a body")
-            );
+        for (op, r, want) in pose.runs() {
+            let label = format!("{} | {op}", pose.label);
+            match r {
+                Ok(r) => {
+                    let bb = r
+                        .body()
+                        .unwrap_or_else(|| panic!("{label}: a body is owed"));
+                    assert!(topo::validate_closed(&bb.body).is_ok(), "{label}: tier 2");
+                    assert!(
+                        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok(),
+                        "{label}: tier 3′"
+                    );
+                    assert!(
+                        topo::validate_geometric_certificate(&bb.body, tol).is_ok(),
+                        "{label}: the certificate"
+                    );
+                    // The cut wall's flux is a certified quadrature: the
+                    // slack is its enclosure's own half-width.
+                    let m = topo::mass_properties(&bb.body, tol)
+                        .unwrap_or_else(|e| panic!("{label}: measures, got {e:?}"));
+                    assert!(
+                        (m.volume - want).abs() <= m.volume_pad + 1e-12,
+                        "{label}: volume {} ± {} vs {want}",
+                        m.volume,
+                        m.volume_pad
+                    );
+                }
+                other => panic!("{label}: {:?}", other.map(|_| "a body")),
+            }
         }
     }
 }
