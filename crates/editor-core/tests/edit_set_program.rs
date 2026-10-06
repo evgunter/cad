@@ -390,7 +390,10 @@ fn a_vertex_is_named_by_the_piece_starting_at_it() {
 
     let ids = bump_ids(&r.doc, r.profile);
     let applied = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids);
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     assert!(near(strut_at(&applied.doc, r.rod, &one), BUMP));
     assert!(near(strut_at(&applied.doc, r.rod, &two), (1.0, 0.0)));
     assert!(
@@ -423,7 +426,10 @@ fn a_leg_inserted_into_a_square_keeps_every_walls_name() {
     let leg =
         LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (3.0, 1.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
     let applied = accepted(&painted, profile, vec![leg], ids);
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     let right = corners_of(&applied.doc, ext, &walls[1]);
     assert!(
         has_corner3(&right, (3.0, 1.0, 0.0)) && has_corner3(&right, (2.0, 2.0, 0.0)),
@@ -1323,7 +1329,11 @@ fn a_slot_edit_through_a_zero_fit_keeps_a_live_name_and_reports_nothing() {
         "the held wall is the left edge at r = 2: {before:?}"
     );
     let grown = set_radius(&doc, profile, 0.3);
-    assert_eq!(crate::fixture::without_anonymous(&grown.maintenance), vec![], "the slot edit reports nothing");
+    assert_eq!(
+        crate::fixture::without_anonymous(&grown.maintenance),
+        vec![],
+        "the slot edit reports nothing"
+    );
     assert_eq!(fixture::pieces(&grown.doc, profile).edges[0].len(), 5);
     let ev = fixture::run(&grown.doc, &EvalOptions::default());
     assert!(
@@ -1421,7 +1431,10 @@ fn a_value_edit_moves_no_name() {
     let top = wall_of(&doc, ext, 0, 2);
     let (doc, frame) = frame_on(doc, ext, top.clone());
     let applied = set_value(&doc, "hole_r", 0.4);
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     assert_eq!(frame_face(&applied.doc, frame), top);
     assert_eq!(wall_of(&applied.doc, ext, 0, 2), top);
 }
@@ -1441,7 +1454,11 @@ fn an_outer_and_hole_swap_moves_no_name() {
     let (doc, _) = frame_on(doc, ext, side.clone());
     let doc = paint(&doc, &half);
     let applied = set_value(&doc, "hole_r", 1.5);
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance), Vec::new(), "nothing is reported");
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new(),
+        "nothing is reported"
+    );
     let (before, after) = (
         fixture::pieces(&doc, fixture::swept(&doc, ext)),
         fixture::pieces(&applied.doc, fixture::swept(&applied.doc, ext)),
@@ -1497,7 +1514,10 @@ fn a_sense_flip_moves_no_name() {
         &editor_core::RefusingReach,
     )
     .expect("the apex moves");
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     assert_eq!(
         wall_of(&applied.doc, ext, 0, 2),
         base,
@@ -1521,14 +1541,20 @@ fn a_parameter_through_a_state_that_does_not_replay_moves_no_name() {
     let half = wall_of(&doc, ext, 1, 0);
     let doc = paint(&doc, &half);
     let mid = set_value(&doc, "hole_r", 0.0);
-    assert_eq!(crate::fixture::without_anonymous(&mid.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&mid.maintenance),
+        Vec::new()
+    );
     let ev = fixture::run(&mid.doc, &EvalOptions::default());
     assert!(
         ev.value(ext).is_none(),
         "the parked profile does not evaluate"
     );
     let end = set_value(&mid.doc, "hole_r", 0.3);
-    assert_eq!(crate::fixture::without_anonymous(&end.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&end.maintenance),
+        Vec::new()
+    );
     assert!(end.doc.appearance().contains_key(&half));
     assert!(
         end.doc.bit_eq(&doc),
@@ -1576,7 +1602,10 @@ fn a_zero_fit_piece_vanishes_and_comes_back() {
     );
     let (doc, frame) = frame_on(doc, ext, run_out.clone());
     let tight = set_radius(&doc, profile, 2.0);
-    assert_eq!(crate::fixture::without_anonymous(&tight.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&tight.maintenance),
+        Vec::new()
+    );
     frame_refuses_vanished(&tight.doc, frame, &run_out);
     let back = set_radius(&tight.doc, profile, 0.3);
     let ev = fixture::run(&back.doc, &EvalOptions::default());
@@ -1765,7 +1794,8 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
 
     let replaying = accepted(&doc, profile, vec![corner(true)], keep());
     assert_eq!(
-        crate::fixture::without_anonymous(&replaying.maintenance), strand,
+        crate::fixture::without_anonymous(&replaying.maintenance),
+        strand,
         "from the replaying state the leg's frame strands"
     );
     let parked = set_value(&doc, "hole_r", 0.0).doc;
@@ -1777,7 +1807,8 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     );
     let applied = accepted(&parked, profile, vec![corner(true)], keep());
     assert_eq!(
-        crate::fixture::without_anonymous(&applied.maintenance), strand,
+        crate::fixture::without_anonymous(&applied.maintenance),
+        strand,
         "from the parked state the same frame strands"
     );
     frame_refuses_vanished(&applied.doc, frame, &up);
@@ -2243,7 +2274,10 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         fname(b, RoleSeg::Lateral(piece.into()))
     );
     let applied = set_value(&doc, "p", 0.75);
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance), Vec::new());
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new()
+    );
     for ext in [a, b] {
         let side = corners_of(
             &applied.doc,
@@ -2377,7 +2411,11 @@ fn a_loft_wall_whose_pairing_changes_vanishes() {
     let mut ids1 = keep_all(&doc, sec1);
     ids1[0].insert(3, None);
     let applied = accepted(&doc, sec1, vec![leg_at(1.5, 3, (1.5, 4.0))], ids1);
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance), Vec::new(), "no step was dropped");
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance),
+        Vec::new(),
+        "no step was dropped"
+    );
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
     assert!(ev.value(loft).is_some(), "{:?}", corpus::failures(&ev));
     assert!(
@@ -2464,7 +2502,11 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
 
     // Every step kept, every point moved: no name moves.
     let kept = accepted(&doc, sec1, vec![square_of(1.25)], keep_all(&doc, sec1));
-    assert_eq!(crate::fixture::without_anonymous(&kept.maintenance), Vec::new(), "no step was dropped");
+    assert_eq!(
+        crate::fixture::without_anonymous(&kept.maintenance),
+        Vec::new(),
+        "no step was dropped"
+    );
     let is_live = live(&kept.doc);
     for n in names.iter().flatten() {
         assert!(is_live(n), "{n:?} still denotes its entity");
@@ -2485,7 +2527,8 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let is_live = live(&applied.doc);
     for (k, group) in names.iter().enumerate() {
         for n in group {
-            let reported = crate::fixture::without_anonymous(&applied.maintenance).contains(&report(n));
+            let reported =
+                crate::fixture::without_anonymous(&applied.maintenance).contains(&report(n));
             assert_eq!(
                 reported,
                 k == 1,
@@ -2498,5 +2541,10 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
             );
         }
     }
-    assert_eq!(crate::fixture::without_anonymous(&applied.maintenance).len(), 3, "{:?}", crate::fixture::without_anonymous(&applied.maintenance));
+    assert_eq!(
+        crate::fixture::without_anonymous(&applied.maintenance).len(),
+        3,
+        "{:?}",
+        crate::fixture::without_anonymous(&applied.maintenance)
+    );
 }

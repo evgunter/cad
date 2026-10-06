@@ -1834,7 +1834,9 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// out**: a slot or program rewrite retires the variables its old
 /// values were written in (VR7), which a row about strands does not
 /// ask about.
-pub fn without_anonymous(maintenance: &[editor_core::Maintenance]) -> Vec<editor_core::Maintenance> {
+pub fn without_anonymous(
+    maintenance: &[editor_core::Maintenance],
+) -> Vec<editor_core::Maintenance> {
     maintenance
         .iter()
         .filter(|m| !matches!(m, editor_core::Maintenance::AnonymousVarRemoved { .. }))

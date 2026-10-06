@@ -1005,7 +1005,7 @@ fn a_cut_of_gauges_or_a_datum_alone_refuses_no_material() {
         .expect("the block's frame");
     let (with_datum, spare) = insert(
         block.clone(),
-        block.node(frame).map(|n| n.authored(&block)).expect("live"),
+        block.node(frame).map(|n| n.written(&block)).expect("live"),
     );
     for (doc, ids, first, what) in [
         (&doc, vec![k], k, "a bare gauge"),

@@ -222,7 +222,11 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
         !after.contains(&(2.0, 0.0, 0.0)),
         "and never the inserted leg (2,0)→(3,1): {after:?}"
     );
-    assert_eq!(crate::fixture::without_anonymous(&updated.maintenance), Vec::new(), "nothing is reported");
+    assert_eq!(
+        crate::fixture::without_anonymous(&updated.maintenance),
+        Vec::new(),
+        "nothing is reported"
+    );
 }
 
 /// The part's profile step ids, loop 0.

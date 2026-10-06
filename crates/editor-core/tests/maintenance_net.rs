@@ -277,7 +277,11 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         .expect("nothing was refused");
     assert!(idle.doc.bit_eq(&doc), "no edit, the start");
     assert_eq!(
-        (idle.edits, crate::fixture::without_anonymous(&idle.maintenance), idle.minted),
+        (
+            idle.edits,
+            crate::fixture::without_anonymous(&idle.maintenance),
+            idle.minted
+        ),
         (Vec::new(), Vec::new(), Vec::new())
     );
 }

@@ -404,7 +404,9 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let mut reported = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        reported.extend(strands(&crate::fixture::without_anonymous(&applied.maintenance)));
+        reported.extend(strands(&crate::fixture::without_anonymous(
+            &applied.maintenance,
+        )));
         doc = applied.doc;
     }
     assert!(
@@ -455,7 +457,10 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let mut per_step = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        per_step.push((id, strands(&crate::fixture::without_anonymous(&applied.maintenance))));
+        per_step.push((
+            id,
+            strands(&crate::fixture::without_anonymous(&applied.maintenance)),
+        ));
         doc = applied.doc;
     }
     assert_eq!(
@@ -585,7 +590,8 @@ fn a_round_tripped_document_reports_the_same_strands() {
         "the delete strands the declared pairs' names"
     );
     assert_eq!(
-        crate::fixture::without_anonymous(&direct.maintenance), crate::fixture::without_anonymous(&after_load.maintenance),
+        crate::fixture::without_anonymous(&direct.maintenance),
+        crate::fixture::without_anonymous(&after_load.maintenance),
         "the report is derived from the document and the edit, so it survives the boundary \
          by being recomputable rather than by being carried"
     );
@@ -819,7 +825,9 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let mut reported = Vec::new();
     for id in order {
         let applied = delete(&doc, id);
-        reported.push(appearance_strands(&crate::fixture::without_anonymous(&applied.maintenance)));
+        reported.push(appearance_strands(&crate::fixture::without_anonymous(
+            &applied.maintenance,
+        )));
         doc = applied.doc;
     }
     assert_eq!(
@@ -897,7 +905,8 @@ fn a_round_tripped_document_reports_the_same_appearance_strands() {
         "the delete strands both painted faces"
     );
     assert_eq!(
-        crate::fixture::without_anonymous(&direct.maintenance), crate::fixture::without_anonymous(&after_load.maintenance),
+        crate::fixture::without_anonymous(&direct.maintenance),
+        crate::fixture::without_anonymous(&after_load.maintenance),
         "the store's half is derived from the document and the edit too"
     );
 }

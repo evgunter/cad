@@ -257,9 +257,9 @@ impl Walk {
         Walk::SlotDimension,
         Walk::SlotRead,
         Walk::PayloadRead,
-        Walk::AnonymousVar,
         Walk::Program,
         Walk::Snapshot,
+        Walk::AnonymousVar,
     ];
 
     /// **This walk over one document**, or `None` when it finds
@@ -357,6 +357,13 @@ impl Walk {
 ///   for the slot half): a node can carry a broken param reference AND
 ///   a structurally invalid shape, and the param-table answer names the
 ///   parameter while the structural one does not.
+///
+/// [`Walk::AnonymousVar`] comes last: whether a variable is read is a
+/// question about the readers, so it is asked once every reader is
+/// known to be well-formed — a slot a structurally broken node no
+/// longer addresses leaves its variable unread, and the structural
+/// fault is the answer
+/// (`rv_payloadrefs_probes::rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref`).
 ///
 /// The slot walks before [`Walk::Program`] is a contract of the same
 /// kind with a different reason: the program walk PROBES the replay, so
