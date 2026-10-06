@@ -458,6 +458,13 @@ BOUNDS_ALLOWLIST=(
   # boxes.rs's three are the box builders (`face_box`, `boundary_hull`,
   # `edge_box`); its point read needs no `Bounds` and is `Real`-bound.
   'crates/topo/src/boolean/boxes.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # carrier_touch.rs's four are the crossing layer's touch reading:
+  # `clusters`, the subdivision driver (a piece's half-length bracket
+  # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
+  # edge by its certified box against the touch's ball before deciding a
+  # distance bound; and `off_face` and `ball_off_face`, which carry the
+  # bound to call those two and read no bracket themselves.
+  'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
@@ -493,7 +500,9 @@ BOUNDS_ALLOWLIST=(
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
   # and rides the same seam: it forwards to `sweep_direction` twice and
   # reads no bracket of its own (`Decide` alone does not compile there).
-  'crates/topo/src/boolean/reduce.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # Three more ride to `carrier_touch::off_face` the same way:
+  # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
+  'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,

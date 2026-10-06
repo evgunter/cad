@@ -206,7 +206,9 @@ fn clusters<T: Decide + Bounds>(
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
         let lipschitz = dist.abs() - ell;
         let axis_gap = kappa - dist.abs() - ell;
-        let bound = if axis_gap.lo() > band.escalate() {
+        let bound = if let Ok(Sign::Positive) =
+            decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
+        {
             let curl = T::one() / axis_gap + bend;
             lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half)
         } else {

@@ -1248,6 +1248,23 @@ pub mod bounds_allowlist {
     //! door, said plainly so the next ride is argued rather than
     //! inherited.
     //!
+    //! `topo::boolean::carrier_touch` — the crossing layer's reading of a
+    //! root set its door could not settle, against the face — falls under
+    //! this entry on the same terms. It bisects an edge's span, reading a
+    //! piece's half-length bracket only to stop bisecting (the subdivision
+    //! driver), and it prunes the face's boundary edges by their certified
+    //! `edge_box` against a touch's ball before a distance bound is decided
+    //! (the box constructors' pruning side). Every verdict it returns is a
+    //! `Decide` call, the second-order bound's premise among them. The
+    //! weakest bound that works is `Decide + Bounds`: sole `Decide` reads no
+    //! box and drives no bisection, sole `Bounds` decides nothing, and the
+    //! next tighter, `Decide + CertifiedBounds`, does not satisfy the sweep
+    //! driver that reaches it (`reduce::sweep_direction`, `Decide + Bounds`),
+    //! which the boolean's callers instantiate in mixed passes. Three of
+    //! `reduce`'s crossing-layer functions (`curved_face_arm`,
+    //! `wall_crossing`, `settle_deferred`) carry the bound as a reachability
+    //! ride to it and read no bracket of their own.
+    //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
     //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and
