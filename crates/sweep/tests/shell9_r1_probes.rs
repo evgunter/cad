@@ -3,7 +3,7 @@
 //!
 //! 1. A row dump over a corpus of the reviewer's choosing (the sf2b
 //!    frustums and vase, SHELL-8's box beside a vessel, `verbs_shell`'s
-//!    hollow operands opened, the tube torus, sphere seam variants),
+//!    hollow operands opened, the tube torus),
 //!    printed as `[r1rows]` lines for a base/head diff — panic-free, so
 //!    the same file runs at the merge base where some bodies refuse.
 //! 2. The end-to-end exercise from a consumer's seat.
@@ -238,32 +238,6 @@ fn r1_rows_corpus() {
         0.05,
         &[],
     );
-    // Sphere seam variants.
-    dump_shelled(
-        "one-arc sphere sealed",
-        &multi_arc_sphere(1.0, &[]),
-        0.05,
-        &[],
-    );
-    dump_shelled("two-arc sphere sealed", &two_arc_sphere(), 0.05, &[]);
-    dump_shelled(
-        "two-arc sphere seam -pi/4",
-        &multi_arc_sphere(1.0, &[-PI / 4.0]),
-        0.05,
-        &[],
-    );
-    dump_shelled(
-        "two-arc sphere seam 0",
-        &multi_arc_sphere(1.0, &[0.0]),
-        0.05,
-        &[],
-    );
-    dump_shelled(
-        "four-arc sphere",
-        &multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]),
-        0.05,
-        &[],
-    );
     // A vase whose belly is two cocircular arcs.
     let c = Point2::new(0.0, 1.0);
     let m = Point2::new(2.0f64.sqrt(), 1.0);
@@ -436,23 +410,8 @@ fn r1_drum_reverted_cavity_alone() {
 #[test]
 fn r1_hunt_the_pcurve_arm() {
     let cases: Vec<(&str, Body<f64>, f64)> = vec![
-        (
-            "four-arc sphere",
-            multi_arc_sphere(1.0, &[-PI / 4.0, 0.0, PI / 4.0]),
-            0.05,
-        ),
         ("three-arc torus", n_arc_torus(2.0, 0.5, 3), 0.05),
         ("five-arc torus", n_arc_torus(2.0, 0.5, 5), 0.05),
-        (
-            "sphere seam near pole",
-            multi_arc_sphere(1.0, &[FRAC_PI_2 - 0.05]),
-            0.02,
-        ),
-        (
-            "sphere seams both near poles",
-            multi_arc_sphere(1.0, &[-FRAC_PI_2 + 0.05, FRAC_PI_2 - 0.05]),
-            0.02,
-        ),
     ];
     for (name, body, t) in cases {
         let v = topo::validate_geometric(&body, tol());

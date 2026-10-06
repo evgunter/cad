@@ -614,3 +614,39 @@ fn both_documents_round_trip_through_persistence() {
         );
     }
 }
+
+/// **The pole-touching ball row**: a sealed `Shell` over the revolved
+/// half disc (`die_pips`' ball: one bulge-1 arc pole to pole, closed on
+/// the axis) evaluates green, tier-3 valid at the difference of two
+/// balls `4/3·π(R³ − (R−t)³)` — the route a user takes from a revolve.
+#[test]
+fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
+    use corpus::die_pips::PIP_R;
+    let d = corpus::die_pips::document();
+    let ball = d
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
+        .expect("the pip ball");
+    let t = 0.01;
+    let (doc, sealed) = fixture::insert(d.doc, Node::shell(ball, fixture::len(t), Vec::new()));
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
+    let body = body_of(&ev, sealed);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
+    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
+    assert!(
+        (m.volume - want).abs() <= 1e-15 + m.volume_pad,
+        "volume {} vs the closed form {want}",
+        m.volume
+    );
+}
