@@ -205,11 +205,14 @@ the table.
   its sections' plane normals, and the Klein bottle's top loop is one
   such sweep (the `klein` scene builds it — off the exact half turn
   only by its interpolated spine's end-tangent tilt, klein's wall 9).
-  The wall that remains is PER-SLAB, at per-slab turn π — total turn
-  `(stations − 1)·π` — so it is a statement about how coarsely the
-  path is sampled rather than about how far it goes, and the refusal
-  names the slab. (`crates/sweep/src/loft.rs`, the `loft_stacking`
-  fold.)
+  Two walls remain, both PER-SLAB, and each refusal names the slab.
+  On a planar spine whose sections stay normal to it, the wall is at
+  per-slab turn π — total turn `(stations − 1)·π` — so it is a
+  statement about how coarsely the path is sampled rather than about
+  how far it goes. And a slab whose FAR section's plane leans back
+  across the slab's step refuses too, whatever the spine; that wall
+  is conservative and also refuses some embedded lofts and oblique
+  sweeps. (`crates/sweep/src/loft.rs`, the `loft_stacking` fold.)
 - **`tube_along_arc` is no longer solid-only.** FIXED by
   VERBS-TUBEWALL: the torus door has a hollow sibling,
   `tube_along_arc_hollow`, taking the outer `minor_radius` plus a

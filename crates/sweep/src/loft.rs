@@ -37,9 +37,11 @@
 //! Each slab's displacement must point ALONG the plane normals of both
 //! sections it spans. That is a PER-SLAB statement and
 //! [`fn@stacking_fold`] is where it is made and where its shape is
-//! stated; a refusal names the pair it stopped at. It is an
-//! orientation check, not an embedding one: nothing at this door yet
-//! certifies that the walls do not cross each other or the caps.
+//! stated; a refusal names the pair it stopped at. It is a
+//! conservative orientation check, not an embedding one: it refuses
+//! some embedded lofts whose far section leans back across the stack,
+//! and nothing at this door yet certifies that the walls do not cross
+//! each other or the caps.
 //!
 //! The caps then orient exactly as extrude's (bottom reversed, top
 //! forward) and every wall's chart normal `S_u × S_v` points out of
@@ -175,21 +177,35 @@ pub enum LoftError {
     },
     /// One SLAB stacks along its base section's plane normal but not
     /// along its FAR section's: section `slab + 1`'s normal is
-    /// definitely against the slab's displacement, or edge-on to it.
-    /// The two sections' rings then wind oppositely about the stack,
-    /// so the walls between them fold, pinch, or close an inside-out
-    /// body; the loft refuses all three.
+    /// definitely against the slab's displacement, or edge-on to it
+    /// (Zero lands here, not in [`Self::DegenerateStacking`]: the base
+    /// decide was already `Positive`, so the sections are apart).
     ///
-    /// Zero lands here rather than in [`Self::DegenerateStacking`]: the
-    /// base-normal decide was already `Positive`, so the sections are
-    /// apart and the slab is no sliver.
-    FarSectionFacesBack {
+    /// The check is conservative. It refuses every two-section loft
+    /// whose rings fold between sections facing opposite ways along
+    /// the stack, and it also refuses some embedded, correctly
+    /// oriented lofts: a 10×10 square base under a 4×4 top turned 100°
+    /// about `y` (its normal leaning back across the stack) is one. It
+    /// retires with the fold when the loft door certifies embedding
+    /// (`work/carve/self-overlapping-spines-build-and-validate.md`).
+    FarSectionNotForward {
         /// The slab — the pair [`SlabPair`] names; the far section is
         /// its second.
         slab: usize,
     },
-    /// One SLAB's stacking classification escalated, against either
-    /// section's normal (named predicate on the diagnostic).
+    /// The far half of a SLAB's stacking decide escalated: section
+    /// `slab + 1`'s plane normal against the slab's displacement is
+    /// too close to call (named predicate on the diagnostic). The
+    /// base half was already `Positive`.
+    FarStackingEscalated {
+        /// The slab — the pair [`SlabPair`] names; the far section is
+        /// its second.
+        slab: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// One SLAB's stacking classification against its base section's
+    /// normal escalated (named predicate on the diagnostic).
     StackingEscalated {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
@@ -212,7 +228,7 @@ impl SlabPair {
 
 impl fmt::Display for SlabPair {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sections {} and {}", self.0, self.0 + 1)
+        write!(f, "sections {} and {}", self.0, self.far())
     }
 }
 
@@ -248,12 +264,17 @@ impl fmt::Display for LoftError {
                  the loft has no direction. Recourse: move the sections apart",
                 SlabPair(*slab)
             ),
-            Self::FarSectionFacesBack { slab } => write!(
+            Self::FarSectionNotForward { slab } => write!(
                 f,
                 "loft section {far}'s plane does not face along the stack from section \
-                 {slab}, so the walls between them would fold or turn inside out. \
-                 Recourse: author section {far} on a plane facing along the stack with \
-                 the others",
+                 {slab}. Recourse: author section {far} on a plane facing along the stack \
+                 with the others",
+                far = SlabPair(*slab).far()
+            ),
+            Self::FarStackingEscalated { slab, source } => write!(
+                f,
+                "whether loft section {far}'s plane faces along the stack from section \
+                 {slab} is too close to call: {source}",
                 far = SlabPair(*slab).far()
             ),
             Self::StackingEscalated { slab, source } => write!(
@@ -389,16 +410,19 @@ fn stacking_fold<T: Decide>(
         let facing = |place: &Affine3<f64>| {
             let margin = d.dot(place.map(T::from_f64).linear.c2) / count;
             geom_core::k_stats::decide("loft_stacking", Margin::of(margin), band)
-                .map_err(|source| LoftError::StackingEscalated { slab, source })
         };
-        match facing(&places[slab])? {
+        match facing(&places[slab])
+            .map_err(|source| LoftError::StackingEscalated { slab, source })?
+        {
             Sign::Positive => {}
             Sign::Zero => return Err(LoftError::DegenerateStacking { slab }),
             Sign::Negative => return Err(LoftError::ReversedStacking { slab }),
         }
-        match facing(&places[slab + 1])? {
+        match facing(&places[slab + 1])
+            .map_err(|source| LoftError::FarStackingEscalated { slab, source })?
+        {
             Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(LoftError::FarSectionFacesBack { slab }),
+            Sign::Zero | Sign::Negative => return Err(LoftError::FarSectionNotForward { slab }),
         }
         base = next;
     }

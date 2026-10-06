@@ -1705,7 +1705,8 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::SectionStructure => "section_structure",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
-        LoftError::FarSectionFacesBack { .. } => "far_section_faces_back",
+        LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
+        LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
     }
 }

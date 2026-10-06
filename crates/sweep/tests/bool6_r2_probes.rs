@@ -292,33 +292,3 @@ fn r2_a_spine_past_a_full_turn_builds_a_self_overlapping_body() {
     assert!(topo::validate(&built.body).is_ok());
     assert!(topo::validate_closed(&built.body).is_ok());
 }
-
-/// **Claim 3 attack: the LAST section's normal is what the top cap
-/// reads, and nothing in the fold checks it agrees with the
-/// stacking.** A two-section loft whose top section sits above the
-/// base but is placed with its plane normal pointing DOWN: the fold
-/// reads `d · n_0 = +1` and builds. What the body then is, the tiers
-/// say below; the row records it rather than pinning it.
-#[test]
-fn r2_a_flipped_last_normal_is_not_the_folds_to_see() {
-    let sections = vec![loft_prism_sections()[0].clone(); 2];
-    let flipped = Affine3::from_parts(
-        Mat3::from_cols(
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec3::new(0.0, 0.0, -1.0),
-        ),
-        Vec3::new(0.0, 0.0, 1.0),
-    );
-    let tol = Tol::witness();
-    let out = loft_body::<f64>(&sections, &[Affine3::identity(), flipped], 1, tol);
-    match out {
-        Ok(l) => {
-            println!(
-                "R2 flipped top normal: BUILT; tier-3 says {:?}",
-                topo::validate_geometric(&l.body, tol)
-            );
-        }
-        Err(e) => println!("R2 flipped top normal: refused {e:?}"),
-    }
-}
