@@ -22,6 +22,7 @@ use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
 
+use crate::common::approx::band;
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::roles_by_solid;
 use sweep::test_support::{brick, corners, finished, prism, realized};
@@ -293,31 +294,32 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
     }
     let hollow = with_void(cube.into_body(), cavity.into_body());
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()));
+    assert!(
+        topo::is_axial(&hollow, band()).expect("the axis gate decides"),
+        "the box's sides parallel to the void's axis, its ends normal to it: the axial door"
+    );
     let t = 0.1;
-    match topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol()) {
-        Err(e) => println!("[measured] box with cylindrical void at t={t}: refuses {e}"),
-        Ok(s) => {
-            let out = &s.body;
-            let tier3 = topo::validate_geometric(out, tol());
-            let props = topo::mass_properties(out, tol()).expect("props");
-            let pi = core::f64::consts::PI;
-            let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
-            println!(
-                "[measured] box with cylindrical void at t={t}: BUILDS solids={} shells={} tier3={tier3:?} roles={:?} volume={} (pad {}) want={want}",
-                out.solids().count(),
-                out.shells().count(),
-                roles_by_solid(out),
-                props.volume,
-                props.volume_pad
-            );
-            assert_eq!(tier3, Ok(()));
-            assert_eq!(out.solids().count(), 2);
-            for (_, kinds) in roles_by_solid(out) {
-                assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void]);
-            }
-            assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
-        }
+    let s = topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol())
+        .unwrap_or_else(|e| panic!("box with cylindrical void at t={t} hollows: {e:?}"));
+    let out = &s.body;
+    let tier3 = topo::validate_geometric(out, tol());
+    let props = topo::mass_properties(out, tol()).expect("props");
+    let pi = core::f64::consts::PI;
+    let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
+    println!(
+        "[measured] box with cylindrical void at t={t}: BUILDS solids={} shells={} tier3={tier3:?} roles={:?} volume={} (pad {}) want={want}",
+        out.solids().count(),
+        out.shells().count(),
+        roles_by_solid(out),
+        props.volume,
+        props.volume_pad
+    );
+    assert_eq!(tier3, Ok(()));
+    assert_eq!(out.solids().count(), 2);
+    for (_, kinds) in roles_by_solid(out) {
+        assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void]);
     }
+    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
 }
 
 // ---------------------------------------------------------------------

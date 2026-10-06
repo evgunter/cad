@@ -51,10 +51,10 @@
 //! 1. one clone, every boundary face moved to its inward offset — the
 //!    result is the material to remove, a positively oriented closed
 //!    body. **Two doors do that, and which one runs is decided by the
-//!    SOLID** — a box beside a vessel is neither all-planar nor axial
-//!    while each of the two is one of those, so a whole-body reading
-//!    would refuse the vessel's corners it solves alone: an
-//!    ALL-PLANAR solid goes through
+//!    SOLID** — a vessel beside a box tilted off its axis is neither
+//!    all-planar nor axial while each of the two is one of those, so a
+//!    whole-body reading would refuse the vessel's corners it solves
+//!    alone: an ALL-PLANAR solid goes through
 //!    [`crate::offset_planes_together`], which moves every chart at
 //!    once and solves each corner against all the moved planes meeting
 //!    it; anything with a curved face goes chart by chart through
@@ -1128,8 +1128,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // `offset_charts_together` solves those in the meridian
     // half-plane, and the branch below picks it.
     //
-    // **The door is ONE decision PER SOLID.** A body with a box beside
-    // a vessel is neither all-planar nor a body of revolution, and a
+    // **The door is ONE decision PER SOLID.** A body with a box tilted
+    // off a vessel's axis beside it is neither all-planar nor axial, and a
     // whole-body reading would put both on the per-chart door — which
     // refuses the vessel's corners it solves alone. The ladder is
     // unchanged; what it reads is the solid's own faces. The cavity
@@ -2206,7 +2206,9 @@ enum OffsetDoor {
     /// Every face is a plane: [`crate::offset_planes_together`], every
     /// chart at once, each corner solved against all the moved planes.
     PlanesTogether,
-    /// A body of revolution: [`crate::offset_charts_together`], each
+    /// An axial body — every face of revolution about one axis, or a
+    /// plane normal or parallel to it (a bored box and a D-shaft as
+    /// much as a vessel): [`crate::offset_charts_together`], each
     /// corner solved in the meridian half-plane.
     ChartsTogether,
     /// Anything else: [`crate::replace_faces_offset`] chart by chart,
@@ -2215,8 +2217,9 @@ enum OffsetDoor {
 }
 
 /// The door for the solids `scope` names. A door is a property of a
-/// SOLID — a box beside a vessel is neither all-planar nor axial while
-/// each of the two is one of those — so the ladder reads that solid's
+/// SOLID — a vessel beside a box tilted off its axis is neither
+/// all-planar nor axial while each of the two is one of those — so the
+/// ladder reads that solid's
 /// own faces and nothing else. An UNDECIDED axis gate is not
 /// `PerChart`: it escalates typed, and the caller refuses with it
 /// rather than taking the other branch (`is_axial`'s docs).

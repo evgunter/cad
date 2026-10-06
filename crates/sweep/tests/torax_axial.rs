@@ -531,7 +531,7 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 /// parallel to it, and cuts the moved torus in a SPIRIC — sampled
 /// below as the oval's own half-width against its half-height, which
 /// a circle would make equal — so the rim mints as `Curve3::Spiric`,
-/// its window read forward of its start (`offset_axial_rim_window`).
+/// its window read forward of its start (`offset_axial_edge_window`).
 /// The disc's two profile vertices revolve into `RevolvedPoint`-declared
 /// equator seams whose ends the moved caps turn about the axis, and the
 /// declarations follow the corners. The hollow assembles, passes checks
@@ -835,7 +835,8 @@ fn torax_the_sphere_lune_hollows_to_its_closed_form() {
 /// now meet at — and stop at the rim glue: the two mouths are adjacent
 /// across the axis, so a counterpart's boundary meets its designated
 /// face's, which a box opened at two adjacent faces meets the same way
-/// (`ShellError::OpenFaceRimNotExpressible`'s own scope).
+/// (`ShellError::OpenFaceRimNotExpressible`'s own scope; scheduled as
+/// `work/shelf/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md`).
 #[test]
 fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
     let (r, t) = (0.3, 0.05);

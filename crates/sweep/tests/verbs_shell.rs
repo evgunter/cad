@@ -1515,6 +1515,125 @@ fn a_hex_prism_with_a_coaxial_bore_hollows_to_its_closed_form() {
     assert!((got - want).abs() <= 1e-12, "hollow {got}, want {want}");
 }
 
+/// A profile extruded `h` along `z` and hollowed by `t`, matched to its
+/// closed form `want`: it is axial (every side parallel to `z` or
+/// normal to it), hollows through the axial door at once, and passes
+/// tier 3 as a wall and its cavity.
+fn assert_extrusion_hollows_axially(
+    what: &str,
+    loops: Vec<ProfileLoop<f64>>,
+    h: f64,
+    t: f64,
+    want: f64,
+) {
+    let profile = Profile::new(SketchPlane::xy(), loops)
+        .validate(Tol::witness())
+        .unwrap_or_else(|e| panic!("{what}: the profile validates: {e:?}"));
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: extrudes: {e:?}"))
+    .body;
+    assert!(
+        topo::is_axial(&body, band()).expect("the axis gate decides"),
+        "{what}: sides parallel to the axis, ends normal to it"
+    );
+    let hollow = topo::shell(
+        &finished("the operand", body, Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{what} hollows: {e:?}"))
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&hollow, Tol::witness()),
+        Ok(()),
+        "{what}: tier 3"
+    );
+    assert_eq!(
+        hollow.shells().count(),
+        2,
+        "{what}: the wall and its cavity"
+    );
+    let got = topo::mass_properties(&hollow, Tol::witness())
+        .expect("props")
+        .volume;
+    println!("[measured] {what} hollow {got}, closed form {want}");
+    assert!(
+        (got - want).abs() <= 1e-12,
+        "{what}: hollow {got}, want {want}"
+    );
+}
+
+/// **A D-shaft**: a disc of radius `R` cut by a flat at `x = s`,
+/// extruded. The flat stands parallel to the cylinder's axis and beside
+/// it, on either side, so the shaft hollows through the axial door. The
+/// cavity is the D eroded by `t` — the disc's radius and the flat's
+/// stand-off both less `t` — over the height less `2t`, for the area
+/// `A(R, s) = R²(π − acos(s/R)) + s√(R² − s²)` of the disc's part with
+/// `x ≤ s`.
+#[test]
+fn a_d_shaft_hollows_to_its_closed_form_with_the_flat_either_side_of_the_axis() {
+    let (big, h, t): (f64, f64, f64) = (1.0, 0.8, 0.05);
+    let area = |r: f64, s: f64| {
+        r * r * (core::f64::consts::PI - (s / r).acos()) + s * (r * r - s * s).sqrt()
+    };
+    for s in [0.6f64, -0.6] {
+        let y = (big * big - s * s).sqrt();
+        let sweep = core::f64::consts::TAU - 2.0 * (s / big).acos();
+        let d = bulge_loop(vec![
+            (Point2::new(s, -y), 0.0),
+            (Point2::new(s, y), (sweep / 4.0).tan()),
+        ]);
+        let want = area(big, s) * h - area(big - t, s - t) * (h - 2.0 * t);
+        assert_extrusion_hollows_axially(
+            &format!("the D-shaft with its flat at x = {s}"),
+            vec![d],
+            h,
+            t,
+            want,
+        );
+    }
+}
+
+/// **A box with an off-centre coaxial bore**: a square with a round
+/// hole off its centre, extruded. Every side plane stands parallel to
+/// the bore's axis and beside it, the ends normal to it, so the solid
+/// is axial though no side is centred on the axis. The cavity is the
+/// square eroded by `t` less the bore dilated by `t`, over the height
+/// less `2t`.
+#[test]
+fn a_box_with_an_off_centre_coaxial_bore_hollows_to_its_closed_form() {
+    let (side, bore, h, t) = (1.0, 0.2, 0.8, 0.05);
+    let (cx, cy) = (0.15, 0.1);
+    let half = side / 2.0;
+    let square = bulge_loop(vec![
+        (Point2::new(-half, -half), 0.0),
+        (Point2::new(half, -half), 0.0),
+        (Point2::new(half, half), 0.0),
+        (Point2::new(-half, half), 0.0),
+    ]);
+    let hole = bulge_loop(vec![
+        (Point2::new(cx + bore, cy), 1.0),
+        (Point2::new(cx - bore, cy), 1.0),
+    ]);
+    let pi = core::f64::consts::PI;
+    let operand = (side * side - pi * bore * bore) * h;
+    let cavity = ((side - 2.0 * t).powi(2) - pi * (bore + t).powi(2)) * (h - 2.0 * t);
+    assert_extrusion_hollows_axially(
+        "the box with an off-centre bore",
+        vec![square, hole],
+        h,
+        t,
+        operand - cavity,
+    );
+}
+
 // ---------------------------------------------------------------------
 // The rim on a solid of revolution (#1082)
 // ---------------------------------------------------------------------

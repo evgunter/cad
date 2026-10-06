@@ -2015,9 +2015,9 @@ pub enum PlaneTorusSection<T: Real> {
         c2: Curve3<T>,
     },
     /// Axis-parallel plane OFF the axis, short of the inner equator
-    /// (`0 < |d| < R − r` for `d = (q − c)·n`): the spiric's TWO ovals,
-    /// each the [`Curve3::Spiric`] [`Curve3::spiric`] mints from the
-    /// torus and the plane's normal. Zero-residual-by-construction
+    /// (`0 < |d| < R − r` for the stand-off `d = n·q − n·c`): the
+    /// spiric's TWO ovals, each the [`Curve3::Spiric`]
+    /// [`Curve3::spiric`] mints from the torus and the plane's normal. Zero-residual-by-construction
     /// against both implicit forms in ℝ.
     SpiricOvals {
         /// The oval on the `+a × n` side of the plane's trace of the
@@ -2076,7 +2076,8 @@ pub enum PlaneTorusSection<T: Real> {
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
-///    `(c − q)·n` (meters): Zero ⇒ the plane CONTAINS the axis ⇒
+///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
+///    the centre's): Zero ⇒ the plane CONTAINS the axis ⇒
 ///    [`PlaneTorusSection::MeridianCircles`]; definite ⇒ the
 ///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
 ///    — margin `(R − r) − |d|` (meters, `d` that same gap): Positive ⇒
@@ -2160,8 +2161,10 @@ pub fn plane_torus_section<T: Decide>(
     {
         Sign::Zero => {
             // The axis direction lies in the plane: containing vs
-            // offset, by the centre-to-plane gap.
-            match decide("pt_axis_plane_gap", Margin::of((c - q).dot(n)), band)
+            // offset, by the stand-off `d` — the one spelling this arm
+            // decides on and mints from.
+            let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
+            match decide("pt_axis_plane_gap", Margin::of(d), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {
@@ -2185,9 +2188,6 @@ pub fn plane_torus_section<T: Decide>(
                     // Off the axis: the spiric, two ovals while the
                     // plane stays short of the inner equator — a
                     // length, decided before any root is taken.
-                    // The plane's own constant less the centre's: a rigid
-                    // re-pose reproduces it to the ulp.
-                    let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
                     match decide(
                         "pt_spiric_two_ovals",
                         Margin::of((big_r - r) - d.abs()),

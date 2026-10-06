@@ -1,6 +1,6 @@
 //! `offset_charts_together` — the SIMULTANEOUS offset door for bodies
-//! whose junction corners mix PLANES with cylinder, cone and sphere
-//! walls.
+//! whose junction corners mix PLANES with cylinder, cone, sphere and
+//! torus walls.
 //!
 //! # Why the planar door could not simply be widened
 //!
@@ -30,6 +30,9 @@
 //! sphere lune        2 corners  3 [sphere ∩ meridian ∩ meridian]
 //! klein elbow        4 corners  2 [torus ∩ meridian]
 //! full torus         2 corners  1 [torus seam ∩ torus seam]
+//! D-shaft            4 corners  3 [cylinder ∩ plane ∩ plane]
+//! bored box          8 corners  3 [plane ∩ plane ∩ plane]
+//!                    4 corners  2 [cylinder ∩ plane]
 //! ```
 //!
 //! There is no `plane ∩ curved ∩ curved` corner anywhere in it, and no
@@ -45,8 +48,12 @@
 //! through the axis or beside it, at any stand-off. That roster is what
 //! "axial" means here: expressible in one axial frame. It is closed
 //! under the door's own output (an offset moves each kind within
-//! itself), so the door can be run again on a body it built — `shell`'s
-//! rim lift is exactly that. A point `p` is read in axial coordinates
+//! itself), so a body the door built passes its gate again — `shell`'s
+//! rim lift is exactly that. Passing the gate is not building: a second
+//! run meets the same corner and edge solves as the first, and an
+//! offset large enough to change the body's topology is not seen by
+//! them (`work/shelf/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md`).
+//! A point `p` is read in axial coordinates
 //!
 //! ```text
 //! h = (p − o)·a          the station along the axis
@@ -64,10 +71,10 @@
 //! | cone | the generator line through `(0, h_apex)` |
 //! | sphere centred on `a` | the circle `ρ² + (h − h_c)² = R²` |
 //! | torus coaxial with `a` | the meridian circle `(ρ − R)² + (h − h_c)² = r²` |
-//! | plane parallel to `a` | not a profile constraint at all — it fixes the AZIMUTH |
+//! | plane parallel to `a` | not a profile constraint at all — through the axis it fixes the AZIMUTH; at stand-off `c` it fixes the azimuth given `ρ` (`ρ·cos(φ − φ_n) = c`, `φ_n` its normal's azimuth) |
 //!
-//! A corner is therefore solved in two independent steps, both closed
-//! form, neither of them marching:
+//! A corner is therefore solved in two steps, the profile first and
+//! the azimuth from it, both closed form, neither of them marching:
 //!
 //! 1. **the profile** — the first well-conditioned PAIR of profile
 //!    constraints, solved as line∩line or line∩circle, with every
@@ -90,10 +97,10 @@
 //!    perpendicular foot on a line, with the azimuth carried as every
 //!    seam's is;
 //! 2. **the azimuth** — carried from the old vertex when no plane
-//!    contains the axis at this corner (the seam's own conventional
-//!    datum), solved as circle∩plane when exactly one does, or read
-//!    off the moved caps' meeting line when a circle-profile corner
-//!    stands on both.
+//!    parallel to the axis meets this corner (the seam's own
+//!    conventional datum), solved as circle∩plane when exactly one
+//!    does, or read off the moved caps' meeting line when a
+//!    circle-profile corner stands on two.
 //!
 //! **The offsets themselves are [`geom_brep::offset_surface`]'s** — the
 //! same analytic mint the per-chart door uses. One derivation, not a
@@ -145,7 +152,10 @@
 //! from the axis, past the shrunk circle's `r − t = 0.25`) — both
 //! `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
 //! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
-//! and `shell7_seam_corner`'s three-quarter-turn cone frustum).
+//! and `shell7_seam_corner`'s three-quarter-turn cone frustum); the
+//! window's no-forward-window refusal (`sf2b_r1_probes::r1p2`'s sliver
+//! wedge, whose moved meridian planes cross outside the shrunk wall,
+//! and `sf2b_r2_probes`'s 1/12-turn conical wedge).
 //!
 //! **A hand-made operand, or the door called directly:** the
 //! no-profile-constraint refusal (a wedge's axis edge split by
@@ -176,8 +186,11 @@
 //! operand carries a circle between two distinct non-torus,
 //! non-sphere charts with its centre off the axis; `torax_axial`
 //! demonstrates it by mutation), the section rim mint's refusals (a cap
-//! past its wall's reach, a midpoint on the cap's trace of the axis, a
-//! sense that does not transfer, an old carrier with no plane), the
+//! at or past its torus wall's inner equator or out of its reach, a
+//! cap the section and the spiric constructor read on opposite sides
+//! of the axis, a wall the section refuses as an operand, a midpoint
+//! on the cap's trace of the axis, a sense that does not transfer, an
+//! old carrier with no plane), the
 //! circle-beside-three-caps refusal, the axis-pole station arm and its
 //! off-axis-circle arm (a torus meridian cannot contain a pole,
 //! `R − r > 0` keeps it clear), the seam arms' refusing sides, the
@@ -188,7 +201,9 @@
 //! mutation that keeps the old azimuth reaches it on the klein elbow)
 //! and its in-plane extrusion refusal (an extrude's vector never lies
 //! in its own sketch plane), and the window's one-point refusal (a
-//! door-built edge has two distinct ends).
+//! door-built edge has two distinct ends), and the anchor's undecided
+//! tie-break (a fresh carrier's frame would have to put the old point
+//! within the band of a quarter turn from its old parameter).
 //!
 //! **The lift's rows**, the door run on a cavity it built: the klein
 //! elbow opened at both caps and at one (`verbs_shell`), the lune
@@ -202,23 +217,30 @@
 //!
 //! - **No marching, no SSI, no crossing-pipeline entry.** Every solve
 //!   above is a quadratic at worst.
-//! - **It does not route through the C5 table.** A body whose surfaces
-//!   are not all coaxial about one axis — or whose kind the gate does
-//!   not know — never reaches here and keeps the refusal it had. The
-//!   two section arms a rim calls are the closed forms themselves, the
-//!   one home of each pair's arithmetic, and a FULL revolve's torus or
-//!   sphere rim is a latitude circle and is this door's own.
+//! - **It does not route through the C5 table.** A body with a surface
+//!   that is neither of revolution about one axis nor a plane normal
+//!   or parallel to it — or whose kind the gate does not know — never
+//!   reaches here and keeps the refusal it had. The two section arms a
+//!   rim calls are the table's own closed forms, called by name rather
+//!   than through `route`: the one home of each pair's arithmetic. A
+//!   FULL revolve's torus or sphere rim is a latitude circle and is
+//!   this door's own.
 //! - **It does not touch global clearance.** `shell`'s wall-clearance
-//!   gate is the operand's and is unchanged; this door decides corners.
-//!   A sliver WEDGE whose two moved meridian planes cross outside the
-//!   shrunk wall has no cavity at all, and every one of its rim corners
-//!   still solves locally — each meets only ONE meridian plane — so no
-//!   meter here can see it. What catches it is the tier gate on the
-//!   assembled body (`IntervalNotForward`), measured on
-//!   `sf2b_r1_probes::r1p2`. That is a NET rather than a door-named
-//!   refusal, and a meter that named the door would be better; it is
-//!   future work, not a debt this unit is carrying, because the net is
-//!   loud and no wrong body passes it.
+//!   gate is the operand's and is unchanged; this door decides corners
+//!   and edges. A sliver WEDGE whose two moved meridian planes cross
+//!   outside the shrunk wall has no cavity at all, and every one of its
+//!   rim corners still solves locally — each meets only ONE meridian
+//!   plane — but the rim edge between two of them reads backwards, and
+//!   the window's forward decision refuses it at the door
+//!   (`offset_axial_edge_window`, measured on `sf2b_r1_probes::r1p2`).
+//!   That is a local symptom of a global fact, not a clearance meter:
+//!   an offset whose moved caps' meeting line enters the tube changes
+//!   the body's topology while every corner and edge still solves, and
+//!   the door returns a body with the operand's census that is a strict
+//!   subset of the offset (filed:
+//!   `work/shelf/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md`).
+//!   `shell` does not reach that pose — a cavity moves its caps inward —
+//!   but a direct call does.
 //!
 //! # Conditioning
 //!
@@ -1210,7 +1232,7 @@ fn solve_corner<T: Decide>(
     // keeps its own angular position on the moved circle — the carried
     // datum, the same one the sphere-seam mint below trusts — and the
     // cap fixes the azimuth through the shared meridian solve. With
-    // NO plane through the axis, the corner is a point of its one
+    // NO plane parallel to the axis, the corner is a point of its one
     // surface — a full tube's seam vertex — and moves as that surface's
     // offset moves every point of it: the same carried arm, for a
     // LINE profile as for a circle, with the azimuth carried too. ----
@@ -1553,7 +1575,7 @@ fn cap_pair_corner<T: Decide>(
     let (n0, n1) = (mp0.norm(), mp1.norm());
     // The divisors are certified UPSTREAM, not here: `m0`/`m1` are unit
     // meridian normals whose axial component `classify` decided Zero at
-    // `offset_axial_meridian` (levered by the body's own extent), so
+    // `offset_axial_axis_parallel` (levered by the body's own extent), so
     // each cross-section projection keeps norm ~1 — a certified
     // distance from zero this division stands on, cited rather than
     // re-decided (one derivation, the module's own law).
@@ -1920,11 +1942,25 @@ fn mint_carrier<T: Decide>(
         _ => None,
     };
     if let Some((wall, cap)) = wall_and_cap {
+        // Each refusal the section arm can return names its own cause.
         let section_refused = |error: geom_brep::SectionError| match error {
-            geom_brep::SectionError::Escalated(source) => ReplaceFaceError::Escalated { source },
+            geom_brep::SectionError::Escalated(source)
+            | geom_brep::SectionError::Spiric(geom::SpiricInvalid::Escalated(source)) => {
+                ReplaceFaceError::Escalated { source }
+            }
+            geom_brep::SectionError::RoutesToGeneralRung { .. }
+            | geom_brep::SectionError::Spiric(geom::SpiricInvalid::NotTwoOvals) => refuse(
+                "a rim whose moved cap stands at or past the torus wall's inner equator, or \
+                 out of its reach — the section there is a node, one folded loop or \
+                 nothing, not two ovals",
+            ),
+            geom_brep::SectionError::Spiric(geom::SpiricInvalid::ThroughAxis) => refuse(
+                "a rim whose moved cap the section reads off the torus wall's axis but the \
+                 spiric constructor reads through it",
+            ),
             _ => refuse(
-                "a rim whose moved wall and cap the section arm does not cut in two \
-                 curves — the cap stands tangent to or beyond the wall's own reach",
+                "a rim whose moved wall the section arm refuses as an operand — no longer \
+                 a ring torus or a sphere it can cut",
             ),
         };
         // The section's curves, with the torus's two named by the side
@@ -2040,8 +2076,10 @@ fn mint_carrier<T: Decide>(
             // moved pair need not carry a line at all. Nothing detects
             // that here — the caller's endpoint meters and the
             // midpoint-on-surface meter do, and they refuse. Measured
-            // on a conical wedge: the two ends come back 0.64 mm apart
-            // and the door says `TogetherEdgeDisagreement`
+            // on a quarter-turn conical wedge: the two ends come back
+            // 0.64 mm apart and the door says `TogetherEdgeDisagreement`;
+            // at a 1/12 turn the ends read backwards first and the
+            // window refuses (`TogetherAxialEdge`, no forward window)
             // (`sf2b_r2_probes::r2_a_conical_wedge_meridian_edge`).
             let shift = p_start - old.eval(t0_old);
             let delta = shift - *dir * shift.dot(*dir);
@@ -2180,10 +2218,9 @@ fn latitude_circle<T: Real>(
 /// where an interval read straddles the cut and is poison. So the
 /// guess is the old parameter or the one a half turn on, whichever
 /// names the point nearer `q` (`offset_axial_edge_anchor`, a difference
-/// of metre distances). It is a tie-break and not a verdict: from
-/// either guess the read lands on the same point, and an undecided or
-/// equal pair keeps the old parameter, as `q` then stands a quarter
-/// turn from both and neither read is near its cut.
+/// of metre distances). An equal pair keeps the old parameter, as `q`
+/// then stands a quarter turn from both and neither read is near its
+/// cut; an undecided one escalates.
 fn param_on<T: Decide>(
     carrier: &Curve3<T>,
     t_old: T,
@@ -2202,7 +2239,8 @@ fn param_on<T: Decide>(
             let lead = carrier.eval(across).distance(q) - carrier.eval(t_old).distance(q);
             match decide("offset_axial_edge_anchor", Margin::of(lead), band) {
                 Ok(Sign::Negative) => across,
-                Ok(Sign::Zero | Sign::Positive) | Err(_) => t_old,
+                Ok(Sign::Zero | Sign::Positive) => t_old,
+                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => t_old,
@@ -2210,22 +2248,19 @@ fn param_on<T: Decide>(
     let read = carrier.param_near(q, guess).ok_or_else(unread)?;
     // On a carried frame the read IS the old parameter, and a second
     // evaluation at it would only add the carrier's own rounding (a
-    // circle's `sin π`), so a read decided equal to it is it.
-    let anchor = match carrier {
-        Curve3::Circle { radius: scale, .. }
-        | Curve3::Spiric {
-            minor_radius: scale,
-            ..
-        } => match decide(
+    // circle's `sin π`), so a read decided equal to it is it — levered
+    // at the speed's ceiling, so the two are one point in metres.
+    let anchor = match param_speeds(carrier) {
+        Some((_, ceiling)) => match decide(
             "offset_axial_edge_carried",
-            Margin::levered(read - t_old, *scale),
+            Margin::levered(read - t_old, ceiling),
             band,
         ) {
             Ok(Sign::Zero) => t_old,
             Ok(_) => read,
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         },
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => read,
+        None => read,
     };
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
@@ -2258,11 +2293,12 @@ fn param_on<T: Decide>(
 /// carrier runs the old one's way (the door carries the frame, or the
 /// rim mint decides the sense), so the window keeps the old one's turn:
 /// its span is taken a whole number of periods from the read one,
-/// nearest the old span — the same rule an arc's re-authored sweep
-/// keeps ([`reauthor`]). A read span already nearest the old one is
-/// returned as read. The span is then DECIDED forward — an arc of the
-/// carrier in metres, levered at its own radius — and one that cannot
-/// be told from zero is no edge.
+/// nearest the old span ([`keep_turn`], the rule an arc's re-authored
+/// sweep keeps in [`reauthor`]). A read span already nearest the old
+/// one is returned as read. The span is then DECIDED forward — an arc
+/// of the carrier in metres, levered at the speed's floor, so a span
+/// decided forward is one in metres — and one that cannot be told from
+/// zero is no edge.
 fn forward_window<T: Decide>(
     carrier: &Curve3<T>,
     old_span: (T, T),
@@ -2271,32 +2307,27 @@ fn forward_window<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
-    let scale = match carrier {
-        Curve3::Circle { radius, .. } => Some(*radius),
-        Curve3::Spiric { minor_radius, .. } => Some(*minor_radius),
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
-    };
-    let t1 = match scale {
-        Some(r) => {
+    let speeds = param_speeds(carrier);
+    let t1 = match speeds {
+        Some((_, ceiling)) => {
             let old = old_span.1 - old_span.0;
-            let drift = (t1 - t0) - old;
-            let nearest = drift.reduce_periodic_centred(T::tau());
+            let kept = keep_turn(old, t1 - t0);
             // Zero or a whole number of turns, so never near the band.
             match decide(
                 "offset_axial_edge_turn",
-                Margin::levered(drift - nearest, r),
+                Margin::levered(kept - (t1 - t0), ceiling),
                 band,
             ) {
                 Ok(Sign::Zero) => t1,
-                Ok(_) => t0 + old + nearest,
+                Ok(_) => t0 + kept,
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
         }
         None => t1,
     };
     let span = t1 - t0;
-    let margin = match scale {
-        Some(r) => Margin::levered(span, r),
+    let margin = match speeds {
+        Some((floor, _)) => Margin::levered(span, floor),
         None => Margin::of(span),
     };
     match decide("offset_axial_edge_window", margin, band) {
@@ -2308,6 +2339,44 @@ fn forward_window<T: Decide>(
         }),
         Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
+}
+
+/// A periodic carrier's speed bounds `(floor, ceiling)` in metres per
+/// radian — the one spelling of the parameter-to-metre lever per kind.
+/// A circle's is its radius both ways; a spiric's runs from its minor
+/// radius to `r(R − r)/√((R − r)² − d²)` at the inner equator
+/// ([`geom::spiric_rate_bounds`] over a whole period). A decision whose
+/// Zero admits — two reads are one point — levers at the ceiling; one
+/// whose Positive admits — a span is forward — at the floor, so each
+/// errs conservative. `None` for a carrier whose parameter is a length.
+fn param_speeds<T: Real>(carrier: &Curve3<T>) -> Option<(T, T)> {
+    match carrier {
+        Curve3::Circle { radius, .. } => Some((*radius, *radius)),
+        Curve3::Spiric {
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let (ceiling, _) = geom::spiric_rate_bounds(
+                *minor_radius,
+                *offset,
+                (*major_radius - *minor_radius, *major_radius + *minor_radius),
+                T::one(),
+            );
+            Some((*minor_radius, ceiling))
+        }
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+    }
+}
+
+/// **The turn-keeping rule**: a re-read sweep `read` of a periodic
+/// carrier, taken the whole number of turns from it that lands nearest
+/// the `old` sweep it replaces — the moved edge keeps the old one's
+/// side of every cut. Shared by [`forward_window`] and an arc's
+/// re-authored sweep in [`reauthor`].
+fn keep_turn<T: Real>(old: T, read: T) -> T {
+    old + (read - old).reduce_periodic_centred(T::tau())
 }
 
 /// A point's signed distance to a moved surface, in meters — the
@@ -2405,9 +2474,7 @@ fn reauthor<T: Decide>(
                             arc: Arc2 {
                                 centre,
                                 radius: *radius,
-                                sweep: was.sweep
-                                    + (u.perp_dot(v).atan2(u.dot(v)) - was.sweep)
-                                        .reduce_periodic_centred(T::tau()),
+                                sweep: keep_turn(was.sweep, u.perp_dot(v).atan2(u.dot(v))),
                             },
                         }
                     }
