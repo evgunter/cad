@@ -842,8 +842,7 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// mirrored run whose side is not a closed solid surfaces the direct
 /// run's refusal, as any other mirror failure does. Tier 3 is
 /// deliberately not run on the sides: a pinch side's touching pieces
-/// carry contacts split declares nowhere
-/// (`work/tquery/validate-passes-a-body-with-a-zero-width-slit-face.md`).
+/// carry contacts split declares nowhere.
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
