@@ -17,12 +17,13 @@
 //! this unit's item records.
 //!
 //! **Two rows here GATE** — [`sym_9_the_drive_writes_the_ladders_receipt`],
-//! which drives one whole-box leaf of the bracket at the drive's default
-//! dials and reads both receipts' ladder clauses, and
+//! which drives one whole-box leaf of the rounded pad at the drive's
+//! default dials and reads both receipts' ladder clauses against the
+//! same leaf without the ladder, and
 //! [`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`],
 //! which pins what the measured ladder (`SymRetry::kept_atom`) recovers
-//! on the two documents that gain from it and pins ZERO on the three
-//! that do not. Together they cost about four minutes in a dev build
+//! at the nominal on the five measured documents — zero on each, since
+//! the constructions store the carriers they build. Together they cost about four minutes in a dev build
 //! and they are `gated_to!` the tier, its dials and those
 //! documents' fixture doors, so a change elsewhere does not pay them. The
 //! rest are `#[ignore]`d evidence probes that print and assert nothing
@@ -483,24 +484,49 @@ fn sym_9_what_each_retry_recovers() {
 /// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
 /// Theorems, `sign_gated`, `registered` and `retried` do not move.
 ///
+/// When the constructions began storing the carriers they build
+/// (`store-constructed-carriers`, re-measured on the tree with every
+/// change above merged) every document moved up, against the rows
+/// just above:
+/// - the plate and the annulus's 148 registered decisions are theorems
+///   (the circles' rims fold onto `|r|`), and the boss's 74 of 102;
+/// - the bracket reads `[1401, 45, 49, 1050]` either way, so its ladder
+///   retries nothing (it recovered 6);
+/// - the link reads `[824, 0, 52, 679]` either way, retried 0 (it was
+///   14).
+///
+/// The bracket's `registered` falls 105 and its `numeric` 37 against
+/// 142 more theorems. Eight `dihedral_wedge` decisions that are
+/// theorems before are registered after: the fillet's tangency is the
+/// registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
+/// centre's algebra. On the link, `carrier_on_surface_2` without the
+/// ladder moved down, `[84, 0, 0, 24]` against `[76, 0, 16, 16]` on the
+/// shipped side. That is the tangent arc's quarter-tangent
+/// `2w / sqrt(4w²)`, which rule G re-keys as a sign quotient the tier
+/// does not hold; an `atan2` quarter-tangent restores it
+/// (`decide_3_split_rows_interval` holds the same trade without the
+/// ladder).
+///
 /// `Body::set_edge_curve` measuring whether a description moves the
 /// edge's carrier or interval (`description_moves_carrier`, five
 /// distance readings per certified edge it re-describes) adds those
-/// readings to every document: theorems up (the plate +104, the
-/// annulus +44, the boss +48, the bracket +145, the link +74) and
-/// `registered` up (the plate, the annulus and the link +16, the boss
-/// +12, the bracket +18 without the ladder and +20 with it). The bracket's two that land `numeric` without
-/// the ladder are retried into `registered` with it (`retried` 6 → 8).
-/// Nothing moved down.
+/// readings to every document, against the rows just above: theorems
+/// up (the plate +120, the annulus +60, the boss +56, the bracket
+/// +159, the link +82), `registered` up on the boss (+4) and the link
+/// (+8). The bracket's `registered` is +4 without the ladder with two
+/// of its new readings left `numeric` (1050 → 1052), and the ladder
+/// retries those two into `registered` (`retried` 0 → 2). Nothing moved
+/// down.
 ///
-/// It pins the two things the acceptance asks for and nothing else. On
-/// the two documents that gain, the whole split with the ladder against
-/// the same replay without it, so a decision that moved DOWN reds; and
-/// the `retried` column at its measured count, so a retry that stops
-/// carrying them reds even if something else picks them up. On the
-/// three that do not gain, `retried` is pinned at ZERO — which is the
-/// claim that the ladder is not quietly paying for itself somewhere
-/// unmeasured.
+/// It pins the whole split with the ladder against the same replay
+/// without it, so a decision that moved DOWN reds, and the `retried`
+/// column at its measured count — ZERO on four of the five, which is
+/// the claim that the ladder is not quietly paying for itself somewhere
+/// unmeasured. The bracket's two are this row's only gain at the
+/// nominal; the half that shows the ladder RECOVERING more is
+/// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
+/// at `1e1·ε` the ladder takes five decisions the first attempt left
+/// numeric (1481 → 1486 theorems, `retried` 5 against 0).
 ///
 /// The `numeric` column can only FALL and the other three can only
 /// rise: a retry is asked only into the first attempt's silence
@@ -512,26 +538,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        (
-            "two_hole_plate",
-            [1059, 0, 164, 704],
-            [1059, 0, 164, 704],
-            0,
-        ),
-        ("r1_annulus", [484, 32, 164, 451], [484, 32, 164, 451], 0),
-        (
-            "r1_segment_boss",
-            [507, 26, 114, 414],
-            [507, 26, 114, 414],
-            0,
-        ),
+        ("two_hole_plate", [1223, 0, 0, 704], [1223, 0, 0, 704], 0),
+        ("r1_annulus", [648, 32, 0, 451], [648, 32, 0, 451], 0),
+        ("r1_segment_boss", [589, 26, 32, 414], [589, 26, 32, 414], 0),
         (
             "r2_filleted_bracket",
-            [1404, 45, 172, 1089],
-            [1404, 45, 180, 1081],
-            8,
+            [1560, 45, 53, 1052],
+            [1560, 45, 55, 1050],
+            2,
         ),
-        ("r2_link", [763, 0, 134, 748], [765, 0, 146, 734], 14),
+        ("r2_link", [906, 0, 60, 679], [906, 0, 60, 679], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -547,7 +563,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         if link {
             let t = split(&shapes);
             for (pred, want) in [
-                ("carrier_on_surface_2", [86, 0, 10, 12]),
+                ("carrier_on_surface_2", [76, 0, 16, 16]),
                 ("witness_on_surface_2", [16, 0, 0, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 4]);
@@ -591,27 +607,29 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 }
 
 /// **The DRIVE carries the ladder, and its receipt says so**: one
-/// whole-box leaf of R2's filleted bracket at `1e1·ε` under
+/// whole-box leaf of R2's rounded pad at `1e1·ε` under
 /// `SymbolicDials::default()` — the shipped ladder, through the drive's
 /// own door (`sym::with_session_memo_retry`, with the drive's plain
 /// memo installed) — against the same leaf with `SymRetry::none()`.
 ///
 /// It reads both receipts the drive writes: the goldening line carries
-/// `retried=8` after the discharge columns, and the human form names
-/// the eight as discharges a second attempt reached, not as a clause of
-/// `registered`'s (six before `set_edge_curve`'s carrier readings,
-/// two of which land `numeric` without the ladder). Without the ladder neither appears and the line is
-/// the one a drive wrote before the ladder existed. The six themselves
-/// are the rule-A attempt's, and they are `registered` (156 → 162).
-/// Against the pin before PCERT's incidence-and-fidelity unit the
-/// receipt was `[1206, 51, 176, 1145, 6]` (bare `[1206, 51, 170, 1151,
-/// 0]`): the same six retried, and the restated certificate's
-/// theorems in place of the schedule's registered and numeric
-/// residuals.
+/// `retried=5` after the discharge columns, and the human form names
+/// the five as discharges a second attempt reached. Without the ladder
+/// neither appears and the line is the one a drive wrote before the
+/// ladder existed. The five are theorems (`symbolic_zero` 1481 → 1486);
+/// the fifth is one of `set_edge_curve`'s carrier readings
+/// (`description_moves_carrier`), which also add 141 theorems and 8
+/// `registered` either way, and one `numeric` without the ladder.
+///
+/// The row read the filleted bracket, then the link. Since the
+/// constructions store the carriers they build, the first attempt
+/// discharges on both what their ladder used to, so neither retries,
+/// and the pad is the one measured document whose leaf still does. It
+/// is the heaviest of them: this row costs minutes in a debug build.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
-    let doc = document("r2_filleted_bracket", 1.0e1 * tol.eps(), tol);
+    let doc = document("r2_rounded_pad", 1.0e1 * tol.eps(), tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |symbolic: editor_core::drive::SymbolicDials| {
         editor_core::drive::drive(
@@ -625,7 +643,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             },
             tol,
         )
-        .expect("the bracket drives")
+        .expect("the pad drives")
     };
     let shipped = run(editor_core::drive::SymbolicDials::default());
     let bare = run(editor_core::drive::SymbolicDials {
@@ -649,16 +667,16 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1404, 45, 180, 1081, 8],
+        [1486, 2, 62, 1268, 5],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=180 retried=8\n"),
+        line.contains("registered=62 retried=5\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 8 of those discharges reached only by a second attempt"),
-        "the human form names the eight as the ladder's: {human}"
+        human.contains("; 5 of those discharges reached only by a second attempt"),
+        "the human form names the five as the ladder's: {human}"
     );
     let b = bare.decisions();
     assert_eq!(
@@ -669,7 +687,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1404, 45, 172, 1089, 0]
+        [1481, 2, 62, 1273, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

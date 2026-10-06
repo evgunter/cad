@@ -55,12 +55,16 @@ mod common;
 
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
+#[path = "arc_leg_full_turn.rs"]
+mod arc_leg_full_turn;
 #[path = "arc_spec_census.rs"]
 mod arc_spec_census;
 #[path = "blend7_review_probes.rs"]
 mod blend7_review_probes;
 #[path = "bool11_probes.rs"]
 mod bool11_probes;
+#[path = "fillet_decided_tangency.rs"]
+mod fillet_decided_tangency;
 #[path = "fillet_refusal_envelope.rs"]
 mod fillet_refusal_envelope;
 #[path = "review_fillet_attr_r1_probes.rs"]

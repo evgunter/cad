@@ -396,8 +396,18 @@ const SLAB_LEDGER: [&str; 3] = [
 /// lines freeze nothing: the 104 nodes each that `tan(1·atan(1))` froze
 /// are gone, as folding `tan` measured above. A probe spelling
 /// `quarter_tan` as `tan` restores 104 on both lines.
+///
+/// **When the circles began storing their authored carrier** (centre
+/// and `|r|`, `store-constructed-carriers`), the 148 decisions the door
+/// answered on the plate became theorems: `Door/Decision` calls
+/// 596 → 448 (forms 13624 → 6768), and the walks build smaller forms —
+/// the plate's largest 252 → 28 terms, `Plain/Decision` forms
+/// 16596 → 16228 and frozen 696 → 252, `Plain/Assertion` 3944 → 3915
+/// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
+/// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
+/// and the `Report` lines' moves. The slab, a polygon, does not move.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 252;
+const PLATE_MAX_TERMS: usize = 28;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -475,17 +485,16 @@ const PLATE_MAX_TERMS: usize = 252;
 /// - **`set_edge_curve`'s carrier readings.** `Body::set_edge_curve`
 ///   measures whether a description moves the edge's carrier or
 ///   interval (`description_moves_carrier`): `Plain/Decision` +120
-///   calls and +864 forms, its digest moving; `Early/Decision` and
-///   `Door/Decision` +16 calls each, with their forms and digests
-///   unchanged. Freezes hold.
+///   calls and +864 forms, its digest moving; `Early/Decision` +16
+///   calls, its forms and digest unchanged. Freezes hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1263 forms 17460 frozen 696 digest 5bf99562b48daecb29fa0c279bb6a759\n\
-     Plain/Assertion calls 664 forms 3944 frozen 372 digest 3fc3c1d6ccf7251c60ae7b7ad0cd5f7d\n\
+     Plain/Decision calls 1263 forms 17092 frozen 252 digest 59fdfe68909dd9242c4868b9bfbf6a41\n\
+     Plain/Assertion calls 664 forms 3915 frozen 360 digest fad58c6c6cf5c21324e21b64ab8b051b\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 448 forms 9399 frozen 8 digest 7804ce3c229e1f27e2ec128de098ae55\n\
-     Early/Assertion calls 664 forms 4860 frozen 0 digest da899654fa4aca546b0c78ee005e679c\n\
+     Early/Decision calls 448 forms 9117 frozen 0 digest 118d6298ed4bc7280acf1d0749f45f88\n\
+     Early/Assertion calls 664 forms 4831 frozen 0 digest 617250390b9c9641d9be0c89ae3c8e57\n\
      Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 612 forms 13624 frozen 0 digest 97586c9dae132defdcb8611d00243c26\n\
+     Door/Decision calls 448 forms 6768 frozen 0 digest 5fc0f6b71848d4b2d9b698bbcde6851d\n\
      Door/Assertion calls 408 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

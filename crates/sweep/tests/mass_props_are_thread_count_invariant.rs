@@ -408,6 +408,17 @@ fn digest() -> String {
 /// `num` 662 → 652, `decisions` 700 → 716) and the early walk freezes
 /// 46 fewer nodes (`frozen` 719 → 673 at 1e-9). Every verdict, pad and
 /// f64 row is unchanged.
+///
+/// **Re-cut at all three ε when `skin::segment_curve` began building an
+/// arc's NURBS from the evaluation's own points and the spoke
+/// `a − centre`** (PATHS 5b) instead of the stored radius and an
+/// endpoint `atan2`. Only the two arc lofts move: `arc_loft_1e9eps`'s
+/// `v`, `a`, `vpad` and `apad` in their last bits (its volume by 4, 5
+/// and 7 ulps at ε = 1e-6 / 1e-9 / 1e-12), and the `frozen` column of
+/// the two `validate_geometric` rows — `sym_arc_loft` 654 → 607 /
+/// 568 → 539 / 638 → 606 and `sym_thin_strip` 708 → 704 / 673 → 674 /
+/// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
+/// hash are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

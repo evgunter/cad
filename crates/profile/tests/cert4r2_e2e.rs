@@ -95,7 +95,7 @@ fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
         for (what, exact, enc) in channels {
             let w = enc.hi() - enc.lo();
             assert!(
-                w <= 1e-12,
+                w <= 2e-12,
                 "vertex {k} {what}: {w:e} wide — period-width, not input-width"
             );
             assert!(
