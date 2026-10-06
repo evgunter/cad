@@ -5,8 +5,8 @@
 
 use eframe::egui;
 use pncad::document::{
-    Axis3, Dimension, Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
-    VarId, VarName,
+    Axis3, Dimension, Doc, Evaluation, Frame, HeldNodes, ProfileProgram, RecipeNodeId, Said,
+    SlotId, Speaker, VarId, VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{AboutReference, Resolution};
@@ -400,20 +400,23 @@ impl ViewerBehavior<'_> {
             _ => None,
         });
         let landed = self.session.landed_pair();
+        let said = self.session.selection_said();
         match standing {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::tree::node_label(
+                    ui.label(selected_node_heading(
                         self.session.doc(),
-                        *node,
                         self.session.part_files(),
+                        said,
+                        *node,
+                        *present,
                     ));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
                     // Beside the node's name, which is the node it is about.
-                    standing_verdict(ui, &self.theme, standing, landed);
+                    standing_verdict(ui, &self.theme, standing, landed, said);
                 });
                 if *present {
                     self.label_ui(ui, *node);
@@ -427,7 +430,7 @@ impl ViewerBehavior<'_> {
                 self.entity_header_ui(ui, "edge", edge.feature(), standing);
             }
         }
-        standing_verdict(ui, &self.theme, standing, landed);
+        standing_verdict(ui, &self.theme, standing, landed, said);
     }
 
     /// **The rename field** (DESIGN.md Band 1, "Node labels"): the
@@ -485,7 +488,8 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
-            ui.label(format!("{noun} of {}", self.session.doc().spoken(feature)));
+            let by = Speaker::of(self.session.doc()).or_held(self.session.selection_said());
+            ui.label(format!("{noun} of {}", by.node(feature)));
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -981,6 +985,24 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// **A selected node's heading**: as the document holds it while it is
+/// present ([`crate::tree::node_label`]), and once it is deleted as the
+/// last document that held it spoke it (`DocSession::selection_said`),
+/// since the document no longer says it.
+fn selected_node_heading(
+    doc: &Doc<ProfileProgram>,
+    files: &crate::parts::PartFiles,
+    said: &HeldNodes,
+    node: RecipeNodeId,
+    present: bool,
+) -> String {
+    if present {
+        crate::tree::node_label(doc, node, files)
+    } else {
+        said.spoken(node).to_string()
+    }
+}
+
 /// **What the selection's standing has to SAY, drawn**: the verdict on
 /// a selection that no longer denotes — a deleted node, an undeclared
 /// parameter, a picked entity whose name did not resolve — in the
@@ -999,8 +1021,10 @@ impl ViewerBehavior<'_> {
 /// A picked entity's resolution was asked of the landed run
 /// (`DocSession::standing`), so its nodes are said from `landed`, the
 /// document whose ids it is spelled in, and each name within that run's
-/// tables; by their tags when nothing has landed. The verdict is about
-/// the picked entity, so it says "this face" and never its name again.
+/// tables; a node it no longer holds, as `said` keeps it, the last
+/// document that held it (`DocSession::selection_said`); by their tags
+/// when neither says it. The verdict is about the picked entity, so it
+/// says "this face" and never its name again.
 ///
 /// A free function over the `Ui` so a headless drive can reach it
 /// (`crate::pane::headless`).
@@ -1009,6 +1033,7 @@ pub(crate) fn standing_verdict(
     theme: &Theme,
     standing: &Standing,
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    said: &HeldNodes,
 ) {
     let tone = standing.tone();
     let (noun, resolution) = match standing {
@@ -1036,9 +1061,11 @@ pub(crate) fn standing_verdict(
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
     };
-    let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
-        Speaker::of(doc).within(evaluation)
-    });
+    let by = landed
+        .map_or(Speaker::TAG, |(doc, evaluation)| {
+            Speaker::of(doc).within(evaluation)
+        })
+        .or_held(said);
     let said = match resolution {
         None => Some("no evaluation yet to resolve this against".to_owned()),
         Some(Resolution::Resolved(_)) => None,
@@ -1898,18 +1925,21 @@ mod tests {
 #[cfg(test)]
 mod verdict_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
+    #![allow(clippy::expect_used, clippy::panic)]
 
     use editor_core::RecipeEditRef;
     use pncad::document::{
-        Doc, NodeStanding, ProfileProgram, RecipeNodeId, SpokenVar, VarId, VarName,
+        Doc, HeldNodes, Label, NodeStanding, ProfileProgram, RecipeNodeId, SpokenVar, VarId,
+        VarName,
     };
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
 
     use super::standing_verdict;
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
-    use crate::session::{EdgeSelection, FaceSelection, Standing};
+    use crate::session::{
+        DocSession, EdgeSelection, FaceSelection, ProfilePlane, Selection, SessionOp, Standing,
+    };
     use crate::theme::Theme;
 
     fn name(kind: EntityKind) -> StableName {
@@ -1949,13 +1979,24 @@ mod verdict_tests {
         drawn_over(standing, None)
     }
 
-    /// What [`standing_verdict`] painted for `standing` over `landed`.
+    /// What [`standing_verdict`] painted for `standing` over `landed`,
+    /// keeping nothing of the selection's nodes.
     fn drawn_over(
         standing: &Standing,
         landed: Option<(&Doc<ProfileProgram>, &pncad::document::Evaluation<f64>)>,
     ) -> (Vec<Landed>, Voices) {
+        drawn_keeping(standing, landed, &HeldNodes::default())
+    }
+
+    /// What [`standing_verdict`] painted for `standing` over `landed`,
+    /// with `said` kept of the selection's nodes.
+    fn drawn_keeping(
+        standing: &Standing,
+        landed: Option<(&Doc<ProfileProgram>, &pncad::document::Evaluation<f64>)>,
+        said: &HeldNodes,
+    ) -> (Vec<Landed>, Voices) {
         landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            standing_verdict(ui, theme, standing, landed)
+            standing_verdict(ui, theme, standing, landed, said)
         })
     }
 
@@ -1963,7 +2004,8 @@ mod verdict_tests {
     /// document holds them**: the failed arm's name and the
     /// indeterminate arm's standing each say the block by its label
     /// over the document they were asked of, and by its tag with none;
-    /// a minting node that document no longer holds, by its tag.
+    /// a minting node that document no longer holds, by its tag when
+    /// the selection kept nothing.
     #[test]
     fn a_pick_verdict_says_its_nodes_from_the_landed_document() {
         let tol = pncad::tolerance::witness();
@@ -2067,6 +2109,221 @@ mod verdict_tests {
             said.contains(&deleted_by_tag),
             "a deleted minting node is said by its tag over the landed document: {said}"
         );
+    }
+
+    /// **A selection whose node is deleted says it as it was picked**:
+    /// the session keeps the selection's nodes spoken when it is made, so
+    /// once the landed document no longer holds the face's minting node
+    /// the verdict says the label it had, and a selected node deleted
+    /// since heads the pane with it. Kept nothing, both say the tag.
+    #[test]
+    fn a_selection_whose_node_is_deleted_says_the_label_it_had_when_picked() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("verdict-keeps", tol);
+        let picked_face = Selection::Face(FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        });
+        let labelled = format!(
+            "Extrude \"base block\" ({})",
+            test_utils::refusal::tag(block.0)
+        );
+        let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
+        for selection in [picked_face, Selection::Node(block)] {
+            let mut session = DocSession::inline(doc.clone(), tol);
+            let named = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("base block").expect("a label")),
+            });
+            assert!(named.refusal.is_none(), "{:?}", named.refusal);
+            session.pump();
+            session.perform(SessionOp::Select(selection.clone()));
+            let deleted = session.perform(SessionOp::DeleteNode { node: block });
+            assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+            session.pump();
+            let (landed, evaluation) = session.landed_pair().expect("the delete landed");
+            assert!(
+                landed.node(block).is_none(),
+                "the landed document lost the block"
+            );
+            let said = session.selection_said();
+            match (&selection, session.standing()) {
+                (Selection::Face(_), standing @ Standing::Face { .. }) => {
+                    let (kept, _) = drawn_keeping(&standing, Some((landed, evaluation)), said);
+                    let text = &find_opening(&kept, "this face is stranded: ").text;
+                    assert!(
+                        text.contains(&labelled) && !text.contains(&by_tag),
+                        "the verdict says the minting node as it was picked: {text}"
+                    );
+                    let (bare, _) = drawn_over(&standing, Some((landed, evaluation)));
+                    let text = &find_opening(&bare, "this face is stranded: ").text;
+                    assert!(
+                        text.contains(&by_tag),
+                        "kept nothing, it is said by its tag: {text}"
+                    );
+                }
+                (
+                    Selection::Node(_),
+                    Standing::Node {
+                        node,
+                        present: false,
+                    },
+                ) => {
+                    let files = crate::parts::PartFiles::default();
+                    assert_eq!(
+                        super::selected_node_heading(session.doc(), &files, said, node, false),
+                        labelled,
+                        "a deleted node heads the pane by the label it had"
+                    );
+                    assert_eq!(
+                        super::selected_node_heading(
+                            session.doc(),
+                            &files,
+                            &HeldNodes::default(),
+                            node,
+                            false
+                        ),
+                        by_tag,
+                        "kept nothing, it is said by its tag"
+                    );
+                }
+                (_, other) => panic!("{selection:?} stands deleted as {other:?}"),
+            }
+        }
+    }
+
+    /// **A pick off the landed run is kept from it**: the viewport and
+    /// the Checks window pick from the landed run, which can still hold
+    /// a node the shown document has just deleted, so the selection
+    /// keeps the node as the landed document says it.
+    #[test]
+    fn a_selection_keeps_what_the_document_it_was_picked_in_says() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("verdict-picked-in", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let face = Selection::Face(FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        });
+
+        let mut session = DocSession::inline(doc, tol);
+        let named = session.perform(SessionOp::SetLabel {
+            node: block,
+            label: Some(Label::new("base block").expect("a label")),
+        });
+        assert!(named.refusal.is_none(), "{:?}", named.refusal);
+        session.pump();
+        let deleted = session.perform(SessionOp::DeleteNode { node: block });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+        assert!(
+            session.doc().node(block).is_none(),
+            "the shown document lost the block before the pick"
+        );
+        session.perform(SessionOp::Select(face));
+        assert_eq!(
+            session.selection_said().spoken(block).to_string(),
+            format!("Extrude \"base block\" ({t})"),
+            "the landed run still held the block, so the pick keeps its label"
+        );
+    }
+
+    /// **A tree pick is kept from the shown document**: a node inserted
+    /// since the last landing is held by the shown document alone, and
+    /// the feature tree draws it there, so the selection keeps it as
+    /// the shown document says it.
+    #[test]
+    fn a_tree_pick_of_a_node_not_yet_landed_keeps_its_label() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _, _) = crate::test_support::boss_on_block("verdict-unlanded", tol);
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let added = session.perform(SessionOp::AddDatum {
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+        });
+        assert!(added.refusal.is_none(), "{:?}", added.refusal);
+        let datum = *session.doc().order().last().expect("the added datum");
+        let named = session.perform(SessionOp::SetLabel {
+            node: datum,
+            label: Some(Label::new("floor").expect("a label")),
+        });
+        assert!(named.refusal.is_none(), "{:?}", named.refusal);
+        assert!(
+            session
+                .landed_pair()
+                .is_some_and(|(landed, _)| landed.node(datum).is_none()),
+            "the landed run does not hold the datum yet"
+        );
+        let labelled = session.doc().spoken(datum).to_string();
+        assert!(labelled.contains("\"floor\""), "{labelled}");
+        session.perform(SessionOp::Select(Selection::Node(datum)));
+        let deleted = session.perform(SessionOp::DeleteNode { node: datum });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+        session.pump();
+        let files = crate::parts::PartFiles::default();
+        assert_eq!(
+            super::selected_node_heading(
+                session.doc(),
+                &files,
+                session.selection_said(),
+                datum,
+                false
+            ),
+            labelled,
+            "the deleted datum heads the pane as the shown document said it"
+        );
+    }
+
+    /// **The kept nodes follow the last document that held them**: a
+    /// label written or changed after the pick is the one a deleted
+    /// node is said by, not the one it had when it was picked.
+    #[test]
+    fn a_deleted_selection_says_the_last_label_its_node_had() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("verdict-last-label", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let label = |name: &str| Some(Label::new(name).expect("a label"));
+        for (what, at_pick, after) in [
+            ("unlabelled, then labelled", None, "base"),
+            ("labelled, then renamed", label("a"), "b"),
+        ] {
+            let mut session = DocSession::inline(doc.clone(), tol);
+            let named = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: at_pick,
+            });
+            assert!(named.refusal.is_none(), "{what}: {:?}", named.refusal);
+            session.pump();
+            session.perform(SessionOp::Select(Selection::Node(block)));
+            let renamed = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: label(after),
+            });
+            assert!(renamed.refusal.is_none(), "{what}: {:?}", renamed.refusal);
+            let deleted = session.perform(SessionOp::DeleteNode { node: block });
+            assert!(deleted.refusal.is_none(), "{what}: {:?}", deleted.refusal);
+            session.pump();
+            assert_eq!(
+                super::selected_node_heading(
+                    session.doc(),
+                    &crate::parts::PartFiles::default(),
+                    session.selection_said(),
+                    block,
+                    false
+                ),
+                format!("Extrude \"{after}\" ({t})"),
+                "{what}: the deleted node is said by its last label"
+            );
+        }
     }
 
     /// **A name that no longer resolves is a verdict to act on**, so

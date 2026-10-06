@@ -7195,3 +7195,106 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - the HOLD criterion;
   - the `solid_contain` chord-join folds and the shadowed M12.
 - Running: one lane. Nothing new on PR 3970.
+
+## 23:55 check-in (2026-10-05)
+
+- PR 4073 (sync) merged at `cbbdde23`.
+- The split/chord/reach lane has no PR yet.
+- **Dispatched**, two easy rows in disjoint files:
+  - `the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left` (`offset_together.rs`; PR 4060's rule, reusing its helpers) → `session_01M8ASp4h5pM4kVQpPC8QC46`;
+  - `tier-three-renders-every-carried-curved-containment-refusal-as-not-yet` (`validate.rs`) → `session_01WWtvupYMGR48Caws34bcx1`.
+- **Not dispatched:**
+  - `a-moving-door-carries-minted-rows-onto-an-unminted-face-and-half-mints-it` and `a-moving-door-leaves-a-complete-spline-destination-half-minted` are open design forks over `kef`/`kfmrh`/`ring_move`, which neighbour PR 3970's question.
+  - `minting-doors-take-…` and `kev-describing-…` wait for the next slot.
+- Nothing new on PR 3970.
+
+## 00:58 check-in (2026-10-06)
+
+- **The split/chord/reach lane opened PR 4078** (+1324/-191, 13 files).
+  - 18 sites tabled with at rest / mid-op and premise, plus census reach rules, the chord join, `splitting/join.rs`, `finish.rs` and `section_loops.rs`.
+  - `wall_outline` reads its carrier through `AzimuthImage.carrier`, so the shadowed M12 is gone.
+  - The `solid_contain` folds now carry only geometric refusals, but their `CorruptFace` label is now wrong where they fire; left to the families row with evidence.
+  - Implementer archived (about $21.3).
+- **The tier-3 lane opened PR 4076** (+370/-33, 8 files).
+  - `classify_point_in_solid` places every `PointInSolidError` / `PointInLoopError` arm by name, with shared texts.
+  - `census.rs` `of_point_in_solid` splits `Loop(_)`.
+  - Roster-checked samples.
+  - Implementer archived (about $4.6).
+- Reviewers dispatched:
+  - PR 4078 FULL → `session_013k8oqDrWLvVppLutZfNfKg`. It attacks the mid-op premises, judges the knowingly-wrong `CorruptFace` label, and runs fresh-target batteries.
+  - PR 4076 → `session_01A4Rh5QmkpHomLtmFEKs1eV`. It checks each text's truth at rest, in particular the `RayExhausted` wording against PR 4055's correction.
+  - Both PRs touch `census.rs`; collisions to be checked.
+- The planar-offset lane has no PR yet. Nothing new on PR 3970.
+
+## 02:01 check-in (2026-10-06)
+
+- **PR 4076 review: fix first, one BLOCKING.**
+  - The `RayExhausted` arms (top-level and both carried) render "too close to a boundary", which PR 4055 found false (the point is off the boundary; every ray grazed). The PR copies it to two more arms and pins it with an equality test. The same class exists in the census (`WitnessTooClose`) and in `PointInSolidError`'s `Display` (`COINCIDENCE_RECOURSE`).
+  - MINORs:
+    - `Loop(OffPlane)`'s text is true for one of three causes;
+    - `ZeroVolumeBody` is blamed on the kernel by tier 3 but on the user by the census;
+    - the carried poisoned `Escalated` margin has no witness.
+  - Otherwise confirmed: no wildcard (dummy arms turn the rosters red); 1398 base renderings byte-identical at head.
+  - Fix lane `session_01K4sgR4hPjGB6skR6CU1uxb`, with the class swept in scope. Reviewer archived (about $2.7).
+- **PR 4078 review: merge, no BLOCKING.**
+  - Every mid-op panic reads after the last write (all `&Body` or re-read). Per-op 4429 passed; 13 shards + 55 tests, 0 diffs; 10 of the PR's mutations reproduce.
+  - MINOR-1: six converted hops have no witness (A1/A2/A3/A4/A5/A7 green; A1 and A3 probed reachable). MINOR-2: C15/C16 witness docs misdescribe. MINOR-4: `along_edge_spec`'s chord-end point hop. NIT: `unreachable!` as a premise panic.
+  - #4081 (cleave's `split-segment-curve`) conflicts textually in `chord_join.rs`.
+  - Fix lane `session_01A8feUdiktifDkmLyoeeZQc`, including an iterator for the boundary-member prelude in touched files plus a row for the rest. Reviewer archived (about $4.6).
+- **The planar-offset lane opened PR 4080** (+270/-93, 5 files).
+  - One home: `held_neighbour_image` / `beside_moving`, used by all three offset doors.
+  - `offset_together` derives every other chart image (`image: None`), which fixes a second measured case (both charts moving).
+  - It corrected the brief: the rim lift does not call this door; `shell`'s `PlanesTogether` branch does.
+  - Probes: 651 cases, 0 diffs.
+  - Reviewer `session_0141b8jK7BaH43achrrorLfJ` dispatched (FULL): no regression from deriving every image; the 4060 doors are behaviour-identical; the `moves` threshold. Implementer archived (about $3.9).
+- Nothing new on PR 3970.
+
+## 03:05 check-in (2026-10-06)
+
+- **PR 4076 merged** at `02a193af` (head `0b6c3952`). The fixes:
+  - `RayExhausted` reads `GRAZED` / `MOVE_GEOMETRY` at all three tier-3 arms;
+  - the class is swept: census `WitnessGrazed`; `PointInSolidError`'s `Display` (the `COINCIDENCE_RECOURSE` dropped); `classify_chart_region`'s reason; `chart_region.rs`'s `Display` filed on CHART;
+  - `OffPlane` is per cause (tier 3, with a census `OffPlane` variant);
+  - `ZeroVolumeBody` is the user's to fix in both. The +V gate exempts in-band zero, so the census was right;
+  - a poisoned-margin witness;
+  - "of it" phrasing fixed.
+  - The before/after renderings are tabled in the PR. Fix lane archived (about $4.4).
+- **PR 4078:** the fix pass (`7f0de1a`) answered everything:
+  - A1–A7 witnesses red, one per site;
+  - C15/C16 renamed and their docs corrected (no load-bearing fixture exists);
+  - the `along_edge_spec` point hop is a link;
+  - `sphere_zone_reach`'s `unreachable!`s became `torn_outer_loop`, naming the link;
+  - `Body::face_boundary_linked`, used at 4 sites, with `face-boundary-walks-spell-the-linked-prelude-by-hand` filed;
+  - batteries: 15 shards + 55 tests, 0 diffs.
+  - I merged main (with PR 4076; both touch `census.rs` and `solid_contain.rs`; clean, `cargo check` ok) at `537d5fe4`. CI running. Fix lane archived.
+  - #4081 (cleave) still open; it collides in `chord_join.rs` with whichever lands second.
+- PR 4080: no review yet. Nothing new on PR 3970.
+
+## 03:49 check-in (2026-10-06)
+
+- **PR 4078:** my merge of main at `537d5fe4` went green, but GitHub refused the merge. #4081 (cleave's `split-segment-curve`) had landed at 03:11 and conflicts in `chord_join.rs`.
+  - The conflict was one doc hunk (`between_edge_is_section`), resolved keeping the premise text with #4081's `SegmentEdge::Locus` link. #4081's body rewrite auto-merged with the `linked` / `edge_curve_linked` / `point_of` conversions intact.
+  - 224 chord_join/torn/split tests passed; clippy clean. Pushed `650e921b`; CI running.
+- **PR 4080 review: fix first, one BLOCKING.**
+  - The widened `image: None` arm also re-derives a seam's image, and that of an edge whose planes both hold. Neither slides. A spline-carrier seam (an `mef` NURBS chord in the cube's top) then refuses `RechartFalsifies { Unimplemented }` on a zero move and on a top-only move; main takes both. The reviewer's M6 shows the seam / neither-moves half has no witness.
+  - Otherwise confirmed:
+    - the helper refactor is behaviour-identical (1170 curved lines, 0 diffs);
+    - corpus 2425 cases, 0 diffs including description bits;
+    - batteries 0 moved;
+    - the rim-lift correction is right.
+  - Style (sure): `offset_together::restate` now twins `offset_axial::restate`; `MovedPlane.moves` restates `MovedChart::rekeyed` (two homes again).
+  - Fix lane `session_01VEL8GcnJaEtuKUExA3VpDz`:
+    - derive only between distinct planes where one moves, keep otherwise, with seam witnesses;
+    - one restate and one moved/held decision;
+    - a neutral home for the shared core;
+    - precedence NIT and module doc.
+  - Reviewer archived (about $7.1).
+- Nothing new on PR 3970.
+
+## 03:52 (2026-10-06)
+
+- **PR 4078 merged** at `15030b16` (head `650e921b`, main with #4081 merged in; CI green).
+- **Dispatched** two lanes with disjoint files:
+  - `face-boundary-walks-spell-the-linked-prelude-by-hand` (P3, E; `boolean/*`, `merge_faces.rs`, `offset_nappe.rs`; leaves `pcurves.rs` and `offset_together.rs`) → `session_014ujViosHtDxQMi868W586R`;
+  - `kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale` (P3; `euler_kill.rs`, `attach.rs`, `pcurves.rs`; re-mint through the site mint per D1's atomic contract; stop on a fork) → `session_01Rih1zQMgwVF4FhCch5Yr3Z`.
+- `minting-doors-take-…` stays open. Its own text calls it the same describing-door-or-reorder question as `kef-and-kfmrh-across-keys-…`, which is PR 3970's.
