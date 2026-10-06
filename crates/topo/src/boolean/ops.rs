@@ -1254,10 +1254,10 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     named: impl Fn(&geom::Surface<T>) -> bool,
     stop: bool,
+    axes: &super::separating::OperandAxes<T>,
 ) -> Vec<PairVerdict> {
     let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
     let pad = boxes::sweep_pad(band);
-    let mut axes = None;
     let mut out = Vec::new();
     for fa in a_rows {
         for &fb in &b_rows {
@@ -1269,7 +1269,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             if super::separating::apart(
                 (a, super::separating::Item::Face(fa.face)),
                 (b, super::separating::Item::Face(fb.face)),
-                axes.get_or_insert_with(|| super::separating::operand_axes(a, b, band)),
+                axes.of(a, b, band),
                 pad,
                 band,
             ) {
@@ -1323,6 +1323,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         evented,
         |s| path.names(s),
         stop,
+        &super::separating::OperandAxes::new(),
     ))
 }
 
@@ -3299,6 +3300,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let pad = boxes::sweep_pad(band);
+    let axes = super::separating::OperandAxes::new();
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
@@ -3359,6 +3361,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         (y, y_row),
                         band,
                         &mut section_charts,
+                        &axes,
                     )
                 };
                 match &y_row.surface {
@@ -3395,19 +3398,20 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // witness extends to the whole circle.
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
-                                let circle = super::separating::Item::Circle {
+                                let circle = super::separating::Circle {
                                     center: foot,
                                     u_ref,
                                     v_ref: normal.cross(u_ref),
                                     radius: rho,
                                 };
-                                let circle_box =
-                                    boxes::circle_box(foot, u_ref, normal.cross(u_ref), rho, pad);
                                 if face_boundary_meets(
                                     y,
                                     yf,
-                                    (circle, &circle_box),
-                                    &super::separating::operand_axes(a, b, band),
+                                    (
+                                        super::separating::Item::Circle(circle),
+                                        &boxes::circle_box(&circle, pad),
+                                    ),
+                                    axes.of(a, b, band),
                                     pad,
                                     band,
                                 ) {
@@ -3586,15 +3590,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !y_row.bbox.overlaps(&ball_box)
-                            || super::separating::apart(
-                                (y, super::separating::Item::Face(yf)),
-                                (x, super::separating::Item::Face(face)),
-                                &super::separating::operand_axes(a, b, band),
-                                pad,
-                                band,
-                            )
-                        {
+                        if !ball_may_reach(
+                            (y, yf, &y_row.bbox),
+                            (center, radius, &ball_box),
+                            axes.of(a, b, band),
+                            pad,
+                            band,
+                        ) {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {
@@ -3670,6 +3672,30 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
+/// **Whether the ball about `center` of radius `radius` may reach
+/// `y`'s face `yf`**: their boxes (`face_box`, the ball's `ball_box`)
+/// overlap, and the narrow phase does not part the face from the WHOLE
+/// ball ([`super::separating::Item::Ball`]). The question is the ball's
+/// escape, so it is asked of the ball whatever part of the sphere the
+/// faces on it keep: a reach of those faces is a subset of the ball, and
+/// a face clear of that subset may still lie inside the ball.
+fn ball_may_reach<T: Decide + Bounds>(
+    (y, yf, face_box): (&Body<T>, FaceKey, &bvh::Aabb),
+    (center, radius, ball_box): (Point3<T>, T, &bvh::Aabb),
+    axes: &[geom_core::UnitVec3<T>],
+    pad: f64,
+    band: Band,
+) -> bool {
+    face_box.overlaps(ball_box)
+        && !super::separating::apart(
+            (y, super::separating::Item::Face(yf)),
+            (y, super::separating::Item::Ball { center, radius }),
+            axes,
+            pad,
+            band,
+        )
+}
+
 /// **Whether every face on `x`'s sphere `surface` is certified apart
 /// from `y`'s face `y_row`**, whose carrier the sphere crosses or
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
@@ -3681,6 +3707,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (y, y_row): (&Body<T>, &FaceRow<T>),
     band: Band,
     charts: &mut ChartCache,
+    axes: &super::separating::OperandAxes<T>,
 ) -> Option<SectionRefusal> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
@@ -3693,6 +3720,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_, _| false,
             |_| true,
             true,
+            axes,
         ),
         Operand::B => walk_pairs(
             (y, [y_row]),
@@ -3703,6 +3731,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_, _| false,
             |_| true,
             true,
+            axes,
         ),
     };
     pairs.into_iter().find_map(|p| p.verdict.err())
@@ -5697,6 +5726,94 @@ mod tests {
                 format!("{:?}", super::of_describe(described)),
                 "{described:?} passes through as the boolean's own"
             );
+        }
+    }
+
+    /// **The `Approx` arm asks after the BALL, not the sphere face**
+    /// (`ball_may_reach`). The face here keeps a small cap of its
+    /// sphere near the north pole; the brick inside the ball near the
+    /// south pole is clear of any honest reach of that cap and still
+    /// in the ball, which is where the escape it guards runs. So it is
+    /// reached, face by face, whatever the cap's own reach. A brick past
+    /// the ball on the diagonal, inside the ball's world box, is parted
+    /// by the narrow phase. Asking after the face instead, the inside
+    /// brick reads apart the day a sphere face's reach is tighter than
+    /// its ball.
+    #[test]
+    fn the_approx_arm_asks_whether_the_ball_reaches_the_face() {
+        use super::{ball_may_reach, centred_box};
+        use crate::boolean::boxes;
+        use crate::test_support::brick;
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let pad = boxes::sweep_pad(band);
+        // The operators' chords, not described as intersections, so the
+        // cap's carrier can be swapped for the sphere's.
+        let mut capped = crate::Body::<f64>::new();
+        crate::test_support::prism_ops(
+            &mut capped,
+            &[(-0.2, -0.2), (0.2, -0.2), (0.2, 0.2), (-0.2, 0.2)],
+            (0.9, 0.98),
+            Point3::new,
+            crate::test_support::FaceGeometry::Certified,
+            tol,
+        );
+        let top = capped
+            .faces()
+            .map(|(f, _)| f)
+            .find(|&f| {
+                crate::face_normal::face_outward_normal(&capped, f).is_some_and(|n| n.vec().z > 0.5)
+            })
+            .unwrap();
+        capped
+            .set_face_surface(
+                top,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Sphere {
+                        center: Point3::new(0.0, 0.0, 0.0),
+                        radius: 1.0,
+                        axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let &geom::Surface::Sphere { center, radius, .. } =
+            capped.face_surface_linked(top, capped.get_face(top).unwrap())
+        else {
+            panic!("the cap's carrier is the sphere");
+        };
+        let axes = crate::boolean::separating::OperandAxes::new();
+        let ball_box = centred_box(center, radius, pad);
+        for (what, (x, y, z), reached) in [
+            (
+                "inside the ball, off the cap",
+                ((-0.1, 0.1), (-0.1, 0.1), (-0.9, -0.7)),
+                true,
+            ),
+            (
+                "past the ball on the diagonal",
+                ((0.8, 0.9), (0.8, 0.9), (0.8, 0.9)),
+                false,
+            ),
+        ] {
+            let other = brick::<f64>(x, y, z, tol);
+            for (yf, _) in other.faces() {
+                let face_box = boxes::face_box(&other, yf, pad, band).unwrap();
+                assert!(face_box.overlaps(&ball_box), "{what}: the boxes overlap");
+                assert_eq!(
+                    ball_may_reach(
+                        (&other, yf, &face_box),
+                        (center, radius, &ball_box),
+                        axes.of(&capped, &other, band),
+                        pad,
+                        band,
+                    ),
+                    reached,
+                    "{what}: face {yf:?}"
+                );
+            }
         }
     }
 

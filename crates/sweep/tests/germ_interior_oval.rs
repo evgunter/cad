@@ -846,8 +846,8 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
     );
 }
 
-/// **A plane clear of the bump's control net is certified apart though
-/// its box overlaps.** A wedge over the bump block whose underside
+/// **A plane clear of the bump's control net is parted before the
+/// certificate is asked, though its box overlaps.** A wedge over the bump block whose underside
 /// rises along `z = 2.4 + 0.3x`: every control point of the net lies
 /// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
 /// the underside's box reaches down to `z = 1.5` into the bump face's.
@@ -858,7 +858,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
 /// pair to the certificate's W0 (whose own row is `section_cert_rows`'
 /// NURBS × plane one).
 #[test]
-fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
+fn a_plane_clear_of_the_bumps_net_never_reaches_the_certificate() {
     let wedge = {
         let lp = ProfileLoop::polygon([
             Point2::new(-3.0, 1.5),

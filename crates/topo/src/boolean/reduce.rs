@@ -269,9 +269,11 @@ pub(super) struct UnsupportedPair {
 ///
 /// The pad is the sweep's own ([`super::boxes::sweep_pad`]), and the
 /// sweep's curved arm reads the same narrow phase behind its tree, for
-/// an edge and for either face it lies on: a pair the gate parts is one
-/// the sweep parts too, and one the gate refuses the sweep would
-/// examine.
+/// an edge and for either face it lies on: a face pair the gate parts,
+/// the sweep parts too, for every edge of that face. The converse does
+/// not hold. The sweep also skips an edge whose own reach is apart from
+/// the face though its faces' reaches are not, so a pair the gate
+/// refuses may be one no edge of the sweep ever examines.
 ///
 /// **A COVERED pair is not an offending pair.** `covered` names the
 /// cross-operand pairs the caller's declarations speak for. The gate
@@ -319,6 +321,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     covered: impl Fn(Operand, FaceKey, FaceKey) -> bool,
 ) -> Result<Option<UnsupportedPair>, BooleanError> {
     let pad = super::boxes::sweep_pad(band);
+    let axes = super::separating::OperandAxes::new();
     for (operand, body, other) in [(Operand::A, a, b), (Operand::B, b, a)] {
         // Arena order both ways, and no box is built for an operand
         // that carries no unsupported kind at all — the common case
@@ -343,7 +346,6 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
                 Ok((key, kind, super::boxes::face_box(other, key, pad, band)?))
             })
             .collect::<Result<_, BooleanError>>()?;
-        let mut axes = None;
         for (face, kind) in offenders {
             let boxed = super::boxes::face_box(body, face, pad, band)?;
             for &(other_face, other_kind, ref other_box) in &others {
@@ -352,7 +354,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
                     && !super::separating::apart(
                         (body, Item::Face(face)),
                         (other, Item::Face(other_face)),
-                        axes.get_or_insert_with(|| super::separating::operand_axes(a, b, band)),
+                        axes.of(a, b, band),
                         pad,
                         band,
                     )
@@ -1079,11 +1081,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     knobs: &SweepKnobs,
     mut trace: Option<&mut SweepTrace>,
     deferred: &mut Vec<DeferredTouch>,
+    axes: &super::separating::OperandAxes<T>,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
     let pad = knobs.pad_override.unwrap_or_else(|| boxes::sweep_pad(band));
-    let axes = super::separating::operand_axes(x, y, band);
     // With `sweep-testing`, the tree is optional so the idealized
     // reference can decline it. Without the feature there is no
     // `Idealized` variant to decline it with, so the tree is
@@ -1149,7 +1151,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // The parents' reading is the operand gate's, so a pair
                 // the gate cleared is cleared here too.
                 let apart_from_face = |item| {
-                    super::separating::apart((x, item), (y, Item::Face(face)), &axes, pad, band)
+                    super::separating::apart(
+                        (x, item),
+                        (y, Item::Face(face)),
+                        axes.of(x, y, band),
+                        pad,
+                        band,
+                    )
                 };
                 if apart_from_face(Item::Edge(edge_key))
                     || [edge.he_plus, edge.he_minus]
@@ -1547,6 +1555,9 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let mut deferred = Vec::new();
+    // Both directions read one axis set, taken when the first curved
+    // face is met.
+    let axes = super::separating::OperandAxes::new();
     sweep_direction(
         a,
         b,
@@ -1558,6 +1569,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
         ab_knobs,
         ab_trace.as_deref_mut(),
         &mut deferred,
+        &axes,
         tol,
     )?;
     sweep_direction(
@@ -1571,6 +1583,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
         ba_knobs,
         ba_trace.as_deref_mut(),
         &mut deferred,
+        &axes,
         tol,
     )?;
     settle_deferred(

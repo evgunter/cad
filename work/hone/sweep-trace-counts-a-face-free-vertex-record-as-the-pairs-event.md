@@ -67,3 +67,9 @@ fragment that way, so the idealized walk no longer makes them, and
 counts a face-free record wherever the narrow phase does not part the
 pair (a fragment whose reach comes within two pads of a non-holding
 face), and this item no longer has a corpus witness that reds.
+
+With the list empty, `n3r1_prune.rs` drops `FACE_FREE_RECORDS` and its
+filter (PR 4122's last fix pass), and the row asserts that no accepted
+pair goes unexamined. A face-free record against a pair the tree
+prunes reds it again, so a new witness is a non-empty exemption to
+restore here, not a silent pass.

@@ -31,7 +31,7 @@
 //! band answers "not apart", which keeps the caller's conservative
 //! verdict.
 
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
 use super::boxes::BoxFrame;
 use crate::body::Body;
@@ -53,26 +53,39 @@ pub(crate) const PAIR_NORMAL: &str = "bool_pair_normal";
 pub(crate) const PAIR_GAP: &str = "bool_pair_gap";
 
 /// One item a reach is read for: a face, an edge (the sweep's piercing
-/// side), or a full circle no body holds (the extent scan's section of
-/// a sphere by a face's carrier plane).
+/// side), or a full circle or ball no body holds (the extent scan's
+/// section of a sphere by a face's carrier plane, and the ball whose
+/// escape it asks after).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Item<T: Real> {
     /// A face of its body.
     Face(FaceKey),
     /// An edge of its body.
     Edge(EdgeKey),
-    /// The circle about `center` of radius `radius` in the plane of the
-    /// orthonormal `u_ref`, `v_ref`; its body is not read.
-    Circle {
+    /// A full circle; its body is not read.
+    Circle(Circle<T>),
+    /// The whole solid ball about `center` of radius `radius`, whatever
+    /// part of its sphere a body's faces keep; its body is not read.
+    Ball {
         /// The centre.
         center: Point3<T>,
-        /// One in-plane unit direction.
-        u_ref: Vec3<T>,
-        /// The other, perpendicular to it.
-        v_ref: Vec3<T>,
         /// The radius.
         radius: T,
     },
+}
+
+/// The full circle about `center` of radius `radius` in the plane of
+/// the orthonormal `u_ref`, `v_ref`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Circle<T: Real> {
+    /// The centre.
+    pub(crate) center: Point3<T>,
+    /// One in-plane unit direction.
+    pub(crate) u_ref: Vec3<T>,
+    /// The other, perpendicular to it.
+    pub(crate) v_ref: Vec3<T>,
+    /// The radius.
+    pub(crate) radius: T,
 }
 
 /// The outward normal of every planar face of `a` and of `b`, as unit
@@ -80,9 +93,13 @@ pub(crate) enum Item<T: Real> {
 /// is a pure number, so it is read as a direction levered by its face's
 /// reach diagonal, the length it is consumed over. One the band cannot
 /// read, or a face with no reach, is left out, which only drops a
-/// candidate.
-pub(crate) fn operand_axes<T: Decide>(a: &Body<T>, b: &Body<T>, band: Band) -> Vec<UnitVec3<T>> {
+/// candidate. So is one whose bracket is a kept axis's, or its
+/// negation's: a gap along `−n` is the gap along `n` (a box's six faces
+/// give three axes).
+fn operand_axes<T: Decide + Bounds>(a: &Body<T>, b: &Body<T>, band: Band) -> Vec<UnitVec3<T>> {
+    let bracket = |v: Vec3<T>| [v.x, v.y, v.z].map(|c| (c.lo(), c.hi()));
     let mut axes: Vec<UnitVec3<T>> = Vec::new();
+    let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
     for body in [a, b] {
         for (key, _) in body.faces() {
             let Some(n) = crate::face_normal::face_outward_normal(body, key) else {
@@ -91,12 +108,42 @@ pub(crate) fn operand_axes<T: Decide>(a: &Body<T>, b: &Body<T>, band: Band) -> V
             let Some((lo, hi)) = crate::census::face_reach(body, key, band) else {
                 continue;
             };
-            if let Ok(unit) = UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()) {
-                axes.push(unit);
+            let Ok(unit) = UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()) else {
+                continue;
+            };
+            let (plus, minus) = (bracket(unit.get()), bracket(-unit.get()));
+            if kept.iter().any(|k| *k == plus || *k == minus) {
+                continue;
             }
+            kept.push(plus);
+            axes.push(unit);
         }
     }
     axes
+}
+
+/// **One operand pair's candidate axes** ([`operand_axes`]), read on
+/// first use and then shared by every item pair the caller asks about,
+/// so a stage that reads many pairs walks the operands' faces once. An
+/// all-planar operation whose world boxes never overlap reads none.
+///
+/// Every candidate direction is sound to read (the certificate is the
+/// gap along it), so a stage whose bodies are split between two reads
+/// keeps the first read's axes: the split faces lie on the carriers
+/// that gave them.
+pub(crate) struct OperandAxes<T: Real>(std::cell::OnceCell<Vec<UnitVec3<T>>>);
+
+impl<T: Decide + Bounds> OperandAxes<T> {
+    /// Not yet read.
+    pub(crate) fn new() -> Self {
+        Self(std::cell::OnceCell::new())
+    }
+
+    /// The axes of the pair `a`, `b`: read now on the first call, and
+    /// the first call's thereafter.
+    pub(crate) fn of(&self, a: &Body<T>, b: &Body<T>, band: Band) -> &[UnitVec3<T>] {
+        self.0.get_or_init(|| operand_axes(a, b, band))
+    }
 }
 
 /// Whether `x`'s item and `y`'s item are certainly apart: their reaches,
@@ -150,34 +197,40 @@ fn reach<T: Decide>(
     band: Band,
     frame: &BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use super::boxes::{SpanBox, conic_extent};
+    use super::boxes::{SpanBox, ball_extent, conic_extent};
     match item {
         Item::Face(f) => crate::census::face_reach_in(body, f, band, frame),
         Item::Edge(e) => crate::census::edge_reach_in(body, e, frame),
-        Item::Circle {
+        Item::Circle(Circle {
             center,
             u_ref,
             v_ref,
             radius,
-        } => {
-            let b = conic_extent(
-                &SpanBox::point(frame.point(center)),
-                &SpanBox::vector(frame.vector(u_ref)),
-                &SpanBox::vector(frame.vector(v_ref)),
-                radius,
-                radius,
-            );
-            Some((
-                Point3::new(b.x.lo, b.y.lo, b.z.lo),
-                Point3::new(b.x.hi, b.y.hi, b.z.hi),
-            ))
-        }
+        }) => Some(corners(conic_extent(
+            &SpanBox::point(frame.point(center)),
+            &SpanBox::vector(frame.vector(u_ref)),
+            &SpanBox::vector(frame.vector(v_ref)),
+            radius,
+            radius,
+        ))),
+        Item::Ball { center, radius } => Some(corners(ball_extent(
+            &SpanBox::point(frame.point(center)),
+            radius,
+        ))),
     }
 }
 
-/// The mean of an item's boundary vertices, or a circle's centre — a
-/// point that moves with its body. `None` for a face whose boundary has
-/// no vertex.
+/// A [`super::boxes::SpanBox`]'s two corners.
+fn corners<T: Real>(b: super::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
+    (
+        Point3::new(b.x.lo, b.y.lo, b.z.lo),
+        Point3::new(b.x.hi, b.y.hi, b.z.hi),
+    )
+}
+
+/// The mean of an item's boundary vertices, or a circle's or ball's
+/// centre — a point that moves with its body. `None` for a face whose
+/// boundary has no vertex.
 fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
     use super::boxes::edge_end_point;
     let mut sum = Vec3::new(T::zero(), T::zero(), T::zero());
@@ -203,7 +256,7 @@ fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
                 }
             }
         }
-        Item::Circle { center, .. } => return Some(center),
+        Item::Circle(Circle { center, .. }) | Item::Ball { center, .. } => return Some(center),
     }
     (n > 0).then(|| {
         let k = T::one() / T::from_f64(f64::from(n));

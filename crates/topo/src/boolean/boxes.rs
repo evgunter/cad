@@ -1214,17 +1214,18 @@ pub(crate) fn conic_extent<T: Real>(
     }
 }
 
-/// The padded box of the full circle about `center` of radius
-/// `radius` in the plane spanned by the unit `u_ref` and `v_ref`:
+/// The padded box of a full circle ([`super::separating::Circle`]):
 /// [`conic_extent`] at the bracket lane, so coordinate `i` reaches
 /// `radius·√(u_i² + v_i²) = radius·√(1 − n_i²)` from the centre, where
 /// `n` is the plane's normal — the circle's own extent, which turns with
 /// it, not the `2·radius` cube about the centre.
 pub(crate) fn circle_box<T: Bounds>(
-    center: Point3<T>,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
-    radius: T,
+    &super::separating::Circle {
+        center,
+        u_ref,
+        v_ref,
+        radius,
+    }: &super::separating::Circle<T>,
     pad: f64,
 ) -> Aabb {
     let r = radius.hi();
@@ -3209,32 +3210,60 @@ pub(crate) mod tests {
     /// directions: coordinate `i` of [`circle_box`] spans exactly
     /// `ρ·√(1 − nᵢ²)` about the centre, and every sampled point of the
     /// circle lies inside it. A `2ρ` cube about the centre passes the
-    /// locus half and reds the ceiling half on every axis here, since
-    /// the normal leans off all three.
+    /// locus half and reds the ceiling half on every axis at the
+    /// `(1, 2, 3)` normal, which leans off all three. The oracle reads
+    /// `√(1 − nᵢ²)` as `√(nⱼ² + nₖ²)`, the norm of `n`'s other two
+    /// components, which does not cancel where `nᵢ → 1`: the normal a
+    /// few nanoradians off `ẑ` boxes its circle a few nanometres thick
+    /// in `z`, and `1 − n_z²` rounds that to nothing.
     #[test]
     fn a_tilted_circles_box_is_its_own_extent() {
-        let n = Vec3::new(1.0, 2.0, 3.0).normalize();
-        let u = Vec3::new(2.0, -1.0, 0.0).normalize();
-        let v = n.cross(u);
-        let (c, rho) = (Point3::new(0.3, -0.2, 1.1), 0.7);
-        let b = circle_box(c, u, v, rho, 0.0);
-        let (lo, hi) = ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
-        for (i, (centre, ni)) in [(c.x, n.x), (c.y, n.y), (c.z, n.z)].into_iter().enumerate() {
-            let half = rho * (1.0 - ni * ni).sqrt();
-            assert!(
-                (lo[i] - (centre - half)).abs() <= 1e-15
-                    && (hi[i] - (centre + half)).abs() <= 1e-15,
-                "axis {i}: [{}, {}] against the circle's own [{}, {}]",
-                lo[i],
-                hi[i],
-                centre - half,
-                centre + half
+        let tilted = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let near_z = Vec3::new(1e-9, -2e-9, 1.0).normalize();
+        for (n, u) in [
+            (tilted, Vec3::new(2.0, -1.0, 0.0).normalize()),
+            (
+                near_z,
+                Vec3::new(1.0, 0.0, -near_z.x / near_z.z).normalize(),
+            ),
+        ] {
+            let v = n.cross(u);
+            let (c, rho) = (Point3::new(0.3, -0.2, 1.1), 0.7);
+            let b = circle_box(
+                &super::super::separating::Circle {
+                    center: c,
+                    u_ref: u,
+                    v_ref: v,
+                    radius: rho,
+                },
+                0.0,
             );
-        }
-        for k in 0..720 {
-            let t = f64::from(k) * core::f64::consts::TAU / 720.0;
-            let p = c + u * (rho * t.cos()) + v * (rho * t.sin());
-            assert!(holds(&b, p), "the circle at t = {t} lies outside its box");
+            let (lo, hi) = ([b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]);
+            let across = [
+                (n.y, n.z), // x: the norm of n's y and z
+                (n.z, n.x),
+                (n.x, n.y),
+            ];
+            for (i, (centre, (nj, nk))) in [c.x, c.y, c.z].into_iter().zip(across).enumerate() {
+                let half = rho * nj.hypot(nk);
+                assert!(
+                    (lo[i] - (centre - half)).abs() <= 1e-15
+                        && (hi[i] - (centre + half)).abs() <= 1e-15,
+                    "n {n:?}, axis {i}: [{}, {}] against the circle's own [{}, {}]",
+                    lo[i],
+                    hi[i],
+                    centre - half,
+                    centre + half
+                );
+            }
+            for k in 0..720 {
+                let t = f64::from(k) * core::f64::consts::TAU / 720.0;
+                let p = c + u * (rho * t.cos()) + v * (rho * t.sin());
+                assert!(
+                    holds(&b, p),
+                    "n {n:?}: the circle at t = {t} lies outside its box"
+                );
+            }
         }
     }
 

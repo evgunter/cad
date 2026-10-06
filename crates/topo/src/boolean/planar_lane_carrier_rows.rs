@@ -243,6 +243,7 @@ fn sweep_a(
         &super::SweepKnobs::default(),
         None,
         &mut Vec::new(),
+        &crate::boolean::separating::OperandAxes::new(),
         Tol::witness(),
     )?;
     Ok((x, acc.finish()))
