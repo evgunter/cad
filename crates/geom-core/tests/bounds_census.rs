@@ -442,11 +442,11 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/ops.rs",
+        path: "crates/topo/src/boolean/boxes.rs",
         subject: "centred_box",
         why: Payload(
-            "the extent scan's ball box: a centre's and a radius's brackets into an f64 \
-             `bvh::Aabb`, padded, and stop",
+            "a ball's box, for the extent scan and the crossing layer's touch reading: a \
+             centre's and a radius's brackets into an f64 `bvh::Aabb`, padded, and stop",
         ),
     },
     Site {

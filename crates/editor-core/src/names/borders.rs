@@ -78,7 +78,11 @@ impl<K: Ord + Clone> Obstacles<K> {
         // A bordered stretch settles on a seam edge: the zip made the
         // kept face's section edge one edge with the wall's. A held
         // stretch settles on the kept face's own edge, whichever it is.
-        let seam_edges: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
+        let seam_edges: BTreeSet<EdgeKey> = naming
+            .seam_edges
+            .iter()
+            .map(|&e| naming.joined_edge(e))
+            .collect();
         let mut by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
         let mut any_by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
         for (k, e) in body.edges() {
@@ -131,11 +135,20 @@ impl<K: Ord + Clone> Obstacles<K> {
             let mut seams = Vec::new();
             // A stretch no live edge joins merged away with the faces
             // beside it: nothing of a piece lies along it.
-            for (stretches, edges) in [(&row.bordered, &by_ends), (&row.held, &any_by_ends)] {
+            // A stretch an end of which the output stage joined away lies
+            // along the edge the join made.
+            for (stretches, edges, seam_only) in [
+                (&row.bordered, &by_ends, true),
+                (&row.held, &any_by_ends, false),
+            ] {
                 for &(u, w) in stretches {
                     let (u, w) = (settle(u), settle(w));
                     if let Some(es) = edges.get(&(u.min(w), u.max(w))) {
                         seams.extend(es.iter().copied());
+                    } else if let Some(e) = naming.stretch_through_joins(body, (u, w))
+                        && (!seam_only || seam_edges.contains(&e))
+                    {
+                        seams.push(e);
                     }
                 }
             }
