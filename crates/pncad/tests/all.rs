@@ -6533,7 +6533,9 @@ mod the_hollowed_box_through_the_facade {
 /// naming the group, the route it arrived by and its cause — rather
 /// than write the sub-assembly's world without it. Spoken from the outer
 /// document, the route's first instance is said as that document holds
-/// it, and the group, a node of the sub-assembly, by its tag.
+/// it, and the group, a node of the sub-assembly, by its tag — though
+/// the outer document's first two nodes are the sub-assembly's twins,
+/// so it holds the group's id as its own labelled instance.
 #[test]
 fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     use pncad::document::DocEdit;
@@ -6551,12 +6553,7 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
     )
     .expect("an offset clears")
     .doc;
-    let text = pncad::document::save(&sub, &[], Tol::witness()).expect("saves");
-    dir.write("sub.pncad", &text);
-    let sub_ref = pncad::document::DocRef {
-        id: sub.id(),
-        pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
-    };
+    let sub_ref = asm2a_save(&dir, "sub.pncad", &sub);
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let opts = StepOptions::default();
     let ev_sub = asm2a_eval(&sub, &ws);
@@ -6565,22 +6562,15 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
         matches!(sub_err, Err(pncad::export::ExportError::Unplaced { .. })),
         "the sub-assembly alone refuses: {sub_err:?}"
     );
-    let (outer, outer_ids) = asm2a_assembly("r2-step-sub-outer", sub_ref, 1);
-    let outer = pncad::document::apply(
-        &outer,
-        &DocEdit::SetLabel {
-            node: outer_ids[0],
-            label: Some(pncad::document::Label::new("left bracket").expect("a label")),
-        },
-        Tol::witness(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("a label is set")
-    .doc;
+    let (outer, twins) = asm2a_assembly("r2-step-sub-outer", doc_ref, 2);
+    assert_eq!(twins, ids, "both documents mint from the zero chain");
+    let outer = asm2a_label(&outer, ids[1], "twin group");
+    let (outer, through) = asm2a_placed_instance(outer, sub_ref, 30.0);
+    let outer = asm2a_label(&outer, through, "left bracket");
     let ev = asm2a_eval(&outer, &ws);
     let expected = pncad::document::CarriedUnplaced {
         route: pncad::document::Route {
-            through: outer_ids[0],
+            through: through,
             of: sub.id(),
             via: Vec::new(),
         },
@@ -6595,27 +6585,158 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
                 unreachable!()
             };
             assert_eq!(groups, vec![expected]);
-            let by_tag = format!("through instance {}", outer_ids[0]);
+            let by_tag = format!("through instance {}", through);
             assert!(
                 said.contains("Recourse:") && said.contains(&by_tag),
                 "with no document at hand the instance is said by its tag: {said}"
             );
-            let instance = format!(
-                "through InstantiatePart \"left bracket\" ({})",
-                outer_ids[0]
-            );
+            let instance = format!("through InstantiatePart \"left bracket\" ({})", through);
             let group = format!("rooted at node {}", ids[1]);
             assert!(
                 spoken.contains(&instance) && spoken.contains(&group),
                 "the outer document says its instance and the sub-assembly's group by tag: \
                  {spoken}"
             );
+            assert!(
+                !spoken.contains("twin group"),
+                "the group is never said by the outer document's node of its id: {spoken}"
+            );
         }
         other => panic!("the outer document refuses naming the group below: {other:?}"),
     }
-    match pncad::export::step_for_node(&ev, outer_ids[0], &opts, Tol::witness()) {
+    match pncad::export::step_for_node(&ev, through, &opts, Tol::witness()) {
         Err(pncad::export::ExportError::UnplacedBelow { groups }) => assert_eq!(groups.len(), 1),
         other => panic!("the instance alone refuses too: {other:?}"),
+    }
+}
+
+/// **A route two documents deep says its deeper hop by tag**: a part,
+/// a sub-assembly leaving its second instance unplaced, a middle
+/// document instancing the sub-assembly, and an outer document whose
+/// first node is the middle document's twin — an instance of the
+/// sub-assembly, labelled — and whose second instances the middle
+/// document. The second row's `via` hop is the middle document's
+/// instance, whose id the outer document holds as that labelled twin;
+/// spoken from the outer document the hop keeps its tag.
+#[test]
+fn step_export_says_a_deeper_route_hop_by_tag_where_the_outer_document_holds_its_id() {
+    let dir = WsDir::new("r2-step-via");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "r2-step-via-part");
+    let (sub, ids) = asm2a_assembly("r2-step-via-asm", doc_ref, 2);
+    let sub = pncad::document::apply(
+        &sub,
+        &pncad::document::DocEdit::SetOffset {
+            instance: ids[1],
+            offset: None,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("an offset clears")
+    .doc;
+    let sub_ref = asm2a_save(&dir, "sub.pncad", &sub);
+    let (mid, mid_ids) = asm2a_assembly("r2-step-via-mid", sub_ref, 1);
+    let mid_ref = asm2a_save(&dir, "mid.pncad", &mid);
+    let (outer, twin) = asm2a_assembly("r2-step-via-outer", sub_ref, 1);
+    assert_eq!(twin, mid_ids, "both documents mint from the zero chain");
+    let outer = asm2a_label(&outer, twin[0], "spare seat");
+    let (outer, through) = asm2a_placed_instance(outer, mid_ref, 20.0);
+    let outer = asm2a_label(&outer, through, "left bracket");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let ev = asm2a_eval(&outer, &ws);
+    let row = |through, via| pncad::document::CarriedUnplaced {
+        route: pncad::document::Route {
+            through,
+            of: sub.id(),
+            via,
+        },
+        group: ids[1],
+        cause: pncad::document::Unplaced::NoOffset,
+    };
+    let expected = vec![row(twin[0], Vec::new()), row(through, vec![mid_ids[0]])];
+    let opts = StepOptions::default();
+    match pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness()) {
+        Err(e @ pncad::export::ExportError::UnplacedBelow { .. }) => {
+            let spoken = e.spoken(&outer);
+            let pncad::export::ExportError::UnplacedBelow { groups } = e else {
+                unreachable!()
+            };
+            assert!(
+                groups.len() == expected.len() && expected.iter().all(|r| groups.contains(r)),
+                "one row by each instance of the sub-assembly: {groups:?}"
+            );
+            let hops = format!(
+                "through InstantiatePart \"left bracket\" ({through}) → instance {}",
+                mid_ids[0]
+            );
+            assert!(
+                spoken.contains(&hops),
+                "the first hop is the outer document's, the second keeps its tag: {spoken}"
+            );
+            assert_eq!(
+                spoken.matches("spare seat").count(),
+                1,
+                "only the outer document's own instance is said by its label, never a deeper \
+                 hop of its id: {spoken}"
+            );
+        }
+        other => panic!("the outer document refuses naming the group two below: {other:?}"),
+    }
+}
+
+/// `doc` with `node` labelled `label`.
+fn asm2a_label(
+    doc: &pncad::document::ProfileDoc,
+    node: pncad::document::RecipeNodeId,
+    label: &str,
+) -> pncad::document::ProfileDoc {
+    pncad::document::apply(
+        doc,
+        &pncad::document::DocEdit::SetLabel {
+            node,
+            label: Some(pncad::document::Label::new(label).expect("a valid label")),
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("a label is set")
+    .doc
+}
+
+/// `doc` with one more instance of `doc_ref`, displaced `dx` along +x.
+fn asm2a_placed_instance(
+    doc: pncad::document::ProfileDoc,
+    doc_ref: pncad::document::DocRef,
+    dx: f64,
+) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
+    let (doc, id) = insert(doc, pncad::document::Node::instantiate_part(doc_ref));
+    let doc = pncad::document::apply(
+        &doc,
+        &pncad::document::DocEdit::SetOffset {
+            instance: id,
+            offset: Some(pncad::document::Placement::literal(
+                &pncad::document::Frame::translation([dx, 0.0, 0.0]),
+            )),
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the placement is accepted")
+    .doc;
+    (doc, id)
+}
+
+/// `doc` saved into `dir` as `file`, and the true reference to it.
+fn asm2a_save(
+    dir: &WsDir,
+    file: &str,
+    doc: &pncad::document::ProfileDoc,
+) -> pncad::document::DocRef {
+    let text = pncad::document::save(doc, &[], Tol::witness()).expect("saves");
+    dir.write(file, &text);
+    pncad::document::DocRef {
+        id: doc.id(),
+        pin: pncad::document::content_pin(doc, Tol::witness()).expect("pin"),
     }
 }
 
