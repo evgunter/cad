@@ -5,6 +5,7 @@ title: A fillet whose planar support carries a polygonal ring refuses: the ring 
 status: open
 opened: 2026-10-02
 priority: P2
+cost: M
 ---
 
 ## What
@@ -43,3 +44,21 @@ circle cases are.
 
 When it lands, the heat sink's wall 1 refuses no longer and its probe
 says what to change in the scene.
+
+## Findings (BAND lane, 2026-10-06)
+
+Measured against the tree, the claims hold: `ring_circle` refused
+every ring with a line edge, at both of the pass's ring readers (arm
+(a), a ring against an open link's trimline; arm (b), a ring of a
+closed rim's host against its trim circle), and the heat sink's wall 1
+refused with exactly the quoted detail.
+
+One further defect in the same reader: an all-ARC ring adopted its
+first arc's circle for the whole ring. Two overlapping bores leave a
+ring of arcs of two circles, and in one subtraction order a fillet at
+r = 0.252 carved through the second bore's arc into a body that failed
+tier 3 (`RingMeetsOuter`), while the other order refused. A ring is now
+read as one circle only when it is one closed circle edge; every other
+ring is metered edge by edge, exactly, in arm (a) against the
+trimline and in the support-boundary walk against the trim circle.
+Pinned by `review_fillet_e2_probes::a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc`.

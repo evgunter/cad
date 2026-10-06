@@ -3786,7 +3786,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // The band: the face on the non-cap side of the first sphere trim.
     // Row 0 (`D96`): NO — one row per `plane_walk` position, so the
-    // non-emptiness is the cycle's, the same cause as `ring_circle`'s
+    // non-emptiness is the cycle's, the same cause as `ring_read`'s
     // (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(tb) = tb_edges.first() else {
         unreachable!(
