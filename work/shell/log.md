@@ -1110,3 +1110,19 @@ too.
 
 Reviews of PRs 4115 and 4117 were both APPROVE-WITH-FIXES; fix passes
 are out.
+
+## Unit 6 weighed (2026-10-06)
+
+The designer pair on the klein-elbow lift converged in round 1, and
+both rejected the item's framing. The together door's domain is
+"revolves at rest", so it is not closed under its own output, and the
+lift is that door applied to its output. They agreed on the fix:
+- widen "axial" to every axis-parallel plane, everywhere;
+- `classify` reads one surface;
+- rim carriers come from the moved pair, with one plane×torus section
+  home in `geom_brep::plane_torus_section`;
+- a zero-offset spiric is unrepresentable.
+No ratified text moves, so there is no `[ev]` PR. The spec basis is in
+the item. Unit 6 now runs BEFORE unit 7, whose partial-revolve lift
+depends on it. Its review tier is DUAL: the gate change re-routes many
+bodies and is hard to reverse once rows are rebuilt on it.

@@ -7,7 +7,6 @@ opened: 2026-10-01
 refs: [equator-seam-reauthor-refuses-the-hollowed-elbow, spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut, spiric-bounded-face-area-is-unimplemented]
 priority: P1
 cost: H
-design: true
 ---
 
 ## What
@@ -92,3 +91,69 @@ The end-to-end payoff still also waits on FLUX's
 ## Home
 
 SHELL (`shell.rs` lift stage; `replace_face.rs` is SHELL's ground).
+
+## Decided (SHELL orchestrator, 2026-10-06, after the designer pair)
+
+Both designers, independently and in round 1, rejected the item's
+framing ("two new arms, everywhere or lift-only"). The defect is that
+`offset_charts_together`'s domain is "revolves at rest", a posture the
+cavity door itself destroys, so the door is not closed under its own
+output and the lift, which is the door applied to its own output, falls
+outside it. The per-chart door's refusal is its fail-loud net working;
+the gate is wrong to send the lift there. The lift-only option B fails
+on this very fixture: the second cavity cap is never lifted. Spec basis:
+
+1. **The gate admits every plane parallel to the axis**, at any stand-off,
+   everywhere (not lift-only). "Axial" means "expressible in one axial
+   frame": coaxial surfaces of revolution, planes normal to the axis,
+   planes parallel to it. `classify` takes ONE surface (the
+   `structural`/`moved` split existed only for the through-the-axis
+   test). `Constraint::Meridian { m, c }` is renamed for what it is (an
+   axis-parallel plane; the corner solver already treats `c` as data).
+   `is_axial`'s and the module table's docs follow.
+2. **Rim carriers come from the moved pair.** Torus × axis-parallel
+   plane gives a `Circle` when the stand-off is decided zero and a
+   `Spiric` otherwise. Sphere × plane gives the section circle, great or
+   small. Only oval, branch and sense are read from the old carrier,
+   whatever its kind. The plane×torus section gets ONE home:
+   `geom_brep::plane_torus_section` gains its spiric arm and the door
+   calls it, as it already calls `offset_surface`. An edge whose two
+   charts do not move keeps its carrier and only re-reads its window.
+3. **`param_on` / `forward_window`** key on the new carrier's kind
+   with one rule for every rim kind, not on a kind pair.
+4. **A zero-offset spiric is unrepresentable:** `Curve3::spiric`
+   refuses stand-off zero (C1, most exact kind first), retiring
+   `UncoveredClass::ZeroOffsetSpiric` and its pin. Without this, the
+   zero-motion lift would re-mint the operand's own rims as zero-offset
+   spirics.
+5. `shell.rs`'s "same door on the way in and out" becomes a property
+   of the gate; say why at the site.
+
+Risks to measure along the lift path, in order:
+- `mint_carrier` from a spiric to a circle;
+- `param_on`;
+- `reauthor`/`restate` on the equator seams, where a lifted corner
+  turns back INTO its sketch plane (its turned-start refusal assumes
+  the reverse);
+- the pcurve mint;
+- the glue on a circular rim.
+
+Bodies that newly take the together door: a cylinder void in a box
+(`shell5_r1_probes::r1p1`), the whole-body `is_axial` assertions in
+`shell8_*`, keyed and flatted shafts. Re-baseline what moves and say
+so. Fixtures owed:
+- this pin, flipped to the next wall;
+- one cap designated, not both;
+- a hex prism with a coaxial bore, sealed;
+- the sphere lune's lift.
+
+**Sequencing:** this lands BEFORE `shell-open-refuses-a-curved-designated-face`.
+That spec's lift on any partial revolve depends on it, and both share
+one principle: every rim-stage and door arm reads the posture it is
+given and assumes nothing about rest. No ratified decision moves:
+DESIGN.md C1's "minted by the offset-axial door … not by the C5 table"
+parenthetical is re-worded by the change; the topo README's O4 wording
+already fits. Ground: `offset_axial.rs` (OFFSET, CURVED),
+`geom-brep/src/intersect.rs` (CURVED), `geom/src/curves.rs`. Announce
+the seams. Blinding byte on `analysis/design-fork/shell-klein-lift`;
+no design-fork log row, as nothing went to Ev.
