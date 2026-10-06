@@ -141,21 +141,20 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
     );
 }
 
-/// A partially-requested corner (a run-out) is outside the assembly
-/// front door: it refuses TYPED, naming what is not implemented,
-/// rather than half-building.
+/// An end the cut-off does not build (a run-out — here a curved end
+/// face) is outside the assembly front door: it refuses TYPED, naming
+/// what is not built, rather than half-building.
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
-    let body = cube(1.0, Tol::witness());
-    let edges = query::all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], 0.15, Tol::witness())
-        .expect_err("one edge of a box leaves its corners partly requested");
+    let (body, edge) = crate::common::operands::half_round_end();
+    let err = fillet_edges(&body, &[edge], 0.15, Tol::witness())
+        .expect_err("an edge ending at a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(
-        err.to_string().contains("not implemented"),
+        err.to_string().contains("not built"),
         "the refusal names the missing front door: {err}",
     );
 }

@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P0
 cost: H
-pr: 4085
+pr: 4121
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene
@@ -67,6 +67,12 @@ the corner piece):
 | the four section edges on the side walls (`[SectionEdge]`) | `UnsupportedRunOut` | `UnsupportedRunOut` |
 | all eight (both section faces' whole rims) | `ChainNotG1` (margin 0.75) | `ChainNotG1` |
 
+The other half (`Above`, the two leg tips: two solids of one shell
+each) meets the same run-out, since the blend carves each chain inside
+its own shell (`a-blend-refuses-a-solid-of-several-shells`): its four
+cap chords refuse `UnsupportedRunOut` chamfered and filleted (walls 4
+and 5).
+
 Which refusal fires first depends on the setback and the plane (the
 review's probe): at `c = 2.75` the chords' chamfer meets
 `FaceClearanceUncertified` from `d = 0.3`, at `c = 2.6` from `d = 0.1`,
@@ -82,7 +88,8 @@ short of the fillet's tangent points).
 - One edge, and any proper subset ending at unrequested corners, of a box
   chamfers (and, if the fork rules it in, fillets): the bracket's walls 1
   and 2 panic as retired and the scene's document ends in the chamfer at
-  the oracle above.
+  the oracle above; walls 4 and 5, the leg tips' chords, panic as
+  retired with them.
 - A face's whole rim chamfers: wall 3 panics as retired.
 
 ## Ruled (Ev, PR 4085, 2026-10-06)
@@ -111,3 +118,19 @@ Build order (each step widens admission; this row closes with step 4):
 4. The isosceles mitre, chamfer then fillet. Retires wall 3.
 5. The non-isosceles overrun (a numeric probe before its spec), then delete
    the whole-face planar path — split to their own rows when step 4 lands.
+
+## Findings (steps 1 and 2, branch `band/plane-plane-band-cuts-off-at-its-end-face`)
+
+- The tree matched the row's claims before the change: one box edge
+  refused `UnsupportedRunOut` (pinned by `verbs_chamfer`,
+  `blend6_verb_vocab`, `m6_surgery`, `review_d2_recourse_at_the_site`),
+  and a face's rim `ChainNotG1` (`blend6_verb_vocab`,
+  `closed_chain_junctions`, `m5_pr12_battery`).
+- After: the bracket's four chords chamfer at `ΔV = 4·(d²/2)·√2`
+  (`demos/tour/src/bracket.rs`); filleting them refuses the oblique end
+  (wall 2), and both section faces' rims refuse as the turn (wall 3) —
+  step 4's.
+- The whole-face planar path is not kept: the local carve's stations
+  are every vertex of a face whose boundary is wholly requested, so
+  that case is the local carve's and step 5 has nothing left to delete
+  but this note.

@@ -30,6 +30,7 @@ use super::common::latitude_seam::{
 };
 use super::common::pcurve_rows::rows;
 use super::shell7_common::*;
+use sweep::test_support::finished;
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
 /// edge, and so does its `revert()`: the two half-circles of the
@@ -48,7 +49,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
         graft_recertify_failures(&cavity).is_empty(),
         "the cavity re-certifies edge for edge"
     );
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
@@ -95,7 +96,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let t = 0.05;
     let body = two_arc_sphere();
     let cavity = door_cavity(&body, t);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
         Err(vec![topo::ValidationError::NegativeVolume {
@@ -131,7 +132,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
 fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
     let body = collinear_cap_drum();
     let cavity = door_cavity(&body, 0.05);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let band = geom_core::Band::linear(tol()).expect("band");
     let mut circles = 0;
     for (ek, e) in reverted.edges() {
@@ -227,7 +228,8 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
         props.volume,
         props.volume_pad
     );
-    let shelled = topo::shell(&body, t, tol()).expect("shell runs the closing mint");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .expect("shell runs the closing mint");
     assert!(!rows(&out).is_empty(), "the sphere's faces carry rows");
     assert_eq!(
         rows(&shelled.body),

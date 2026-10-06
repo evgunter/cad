@@ -35,6 +35,7 @@
 use crate::common::interval::{iv, p2, v2};
 use geom_core::{Bounds, Interval, Real, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -77,7 +78,7 @@ fn interval_offset_charts_together_sphere_zone() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), tol)
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol), iv(t), tol)
         .expect("the sphere-zone vase hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -134,7 +135,7 @@ fn interval_offset_charts_together_partial_wedge() {
         ]),
         Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
     );
-    let hollow = topo::shell(&body, iv(t), tol)
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol), iv(t), tol)
         .expect("the quarter-revolve wedge hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -171,7 +172,7 @@ fn interval_offset_charts_together_cone_frustum() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), tol)
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol), iv(t), tol)
         .expect("the cone frustum hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -209,7 +210,7 @@ fn interval_offset_charts_together_drum() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), tol)
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol), iv(t), tol)
         .expect("the drum hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");

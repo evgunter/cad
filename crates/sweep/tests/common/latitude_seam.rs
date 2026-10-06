@@ -21,11 +21,10 @@
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //!
-//! - `shell9_r1_probes::multi_arc_sphere` and its `two_arc_sphere`
-//!   — the reviewer's own derivation of the same body from a bulge
-//!   computed off the arc's geometry, kept apart under
-//!   [`super::oracles`]'s rule (an independent derivation is what a
-//!   probe is for), with the torus family beside it;
+//! - `shell9_r1_probes::n_arc_torus` — the reviewer's own torus
+//!   family, its bulges computed off the arc's geometry, kept apart
+//!   under [`super::oracles`]'s rule (an independent derivation is
+//!   what a probe is for);
 //! - `shell7_seam_corner`'s inline drum, whose `(r, h, t)` are that
 //!   row's own closed-form inputs and read beside its oracle.
 

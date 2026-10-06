@@ -220,12 +220,13 @@ fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
 /// **A closed cycle that is no rim never becomes a closed CHAIN.** The
 /// Petrie hexagon of a cube is a closed cycle of six links on six
 /// different planes — the "links on distinct planes" shape the routing
-/// change must not admit. Measured: it is stopped one gate EARLIER
-/// than expected — chain assembly itself refuses `ChainNotG1` at the
-/// first sharp corner, because a closed chain is a tangent-continuous
-/// loop by construction. So the seam-split resolver's own checks are
-/// only ever asked about G1-closed, torus-armed chains; the two
-/// retired refusals were never the outer fence.
+/// change must not admit. It is stopped one gate EARLIER than the
+/// resolver: chain G1 breaks the cycle at every definite turn between
+/// its plane–plane links, so it is six open chains and never a closed
+/// one, and each turn — two of a vertex's three edges requested —
+/// refuses as `CornerConfig::Turn`. So the seam-split resolver's own
+/// checks are only ever asked about G1-closed, torus-armed chains; the
+/// two retired refusals were never the outer fence.
 #[test]
 fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
     let body = cube(1.0, tol());
@@ -264,8 +265,11 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         .collect();
     assert_eq!(edges.len(), 6, "the Petrie hexagon has six edges");
     match fillet_edges(&body, &edges, 0.1, tol()).map_err(|r| r.error) {
-        Err(BlendError::ChainNotG1 { .. }) => {}
-        other => panic!("a sharp-cornered hexagon cycle refuses at assembly, got {other:?}"),
+        Err(BlendError::UnsupportedCorner {
+            corner: sweep::blend::CornerConfig::Turn,
+            ..
+        }) => {}
+        other => panic!("a sharp-cornered hexagon cycle refuses at its turns, got {other:?}"),
     }
 }
 

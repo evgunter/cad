@@ -125,6 +125,8 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "planar_ring_arc_closure.rs"]
+mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
 mod pocket_ring_steep_ellipse;
 #[path = "pocket_wall_crossing_a_side_face.rs"]
@@ -200,6 +202,14 @@ mod band_annulus_host_boundary;
 mod band_clearance_screen_reads_every_feature;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_planar_cut_off.rs"]
+mod band_planar_cut_off;
+#[path = "band_planar_cut_off_interval.rs"]
+mod band_planar_cut_off_interval;
+#[path = "band_planar_cut_off_meters.rs"]
+mod band_planar_cut_off_meters;
+#[path = "band_planar_cut_off_shapes.rs"]
+mod band_planar_cut_off_shapes;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -274,6 +284,8 @@ mod join_whole_orbit_cylinder;
 mod k_report;
 #[path = "ladder_split_key.rs"]
 mod ladder_split_key;
+#[path = "lamina_annulus.rs"]
+mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
 #[path = "m3_pr5_extrude_booleans.rs"]
@@ -490,6 +502,8 @@ mod revolve_ring;
 mod revolve_washer;
 #[path = "ring_r1_probes.rs"]
 mod ring_r1_probes;
+#[path = "round_tube_on_plate.rs"]
+mod round_tube_on_plate;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
 #[path = "s393_start_frame_door.rs"]
@@ -503,6 +517,10 @@ mod seam_vertex_sites;
 mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_across_a_revolve_seam.rs"]
+mod split_across_a_revolve_seam;
+#[path = "split_along_a_face_plane.rs"]
+mod split_along_a_face_plane;
 #[path = "split_cylindrical_feature_box.rs"]
 mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
@@ -511,6 +529,8 @@ mod split_edge_loft_charts;
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
 mod split_tangent_edge_curved;
+#[path = "split_through_a_seam_ruling.rs"]
+mod split_through_a_seam_ruling;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -738,6 +758,10 @@ mod fillet_h5_r2_probes;
 #[path = "review_fillet_h5_r1_probes.rs"]
 mod review_fillet_h5_r1_probes;
 
+#[path = "blend_per_shell.rs"]
+mod blend_per_shell;
+#[path = "blend_per_shell_carry.rs"]
+mod blend_per_shell_carry;
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
 #[path = "review_blend3_r3_probes.rs"]
@@ -745,6 +769,8 @@ mod review_blend3_r3_probes;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+#[path = "ring_carry_through_by_piece.rs"]
+mod ring_carry_through_by_piece;
 
 #[path = "review_h4_r1_probes.rs"]
 mod review_h4_r1_probes;
@@ -924,3 +950,6 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+
+#[path = "pole_ball_shells.rs"]
+mod pole_ball_shells;

@@ -114,7 +114,7 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
         "inside the inner wall is void"
     );
     // Revert negates every outward normal, so every membership flips.
-    let r = p.body.revert().unwrap();
+    let r = p.body.revert();
     let r_inner = sense_of(&r, p.face_side[2]);
     let r_outer = sense_of(&r, p.face_side[0]);
     assert_eq!(r_inner, !s_inner);
