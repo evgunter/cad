@@ -40,12 +40,6 @@ uncached, and passes tier 3 clean:
   chart. No closed-form test; it needs the fitted lane's on-locus hull,
   which needs a mate. A real producer reaches it: a STEP re-import of an
   exported spiric rim (`spiric_roundtrip`) lands a spline on a torus.
-- **`UncoveredClass::ZeroOffsetSpiric`** (`spiric_off_own_chart`): a
-  spiric of `|offset| ≤ ε` is a meridian circle of its torus, and on a
-  cylinder, cone, sphere, perpendicular torus or drifted torus it is let
-  through whether or not that circle lies on the chart. The test is the
-  chart's own circle incidence, run on the circle the spiric is
-  (`center + m·R`, radius `r`, in the plane spanned by `m` and the axis).
 - **`UncoveredClass::NoFittedClass`** (`run_fitted_checks` check 1): a
   line, ellipse or spiric offered a `Fitted`/`General` image, on any
   chart — `stated_general_image_mint` reaches it at four scalars with a

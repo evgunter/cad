@@ -9,8 +9,10 @@
 //! the result where the op of the two operands' links holds there. The
 //! result's in-cells and out-cells fall into connected components, and
 //! the cones are `in + out − 1`, the result's boundary cycles round the
-//! point. A cone bounded by one great circle alone is *flat*: a plane
-//! through the point, which needs no vertex there.
+//! point. A cone bounded by one great circle alone (a plane through the
+//! point), or by two half-circles from one direction to its opposite (a
+//! straight edge through it), is *free*: the boundary passes the point
+//! without a corner, and needs no vertex there.
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //! [`super::differential`]'s polygon oracles and `outcome` line, which
@@ -104,7 +106,7 @@ fn in_link(link: &[Vec<V3>], s: V3) -> bool {
 }
 
 /// The cones of `op(x, y)`'s boundary at `p`, and how many of them are
-/// flat (module docs). `Err` where the count is undefined at this
+/// free (module docs). `Err` where the count is undefined at this
 /// resolution: two piece planes through `p` within 1e-7 of each other
 /// but not the same, a sample on a circle, or an arrangement vertex the
 /// result's boundary passes more than once.
@@ -238,23 +240,32 @@ pub fn cones_at(
     if held == 0 || open == 0 {
         return Ok((0, 0));
     }
-    // A flat cone: one circle's hemisphere is exactly one region.
+    // A free cone: one region is one circle's hemisphere (a plane through
+    // `p`), or two circles' common quarter of the sphere (a lune, whose
+    // boundary is a straight edge through `p`).
     let mut members: std::collections::BTreeMap<usize, std::collections::BTreeSet<usize>> =
         Default::default();
     for i in 0..n {
         let r = find(&mut root, i);
         members.entry(r).or_default().insert(i);
     }
-    let flat = (0..circles.len())
-        .filter(|&c| {
-            [true, false].into_iter().any(|s| {
-                let hemisphere: std::collections::BTreeSet<usize> =
-                    (0..n).filter(|&i| cells[i].0[c] == s).collect();
-                members.values().any(|m| *m == hemisphere)
-            })
-        })
+    let is_region = |cut: &dyn Fn(&[bool]) -> bool| {
+        let part: std::collections::BTreeSet<usize> =
+            (0..n).filter(|&i| cut(&cells[i].0)).collect();
+        members.values().any(|m| *m == part)
+    };
+    let m = circles.len();
+    let halves = (0..m)
+        .filter(|&c| [true, false].into_iter().any(|s| is_region(&|v| v[c] == s)))
         .count();
-    Ok((held + open - 1, flat))
+    let lunes = (0..m)
+        .flat_map(|c| (c + 1..m).map(move |d| (c, d)))
+        .flat_map(|(c, d)| {
+            [(true, true), (true, false), (false, true), (false, false)].map(|s| (c, d, s))
+        })
+        .filter(|&(c, d, (s, t))| is_region(&|v| v[c] == s && v[d] == t))
+        .count();
+    Ok((held + open - 1, halves + lunes))
 }
 
 /// The vertices of `body` at exactly `at`.
@@ -288,7 +299,7 @@ pub fn faces_through_two_vertices_at(body: &Body<f64>, at: V3) -> usize {
 
 /// Where `body` breaks one vertex per cone at `at`, the finding, else
 /// `None`: it holds as many vertices there as `op(x, y)` has cones, a
-/// flat cone free to hold none.
+/// free cone (module docs) free to hold none.
 pub fn cone_finding(
     body: &Body<f64>,
     at: V3,
@@ -296,9 +307,9 @@ pub fn cone_finding(
 ) -> Option<String> {
     let held = vertices_at(body, at).len();
     match cones_at(at, x, y, op) {
-        Ok((c, flat)) if (c - flat..=c).contains(&held) => None,
-        Ok((c, flat)) => Some(format!(
-            "{held} vertices at {at:?} for {c} cones ({flat} flat)"
+        Ok((c, free)) if (c - free..=c).contains(&held) => None,
+        Ok((c, free)) => Some(format!(
+            "{held} vertices at {at:?} for {c} cones ({free} free)"
         )),
         Err(why) => Some(format!("the cones at {at:?} are not counted: {why}")),
     }

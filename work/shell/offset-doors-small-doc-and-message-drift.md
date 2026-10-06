@@ -2,11 +2,13 @@
 id: offset-doors-small-doc-and-message-drift
 kind: issue
 title: Offset doors: a door name printed on another door's errors, stale shell.rs module docs, two conventions for a move's distance, and stale test prose
-status: open
+status: review
 opened: 2026-09-28
 priority: P4
 cost: E
 rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
+pr: 4163
+branch: shell/refusal-text
 ---
 
 

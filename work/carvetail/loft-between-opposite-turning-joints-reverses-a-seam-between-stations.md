@@ -2,12 +2,12 @@
 id: loft-between-opposite-turning-joints-reverses-a-seam-between-stations
 kind: issue
 title: A loft whose sections turn one joint opposite ways folds that seam through wedge 0 between stations (a self-overlap), and tier 3 says Ok
-status: open
+status: parked
 opened: 2026-09-28
 priority: P2
 cost: H
-design: true
 refs: [3373, self-overlapping-spines-build-and-validate]
+blocked_on: [self-overlapping-spines-build-and-validate]
 ---
 
 
@@ -83,3 +83,19 @@ the loop on opposite sides of the joint in the two sections. The
 interpolated loop then crosses itself somewhere between them. So a
 jet-determinate cusp minted by the loft, with every station simple,
 is unwitnessed. Only the self-overlapping fold is witnessed.
+
+## Parked on the D10 hold (CARVE, 2026-10-06)
+
+Its door design turns on the declared-cusp exemption ("unless every section declares it a cusp") and on the undeclared-tangency refusal, both of which D10 retires (the profiles' stored tangent-joint flags; tangency by construction, INTENT stage 6). The self-overlap half is the same family as `self-overlapping-spines-build-and-validate`, which stays on CARVE's slate; what that row's designers settle is evidence for this one when it fires.
+
+## Re-parked (CARVE, 2026-10-06): on the embedding certificate, not on D10
+
+CARVE's designers settled the loft's contract the same day
+(`work/carve/self-overlapping-spines-build-and-validate.md`, "Weighed").
+A loft promises an embedded boundary, and a certificate at its door
+checks that. This row's fold is a crossing between ADJACENT walls away
+from their shared seam. The clearance engine cannot see that until its
+self/adjacent-pair lane exists, and once it does the certificate
+refuses the fold with no turn-sign rule and no cusp declaration. So
+this row no longer waits on D10: it waits on the certificate's
+prerequisites, and it closes when the certificate unit lands.

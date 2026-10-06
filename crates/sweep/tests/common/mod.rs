@@ -267,7 +267,7 @@ pub mod seam_pairs;
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, SketchPlane};
+use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
@@ -359,6 +359,40 @@ pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f6
         (at(first + 120.0), b120),
         (at(first + 240.0), b120),
     ])
+}
+
+/// **The rounded rectangle**: `w × h` with its lower-left corner at the
+/// sketch origin, each corner a tangent fillet of radius `r`. Its
+/// straight walls end where the fillets start, which is the flush site
+/// the join refuses when another solid's wall lies on that line.
+pub fn rounded(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
+    let t = Tol::witness();
+    Open.at(Point2::new(w / 2.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w / 2.0, h), t)
+        .unwrap()
+        .toward(-1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(0.0, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, -1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .to(Start, t)
+        .unwrap()
+        .into()
 }
 
 /// **The bulge of the minor arc from `a` to `b` about `c`**:

@@ -2,11 +2,13 @@
 id: shell-refusals-short-of-the-shape-guard
 kind: issue
 title: shell: refusals the viewer draws that state no recourse, by the shape guard's census
-status: open
+status: review
 opened: 2026-09-29
 priority: P2
 cost: M
 rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
+pr: 4163
+branch: shell/refusal-text
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)

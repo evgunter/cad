@@ -74,6 +74,7 @@ mod arcs;
 pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
+mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;
@@ -702,6 +703,8 @@ pub struct CarriedContacts {
     /// coincidence an op decided and recorded (D10), which asserts no
     /// class.
     pub ve: Vec<VeContact>,
+    /// Edge-edge records within the operand, carried back in, as `ve`.
+    pub ee: Vec<EeContact>,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -733,8 +736,8 @@ pub struct CarriedVf {
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        let Self { vv, vf, ve } = self;
-        vv.is_empty() && vf.is_empty() && ve.is_empty()
+        let Self { vv, vf, ve, ee } = self;
+        vv.is_empty() && vf.is_empty() && ve.is_empty() && ee.is_empty()
     }
 }
 
@@ -5168,6 +5171,22 @@ fn validate_declarations<T: Decide>(
             }
             if body.get_edge(rest.edge).is_none() {
                 return Err(bad(operand, "carried v-on-e edge key does not resolve"));
+            }
+        }
+        for touch in &c.ee {
+            if touch.a == touch.b {
+                return Err(bad(operand, "carried e-e pair names one edge twice"));
+            }
+            for e in [touch.a, touch.b] {
+                let Some(d) = body.get_edge(e) else {
+                    return Err(bad(operand, "carried e-e edge key does not resolve"));
+                };
+                // Edge-split lineage reads each edge as the segment
+                // between its ends (`ops::ee_lineage`), which only a
+                // line edge is.
+                if edge_join::certified_line(body, e, d).is_none() {
+                    return Err(bad(operand, "carried e-e edge is not a certified line"));
+                }
             }
         }
         Ok(())

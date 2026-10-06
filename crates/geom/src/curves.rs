@@ -190,8 +190,9 @@ pub enum Curve3<T: Real> {
     /// Conventions (D2: carried as data, unchecked by the evaluators,
     /// decided at the mint):
     /// - `axis`, `u_ref` unit and orthogonal; `R > r > 0` (the ring
-    ///   torus) and `|offset| < R − r` (the TWO-oval regime, where
-    ///   `ρ² − offset² > 0` for every `v`). Off-regime data yields a
+    ///   torus), `0 < |offset| < R − r` (the TWO-oval regime, where
+    ///   `ρ² − offset² > 0` for every `v`; at `offset = 0` each oval is
+    ///   a meridian circle, and the carrier is that `Circle`). Off-regime data yields a
     ///   negative radicand, which is poison by [`Real::sqrt`]'s
     ///   totality policy — never a panic.
     /// - `v = 0` is the seam at the outer-equator point `ρ = R + r`;
@@ -403,6 +404,10 @@ pub enum SpiricInvalid {
     /// `R ≤ r`: not a ring torus (a horn or spindle torus, whose
     /// axis-parallel sections are not two ovals).
     NotARing,
+    /// `offset = 0`: the cutting plane contains the axis, so each oval
+    /// is a meridian circle of the torus — a [`Curve3::Circle`], the
+    /// more exact kind (C1).
+    ThroughAxis,
     /// `|offset| ≥ R − r`: the cutting plane reaches the inner
     /// equator, so the section is a node, one oval with folds, or
     /// empty — not the two-oval regime this kind carries.
@@ -412,7 +417,7 @@ pub enum SpiricInvalid {
     FrameNotOrthogonal,
     /// A constructor predicate landed in the ambiguity band or was
     /// poisoned (`spiric_minor_positive`, `ring_torus_convention`,
-    /// `spiric_two_ovals`, `spiric_frame_orthogonal`).
+    /// `spiric_off_axis`, `spiric_two_ovals`, `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
 }
 
@@ -428,6 +433,11 @@ impl core::fmt::Display for SpiricInvalid {
                 f,
                 "spiric construction: major ≤ minor — not a ring torus, whose axis-parallel \
                  sections are the two ovals this kind carries"
+            ),
+            Self::ThroughAxis => write!(
+                f,
+                "spiric construction: offset = 0 — the cutting plane contains the axis, so \
+                 the section is two meridian circles, which are Circle carriers"
             ),
             Self::NotTwoOvals => write!(
                 f,
@@ -742,15 +752,18 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// The one deciding door into [`Curve3::Spiric`]: refuses a
-    /// non-positive minor radius, a non-ring torus, a stand-off at or
-    /// past the inner equator, and a cutting plane not parallel to the
-    /// axis, each through a named trilean:
+    /// non-positive minor radius, a non-ring torus, a plane through the
+    /// axis, a stand-off at or past the inner equator, and a cutting
+    /// plane not parallel to the axis, each through a named trilean:
     ///
     /// - `spiric_minor_positive` — margin `minor_radius` (m): Positive
     ///   required; else [`SpiricInvalid::MinorNotPositive`].
     /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
     ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
+    /// - `spiric_off_axis` — margin `offset` (m): definitely nonzero
+    ///   required; else [`SpiricInvalid::ThroughAxis`] (one kind per
+    ///   configuration, most exact first: that oval is a `Circle`).
     /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
     ///   |offset|` (m), the length the two-oval regime closes by,
     ///   decided BEFORE any root is taken: Positive required; else
@@ -787,6 +800,11 @@ impl<T: Decide> Curve3<T> {
         match crate::ring_torus(major_radius, minor_radius, band).map(|d| d.sign) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
+            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
+        }
+        match decide("spiric_off_axis", Margin::of(offset), band) {
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Ok(Sign::Zero) => return Err(SpiricInvalid::ThroughAxis),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         match decide("spiric_two_ovals", Margin::of(ring - offset.abs()), band) {
@@ -1866,7 +1884,7 @@ mod tests {
         .expect("the elbow's numbers are a ring torus cut short of its inner equator")
     }
 
-    /// **The constructor's four refusals, each on the number that
+    /// **The constructor's five refusals, each on the number that
     /// breaks its predicate**, and the acceptance the fixture relies
     /// on. The ellipse constructor's row shape.
     #[test]
@@ -1885,6 +1903,13 @@ mod tests {
         assert_eq!(
             mk(0.2, 0.225, 0.05, Vec3::unit_x()).err(),
             Some(SpiricInvalid::NotARing)
+        );
+        // A plane through the axis cuts two meridian circles, and a
+        // circle is a `Circle`: the more exact kind, refused here so no
+        // spiric is ever one.
+        assert_eq!(
+            mk(1.2, 0.225, 0.0, Vec3::unit_x()).err(),
+            Some(SpiricInvalid::ThroughAxis)
         );
         // Exactly at the inner equator: the node, refused as the
         // regime boundary it is.
