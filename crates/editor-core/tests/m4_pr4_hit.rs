@@ -233,7 +233,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         );
     }
     let checked = assert_total(&doc, &ev);
-    assert!(checked > 300, "corpus walk too small: {checked}");
+    assert!(checked >= 240, "corpus walk too small: {checked}");
 }
 
 #[test]

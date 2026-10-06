@@ -356,9 +356,11 @@ const DOUBLED_EDGE: &str =
 type Contact = (&'static str, Point);
 
 /// Where two blocks touch beyond the plate: the overlap of their
-/// coincident edges, witnessed at its middle, and the vertex at its end.
+/// coincident edges, witnessed at its middle, and the vertex at its end,
+/// which rests on the other block's edge once the output stage has
+/// joined that edge's cut vertex away (maximal edges).
 fn touch(overlap: Point, end: Point) -> [Contact; 2] {
-    [("EdgeEdgeOverlap", overlap), ("VertexVertex", end)]
+    [("EdgeEdgeOverlap", overlap), ("VertexOnEdge", end)]
 }
 
 /// `p1` against `p2` above the plate's top.
@@ -470,7 +472,7 @@ fn a_pinch_union_builds_one_body_in_every_member_order() {
     every_order(
         "top",
         pinch,
-        [19, 49, 32],
+        [19, 48, 31],
         UNION_VOLUME,
         &[TOP],
         &[([1, 2], &p1_p2())],
@@ -478,7 +480,7 @@ fn a_pinch_union_builds_one_body_in_every_member_order() {
     every_order(
         "side",
         side_pinch,
-        [16, 37, 24],
+        [16, 36, 23],
         6.0 + (0.225 - 0.075) + (0.2145 - 0.0795),
         &[(3_000_000, 1_000_000, 500_000)],
         &[(
@@ -500,7 +502,7 @@ fn two_pinches_build_one_body_in_every_member_order() {
     every_order(
         "through",
         through,
-        [24, 62, 40],
+        [24, 60, 38],
         6.0 + (2.5 - 0.5) + (2.17 - 0.5),
         &[TOP, (1_500_000, 1_000_000, 0)],
         &[(
@@ -518,7 +520,7 @@ fn two_pinches_build_one_body_in_every_member_order() {
     every_order(
         "two pinches on the top",
         two_pinches,
-        [26, 68, 44],
+        [26, 66, 42],
         UNION_VOLUME + 0.5 * (0.9 + 0.5),
         &[TOP, (1_000_000, 1_000_000, 1_000_000)],
         &[
@@ -546,7 +548,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
     every_order(
         "corner holes",
         corner_holes,
-        [16, 37, 24],
+        [16, 36, 23],
         6.0 + 0.25 * (2.0 - 1.0) + 0.25 * (1.7 - 1.0),
         &[TOP],
         touches,
@@ -554,7 +556,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
     every_order(
         "notch and hole",
         notch_and_hole,
-        [17, 43, 28],
+        [17, 42, 27],
         6.0 + 0.5 * 2.0 * (2.0 - 1.0) + 0.5 * 1.0 * (1.0 - 0.5) + 0.25 * (1.7 - 1.0),
         &[TOP],
         touches,
@@ -565,7 +567,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
     every_order(
         "wedge in an L",
         reflex_hole,
-        [17, 40, 26],
+        [17, 39, 25],
         6.0 + wedge * (2.0 - 1.0) + 0.75 * (1.7 - 1.0),
         &[TOP],
         touches,
@@ -608,11 +610,11 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
         assert_eq!(o.manifold, Ok(()), "{what}: check_mesh");
         o.shape
     };
-    let below = |ends: &[i64]| {
+    let below = |ends: &[(&'static str, i64)]| {
         let mut cs = vec![("EdgeEdgeOverlap", (1_500_000, 1_000_000, 750_000))];
         cs.extend(
             ends.iter()
-                .map(|&z| ("VertexVertex", (1_500_000, 1_000_000, z))),
+                .map(|&(kind, z)| (kind, (1_500_000, 1_000_000, z))),
         );
         cs
     };
@@ -635,7 +637,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let s = m(
         "plate ∖ blocks",
         checked(&ev, notched, "plate ∖ blocks", 6.0 - NOTCHES),
-        &below(&[500_000]),
+        &below(&[("VertexOnEdge", 500_000)]),
     );
     assert_eq!(at(&s, TOP), 1, "plate ∖ blocks: vertices at the pinch");
     let tops = s
@@ -648,7 +650,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     let s = m(
         "plate ∩ blocks",
         checked(&ev, footprints, "plate ∩ blocks", NOTCHES),
-        &below(&[500_000, 1_000_000]),
+        &below(&[("VertexOnEdge", 500_000), ("VertexVertex", 1_000_000)]),
     );
     assert_eq!(
         at(&s, TOP),
@@ -701,7 +703,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             6.0 - shared,
             [15, 36, 23],
             2,
-            (750_000, &[1_000_000][..]),
+            (750_000, &[("VertexVertex", 1_000_000)][..]),
         ),
         (
             "X ∖ plate",
@@ -709,9 +711,9 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x,
             plate,
             x_volume - shared,
-            [23, 61, 40],
+            [23, 60, 39],
             1,
-            (1_500_000, &[2_000_000][..]),
+            (1_500_000, &[("VertexOnEdge", 2_000_000)][..]),
         ),
         (
             "X ∪ plate",
@@ -719,9 +721,12 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             x,
             plate,
             x_volume + 6.0 - shared,
-            [22, 61, 41],
+            [22, 60, 40],
             2,
-            (1_500_000, &[1_000_000, 2_000_000][..]),
+            (
+                1_500_000,
+                &[("VertexVertex", 1_000_000), ("VertexOnEdge", 2_000_000)][..],
+            ),
         ),
         (
             "plate ∪ X",
@@ -729,9 +734,12 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             plate,
             x,
             x_volume + 6.0 - shared,
-            [22, 61, 41],
+            [22, 60, 40],
             2,
-            (1_500_000, &[1_000_000, 2_000_000][..]),
+            (
+                1_500_000,
+                &[("VertexVertex", 1_000_000), ("VertexOnEdge", 2_000_000)][..],
+            ),
         ),
         (
             "X ∩ plate",
@@ -779,7 +787,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
             // where the result keeps it.
             let line = |z| (1_500_000, 1_000_000, z);
             let mut contacts = vec![("EdgeEdgeOverlap", line(overlap))];
-            contacts.extend(ends.iter().map(|&z| ("VertexVertex", line(z))));
+            contacts.extend(ends.iter().map(|&(kind, z)| (kind, line(z))));
             dropped(&o, what, &contacts);
             assert_eq!(o.manifold, Ok(()), "{what}: check_mesh");
         }

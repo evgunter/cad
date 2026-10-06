@@ -2,10 +2,11 @@
 id: the-seam-zips-kef-leaves-the-wall-it-closes-half-minted
 kind: issue
 title: The boolean's seam zip kills each kept section face into its wall with kef, leaving the wall half-minted until the merge door's mint
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: M
+closed: 2026-10-06
 ---
 
 Found by `topo`'s `a-null-edge-that-is-killed-leaves-its-face-half-minted`
@@ -64,3 +65,12 @@ that PR's merge base the whole-body mints met 659 half-minted faces in
 unit named (`shell9_r2_probes`' launder row and
 `m8_4_intersection_iso`'s spline), and none at the merge door. The zip
 itself is unchanged; whether this row closes is ZIP's call.
+
+## Closed (ZIP, 2026-10-06)
+
+The section above settles it. Since PR 3531 the seam zip's two `kef`s
+and its `kfmrh`s call the band twins `kef_minting` and
+`kfmrh_minting` (`zip.rs` `zip_seam`, read on main at `bcde1d7`). These
+re-mint the surviving face when the killed face arrives rowless on its
+chart. PR 3531's whole-body mint probe found the merge door meeting 0
+half-minted faces (657 before). Nothing is left for the zip to change.
