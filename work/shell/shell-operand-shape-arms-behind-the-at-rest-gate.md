@@ -5,7 +5,7 @@ title: shell's piece sort, Pieces, OperandOuterShells and ChartSenseMixed arms s
 status: open
 opened: 2026-10-06
 priority: P3
-cost: S
+cost: E
 ---
 
 
