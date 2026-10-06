@@ -37,7 +37,7 @@ fn session(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId) {
 fn set_thickness(session: &mut DocSession, metres: f64) -> Vec<DocEdit<ProfileProgram>> {
     session
         .perform(SessionOp::SetParam {
-            name: common::thickness_param(),
+            var: common::thickness_var(session.committed_doc()),
             value: SlotValue::Continuous(metres),
         })
         .committed
@@ -46,7 +46,7 @@ fn set_thickness(session: &mut DocSession, metres: f64) -> Vec<DocEdit<ProfilePr
 fn thickness_of(doc: &Doc<ProfileProgram>) -> f64 {
     match props::param_rows(doc)
         .into_iter()
-        .find(|row| row.name == common::thickness_param())
+        .find(|row| row.label.name() == Some(&common::thickness_param()))
         .expect("the fixture declares the parameter")
         .value
     {

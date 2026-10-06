@@ -2,11 +2,13 @@
 id: an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired
 kind: issue
 title: A subtract whose cutter face holds an operand edge and ends inside the operand refuses Join(UnpairedLooseEnds), the kernel-bug refusal, on planar and curved operands alike
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: H
 parent: JOIN-1
+closed: 2026-10-02
+pr: 3790
 ---
 
 
@@ -111,3 +113,9 @@ The closed in-face conic of the third measurement is a different
 shape: `closed-in-face-section-loop-has-one-site`. The design question
 (which flank, decided how, and how a segment coinciding with an edge
 is identified) is with the two designers.
+
+## Closed 2026-10-02 — PR 3790 (JOIN-1)
+
+A germ names the cell it lies in per operand (`Locus::OnEdge | InFace`),
+and the join matches on it. The half-lap builds in every op, cutter
+side and profile (`axis_lap.rs`). The merged teapot cup passes the join.

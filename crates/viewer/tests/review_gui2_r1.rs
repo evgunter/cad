@@ -42,6 +42,7 @@ test_utils::gated_to![
 
 use crate::common;
 use crate::common::{inserted, len, scl, xy_frame};
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol};
@@ -73,6 +74,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: pa,
             distance: len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -82,6 +84,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: pb,
             distance: len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -426,6 +429,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         Node::Extrude {
             profile,
             distance: len(0.015),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -433,7 +437,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         &doc,
         Node::Pattern {
             input: extrude,
-            count: pncad::document::Expr::count(2),
+            count: pncad::document::Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(0.08),

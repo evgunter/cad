@@ -137,15 +137,17 @@ fn every_member_edge_lies_on_its_source(
 /// **`[a, b, g]`: the chord x = 0.0..0.3 is named as a piece of `a`'s
 /// top/y = 1 rim**, beside that rim's other pieces. The rim runs from
 /// x = 1 to x = 0 (segment 2 of `a`'s profile), and the body's vertices
-/// cut it at 0.5, 0.4 and 0.3; `a` holds x = 0.5..1.0, 0.4..0.5 and
-/// 0.0..0.3, each its own name by its ends, and 0.3..0.4 lies inside
-/// `g`. This order once refused `SharedRim { found: Several }`.
+/// cut it at 0.5, 0.4 and 0.3; `a` holds 0.4..0.5 and 0.0..0.3, each
+/// its own name by its ends, 0.3..0.4 lies inside `g`, and 0.5..1.0,
+/// flush with `b`, is named for the lesser of the two
+/// (`emit_union::Flush`). This order once refused
+/// `SharedRim { found: Several }`.
 #[test]
 fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
     let (doc, ids) = document(&[A, B, G], &[0, 1, 2]);
     let (a, b, g) = (ids[0], ids[1], ids[2]);
     let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
+    let (docx, union) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let rim = StableName {
@@ -166,11 +168,15 @@ fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
         })
         .collect();
     spans.sort_unstable();
-    assert_eq!(
-        spans,
-        [(0.0, 0.3), (0.4, 0.5), (0.5, 1.0)].map(|(p, q)| (micro(p), micro(q))),
-        "a's rim pieces"
-    );
+    let mut want = vec![(0.0, 0.3), (0.4, 0.5)];
+    if a < b {
+        want.push((0.5, 1.0));
+    }
+    let want: Vec<(i64, i64)> = want
+        .into_iter()
+        .map(|(p, q)| (micro(p), micro(q)))
+        .collect();
+    assert_eq!(spans, want, "a's rim pieces");
 }
 
 /// **No order of the review probe's documents refuses
@@ -225,7 +231,7 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
         let (doc, ids) = document(&blocks, &creation);
         for order in permutations(&(0..blocks.len()).collect::<Vec<_>>()) {
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union, _) = declared_union(
+            let (docx, union) = declared_union(
                 doc.clone(),
                 &members,
                 flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),

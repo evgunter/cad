@@ -274,8 +274,10 @@
 //! 1.6e-4·s`, so the flip first enters the box at `s = 0.625`, while
 //! at the pinned ceiling `s ≈ 0.263` the true margin is `[5.79e-5,
 //! 1.42e-4] > 0` everywhere and the enclosure is `[−2.09e-9, 2.00e-4]`
-//! — widened by ~6e-5 on each side (pinned:
-//! `m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
+//! — widened by ~6e-5 on each side (the extrude's closing pcurve mint
+//! now refuses the plate before the assertion is read, at `3.9e2·ε`:
+//! `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`,
+//! pinned at `m10_10_pins_interval::m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first`);
 //! at `1e-6` the same widened enclosure sits in the band. The annulus
 //! is the same class: `arc_diameter_clearance` cannot be zero for any
 //! `r > 0` — the widening finding's second site. The plate's rows are
@@ -930,7 +932,7 @@
 //!
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
 //! funnel door, one for identity/gap-shaped string literals — and their
-//! union minus the bare filter words and the test-harness names. **107
+//! union minus the bare filter words and the test-harness names. **106
 //! names.** The rule is written out in
 //! `work/sym/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
@@ -940,9 +942,9 @@
 //! | --- | --- |
 //! | IMPLICIT (S-CERT's frontier) | 4 |
 //! | NOT A PREDICATE | 8 |
-//! | EXPLICIT | 95 |
+//! | EXPLICIT | 94 |
 //!
-//! **107 and not the 66 the previous sweep reported**, because that
+//! **106 and not the 66 the previous sweep reported**, because that
 //! number is not re-derivable from a rule written down anywhere and this
 //! one states its own. The difference is filter width, not new
 //! predicates.
@@ -963,7 +965,7 @@
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
-//! **EXPLICIT — 95.** Closed forms in the parameters over analytic
+//! **EXPLICIT — 94.** Closed forms in the parameters over analytic
 //! carriers. Nine carry a MEASURED symbolic/numeric split from
 //! `editor-core/tests/m10_7_census_probe.rs` (at `Sym<Probe>`, through
 //! the same funnel, over the M10 fixtures and the tour's plate):
@@ -1168,21 +1170,17 @@ impl Hash128 {
     }
 }
 
-/// The symbol a document parameter enters the DAG as: a hash of its
-/// name, so two evaluations of the same document agree on it without
-/// carrying a string into a `Copy` scalar.
+/// The symbol a document variable enters the DAG as: its minted id
+/// (VARIABLES-DESIGN VR8), so two evaluations of the same document agree
+/// on it, and a rename, which moves no id, moves no symbol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ParamSymbol(u64);
 
 impl ParamSymbol {
-    /// The symbol for a parameter name.
+    /// The symbol for the variable whose id is `id`.
     #[must_use]
-    pub fn of(name: &str) -> Self {
-        let mut h = Hash128::new().word(0x5359_4d5f_5041_5241);
-        for b in name.as_bytes() {
-            h = h.word(u64::from(*b));
-        }
-        Self(h.finish() as u64)
+    pub const fn new(id: u64) -> Self {
+        Self(id)
     }
 }
 
@@ -5403,7 +5401,7 @@ mod tests {
 
     /// The parameter, at `f64`: a point value with a symbol on it.
     fn p(name: &str, v: f64) -> Sym<f64> {
-        Sym::param(ParamSymbol::of(name), v)
+        Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
     }
 
     fn decides_zero(m: Sym<f64>) -> bool {
@@ -6087,7 +6085,7 @@ mod tests {
     /// A parameter with its bracket recorded, at `f64` — the door rule C
     /// reads through ([`Sym::param_over`]).
     fn p_over(name: &str, v: f64, lo: f64, hi: f64) -> Sym<f64> {
-        Sym::param_over(ParamSymbol::of(name), v, lo, hi)
+        Sym::param_over(ParamSymbol::new(test_utils::symbol_id(name)), v, lo, hi)
     }
 
     /// **Rule C, clause 3: `sqrt(r²) − r` is a theorem CONDITIONAL on

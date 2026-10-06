@@ -8,7 +8,7 @@ use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
 
 use crate::eval::slots::SlotValues;
 use crate::eval::{NodeErrorKind, NodeRefusal};
-use crate::expr::{Expr, ParamEnv};
+use crate::expr::{Expr, VarEnv};
 use crate::node::{RigidArg, SlotId};
 
 /// **A placement axis with no definite direction** — the ONE thing
@@ -85,10 +85,11 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// composition rule, which [`Frame::compose`] and a [`Placement`]'s
 /// chain both fold through — returns the other operand verbatim on one,
 /// admitted by [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That
-/// is what makes the split/inline round trip exact — the frames a split
-/// hoists or leaves behind compose back with zero arithmetic, so D-4's
-/// bit-level volume identity never meets a rounding step — and what
-/// makes an identity step in a chain move no bit.
+/// is what makes the split/inline round trip exact — the offsets a split
+/// moves and the empty chain it leaves behind compose back with zero
+/// arithmetic, so D-4's bit-level volume identity never meets a
+/// rounding step — and what makes an identity step in a chain move no
+/// bit.
 ///
 /// A placement and a modeled transform of the same part agree BIT FOR
 /// BIT: [`Frame::rotate_then_translate`] is the `Transform` node's own
@@ -422,6 +423,13 @@ pub enum FrameSite {
         /// Its index in the chain.
         index: usize,
     },
+    /// Step `index` of a mate side's frame offset.
+    MateStep {
+        /// Which side's frame.
+        side: crate::mate::MateSide,
+        /// Its index in the offset's chain.
+        index: usize,
+    },
 }
 
 impl FrameSite {
@@ -434,6 +442,11 @@ impl FrameSite {
         match self {
             Self::Listed { index } => format!("placement {index} of {node}"),
             Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
+            Self::MateStep { side, index } => format!(
+                "step {} of {node}'s {} frame offset",
+                index + 1,
+                side.name()
+            ),
         }
     }
 }
@@ -525,15 +538,15 @@ impl<T: Real> Motion<T> {
 /// steps is the [`Affine3`] product, which rounds as that product does.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Placement {
+pub struct Placement<S = Expr> {
     /// The steps, composed as a product (`[a, b]` is `a ∘ b`).
-    pub steps: Vec<Step>,
+    pub steps: Vec<Step<S>>,
 }
 
 /// One step of a [`Placement`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum Step {
+pub enum Step<S = Expr> {
     /// Rotate by `angle` about the axis through the ORIGIN with
     /// direction `axis`, then translate by `translation` — proper by
     /// construction. The axis is decided at evaluation by the
@@ -541,25 +554,25 @@ pub enum Step {
     /// definite direction.
     Rigid {
         /// Translation components, Length.
-        translation: [Expr; 3],
+        translation: [S; 3],
         /// Rotation-axis components, Scalar.
-        axis: [Expr; 3],
+        axis: [S; 3],
         /// Rotation angle, Angle.
-        angle: Expr,
+        angle: S,
     },
     /// A literal frame, held to [`Frame::admission_fault`] at every door
     /// that writes one and at load.
     Literal(Frame),
 }
 
-impl From<Step> for Placement {
+impl<S> From<Step<S>> for Placement<S> {
     /// The one-step placement.
-    fn from(step: Step) -> Self {
+    fn from(step: Step<S>) -> Self {
         Self { steps: vec![step] }
     }
 }
 
-impl Placement {
+impl<S: Clone> Placement<S> {
     /// The empty chain: the identity, and the unit of
     /// [`Placement::compose`].
     pub const IDENTITY: Self = Self { steps: Vec::new() };
@@ -578,25 +591,59 @@ impl Placement {
     /// `self` builds. The chain is `self`'s steps followed by
     /// `inner`'s.
     #[must_use]
-    pub fn compose(&self, inner: &Placement) -> Placement {
-        Placement {
+    pub fn compose(&self, inner: &Self) -> Self {
+        Self {
             steps: self.steps.iter().chain(&inner.steps).cloned().collect(),
         }
     }
 
-    /// The first literal step [`Frame::admission_fault`] refuses at
-    /// `tol`, with its index in the chain.
+    /// Whether every step is a literal frame that is the identity by
+    /// its bits — the empty chain included: the placements that move
+    /// nothing with no arithmetic, which [`Placement::motion_at`]
+    /// answers [`Motion::Identity`] for, known without evaluating.
     #[must_use]
-    pub fn frame_fault(&self, tol: geom_core::Tol) -> Option<(usize, FrameFault)> {
+    pub fn is_identity_bits(&self) -> bool {
         self.steps
             .iter()
-            .enumerate()
-            .find_map(|(k, step)| match step {
-                Step::Literal(frame) => Some((k, frame.admission_fault(tol)?)),
-                Step::Rigid { .. } => None,
-            })
+            .all(|step| matches!(step, Step::Literal(frame) if frame.is_identity_bits()))
     }
+}
 
+impl<S> Placement<S> {
+    /// **This placement in another slot form**: every rigid step's
+    /// components rewritten by `f`, in step order, literal steps kept.
+    /// The first refusal is the answer.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_slots<S2, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<Placement<S2>, E> {
+        let steps = self
+            .steps
+            .iter()
+            .map(|step| {
+                Ok(match step {
+                    Step::Rigid {
+                        translation,
+                        axis,
+                        angle,
+                    } => Step::Rigid {
+                        translation: crate::node::map_array(translation, f)?,
+                        axis: crate::node::map_array(axis, f)?,
+                        angle: f(angle)?,
+                    },
+                    Step::Literal(frame) => Step::Literal(*frame),
+                })
+            })
+            .collect::<Result<_, E>>()?;
+        Ok(Placement { steps })
+    }
+}
+
+impl<L: crate::expr::LeafSet> Placement<crate::expr::ExprTree<L>> {
     /// Bit-semantic equality (D7): a rigid step's expressions through
     /// [`Expr::bit_eq`], a literal step's coordinates through
     /// [`Frame::bit_eq`], so `0.0` and `-0.0` are different
@@ -632,6 +679,30 @@ impl Placement {
                     | (Step::Literal(_), Step::Rigid { .. }) => false,
                 })
     }
+}
+
+impl Placement {
+    /// **This placement re-authored**: every rigid step's components a
+    /// formula reading what they read ([`crate::Formula::from`]).
+    #[must_use]
+    pub fn authored(&self) -> Placement<crate::Formula> {
+        let Ok(authored) = self
+            .try_map_slots(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
+        authored
+    }
+
+    /// The first literal step [`Frame::admission_fault`] refuses at
+    /// `tol`, with its index in the chain.
+    #[must_use]
+    pub fn frame_fault(&self, tol: geom_core::Tol) -> Option<(usize, FrameFault)> {
+        self.steps
+            .iter()
+            .enumerate()
+            .find_map(|(k, step)| match step {
+                Step::Literal(frame) => Some((k, frame.admission_fault(tol)?)),
+                Step::Rigid { .. } => None,
+            })
+    }
 
     /// **The rigid motion this placement denotes, at `env`** — every
     /// rigid step's expressions evaluated through the evaluation's one
@@ -645,7 +716,7 @@ impl Placement {
     /// no definite direction.
     pub fn eval<T: Decide>(
         &self,
-        env: &ParamEnv<T>,
+        env: &VarEnv<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
         self.motion_at(env, band).map(Motion::affine)
@@ -661,12 +732,32 @@ impl Placement {
     /// [`Placement::eval`]'s.
     pub(crate) fn motion_at<T: Decide>(
         &self,
-        env: &ParamEnv<T>,
+        env: &VarEnv<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
+        self.motion_after(Motion::Identity, env, band)
+    }
+
+    /// **`before`, then this placement's steps, one step at a time** —
+    /// the fold every chain of placements goes through
+    /// (`mate::solve::group_frame` down a gauge chain and into an
+    /// offset). Folding step by step makes a chain's frame a function
+    /// of its steps alone, not of how they are grouped into placements,
+    /// so the edits that regroup them ([`crate::DocEdit::Promote`],
+    /// [`crate::DocEdit::Fold`]) move no bit of any pose.
+    ///
+    /// # Errors
+    ///
+    /// [`Placement::eval`]'s.
+    pub(crate) fn motion_after<T: Decide>(
+        &self,
+        before: Motion<T>,
+        env: &VarEnv<T>,
         band: Band,
     ) -> Result<Motion<T>, NodeErrorKind> {
         let vals = crate::eval::slots::eval_rows(self.rows(), env)
             .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-        self.chain_motion(&vals, band)
+        self.chain_motion(before, &vals, band)
     }
 
     /// **The one construction of a placement's motion**, from its
@@ -684,16 +775,19 @@ impl Placement {
         vals: &SlotValues<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
-        self.chain_motion(vals, band).map(Motion::affine)
+        self.chain_motion(Motion::Identity, vals, band)
+            .map(Motion::affine)
     }
 
-    /// [`Placement::motion`] with the identity kept marked.
+    /// [`Placement::motion`] after `before`, with the identity kept
+    /// marked.
     fn chain_motion<T: Decide>(
         &self,
+        before: Motion<T>,
         vals: &SlotValues<T>,
         band: Band,
     ) -> Result<Motion<T>, NodeErrorKind> {
-        let mut composed = Motion::Identity;
+        let mut composed = before;
         for (k, step) in self.steps.iter().enumerate() {
             let map = match step {
                 Step::Rigid { .. } => {
@@ -966,7 +1060,7 @@ mod tests {
     fn a_one_step_literal_is_its_frame_bit_for_bit() {
         for f in [sample(), other()] {
             let motion = Placement::literal(&f)
-                .eval::<f64>(&ParamEnv::default(), band())
+                .eval::<f64>(&VarEnv::default(), band())
                 .expect("a literal evaluates");
             assert!(Frame::from_affine(motion).bit_eq(&f));
         }
@@ -987,9 +1081,11 @@ mod tests {
                 translation: t.map(len),
                 axis: axis.map(scl),
                 angle: ang(angle),
-            });
+            })
+            .try_map_slots(&mut |f| Expr::try_from(f))
+            .expect("literals lower");
             let got = placement
-                .eval::<f64>(&ParamEnv::default(), band())
+                .eval::<f64>(&VarEnv::default(), band())
                 .expect("a rigid step evaluates");
             let want = crate::eval::transform_map(
                 Vec3::from_array(t),

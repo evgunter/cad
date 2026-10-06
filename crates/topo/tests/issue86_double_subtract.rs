@@ -22,7 +22,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, geometric_cube};
+use common::{brick, finished, flush_declarations, geometric_cube};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{
@@ -32,8 +32,9 @@ use topo::{
 
 fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + topo::AtRestPolicy>()
 -> BooleanBody<T> {
-    let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
-    let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
+    let block = |what, x, y, z| finished(what, brick::<T>(x, y, z, Tol::witness()), Tol::witness());
+    let a = block("plate", (0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
+    let b1 = block("slot 1", (1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
     let BooleanResult::Body(s1) = subtract_with(
         &a,
         &b1,
@@ -43,7 +44,7 @@ fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + topo::AtRestPo
     .expect("first subtract succeeds") else {
         panic!("first subtract yields a body");
     };
-    let b2 = brick::<T>((-1.0, 4.0), (1.0, 2.0), (0.5, 1.5), Tol::witness());
+    let b2 = block("slot 2", (-1.0, 4.0), (1.0, 2.0), (0.5, 1.5));
     let BooleanResult::Body(s2) = subtract_with(
         &s1.body,
         &b2,

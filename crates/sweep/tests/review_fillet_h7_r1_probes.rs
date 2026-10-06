@@ -11,9 +11,9 @@
 //! - the CONCAVE ruled band — a rod sunk into a block, whose two creases
 //!   along the ruling add material: the fold the unit states and pins
 //!   nowhere. Both bodies come through the EXTRUDE door as one profile
-//!   loop; the boolean refuses the groove (`block ∖ cylinder`) and
-//!   builds a SHORTER sunk rod (`block ∪ cylinder`, the rod ending
-//!   inside the block's length), which is pinned beside them;
+//!   loop; the boolean builds the groove (`block ∖ cylinder`) and a
+//!   SHORTER sunk rod (`block ∪ cylinder`, the rod ending inside the
+//!   block's length), which are pinned beside them;
 //! - a cap carrying a RING (the bored D-rod): the plan checks the
 //!   supports for rings, not the cap;
 //! - a SUPPORT carrying a ring (a pocket sunk into the flat): the plan's
@@ -33,13 +33,14 @@
 use crate::common::approx::band;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
-    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases,
-    rod_section_cut, rod_with_flat,
+    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, finished, rod_chord_at,
+    rod_creases, rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
 
 const R: f64 = ROD_FILLET;
 /// The block's length along the ruling.
@@ -76,24 +77,39 @@ fn extruded(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>, len: f64) -> 
     let p = Profile::new(plane, loops)
         .validate(tol())
         .expect("the profile validates");
-    extrude(&p, Extrusion::Distance(len), tol())
-        .expect("the profile extrudes")
-        .body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the profile extrudes")
+    .body
 }
 
 /// The block: `x ∈ [−1, 1]`, `y ∈ [−1, 0]`, `z ∈ [0, L]` — its top
 /// plane is `y = 0`, its two end faces `z = 0` and `z = L` are the
 /// transverse caps.
-fn block() -> Body<f64> {
-    extruded(SketchPlane::xy(), vec![rect(-1.0, 1.0, -1.0, 0.0)], L)
+fn block() -> AtRestBody<f64> {
+    finished(
+        "the block",
+        extruded(SketchPlane::xy(), vec![rect(-1.0, 1.0, -1.0, 0.0)], L),
+        tol(),
+    )
 }
 
 /// A cylinder of radius [`ROD_R`] about the line `(0, −ROD_FLAT, z)`, over
 /// `z ∈ [z0, z0 + len]`.
-fn cylinder(z0: f64, len: f64) -> Body<f64> {
+fn cylinder(z0: f64, len: f64) -> AtRestBody<f64> {
     let disc = profile::circle(Point2::new(0.0, -ROD_FLAT), ROD_R, tol()).expect("a disc");
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    extruded(plane, vec![disc.into()], len)
+    finished(
+        "the cylinder",
+        extruded(plane, vec![disc.into()], len),
+        tol(),
+    )
 }
 
 /// **The cross-section a ruled band moves, in the general shape**: the
@@ -186,43 +202,44 @@ fn cap_above() -> f64 {
 }
 
 /// **What the boolean does with the ruled fixtures on a block** — the
-/// groove (`block ∖ cylinder`) refuses at the join, where the block's
-/// edges pierce the rod's wall and a pierce ring has no join arm yet
-/// (`work/tang/pierce-ring-has-no-join-arm`);
-/// a sunk rod SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is
-/// the block plus the rod's segment above the top plane over its
-/// length. The rod's end caps meet the top plane along chords with one
-/// rim arc between their ends, which the plane×plane join lane mints.
+/// groove (`block ∖ cylinder`) builds: the block's edges pierce the
+/// rod's wall, and each pierce ring joins. It is the block less the
+/// rod's segment below the top plane over its length. A sunk rod
+/// SHORTER than the block (`z ∈ [0.2, 0.8]`) builds, and is the block
+/// plus the rod's segment above the top plane over its length. The
+/// rod's end caps meet the top plane along chords with one rim arc
+/// between their ends, which the plane×plane join lane mints. Both hold
+/// tiers 2 and 3′ and the at-rest certificate, and are legal operands.
 /// The full-length fixtures the Phase-1 table carves come through the
 /// extrude door (below).
 #[test]
-fn the_boolean_refuses_the_groove_and_builds_a_short_sunk_rod() {
-    let groove = topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol());
-    assert!(
-        matches!(
-            groove,
-            Err(topo::BooleanError::Join(
-                topo::SplitJoinError::SectionArcWindow {
-                    case: topo::ArcWindowCase::NoChartedRun,
-                    ..
-                }
-            ))
+fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
+    for (what, r, expect) in [
+        (
+            "the groove",
+            topo::subtract(&block(), &cylinder(-0.5, L + 1.0), tol()),
+            2.0 * L - (core::f64::consts::PI * ROD_R * ROD_R - cap_above()) * L,
         ),
-        "the groove refuses at the boolean, got {groove:?}"
-    );
-    let sunk = topo::union(&block(), &cylinder(0.2, 0.6), tol())
-        .expect("the short sunk rod builds")
-        .body()
-        .expect("a body")
-        .body
-        .clone();
-    topo::validate_geometric_certificate(&sunk, tol()).expect("the sunk rod certifies at rest");
-    let expect = 2.0 * L + cap_above() * 0.6;
-    assert!(
-        (volume(&sunk) - expect).abs() < 1e-9,
-        "the sunk rod's volume: {} vs {expect}",
-        volume(&sunk)
-    );
+        (
+            "the short sunk rod",
+            topo::union(&block(), &cylinder(0.2, 0.6), tol()),
+            2.0 * L + cap_above() * 0.6,
+        ),
+    ] {
+        let r = r.unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
+        let bb = r.body().unwrap_or_else(|| panic!("{what}: a body"));
+        topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
+        topo::validate_geometric_certificate(&bb.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
+        assert!(
+            (volume(&bb.body) - expect).abs() < 1e-9,
+            "{what}: volume {} vs {expect}",
+            volume(&bb.body)
+        );
+        sweep::test_support::assert_legal_operand(what, &bb.body, tol());
+    }
 }
 
 /// **The short sunk rod, checked without trusting the union.** Its
@@ -351,12 +368,16 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
 /// support gate answers first, in its own words.
 #[test]
 fn a_support_carrying_a_ring_refuses_at_the_ruled_plan() {
-    let rod = rod_with_flat(tol());
+    let rod = finished("the rod", rod_with_flat(tol()), tol());
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
-    let pocket = extruded(
-        plane,
-        vec![rect(ROD_FLAT - 0.05, ROD_FLAT + 0.1, -0.1, 0.1)],
-        0.2,
+    let pocket = finished(
+        "the pocket",
+        extruded(
+            plane,
+            vec![rect(ROD_FLAT - 0.05, ROD_FLAT + 0.1, -0.1, 0.1)],
+            0.2,
+        ),
+        tol(),
     );
     let source = topo::subtract(&rod, &pocket, tol())
         .expect("the pocket sinks into the flat")

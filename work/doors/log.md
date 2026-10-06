@@ -12,3 +12,5 @@ here.
 
 AUTHOR's narrative is recoverable from
 `docs/doc-ledger/author-leaves-the-tracker.md`.
+- 2026-10-03 — Seam note from RECIPE: `declared-pairs-are-a-booleans-own-payload` closed (PR #3902: `DocEdit::SetDeclare` sets a live Boolean's or Union's pairs; `declare` appends one finding, `declare_all` replaces). `the-boolean-door-evaluates-its-boolean-twice` and `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added` set `open`, DOORS `ready`, as AUTHOR's exit note asked. (RECIPE orchestrator)
+- 2026-10-03 — Seam note from RECIPE: `extrude-distance-is-a-depth-and-a-side` closed (PR #3912: `Node::Extrude { profile, distance, side }`, `DocEdit::SetExtrudeSide`, a negative depth refuses `NegativeDepth` quoting its value with a recourse naming the other side). `the-create-pane-has-no-extrude-side` set `open`; the viewer's create pane inserts `side: Along` today. (RECIPE orchestrator)

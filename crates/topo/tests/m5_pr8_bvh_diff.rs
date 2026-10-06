@@ -18,11 +18,11 @@ use crate::common;
 
 use std::collections::BTreeSet;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, SweepTrace, boolean_op_with,
-    sweep_traces, sweep_traces_with_pad,
+    AtRestBody, Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, SweepTrace,
+    boolean_op_with, sweep_traces, sweep_traces_with_pad,
 };
 
 type Pair = (topo::EdgeKey, topo::FaceKey);
@@ -43,8 +43,8 @@ fn missing_pairs(realized: &SweepTrace, idealized: &SweepTrace) -> Vec<Pair> {
 /// The demo-body scenarios: (name, A, B) brick pairs from the M3
 /// acceptance heritage — crossing, flush-stacked, corner kiss,
 /// disjoint, nested.
-fn scenarios() -> Vec<(&'static str, Body<f64>, Body<f64>)> {
-    vec![
+fn scenarios() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
+    let rows: [(&'static str, Body<f64>, Body<f64>); 6] = [
         (
             "crossing bricks",
             brick((0.0, 4.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
@@ -75,7 +75,11 @@ fn scenarios() -> Vec<(&'static str, Body<f64>, Body<f64>)> {
             brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
             brick((1.0, 3.0), (1.0, 3.0), (-0.5, 2.5), Tol::witness()),
         ),
-    ]
+    ];
+    let tol = Tol::witness();
+    rows.into_iter()
+        .map(|(name, a, b)| (name, finished(name, a, tol), finished(name, b, tol)))
+        .collect()
 }
 
 /// Pin 1: realized candidate set ⊇ idealized accepted set, both
@@ -318,6 +322,7 @@ fn pad_zero_regression_is_caught() {
     let (r_ab, r_ba) = sweep_traces_with_pad(
         &a,
         &b,
+        &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
         None,
         Some(0.0),
@@ -358,8 +363,16 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
     );
     for k in [0.5, 2.0, 5.0, 9.0, 20.0] {
         let d = k * zero;
-        let a: Body<f64> = brick((5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d), Tol::witness());
-        let b: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+        let a = finished(
+            "the far brick",
+            brick::<f64>((5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d), Tol::witness()),
+            Tol::witness(),
+        );
+        let b = finished(
+            "the unit brick",
+            brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+            Tol::witness(),
+        );
         let realized = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness());
         let idealized = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness());
         let (r_ab, r_ba) = realized.expect("realized never examines the remote pair");
@@ -386,9 +399,8 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
         // byte-equal through either strategy. IN band the idealized
         // sweep refuses at its grazing side test, and the realized one,
         // having pruned the remote pair, answers: the operands are
-        // disjoint, and the containment witness that classifies A's
-        // shell reads its first corner off the in-band plane of B's top
-        // (A's bottom corners read in-band and are passed over).
+        // disjoint, and every containment witness reads `Out`
+        // (`every_grazing_witness_reads_out_against_the_far_brick`).
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
             let decls = topo::BooleanDeclarations::none();
             let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
@@ -424,6 +436,43 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
                     format!("{:?}", real.unwrap()),
                     format!("{:?}", ideal.unwrap()),
                     "k = {k} / {op:?}: value channel diverged"
+                );
+            }
+        }
+    }
+}
+
+/// The grazing pose above, read witness by witness: every witness the
+/// shell ladder can offer — each corner, edge midpoint and face centre
+/// of either brick — reads `Out` against the other brick, at every gap
+/// in the band. Each sits within the band of a carrier of the other's
+/// faces (A's bottom, B's top, the side planes both share) while 4 m or
+/// more from the face itself; a reading in band of a far face, or of a
+/// ray's hit near a far face's loop, would refuse here instead.
+#[test]
+fn every_grazing_witness_reads_out_against_the_far_brick() {
+    let tol = Tol::witness();
+    let zero = tol.get().eps;
+    let band = geom_core::Band::linear(tol).unwrap();
+    for k in [2.0, 5.0, 9.0] {
+        let d = k * zero;
+        let ranges_a = [(5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d)];
+        let ranges_b = [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)];
+        let body = |r: [(f64, f64); 3]| -> Body<f64> { brick(r[0], r[1], r[2], tol) };
+        for (name, own, other) in [
+            ("A against B", ranges_a, body(ranges_b)),
+            ("B against A", ranges_b, body(ranges_a)),
+        ] {
+            let at = |r: (f64, f64), i: usize| [r.0, 0.5 * (r.0 + r.1), r.1][i];
+            for (i, j, l) in (0..27).map(|n| (n / 9, (n / 3) % 3, n % 3)) {
+                if (i, j, l) == (1, 1, 1) {
+                    continue; // the centre is no witness
+                }
+                let q = geom_core::Point3::new(at(own[0], i), at(own[1], j), at(own[2], l));
+                let got = topo::point_in_solid(&other, q, band, tol);
+                assert!(
+                    matches!(got, Ok(topo::SolidContainment::Out)),
+                    "k = {k}, {name}: witness {q:?} reads {got:?}, not Out"
                 );
             }
         }

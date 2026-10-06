@@ -9,8 +9,8 @@
 //! the recorded curved skip; a `Rest` on an aligned pair and a
 //! continuation on an opposed one are each contradicted; the rounded
 //! stack's tangent wall edges are covered through a structural tangency
-//! on EITHER operand, while a tangency in the middle of an edge keeps
-//! its typed refusal; and every output is a legal boolean operand.
+//! on EITHER operand, and a tangency in the middle of an edge builds in
+//! either operand order; and every output is a legal boolean operand.
 //! The rows after them: a kiss or a gap is no continuation; an
 //! overlapping continuation refuses undeclared and builds declared in
 //! every op; and the declared overlaps that still refuse are pinned at
@@ -20,10 +20,10 @@
 
 use geom_core::{Point2, Tol};
 use profile::{Open, ProfileLoop, RawLoop, Start};
-use sweep::test_support::{extruded, sketch_at};
+use sweep::test_support::{extruded, finished, sketch_at};
 use topo::{
-    Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
-    FacePairDeclaration, Operand, PlaneRelation,
+    AtRestBody, Body, BooleanBody, BooleanCoincidence, BooleanDeclarations, BooleanError,
+    BooleanOp, BooleanResult, FacePairDeclaration, Operand, PlaneRelation,
 };
 
 const W: f64 = 6.0;
@@ -101,8 +101,12 @@ fn sharp() -> ProfileLoop<f64> {
 }
 
 /// A unit-thick plate of `outline`, its bottom at `z0`.
-fn plate(outline: ProfileLoop<f64>, z0: f64) -> Body<f64> {
-    extruded(sketch_at(z0), vec![outline], 1.0, tol())
+fn plate(outline: ProfileLoop<f64>, z0: f64) -> AtRestBody<f64> {
+    finished(
+        "the plate",
+        extruded(sketch_at(z0), vec![outline], 1.0, tol()),
+        tol(),
+    )
 }
 
 /// The 6×4 area less what `rounded_corners` fillets of radius `R` take.
@@ -157,8 +161,8 @@ fn volume(body: &Body<f64>) -> f64 {
 /// The union, which must build, be additive and valid at tier 3 and 3′.
 fn union_honest(
     label: &str,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     d: &BooleanDeclarations,
 ) -> BooleanBody<f64> {
     let out = topo::union_with(a, b, d, tol()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -369,32 +373,490 @@ fn the_tangent_edge_cover_reads_a_strut_on_either_operand() {
     }
 }
 
-/// **A tangency in the middle of an edge keeps its typed refusal.** A
-/// sharp plate stacked on a rounded one: the sharp plate's straight
-/// bottom edges pass the rounded plate's tangent points mid-span, where
-/// the cover — which records endpoints only — has nothing to say, so
-/// the crossing layer refuses as before. (Taken the other way round the
-/// rounded operand's own wall edges are swept first and split the
-/// sharp edges at the tangent points, so the touch lands on endpoints
-/// and the stack builds; that order is the row below the refusal.)
+/// The L: 6 × 6 less its 3 × 3 north-east quarter (area 27), every
+/// corner — the concave one included — rounded by `r`.
+fn ell_rounded(r: f64) -> ProfileLoop<f64> {
+    let t = tol();
+    let mut path = Open
+        .at(Point2::new(3.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .expect("south runs east");
+    for (corner, (dx, dy)) in [
+        (Point2::new(6.0, 1.5), (0.0, 1.0)),
+        (Point2::new(4.5, 3.0), (-1.0, 0.0)),
+        (Point2::new(3.0, 4.5), (0.0, 1.0)),
+        (Point2::new(1.5, 6.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 3.0), (0.0, -1.0)),
+    ] {
+        path = path
+            .fillet(r, t)
+            .expect("a positive radius")
+            .at(corner, t)
+            .expect("the fillet fits")
+            .toward(dx, dy, t)
+            .expect("the next side");
+    }
+    path.fillet(r, t)
+        .expect("a positive radius")
+        .to(Start, t)
+        .expect("the last fillet fits")
+        .into()
+}
+
+fn ell_sharp() -> ProfileLoop<f64> {
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(6.0, 0.0),
+        Point2::new(6.0, 3.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(3.0, 6.0),
+        Point2::new(0.0, 6.0),
+    ])
+}
+
+/// The area one corner fillet of radius `r` takes off a convex corner
+/// (or adds to a concave one): the unit square's corner less a quarter
+/// disc.
+fn corner(r: f64) -> f64 {
+    (1.0 - core::f64::consts::FRAC_PI_4) * r * r
+}
+
+/// **A tangency in the middle of an edge builds in either operand
+/// order, in every op.** A plate stacked on a rounded one: the upper
+/// plate's straight bottom edges pass the lower plate's fillet tangent
+/// points mid-span, where the lower plate has a vertex (its flat wall
+/// ends there) and the upper one has none. Whichever operand's edges
+/// are swept first, the touch is read on the edge's fragments once both
+/// directions have split it, and the `Rest` seam along each fillet's rim
+/// carries the fillet's arc on both sides. The join pairs the fillet's
+/// germs: the straight bottom edge passing the tangent point reads
+/// along the germ to first order, but its far end touches nothing, so
+/// only the arc carries the segment. The join's surgery then refuses
+/// the germ's tangent face pair (the wall and the fillet), and the
+/// declared-REST zip builds the union on the join's segments.
+///
+/// The poses: the 6 × 4 sharp plate on its rounded twin, and the 6 × 6
+/// sharp L (a 3 × 3 notch: five convex corners and a concave one, whose
+/// fillet adds material the sharp L lacks) on its rounded twin, each at
+/// r = 0.25, 0.5 and 1; and two rounded plates whose fillets differ
+/// (0.3 over 0.5, and 0.5 over 0.3), where the larger fillet's tangent
+/// points fall mid-edge on the smaller one's flat walls. Volumes are
+/// closed form: a plate's area is 24 − 4c(r) and the L's 27 − 5c(r) +
+/// c(r), with c the [`corner`] area. The stacked interiors are
+/// disjoint, so the union is the sum, each difference is its minuend,
+/// and the intersection is empty. Faces: a sharp plate 6, a rounded one
+/// 10; the sharp L 8, the rounded one 14. The unions: on the plate 14
+/// (two caps, four corner overhangs, four merged walls, four fillets),
+/// on the L 20 (two caps, five corner overhangs, the rounded L's top
+/// exposed at the concave fillet, six merged walls, six fillets), and
+/// the mismatched pair 18 (two caps, four exposed corners of the
+/// mating plane, four merged walls, eight fillets).
 #[test]
-fn a_tangency_in_the_middle_of_an_edge_keeps_its_typed_refusal() {
-    let (sharp_q, rounded_p) = (plate(sharp(), 1.0), plate(rounded(R), 0.0));
-    let (mate, walls) = findings(&sharp_q, &rounded_p);
-    let err = topo::union_with(&sharp_q, &rounded_p, &with(&mate, &walls), tol())
-        .expect_err("a mid-edge tangency is a frontier");
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported {
-                operand: Operand::A,
-                ..
-            }
-        ),
-        "{err:?}"
+fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
+    let rounded_plate = |r: f64| (W * H - 4.0 * corner(r), 10);
+    let mut poses = Vec::new();
+    for r in [0.25, 0.5, 1.0] {
+        poses.push((
+            format!("plate, r = {r}"),
+            plate(sharp(), 1.0),
+            plate(rounded(r), 0.0),
+            (W * H, 6),
+            rounded_plate(r),
+            14,
+        ));
+        poses.push((
+            format!("L, r = {r}"),
+            plate(ell_sharp(), 1.0),
+            plate(ell_rounded(r), 0.0),
+            (27.0, 8),
+            (27.0 - 4.0 * corner(r), 14),
+            20,
+        ));
+    }
+    for (upper, lower) in [(0.3, 0.5), (0.5, 0.3)] {
+        poses.push((
+            format!("r = {upper} over r = {lower}"),
+            plate(rounded(upper), 1.0),
+            plate(rounded(lower), 0.0),
+            rounded_plate(upper),
+            rounded_plate(lower),
+            18,
+        ));
+    }
+    for (pose, upper, lower, upper_vf, lower_vf, union_faces) in poses {
+        for (order, a, b, (va, fa), (vb, fb)) in [
+            ("upper is A", &upper, &lower, upper_vf, lower_vf),
+            ("lower is A", &lower, &upper, lower_vf, upper_vf),
+        ] {
+            let label = format!("{pose}, {order}");
+            let (mate, walls) = findings(a, b);
+            let ab = with(&mate, &walls);
+            let (mate, walls) = findings(b, a);
+            let ba = with(&mate, &walls);
+            let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, &ab, tol());
+            assert!(
+                matches!(
+                    join,
+                    Ok(Some(BooleanError::Join(
+                        topo::SplitJoinError::SectionInvariant { .. }
+                    )))
+                ),
+                "{label}: A ∪ B, the join pairs every germ and its surgery refuses the fillet's \
+                 tangent faces, which the zip takes over: {join:?}"
+            );
+            builds(
+                &format!("{label}: A ∪ B"),
+                topo::union_with(a, b, &ab, tol()),
+                va + vb,
+                union_faces,
+            );
+            builds(
+                &format!("{label}: A ∖ B"),
+                topo::subtract_with(a, b, &ab, tol()),
+                va,
+                fa,
+            );
+            builds(
+                &format!("{label}: B ∖ A"),
+                topo::subtract_with(b, a, &ba, tol()),
+                vb,
+                fb,
+            );
+            let meet = topo::intersect_with(a, b, &ab, tol());
+            assert!(
+                matches!(meet, Ok(BooleanResult::Empty)),
+                "{label}: A ∩ B, the interiors are disjoint: {meet:?}"
+            );
+        }
+    }
+}
+
+/// **A declared `Tangent` touching a fillet mid-edge builds its
+/// subtracts and intersect in either operand order, and refuses its
+/// union.** A unit box stands beside the rounded plate, turned 45° so
+/// its west wall is tangent to the south-east fillet along the ruling at
+/// azimuth −45°: the box's wall edges pass that ruling mid-span and the
+/// plate has no edge on it. The pair declared `Tangent` is the cover
+/// (C4); undeclared, the graze refuses typed in both orders. The union
+/// would have material on both sides of a ruling through the box wall's
+/// interior, the unbuilt doubled-slit arm, so it refuses. Volumes are
+/// closed form (the box 1, the plate [`area`] of four corners, interiors
+/// disjoint); faces: the box 6, the plate 10.
+#[test]
+fn a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_order() {
+    let s2 = core::f64::consts::FRAC_1_SQRT_2;
+    let touch = Point2::new(W - R + R * s2, R - R * s2);
+    let at = |along: f64, out: f64| {
+        Point2::new(touch.x + (along + out) * s2, touch.y + (along - out) * s2)
+    };
+    let boxed = plate(
+        ProfileLoop::polygon([at(-0.5, 0.0), at(-0.5, 1.0), at(0.5, 1.0), at(0.5, 0.0)]),
+        0.0,
     );
-    let (mate, walls) = findings(&rounded_p, &sharp_q);
-    union_honest("rounded is A", &rounded_p, &sharp_q, &with(&mate, &walls));
+    let p = plate(rounded(R), 0.0);
+    let wall = boxed
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                boxed.get_face(f).and_then(|x| boxed.get_surface(x.surface)),
+                Some(geom::Surface::Plane { normal, .. })
+                    if (normal.x + s2).abs() < 1e-9 && (normal.y - s2).abs() < 1e-9
+            )
+        })
+        .expect("the box's tangent wall");
+    let fillet = p
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                p.get_face(f).and_then(|x| p.get_surface(x.surface)),
+                Some(geom::Surface::Cylinder { origin, .. }) if origin.x > W / 2.0 && origin.y < H / 2.0
+            )
+        })
+        .expect("the south-east fillet");
+    let tangent = |fa, fb| BooleanDeclarations {
+        coincident_faces: vec![FacePairDeclaration::new(
+            fa,
+            fb,
+            topo::ContactClass::Tangent,
+        )],
+        ..BooleanDeclarations::default()
+    };
+    for (order, a, b, fa, fb, (va, na), (vb, nb)) in [
+        (
+            "box is A",
+            &boxed,
+            &p,
+            wall,
+            fillet,
+            (1.0, 6),
+            (area(4.0), 10),
+        ),
+        (
+            "plate is A",
+            &p,
+            &boxed,
+            fillet,
+            wall,
+            (area(4.0), 10),
+            (1.0, 6),
+        ),
+    ] {
+        let err = topo::union_with(a, b, &BooleanDeclarations::default(), tol())
+            .expect_err("an undeclared graze refuses");
+        assert!(
+            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            "{order}, undeclared: {err:?}"
+        );
+        let (ab, ba) = (tangent(fa, fb), tangent(fb, fa));
+        let box_operand = if order == "box is A" {
+            topo::Operand::A
+        } else {
+            topo::Operand::B
+        };
+        match topo::union_with(a, b, &ab, tol()) {
+            Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
+                assert_eq!(interior, box_operand, "{order}: A ∪ B, the box wall");
+            }
+            out => panic!(
+                "{order}: A ∪ B, the slit arm is unbuilt: {:?}",
+                out.map(|_| ())
+            ),
+        }
+        builds(
+            &format!("{order}: A ∖ B"),
+            topo::subtract_with(a, b, &ab, tol()),
+            va,
+            na,
+        );
+        builds(
+            &format!("{order}: B ∖ A"),
+            topo::subtract_with(b, a, &ba, tol()),
+            vb,
+            nb,
+        );
+        let meet = topo::intersect_with(a, b, &ab, tol());
+        assert!(
+            matches!(meet, Ok(BooleanResult::Empty)),
+            "{order}: A ∩ B, the interiors are disjoint: {meet:?}"
+        );
+    }
+}
+
+/// The 45° unit box of
+/// [`a_declared_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_order`],
+/// its west wall on the south-east fillet's ruling at azimuth −45°,
+/// standing from `z0` to `z1`; and that wall and the fillet.
+fn box_beside_the_fillet(
+    p: &Body<f64>,
+    z0: f64,
+    z1: f64,
+) -> (AtRestBody<f64>, topo::FaceKey, topo::FaceKey) {
+    let s2 = core::f64::consts::FRAC_1_SQRT_2;
+    let touch = Point2::new(W - R + R * s2, R - R * s2);
+    let at = |along: f64, out: f64| {
+        Point2::new(touch.x + (along + out) * s2, touch.y + (along - out) * s2)
+    };
+    let boxed = extruded(
+        sketch_at(z0),
+        vec![ProfileLoop::polygon([
+            at(-0.5, 0.0),
+            at(-0.5, 1.0),
+            at(0.5, 1.0),
+            at(0.5, 0.0),
+        ])],
+        z1 - z0,
+        tol(),
+    );
+    let wall = boxed
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                boxed.get_face(f).and_then(|x| boxed.get_surface(x.surface)),
+                Some(geom::Surface::Plane { normal, .. })
+                    if (normal.x + s2).abs() < 1e-9 && (normal.y - s2).abs() < 1e-9
+            )
+        })
+        .expect("the box's tangent wall");
+    let fillet = p
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                p.get_face(f).and_then(|x| p.get_surface(x.surface)),
+                Some(geom::Surface::Cylinder { origin, .. }) if origin.x > W / 2.0 && origin.y < H / 2.0
+            )
+        })
+        .expect("the south-east fillet");
+    (finished("the box", boxed, tol()), wall, fillet)
+}
+
+/// The comb: two 2 × 3 blocks at x 0 to 2 and 8 to 10 bridged above
+/// y = 1.5, and between them a tooth whose 90° tip, rounded r = 0.5,
+/// touches y = 0 at x = 5 in the middle of its fillet. Unit thick.
+fn comb() -> AtRestBody<f64> {
+    let t = tol();
+    let r = 0.5;
+    // The tip corner sits r(√2 − 1) below y = 0, so the fillet's lowest
+    // point (azimuth −90°, mid-arc) is on it; each side rises 1.5 − tip.
+    let side = 1.5 - r * (1.0 - core::f64::consts::SQRT_2);
+    let outline: ProfileLoop<f64> = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(2.0, 0.0), t)
+        .expect("the west block's foot")
+        .line_to(Point2::new(2.0, 1.5), t)
+        .expect("its east side")
+        .line_to(Point2::new(5.0 - side, 1.5), t)
+        .expect("under the bridge")
+        .toward(1.0, -1.0, t)
+        .expect("down the tooth")
+        .fillet(r, t)
+        .expect("the tip fits")
+        .toward(1.0, 1.0, t)
+        .expect("up the tooth")
+        .to(Point2::new(5.0 + side, 1.5), t)
+        .expect("the tooth's east side")
+        .line_to(Point2::new(8.0, 1.5), t)
+        .expect("under the bridge")
+        .line_to(Point2::new(8.0, 0.0), t)
+        .expect("the east block's west side")
+        .line_to(Point2::new(10.0, 0.0), t)
+        .expect("its foot")
+        .line_to(Point2::new(10.0, 3.0), t)
+        .expect("its east side")
+        .line_to(Point2::new(0.0, 3.0), t)
+        .expect("the top")
+        .line_to(Start, t)
+        .expect("the west side")
+        .into();
+    plate(outline, 0.0)
+}
+
+/// **A covered touch no vertex splits refuses, typed, in both operand
+/// orders and every op.** The deferral widens only what the other
+/// operand's vertex puts under a touch; where nothing does, the
+/// settled pair answers the frontier it was deferred with. The union
+/// refuses first at the door: the declared ruling runs through the
+/// box wall's interior, the unbuilt doubled-slit arm.
+///
+/// - The short box beside the fillet (z 0.25 to 0.75, and 0.25 to 1):
+///   its wall edges graze the fillet mid-ruling, where the plate has
+///   no vertex. The wall and the fillet are declared `Tangent`.
+/// - The comb under a long box (x −1 to 11, y −1 to 0, z 0.25 to 2):
+///   the box's wall rests on the blocks' feet (`Rest`, found) and is
+///   declared `Tangent` to the tooth's fillet. The box's lower wall
+///   edge is split where it crosses the blocks' corner edges, at
+///   x = 0, 2, 8 and 10, and the touch at x = 5 is left in the middle
+///   fragment, whichever way the edge runs: settling reads every
+///   fragment, not the leading one.
+#[test]
+fn a_covered_touch_no_vertex_splits_refuses_in_both_orders() {
+    let p = plate(rounded(R), 0.0);
+    let mut poses = Vec::new();
+    for (z0, z1) in [(0.25, 0.75), (0.25, 1.0)] {
+        let (boxed, wall, fillet) = box_beside_the_fillet(&p, z0, z1);
+        poses.push((
+            format!("box z {z0} to {z1}"),
+            boxed,
+            p.clone(),
+            wall,
+            fillet,
+        ));
+    }
+    let teeth = comb();
+    let long = extruded(
+        sketch_at(0.25),
+        vec![ProfileLoop::polygon([
+            Point2::new(-1.0, -1.0),
+            Point2::new(11.0, -1.0),
+            Point2::new(11.0, 0.0),
+            Point2::new(-1.0, 0.0),
+        ])],
+        1.75,
+        tol(),
+    );
+    let long = finished("the long box", long, tol());
+    let wall = long
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| {
+            matches!(
+                long.get_face(f).and_then(|x| long.get_surface(x.surface)),
+                Some(geom::Surface::Plane { normal, .. }) if normal.y > 0.5
+            )
+        })
+        .expect("the long box's north wall");
+    let tip = teeth
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| is_cylinder(&teeth, f))
+        .expect("the tooth's fillet");
+    poses.push(("comb".to_string(), long, teeth, wall, tip));
+    for (pose, a0, b0, fa, fb) in &poses {
+        for (order, a, b, x, y) in [
+            ("first is A", a0, b0, *fa, *fb),
+            ("second is A", b0, a0, *fb, *fa),
+        ] {
+            let (rest, cont) = findings(a, b);
+            let mut d = with(&rest, &cont);
+            d.coincident_faces
+                .push(FacePairDeclaration::new(x, y, topo::ContactClass::Tangent));
+            let out = topo::union_with(a, b, &d, tol());
+            assert!(
+                matches!(out, Err(BooleanError::TangentSlitArmUnbuilt { .. })),
+                "{pose}, {order}, A ∪ B: the ruling runs through the wall: {:?}",
+                out.map(|_| ())
+            );
+            for (op, out) in [
+                ("A ∖ B", topo::subtract_with(a, b, &d, tol())),
+                ("A ∩ B", topo::intersect_with(a, b, &d, tol())),
+            ] {
+                assert!(
+                    matches!(out, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{pose}, {order}, {op}: {:?}",
+                    out.map(|_| ())
+                );
+            }
+        }
+    }
+}
+
+/// **The pairs the settle stage accepts reach the accepted-pair
+/// trace.** The sharp plate as A over the rounded one, every finding
+/// declared: in the A → B direction each of A's bottom edges is
+/// deferred against the two fillets it touches mid-span, so no fillet
+/// face is accepted there by the sweep itself; the settle stage reads
+/// the fragments B's vertices left and records each touch, and every
+/// fillet face must then be in A → B's accepted channel.
+#[test]
+fn the_settle_stage_writes_the_accepted_trace() {
+    let (a, b) = (plate(sharp(), 1.0), plate(rounded(R), 0.0));
+    let (mate, walls) = findings(&a, &b);
+    let (ab, _) = topo::sweep_traces_with_pad(
+        &a,
+        &b,
+        &with(&mate, &walls),
+        topo::SweepStrategy::Realized,
+        None,
+        None,
+        tol(),
+    )
+    .expect("the traced sweep runs");
+    let fillets: Vec<_> = b
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&f| is_cylinder(&b, f))
+        .collect();
+    assert_eq!(fillets.len(), 4, "the rounded plate's four fillets");
+    for f in fillets {
+        assert!(
+            ab.accepted.iter().any(|&(_, g)| g == f),
+            "fillet {f:?} is accepted in A → B: {:?}",
+            ab.accepted
+        );
+    }
 }
 
 /// **Every output is a legal boolean operand.** Each stack's result is
@@ -428,13 +890,17 @@ fn the_stack_is_a_legal_operand() {
     }
 }
 
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    sweep::test_support::brick(x, y, z, tol())
+fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
+    finished(
+        "the brick",
+        sweep::test_support::brick(x, y, z, tol()),
+        tol(),
+    )
 }
 
 /// The rabbeted plate: 6 × 4 × 1 with a 1 × 0.5 step cut along its
 /// east edge, swept along y from its xz section (volume 22).
-fn rabbeted() -> Body<f64> {
+fn rabbeted() -> AtRestBody<f64> {
     let section = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(W, 0.0),
@@ -449,7 +915,11 @@ fn rabbeted() -> Body<f64> {
         geom_core::Vec3::new(0.0, 0.0, 1.0),
         tol(),
     );
-    extruded(xz, vec![section], H, tol())
+    finished(
+        "the rabbeted plate",
+        extruded(xz, vec![section], H, tol()),
+        tol(),
+    )
 }
 
 /// A boolean that must build, at `expect`, valid at tier 3 and 3′.
@@ -536,15 +1006,15 @@ fn a_kiss_or_a_gap_is_no_continuation() {
 /// the result is empty).
 type ContinuationRow = (
     &'static str,
-    Body<f64>,
-    Body<f64>,
+    AtRestBody<f64>,
+    AtRestBody<f64>,
     [Option<(f64, usize)>; 3],
 );
 
 /// The three ops, by name.
 type Op = fn(
-    &Body<f64>,
-    &Body<f64>,
+    &AtRestBody<f64>,
+    &AtRestBody<f64>,
     &BooleanDeclarations,
     Tol,
 ) -> Result<BooleanResult<f64>, BooleanError>;
@@ -636,16 +1106,17 @@ fn overlapping_continuations_refuse_undeclared_and_build_declared() {
     }
 }
 
-/// **A declared continuation across a rabbet's step refuses its union,
-/// typed, and its subtract and intersect build.** The rabbeted plate and
-/// a block on its east edge that fills the rabbet and overlaps the plate
-/// beyond it (the step below, or the top beside it), every finding
-/// declared. The union, the 6 × 4 × 1 box, refuses
-/// `Join(UnpairedLooseEnds)` with six ends unpaired
-/// (`work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`);
-/// its text names the join's missing rule, not a kernel defect.
+/// **A declared continuation across a rabbet's step builds every op.**
+/// The rabbeted plate and a block on its east edge that fills the
+/// rabbet and overlaps the plate beyond it (the step below, or the top
+/// beside it), every finding declared. The union is the 6 × 4 × 1 box,
+/// six faces, a legal operand: it used to refuse
+/// `Join(UnpairedLooseEnds { count: 6 })`
+/// (`work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`),
+/// and JOIN-1's locus matching pairs those ends (the section segments
+/// along the step are edges of both solids).
 #[test]
-fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
+fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
     for (label, block, subtract, intersect) in [
         (
             "over the step",
@@ -664,18 +1135,13 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
         let (rest, cont) = findings(&a, &block);
         assert_eq!(rest.coincident_faces.len(), 1, "{label}: one Rest pair");
         let d = with(&rest, &cont);
-        let err = topo::union_with(&a, &block, &d, tol()).expect_err("the union refuses");
-        assert!(
-            matches!(
-                err,
-                BooleanError::Join(topo::SplitJoinError::UnpairedLooseEnds { count: 6 })
-            ),
-            "{label}: {err:?}"
+        let union = builds(
+            &format!("{label}, union"),
+            topo::union_with(&a, &block, &d, tol()),
+            W * H,
+            6,
         );
-        assert!(
-            !err.to_string().contains("kernel"),
-            "{label}: a legal input is no kernel defect: {err}"
-        );
+        sweep::test_support::assert_legal_operand(label, &union.body, tol());
         builds(
             &format!("{label}, subtract"),
             topo::subtract_with(&a, &block, &d, tol()),
@@ -692,7 +1158,7 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 }
 
 /// **A declared rounded continuation that lies inside the other's wall
-/// builds its subtract and intersect, and refuses its union typed.**
+/// builds its subtract and intersect, and refuses A ∪ B typed.**
 /// The rounded plate and a plate of the same outline half as thick,
 /// sunk inside it or flush with its top or bottom, so the thin plate's
 /// walls (fillets included) lie inside the thick one's. Undeclared,
@@ -700,26 +1166,35 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 /// declared, subtract and intersect build at box arithmetic in z over
 /// the outline's area `24 − (4 − π)·R²`: half the thick plate's volume
 /// each, the sunk subtract as two plates of a quarter unit (twenty
-/// faces). The union refuses `FallbackExtentUnsupported`: no crossing
-/// event exists, and that pass exempts no declared pair
+/// faces). A ∪ B refuses `FallbackExtentUnsupported`: no crossing
+/// event exists, and that pass exempts no continuation
 /// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
-/// The flush-top intersect, whose result is the thin plate itself,
-/// refuses `ResultVolumeImplausible` on a two-ulp tie between two
-/// closed-form volumes
-/// (`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`);
-/// it is the one refusal here whose text still calls the legal input a
-/// kernel defect.
+/// With the declarations keyed for (B, A), B ∖ A, empty (the thin
+/// plate lies inside the thick one), refuses as A ∪ B does, while B ∪ A
+/// builds the thick plate, its walls left split where the thin plate's
+/// lay (18 faces sunk, 14 flush, against the plate's 10): the union
+/// refuses in one operand order only.
+///
+/// Two results here are an operand itself measured through another
+/// face order, so their `f64` volumes round a few ulps past the operand
+/// they are bounded by: the flush-top intersect (the thin plate) and
+/// the sunk B ∪ A (the thick plate). The backstop re-derives each tie
+/// in interval arithmetic and builds it.
 #[test]
 fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
     let none = BooleanDeclarations::default();
     let a = plate(rounded(R), 0.0);
     let half = area(4.0) / 2.0;
-    for (label, z0, subtract_faces, intersect_builds) in [
-        ("sunk inside", 0.25, 20, true),
-        ("flush top", 0.5, 10, false),
-        ("flush bottom", 0.0, 10, true),
+    for (label, z0, subtract_faces, union_faces) in [
+        ("sunk inside", 0.25, 20, 18),
+        ("flush top", 0.5, 10, 14),
+        ("flush bottom", 0.0, 10, 14),
     ] {
-        let b = extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol());
+        let b = finished(
+            "the thin plate",
+            extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol()),
+            tol(),
+        );
         let (rest, cont) = findings(&a, &b);
         assert!(rest.coincident_faces.is_empty(), "{label}: no Rest pair");
         let d = with(&rest, &cont);
@@ -751,20 +1226,24 @@ fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
             half,
             subtract_faces,
         );
-        let intersect = topo::intersect_with(&a, &b, &d, tol());
-        if intersect_builds {
-            builds(&format!("{label}, intersect"), intersect, half, 10);
-        } else {
-            assert!(
-                matches!(
-                    intersect,
-                    Err(BooleanError::ResultVolumeImplausible {
-                        which: "vol(A ∩ B) ≤ vol(B)",
-                        ..
-                    })
-                ),
-                "{label}, intersect: {intersect:?}"
-            );
-        }
+        builds(
+            &format!("{label}, intersect"),
+            topo::intersect_with(&a, &b, &d, tol()),
+            half,
+            10,
+        );
+        let (rest_ba, cont_ba) = findings(&b, &a);
+        let d_ba = with(&rest_ba, &cont_ba);
+        let err = topo::subtract_with(&b, &a, &d_ba, tol()).expect_err("B ∖ A refuses");
+        assert!(
+            matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
+            "{label}, B ∖ A: {err:?}"
+        );
+        builds(
+            &format!("{label}, B ∪ A"),
+            topo::union_with(&b, &a, &d_ba, tol()),
+            area(4.0),
+            union_faces,
+        );
     }
 }

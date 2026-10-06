@@ -17,7 +17,7 @@ mod certified {
     use geom_core::Tol;
 
     use geom_core::{Bounds, Interval};
-    use sweep::test_support::ball_poled_y;
+    use sweep::test_support::{ball_poled_y, finished};
     use topo::mass_properties;
 
     use crate::common::interval::{iv, v3};
@@ -104,8 +104,9 @@ mod certified {
     /// its members one at a time.
     #[test]
     fn interval_finding_union_is_bracketed() {
-        let a = slab();
+        let a = finished("the slab", slab(), Tol::witness());
         let b = ball_poled_y(iv(1.0), v3(2.0, 2.0, 0.5), Tol::witness());
+        let b = finished("the ball", b, Tol::witness());
         let joined = topo::union(&a, &b, Tol::witness());
         // **The crossover is an enclosure width, and enclosure widths
         // move.** This row used to select its arm by comparing ε to a
@@ -177,9 +178,10 @@ mod certified {
     /// The pip ∖/∩ pair at the certified scalar, with additivity.
     #[test]
     fn interval_pip_pair_is_bracketed_and_additive() {
-        let a = slab();
+        let a = finished("the slab", slab(), Tol::witness());
         let (r, h) = (0.5, 0.3);
         let b = ball_poled_y(iv(r), v3(2.0, 2.0, 1.0 + r - h), Tol::witness());
+        let b = finished("the pip ball", b, Tol::witness());
 
         let cut = topo::subtract(&a, &b, Tol::witness()).expect("the pip decides at Interval");
         let cut = &cut.body().expect("a body").body;

@@ -12,6 +12,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use std::collections::BTreeSet;
 
@@ -39,6 +42,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -58,6 +62,7 @@ fn local_block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, BTreeSet<RecipeNodeId>,
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, BTreeSet::from([plane, profile, body]), body)
@@ -73,13 +78,19 @@ fn local_cap(body: RecipeNodeId) -> StableName {
     }
 }
 
-fn z_up() -> MateFrame {
-    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn z_up() -> MateFrame<Formula> {
+    MateFrame::authored(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
 /// A frame-coincidence rest mate between two references, each read
 /// at its own mint.
-fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
+fn mate(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -151,12 +162,12 @@ fn a_cut_that_would_start_a_mate_placing_refuses() {
     );
 }
 
-/// Row 2 — a group cut whole HOISTS its root's offset onto the instance
-/// left behind and lands the root at the empty chain in the part (A4);
-/// the group re-forms there, and neither side reports anything: no
-/// edit records a frame.
+/// Row 2 — a group cut whole moves as selected (A4): the root keeps its
+/// offset in the part and the instance left behind sits at the empty
+/// chain; the group re-forms there, and neither side reports anything:
+/// no edit records a frame.
 #[test]
-fn a_whole_group_cut_hoists_its_root_offset_and_reports_nothing() {
+fn a_whole_group_cut_moves_as_selected_and_reports_nothing() {
     let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r2");
     let out = split(
         &doc,
@@ -172,19 +183,19 @@ fn a_whole_group_cut_hoists_its_root_offset_and_reports_nothing() {
         vec![vec![pa, pb]],
         "the group re-forms in the part"
     );
-    assert_eq!(
-        offset_of(&out.part, pa),
-        Some(Placement::IDENTITY),
-        "the root lands at the empty chain"
+    assert!(
+        offset_of(&out.part, pa).is_some_and(|o| o.bit_eq(&offset)),
+        "the root keeps its offset"
     );
     assert_eq!(
         offset_of(&out.part, pb),
         None,
         "the member stays mate-placed"
     );
-    assert!(
-        offset_of(&out.remainder, out.instance).is_some_and(|o| o.bit_eq(&offset)),
-        "the instance takes the root's offset"
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY),
+        "the instance sits at the empty chain"
     );
     assert!(
         out.part_maintenance.is_empty(),
@@ -198,12 +209,11 @@ fn a_whole_group_cut_hoists_its_root_offset_and_reports_nothing() {
     );
 }
 
-/// Row 3 — inline of that split is A4's sugar: the part is one group
-/// rooted at the empty chain on its world, so its root takes the
-/// instance's offset, and the document split was given comes back up
-/// to node ids, reporting nothing.
+/// Row 3 — inline of that split lands the content verbatim at the
+/// empty offset, so the root's offset comes back as it was, reporting
+/// nothing.
 #[test]
-fn inline_of_a_hoisted_split_restores_the_root_offset_and_reports_nothing() {
+fn inline_of_a_whole_group_split_restores_the_root_offset_and_reports_nothing() {
     let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r3");
     let out = split(
         &doc,
@@ -259,7 +269,12 @@ fn placed_pair(
         },
     );
     assert_eq!(groups(&doc), vec![vec![a, b]], "one group, two members");
-    (doc, std::sync::Arc::new(store), [a, b, joint], offset)
+    (
+        doc,
+        std::sync::Arc::new(store),
+        [a, b, joint],
+        editor_core::test_support::stored_placement(&offset),
+    )
 }
 
 /// An instance's offset.

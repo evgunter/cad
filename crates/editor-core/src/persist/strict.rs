@@ -3,9 +3,10 @@
 //! JSON object repeats a key — a duplicate-key file is a corrupt
 //! file, and no corrupt file may load silently. Every serde-derived
 //! `BTreeMap` in the format deserializes through one of the
-//! section-labeled modules below (the pair-list appearance store has
-//! the same rule in [`super::pairs`]); the refusal is typed at parse,
-//! naming the key and the section.
+//! section-labeled modules below, or through [`strict_map`] itself
+//! where a type deserializes its own map (`meta::MetaMap`); the
+//! pair-list appearance store has the same rule in [`super::pairs`].
+//! The refusal is typed at parse, naming the key and the section.
 //!
 //! Serialization is untouched (a `BTreeMap` cannot hold duplicates —
 //! the modules forward to the plain impl so `#[serde(with)]` stays
@@ -34,6 +35,12 @@ impl SaidKey for crate::node::RecipeNodeId {
     }
 }
 
+impl SaidKey for crate::var::VarId {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "variable {self}")
+    }
+}
+
 impl SaidKey for crate::names::StableName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", crate::SpokenName::absent(self.clone()))
@@ -48,12 +55,6 @@ fn as_written(f: &mut fmt::Formatter<'_>, key: &(impl Serialize + ?Sized)) -> fm
 }
 
 impl SaidKey for String {
-    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        as_written(f, self.as_str())
-    }
-}
-
-impl SaidKey for crate::doc::ParamName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         as_written(f, self.as_str())
     }
@@ -163,9 +164,14 @@ strict_map_section!(
     "snapshot node"
 );
 strict_map_section!(
-    /// The document parameter table.
-    params,
-    "document parameter"
+    /// The variable table (id → variable).
+    vars,
+    "variable"
+);
+strict_map_section!(
+    /// The variable-name store (id → name).
+    var_names,
+    "variable name"
 );
 strict_map_section!(
     /// The per-node witness store.
@@ -191,11 +197,6 @@ strict_map_section!(
     /// An appearance record's D7 metadata map.
     record_metadata,
     "appearance metadata"
-);
-strict_map_section!(
-    /// A `MetaValue::Map`'s entries.
-    meta_map,
-    "metadata map"
 );
 strict_map_section!(
     /// A verdict summary's node map (ε-audit interchange).

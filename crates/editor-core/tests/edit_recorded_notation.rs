@@ -49,6 +49,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::Formula;
 
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, ExprPath, LoopProgram, Node, ProfileDoc, ProfileProgram,
@@ -130,7 +131,7 @@ fn in_millimetres() -> (Vec<Step<f64>>, RecordedNotation) {
 }
 
 /// The document a lifted program reaches: a frame, then the profile.
-fn doc_of(program: LoopProgram) -> ProfileDoc {
+fn doc_of(program: LoopProgram<Formula>) -> ProfileDoc {
     let mut doc = empty();
     for edit in edits_of(program) {
         doc = doc
@@ -142,7 +143,7 @@ fn doc_of(program: LoopProgram) -> ProfileDoc {
 }
 
 /// The same document as its edit log, for the save/load row.
-fn edits_of(program: LoopProgram) -> [DocEdit<ProfileProgram>; 2] {
+fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 2] {
     [
         DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
@@ -196,7 +197,9 @@ fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'
 /// It also asserts what it enumerated: every address `step_args` hands
 /// back holds an expression, so a role the walk claims and the document
 /// cannot answer is a failure here rather than a silently shorter list.
-fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'static str>)> {
+fn arg_bits(
+    program: LoopProgram<Formula>,
+) -> Vec<(u32, StepArg, Option<f64>, Option<&'static str>)> {
     let addresses = program.step_args();
     let doc = doc_of(program);
     addresses

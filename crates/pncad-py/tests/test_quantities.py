@@ -32,7 +32,7 @@ ANGLE_UNITS = (deg, rad, pi_rad)
 def reads_back_as(text):
     """The canonical value `text` parses to, through the REAL parser.
 
-    `Doc.parse_expr` plus `Doc.eval` is the door the formatter's pin is
+    `Doc.parse_formula` plus `Doc.eval` is the door the formatter's pin is
     stated against — "`parse(fmt(x, unit))` recovers `x` bit-exactly,
     where `parse` is the expression text parser's literal semantics"
     (`crates/quantity/src/fmt.rs`). Rust's own round-trip test cannot
@@ -49,7 +49,7 @@ def reads_back_as(text):
     literal it meant to check.
     """
     doc = Doc()
-    value = doc.eval(doc.parse_expr(text))
+    value = doc.eval(doc.parse_formula(text))
     if isinstance(value, Length):
         return value.meters
     if isinstance(value, Angle):
@@ -135,7 +135,7 @@ class TestDisplayFormatter(unittest.TestCase):
     """LIB-B-FORMAT: `Length.format` / `Angle.format`, the D6 display
     formatter, and the pin that is the whole reason it exists.
 
-    The oracle throughout is `Doc.parse_expr` + `Doc.eval` — doors that
+    The oracle throughout is `Doc.parse_formula` + `Doc.eval` — doors that
     already ship — rather than a table of expected strings. A string
     table would pin what the formatter happens to print today; the pin
     the module actually makes is a relationship between the two doors,

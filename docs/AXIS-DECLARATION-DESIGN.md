@@ -64,7 +64,7 @@ Ev's objection (2026-09-12) is what settles it:
 > rotated."*
 
 It is right, and the failure is **live rather than hypothetical**:
-`Node::Declare`'s pairs name entities by `StableName` and are re-resolved
+A boolean's declared pairs name entities by `StableName` and are re-resolved
 at every evaluation, so after one operand is rotated the declaration
 re-resolves to the same faces and is asserted again. Nothing about the
 edit invalidates it. Today only `verify_declared_contacts`

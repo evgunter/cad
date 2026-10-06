@@ -501,5 +501,6 @@ pub fn one_circle_cut(
             body.describe_at_rest(edge, s_seed, tol).unwrap();
         }
     }
+    topo::mint_pcurves(&mut body, tol).unwrap();
     body
 }

@@ -22,12 +22,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use revolve_common::*;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid};
 
@@ -352,7 +354,7 @@ fn probe_small_frustum_virtual_apex_still_exhausts() {
 /// tessellates watertight.
 #[test]
 fn probe_e2e_revolve_union_tessellate() {
-    let a = quarter_cone();
+    let a = finished("the quarter cone", quarter_cone(), Tol::witness());
     let lp = ProfileLoop::polygon([
         Point2::new(5.0, 0.0),
         Point2::new(6.0, 0.0),
@@ -363,9 +365,17 @@ fn probe_e2e_revolve_union_tessellate() {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let b = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let b = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let b = finished("the brick", b, Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the cone-bearing union assembles");
     let result = out.body().expect("non-empty");
     assert_eq!(topo::validate_closed(&result.body), Ok(()));

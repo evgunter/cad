@@ -33,6 +33,7 @@ use geom::Surface;
 use geom_brep::OutwardNormal;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
@@ -230,9 +231,16 @@ fn p4_the_l_bracket_inner_edge_still_refuses_the_fillet_as_mixed() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the L is a valid profile");
-    let body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("the bracket extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bracket extrudes")
+    .body;
     let inner = edges_with_corners(&body, |p| {
         (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
     });

@@ -1,7 +1,7 @@
 //! M3 PR 4 adversarial review suite — INDEPENDENT derivations (censuses
 //! hand-derived from geometry before reading the shipped tests; see the
 //! review report). Falsification targets: Table III / edge-edge tie
-//! engine (wedge-touch, notch double-tie, reflex residue), the 15.7
+//! engine (wedge-touch, notch double-tie, reflex edge), the 15.7
 //! sign chain (mirrored resting fixtures), BOB-routing (pinch contexts
 //! produce no join input), contact completeness, operands untouched
 //! (byte-compare), pierce-ring structure, plane_eq NaN door.
@@ -10,18 +10,17 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, prism_z};
+use common::{brick, finished, flush_declarations, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
-use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
 
 /// Full geometric dump of a body: every vertex's point coordinates (via
 /// Debug — bit-faithful for f64) plus entity counts. Operand-untouched
 /// checks compare this, not just counts.
 fn dump<T: Decide>(b: &Body<T>) -> String {
     let mut s = String::new();
-    for (vk, v) in b.vertices() {
-        let p = b.get_point(v.point).unwrap();
+    for (vk, p) in b.vertex_points() {
         s.push_str(&format!("{vk:?}:{p:?};"));
     }
     s.push_str(&format!(
@@ -33,10 +32,10 @@ fn dump<T: Decide>(b: &Body<T>) -> String {
     s
 }
 
-fn reduce_ok<T: Decide + geom_core::Bounds>(
+fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     // M4 PR 5: the review corpus declares its intended flush contacts.
@@ -66,8 +65,16 @@ const ALL_OPS: [BooleanOp; 3] = [BooleanOp::Union, BooleanOp::Intersect, Boolean
 #[test]
 fn census_two_bricks_independent() {
     for op in ALL_OPS {
-        let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-        let b = brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness());
+        let a = finished(
+            "operand A",
+            brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+            Tol::witness(),
+        );
+        let b = finished(
+            "operand B",
+            brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
+            Tol::witness(),
+        );
         let red = reduce_ok(op, &a, &b);
         assert_eq!(
             (
@@ -101,8 +108,16 @@ fn census_two_bricks_independent() {
 #[test]
 fn census_post_through_slab() {
     for op in ALL_OPS {
-        let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness());
-        let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (-1.0, 3.0), Tol::witness());
+        let a = finished(
+            "operand A",
+            brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness()),
+            Tol::witness(),
+        );
+        let b = finished(
+            "operand B",
+            brick::<f64>((1.0, 2.0), (1.0, 2.0), (-1.0, 3.0), Tol::witness()),
+            Tol::witness(),
+        );
         let red = reduce_ok(op, &a, &b);
         assert_eq!(
             (
@@ -155,10 +170,22 @@ fn census_post_through_slab() {
 #[test]
 fn sign_chain_mirrored_resting() {
     // Above.
-    let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
     // Below (mirror).
-    let c = brick::<f64>((1.0, 2.0), (1.0, 2.0), (-2.0, 0.0), Tol::witness());
+    let c = finished(
+        "the mirrored operand",
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (-2.0, 0.0), Tol::witness()),
+        Tol::witness(),
+    );
     for op in [BooleanOp::Intersect, BooleanOp::Subtract] {
         for other in [&b, &c] {
             let red = reduce_ok(op, &a, other);
@@ -182,8 +209,16 @@ fn sign_chain_mirrored_resting() {
 /// the two shared-endpoint v-v contacts are the entire record.
 #[test]
 fn wedge_touch_no_join_input_any_op() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     for op in ALL_OPS {
         let red = reduce_ok(op, &a, &b);
         assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
@@ -202,8 +237,16 @@ fn wedge_touch_no_join_input_any_op() {
 /// rim: 4 pairs, 8 run edges, 0 rings; ∩/∖ (⁻ row): contact only.
 #[test]
 fn cross_stack_neighbor_face_catch() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (-1.0, 3.0), (2.0, 4.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((0.5, 1.5), (-1.0, 3.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
     for op in ALL_OPS {
         let red = reduce_ok(op, &a, &b);
         assert_eq!(red.contacts.vv.len(), 4, "op {op:?}");
@@ -228,8 +271,16 @@ fn cross_stack_neighbor_face_catch() {
 /// edges; ∩/∖ cancel everything.
 #[test]
 fn stacked_double_tie_exact() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
     let red = reduce_ok(BooleanOp::Union, &a, &b);
     assert_eq!(red.contacts.vv.len(), 4);
     assert_eq!(red.null_pairs.len(), 4);
@@ -242,13 +293,10 @@ fn stacked_double_tie_exact() {
     }
 }
 
-/// Reflex-dihedral residue, benign side: a triangular prism nestled in
-/// the notch of an L-prism, sharing only the reflex vertical edge.
-/// Touch, no crossing — expect clean success with v-v contacts only OR
-/// the documented loud refusal; NEVER a silent seam.
-#[test]
-fn reflex_edge_touch_benign() {
-    let a = prism_z::<f64>(
+/// The L-prism of the two reflex-edge rows: unit height, area 3, its
+/// 270° wedge on the vertical edge over (1, 1).
+fn l_prism_unit() -> AtRestBody<f64> {
+    let l = prism_z::<f64>(
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -262,75 +310,125 @@ fn reflex_edge_touch_benign() {
         Tol::witness(),
     )
     .body;
-    let b = prism_z::<f64>(
-        &[(1.0, 1.0), (2.0, 1.4), (1.4, 2.0)],
-        0.0,
-        1.0,
-        Tol::witness(),
-    )
-    .body;
-    for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b, Tol::witness()) {
-            Ok(red) => {
-                validate(&red.a).unwrap();
-                validate(&red.b).unwrap();
-                assert!(
-                    red.null_pairs.is_empty() && red.null_edges.is_empty(),
-                    "op {op:?}: seam minted at a touch-only reflex edge"
-                );
-            }
-            Err(
-                e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
-            ) => {
-                eprintln!("reflex touch refused (documented residue): {e}");
-            }
-            Err(e) => panic!("unexpected error class: {e}"),
-        }
+    finished("the L-prism", l, Tol::witness())
+}
+
+/// `op` on `a` and `b` under `decls` builds a body that passes tiers 2
+/// and 3′ and the at-rest certificate at the closed-form `volume`, or
+/// the empty result when `volume` is zero.
+fn assert_sound(
+    op: BooleanOp,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    decls: &topo::BooleanDeclarations,
+    volume: f64,
+) {
+    let tol = Tol::witness();
+    let res = match op {
+        BooleanOp::Union => topo::union_with(a, b, decls, tol),
+        BooleanOp::Intersect => topo::intersect_with(a, b, decls, tol),
+        BooleanOp::Subtract => topo::subtract_with(a, b, decls, tol),
+    };
+    let bb = match res {
+        Ok(topo::BooleanResult::Empty) if volume == 0.0 => return,
+        Ok(topo::BooleanResult::Body(bb)) if volume > 0.0 => bb,
+        other => panic!("op {op:?}: {other:?}"),
+    };
+    assert_eq!(topo::validate_closed(&bb.body), Ok(()), "op {op:?}: tier 2");
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        Ok(()),
+        "op {op:?}: tier 3′"
+    );
+    assert!(
+        topo::validate_geometric_certificate(&bb.body, tol).is_ok(),
+        "op {op:?}: the at-rest certificate"
+    );
+    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    assert!(
+        (v - volume).abs() < 1e-9,
+        "op {op:?}: volume {v}, want {volume}"
+    );
+}
+
+/// Reflex edge, touch: a triangular prism nestled in the notch of an
+/// L-prism, its corner on the reflex vertical edge, adding its area to
+/// the L's 3 with nothing in common.
+/// - Sharing only that edge (area 0.42), no declaration is needed: the
+///   reduction finds the two v-v contacts and no seam. Both of the
+///   triangle's flankers lie outside both of the L's flanking planes, so
+///   no verdict splits and the wedge's extent is never asked.
+/// - Flush along the +x arm's wall (area 0.4, declared): the wall's
+///   anti-parallel tie reads the On ladder, which splits the verdicts,
+///   and the union is right only if the 270° wedge reads reflex.
+#[test]
+fn reflex_edge_touch_benign() {
+    let tol = Tol::witness();
+    let a = l_prism_unit();
+    let edge = finished(
+        "the touching triangle",
+        prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.4), (1.4, 2.0)], 0.0, 1.0, tol).body,
+        tol,
+    );
+    for (op, volume) in [
+        (BooleanOp::Union, 3.42),
+        (BooleanOp::Intersect, 0.0),
+        (BooleanOp::Subtract, 3.0),
+    ] {
+        let red = boolean_reduce(op, &a, &edge, tol).unwrap();
+        assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
+        assert!(
+            red.null_pairs.is_empty() && red.null_edges.is_empty(),
+            "op {op:?}: seam minted at a touch-only reflex edge"
+        );
+        assert_sound(op, &a, &edge, &topo::BooleanDeclarations::default(), volume);
+    }
+    let flush = finished(
+        "the flush triangle",
+        prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.0), (1.5, 1.8)], 0.0, 1.0, tol).body,
+        tol,
+    );
+    let decls = flush_declarations(&a, &flush, tol);
+    for (op, volume) in [
+        (BooleanOp::Union, 3.4),
+        (BooleanOp::Intersect, 0.0),
+        (BooleanOp::Subtract, 3.0),
+    ] {
+        assert_sound(op, &a, &flush, &decls, volume);
     }
 }
 
-/// Reflex-dihedral residue, crossing side: the triangle straddles the
-/// +x arm of the L (genuine material overlap; a correct engine must
-/// germ here). The convex-wedge membership limitation makes the two
-/// solids disagree — the PR claims a LOUD typed refusal. A silent
-/// Ok with no seam would be a wrong answer (BLOCKER-grade).
+/// Reflex edge, crossing: the triangle straddles the +x arm of the L
+/// from the reflex edge, so the edge-edge site reads the L's 270° wedge
+/// and must germ there. Undeclared, the coplanar caps refuse at the
+/// coincidence door; declared flush, each op builds the closed form:
+/// the L's 3 and the triangle's 0.4 share its lower half, 0.2.
 #[test]
-fn reflex_edge_crossing_refuses_loudly() {
-    let a = prism_z::<f64>(
-        &[
-            (0.0, 0.0),
-            (2.0, 0.0),
-            (2.0, 1.0),
-            (1.0, 1.0),
-            (1.0, 2.0),
-            (0.0, 2.0),
-        ],
-        0.0,
-        1.0,
+fn reflex_edge_crossing_builds_sound() {
+    let a = l_prism_unit();
+    let b = finished(
+        "the crossing triangle",
+        prism_z::<f64>(
+            &[(1.0, 1.0), (2.0, 0.6), (2.0, 1.4)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        )
+        .body,
         Tol::witness(),
-    )
-    .body;
-    let b = prism_z::<f64>(
-        &[(1.0, 1.0), (2.0, 0.6), (2.0, 1.4)],
-        0.0,
-        1.0,
-        Tol::witness(),
-    )
-    .body;
-    for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b, Tol::witness()) {
-            Ok(red) => {
-                assert!(
-                    !red.null_pairs.is_empty(),
-                    "op {op:?}: SILENT wrong answer — material overlap with no seam"
-                );
-            }
-            Err(BooleanError::ClassificationInvariant { what }) => {
-                eprintln!("op {op:?}: loud refusal: {what}");
-            }
-            Err(BooleanError::Escalated { .. } | BooleanError::UndeclaredCoincidence { .. }) => {}
-            Err(e) => panic!("unexpected error class: {e}"),
-        }
+    );
+    let decls = flush_declarations(&a, &b, Tol::witness());
+    for (op, volume) in [
+        (BooleanOp::Union, 3.2),
+        (BooleanOp::Intersect, 0.2),
+        (BooleanOp::Subtract, 2.8),
+    ] {
+        let err = boolean_reduce(op, &a, &b, Tol::witness()).unwrap_err();
+        assert!(
+            matches!(err, BooleanError::UndeclaredCoincidence { .. }),
+            "op {op:?}: undeclared caps, got {err:?}"
+        );
+        assert_sound(op, &a, &b, &decls, volume);
     }
 }
 
@@ -342,21 +440,29 @@ fn reflex_edge_crossing_refuses_loudly() {
 /// demands, or the documented loud refusal — never a quiet wrong shape.
 #[test]
 fn notch_fill_dense_ties() {
-    let a = prism_z::<f64>(
-        &[
-            (0.0, 0.0),
-            (2.0, 0.0),
-            (2.0, 1.0),
-            (1.0, 1.0),
-            (1.0, 2.0),
-            (0.0, 2.0),
-        ],
-        0.0,
-        1.0,
+    let a = finished(
+        "operand A",
+        prism_z::<f64>(
+            &[
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 1.0),
+                (1.0, 1.0),
+                (1.0, 2.0),
+                (0.0, 2.0),
+            ],
+            0.0,
+            1.0,
+            Tol::witness(),
+        )
+        .body,
         Tol::witness(),
-    )
-    .body;
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness());
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     for op in ALL_OPS {
         match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
@@ -402,7 +508,7 @@ fn plane_eq_nan_and_negzero() {
     let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
     let p1 = mk(Vec3::new(0.0, 0.0, nan1), Point3::new(0.0, 0.0, 0.0));
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
-    let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band);
+    let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, &metre_ball(1.0), band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
     // Same-source revert pair (the post-retirement declared rung):
     // orient split decides SameOpposite with zero numerics.
@@ -419,7 +525,7 @@ fn plane_eq_nan_and_negzero() {
                 s2: Some(&src_rev),
                 declared: false
             },
-            1.0,
+            &metre_ball(1.0),
             band
         )
         .unwrap(),
@@ -427,7 +533,7 @@ fn plane_eq_nan_and_negzero() {
     );
     // The SAME values without sources: Undeclared, typed — the M4
     // PR 5 narrowing (equal bits without shared source stay unglued).
-    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, 1.0, band);
+    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, &metre_ball(1.0), band);
     assert!(
         matches!(r, Err(topo::PlaneEqError::Undeclared { .. })),
         "unsourced value-equal planes must refuse Undeclared, got {r:?}"
@@ -441,17 +547,25 @@ mod interval {
 
     #[test]
     fn post_through_interval() {
-        let a = brick::<Interval>(
-            (0.0, 3.0),
-            (0.0, 3.0),
-            (0.0, 2.0),
-            geom_core::Tol::witness(),
+        let a = finished(
+            "operand A",
+            brick::<Interval>(
+                (0.0, 3.0),
+                (0.0, 3.0),
+                (0.0, 2.0),
+                geom_core::Tol::witness(),
+            ),
+            Tol::witness(),
         );
-        let b = brick::<Interval>(
-            (1.0, 2.0),
-            (1.0, 2.0),
-            (-1.0, 3.0),
-            geom_core::Tol::witness(),
+        let b = finished(
+            "operand B",
+            brick::<Interval>(
+                (1.0, 2.0),
+                (1.0, 2.0),
+                (-1.0, 3.0),
+                geom_core::Tol::witness(),
+            ),
+            Tol::witness(),
         );
         let red = reduce_ok(BooleanOp::Subtract, &a, &b);
         assert_eq!(red.null_pairs.len(), 8);
@@ -459,17 +573,25 @@ mod interval {
 
     #[test]
     fn wedge_touch_interval() {
-        let a = brick::<Interval>(
-            (0.0, 1.0),
-            (0.0, 1.0),
-            (0.0, 1.0),
-            geom_core::Tol::witness(),
+        let a = finished(
+            "operand A",
+            brick::<Interval>(
+                (0.0, 1.0),
+                (0.0, 1.0),
+                (0.0, 1.0),
+                geom_core::Tol::witness(),
+            ),
+            Tol::witness(),
         );
-        let b = brick::<Interval>(
-            (1.0, 2.0),
-            (0.0, 1.0),
-            (1.0, 2.0),
-            geom_core::Tol::witness(),
+        let b = finished(
+            "operand B",
+            brick::<Interval>(
+                (1.0, 2.0),
+                (0.0, 1.0),
+                (1.0, 2.0),
+                geom_core::Tol::witness(),
+            ),
+            Tol::witness(),
         );
         for op in ALL_OPS {
             let red = reduce_ok(op, &a, &b);
@@ -488,23 +610,35 @@ mod interval {
 /// op-independently (no coplanar ties anywhere).
 #[test]
 fn generic_edge_edge_mixed_order_pair() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     // Crossing twin: wedge contains A's −y bound.
-    let b_cross = prism_z::<f64>(
-        &[(1.0, 1.0), (0.7, 0.0), (1.5, 0.2)],
-        -0.5,
-        1.5,
+    let b_cross = finished(
+        "the crossing twin",
+        prism_z::<f64>(
+            &[(1.0, 1.0), (0.7, 0.0), (1.5, 0.2)],
+            -0.5,
+            1.5,
+            Tol::witness(),
+        )
+        .body,
         Tol::witness(),
-    )
-    .body;
+    );
     // Touching twin: wedge strictly inside A's exterior quadrant.
-    let b_touch = prism_z::<f64>(
-        &[(1.0, 1.0), (2.0, 1.2), (1.2, 2.0)],
-        -0.5,
-        1.5,
+    let b_touch = finished(
+        "the touching twin",
+        prism_z::<f64>(
+            &[(1.0, 1.0), (2.0, 1.2), (1.2, 2.0)],
+            -0.5,
+            1.5,
+            Tol::witness(),
+        )
+        .body,
         Tol::witness(),
-    )
-    .body;
+    );
     for op in ALL_OPS {
         // FINDING R-1 (fixed in the review fix-pass): the mixed-order
         // (interleaved-wedge) collinear overlap — TOG Fig. 19-left's
@@ -545,20 +679,18 @@ fn generic_edge_edge_mixed_order_pair() {
 }
 
 /// A brick over `x` with one face relabelled a cone whose apex sits
-/// one unit before the brick on the `x` axis — the operand gate's
-/// fixture on both sides of its question. The cone is a kind with no
-/// wired boolean arm (the torus, which this fixture used to carry, is
-/// on the roster now), and its box is read off the face's own
-/// boundary, so where the BRICK sits decides whether the box reaches
-/// `a`.
+/// one unit before the brick on the `x` axis, the face's boundary left
+/// on the brick's lines. The cone is a kind with no wired boolean arm,
+/// and its box is read off the face's own boundary, so where the BRICK
+/// sits decides whether the box reaches `[0, 1]^3`.
 #[cfg(test)]
 fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     use geom_core::Vec3;
     let apex = geom_core::Point3::new(x.0 - 1.0, 0.5, 0.5);
     let mut b = brick::<f64>(x, (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let (face, _) = b.faces().next().unwrap();
-    // Lifts both refusals: the relabelled cone is the operand gate's input, its box read off the brick.
-    b.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the relabelled cone is the operand gate's input, its box read off the brick.
+    b.set_face_surface_unvouched_for_tests(
         face,
         topo::FaceSurface::New {
             surface: geom::Surface::Cone {
@@ -574,77 +706,105 @@ fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     (b, face)
 }
 
-/// The curved gate, PAIR-SCOPED: a face whose kind has no wired
-/// boolean arm refuses only when its box may meet the other operand,
-/// and the refusal names the germ PAIR — both faces and both kinds —
-/// rather than the body.
+/// The edges bounding `face`'s outer loop, and its half-edges there.
+fn face_boundary(
+    b: &Body<f64>,
+    face: topo::FaceKey,
+) -> (Vec<topo::EdgeKey>, Vec<topo::HalfEdgeKey>) {
+    let outer = b.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
+        panic!("the relabelled face's outer loop is a cycle")
+    };
+    let hes = b.loop_cycle(first).unwrap();
+    let mut edges: Vec<_> = hes
+        .iter()
+        .map(|&he| b.get_half_edge(he).unwrap().edge)
+        .collect();
+    edges.sort();
+    (edges, hes)
+}
+
+/// The `DescriptionNotAdjacent` edges among `errors`, sorted.
+fn not_adjacent_edges(errors: &[topo::ValidationError]) -> Vec<topo::EdgeKey> {
+    let mut edges: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            topo::ValidationError::DescriptionNotAdjacent { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    edges.sort();
+    edges
+}
+
+/// The cone-relabelled brick does not finish: the at-rest gate refuses
+/// it on the relabelled face — one `DescriptionNotAdjacent` for each of
+/// the face's four boundary edges, whose lines do not lie on the cone,
+/// and one pcurve finding, a loop discontinuity on one of the face's
+/// own half-edges — and on nothing else.
+fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
+    assert!(
+        matches!(
+            b.get_surface(b.get_face(face).unwrap().surface),
+            Some(geom::Surface::Cone { .. })
+        ),
+        "the relabelled face carries the cone"
+    );
+    let (edges, hes) = face_boundary(&b, face);
+    assert_eq!(edges.len(), 4);
+    let errors = AtRestBody::validate(b, Tol::witness())
+        .expect_err("a cone face over a brick's lines does not finish");
+    assert_eq!(errors.len(), 5, "four edges and one pcurve: {errors:?}");
+    assert_eq!(not_adjacent_edges(&errors), edges, "{errors:?}");
+    let pcurve: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            topo::ValidationError::Pcurve {
+                finding: topo::PcurveMintError::LoopDiscontinuity { half_edge },
+            } => Some(*half_edge),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        matches!(pcurve[..], [he] if hes.contains(&he)),
+        "one loop discontinuity, on the cone face's loop: {errors:?}"
+    );
+}
+
+/// A face whose kind has no wired boolean arm, posed so its box reaches
+/// the other operand: the cone-relabelled brick is refused at rest on
+/// the relabelled face (`assert_cone_face_refuses_at_rest`), so it
+/// never reaches the boolean's pair-scoped curved gate.
 #[test]
 fn curved_face_gate_witness() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    // The brick overlaps `a`, so the cone face's box reaches it.
+    // The brick overlaps `[0, 1]^3`, so the cone face's box would reach it.
     let (b, face) = brick_with_cone_face_at((0.5, 1.5));
-    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
-        Err(e) => e,
-        Ok(_) => panic!("a cone face reaching the other operand must refuse"),
-    };
-    let BooleanError::CurvedPairUnsupported {
-        op: None,
-        operand: topo::Operand::B,
-        face: f,
-        kind: geom::SurfaceKind::Cone,
-        other_kind: geom::SurfaceKind::Plane,
-        ..
-    } = err
-    else {
-        panic!("expected the pair-scoped gate refusal, got {err:?}");
-    };
-    assert_eq!(f, face);
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("the second operand's cone face may meet the first operand's plane face"),
-        "the refusal names the pair, each face by its operand, and says the \
-         overlap is a may rather than a computed meeting: {msg}"
-    );
-    assert!(
-        msg.contains("move them so the cone face stays clear of the other solid"),
-        "the refusal ends on the recourse the box conservatism makes real: {msg}"
-    );
+    assert_cone_face_refuses_at_rest(b, face);
 }
 
-/// **The other side of the same question**: the SAME body, with the
-/// cone face's box moved clear of the other operand, is no longer
-/// gated at all — the reduction runs. The two bricks are disjoint, so
-/// what this row pins is the gate's scope and nothing downstream: a
-/// kind with no arm cannot disqualify an operation it could never
-/// enter. Reverting the gate to a per-body kind scan reds it.
+/// **The other side of the same question**: the SAME body with the
+/// cone face's box moved clear of `[0, 1]^3` is refused at rest just
+/// the same, on the relabelled face — where the brick sits does not
+/// make a stranded relabel a finished body.
 #[test]
-fn a_cone_face_whose_box_clears_the_other_operand_does_not_gate() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+fn a_cone_relabelled_brick_clear_of_the_other_operand_is_refused_at_rest() {
     // Ten units out along x: the face's box cannot reach x ∈ [0, 1].
-    let (b, _) = brick_with_cone_face_at((10.0, 11.0));
-    let red = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
-        .expect("a cone face out of reach must not gate the union");
-    assert!(
-        red.null_pairs.is_empty(),
-        "the two bricks are disjoint; the gate's scope is what this row pins"
-    );
+    let (b, face) = brick_with_cone_face_at((10.0, 11.0));
+    assert_cone_face_refuses_at_rest(b, face);
 }
 
-/// Shape (iii) READINESS, pinned end to end at the boolean layer
-/// (M5 PR 9 fix pass, F6/dev 4 aftermath): a NURBS-walled operand
-/// passes the per-arm gate (the SECTION arm is certified since
-/// PR 7b), and the pipeline surfaces its CURRENT typed refusal at
-/// the crossing layer — the sweep's edge×NURBS-face arm. The spec's
-/// original "one 7b-flag-flip from live" claim was wrong (the
-/// crossing layer is not behind 7b's flag); this row pins what IS
-/// true.
+/// Shape (iii) READINESS at the operand: a brick with one face
+/// relabelled to the placeholder NURBS net does not finish. The
+/// at-rest gate refuses it on that face and nothing else: one
+/// `UncertifiableSurface` naming the face (the placeholder net), and
+/// one `DescriptionNotAdjacent` for each of its four boundary edges,
+/// whose lines lie on no surface the net describes.
 #[test]
-fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let (face, _) = b.faces().next().unwrap();
-    // Lifts both refusals: the NURBS wall is the boolean's input; its edges are not the row.
-    b.set_face_surface_stranding_for_tests(
+    // Lifts RechartStrandsDescriptions: the NURBS wall is the at-rest gate's input; its edges are not the row.
+    b.set_face_surface_unvouched_for_tests(
         face,
         topo::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
@@ -652,31 +812,17 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
         },
     )
     .unwrap();
-    // The bricks' flush walls are continuations, declared so the op
-    // reaches its crossing layer; the NURBS wall has no carrier the
-    // detector can compare, so it is in no finding.
-    let flush = flush_declarations(&a, &b, Tol::witness());
-    let err = match topo::boolean_reduce_declared(BooleanOp::Union, &a, &b, &flush, Tol::witness())
-    {
-        Err(e) => e,
-        Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
-    };
-    let BooleanError::CurvedBooleanUnsupported {
-        kind: geom::SurfaceKind::Nurbs,
-        ..
-    } = err
-    else {
-        panic!("expected the typed crossing-layer refusal, got {err:?}");
-    };
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("one solid's spline (NURBS) face meets the face of the other solid"),
-        "the refusal names the face kind with no crossing layer: {msg}"
+    let (edges, _) = face_boundary(&b, face);
+    assert_eq!(edges.len(), 4);
+    let errors = AtRestBody::validate(b, Tol::witness())
+        .expect_err("a placeholder NURBS wall does not finish");
+    assert_eq!(errors.len(), 5, "one surface and four edges: {errors:?}");
+    assert_eq!(
+        errors[0],
+        topo::ValidationError::UncertifiableSurface { face },
+        "the placeholder net is named on its face: {errors:?}"
     );
-    assert!(
-        msg.contains("Recourse: "),
-        "the refusal ends on what the person can do: {msg}"
-    );
+    assert_eq!(not_adjacent_edges(&errors), edges, "{errors:?}");
 }
 
 /// The two DERIVATION-CORRECTED ∖-column cells, executed geometrically
@@ -689,8 +835,16 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
 #[test]
 fn corrected_subtract_cells_geometric() {
     // AonB⁻ (opposite): A rests on B's top face.
-    let a = brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0), Tol::witness());
-    let b = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let red = reduce_ok(BooleanOp::Subtract, &a, &b);
     assert_eq!(red.contacts.a_on_b.len(), 4);
     assert!(
@@ -701,8 +855,16 @@ fn corrected_subtract_cells_geometric() {
     assert_eq!(red.pierce_rings.len(), 4, "∪ must still seam the rim");
 
     // AonB⁺ (identical): A embedded floor-to-floor inside B.
-    let a = brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let red = reduce_ok(BooleanOp::Subtract, &a, &b);
     assert_eq!(red.contacts.a_on_b.len(), 4);
     assert!(
@@ -715,4 +877,10 @@ fn corrected_subtract_cells_geometric() {
     // ∪ = B with A's coincident floor patch surviving: seams needed.
     let red = reduce_ok(BooleanOp::Union, &a, &b);
     assert_eq!(red.pierce_rings.len(), 4);
+}
+
+/// A ball of radius `arm` about the origin, no point of either face
+/// known: the extent a bare arm names.
+fn metre_ball(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm))
 }

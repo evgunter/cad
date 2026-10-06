@@ -632,7 +632,10 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
 }
 
 // ---------------------------------------------------------------------
-// Assignment 3 (unit level): out-of-inventory boundaries refuse typed.
+// Assignment 3 (unit level): a boundary this lane cannot fold refuses
+// typed — and the variant says WHICH of the two it is, by the premise
+// the residual checked: `OffSurface` where no valid body could get
+// there, `NotIsoRectangle` where a valid face can.
 // ---------------------------------------------------------------------
 
 #[test]
@@ -651,9 +654,9 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &lp.edges, true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::OffSurface { .. })
         ),
-        "wrong-radius rim must refuse"
+        "a wrong-radius circle is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
@@ -663,9 +666,9 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &lp.edges, true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::OffSurface { .. })
         ),
-        "tilted meridian must refuse"
+        "a tilted line is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
     // (d) line edge on a sphere.
     let sp = sph();
@@ -716,7 +719,10 @@ fn out_of_inventory_boundaries_refuse_typed() {
 /// silently with a fabricated contribution. The fix adds the
 /// `props_rim_center_on_axis` / `props_rim_axis_parallel` /
 /// per-surface meridian incidence residuals; the off-axis rim now
-/// refuses typed (`NotIsoRectangle`), matching the module docs.
+/// refuses typed, and since a cylinder's only on-surface circles are its
+/// cross-sections the premise is an INCIDENCE one, so the refusal is
+/// `PropsError::OffSurface` — a defect of the kernel or of the file,
+/// told apart from a valid face outside the inventory.
 #[test]
 fn off_surface_boundaries_must_refuse_typed() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
@@ -748,7 +754,7 @@ fn off_surface_boundaries_must_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &edges, true, band()),
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::OffSurface {
                 what: "props_rim_center_on_axis"
             })
         ),

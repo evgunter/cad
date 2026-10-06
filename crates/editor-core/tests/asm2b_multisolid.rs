@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
@@ -39,6 +40,7 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -82,11 +84,7 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 /// comparing the two sorted lists pairs each vertex with its own moved
 /// self, and every difference must be the translation exactly.
 fn xs(body: &topo::Body<f64>) -> Vec<f64> {
-    let mut v: Vec<f64> = body
-        .vertices()
-        .filter_map(|(_, e)| body.get_point(e.point))
-        .map(|p| p.x)
-        .collect();
+    let mut v: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
     v.sort_by(f64::total_cmp);
     v
 }
@@ -383,7 +381,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// the mint gives the part's nodes or steps other ids; the VOLUME bits
 /// and the solid count beside it are id-free, which is the half of this
 /// row that is about geometry.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 6_104_778_039_035_903_067;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 255_888_501_987_147_043;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

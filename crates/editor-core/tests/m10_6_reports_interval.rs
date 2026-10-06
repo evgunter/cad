@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
@@ -27,16 +28,29 @@ use editor_core::mc::{McConfig, McRefusal, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym,
+    AssertionDir, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, MeasureExpr,
+    MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, VarName,
     save,
 };
 use geom_core::Tol;
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+/// A variable as the free mass doors' refusals speak it.
+/// The variable `doc` declares as `name`, or an id it never minted.
+fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
+    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+}
+
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId(0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The ε-scaled half-width the driver can certify over.
@@ -53,14 +67,14 @@ fn half() -> f64 {
 /// vary.
 fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(law),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -74,6 +88,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     // Placed by the parameter, so the measured distance moves with it —
     // M10-5's finding that a rigid placement is what survives the
@@ -82,7 +97,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::param(name("place"), Dimension::Length),
+                Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],
@@ -158,6 +173,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         &parallel,
         None,
         false,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -168,6 +184,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         &parallel,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -221,6 +238,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -233,6 +251,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -256,6 +275,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         &wider_verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -329,6 +349,7 @@ fn the_cache_serves_equal_keys_and_only_those() {
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("a stackup");
@@ -561,9 +582,9 @@ fn the_mc_tail_fraction_converges_on_the_accountings_tail() {
     let (doc, _, _) = plate(Distribution::Normal { sigma: half() });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let exact = editor_core::tail_mass(
-        &name("place"),
+        &sp("place"),
         &Distribution::Normal { sigma: half() },
-        &analyzed.get(&name("place")).expect("the axis").offsets,
+        &analyzed.get(v(&doc, "place")).expect("the axis").offsets,
     )
     .expect("a normal prices its tail");
     assert!(
@@ -613,7 +634,7 @@ fn the_budget_renders_its_tail_and_its_containment() {
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the nominal builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    let rendered = budget.render();
+    let rendered = budget.render(&doc);
     assert!(rendered.contains("tail"), "the tail has a line: {rendered}");
     assert!(
         rendered.contains("UNRESOLVED"),

@@ -2,7 +2,8 @@
 id: shell-face-neighbours-hops-to-a-mates-face-without-proving-it-lists-the-loop
 kind: issue
 title: shell's face_neighbours reads a mate loop's face without proving the face lists the loop, so the open-face component count can join through a loop no face owns
-status: open
+status: closed
+closed: 2026-10-04
 opened: 2026-10-01
 priority: P3
 ---
@@ -18,7 +19,8 @@ face's loops, takes each member's mate through `Body::mate`, reads the
 mate's `parent_loop`, and returns that loop's `face` as a neighbour.
 Nothing proves that the face it names lists the loop (its `outer` or one
 of its `rings`), nor that the mate's own `edge` is the member's
-(`Body::proven_mate`'s `NotSameEdge`), nor that a walked loop is the
+(`Body::proven_mate`'s same-edge
+assertion), nor that a walked loop is the
 whole of its claimants.
 
 Its readers:
@@ -50,5 +52,18 @@ through a loop the seed face does not list
 ## Fix shape
 
 Hop through `Body::proven_mate` and prove that the face the mate's loop
-names lists the loop, refusing `ShellError::Corrupt` naming the loop, as
-`movefac`'s labelling refuses `NotOwned { child: Loop, owner: Face }`.
+names lists the loop, and on a miss panic naming the record (D2 row
+4), as `movefac`'s labelling does ("loop … names face …, which does not
+list it", `movefac.rs`).
+
+## Closed 2026-10-04 (`lane-b-shell-replace`)
+
+`face_neighbours` walks the face's cycles through `Body::face_cycles_linked`,
+hops to each member's mate through `Body::proven_mate` (the same-edge
+assertion), and reads the mate loop's face through `Body::face_of_linked`,
+which asserts the face lists the loop ("loop … names face …, which does not
+list it", the `movefac` sentence). Pinned by `shell::tests::
+face_neighbours_panics_on_a_loop_its_face_does_not_list`. The third gap the
+row names — that a walked loop is the whole of its claimants — is not
+proven here; on a tier-1-valid body it holds, and no reader of this walk
+depends on more than its members' own faces.

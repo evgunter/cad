@@ -2,10 +2,13 @@
 id: plane-offset-rung-decided-zero-shares-invalid-with-a-poisoned-margin
 kind: issue
 title: topo: plane_eq's offset rung carries its decided zero as MarginDiag::INVALID, the poisoned-margin encoding, and flush::pair_finding reads a poisoned offset as DecidedCoincident
-status: open
+status: closed
+branch: topo/plane-offset-rung-carries-its-decided-margin
+pr: 3974
 opened: 2026-09-30
 priority: P2
 cost: M
+closed: 2026-10-03
 ---
 
 
@@ -55,3 +58,21 @@ the margin, with no runtime branch on `is_invalid()`. The public
 `flush::pair_finding` and `UndeclaredCoincidence`'s `Display` read
 exactly what they read before: the two readers above remain, and the
 repair is to hand them the typed arm too.
+
+## Delivered
+
+`CarrierEqError::Undeclared` carries a `CoincidenceMeasure`: `Zero` with
+the decided margin, `Undecided` (in band, or past it where the declared
+reading stands off), or `Unreadable` (a datum is NaN or ±∞). The plane
+ladder and the curved `data_rungs` decide each datum through
+`CoincidenceMeasure::decide`; `LadderRefusal` / `plane_eq_typed` retire.
+`pair_finding`, the pair door and the Boolean's raise sites read the arm.
+At the Boolean an unreadable datum refuses through
+`readable_coincidence` as `BooleanError::PoisonedCarrierDatum`, the
+operand's at-rest defect, never as a coincidence to declare; at the
+detector it is `FlushRefusal::PairUnreadable`. Rows: `flush::rows`,
+`plane_eq::tests::a_decided_zero_offset_is_not_a_poisoned_one`,
+`carrier_eq::tests::an_unreadable_curved_datum_is_reported_ahead_of_one_in_band`,
+`refusal_routes::tests::the_maximal_faces_gate_refuses_an_infinite_neighbour_offset_as_poison`,
+`boolean::tests::the_tangency_screen_refuses_an_infinite_offset_as_poison`,
+`boolean::tests::coincidence_pair_carries_the_shared_recourse_once`.

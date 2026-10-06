@@ -798,8 +798,8 @@ fn load_fault(error: &PersistError) -> ResolveFault {
 /// uses, so "the version on disk" means exactly what it means
 /// everywhere else.
 ///
-/// Returns the ordinary edit list, applied to nothing: the caller
-/// applies the whole group, exactly as with the storeless door. The
+/// Returns the ordinary edit list, applied to nothing, one
+/// independent edit per site, exactly as the storeless door's. The
 /// document is READ here and never written — persisting the updated
 /// assembly is [`Workspace::resave`]'s job, and keeping those separate
 /// is what lets an author inspect (or lint) the result before it lands.

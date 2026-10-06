@@ -6,8 +6,11 @@
 //! declaration it has no rung for, and the door RECORDS it as a
 //! `SkippedMerge` carrying `DeclaredCarrierUnsupported` — visible in
 //! `BooleanNaming::merge_skipped`, never an `InvalidDeclaration` refusal
-//! blaming the caller. Scenes A, B, C, D and F reach that record and
-//! ship an honest body; scene E stops at the reduction.
+//! blaming the caller. Scenes A, B and F reach that record and ship an
+//! honest body; scenes C and D ship an honest body through the chord
+//! join, which consumes the bore side of the pair before the door, so
+//! the door is handed nothing to record; scene E stops at the
+//! reduction.
 //!
 //! Scenes A–D are `mate2_common`'s; scene D's plate/peg builders are
 //! copied from `r1_probes_m9_3` (private there).
@@ -19,64 +22,84 @@ use crate::mate2_common;
 use geom::SurfaceKind;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use mate2_common::{
-    assert_additive, body_of, boolean_body, collar, collar_at, continuations, peg_at, plane_face,
-    volume, wall_decls, walls_at,
+    assert_additive, boolean_body, collar, collar_at, continuations, peg_at, plane_face, volume,
+    wall_decls, walls_at,
 };
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
-    Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
-    FaceSurface, MergeCoplanarError, Operand, Rechart, SkippedMerge, validate_closed,
-    validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass,
+    FacePairDeclaration, FaceSurface, MergeCoplanarError, Operand, Rechart, SkippedMerge,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 const BORE_R: f64 = 0.5;
 
 /// Scene A: the peg floats in the bore (z ∈ [1.5, 2.5] against a bore
 /// z ∈ [1, 2]); nine wall `Rest`s.
-fn scene_a() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
+fn scene_a() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
     let c = collar();
     let p = peg_at(0.0, 1.5, 1.0);
     let d = wall_decls(&c, &p);
-    (c, p, d)
+    let tol = Tol::witness();
+    (
+        finished("the collar", c, tol),
+        finished("the peg", p, tol),
+        d,
+    )
 }
 
 /// Scene B: the peg ends mid-bore (z ∈ [0.5, 1.5]).
-fn scene_b() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
+fn scene_b() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 0.5, 1.0);
     let d = wall_decls(&c, &p);
-    (c, p, d)
+    let tol = Tol::witness();
+    (
+        finished("the collar", c, tol),
+        finished("the peg", p, tol),
+        d,
+    )
 }
 
 /// Scene C: flush at the bottom, proud at the top (z ∈ [1, 2.5]).
-fn scene_c() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
+fn scene_c() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
     let c = collar_at(0.0);
     let p = peg_at(0.0, 1.0, 1.5);
     let d = wall_decls(&c, &p);
-    (c, p, d)
+    let tol = Tol::witness();
+    (
+        finished("the collar", c, tol),
+        finished("the peg", p, tol),
+        d,
+    )
 }
 
 /// Scene D: partial engagement — a plate with a peg reaching halfway up
 /// the through-bore of a plate above it; one planar `Rest` (the plates'
 /// mating faces) plus nine wall `Rest`s.
-fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
-    let p = body_of(
+fn scene_d() -> (AtRestBody<f64>, AtRestBody<f64>, BooleanDeclarations) {
+    let tol = Tol::witness();
+    let p = boolean_body(
         topo::union(
-            &plate6(0.0),
-            &plate6_cyl(2.0, 0.4, 1.1, BORE_R),
-            Tol::witness(),
+            &finished("the lower plate", plate6(0.0), tol),
+            &finished("the peg", plate6_cyl(2.0, 0.4, 1.1, BORE_R), tol),
+            tol,
         )
         .unwrap(),
-    );
-    let q = body_of(
+    )
+    .body;
+    let q = boolean_body(
         topo::subtract(
-            &plate6(1.0),
-            &plate6_cyl(2.0, 0.8, 1.4, BORE_R),
-            Tol::witness(),
+            &finished("the upper plate", plate6(1.0), tol),
+            &finished("the bore", plate6_cyl(2.0, 0.8, 1.4, BORE_R), tol),
+            tol,
         )
         .unwrap(),
-    );
+    )
+    .body;
     // The plates' flush outer walls are continuations.
     let mut d = continuations(&p, &q);
     d.coincident_faces.push(FacePairDeclaration::new(
@@ -98,8 +121,8 @@ fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
 /// to be right on its own.
 fn union_honest(
     label: &str,
-    a: &Body<f64>,
-    b: &Body<f64>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
     d: &BooleanDeclarations,
 ) -> BooleanBody<f64> {
     let bb = boolean_body(
@@ -118,6 +141,7 @@ fn union_honest(
         Ok(()),
         "{label}: tier 3′"
     );
+    sweep::test_support::assert_legal_operand(label, &bb.body, Tol::witness());
     bb
 }
 
@@ -222,13 +246,34 @@ fn sorted(mut faces: Vec<topo::FaceKey>) -> Vec<topo::FaceKey> {
     faces
 }
 
-/// Row 1 (C): the door runs, the body is honest, and the cylindrical
-/// declared pair is recorded — not refused, not dropped, once.
+/// The declared-carrier records of a boolean result (every other record
+/// is a curved run's `PeriodClosure`).
+fn declared_records(bb: &BooleanBody<f64>) -> usize {
+    bb.naming
+        .merge_skipped
+        .iter()
+        .filter(|s| {
+            matches!(
+                s.reason,
+                MergeCoplanarError::DeclaredCarrierUnsupported { .. }
+            )
+        })
+        .count()
+}
+
+/// Row 1 (C): the proud peg flush at the bottom ships an honest body,
+/// and the door is handed no cylinder pair. The peg's bottom rim lies
+/// on the bore's bottom rim, so the section segments there are edges of
+/// both solids; the chord join builds the union itself (JOIN-1), and
+/// the bore wall it discards takes its surface with it, so no declared
+/// pair has both keys live when the door runs. Scenes A and B, whose
+/// rims cut the wall mid-height, still go through the declared-REST
+/// zip and carry the record (row 2).
 #[test]
-fn proud_peg_declared_walls_union_records_the_cylinder_skip() {
+fn proud_peg_declared_walls_union_builds_through_the_join() {
     let (c, p, d) = scene_c();
     let bb = union_honest("C", &c, &p, &d);
-    assert_cylinder_records("C", &bb);
+    assert_eq!(declared_records(&bb), 0, "C: {:?}", bb.naming.merge_skipped);
 }
 
 /// `face` alone onto a fresh key holding `surface`, outward-facing,
@@ -241,8 +286,11 @@ fn on_a_key_of_its_own(
 ) -> topo::SurfaceKey {
     let charts = vec![Rechart::new(surface, face, true)];
     let specs = body.carried_redescriptions(&charts).unwrap();
+    // Lifts RechartUnvouched: the generators between sectors name the key the neighbours keep, on a curved chart whose residuals no door reads; the sectors on keys of their own are the row.
     let [key] = body
-        .set_face_surfaces_describing(charts, &specs, Tol::witness())
+        .lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(charts, &specs, Tol::witness())
+        })
         .unwrap()[..]
     else {
         panic!("one chart, one key")
@@ -367,7 +415,15 @@ fn d_prism_with_split_keys() -> (
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let built = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let mut body = built.body;
     let run = &built.walls[0][0];
     assert_eq!(run.segments, vec![0, 1], "the y = 0 side is one run");
@@ -425,9 +481,9 @@ fn distinct_keys(
         return (ka, kb);
     }
     let described = body.get_surface(kb).unwrap().clone();
-    // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
+    // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
     let fresh = body
-        .set_face_surface_stranding_for_tests(
+        .set_face_surface_unvouched_for_tests(
             b,
             FaceSurface::New {
                 surface: described,
@@ -517,7 +573,7 @@ fn record_beside_a_committing_curved_run_names_only_live_faces() {
 #[test]
 fn pair_with_no_live_faces_mints_no_record() {
     let (c, p, d) = scene_c();
-    let mut body = union_honest("C", &c, &p, &d).body;
+    let mut body = union_honest("C", &c, &p, &d).body.into_body();
     let walls = walls_at(&body, BORE_R);
     let pk = body.get_face(walls[0]).unwrap().surface;
     assert!(
@@ -529,8 +585,8 @@ fn pair_with_no_live_faces_mints_no_record() {
     for &f in &walls {
         let described = body.get_surface(pk).unwrap().clone();
         fresh.push(
-            // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
-            body.set_face_surface_stranding_for_tests(
+            // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
+            body.set_face_surface_unvouched_for_tests(
                 f,
                 FaceSurface::New {
                     surface: described,
@@ -547,6 +603,9 @@ fn pair_with_no_live_faces_mints_no_record() {
     );
     assert!(faces_on(&body, pk, pk).is_empty());
     assert_eq!(validate_closed(&body), Ok(()));
+    // At rest: the re-charted walls store their rows again, so the
+    // door's closing mint has nothing to change.
+    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let before = format!("{body:?}");
     let outcome = body
         .merge_coplanar_faces_declared(&[(pk, pk)], Tol::witness())
@@ -714,60 +773,42 @@ fn floating_and_mid_bore_pegs_ship_honest_with_one_record() {
     }
 }
 
-/// Row 3 (C, D): one side of the declared pair is CONSUMED by the zip
-/// — its surface is gone from the shipped body (held at the door only
-/// by an edge curve's reference) — and the door still records the pair
-/// once, its `faces` the other side's live remainder. D's planar pair
-/// never reaches the door (the zip consumes its faces), so the nine
-/// wall pairs are all it is handed, in whichever order the caller
-/// lists them.
+/// Row 3 (C, D): one side of the declared pair is CONSUMED by the
+/// union before the door runs — scene C's bore wall, scene D's peg wall
+/// — and its surface goes with it, so the door is handed no cylinder
+/// pair and records none, in whichever order the caller lists the
+/// declarations. Both build through the chord join (row 1).
 #[test]
-fn consumed_side_of_the_pair_is_gone_and_one_record_ships() {
+fn consumed_side_of_the_pair_leaves_the_door_nothing_to_record() {
     let (c, p, d) = scene_c();
     let bb = union_honest("C", &c, &p, &d);
-    let records = assert_cylinder_records("C", &bb);
-    let MergeCoplanarError::DeclaredCarrierUnsupported { pair, .. } = &records[0].reason else {
-        unreachable!()
-    };
-    let pair = *pair;
-    assert!(
-        bb.body.get_surface(pair.0).is_none() && bb.body.get_surface(pair.1).is_some(),
-        "C: the bore side of the pair is consumed, the peg side lives: {pair:?}"
-    );
+    assert_eq!(declared_records(&bb), 0, "C: {:?}", bb.naming.merge_skipped);
 
     let (p, q, d) = scene_d();
     let bb = union_honest("D", &p, &q, &d);
-    let records = assert_cylinder_records("D", &bb);
-    let MergeCoplanarError::DeclaredCarrierUnsupported { pair, .. } = &records[0].reason else {
-        unreachable!()
-    };
-    let pair = *pair;
-    assert!(
-        bb.body.get_surface(pair.0).is_none() && bb.body.get_surface(pair.1).is_some(),
-        "D: the peg side of the pair is consumed, the bore side lives: {pair:?}"
-    );
+    assert_eq!(declared_records(&bb), 0, "D: {:?}", bb.naming.merge_skipped);
     let mut reversed = BooleanDeclarations::none();
     reversed.coincident_faces = d.coincident_faces.iter().rev().cloned().collect();
     let rb = union_honest("D (planar pair last)", &p, &q, &reversed);
-    let reversed_records = assert_cylinder_records("D (planar pair last)", &rb);
     assert_eq!(
-        reversed_records[0].reason, records[0].reason,
-        "D: the record is order-independent"
+        declared_records(&rb),
+        0,
+        "D (planar pair last): {:?}",
+        rb.naming.merge_skipped
     );
-    assert_eq!(reversed_records[0].faces, records[0].faces);
 }
 
-/// Row 3′ (C): the declined pairs' records LEAD the group records —
+/// Row 3′ (A): the declined pairs' records LEAD the group records —
 /// the declaration's answer before the surgery's.
 #[test]
 fn declined_records_lead_the_group_records() {
-    let (c, p, d) = scene_c();
-    let bb = union_honest("C", &c, &p, &d);
+    let (c, p, d) = scene_a();
+    let bb = union_honest("A", &c, &p, &d);
     let skipped = &bb.naming.merge_skipped;
     let first_group = skipped
         .iter()
         .position(|s| matches!(s.reason, MergeCoplanarError::PeriodClosure { .. }))
-        .expect("C: the three-arc sectors' full-period runs are recorded");
+        .expect("A: the three-arc sectors' full-period runs are recorded");
     let last_declined = skipped
         .iter()
         .rposition(|s| {
@@ -776,7 +817,7 @@ fn declined_records_lead_the_group_records() {
                 MergeCoplanarError::DeclaredCarrierUnsupported { .. }
             )
         })
-        .expect("C: the declared pair is recorded");
+        .expect("A: the declared pair is recorded");
     assert!(last_declined < first_group, "{skipped:?}");
 }
 
@@ -876,13 +917,13 @@ fn unresolved_declared_key_still_refuses() {
     }
 }
 
-/// Row 6 (C): the record's text names the DOOR's missing arm, not the
+/// Row 6 (A): the record's text names the DOOR's missing arm, not the
 /// declaration — the declaration was legal and served the op.
 #[test]
 fn rendered_skip_names_the_door_not_the_declaration() {
-    let (c, p, d) = scene_c();
-    let bb = union_honest("C", &c, &p, &d);
-    let skip = assert_cylinder_records("C", &bb)[0];
+    let (c, p, d) = scene_a();
+    let bb = union_honest("A", &c, &p, &d);
+    let skip = assert_cylinder_records("A", &bb)[0];
     let MergeCoplanarError::DeclaredCarrierUnsupported { pair: (k1, k2), .. } = &skip.reason else {
         panic!("{:?}", skip.reason)
     };
@@ -915,8 +956,8 @@ fn rendered_skip_names_the_door_not_the_declaration() {
 /// and this record is what shows the pair waiting for it.
 #[test]
 fn stacked_equal_pegs_same_sense_walls() {
-    let lo = peg_at(0.0, 0.0, 1.0);
-    let hi = peg_at(0.0, 1.0, 1.0);
+    let lo = finished("the lower peg", peg_at(0.0, 0.0, 1.0), Tol::witness());
+    let hi = finished("the upper peg", peg_at(0.0, 1.0, 1.0), Tol::witness());
     let mut caps = BooleanDeclarations::none();
     caps.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&lo, 1.0, true),
@@ -1023,8 +1064,8 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         let described = body.get_surface(k).unwrap().clone();
         // Walls 0 and 1 are the run; wall 2 goes onto a key of its own.
         let sense = body.get_face(walls[2]).unwrap().sense;
-        // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
-        body.set_face_surface_stranding_for_tests(
+        // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
+        body.set_face_surface_unvouched_for_tests(
             walls[2],
             FaceSurface::New {
                 surface: described.clone(),
@@ -1034,8 +1075,8 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         .unwrap();
         topo::mint_pcurves(&mut body, tol).unwrap();
         let sense = body.get_face(walls[i]).unwrap().sense;
-        // Lifts both refusals: the row's premise is the key the face left, which its descriptions still name.
-        body.set_face_surface_stranding_for_tests(
+        // Lifts RechartStrandsDescriptions: the row's premise is the key the face left, which its descriptions still name.
+        body.set_face_surface_unvouched_for_tests(
             walls[i],
             FaceSurface::New {
                 surface: described,

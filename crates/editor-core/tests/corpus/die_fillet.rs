@@ -62,6 +62,7 @@
 //! `m5_pr12_fillet_node.rs`'s `f64` row alongside validity (tier 1 +
 //! closed) and the face count.
 
+use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{len, prism_edges, xy_frame};
@@ -90,6 +91,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     // Every edge of the cube, AUTHORED: the recipe STATES the set
     // instead of meaning "whatever edges exist". The bump stretches

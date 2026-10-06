@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use pncad::document::ExtrudeSide;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
@@ -36,7 +37,10 @@ fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
 fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the footprint validates"),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the footprint extrudes")

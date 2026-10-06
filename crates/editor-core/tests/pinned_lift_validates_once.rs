@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::documents;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
@@ -107,7 +108,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             &EvalOptions::default(),
             tol,
         );
-        let env = d.doc.param_env::<f64>();
+        let env = d.doc.var_env::<f64>();
         for &id in &ev.order {
             let Some(Node::Profile(program)) = d.doc.node(id) else {
                 continue;
@@ -345,6 +346,7 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tol = Tol::witness();
     let at = |doc| {

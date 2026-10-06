@@ -178,7 +178,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v.extend(
         [
             "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder)",
+             (plane, sphere, cylinder, torus)",
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
@@ -191,10 +191,17 @@ fn contain_errors() -> Vec<ContainError> {
     vec![
         ContainError::Escalated(diag()),
         ContainError::RayExhausted,
-        ContainError::Corrupt,
-        ContainError::ArcLoopUnsupported {
+        ContainError::StaleFace(crate::entity::FaceKey::default()),
+        ContainError::EmptyLoop(LoopKey::default()),
+        ContainError::LoopUnreadable(LoopKey::default()),
+        ContainError::Curved(crate::boolean::PointInSolidError::PartialConeFace {
+            face: crate::entity::FaceKey::default(),
+        }),
+        ContainError::Uncrossable(crate::splitting::Uncrossable {
             r#loop: LoopKey::default(),
-        },
+            edge: crate::entity::EdgeKey::default(),
+            carrier: crate::splitting::UncrossableCarrier::Spiric,
+        }),
     ]
 }
 
@@ -263,6 +270,26 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Escalated {
             limb: geom_brep::SsiLimb::Tube,
             cause: diag(),
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Short,
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Undecided(diag()),
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 0 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 4 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Unlinked,
         },
         PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
         PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
@@ -374,6 +401,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
@@ -394,7 +422,12 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
     let half_edge = HalfEdgeKey::default();
     let r#loop = LoopKey::default();
     let mut v = vec![
-        PcurveMintError::Corrupt,
+        PcurveMintError::Stale {
+            role: "half_edge",
+            key: EntityId::HalfEdge(half_edge),
+        },
+        PcurveMintError::NoCarrier { half_edge },
+        PcurveMintError::EmptyOuter { face },
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
         PcurveMintError::SingularChartJoint {
@@ -405,6 +438,8 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::Unminted { face },
+        PcurveMintError::RowInterval { half_edge },
         PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
@@ -428,12 +463,22 @@ fn props_errors() -> Vec<PropsError> {
             what: "a trim edge that is not an iso-parameter line",
         },
         PropsError::NappeSpanning,
+        PropsError::SphereLoop {
+            what: "props_sphere_loop_closed",
+        },
+        PropsError::SenseContradicted,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",
         },
         PropsError::DegenerateFace,
-        PropsError::Escalated { cause: diag() },
+        PropsError::OffSurface {
+            what: "a rim circle that is not on the cylinder",
+        },
+        PropsError::Escalated {
+            cause: diag(),
+            check: geom_brep::props::PropsCheck::Inventory,
+        },
         PropsError::QuadratureBudget {
             width_len: 1e-6,
             target_len: 1e-9,
@@ -1026,6 +1071,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "SolidOuterShells".to_owned(),
+        ValidationError::SolidOuterShells { solid, outer: 2 },
+    ));
+    s.push((
+        "VolumeSignUnresolved".to_owned(),
+        ValidationError::VolumeSignUnresolved { solid },
+    ));
+    s.push((
+        "ShellRoleUndecided".to_owned(),
+        ValidationError::ShellRoleUndecided {
+            solid,
+            error: crate::ShellClassifyError::Straddles {
+                shell: ShellKey::default(),
+            },
+        },
+    ));
 
     // Tier 3′: the census.
     for contact in census_contacts() {

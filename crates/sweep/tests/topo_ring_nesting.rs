@@ -20,6 +20,7 @@
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
 
@@ -37,9 +38,16 @@ fn plate(loops: &[&[(f64, f64, f64)]], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(tol())
         .expect("a valid profile");
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .expect("the plate extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the plate extrudes")
+    .body
 }
 
 fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<(f64, f64, f64)> {

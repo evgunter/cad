@@ -2,10 +2,11 @@
 id: rounded-stack-subtract-and-intersect-refuse-fallback-extent
 kind: issue
 title: The rounded two-plate stack's subtract and intersect refuse FallbackExtentUnsupported with every finding declared
-status: open
+status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the review of PR 3657, measured on `d2d5b09076`.
@@ -48,3 +49,63 @@ The union still refuses `FallbackExtentUnsupported` in all three poses,
 and so does the stacked pose's subtract and intersect (the repro above,
 re-measured on the same merge). Pinned by
 `declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.
+
+## Operand order (`reach/door-backstop`)
+
+`declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`
+now runs both operand orders, with the declarations keyed for each
+order (`findings(&b, &a)` for (B, A)). For the three in-wall poses
+(sunk, flush top, flush bottom), at ε = 1e-9, 1e-6 and 1e-12:
+
+- `A ∪ B` refuses `FallbackExtentUnsupported` (no crossing event,
+  near-tangent carriers).
+- `B ∪ A` BUILDS the thick plate at its oracle, `24 − (4 − π)/4 =
+  23.785398163397448`. The measured volumes are 23.785398163397442,
+  …463 and …456; tier 3 and 3′ are clean. The result keeps its walls
+  split where the thin plate's lay: 18 faces sunk, 14 flush, against
+  the plate's 10.
+- `B ∖ A` (empty in truth) refuses `FallbackExtentUnsupported` as
+  `A ∪ B` does.
+
+So the extent pass refuses in one operand order and not the other.
+Whatever closes this item should build `A ∪ B` as `B ∪ A` does. The
+split walls of `B ∪ A` are a separate question: a result that is not
+maximal.
+
+## The two-half rod stack refuses the same way
+
+Measured on `origin/main` after PR 3823 (the repro of
+`work/reach/stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends.md`):
+two rods of radius 1 and height 1, each wall two half-cylinders,
+stacked z 0 to 1 and 1 to 2, the upper one's seams turned by θ, every
+finding declared (the mating disc `Rest`, four wall continuations).
+The union builds at every θ; ∩, A ∖ B and B ∖ A refuse
+`FallbackExtentUnsupported` at every θ (0, 0.7, π/2, π), on A's wall
+half, with the section certificate's R-tan sentence
+(`boolean::section_cert`, `Refusal::Tangent`): the coaxial wall halves
+touch across the mating circle and no crossing event exists, the same
+shape as the rounded stack's fillet pair. The oracle once they build:
+∩ empty, each difference π. Pinned by
+`reach_aligned_half_rods::a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals`.
+
+## The `Rest` half answered, the continuation half left (`reach/rest-mate-intersect-diff`)
+
+The no-crossings path now answers a verified `Rest` pair (one carrier,
+OPPOSED senses) without its section (`ops.rs` `Exempt::Rest`): its
+materials stand on opposite sides of the carrier, so the pair only
+touches. That closed the declared cylinder, torus and sphere `Rest`
+mates' `∩` and `∖`
+(`work/reach/declared-rest-mate-intersect-and-differences-refuse-at-the-fallback-extent.md`).
+The half-rod stack and the rounded stack still refuse, unchanged
+(`reach_aligned_half_rods::a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals`
+passes as pinned): their refusing pairs are wall CONTINUATIONS, one
+carrier with ALIGNED senses, which put both materials on one side.
+Such a pair touches only where it ABUTS (the half rods' walls meet
+along the mating circle and share no patch), and overlaps material
+where it shares a patch (the thin plate sunk in the thick one's
+wall). What the path lacks is a certificate of abutment, and the
+chart-region overlap the kernel has does not give one: a zero-area
+overlap reads `Zero` (in band), which is the escalation answer, not a
+definite "no patch". Whether an abutting continuation can be certified
+from its trims (a shared boundary curve on both faces, the interiors
+on either side of it) is the open question here.
