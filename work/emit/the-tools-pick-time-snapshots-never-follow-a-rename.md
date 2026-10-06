@@ -2,8 +2,9 @@
 id: the-tools-pick-time-snapshots-never-follow-a-rename
 kind: issue
 title: The seat, blend and mate tools keep the label a node had at the pick, not the last it had
-status: review
+status: closed
 opened: 2026-10-06
+closed: 2026-10-06
 priority: P3
 parent: node-labels-are-document-data
 pr: 4093
