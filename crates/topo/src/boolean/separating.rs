@@ -31,7 +31,7 @@
 //! band answers "not apart", which keeps the caller's conservative
 //! verdict.
 
-use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign, UnitVec3, Vec3};
 
 use super::boxes::BoxFrame;
 use crate::body::Body;
@@ -48,14 +48,27 @@ const PAIR_AXIS: &str = "bool_pair_axis";
 /// items' pads (metres).
 const PAIR_GAP: &str = "bool_pair_gap";
 
-/// One item a reach is read for: a face, or an edge (the sweep's
-/// piercing side).
+/// One item a reach is read for: a face, an edge (the sweep's piercing
+/// side), or a full circle no body holds (the extent scan's section of
+/// a sphere by a face's carrier plane).
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Item {
+pub(crate) enum Item<T: Real> {
     /// A face of its body.
     Face(FaceKey),
     /// An edge of its body.
     Edge(EdgeKey),
+    /// The circle about `center` of radius `radius` in the plane of the
+    /// orthonormal `u_ref`, `v_ref`; its body is not read.
+    Circle {
+        /// The centre.
+        center: Point3<T>,
+        /// One in-plane unit direction.
+        u_ref: Vec3<T>,
+        /// The other, perpendicular to it.
+        v_ref: Vec3<T>,
+        /// The radius.
+        radius: T,
+    },
 }
 
 /// The outward normal of every planar face of `a` and of `b`, as unit
@@ -86,8 +99,8 @@ pub(crate) fn operand_axes<T: Decide>(a: &Body<T>, b: &Body<T>, band: Band) -> V
 /// As [`crate::census::face_reach_in`]: each item is one the caller
 /// read out of its body, and a torn hop past it is a kernel bug.
 pub(crate) fn apart<T: Decide>(
-    (x, xi): (&Body<T>, Item),
-    (y, yi): (&Body<T>, Item),
+    (x, xi): (&Body<T>, Item<T>),
+    (y, yi): (&Body<T>, Item<T>),
     axes: &[UnitVec3<T>],
     pad: f64,
     band: Band,
@@ -105,9 +118,9 @@ pub(crate) fn apart<T: Decide>(
 /// [`apart`] along one direction.
 fn apart_along<T: Decide>(
     x: &Body<T>,
-    xi: Item,
+    xi: Item<T>,
     y: &Body<T>,
-    yi: Item,
+    yi: Item<T>,
     dir: UnitVec3<T>,
     pad: f64,
     band: Band,
@@ -124,19 +137,39 @@ fn apart_along<T: Decide>(
 /// An item's reach in `frame`.
 fn reach<T: Decide>(
     body: &Body<T>,
-    item: Item,
+    item: Item<T>,
     band: Band,
     frame: &BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
+    use super::boxes::{SpanBox, conic_extent};
     match item {
         Item::Face(f) => crate::census::face_reach_in(body, f, band, frame),
         Item::Edge(e) => crate::census::edge_reach_in(body, e, frame),
+        Item::Circle {
+            center,
+            u_ref,
+            v_ref,
+            radius,
+        } => {
+            let b = conic_extent(
+                &SpanBox::point(frame.point(center)),
+                &SpanBox::vector(frame.vector(u_ref)),
+                &SpanBox::vector(frame.vector(v_ref)),
+                radius,
+                radius,
+            );
+            Some((
+                Point3::new(b.x.lo, b.y.lo, b.z.lo),
+                Point3::new(b.x.hi, b.y.hi, b.z.hi),
+            ))
+        }
     }
 }
 
-/// The mean of an item's boundary vertices — a point that moves with
-/// its body. `None` for a face whose boundary has no vertex.
-fn anchor<T: Decide>(body: &Body<T>, item: Item) -> Option<Point3<T>> {
+/// The mean of an item's boundary vertices, or a circle's centre — a
+/// point that moves with its body. `None` for a face whose boundary has
+/// no vertex.
+fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
     use super::boxes::edge_end_point;
     let mut sum = Vec3::new(T::zero(), T::zero(), T::zero());
     let mut n = 0u32;
@@ -161,6 +194,7 @@ fn anchor<T: Decide>(body: &Body<T>, item: Item) -> Option<Point3<T>> {
                 }
             }
         }
+        Item::Circle { center, .. } => return Some(center),
     }
     (n > 0).then(|| {
         let k = T::one() / T::from_f64(f64::from(n));

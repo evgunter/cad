@@ -1205,15 +1205,19 @@ fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
     .padded(pad)
 }
 
-/// **Whether a boundary edge of `face` may meet `region`**: some edge of
-/// one of its loops has a certified box, padded by `pad`, overlapping it.
+/// **Whether a boundary edge of `face` may meet `circle`**: some edge of
+/// one of its loops has a certified box, padded by `pad`, overlapping
+/// `region` (the circle's box), and the two are not apart along a
+/// direction that turns with them ([`super::separating::apart`]).
 /// `face` is one the caller read out of `body`.
 #[track_caller]
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
-    region: &bvh::Aabb,
+    (circle, region): (super::separating::Item<T>, &bvh::Aabb),
+    axes: &[geom_core::UnitVec3<T>],
     pad: f64,
+    band: Band,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
     for (_, l) in body.face_loops_linked(face, fd) {
@@ -1222,7 +1226,15 @@ fn face_boundary_meets<T: Decide + Bounds>(
         };
         for he in body.loop_walk(first).closed("loop", first) {
             let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            if boxes::edge_box(body, ek, pad).overlaps(region) {
+            if boxes::edge_box(body, ek, pad).overlaps(region)
+                && !super::separating::apart(
+                    (body, super::separating::Item::Edge(ek)),
+                    (body, circle),
+                    axes,
+                    pad,
+                    band,
+                )
+            {
                 return true;
             }
         }
@@ -3146,9 +3158,22 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // witness extends to the whole circle.
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
+                                let circle = super::separating::Item::Circle {
+                                    center: foot,
+                                    u_ref,
+                                    v_ref: normal.cross(u_ref),
+                                    radius: rho,
+                                };
                                 let circle_box =
                                     boxes::circle_box(foot, u_ref, normal.cross(u_ref), rho, pad);
-                                if face_boundary_meets(y, yf, &circle_box, pad) {
+                                if face_boundary_meets(
+                                    y,
+                                    yf,
+                                    (circle, &circle_box),
+                                    &super::separating::operand_axes(a, b, band),
+                                    pad,
+                                    band,
+                                ) {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
                                         face,
