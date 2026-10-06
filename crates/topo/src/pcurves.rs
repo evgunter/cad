@@ -470,13 +470,13 @@ pub enum PcurveMintError {
     /// A joint of a loop sits off the chart's singular set, but so near
     /// the axis that the walk decided its azimuth integer with less room
     /// than the joint bound: half the step to the next point of the
-    /// joint's orbit, metered at the vertex's own distance from the axis,
-    /// is not definitely past the band's escalation four times over
-    /// (`chart_bound_joint_room`). There a mark may name an orbit point
-    /// other than the joint's own (both lifts of the one 3-D point), so
-    /// the loop's winding may read zero while the loop truly winds, and
-    /// a chord polygon built on it would bound a region the face does
-    /// not have. Raised by [`chart_boundary`] alone, on a sphere near a
+    /// joint's orbit, as the chord it spans at the vertex's own distance
+    /// from the axis less the ends' `2ε`, is not definitely past the
+    /// band's escalation four times over (`chart_bound_joint_room`).
+    /// There a mark may name an orbit point other than the joint's own
+    /// (both lifts of the one 3-D point), so the loop's winding may read
+    /// zero while the loop truly winds, and a chord polygon built on it
+    /// would bound a region the face does not have. Raised by [`chart_boundary`] alone, on a sphere near a
     /// pole or a cone near its apex.
     JointWithoutRoom {
         /// The face whose loop holds the joint.
@@ -655,7 +655,7 @@ impl core::fmt::Display for PcurveMintError {
                  half-edge {half_edge:?} that its azimuth period is decided with less room than \
                  the joint bound, so no face description is built; there is nothing in the \
                  body to repair. Recourse: ask for the description of a face whose loops keep \
-                 farther from the pole or apex"
+                 farther from the pole or apex, or describe it at a smaller ε"
             ),
             Self::SingularChartJoint {
                 face,
@@ -4193,9 +4193,12 @@ fn decide_joint<T: Decide>(
 ///
 /// # Errors
 ///
-/// An escalation: whether the ends meet is undecided at `band`, or the
-/// turn's joint decision escalated there. A kill does not write an
-/// element through either.
+/// Whether the ends meet escalated at `band` (`Some`, its cause), or
+/// they meet and the turn's joint decision there missed: it escalated
+/// (`Some`), or decided a miss (`None`) — the vertex's lever so short
+/// that the gap reads on a mark, or periods past the branch reach. The
+/// ends are one point, so neither is "no turn"; a kill writes no element
+/// through any of them.
 ///
 /// # Panics
 ///
@@ -4205,7 +4208,7 @@ pub(crate) fn turn_element<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
     band: Band,
-) -> Result<Option<JointElement>, Indeterminate> {
+) -> Result<Option<JointElement>, Option<Indeterminate>> {
     let Some(row) = body.pcurve(half_edge) else {
         return Ok(None);
     };
@@ -4217,7 +4220,7 @@ pub(crate) fn turn_element<T: Decide>(
     match decide("pcurve_turn_closes", Margin::of(start.distance(end)), band) {
         Ok(Sign::Zero) => {}
         Ok(Sign::Positive | Sign::Negative) => return Ok(None),
-        Err(cause) => return Err(cause),
+        Err(cause) => return Err(Some(cause)),
     }
     let (t0, t1) = row.params();
     let (entry_t, exit_t) = entry_exit(is_plus(body, half_edge), t0, t1);
@@ -4232,8 +4235,8 @@ pub(crate) fn turn_element<T: Decide>(
         band,
     ) {
         Ok(element) => Ok(Some(element)),
-        Err(PinMiss::Escalated(cause)) => Err(cause),
-        Err(PinMiss::Discontinuity | PinMiss::OutOfReach) => Ok(None),
+        Err(PinMiss::Escalated(cause)) => Err(Some(cause)),
+        Err(PinMiss::Discontinuity | PinMiss::OutOfReach) => Err(None),
     }
 }
 
@@ -4320,15 +4323,23 @@ fn spline_gap_closes<T: Decide>(
 
 /// **Whether a joint's azimuth integer was decided with room** past the
 /// joint bound ([`chart_boundary`]'s room fence). The walk decides the
-/// integer with half the step to the next orbit point as room, at the
-/// vertex's own lever ([`decide_joint`]): half a period on a cylinder,
-/// cone or torus, a quarter on a sphere. That integer names the joint's
-/// own orbit point where the room exceeds the joint bound, the chart
-/// ends `≤ 4ε` apart in metres. So the room, metered at the lever, is
-/// decided against four times the band (`chart_bound_joint_room`: an
-/// eighth of the step at the lever must decide definitely past the
-/// band's escalation `K·ε ≥ ε`), and anything else refuses — the
-/// conservative side.
+/// integer against marks half the step to the next orbit point away
+/// ([`decide_joint`]): half a period on a cylinder, cone or torus, a
+/// quarter on a sphere. A mark can name another orbit point than the
+/// joint's own only where the joint's two chart ends lie at least that
+/// half step apart in azimuth. Each end is within `2ε` of the vertex in
+/// 3-D (its row's envelope and the edge certificate's pin), so its
+/// distance from the axis is at least `d − 2ε` at the vertex's own
+/// distance `d`, and two such points half a step apart are at least the
+/// chord `2·(d − 2ε)·sin(step/4)` apart. Where that chord exceeds the
+/// joint bound `4ε` no such pair exists, and the integer is the
+/// joint's own. So the fence decides the chord in the same quantity
+/// as the bound: a quarter of it, `(d − 2ε)·sin(step/4)/2`, must
+/// decide definitely past the band's escalation (`chart_bound_joint_room`),
+/// which puts the chord past `4·K·ε > 4ε` at every admitted `K > 1`.
+/// Anything else refuses — the conservative side. On a sphere that
+/// admits `d > 2ε + 2√2·K·ε`; on a cylinder, cone or torus,
+/// `d > 2ε + 2·K·ε`.
 ///
 /// A chart with no period decides no integer. A spline chart is exempt:
 /// each of its joints already decided its lifted chart-space gap within
@@ -4352,10 +4363,14 @@ fn joint_has_room<T: Decide>(
     } else {
         period
     };
+    // The ends' least distance from the axis, and a quarter of the
+    // chord between two of them half a step apart.
+    let lever = joint_arm(chart, vertex).magnitude() - T::from_f64(2.0 * band.zero());
+    let quarter_chord = (step * T::from_f64(0.25)).sin() * T::from_f64(0.5);
     matches!(
         decide(
             "chart_bound_joint_room",
-            joint_arm(chart, vertex).meter(step * T::from_f64(0.125)),
+            Margin::levered(quarter_chord, lever),
             band,
         ),
         Ok(Sign::Positive)
@@ -4497,10 +4512,10 @@ fn chart_edge<T: Decide>(
 /// with half the step to the next orbit point as room, at the vertex's
 /// own lever, and where that room is not past the joint bound a mark may
 /// name another orbit point, so the winding read below may be a step off
-/// ([`joint_has_room`]). On a sphere that is a vertex within about
-/// `2.5·K·ε` of a pole; on a cone, one whose distance from the axis is
-/// under about `1.3·K·ε`, which a narrow cone reaches well away from
-/// its apex. A sphere or cone face whose loops keep clear of both
+/// ([`joint_has_room`]). On a sphere that is a vertex within
+/// `2ε + 2√2·K·ε` of the axis near a pole; on a cone, one whose distance
+/// from the axis is under `2ε + 2·K·ε`, which a narrow cone reaches
+/// well away from its apex. A sphere or cone face whose loops keep clear of both
 /// describes normally.
 ///
 /// **A spline chart** describes when [`chart_u_period`] can answer for
@@ -6867,5 +6882,147 @@ mod lift_rows {
     fn a_meridian_period_is_not_the_identity() {
         meridian_period::<f64>("f64");
         meridian_period::<Interval>("Interval");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod turn_miss {
+    use super::turn_element;
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+    use crate::{Body, LoopBoundary, MevSite, NewVertexSide};
+    use geom::Surface;
+    use geom_core::{Band, Tol};
+
+    /// **A turn whose ends meet but whose joint decision misses refuses;
+    /// it is not "no turn".** A null strut on a minted cylinder wall,
+    /// described as the wall's own circle once round, is a closed
+    /// carrier: its turn is a period. The same rows on a cylinder whose
+    /// radius is a fraction of ε put the turn's gap, a period, on a
+    /// mark at the vertex's lever, so the decision misses (`Err(None)`,
+    /// where it used to read `Ok(None)` right after deciding that the
+    /// ends meet); at a radius whose marks' margins sit inside the band,
+    /// it escalates (`Err(Some)`). Through the doors no body
+    /// reaches either, since every joint at that vertex was decided at
+    /// the same lever and margin when its rows were minted, so the row
+    /// shrinks the carrier's surface under the stored rows.
+    #[test]
+    fn a_turn_whose_joint_misses_refuses() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame::canonical(1.0);
+        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the wall is bounded by a cycle")
+        };
+        let v = body.get_half_edge(first).unwrap().start;
+        let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let null = body
+            .mev_null(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                NewVertexSide::Above,
+            )
+            .unwrap();
+        let t0 = p.y.atan2(p.x);
+        let circle = geom::Curve3::Circle {
+            center: frame.origin + frame.axis * p.z,
+            axis: frame.axis,
+            radius: frame.radius,
+            u_ref: frame.u_ref,
+        };
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
+            .unwrap();
+        body.set_edge_curve(null.edge, spec, tol).unwrap();
+        let he = null.he_plus;
+        assert!(
+            matches!(turn_element(&body, he, band), Ok(Some(_))),
+            "the control: at the wall's own radius the turn is decided"
+        );
+        let key = body.get_face(face).unwrap().surface;
+        let at_radius = |r: f64| {
+            let mut shrunk = body.clone();
+            let Some(Surface::Cylinder { radius, .. }) = shrunk.surfaces.get_mut(key) else {
+                panic!("the wall is a cylinder")
+            };
+            *radius = r;
+            turn_element(&shrunk, he, band)
+        };
+        let eps = band.zero();
+        assert!(
+            matches!(at_radius(0.1 * eps), Err(None)),
+            "a period's gap on a mark is a miss, not no turn"
+        );
+        assert!(
+            matches!(at_radius(eps), Err(Some(_))),
+            "a mark margin inside the band escalates"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod room_fence_tests {
+    use super::{DescribedChart, joint_has_room};
+    use geom::Surface;
+    use geom_core::{Band, Point3, Vec3};
+
+    const EPS: f64 = 1e-9;
+
+    /// The tightest band the kernel admits in practice: `K = 1.5`.
+    fn tight() -> Band {
+        Band::new(EPS, 1.5 * EPS).unwrap()
+    }
+
+    fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
+        joint_has_room(
+            DescribedChart::of(surface).unwrap(),
+            vertex,
+            Some(core::f64::consts::TAU),
+            tight(),
+        )
+    }
+
+    /// **The room fence holds at a small `K`.** A wrong orbit pick needs
+    /// the joint's two chart ends half a step apart in azimuth, and
+    /// those ends sit within `2ε` of the vertex, so the fence decides
+    /// the chord they would span (`2·(d − 2ε)·sin(step/4)`) against the
+    /// joint bound `4ε`. At `K = 1.5` a cone vertex `3ε` from the axis
+    /// has an arc room `(π/2)·d` past four times the escalation, which
+    /// the arc reading admitted, while a circle through it is under
+    /// `4ε` across from the ends' least lever, so the integer pins
+    /// nothing: it refuses. At `6ε` it has room.
+    #[test]
+    fn at_a_small_k_a_cone_joint_near_the_axis_has_no_room() {
+        let alpha: f64 = 0.3;
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let at = |d: f64| Point3::new(d, 0.0, d / alpha.tan());
+        assert!(!room(&cone, at(3.0 * EPS)), "3ε from the axis: no room");
+        assert!(room(&cone, at(6.0 * EPS)), "6ε from the axis: room");
+    }
+
+    /// The sphere's step is half a period, so its chord is the
+    /// `sin(π/4)` one: at `K = 1.5` a vertex `4.5ε` from the axis, which
+    /// the arc reading admitted, refuses, and one `8ε` off has room.
+    #[test]
+    fn at_a_small_k_a_sphere_joint_near_a_pole_has_no_room() {
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let at = |d: f64| Point3::new(d, 0.0, (1.0 - d * d).sqrt());
+        assert!(!room(&sphere, at(4.5 * EPS)), "4.5ε from the axis: no room");
+        assert!(room(&sphere, at(8.0 * EPS)), "8ε from the axis: room");
     }
 }

@@ -232,13 +232,13 @@ fn truncated<T: Real + AtRestPolicy>(alpha: f64, inner: f64) -> Result<Body<T>, 
 /// sector's inner rim at `1.1·K·ε` from the axis (a radius the rim's own
 /// certificate decides) is ten times that off the apex (`singular_at`
 /// reads `Off`), and the walk decides its joints there: the half-period
-/// marks of a zero gap sit at `π·1.1·K·ε`, past the band. But an eighth
-/// of the period at that lever, `(π/4)·1.1·K·ε`, is not past the band's
-/// escalation, so the room is not shown past the joint bound, and a mark
-/// there may have named another period, and `chart_boundary` refuses
-/// for want of room rather than read the loop's winding. At `3·K·ε` the
-/// room is past it and the sector describes. The body reads clean at
-/// rest in both.
+/// marks of a zero gap sit at `π·1.1·K·ε`, past the band. But the
+/// chord two of the joint's chart ends would span half a period apart,
+/// `2·(1.1·K·ε − 2ε)`, is not past four times the band's escalation, so
+/// the room is not shown past the joint bound, and a mark there may have
+/// named another period, and `chart_boundary` refuses for want of room
+/// rather than read the loop's winding. At `3·K·ε` the room is past it
+/// and the sector describes. The body reads clean at rest in both.
 fn near_the_apex<T: Real + AtRestPolicy>(lane: &str) {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();

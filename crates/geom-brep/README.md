@@ -380,10 +380,12 @@ loop: at each joint the walk decides the deck element (the whole number
 of periods, and on a sphere the involution twin) as an integer, with
 half the step to the next point of the joint's orbit as room: half a
 period on a cylinder, cone or torus, and a quarter period on a sphere,
-whose twin sits half a period over in azimuth. Where that room, metred
-at the vertex's distance from the axis, exceeds the joint bound, the
-integer names the joint's own orbit point; nearer a pole or a narrow
-cone's apex it may name another lift of the same point. The joint's
+whose twin sits half a period over in azimuth. Where two points as far
+from the axis as the joint's chart ends can be (the vertex's distance
+less the two ε that bound each end) and that half step apart in azimuth
+are farther apart than the joint bound, the integer names the joint's
+own orbit point; nearer a pole or a narrow cone's apex it may name
+another lift of the same point. The joint's
 3-D coincidence is not decided again in the chart, since it follows
 from the two rows' envelopes and the edge certificate's pinning of each
 carrier's ends to the vertex. A loop's winding is its elements composed

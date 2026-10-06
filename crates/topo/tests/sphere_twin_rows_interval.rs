@@ -344,14 +344,15 @@ fn a_split_at_the_pole_carries_a_reset() {
 ///   behind it would refuse too, as a different finding);
 /// - `c = 0.5`: within the band of the pole (`singular_at` undecided),
 ///   refused as a singular joint, never let through to the winding;
-/// - `c = 2`: off the pole, but the quarter-period room at the vertex's
-///   lever, `(π/2)·2·K·ε`, is not past four times the band, so a mark
-///   there may have named the other sheet: refused for want of room;
+/// - `c = 2`: off the pole, but the chord two of the joint's chart ends
+///   would span a quarter period apart, `√2·(2·K·ε − 2ε)`, is not past
+///   four times the band, so a mark there may have named the other
+///   sheet: refused for want of room;
 /// - `c = 4`: the room is past it, so the joint's integer is the joint's
 ///   own and the description reads the winding, which goes through the
 ///   twin (`LoopWraps`).
 ///
-/// The body itself reads clean at rest in all three.
+/// The body itself reads clean at rest in all four.
 fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
