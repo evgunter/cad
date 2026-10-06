@@ -343,3 +343,127 @@ fn the_arc_spine_helper_places_a_right_handed_tangent_frame() {
         "the first slab advances along the first station's own normal"
     );
 }
+
+/// A placement at `origin` whose plane normal is `(0, −sin a, cos a)`:
+/// the identity frame turned by `a` about `x`, right-handed.
+fn turned_about_x(origin: Vec3<f64>, cos_a: f64) -> Affine3<f64> {
+    let sin_a = (1.0 - cos_a * cos_a).sqrt();
+    let linear = Mat3::from_cols(
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, cos_a, sin_a),
+        Vec3::new(0.0, -sin_a, cos_a),
+    );
+    Affine3::from_parts(linear, origin)
+}
+
+/// A placement at height `z` whose plane normal is `−z`.
+fn facing_down_at(z: f64) -> Affine3<f64> {
+    turned_about_x(Vec3::new(0.0, 0.0, z), -1.0)
+}
+
+/// **A top section facing down refuses, naming the far section.** The
+/// two-section loft's one slab steps `+z`, along section 0's normal,
+/// but section 1's plane faces `−z`: its ring winds against section
+/// 0's about the stack. The forward twin builds and tier 3 accepts
+/// it; the inverted one refuses at the door, so no body reaches
+/// `validate_geometric`.
+#[test]
+fn a_top_section_facing_down_refuses_naming_the_far_section() {
+    let tol = Tol::witness();
+    let sections = vec![loft_prism_sections()[0].clone(); 2];
+    let forward = loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, tol)
+        .expect("the forward two-section loft builds");
+    assert_eq!(
+        topo::validate_geometric(&forward.body, tol),
+        Ok(()),
+        "the forward twin passes tier 3"
+    );
+    let places = [stacked_at(&[0.0])[0], facing_down_at(1.0)];
+    match loft_body::<f64>(&sections, &places, 1, tol) {
+        Err(e @ LoftError::FarSectionFacesBack { slab }) => {
+            assert_eq!(slab, 0, "the loft's one slab is slab 0");
+            let text = e.to_string();
+            assert!(
+                text.contains("section 1's plane") && text.contains("author section 1"),
+                "the refusal names the far section and its recourse: {text}"
+            );
+        }
+        other => panic!("expected FarSectionFacesBack naming slab 0, got {other:?}"),
+    }
+}
+
+/// **An interior section facing back refuses at its first slab's far
+/// check.** `z = 0, 1, 0.5` with normals `+z, −z, −z`: slab 1 steps
+/// `−z` along section 1's `−z` normal and section 2's, so its own
+/// decides are both `Positive`; only slab 0's far decide, section 1's
+/// normal against slab 0's `+z` step, sees the turn.
+#[test]
+fn an_interior_section_facing_back_refuses_at_slab_0s_far_check() {
+    let places = [stacked_at(&[0.0])[0], facing_down_at(1.0), facing_down_at(0.5)];
+    match loft_body::<f64>(&loft_prism_sections(), &places, 2, Tol::witness()) {
+        Err(LoftError::FarSectionFacesBack { slab }) => assert_eq!(
+            slab, 0,
+            "slab 0's far section (section 1) is where the stack turns"
+        ),
+        other => panic!("expected FarSectionFacesBack naming slab 0, got {other:?}"),
+    }
+}
+
+/// **A far section edge-on to its slab refuses, and one inside the band
+/// escalates.** Section 1 is the square turned about `x` until its
+/// normal's component along the slab's unit `+z` step is the margin
+/// itself: half of ε is `Zero`, which refuses through the far arm (the
+/// sections are a unit apart, so this is no sliver), and the band's
+/// midpoint escalates carrying the slab and the predicate.
+#[test]
+fn a_far_section_edge_on_refuses_and_one_in_band_escalates() {
+    let tol = Tol::witness();
+    let sections = vec![loft_prism_sections()[0].clone(); 2];
+    let places = |margin: f64| {
+        [
+            stacked_at(&[0.0])[0],
+            turned_about_x(Vec3::new(0.0, 0.0, 1.0), margin),
+        ]
+    };
+    match loft_body::<f64>(&sections, &places(0.5 * tol.eps()), 1, tol) {
+        Err(LoftError::FarSectionFacesBack { slab }) => assert_eq!(slab, 0, "slab 0"),
+        other => panic!("expected FarSectionFacesBack for a Zero far margin, got {other:?}"),
+    }
+    match loft_body::<f64>(&sections, &places(band_midpoint(tol)), 1, tol) {
+        Err(LoftError::StackingEscalated { slab, source }) => {
+            assert_eq!(slab, 0, "the escalation carries slab 0");
+            assert_eq!(source.predicate, Some("loft_stacking"), "and the predicate");
+        }
+        other => panic!("expected StackingEscalated for an in-band far margin, got {other:?}"),
+    }
+}
+
+/// **The y-prism refuses here.** Section 0 is the unit square in
+/// `z = 0` facing `+z`; section 1 is a half-width-0.5 square centred at
+/// `(3, 0.5, 0.3)`, turned −60° about `y` so its normal is
+/// `(−0.87, 0, 0.5)`. The slab steps `(2.5, 0, 0.3)`: along section 0's
+/// normal, against section 1's. The body this lofts is embedded but
+/// inside out — its cross-section winds clockwise about the stack.
+/// Refusing it at the far decide is the stacking fold's deliberate
+/// behaviour until the loft door certifies embedding.
+#[test]
+fn the_inside_out_y_prism_refuses_at_the_far_check() {
+    let (s, c) = (-core::f64::consts::FRAC_PI_3).sin_cos();
+    let tilted = Affine3::from_parts(
+        Mat3::from_cols(
+            Vec3::new(c, 0.0, -s),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(s, 0.0, c),
+        ),
+        Vec3::new(3.0, 0.5, 0.3),
+    );
+    let sections = vec![
+        quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+        quad([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
+    ];
+    let places = [stacked_at(&[0.0])[0], tilted];
+    match loft_body::<f64>(&sections, &places, 1, Tol::witness()) {
+        Err(LoftError::FarSectionFacesBack { slab }) => assert_eq!(slab, 0, "slab 0"),
+        other => panic!("expected FarSectionFacesBack naming slab 0, got {other:?}"),
+    }
+}
