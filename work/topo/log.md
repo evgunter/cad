@@ -7579,3 +7579,15 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
   - Choice 3's kind derivation stays held on D10.
   - The lane may split the work into an ordered PR series and must stop on any design fork.
 - The row is marked `dispatched`.
+
+## 21:42 (2026-10-06)
+
+- **PR 4204** (1 of a series) is open from the PR 3970 build lane: `kef`/`kfmrh` keys-only refusals through `vouch_move`, `kef_describing`/`kfmrh_describing`, the chartless arm in the vouch, and the shell's rim glue moved onto `kfmrh_describing`. Subscribed. FULL reviewer `session_01V9yzzwvZbauNWoCwpFVSdv`.
+- **The lane stopped on a fork.** Absorbing `kef_minting`/`kfmrh_minting` into the twins needs a re-description of four seam-edge kills (`boolean/zip.rs` `zip_seam`, `boolean/rest.rs` `zip_folded`) that today's restaters cannot state. Only choice 3's kind derivation can, and that is HELD on D10.
+  - The lane re-ordered the series:
+    1. this PR;
+    2. chartless transients plus the movable `_minting` callers (buildable now);
+    3. `_minting` absorption (waits on choice 3);
+    4. field privacy plus tier 1 plus D1 (waits, because tier 1 and privacy need every move vouched).
+  - Orchestrator lean: option (b), keep `_minting` until the restater exists, per Ev's hold. The reviewer is asked whether privacy and tier 1 could land with `_minting` behind a named unvouched constructor, as the whole-body maps have.
+- This changes the close-out plan. Item 1 lands only in part (series 1–2) unless that route holds. Told Ev.
