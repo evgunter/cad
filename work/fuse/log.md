@@ -562,3 +562,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   point, so the key the ruling names does not exist yet. Giving it one
   would change ratified text, so the orchestrator treats it as a fork,
   not a unit.
+- 2026-10-06 — The curved-join key is put to Ev as PR 4198 (`[ev]`,
+  fork-log row 77, `needs_ev: true` on
+  `curved-joinable-vertices-are-left-unjoined`). After three rounds the
+  designers converged on these points:
+  - the shared vertex decides the branch, with no new key;
+  - poles and apexes are never joinable (they are most of the counted
+    population);
+  - a joined closed edge keeps a canonical vertex at the curved face's
+    chart cut;
+  - the maximal-edges clause is restored to Ev's approved "structural
+    carrier". Its D10 rewording (adca520953, inside PR 4002) had no
+    sign-off.
+  Left to Ev: the same-kind tie-break's flavour.
