@@ -4180,7 +4180,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-            let edge_joins = joined_pcurves(&mut body, &mut desc, band, tol)?;
+            let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
             let carried = split_lineage(red, decls, band)?;
             let contacts = carry(
                 &body,
@@ -4215,22 +4215,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 }
 
-/// [`join_stage`] for an output stage that mints no pcurves of its
-/// own: the joined body's are re-minted where any join was made.
-pub(super) fn joined_pcurves<T: Decide + AtRestPolicy>(
-    body: &mut Body<T>,
-    desc: &mut Descendants,
-    band: Band,
-    tol: Tol,
-) -> Result<Vec<super::EdgeJoin>, BooleanError> {
-    let joins = join_stage(body, desc, band, tol)?;
-    if !joins.is_empty() {
-        crate::pcurves::mint_pcurves(body, tol)
-            .map_err(|source| BooleanError::Pcurves { source })?;
-    }
-    Ok(joins)
-}
-
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
@@ -4257,7 +4241,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-    let edge_joins = joined_pcurves(&mut body, &mut desc, band, tol)?;
+    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),

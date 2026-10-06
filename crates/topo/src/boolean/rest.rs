@@ -88,9 +88,10 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
+use super::edge_join::join_stage;
 use super::ops::{
     Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    joined_pcurves, merge_rows, of_merge, split_lineage,
+    merge_rows, of_merge, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -406,7 +407,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let edge_joins = joined_pcurves(&mut body, &mut desc, band, tol)?;
+    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
     let contacts = carry(
         &body,
         &contacts,

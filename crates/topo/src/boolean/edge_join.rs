@@ -148,8 +148,10 @@ pub fn joinable_vertices<T: Real>(body: &Body<T>) -> Vec<VertexKey> {
 /// and its joins together. Runs after the merge and its re-description,
 /// before the records are carried. Returns the joins in the order made,
 /// a later one's `gone` or `kept` possibly an earlier one's `kept`. A
-/// join touches only planar faces, whose pcurve rows the caller
-/// re-mints where any join was made.
+/// join touches only planar faces, which store no pcurve rows
+/// (`pcurves::chart_mints`), so it leaves nothing to re-mint; a curved
+/// join (`work/fuse/curved-joinable-vertices-are-left-unjoined.md`)
+/// brings what it needs.
 ///
 /// # Errors
 ///
