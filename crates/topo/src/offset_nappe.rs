@@ -98,8 +98,8 @@ pub fn face_nappe<T: Decide>(
             face,
             station_min,
             station_max,
-            what: "a cone face whose own corners reach its apex, so it stands on \
-                   neither nappe alone",
+            what: "a cone face whose corners reach its apex, so it lies on neither side of the \
+                   apex alone",
         }),
     }
 }
@@ -147,8 +147,8 @@ pub fn group_nappe<T: Decide>(
                     face,
                     station_min,
                     station_max,
-                    what: "a chart whose faces do not all lie on one nappe, so one \
-                           offset distance cannot be turned for all of them",
+                    what: "faces of one cone that do not all lie on the same side of its apex, \
+                           so one offset cannot move them all the same way",
                 });
             }
         }

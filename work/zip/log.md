@@ -221,3 +221,7 @@ A designer pair is weighing the zip's seam realization: blinding on `analysis/de
 **Class findings without a row:**
 - About ten per-file `vol` helper copies across `crates/sweep/tests` (P4; noted in PR 4127's body).
 - A one-line slow-set filter in `.config/nextest.toml` that every PR adding a slow test conflicts on. Both are friction, not defects.
+
+## 2026-10-06 — handed back, blocked
+
+PR 4116 merged (`Fusions`; single full review, fix pass, delta review), closing its two rows. The remaining 12 live rows are all parked on the D10 hold, so ZIP is `blocked`, with nobody on it. It fires when INTENT closes `d10-one-way-to-say-intent-is-unbuilt`. — (ZIP orchestrator)

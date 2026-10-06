@@ -83,11 +83,21 @@ fn assert_chain_rows(
     chain: &[RecipeNodeId],
     label: &str,
 ) {
-    let merged = t
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-        .count();
-    assert_eq!(merged, 4, "{label}: four merged rows, one per family");
+    let merged = |kind| {
+        t.iter()
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .count()
+    };
+    assert_eq!(
+        merged(EntityKind::Face),
+        4,
+        "{label}: four merged faces, one per family"
+    );
+    assert_eq!(
+        merged(EntityKind::Edge),
+        4,
+        "{label}: four joined edges, one between each two adjacent families"
+    );
     for fam in 0..4 {
         let row = chain_merged(doc, union, chain, fam);
         assert!(
@@ -337,11 +347,17 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
             "the inner merged row survived as an outer row"
         );
     }
-    let merged_rows = t
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-        .count();
-    assert_eq!(merged_rows, 4);
+    let merged = |kind| {
+        t.iter()
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .count()
+    };
+    assert_eq!(merged(EntityKind::Face), 4);
+    assert_eq!(
+        merged(EntityKind::Edge),
+        4,
+        "the four long edges are joined"
+    );
     // The edit-log replay is the same document with the same table.
     let empty = ProfileDoc::empty_derived("mod", tol);
     let text = editor_core::persist::save(&empty, &rec.edits, tol).expect("saves");

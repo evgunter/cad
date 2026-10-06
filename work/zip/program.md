@@ -2,7 +2,7 @@
 id: zip
 kind: program
 title: ZIP — the declared-REST zip and the seam zip: closing the boolean's seams once the join has matched them
-status: active
+status: blocked
 opened: 2026-09-20
 area: kernel
 prefix: zip/

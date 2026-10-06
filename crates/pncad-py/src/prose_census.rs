@@ -1792,16 +1792,16 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
-        "e",
-        1,
-        "an inner arm — `match edge { Some(e) => .. }` — whose pattern names no \
-         variant path, so this census reads no field type from it",
+        "gap",
+        4,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
-        "gap",
-        4,
+        "offset",
+        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1830,17 +1830,24 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
-        "crates/topo/src/replace_face.rs",
-        "ReplaceFaceError",
-        "v_max",
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        POSITIONAL,
+        1,
+        "a positional `{:?}` over an expression this census does not type",
+    ),
+    (
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
-        "crates/topo/src/replace_face.rs",
-        "ReplaceFaceError",
-        "v_min",
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized_minor",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
