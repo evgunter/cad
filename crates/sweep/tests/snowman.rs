@@ -908,23 +908,57 @@ fn tilted_slab(tilt: f64, s: f64) -> AtRestBody<f64> {
     tilted_slab_about(geom_core::Vec3::new(1.0, 0.0, 0.0), tilt, s)
 }
 
-/// Every op in both orders of `body` against a slab whose plane cuts a
-/// cap of `cap` off it and nothing else, against the closed forms: the
-/// cap under ∩, and the body's `v`, the slab's 36 and the cap otherwise.
-/// Each result carries the cap's tilted circle ([`assert_solid`]).
-fn assert_cap_cut(label: &str, body: &AtRestBody<f64>, v: f64, slab: &AtRestBody<f64>, cap: f64) {
-    let v_slab = 36.0;
-    for (op, x, y, want) in [
-        (BooleanOp::Union, body, slab, v + v_slab - cap),
-        (BooleanOp::Union, slab, body, v + v_slab - cap),
-        (BooleanOp::Intersect, body, slab, cap),
-        (BooleanOp::Intersect, slab, body, cap),
-        (BooleanOp::Subtract, body, slab, v - cap),
-        (BooleanOp::Subtract, slab, body, v_slab - cap),
+/// Every op in both orders of `x` (volume `vx`) and `y` (`vy`), whose
+/// common part is `meet`, against the closed forms. Each result carries
+/// a tilted circle ([`assert_solid`]).
+fn assert_every_op(
+    label: &str,
+    (x, vx): (&AtRestBody<f64>, f64),
+    (y, vy): (&AtRestBody<f64>, f64),
+    meet: f64,
+) {
+    for (op, p, q, want) in [
+        (BooleanOp::Union, x, y, vx + vy - meet),
+        (BooleanOp::Union, y, x, vx + vy - meet),
+        (BooleanOp::Intersect, x, y, meet),
+        (BooleanOp::Intersect, y, x, meet),
+        (BooleanOp::Subtract, x, y, vx - meet),
+        (BooleanOp::Subtract, y, x, vy - meet),
     ] {
         let name = format!("{label}, ε {}: {op:?}", Tol::witness().eps());
-        assert_solid(&name, &run(op, x, y), want);
+        assert_solid(&name, &run(op, p, q), want);
     }
+}
+
+/// [`assert_every_op`] for `body` against a 6 × 1 × 6 slab whose plane
+/// cuts a cap of `cap` off it and nothing else.
+fn assert_cap_cut(label: &str, body: &AtRestBody<f64>, v: f64, slab: &AtRestBody<f64>, cap: f64) {
+    assert_every_op(label, (body, v), (slab, 36.0), cap);
+}
+
+/// The unit direction at latitude `lat` (from the xz plane toward +y)
+/// and azimuth `az` (from +x toward +z), in degrees.
+fn dir(lat: f64, az: f64) -> geom_core::Vec3<f64> {
+    let (lat, az) = (lat.to_radians(), az.to_radians());
+    geom_core::Vec3::new(lat.cos() * az.cos(), lat.sin(), lat.cos() * az.sin())
+}
+
+/// A `2w × t × 2w` brick whose near face lies in the plane `n·p = s`,
+/// centred on its foot, its material beyond the plane.
+fn brick_toward(n: geom_core::Vec3<f64>, s: f64, w: f64, t: f64) -> AtRestBody<f64> {
+    use geom_core::{Affine3, Point3, Vec3};
+    let tol = Tol::witness();
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let n = n / n.norm();
+    let axis = y.cross(n);
+    let rot = Affine3::rotation_about_axis(
+        Point3::origin(),
+        axis / axis.norm(),
+        axis.norm().atan2(y.dot(n)),
+    );
+    let brick: Body<f64> = sweep::test_support::brick((-w, w), (0.0, t), (-w, w), tol);
+    let brick = topo::transform_rigid(&brick, &(Affine3::translation(n * s) * rot), tol).unwrap();
+    finished("the brick", brick, tol)
 }
 
 /// **A tilted slab against the lens, away from its seam.** The slab's
@@ -1023,18 +1057,16 @@ fn a_slab_cutting_a_cap_off_a_banded_ball_builds() {
     );
 }
 
-/// **A cap off a pole-strut carve, where the section certificate cannot
-/// place its witness.** The ball of radius 0.5 less the box
+/// **A cap off a pole-strut carve.** The ball of radius 0.5 less the box
 /// `[−1, 0.25] × [−1, 1] × [−1, 0]` (`join1_r1_rows`'s pole-strut pose),
 /// cut by a slab 0.4925 from the centre: toward latitude 10° at azimuth
 /// π/2, and toward `(0.866, 0.1, −0.5)` inside the face the box's
-/// `x = 0.25` circle trims. Either sphere face holding the circle is
-/// bounded by that tilted circle, which the chart trim cannot read, so
-/// the certificate places no witness and every op refuses with its own
-/// reason (R-undec) before any cut. Reading such a face is
-/// `work/reach/carved-sphere-body-cannot-be-classified-or-reused-as-an-operand.md`.
+/// `x = 0.25` circle trims. The second cut's meridian meets that one
+/// tilted arc at both its ends. Every op builds against the carve's
+/// ball less the `z ≤ 0` half-ball's `x ≤ 0.25` part, and the cap of
+/// height 0.0075.
 #[test]
-fn a_slab_cutting_a_cap_off_a_pole_strut_carve_refuses_the_unplaced_witness() {
+fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
     use geom_core::Vec3;
     let tol = Tol::witness();
     let ball = finished(
@@ -1048,40 +1080,167 @@ fn a_slab_cutting_a_cap_off_a_pole_strut_carve_refuses_the_unplaced_witness() {
         tol,
     );
     let carve = run(BooleanOp::Subtract, &ball, &cutter);
-    let toward = |n: Vec3<f64>| {
-        use geom_core::{Affine3, Point3};
-        let y = Vec3::new(0.0, 1.0, 0.0);
-        let n = n / n.norm();
-        let axis = y.cross(n);
-        let rot = Affine3::rotation_about_axis(
-            Point3::origin(),
-            axis / axis.norm(),
-            axis.norm().atan2(y.dot(n)),
-        );
-        let slab: Body<f64> = sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), tol);
-        let slab =
-            topo::transform_rigid(&slab, &(Affine3::translation(n * 0.4925) * rot), tol).unwrap();
-        finished("the slab", slab, tol)
-    };
+    let v_carve = ball_volume(0.5) - (ball_volume(0.5) - cap_volume(0.5, 0.25)) / 2.0;
     let t = 10f64.to_radians();
     for n in [
         Vec3::new(0.0, t.sin(), t.cos()),
         Vec3::new(0.866, 0.1, -0.5),
     ] {
-        let slab = toward(n);
-        for (x, y) in [(&carve, &slab), (&slab, &carve)] {
-            for op in OPS {
-                let e = refusal(op, x, y);
-                assert!(
-                    matches!(
-                        e,
-                        topo::BooleanError::FallbackExtentUnsupported { what, .. }
-                            if what.contains("no witness could place")
-                    ),
-                    "slab toward {n:?} under {op:?}: expected the unplaced witness, got {e:?}"
-                );
-            }
-        }
+        assert_cap_cut(
+            &format!("pole strut, slab toward {n:?}"),
+            &carve,
+            v_carve,
+            &brick_toward(n, 0.4925, 3.0, 1.0),
+            cap_volume(0.5, 0.0075),
+        );
+    }
+}
+
+/// **A pole-to-pole cut**: the unit ball's half-disc revolved by 4
+/// radians about y, whose one sphere face runs pole to pole between two
+/// meridian arcs, cut by a slab 0.985 from the centre toward latitude 0
+/// at azimuth −114.6° (the face's middle) and toward latitude −20° at
+/// −160.4°. The cut's two ends are the poles, a half-turn apart, whatever
+/// sign the rounding gives the cross term between them. Every op builds
+/// against the wedge's `2θ/3` and the cap of height 0.015.
+#[test]
+fn a_pole_to_pole_cut_of_a_ball_wedge_builds() {
+    let theta: f64 = 4.0;
+    let wedge = finished(
+        "the wedge",
+        revolved_about_y(
+            vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
+            Revolution::Partial(theta),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    );
+    for (lat, share) in [(0.0, 0.5), (-20.0, 0.7)] {
+        let az = -(theta * share).to_degrees();
+        assert_cap_cut(
+            &format!("wedge, slab toward lat {lat} az {az:.1}"),
+            &wedge,
+            2.0 * theta / 3.0,
+            &brick_toward(dir(lat, az), 0.985, 3.0, 1.0),
+            cap_volume(1.0, 0.015),
+        );
+    }
+}
+
+/// **Two cut-ins on one face, in either order.** Each later cut lies on
+/// whichever piece of the face an earlier cut left its circle on.
+///
+/// - The lens against two disjoint bricks whose near planes lie 0.985
+///   from the unit sphere's centre toward latitude 68° at azimuths 130°
+///   and 50°, both caps inside the lens's top face, united as one
+///   operand in both orders.
+/// - The banded ball against a cube of half-side 0.985 turned 45° and
+///   135° about y: the same point set, whose four side faces cut four
+///   caps, two on each half-band, met in different orders.
+///
+/// Every op builds against the closed forms.
+#[test]
+fn two_cut_ins_on_one_face_build_in_either_order() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let cap = cap_volume(1.0, 0.015);
+    for (az1, az2) in [(130.0, 50.0), (50.0, 130.0)] {
+        let bricks = run(
+            BooleanOp::Union,
+            &brick_toward(dir(68.0, az1), 0.985, 0.2, 0.3),
+            &brick_toward(dir(68.0, az2), 0.985, 0.2, 0.3),
+        );
+        assert_every_op(
+            &format!("lens, bricks at az {az1}/{az2}"),
+            (&lens, lens_volume(R1, R2, D)),
+            (&bricks, 2.0 * 0.4 * 0.4 * 0.3),
+            2.0 * cap,
+        );
+    }
+    let band = finished(
+        "the band's box",
+        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
+    let v_banded = PI * (1.2 - 2.0 * 0.6f64.powi(3) / 3.0);
+    let a: f64 = 0.985;
+    for turn in [45.0f64, 135.0] {
+        use geom_core::{Affine3, Point3, Vec3};
+        let cube: Body<f64> = sweep::test_support::brick((-a, a), (-a, a), (-a, a), Tol::witness());
+        let spin = Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(0.0, 1.0, 0.0),
+            turn.to_radians(),
+        );
+        let cube = finished(
+            "the cube",
+            topo::transform_rigid(&cube, &spin, Tol::witness()).unwrap(),
+            Tol::witness(),
+        );
+        assert_every_op(
+            &format!("banded ball, cube turned {turn}°"),
+            (&banded, v_banded),
+            (&cube, 8.0 * a.powi(3)),
+            v_banded - 4.0 * cap,
+        );
+    }
+}
+
+/// **A second circle across an earlier cut.** The banded ball against
+/// two disjoint bricks whose near planes lie 0.985 from the centre toward
+/// latitudes 20° and −20°: at azimuth 90° for both, the second circle's
+/// crossings lie on the first cut's meridian, which the crossing layer
+/// meets as a seam, so it takes no cut of its own; at 90° and 92°, on
+/// the piece of the half-band the first cut left it. Every op builds
+/// against the closed forms.
+#[test]
+fn a_circle_across_an_earlier_cut_takes_none_of_its_own() {
+    let band = finished(
+        "the band's box",
+        sweep::test_support::brick((-2.0, 2.0), (-0.6, 0.6), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let banded = run(BooleanOp::Intersect, &ball(1.0, 0.0), &band);
+    let v_banded = PI * (1.2 - 2.0 * 0.6f64.powi(3) / 3.0);
+    for az in [90.0, 92.0] {
+        let bricks = run(
+            BooleanOp::Union,
+            &brick_toward(dir(20.0, 90.0), 0.985, 0.3, 0.3),
+            &brick_toward(dir(-20.0, az), 0.985, 0.25, 0.25),
+        );
+        assert_every_op(
+            &format!("banded ball, bricks at az 90/{az}"),
+            (&banded, v_banded),
+            (&bricks, 0.6 * 0.6 * 0.3 + 0.5 * 0.5 * 0.25),
+            2.0 * cap_volume(1.0, 0.015),
+        );
+    }
+}
+
+/// **A cut whose half-meridian meets the face's boundary more than once
+/// below the circle.** The unit ball less the box `x ≥ 0.5`, cut by a
+/// slab 0.999 from the centre toward latitude ±60° at azimuth 30°. Along
+/// that half-meridian, from the circle toward the far pole, the face's
+/// boundary is the box's `x = 0.5` arc at latitude ∓54.7°, that arc again
+/// at ±54.7°, then the pole: the cut ends at the nearest. Every op
+/// builds against the ball less the cap of height 0.5, and the cap of
+/// height 0.001.
+#[test]
+fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
+    let box_ = finished(
+        "the box",
+        sweep::test_support::brick((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let carve = run(BooleanOp::Subtract, &ball(1.0, 0.0), &box_);
+    for lat in [60.0, -60.0] {
+        assert_cap_cut(
+            &format!("ball less a box, slab toward lat {lat} az 30"),
+            &carve,
+            ball_volume(1.0) - cap_volume(1.0, 0.5),
+            &brick_toward(dir(lat, 30.0), 0.999, 3.0, 1.0),
+            cap_volume(1.0, 0.001),
+        );
     }
 }
 

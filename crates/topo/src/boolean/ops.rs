@@ -768,6 +768,10 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 });
             }
             let (mut a2, mut b2) = apply_recuts(a, b, &recuts.rechart, tol)?;
+            // The cut-ins name faces of `a` and `b`; the re-charts carve
+            // and graft other shells, and `carve` keeps every kept
+            // entity's key (`splitting::finish`'s `carve`), so those
+            // names still hold on `a2` and `b2`.
             apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
             return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
@@ -2965,9 +2969,11 @@ struct Recuts<T: Real> {
 /// A sphere face of a TRIMMED group that a plane face's carrier cuts in
 /// a circle certified inside both faces with no event (the section
 /// certificate's R-loop). The face is cut along the meridian of its own
-/// sphere's chart through the circle's centre, from its boundary below
-/// the circle to its boundary above: a new seam of the face, which the
-/// circle crosses twice inside the plane face. Both pieces keep the
+/// sphere's chart through the circle's centre (through a point of the
+/// circle, `u_ref`'s, where the centre's direction is a pole of the
+/// chart), from its boundary below the circle to its boundary above: a
+/// new seam of the face, which the circle crosses twice inside the plane
+/// face. Both pieces keep the
 /// surface key (the maximal form a curved operand takes), a meridian
 /// and the face's own edges bound each, and the re-entered crossing
 /// layer meets the circle at the two crossings, as it meets a closed
@@ -3130,7 +3136,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 }
                 // Whether the section certificate clears every face on
                 // this sphere against `yf` (`None`), else the first
-                // pair's refusal. A carrier margin decided zero is a
+                // refusing pair's face on this sphere and its refusal. A carrier margin decided zero is a
                 // touch, no event where this returns `None`; one in the
                 // band asks too, and the certificate, reading it
                 // undecided, refuses.
@@ -3215,9 +3221,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     // the circle inside one of its faces
                                     // (R-loop), and that face takes the
                                     // cut instead ([`SphereCutIn`]).
-                                    FaceContainment::In => match held {
-                                        None => escape_normals.push(normal),
-                                        Some((holder, SectionRefusal::Loop)) => {
+                                    FaceContainment::In => match cut_holder(held) {
+                                        Ok(None) => escape_normals.push(normal),
+                                        Ok(Some(holder)) => {
                                             cut_ins.push(SphereCutIn {
                                                 operand: x_is,
                                                 face: holder,
@@ -3229,11 +3235,11 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                 u_ref,
                                             });
                                         }
-                                        Some((_, refusal)) => {
+                                        Err(what) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
                                                 operand: x_is,
                                                 face,
-                                                what: refusal.what(),
+                                                what,
                                             });
                                         }
                                     },
@@ -3451,6 +3457,21 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     })
 }
 
+/// **What a section circle wholly inside a plane face asks of the sphere
+/// group it lies on**, from the section certificate's reading of the
+/// group's faces against that face (`None` for a closed group, which the
+/// certificate is not asked of): `Ok(None)` re-charts the closed group,
+/// `Ok(Some(face))` cuts the trimmed face the certificate placed the
+/// circle inside (R-loop), and any other verdict refuses with its own
+/// reason.
+fn cut_holder(held: Option<(FaceKey, SectionRefusal)>) -> Result<Option<FaceKey>, &'static str> {
+    match held {
+        None => Ok(None),
+        Some((holder, SectionRefusal::Loop)) => Ok(Some(holder)),
+        Some((_, refusal)) => Err(refusal.what()),
+    }
+}
+
 /// **Whether every face on `x`'s sphere `surface` is certified apart
 /// from `y`'s face `y_row`**, whose carrier the sphere crosses or
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
@@ -3631,6 +3652,12 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// arc splits it there. A hit between `s₁` and `s₂` (a hole inside the
 /// circle), no hit on a side, a carrier the door cannot read, or ends on
 /// different loops of the face refuses typed.
+///
+/// A face an earlier cut split is read piece by piece: the later cut
+/// runs on the piece holding both its circle's crossings
+/// ([`super::sphere_region`]), and a circle whose crossings lie on an
+/// earlier cut's meridian takes no cut of its own, the crossing layer
+/// meeting it there as it meets a seam.
 fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
@@ -3646,14 +3673,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
     };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
+    // The faces each scanned face has been cut into so far, beside its
+    // own key: `(operand, scanned face, piece)`.
+    let mut pieces: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
     for cut in cut_ins {
         let body = match cut.operand {
             Operand::A => &mut *a,
             Operand::B => &mut *b,
         };
-        let refuse = |what| BooleanError::FallbackExtentUnsupported {
+        let refuse_at = |face, what| BooleanError::FallbackExtentUnsupported {
             operand: cut.operand,
-            face: cut.face,
+            face,
             what,
         };
         let esc = |diag| BooleanError::Escalated {
@@ -3662,8 +3692,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         };
         let r = cut.radius;
         let sign = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
-        let fd = proven(&body.faces, cut.face, EntityId::Face);
-        let sphere = fd.surface;
+        let sphere = proven(&body.faces, cut.face, EntityId::Face).surface;
         let Some(&geom::Surface::Sphere { axis, .. }) = body.get_surface(sphere) else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
@@ -3675,7 +3704,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
             k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
             if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-                return Err(refuse(
+                return Err(refuse_at(
+                    cut.face,
                     "the section circle has no meridian of the face's chart",
                 ));
             }
@@ -3690,17 +3720,83 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             Margin::of(across.norm()),
         )? == Sign::Zero
         {
-            return Err(refuse("the section circle lies in its own meridian plane"));
+            return Err(refuse_at(
+                cut.face,
+                "the section circle lies in its own meridian plane",
+            ));
         }
         let e = across / across.norm();
-        let mut circle = [cut.foot - e * cut.rho, cut.foot + e * cut.rho].map(latitude);
-        for p in [cut.foot - e * cut.rho, cut.foot + e * cut.rho] {
+        let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
+        for p in crossings {
             if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {
-                return Err(refuse(
+                return Err(refuse_at(
+                    cut.face,
                     "the section circle holds a pole of the face's chart",
                 ));
             }
         }
+        // The piece of the scanned face that holds the circle: the face
+        // itself until a cut splits it, then the piece both crossings
+        // lie inside. Both on one piece's boundary is the circle across
+        // an earlier cut's meridian, which the re-entered crossing layer
+        // meets as it meets a seam: no cut of its own.
+        let face = {
+            let candidates: Vec<FaceKey> = core::iter::once(cut.face)
+                .chain(
+                    pieces
+                        .iter()
+                        .filter(|&&(o, f, _)| o == cut.operand && f == cut.face)
+                        .map(|&(_, _, piece)| piece),
+                )
+                .collect();
+            if let [only] = candidates[..] {
+                only
+            } else {
+                let mut holder = None;
+                let mut across_a_cut = false;
+                for &piece in &candidates {
+                    let unread = || {
+                        refuse_at(
+                            piece,
+                            "a piece of the cut sphere face cannot be read against the section \
+                             circle's crossings",
+                        )
+                    };
+                    let read = |e: super::solid_contain::PointInSolidError| match e {
+                        super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
+                            esc(diag)
+                        }
+                        _ => unread(),
+                    };
+                    let region =
+                        super::sphere_region::sphere_face_region(body, piece, cut.center, r)
+                            .map_err(read)?
+                            .ok_or_else(unread)?;
+                    let [lo, hi] = crossings;
+                    match (
+                        region.contains(piece, lo, band).map_err(read)?,
+                        region.contains(piece, hi, band).map_err(read)?,
+                    ) {
+                        (Some(true), Some(true)) if holder.is_none() => holder = Some(piece),
+                        (Some(false), Some(false)) => {}
+                        (None, None) => across_a_cut = true,
+                        _ => return Err(unread()),
+                    }
+                }
+                match holder {
+                    Some(piece) if !across_a_cut => piece,
+                    None if across_a_cut => continue,
+                    _ => {
+                        return Err(corrupt(
+                            "cut-in: the section circle lies in no one piece of its face",
+                        ));
+                    }
+                }
+            }
+        };
+        let refuse = |what| refuse_at(face, what);
+        let fd = proven(&body.faces, face, EntityId::Face);
+        let mut circle = crossings.map(latitude);
         let above = |x: T, y: T| sign("bool_sphere_cut_order", Margin::levered(x - y, r));
         if above(circle[0], circle[1])? == Sign::Positive {
             circle.swap(0, 1);
@@ -3720,7 +3816,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 &body.loops,
                 lk,
                 EntityId::Loop,
-                EntityId::Face(cut.face),
+                EntityId::Face(face),
                 "loop",
             );
             let LoopBoundary::Cycle { first } = l.boundary else {
@@ -3891,14 +3987,14 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             (end(below_split, below_vertex)?, v_hi)
         };
         // The two ends' half-edges in the face's one loop.
-        let fd = proven(&body.faces, cut.face, EntityId::Face);
+        let fd = proven(&body.faces, face, EntityId::Face);
         let mut ends = [None, None];
         for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             let l = linked(
                 &body.loops,
                 lk,
                 EntityId::Loop,
-                EntityId::Face(cut.face),
+                EntityId::Face(face),
                 "loop",
             );
             let LoopBoundary::Cycle { first } = l.boundary else {
@@ -3931,7 +4027,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let u_arc = (p_lo - cut.center) / r;
         let w = -k;
         let to_hi = (p_hi - cut.center) / r;
-        let span = w.dot(u_arc.cross(to_hi)).atan2(u_arc.dot(to_hi));
+        // Both ends lie on the closed half-meridian `h`, the low one
+        // below, so the turn about `w` from one to the other is in
+        // `(0, π]`: the cross term's sign is known, and where both ends
+        // are poles it is a rounded zero of either sign.
+        let span = w.dot(u_arc.cross(to_hi)).abs().atan2(u_arc.dot(to_hi));
         let carrier = geom::Curve3::Circle {
             center: cut.center,
             axis: w,
@@ -3943,7 +4043,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             normal: k,
             u_ref: h,
         });
-        body.mef(
+        let created = body.mef(
             crate::euler::MefSite::Chords {
                 he1: he_lo,
                 he2: he_hi,
@@ -3961,6 +4061,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             crate::euler::FaceSurface::Inherit,
             tol,
         )?;
+        pieces.push((cut.operand, cut.face, created.face));
     }
     for body in [a, b] {
         crate::pcurves::mint_pcurves(body, tol)
@@ -5769,7 +5870,10 @@ mod torn_hop_rows {
         let cube = || crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let (mut a, b) = (cube(), cube());
         assert!(
-            sphere_extent_scan(&a, &b, &[], band).unwrap().is_empty(),
+            {
+                let r = sphere_extent_scan(&a, &b, &[], band).unwrap();
+                r.rechart.is_empty() && r.cut_in.is_empty()
+            },
             "two cubes carry no sphere"
         );
         let (face, fd) = a.faces().next().map(|(k, d)| (k, d.clone())).unwrap();
@@ -5783,7 +5887,39 @@ mod torn_hop_rows {
             "sphere_extent_scan",
             &mut a,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |a| sphere_extent_scan(a, &b, &[], band).map(|r| r.len()),
+            |a| sphere_extent_scan(a, &b, &[], band).map(|r| r.rechart.len() + r.cut_in.len()),
         );
+    }
+}
+
+/// **Only an R-loop verdict cuts a trimmed sphere face** ([`cut_holder`]):
+/// a closed group re-charts, the face the certificate placed the circle
+/// inside takes the cut, and every other verdict refuses with its own
+/// reason rather than cutting the face it names.
+#[cfg(test)]
+mod cut_holder_rows {
+    use super::*;
+
+    #[test]
+    fn only_the_loop_verdict_cuts_its_face() {
+        let face = FaceKey::default();
+        assert_eq!(cut_holder(None), Ok(None), "a closed group re-charts");
+        assert_eq!(
+            cut_holder(Some((face, SectionRefusal::Loop))),
+            Ok(Some(face)),
+            "R-loop cuts the face it names"
+        );
+        for refusal in [
+            SectionRefusal::Reach,
+            SectionRefusal::Tangent("section_sphere_plane_reach"),
+            SectionRefusal::Undecided,
+            SectionRefusal::LoneVertex,
+        ] {
+            assert_eq!(
+                cut_holder(Some((face, refusal))),
+                Err(refusal.what()),
+                "{refusal:?} refuses with its own reason"
+            );
+        }
     }
 }
