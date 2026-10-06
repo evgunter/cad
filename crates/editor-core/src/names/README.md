@@ -219,8 +219,8 @@ The qualifier depends on what was split:
 - **Edge pieces** take `Qualifier::Ends`: the sorted pair of a piece's two end
   vertices' names as the node publishes them. This covers every piece of a
   parent edge, a lone piece on its side of a cut included, so no piece's name
-  says how many siblings it has: a seam chain's pieces, pieces of an operand edge, pieces of an
-  earlier seam, and a union's pieces of a member edge (`FromMember(m, e)` +
+  says how many siblings it has: a seam chain's pieces, pieces of an operand
+  edge, pieces of an earlier seam, and a union's pieces of a member edge (`FromMember(m, e)` +
   `Ends` over the union's published vertex names, read off the finished body).
   Section chords are the same case: a section line that re-enters one operand
   face (an inner loop, a non-convex face) cuts several chords that
@@ -455,8 +455,8 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   piece's name as it was, and so do the crossings it ends at. A second crossing
   with the same sense by a face that already crosses the parent ties with the
   first (N4), so a reference to either resolves as ambiguous rather than
-  vanishing. The rung meets an edge piece where its
-  own ends moved or were renamed, or its group stopped being divided.
+  vanishing. The rung meets an edge piece where its own ends moved or were
+  renamed, or its group stopped being divided.
 - *What the group is.* The group is the one the emitter formed, read from the
   record it keeps beside the table (`names::FragmentGroups`, not persisted),
   not re-derived from the names. It counts the distinct entities of the node's
