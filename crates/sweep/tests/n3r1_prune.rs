@@ -129,7 +129,11 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
 /// [`n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts`]
 /// is the guard behind it: a pair the exemption hid that carried a real
 /// event would show there as a contact or a split one strategy lacks.
-const FACE_FREE_RECORDS: &[(&str, usize)] = &[("cylinder x cylinder shifted 0.3", 16)];
+/// None stands on the corpus: the cylinder pair shifted 0.3 makes its
+/// face-free records against wall thirds the narrow phase behind the
+/// tree (`boolean::separating`) parts from the fragment, in both
+/// strategies.
+const FACE_FREE_RECORDS: &[(&str, usize)] = &[];
 
 /// The adopted arm's candidate set on the corpus: 154 examined pairs —
 /// the landing PR's 98 (the base arm examined 134; the 36 lost are that
@@ -211,7 +215,7 @@ fn n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts() {
     assert!(
         compared
             .iter()
-            .any(|n| FACE_FREE_RECORDS.iter().any(|(f, _)| f == n)),
-        "the exempted pair is among those compared: {compared:?}"
+            .any(|n| n == "cylinder x cylinder shifted 0.3"),
+        "the pair that makes face-free records is among those compared: {compared:?}"
     );
 }

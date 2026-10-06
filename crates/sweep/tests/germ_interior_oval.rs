@@ -847,13 +847,16 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
 }
 
 /// **A plane clear of the bump's control net is certified apart though
-/// its box overlaps (W0).** A wedge over the bump block whose underside
+/// its box overlaps.** A wedge over the bump block whose underside
 /// rises along `z = 2.4 + 0.3x`: every control point of the net lies
 /// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
 /// the underside's box reaches down to `z = 1.5` into the bump face's.
 /// Every wedge edge stands at `x = ±3` or `y = ±3`, so the pair meets no
-/// crossing, and the certificate answers it with no component. Red
-/// against W0 dropped from the NURBS arm.
+/// crossing, and the walk's narrow phase (`boolean::separating`) parts
+/// it along the underside's own normal before the certificate is asked.
+/// Red against the walk reading the box overlap alone, which hands the
+/// pair to the certificate's W0 (whose own row is `section_cert_rows`'
+/// NURBS × plane one).
 #[test]
 fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
     let wedge = {
@@ -883,8 +886,5 @@ fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
         .expect("the wedge extrudes")
         .body
     };
-    assert_eq!(
-        nurbs_verdicts(&nurbs_bump(), &wedge),
-        vec!["Nurbs × Plane: Ok([])".to_string()]
-    );
+    assert_eq!(nurbs_verdicts(&nurbs_bump(), &wedge), Vec::<String>::new());
 }

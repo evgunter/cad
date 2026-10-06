@@ -1243,8 +1243,9 @@ fn face_boundary_meets<T: Decide + Bounds>(
 }
 
 /// **The section certificate over pairs of rows**: every `(A row, B
-/// row)` pair whose certified boxes overlap and which `admit` takes, in
-/// the rows' order, each [`pair_verdict`]'s. `evented` says whether
+/// row)` pair whose certified boxes overlap, which the narrow phase
+/// ([`super::separating::apart`]) does not part and which `admit`
+/// takes, in the rows' order, each [`pair_verdict`]'s. `evented` says whether
 /// the reduction recorded an event on the pair `(A face, B face)`;
 /// `named` says whether A's face is the one a refusal names. With
 /// `stop` the walk returns at the first refusing pair.
@@ -1298,8 +1299,8 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
 }
 
 /// **The section certificate over every in-scope pair** of `a` × `b`
-/// whose certified boxes overlap and which `exempt` does not answer, in
-/// arena order ([`walk_pairs`]). `evented` says whether the reduction
+/// whose certified boxes overlap, which the narrow phase does not part
+/// and which `exempt` does not answer, in arena order ([`walk_pairs`]). `evented` says whether the reduction
 /// recorded an event on the pair `(A face, B face)`. With `stop` the
 /// scan returns at the first refusing pair. `chart_boundary` is asked
 /// once per face and cached.

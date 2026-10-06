@@ -53,3 +53,17 @@ lookup moved out of the per-face arm into one per-vertex pass. Then
 drop the exemption. Whichever is chosen, `Placement::declared` and
 `undeclared_no_interior` decide on `Recorded` today and must keep
 deciding the same way.
+
+## Measured again, 2026-10-06: the witness reads 0
+
+The sweep's curved arm now reads a narrow phase behind its tree
+(`boolean::separating::apart`, on
+`reach/operand-gate-separating-direction`): an edge, or either face it
+lies on, certified apart from a curved face along a direction that
+turns with the operands is not dispatched, in either strategy. The 16
+face-free records were all against wall thirds parted from the
+fragment that way, so the idealized walk no longer makes them, and
+`FACE_FREE_RECORDS` is empty. The defect stands: `accepted` still
+counts a face-free record wherever the narrow phase does not part the
+pair (a fragment whose reach comes within two pads of a non-holding
+face), and this item no longer has a corpus witness that reds.
