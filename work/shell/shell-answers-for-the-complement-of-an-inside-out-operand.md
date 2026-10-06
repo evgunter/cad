@@ -32,8 +32,9 @@ whose fix refuses an inside-out Boolean operand typed
 
 ## Owed
 
-Refuse an inside-out operand at `shell`'s door, typed, per solid
-(`validate::inside_out_solids` reads tier 3's check 7 at the scalar's
+Refuse an inside-out operand at `shell`'s door, typed
+(`AtRestBody::gate_unverdicted`, through `validate::wound_negative`,
+reads tier 3's check 7 per solid and check 10 per shell at the scalar's
 lane), before any offset reads it. The finished-body adoption
 (`work/reach/boolean-door-adopts-the-finished-body-type.md`) subsumes it
 once `shell` takes `AtRestBody`. The blend and offset doors' posture is
@@ -50,3 +51,24 @@ verdict (a dual, `reduce::gate_unverdicted_operand`). `shell` reaches
 the same refusal by taking `AtRestBody` (its own adoption unit) with the
 same per-solid read where no verdict rides, or reads check 7 per solid
 at its door until then.
+
+## 2026-10-06 — measured on main `575b309d` (CLEAVE, `cleave/split-operand-gate`)
+
+The same clockwise wedge, `Tol::witness()`, thickness 0.02:
+
+- `shell` returns `Ok`, volume 0.05961; the counterclockwise wedge's
+  shell is 0.05097. A valid-looking body of the wrong volume.
+- `shell_open` with the top face open refuses ("the assembled thin solid
+  is not valid (1 errors) and is discarded"); counterclockwise: 0.04297.
+- `replace_face_offset` of the top face by +0.1 returns `Ok` with volume
+  −0.18794 (counterclockwise: +0.28191 from +0.23492): the region
+  shrank where the counterclockwise wedge's grew.
+
+On the slit dome (`crates/sweep/tests/pole_slit_window.rs`'s `slits`, a
+strut tip at the pole), `shell` refuses "offsetting a face inward
+refused: replace_face_offset: the re-described body is not tier-2 valid":
+the operand's own strut, reported as the offset's result failure.
+
+The blend doors' half of the posture is filed on BAND:
+`work/band/blend-doors-answer-an-inside-out-operand-with-an-inside-out-body.md`.
+The split's is closed by that branch (its doors take `AtRestBody`).

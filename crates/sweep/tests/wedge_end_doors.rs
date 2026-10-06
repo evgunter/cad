@@ -132,6 +132,7 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 #[test]
 fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
     let body = plate_with_hole();
+    let body = sweep::test_support::finished("the body", body, tol());
     for normal in [1.0, -1.0] {
         let plane = topo::test_support::split_plane(
             Point3::new(1.0, 0.0, 0.0),
@@ -156,7 +157,12 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&plate_with_hole(), &through, tol()).expect("a transverse cut");
+    let halves = topo::split(
+        &sweep::test_support::finished("the operand", plate_with_hole(), tol()),
+        &through,
+        tol(),
+    )
+    .expect("a transverse cut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of x = 0.5");
         assert_eq!(
@@ -171,12 +177,13 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
     }
 
     let cusp = extruded(vec![lune()], 0.0, 1.0);
+    let operand = sweep::test_support::finished("the fixture", cusp.body.clone(), tol());
     let mid = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5),
         Vec3::new(0.0, 0.0, 1.0),
         geom_core::Tol::witness(),
     );
-    let halves = topo::split(&cusp.body, &mid, tol()).expect("a cut across the strut");
+    let halves = topo::split(&operand, &mid, tol()).expect("a cut across the strut");
     for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
         let body = part.body().expect("material on both sides of z = 0.5");
         let tangent = tangent_edges(body);
@@ -207,6 +214,7 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
         (Point2::new(0.0, 1.0), bulge),
     ]);
     let body = extruded(vec![shoulder], 0.0, 1.0).body;
+    let body = sweep::test_support::finished("the body", body, tol());
     let on_the_ruling = |p: &Point3<f64>| p.x.abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
     // Normal `+y` refuses earlier, at the reduction
     // (`ConsecutiveOnSectors`), for a reason of its own:
