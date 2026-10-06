@@ -484,20 +484,23 @@ fn sym_9_what_each_retry_recovers() {
 /// Theorems, `sign_gated`, `registered` and `retried` do not move.
 ///
 /// When the constructions began storing the carriers they build
-/// (`store-constructed-carriers`) every document moved, and only up:
-/// - the plate and the annulus's 140 registered decisions are theorems
-///   (the circles' rims fold onto `|r|`), and the boss's 70 of 96;
-/// - the bracket reads `[1257, 5, 42, 749]` either way, so its ladder
-///   retries nothing (it recovered 6). Eight of its `dihedral_wedge`
-///   theorems are registered instead: the fillet's tangency is the
-///   registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of the
-///   offset centre's algebra;
-/// - the link reads `[676, 0, 44, 442]` without the ladder and
-///   `[680, 0, 44, 438]` with it, retried 4 (it was 14).
+/// (`store-constructed-carriers`, re-measured on the tree with every
+/// change above merged) every document moved up, against the rows
+/// just above:
+/// - the plate and the annulus's 148 registered decisions are theorems
+///   (the circles' rims fold onto `|r|`), and the boss's 74 of 102;
+/// - the bracket reads `[1401, 45, 49, 1050]` either way, so its ladder
+///   retries nothing (it recovered 6);
+/// - the link reads `[824, 0, 52, 679]` either way, retried 0 (it was
+///   14).
 ///
-/// Every document's `numeric` fell or held. One predicate moved down:
-/// the link's `carrier_on_surface_2` with the ladder, `[86, 0, 10, 12]`
-/// → `[76, 0, 16, 16]`. That is the tangent arc's quarter-tangent
+/// The bracket's `registered` falls 105 and its `numeric` 37 against
+/// 142 more theorems. Eight `dihedral_wedge` decisions that are
+/// theorems before are registered after: the fillet's tangency is the
+/// registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
+/// centre's algebra. On the link, `carrier_on_surface_2` without the
+/// ladder moved down, `[84, 0, 0, 24]` against `[76, 0, 16, 16]` on the
+/// shipped side. That is the tangent arc's quarter-tangent
 /// `2w / sqrt(4w²)`, which rule G re-keys as a sign quotient the tier
 /// does not hold; an `atan2` quarter-tangent restores it
 /// (`decide_3_split_rows_interval` holds the same trade without the
@@ -522,16 +525,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [951, 0, 0, 462], [951, 0, 0, 462], 0),
-        ("r1_annulus", [468, 0, 0, 209], [468, 0, 0, 209], 0),
-        ("r1_segment_boss", [445, 2, 26, 233], [445, 2, 26, 233], 0),
+        ("two_hole_plate", [1103, 0, 0, 704], [1103, 0, 0, 704], 0),
+        ("r1_annulus", [588, 32, 0, 451], [588, 32, 0, 451], 0),
+        ("r1_segment_boss", [533, 26, 28, 414], [533, 26, 28, 414], 0),
         (
             "r2_filleted_bracket",
-            [1257, 5, 42, 749],
-            [1257, 5, 42, 749],
+            [1401, 45, 49, 1050],
+            [1401, 45, 49, 1050],
             0,
         ),
-        ("r2_link", [676, 0, 44, 442], [680, 0, 44, 438], 4),
+        ("r2_link", [824, 0, 52, 679], [824, 0, 52, 679], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -591,7 +594,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 }
 
 /// **The DRIVE carries the ladder, and its receipt says so**: one
-/// whole-box leaf of R2's link at `1e1·ε` under
+/// whole-box leaf of R2's rounded pad at `1e1·ε` under
 /// `SymbolicDials::default()` — the shipped ladder, through the drive's
 /// own door (`sym::with_session_memo_retry`, with the drive's plain
 /// memo installed) — against the same leaf with `SymRetry::none()`.
@@ -600,14 +603,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `retried=4` after the discharge columns, and the human form names
 /// the four as discharges a second attempt reached. Without the ladder
 /// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four are theorems (`symbolic_zero` 676 → 680).
-/// The row read the filleted bracket until the fillet stored its own
-/// carrier: the bracket's first attempt now discharges what its ladder
-/// used to, so it retries nothing.
+/// ladder existed. The four are theorems (`symbolic_zero` 1340 → 1344).
+///
+/// The row read the filleted bracket, then the link. Since the
+/// constructions store the carriers they build, the first attempt
+/// discharges on both what their ladder used to, so neither retries,
+/// and the pad is the one measured document whose leaf still does. It
+/// is the heaviest of them: this row costs minutes in a debug build.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
-    let doc = document("r2_link", 1.0e1 * tol.eps(), tol);
+    let doc = document("r2_rounded_pad", 1.0e1 * tol.eps(), tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |symbolic: editor_core::drive::SymbolicDials| {
         editor_core::drive::drive(
@@ -621,7 +627,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             },
             tol,
         )
-        .expect("the bracket drives")
+        .expect("the pad drives")
     };
     let shipped = run(editor_core::drive::SymbolicDials::default());
     let bare = run(editor_core::drive::SymbolicDials {
@@ -645,11 +651,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [680, 0, 44, 438, 4],
+        [1344, 2, 54, 1268, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=44 retried=4\n"),
+        line.contains("registered=54 retried=4\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -665,7 +671,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [676, 0, 44, 442, 0]
+        [1340, 2, 54, 1272, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

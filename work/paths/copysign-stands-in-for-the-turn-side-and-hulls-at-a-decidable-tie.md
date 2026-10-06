@@ -58,3 +58,12 @@ sites above want a per-site measurement before a respell — does the tie
 arise at a point enclosure in a real fixture, or only at a degenerate
 corner the caller has already refused? — which is this program's call,
 not a mechanical substitution.
+
+## After 5b (#3774)
+
+The first site is gone. `path::fillet_arc_carrier` takes its turn side
+from the decided `path_corner_turn` as a `Sign`, so it is a literal ±1
+and no `copysign` atom, and `path.rs` has left the copysign mint-site
+register (`sym_rule_f_rows`). The second site, `sugar::fillet_bulge`,
+still stands. It is the `b` an arc-side fillet stores as Δθ = `4·atan(b)`
+(`sugar.rs:633` → `path::fillet_arc`).

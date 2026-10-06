@@ -416,8 +416,8 @@ fn digest() -> String {
 /// `v`, `a`, `vpad` and `apad` in their last bits (its volume by 4, 5
 /// and 7 ulps at ε = 1e-6 / 1e-9 / 1e-12), and the `frozen` column of
 /// the two `validate_geometric` rows — `sym_arc_loft` 654 → 607 /
-/// 568 → 539 / 638 → 606 and `sym_thin_strip` 754 → 750 / 719 → 720 /
-/// 752 → 745. Decisions, discharges, shapes, refusals and every verdict
+/// 568 → 539 / 638 → 606 and `sym_thin_strip` 708 → 704 / 673 → 674 /
+/// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
 /// hash are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {

@@ -180,11 +180,15 @@ Orchestrator rulings on the three forks (2026-10-02): keep the offset
 fillet centre and register what it proves; keep the algebraic
 tangent-arc X; bring the over-full refusal in. The costs that stand
 are on the PR:
-- `r2_link`'s ceiling falls from 4.930e2·ε to 3.029e2·ε, and four of its
-  predicates move. The half-turn's `2w/|2w|` is a sign the tier does not
+- `r2_link`'s ceiling falls from 4.930e2·ε to 3.029e2·ε, and two of its
+  predicates move against rule G's side (`carrier_on_surface_2` and
+  `carrier_matches_mapped_source`; `arc_span` moved too until the
+  2026-10-06 merge). The half-turn's `2w/|2w|` is a sign the tier does not
   hold, so no registration on the built values reaches it.
 - 8 `dihedral_wedge` decisions on `r2_filleted_bracket` that are theorems
   on main (DECIDE-9, #3807) are registered here instead. The fillet's
   tangency is the registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of
-  the offset centre's algebra. The bracket's document still gains:
-  `[1121, 5, 146, 781]` → `[1257, 5, 42, 749]`.
+  the offset centre's algebra. The bracket's document still gains, on the
+  tree merged 2026-10-06: `[1259, 45, 154, 1087]` → `[1401, 45, 49, 1050]`.
+  It now certifies whole at M10-9's scale, and that closed
+  `pcert/fillet-meridian-radius-term-is-registered-only`.

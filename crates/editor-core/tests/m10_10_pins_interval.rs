@@ -242,9 +242,9 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
 /// closed its scaffold residuals through the registered-identity door
 /// is the tier's own algebra: with the door shut, the split at the
 /// nominal is the shipped set's, row for row, and at `1.0e3 · ε` of the
-/// real study the plate certifies whole under the shipped set, under
-/// the shipped set with the door shut, and under M10-9's tier with the
-/// algebra off.
+/// real study the plate certifies whole under the shipped set and
+/// under the shipped set with the door shut. With the algebra off it
+/// refuses there: M10-9's tier does not reach the plate's ceiling.
 #[test]
 fn m10_10_the_plate_needs_no_door() {
     let tol = Tol::witness();
@@ -258,7 +258,6 @@ fn m10_10_the_plate_needs_no_door() {
     for (label, rules) in [
         ("shipped", SymRules::shipped()),
         ("door shut", SymRules::shipped_without_the_door()),
-        ("algebra off", SymRules::without_the_algebra()),
     ] {
         assert!(
             certifies_whole(&doc, rules, tol),

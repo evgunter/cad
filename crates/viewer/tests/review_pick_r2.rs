@@ -68,23 +68,24 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when a boolean match came to mint both its chords on one
+/// Last moved when each construction began storing the arc it builds
+/// (`store-constructed-carriers`): from `(442782, 141968, 12774, 6870)`.
+/// The rays are unchanged. Per document (taken on the tree before the
+/// chord-join move; the totals moved by the same amounts on both):
+/// - `boss_union` (its `circle_split` rims on the authored carrier)
+///   takes 192 determinant refusals over 144 rays and 12 fewer grazes;
+/// - `declared_tangency` gains 10 grazes;
+/// - `gallery_ring` loses 3 grazes.
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when a boolean match came to mint both its chords on one
 /// computed curve (`chord_join::SegmentCurve`): the die's pip rims, the
 /// subtracted pips' edges on its top face, shift by 1 ulp, and only
 /// `die_composed_tour`'s aim crosses candidates whose determinant
 /// certification flips with it — 6 fewer refused candidates and 6 fewer
 /// rays with a refusal at each of its two landings, the rays and grazes
 /// unchanged.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when each construction began storing the arc it builds
-/// (`store-constructed-carriers`): from `(442782, 141983, 12786, 6882)`.
-/// The rays are unchanged. Per document:
-/// - `boss_union` (its `circle_split` rims on the authored carrier)
-///   takes 192 determinant refusals over 144 rays and 12 fewer grazes;
-/// - `declared_tangency` gains 10 grazes;
-/// - `gallery_ring` loses 3 grazes.
 ///
 /// No genuine crossing is refused either way.
 ///
@@ -99,7 +100,7 @@ struct Tally {
 /// - `boss_union` gains 18 grazes.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (442_782, 141_968, 12_774, 6_870);
+const PINNED: (usize, usize, usize, usize) = (442_782, 141_963, 12_966, 7_014);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

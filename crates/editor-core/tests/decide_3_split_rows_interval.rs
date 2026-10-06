@@ -116,22 +116,21 @@ fn decide_3_no_predicate_loses_a_decision() {
             // `carrier_matches_mapped_source` moved to
             // `[108, 0, 44, 28] -> [144, 0, 12, 24]` (from
             // `[108, 0, 60, 12] -> [108, 0, 50, 22]`): 36 more theorems on
-            // the shipped side, and four fewer numeric. And `arc_span` is
-            // the third re-baseline: rule G re-keys that root as `|2w|`,
-            // so the span's sign over `2w / |2w|` is no theorem on the
-            // shipped side, `[8, 0, 0, 0] -> [4, 0, 0, 4]`, where the
-            // G-shut tier keeps the root an atom it reads non-negative.
+            // the shipped side, and four fewer numeric.
             // `carrier_on_surface_2` moved with it, to
             // `[84, 0, 0, 24] -> [76, 0, 16, 16]` (from
             // `[88, 0, 0, 20] -> [84, 0, 10, 14]`). Toggling the tangent
-            // arc back to an `atan2` quarter-tangent restores all three
-            // predicates' old numbers.
+            // arc back to an `atan2` quarter-tangent restores both
+            // predicates' old numbers. (`arc_span` moved with them,
+            // `[8, 0, 0, 0] -> [4, 0, 0, 4]`, until the merge that
+            // brought in the extrude's pcurve mint and PCERT's
+            // certificate; it reads `[8, 0, 0, 0]` on both sides since.)
             //
             // The decision read no longer answers any of this
             // document's theorems first (DECIDE-9's early zero arm), so
             // `dihedral_wedge` and `path_seam_arrival_turn` read the same
             // on both sides. At the document level the shipped side
-            // gains: `[569, 0, 94, 499] -> [676, 0, 44, 442]`.
+            // gains: `[705, 0, 102, 748] -> [824, 0, 52, 679]`.
             //
             // Both sides here run one attempt per rung
             // (`split_at_the_nominal`, no retry ladder), because this is
@@ -144,7 +143,6 @@ fn decide_3_no_predicate_loses_a_decision() {
                 ("r2_link", "carrier_matches_mapped_source") => {
                     Some(([108, 0, 44, 28], [144, 0, 12, 24]))
                 }
-                ("r2_link", "arc_span") => Some(([8, 0, 0, 0], [4, 0, 0, 4])),
                 _ => None,
             };
             if let Some(expected) = rebaselined {

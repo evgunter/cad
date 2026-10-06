@@ -112,7 +112,9 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `carrier_endpoint_start`'s door decisions, all 18 of
 /// `pcurve_map_residual`'s and 36 of `carrier_matches_mapped_source`'s
 /// are THEOREMS now, on this table and on the boss's alike. No numeric
-/// decision moved.
+/// decision moved. On the merged tree (PCERT's restated certificate) the
+/// same fold takes four of `pcurve_loop_continuity`'s door decisions to
+/// theorems as well, on both tables.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
@@ -148,9 +150,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("pcurve_fidelity_branch", [0, 0, 0, 24]),
     ("pcurve_interval_forward", [0, 0, 0, 12]),
     ("pcurve_loop_branch", [0, 0, 0, 25]),
-    ("pcurve_loop_continuity", [12, 0, 4, 8]),
+    ("pcurve_loop_continuity", [16, 0, 0, 8]),
     ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
-    ("pcurve_map_residual", [0, 0, 18, 0]),
+    ("pcurve_map_residual", [18, 0, 0, 0]),
     ("pcurve_trim_containment", [24, 0, 0, 24]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
@@ -263,9 +265,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_fidelity_branch", [0, 0, 0, 24]),
             ("pcurve_interval_forward", [0, 0, 0, 12]),
             ("pcurve_loop_branch", [0, 0, 0, 25]),
-            ("pcurve_loop_continuity", [12, 0, 6, 6]),
+            ("pcurve_loop_continuity", [16, 0, 2, 6]),
             ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
-            ("pcurve_map_residual", [0, 0, 18, 0]),
+            ("pcurve_map_residual", [18, 0, 0, 0]),
             ("pcurve_trim_containment", [0, 24, 0, 24]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),

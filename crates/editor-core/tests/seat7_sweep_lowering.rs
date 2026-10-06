@@ -308,7 +308,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("die", 0x63de_edf2_4dee_ef58),
         ("corner_table", 0xd8b1_634f_074f_de08),
         ("cut_cylinder", 0x1676_4144_da9e_6975),
-        ("boss_union", 0x9149_8127_2c43_ed66),
+        ("boss_union", 0x3954_7f0b_f511_5a9c),
         ("kitchen_sink", 0x6160_217f_8bea_4d5a),
     ];
     let mut moved: Vec<String> = Vec::new();
