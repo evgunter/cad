@@ -484,3 +484,52 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — the D10 hold reaches TANG; triage; the next slate
+
+The weekly limit stopped every lane on 2026-10-03, before TANG parked
+its rows under the D10 hold, so they are parked here. PR 3954's fix
+pass resumes: it is a unit already started.
+
+**Parked on `d10-one-way-to-say-intent-is-unbuilt`.** Each of these
+uses declared pairs or contact, or a declaration-offer or
+undeclared-coincidence refusal:
+
+- the declared-cusps arm;
+- the banked torus Rest lane;
+- levering a declared pair by its patch;
+- the seam's subtract and intersect;
+- the torus seam graze;
+- the flush detector's continuation offers;
+- the flush pair with no typed finding;
+- the dropped Tangent offer;
+- the decided coincidence's synthetic margin;
+- the rim routing's sense guard;
+- the half-band rim offset (discs declared Rest);
+- the turned lens (discs declared Rest);
+- the torus meridian (a Seam-declared chain);
+- the turned hemisphere (a declared Seam);
+- the valence-4 pinch, gated on a declared radius-equality channel that
+  D10 replaces with construction.
+
+A designer pair dispatched on declared cusps before the hold was read
+was withdrawn within minutes, with no report. No row is recorded:
+nothing went to Ev. Its blinding branch,
+`analysis/design-fork/declared-cusps-routing-and-emission`, stays as
+the record of the dispatch.
+
+**Banded and open** (fourteen lane-filed rows had no band):
+
+- **P0**:
+  - `in-face-pierce-rings-pair-across-the-gap` (a bar through a pipe);
+  - `planar-ring-lane-closes-its-island-with-a-straight-chord` (a
+    D-prism through a slab).
+- **P1**:
+  - the rim lying across a seam ruling (an undeclared build);
+  - three wedges meeting at a point;
+  - the strut cover on cylinder pairs.
+- **P3**: the valence-2 vertices on the tube's seam rulings.
+
+**Dispatched:**
+`plane-cylinder-section-reads-its-gap-at-the-stored-origin`, tier SINGLE
+FULL. It is classifier geometry, and the hold does not cover it.

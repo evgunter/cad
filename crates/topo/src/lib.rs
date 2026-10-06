@@ -185,6 +185,7 @@ mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_nappe;
+pub(crate) mod offset_restate;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
