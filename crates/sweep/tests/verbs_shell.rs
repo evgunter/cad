@@ -411,11 +411,7 @@ fn the_clearance_gate_reads_arc_bounded_footprints() {
     let void = |cy: f64, z0: f64| {
         sweep::test_support::cylinder_of_arcs_at(2, 1.0, Point2::new(3.0, cy), z0, 1.8, tol)
     };
-    let one = crate::common::cavity::cut(
-        "lower void",
-        &block(6.0, 6.0, 6.0, tol),
-        &void(2.5, 1.0),
-    );
+    let one = crate::common::cavity::cut("lower void", &block(6.0, 6.0, 6.0, tol), &void(2.5, 1.0));
     let body = crate::common::cavity::cut("upper void", &one, &void(3.5, 3.2));
     assert_eq!(body.shells().count(), 3, "outer plus two voids");
     let e = topo::shell(&body, 0.3, tol).expect_err("0.4 < 0.6 under overlapping caps refuses");
@@ -429,12 +425,52 @@ fn the_clearance_gate_reads_arc_bounded_footprints() {
         panic!("expected the wall-clearance gate, got {e}");
     };
     assert!((gap - 0.4).abs() < 1e-12, "the wall is 0.4, got {gap}");
-    assert!((needed - 0.6).abs() < 1e-12, "two walls need 0.6, got {needed}");
+    assert!(
+        (needed - 0.6).abs() < 1e-12,
+        "two walls need 0.6, got {needed}"
+    );
     let mut named = [face, other];
     named.sort();
     let mut caps = [plane_face_at(&body, 2.8), plane_face_at(&body, 3.2)];
     caps.sort();
-    assert_eq!(named, caps, "the lower void's roof and the upper void's floor");
+    assert_eq!(
+        named, caps,
+        "the lower void's roof and the upper void's floor"
+    );
+}
+
+/// **A wall tilted a little off antiparallel is still a wall.** The
+/// arm between `x = 3` and the notch wall `(2.75, 1)–(2.74, 0.5)` is
+/// `0.25`–`0.26` wide, tilted `0.02` rad: far outside any coincidence
+/// band, but its drift across the pair is under one wall `t = 0.15`, so
+/// the gate reads it, and `0.26 < 0.3` refuses.
+#[test]
+fn the_clearance_gate_reads_a_slightly_tilted_wall() {
+    let tol = Tol::witness();
+    let body = prism(
+        corners(&[
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 1.0),
+            (2.75, 1.0),
+            (2.74, 0.5),
+            (0.0, 0.5),
+        ]),
+        1.0,
+        tol,
+    );
+    let e = topo::shell(&body, 0.15, tol).expect_err("a 0.26 arm cannot hold two 0.15 walls");
+    let ShellError::WallClearance { face, other, .. } = e else {
+        panic!("expected the wall-clearance gate, got {e}");
+    };
+    let normal_x = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
+        Some(geom::Surface::Plane { normal, .. }) => normal.x.abs(),
+        _ => panic!("{f:?} is planar"),
+    };
+    assert!(
+        normal_x(face) > 0.99 && normal_x(other) > 0.99,
+        "the refusal names the two arm walls"
+    );
 }
 
 /// **Two voids.** With material `g = 0.4` between them, `t > g/2`
