@@ -225,9 +225,10 @@
 //! no `StableName` for a loop; a rim's anchor is its `ring_edges` /
 //! `ring_vertices`, whose source columns are operand edges and vertices.
 //! A hole's loop in particular is a result key on every operand and an
-//! operand key on only some — an extruded holed slab's mouth carries its
-//! ring already, while a revolve's slit annular cap has none until
-//! `kemr` mints one during the chart reduction.
+//! operand key on only some — an extruded holed slab's mouth or a
+//! revolve's annular cap carries its ring already, while a cap whose
+//! hole is joined to its outer cycle by a slit has none until `kemr`
+//! mints one during the chart reduction.
 //!
 //! # The opened arm
 //!
@@ -288,15 +289,17 @@
 //! The glue's only output shape is "one region per face, an outer loop
 //! plus rings", so a designated face is safe exactly when its cavity
 //! counterpart's boundary can become an INTERIOR-DISJOINT ring of it.
-//! A revolve's chart does not arrive that way: a full revolve of an
-//! axis-touching profile splits the cap into two half-discs meeting at
-//! the axis apex, and a full revolve of a closed off-axis profile
-//! leaves the annular cap SLIT along a radial seam. Gluing onto either
-//! puts the counterpart's boundary ON the designated face's own —
-//! sharing the apex, running back along the seam — and the result is a
-//! body every structural tier blesses and no triangulator accepts.
+//! A chart need not arrive that way: it may be several faces meeting
+//! along edges only they share — two half-discs meeting at an apex —
+//! or one face SLIT, its loop walking one edge both ways to join a hole
+//! to its outer cycle. A full revolve mints neither (each plane wall is
+//! one face, a disc or an annulus carrying its hole as a ring), but the
+//! glue's hypothesis does not name where the operand came from. Gluing
+//! onto either puts the counterpart's boundary ON the designated face's
+//! own — sharing the apex, running back along the slit — and the result
+//! is a body every structural tier blesses and no triangulator accepts.
 //!
-//! Both are facts about how the operand was swept rather than about
+//! Both are facts about how the operand was built rather than about
 //! the region, and step 3 removes them through the Euler doors alone
 //! (`kef`, `kev`, `kemr`). What survives step 3 is genuinely about the
 //! region and is refused typed
@@ -873,9 +876,10 @@ pub struct HoleRim {
     ///
     /// **A result key, not a source key**, and the distinction is not
     /// academic: on an extruded holed slab this key is the operand's
-    /// own ring loop, while on a revolve's SLIT annular cap the
-    /// designated face carries no ring at all in the operand and this
-    /// loop is minted by `kemr` during the chart reduction. Reading it
+    /// own ring loop, while on a SLIT cap — its hole joined to its outer
+    /// cycle by a slit — the designated face carries no ring at all in
+    /// the operand and this loop is minted by `kemr` during the chart
+    /// reduction. Reading it
     /// as a source key is right on one operand and wrong on the other,
     /// which is why the edge-level rows below exist.
     pub ring: LoopKey,
@@ -1333,7 +1337,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // Per chart, ONCE — not once per designated face. The rim a
     // designation asks for is one region of the mouth plane, and how
     // many faces the operand spent on that region is a fact about the
-    // operand's construction (a full revolve's seam) rather than about
+    // operand's construction rather than about
     // the rim. Both sides of the glue are reduced to one face carrying
     // proper, mutually disjoint loops first
     // ([`canonicalize_chart`]) — which is exactly the condition that
@@ -1833,11 +1837,11 @@ fn undesignated(face: FaceKey) -> ! {
 /// **One face per chart, loops disjoint** — the shape the rim glue's
 /// only output form needs on both sides of it.
 ///
-/// A chart arrives from a revolve carrying that construction's seam:
-/// an axis-touching cap is TWO faces meeting along a diameter, and an
-/// annular cap is one face slit radially, its loop walking the seam
-/// edge in both directions. Neither is a fact about the region — both
-/// are facts about how the operand was swept — and both are exactly
+/// A chart may arrive carrying edges that are no fact about the region:
+/// several faces meeting along edges only they share (two half-discs
+/// meeting along a diameter), or one face SLIT, its loop walking one
+/// edge in both directions to join a hole to its outer cycle. Both are
+/// facts about how the operand was built, and both are exactly
 /// what makes a counterpart's boundary land ON the designated face's
 /// boundary instead of strictly inside it. This reduces them, through
 /// the Euler doors and nothing else:
@@ -1846,10 +1850,10 @@ fn undesignated(face: FaceKey) -> ! {
 ///    (`kef`), leaving the merged loop walking each killed edge's
 ///    surviving partner twice;
 /// 2. a SPUR — such a duplicate whose far vertex the merge left with
-///    one edge on it, the axis apex of a revolved cap — dies with that
+///    one edge on it, the apex of two half-discs — dies with that
 ///    vertex (`kev`);
-/// 3. a SLIT — a duplicate still anchored at both ends, an annular
-///    cap's radial seam — splits the loop in two (`kemr`), the
+/// 3. a SLIT — a duplicate still anchored at both ends, joining a hole
+///    to the outer cycle — splits the loop in two (`kemr`), the
 ///    inner side becoming the ring it always was.
 ///
 /// Returns the surviving face. A chart this cannot reduce refuses
@@ -2031,7 +2035,7 @@ fn pair_rings<T: Decide>(
 
 /// A loop of `face` that walks one edge in BOTH directions, with the
 /// two halves in cycle order — the seam remnant a chart merge leaves,
-/// and the slit a full revolve of a closed profile is born with.
+/// and a slit joining a hole to its outer cycle.
 /// `face` is one this call resolved; its loops, their walks, each
 /// member's edge and a lone vertex's point are links, so a miss panics
 /// naming the record.

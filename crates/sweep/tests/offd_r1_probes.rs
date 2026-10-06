@@ -74,6 +74,31 @@ fn frustum_opening() -> Body<f64> {
     revolved(&[(0.2, 0.0), (0.4, 0.0), (0.6, 0.6), (0.2, 0.6)])
 }
 
+/// The honest cap refusal: the attach door cannot describe one of the
+/// cone's moved rims on its planar cap (the transports agreeing with
+/// the mint, the caps unable to follow).
+fn assert_a_cap_cannot_hold_a_moved_rim(
+    body: &Body<f64>,
+    cone: FaceKey,
+    e: &ReplaceFaceError<f64>,
+) {
+    let ReplaceFaceError::Op {
+        edge: None,
+        error: topo::EulerOpError::RechartFalsifies { edge, .. },
+    } = e
+    else {
+        panic!("expected the attach door to refuse a rim on its cap; got {e}")
+    };
+    let rim = body
+        .get_edge(*edge)
+        .expect("the refused edge is the body's");
+    let faces = [rim.he_plus, rim.he_minus].map(|he| body.face_of_half_edge(he));
+    assert!(
+        faces.contains(&Some(cone)),
+        "the refused edge is a rim of the moved cone; got {e}"
+    );
+}
+
 fn cone_face(body: &Body<f64>) -> FaceKey {
     body.faces()
         .find(|(_, f)| {
@@ -182,15 +207,16 @@ fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
 ///
 /// The honest downstream refusal is structural: under the mint's
 /// `v ↦ v + d·cot α` contract every rim moves axially by `−d·sin α`,
-/// so the planar caps' own seam carriers cannot hold the moved
-/// vertices, and the re-anchor gate (`offset_reanchor_on_carrier`) is
-/// what should say so — the seam and rim transports themselves agree
-/// wherever the lane table ("a generator translates by `d·n`; a
-/// parallel's `v` shifts by `d·cot α`") is implemented as the mint
-/// derives it. A `VertexDisagreement` here instead means the door's
-/// own two cone transports put the SAME vertex in two places — the
-/// transport lanes disagreeing with the mint they serve, not a
-/// property of the fixture.
+/// so a moved rim no longer lies on its planar cap, and the attach
+/// door's re-description of that rim on the cap's chart is what says
+/// so (`EulerOpError::RechartFalsifies` naming a rim of the cone) — the seam and
+/// rim transports themselves agree wherever the lane table ("a
+/// generator translates by `d·n`; a parallel's `v` shifts by
+/// `d·cot α`") is implemented as the mint derives it. A
+/// `VertexDisagreement` here instead means the door's own two cone
+/// transports put the SAME vertex in two places — the transport lanes
+/// disagreeing with the mint they serve, not a property of the
+/// fixture.
 ///
 /// Opening-nappe fixture: the generator arm's `copysign` is the
 /// identity, so any disagreement is the parallel arm's alone (the
@@ -208,11 +234,7 @@ fn the_routed_opening_cone_reaches_past_c5_and_refuses_at_the_caps() {
         "cone x plane routes; the C5 gate must not shadow it, got {e}"
     );
     assert_eq!(dump(&body), before, "the body is bit-untouched on Err");
-    assert!(
-        matches!(e, ReplaceFaceError::ReanchorOffCarrier { .. }),
-        "expected the honest cap refusal (the transports agreeing with the \
-         mint, the caps unable to follow); got {e}"
-    );
+    assert_a_cap_cannot_hold_a_moved_rim(&body, face, &e);
 }
 
 /// The same routed configuration on the MIRROR nappe — the nappe the
@@ -233,11 +255,7 @@ fn the_routed_mirror_cone_reaches_past_c5_and_refuses_at_the_caps() {
         "cone x plane routes; the C5 gate must not shadow it, got {e}"
     );
     assert_eq!(dump(&body), before, "the body is bit-untouched on Err");
-    assert!(
-        matches!(e, ReplaceFaceError::ReanchorOffCarrier { .. }),
-        "expected the honest cap refusal (the transports agreeing with the \
-         mint, the caps unable to follow); got {e}"
-    );
+    assert_a_cap_cannot_hold_a_moved_rim(&body, face, &e);
 }
 
 /// **Whole-body bit-identity on every `Err` path the suite planted —
