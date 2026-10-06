@@ -1065,7 +1065,8 @@ the value). The names that reach the funnel through them today:
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
 | `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |
 | `bool_box_cylinder_axis` | `crates/topo/src/boolean/boxes.rs`'s const, decided where `face_box_rule` reads a cylinder carrier | yes — every cylinder face either box lane boxes (the sweep's face tree, separation, the census pre-filter and reach) |
-| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal`, `bool_box_cylinder_axis` and `props_torus_axis` sample |
+| `bool_flank_axis` | `crates/topo/src/boolean/recl.rs`'s const, decided where `resolve_edge_edge` reads an edge-edge site's common line | yes — once per edge-edge site any boolean resolves |
+| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal`, `bool_box_cylinder_axis`, `bool_flank_axis` and `props_torus_axis` sample |
 | `fixture_split_normal` | `crates/topo/src/test_support_fixtures.rs`'s `split_plane`, a const the fixtures own | no — a test-owned name, as `fixture_frame_axis` |
 
 **Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
@@ -1150,6 +1151,25 @@ vertex and carrier datum). `boolean::solid_contain`'s in-face test does
 not certify (it reads a face's trim at its own surface plane) and adds
 no samples. Dimensions: `docs/predicate-dimension-audit.md`'s rows of
 the same names.
+
+**Roster change (CLEAVE, 2026-10-06): two names added.** An
+edge-edge site (`recl::resolve_edge_edge`) projects each solid's two
+flanking bounds perpendicular to the common line and reads membership
+off the projections. Both lengths are now decided where they are read.
+`bool_flank_axis` mints the common line's direction through
+`UnitVec3::levered`, levered by its bound's reach: the bound is
+`sector_shape`'s unit direction of a chord its arm rung decided long,
+so its margin is that reach and every refusal is a
+`ClassificationInvariant`. It samples once per site, with one
+`unit_direction_arm` sample beside it. `bool_flank_offset` decides each
+projection's length times its bound's own reach (`decide_positive`): the
+bound's far end's distance off the line, in metres, four samples per
+site. Measured before the change over the `topo`, `sweep` and
+`editor-core` suites (29,744 readings at `f64`, `Interval`, `Dual` and
+the symbolic scalar): the smallest projection was 0.148, and the
+smallest margin through a public door, levered at the site's shorter
+sector arm, was 1.6e7 times the band's zero. Dimensions:
+`docs/predicate-dimension-audit.md`'s rows of the same names.
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare
