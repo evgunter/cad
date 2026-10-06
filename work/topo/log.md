@@ -7380,3 +7380,23 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - It applies PR 4105's predicate and site mint to `set_edge_curve`, then lands the `debug_assert!`.
   - Files: `attach.rs` and tests. In `pcurves.rs` it changes only the assert and the posture text, flagged for **PCERT**'s re-port of 3945.
   - Disjoint from PR 4099. No ratified clause names `staleness_posture`; I checked DESIGN.md and the README pages.
+
+## 10:31 (2026-10-06) check-in
+
+- **PR 4099 merged** at `9b09fb90` (head `f2c43f5f`; CI green, `gate ok` success). The fix lane (about $3.8) answered every item:
+  - `# Panics` docs;
+  - a `three_ring_face` order row (M3 and M4 red);
+  - torn rows on the member-edge and lone-point hops (M5 and M6 red);
+  - census and boxes superlatives corrected, with `pcurves.rs`' noted on the row;
+  - `outermost_survivor` off `.skip(1)` (M7 red);
+  - `snapshot` doc;
+  - filed `census-face-walks-skip-torn-hops-silently`;
+  - batteries 0 moved lines; gate register equal to main.
+  - The row `face-boundary-walks-spell-the-linked-prelude-by-hand` stays open for `pcurves.rs` `face_loop_walks` (a semantic change; PCERT is in the file) and the held `patch_faces`.
+- **Parked** `torn-hops-read-as-absent-across-the-boolean`, `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Every non-held site is converted; the remainder is the D10-held list. `attach.rs` `check_moved_boundary` no longer exists.
+- **Dispatched** the `RevertError::Corrupt` family of `torn-body-refusal-families-beyond-the-six-doors` → `session_019JmCkhRUeKwDRNVLgHGU1L`, branch `topo/revert-torn-reads-panic`.
+  - `revert.rs` is TOPO's.
+  - It touches `boolean/voids.rs`/`mod.rs` (cleave, hone) and `pncad-py` `prose_census.rs` (lib) only to retire the variant, announced as a seam.
+  - `transform.rs` is left alone (offset/shelf/shell territory).
+  - No open PR touches `revert.rs` or `review_d18.rs`.
+- Nothing new on PR 3970.
