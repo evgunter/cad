@@ -217,7 +217,7 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   L, and L ends there. Otherwise the band that reaches further is cut off
   past the mitre by the other band's far support, one more short curve
   down to L. Which holds is a margined verdict (`fillet3_turn_isosceles`,
-  the distance along L between the two bands' feet on it): Zero builds
+  the two face angles at the vertex compared): Zero builds
   the first, definite the second, the sliver band refuses. A Zero
   verdict is a coincidence decided from values, so the verdict records
   it (`BatteryVerdict::coincidences`, D10). No ball rests at a turn,

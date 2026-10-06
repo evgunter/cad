@@ -28,7 +28,7 @@ reads, are the pre-D10 declared-pair system stage 4 retires).
 
 The battery decides `fillet3_turn_isosceles` Zero at every isosceles
 turn and records it as a typed value:
-`sweep::blend::battery::DecidedCoincidence::IsoscelesTurn { vertex, gap }`,
+`sweep::blend::battery::DecidedCoincidence::IsoscelesTurn { vertex, reading }`,
 held in `BatteryVerdict::coincidences` (one row per turn, in vertex
 order; `crates/sweep/src/blend/battery.rs`, `turn_at` and
 `run_battery_for`). Nothing reads it but the row that pins it

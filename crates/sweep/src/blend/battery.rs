@@ -1975,38 +1975,38 @@ pub struct Turn<T: Real> {
 /// (`work/intent/value-decided-coincidences-have-no-recording-door.md`).
 #[derive(Clone, Debug)]
 pub enum DecidedCoincidence<T: Real> {
-    /// A turn's trihedron is isosceles about its unrequested edge: the
-    /// two bands' trimlines on that edge's faces meet it at one point,
-    /// so the mitre lands on it and four edges meet there. `gap` is the
-    /// reading `fillet3_turn_isosceles` decided Zero, the distance
-    /// along the edge between the two feet.
+    /// A turn's trihedron is isosceles about its unrequested edge, so
+    /// the mitre lands on it and four edges meet there. `reading` is
+    /// the margin `fillet3_turn_isosceles` decided Zero ([`turn_at`]).
     IsoscelesTurn {
         /// The turn's vertex.
         vertex: VertexKey,
         /// The decided reading.
-        gap: T,
+        reading: T,
     },
 }
 
 /// **`fillet3_turn_isosceles`** — at a turn, is the trihedron isosceles
 /// about the unrequested edge `third`?
 ///
-/// Read where it decides what is built: each band's trimline on its own
-/// other support (the face it shares with `third`) meets `third`'s line
-/// at a foot, and the margin is the signed distance between the two
-/// feet along it, in meters. Equal dihedrals at the two requested edges
-/// (equivalently, equal face angles at the vertex) put both feet at
-/// one point for either verb, each band's setback being one function of
-/// its dihedral. Zero builds the mitre down to that point and records
-/// the coincidence; a definite gap is the overrun ([`TURN_OVERRUN`]);
-/// in band escalates.
+/// Margin: the difference of the cosines of the two face angles at the
+/// vertex, each between a requested edge and `third` (their unit
+/// directions out of the vertex, dotted), levered at the longer link's
+/// extent. Equal face angles are equal dihedrals at the requested edges
+/// — the same fact — and then each band's trimline on its own face of
+/// `third` meets it at one point, for either verb, each band's setback
+/// being one function of its dihedral. Zero builds the mitre down to
+/// that point (the two crossings' midpoint, apart by no more than the
+/// band) and records the coincidence; a definite difference is the
+/// overrun ([`TURN_OVERRUN`]); in band escalates.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] for a definite gap;
+/// [`BlendError::UnsupportedRunOut`] for a definite difference;
 /// [`BlendError::Escalated`] in band; [`BlendError::BodyNotIntact`]
-/// when the two links share no support or a normal does not read;
-/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line.
+/// when the two links share no support or a vertex or normal does not
+/// read; [`BlendError::UnsupportedGeometry`] when a trimline is not a
+/// line.
 fn turn_at<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -2024,6 +2024,42 @@ fn turn_at<T: Decide>(
                 "a turn's two requested edges share no face",
             )
         })?;
+    let p = point_at(body, vertex)?;
+    // Each edge's unit direction out of the vertex.
+    let out = |e: EdgeKey| {
+        let far = body.get_edge(e).and_then(|d| {
+            let start = body.get_half_edge(d.he_plus)?.start;
+            if start == vertex {
+                body.half_edge_end(d.he_plus)
+            } else {
+                Some(start)
+            }
+        });
+        far.and_then(|v| body.get_vertex(v))
+            .and_then(|v| body.get_point(v.point))
+            .map(|q| (*q - p).normalize())
+            .ok_or_else(|| not_intact(EntityId::Edge(e), "a turning edge's far end"))
+    };
+    let along = out(third)?;
+    let lever = l1.arm_len.max(l2.arm_len);
+    let margin = Margin::levered(out(l1.edge)?.dot(along) - out(l2.edge)?.dot(along), lever);
+    let reading = margin.value();
+    match classify(
+        BlendSite::Joint { vertex },
+        BlendDecision::TurnIsosceles,
+        margin,
+        band,
+    )? {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(super::surgery::unbuilt_run_out(
+                EntityId::Vertex(vertex),
+                TURN_OVERRUN,
+            ));
+        }
+    }
+    // Each band's trimline on its face of the third edge, crossed with
+    // that edge's line.
     let other = |l: &Link<T>| {
         if l.face_a == shared {
             l.face_b
@@ -2031,20 +2067,7 @@ fn turn_at<T: Decide>(
             l.face_a
         }
     };
-    let (f1, f2) = (other(l1), other(l2));
-    let p = point_at(body, vertex)?;
-    let normal = |f: FaceKey| {
-        outward(body, f, p).ok_or_else(|| {
-            not_intact(
-                EntityId::Face(f),
-                "a turn's support face or its stored surface, for its outward normal",
-            )
-        })
-    };
-    // The third edge lies in both other supports, so its direction is
-    // their normals' cross product: no read of its own carrier.
-    let along = normal(f1)?.cross(normal(f2)?);
-    let foot = |l: &Link<T>, f: FaceKey| match l.trim_on(f) {
+    let foot = |l: &Link<T>| match l.trim_on(other(l)) {
         Some((Curve3::Line { origin, dir }, _)) => {
             Ok(line_meet(*origin, *dir, p, along, dir.cross(along)))
         }
@@ -2053,27 +2076,15 @@ fn turn_at<T: Decide>(
             "a turning band's trimline is not a line",
         )),
     };
-    let (y1, y2) = (foot(l1, f1)?, foot(l2, f2)?);
-    let gap = (y1 - y2).dot(along.normalize());
-    match classify(
-        BlendSite::Joint { vertex },
-        BlendDecision::TurnIsosceles,
-        Margin::of(gap),
-        band,
-    )? {
-        Sign::Zero => Ok((
-            Turn {
-                vertex,
-                edge: third,
-                foot: y1 + (y2 - y1) * T::from_f64(0.5),
-            },
-            DecidedCoincidence::IsoscelesTurn { vertex, gap },
-        )),
-        Sign::Positive | Sign::Negative => Err(super::surgery::unbuilt_run_out(
-            EntityId::Vertex(vertex),
-            TURN_OVERRUN,
-        )),
-    }
+    let (y1, y2) = (foot(l1)?, foot(l2)?);
+    Ok((
+        Turn {
+            vertex,
+            edge: third,
+            foot: y1 + (y2 - y1) * T::from_f64(0.5),
+        },
+        DecidedCoincidence::IsoscelesTurn { vertex, reading },
+    ))
 }
 
 /// **`fillet3_cap_transverse`** — the kind-picker for a cylinder band's

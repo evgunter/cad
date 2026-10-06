@@ -197,11 +197,11 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
 }
 
 /// **A turn that is not isosceles refuses typed** (`leaning_turn`): the
-/// leaning wall's dihedral is not the end face's, so one band reaches past the mitre —
-/// the overrun, which is not built. Near equality the verdict is in
-/// band and escalates on `fillet3_turn_isosceles`; the chamfer's two
-/// feet on the third edge stand `d·(√(1 + s²) − 1) ≈ d·s²/2` apart, so
-/// the lean is read off the run's band.
+/// leaning wall's dihedral is not the end face's, so one band reaches
+/// past the mitre — the overrun, which is not built. Near equality the
+/// verdict is in band and escalates on `fillet3_turn_isosceles`, whose
+/// margin is the face angles' cosines apart, `s/√(1 + s²)`, levered at
+/// the longer edge, `2 − s`; the lean is read off the run's band.
 #[test]
 fn a_turn_whose_faces_are_not_symmetric_refuses_typed() {
     let (body, turn) = leaning_turn(0.5);
@@ -214,8 +214,7 @@ fn a_turn_whose_faces_are_not_symmetric_refuses_typed() {
         }
     }
     let band = Band::linear(tol()).expect("the run's band");
-    let gap = (band.zero() * band.escalate()).sqrt();
-    let s = (2.0 * gap / D).sqrt();
+    let s = (band.zero() * band.escalate()).sqrt() / 2.0;
     let (body, turn) = leaning_turn(s);
     match Verb::Chamfer.run(&body, &turn) {
         Err(BlendError::Escalated {
@@ -318,8 +317,8 @@ fn a_mitred_chamfer_matches_the_boolean_less_its_two_prisms() {
 }
 
 /// **The verdict records the coincidence** it decided (D10): each
-/// isosceles turn once, its gap the reading decided Zero — exactly zero
-/// on the box, whose walls are square to its top by construction.
+/// isosceles turn once, with the reading decided Zero — exactly zero on
+/// the box, whose walls are square to its top by construction.
 #[test]
 fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
     let body = the_box();
@@ -347,11 +346,11 @@ fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
             "{kind:?}: one record per turn"
         );
         for (turn, record) in verdict.turns.iter().zip(&verdict.coincidences) {
-            let DecidedCoincidence::IsoscelesTurn { vertex, gap } = record;
+            let DecidedCoincidence::IsoscelesTurn { vertex, reading } = record;
             assert_eq!(*vertex, turn.vertex, "{kind:?}: recorded at the turn");
             assert!(
-                gap.abs() < 1e-15,
-                "{kind:?}: the gap decided Zero, got {gap}"
+                reading.abs() < 1e-15,
+                "{kind:?}: the reading decided Zero, got {reading}"
             );
         }
     }

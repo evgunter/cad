@@ -281,9 +281,10 @@ pub enum BlendDecision {
     /// put their feet on it in order and definitely apart, so the
     /// second split lands on the piece the first leaves.
     CutOffFeet,
-    /// `fillet3_turn_isosceles`: at a turn, the two bands' trimlines on
-    /// the faces of the unrequested edge meet it at one point, so the
-    /// mitre lands on it. Passes only at zero.
+    /// `fillet3_turn_isosceles`: at a turn, the two requested edges make
+    /// equal angles with the unrequested one — the trihedron is
+    /// isosceles about it — so the mitre lands on it. Passes only at
+    /// zero.
     TurnIsosceles,
 }
 
@@ -362,9 +363,9 @@ impl BlendDecision {
                 "whether two cut-offs' feet on the rim they share stand definitely apart"
             }
             Self::TurnIsosceles => {
-                "whether two requested edges turning at a vertex meet its third edge at one \
-                 point, the faces being symmetric about it (the margin is the distance along \
-                 the third edge between the two bands' feet)"
+                "whether two requested edges turning at a vertex make equal angles with its \
+                 third edge, the faces being symmetric about it (the margin is the difference \
+                 of the angles' cosines, levered at the longer edge)"
             }
         }
     }
