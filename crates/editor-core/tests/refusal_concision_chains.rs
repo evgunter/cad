@@ -283,6 +283,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "WrongOperand",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
+    "Profile/EmptyLoop",
     "Profile/EmptyProfile",
     "Profile/MultipleOuterLoops",
     "Profile/NearFullArc",
@@ -293,7 +294,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/Structure",
     "Profile/TangencyContradicted",
     "Profile/TangentJointOutOfRange",
-    "Profile/TooFewVertices",
     "Profile/UndeclaredTangency",
     "ProfileReplay/Path/ArcCenterNotEquidistant",
     "ProfileReplay/Path/ArcLegOnOpenFillet",
@@ -2416,13 +2416,7 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     [
         ("Band", E::Band(band_error())),
         ("EmptyProfile", E::EmptyProfile),
-        (
-            "TooFewVertices",
-            E::TooFewVertices {
-                loop_index: 0,
-                count: 2,
-            },
-        ),
+        ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
         ("NearFullArc", E::NearFullArc(a)),
         (
@@ -2439,6 +2433,10 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
                 first: a,
                 second: b,
             },
+        ),
+        (
+            "TangentJointOnFullTurn",
+            E::TangentJointOnFullTurn { loop_index: 0 },
         ),
         (
             "TangentJointOutOfRange",

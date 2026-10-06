@@ -3467,6 +3467,7 @@ impl<T: Decide> Core<T> {
                 }
                 Err(
                     issue @ (seg::ShapeIssue::Degenerate { margin }
+                    | seg::ShapeIssue::DegenerateTurn { margin }
                     | seg::ShapeIssue::NearFull { margin }),
                 ) => {
                     return Err(flattened(issue.predicate(), margin));
@@ -6012,8 +6013,10 @@ mod fillet_stored_form {
                     radius,
                     sweep,
                 },
-                apex,
-                span_chord: arc.a.distance(apex),
+                span: seg::ArcSpan::Chord {
+                    apex,
+                    span_chord: arc.a.distance(apex),
+                },
                 turn,
             }),
             ..*arc
