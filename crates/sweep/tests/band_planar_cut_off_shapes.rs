@@ -3,42 +3,88 @@
 //! shell, naming totality, `ΔV`): end faces leaning along the support
 //! and tilted out of the vertical, a dihedral that is not right, and
 //! requests that mix patches, cut-offs and shared end faces on one box.
-//! The round band at an oblique end face refuses typed throughout.
+//! At an oblique end face the chamfer ends in a chord and the fillet in
+//! an arc of an ellipse, the end plane's section of its cylinder.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
+use geom::Curve3;
 use geom_core::{Point2, Point3, Vec3};
-use sweep::blend::BlendError;
-use sweep::blend::battery::END_FACE_OBLIQUE;
+use sweep::blend::{BlendError, Blended};
 use sweep::test_support::{block, prism, prism_on, sketch_from_axes};
-use topo::{Body, EdgeKey};
+use topo::EdgeKey;
 
 use crate::band_planar_cut_off::{D, Verb, carve, edge, the_box, tol};
 
-/// The round band at an end face oblique to its edge: the section there
-/// is an ellipse, refused as the run-out it is.
-fn fillet_refuses_oblique(body: &Body<f64>, edges: &[EdgeKey], what: &str) {
-    match Verb::Fillet.run(body, edges) {
-        Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-            assert_eq!(detail, END_FACE_OBLIQUE, "{what}");
+/// **A fillet's oblique end curves are ellipses**: each `EndArc` is a
+/// certified ellipse of minor semi-axis `r`, its major `r / cos θ` for
+/// the tilt `θ` its plane makes with the edge's normal plane, with
+/// `cos θ = |n̂ · τ̂|` read off the stored carrier's own frame; and at
+/// least `oblique` of them are not circles.
+fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
+    let rec = out.naming.as_ref().expect("births");
+    let mut ellipses = 0;
+    for (arc, _, _) in &rec.arcs {
+        let c = out
+            .body
+            .get_curve_geom(out.body.get_edge(*arc).unwrap().curve)
+            .and_then(|g| g.certified())
+            .expect("a certified end curve");
+        match *c.carrier() {
+            Curve3::Circle { radius, .. } => assert_eq!(radius, D, "{what}: a circle end"),
+            Curve3::Ellipse {
+                major, minor, axis, ..
+            } => {
+                ellipses += 1;
+                assert!((minor - D).abs() < 1e-15, "{what}: minor = r, got {minor}");
+                let band = out
+                    .blend_faces
+                    .iter()
+                    .find_map(|f| {
+                        let s = out.body.get_surface(out.body.get_face(*f)?.surface)?;
+                        match *s {
+                            geom::Surface::Cylinder { axis, .. } => Some(axis),
+                            _ => None,
+                        }
+                    })
+                    .expect("a cylinder band");
+                let cos = axis.dot(band).abs();
+                assert!(
+                    (major - D / cos).abs() < 1e-12,
+                    "{what}: major = r / cos θ, got {major} vs {}",
+                    D / cos
+                );
+                let (t0, t1) = c.params();
+                assert!(
+                    t1 > t0 && t1 - t0 < PI,
+                    "{what}: the end arc is short and runs forward"
+                );
+            }
+            ref other => panic!("{what}: an end curve is a circle or an ellipse, got {other:?}"),
         }
-        other => panic!("{what}: an oblique round end refuses, got {other:?}"),
     }
+    assert!(
+        ellipses >= oblique,
+        "{what}: {ellipses} ellipse ends, expected at least {oblique}"
+    );
 }
 
-/// **End faces leaning along the support**: a trapezoid prism
-/// `(0,0), (2,0), (2−s,1), (s,1)` at slopes on both sides of upright.
-/// The band's region is a prism of section `d²/2` cut by two planes, so
-/// `ΔV = (d²/2)·L(ȳ)` with `L(y) = 2 − 2sy` at the section's centroid:
-/// `ȳ = d/3` for the front edges, `1 − d/3` for the back one. A
-/// trapezoid in `xz`, extruded along `y`, leans the end faces the other
-/// transverse way.
+/// **End faces leaning along the support**, both verbs: a trapezoid
+/// prism `(0,0), (2,0), (2−s,1), (s,1)` at slopes on both sides of
+/// upright. The band's region is a prism of the verb's section cut by
+/// two planes, so `ΔV = A·L(ȳ)` with `L(y) = 2 − 2sy` at the section's
+/// centroid ([`Verb::centroid`]): `ȳ = c` for the front edges, `1 − c`
+/// for the back one. A trapezoid in `xz`, extruded along `y`, leans the
+/// end faces the other transverse way.
 #[test]
-fn end_faces_leaning_along_the_support_cut_the_chamfer_at_the_centroid_length() {
-    let half = D * D / 2.0;
-    for s in [0.05, 0.3, 0.5, 0.9, -0.3, -1.0, -3.0] {
+fn end_faces_leaning_along_the_support_cut_both_verbs_at_the_centroid_length() {
+    for (verb, s) in [Verb::Chamfer, Verb::Fillet]
+        .into_iter()
+        .flat_map(|v| [0.05, 0.3, 0.5, 0.9, -0.3, -1.0, -3.0].map(|s| (v, s)))
+    {
+        let (half, c) = (verb.section(), verb.centroid());
         let body = prism(
             vec![
                 (Point2::new(0.0, 0.0), 0.0),
@@ -49,30 +95,29 @@ fn end_faces_leaning_along_the_support_cut_the_chamfer_at_the_centroid_length() 
             1.0,
             tol(),
         );
-        let front = half * (2.0 - 2.0 * s * D / 3.0);
+        let front = half * (2.0 - 2.0 * s * c);
         for z in [1.0, 0.0] {
             let e = edge(&body, [0.0, 0.0, z], [2.0, 0.0, z]);
-            carve(
-                &body,
-                &[e],
-                Verb::Chamfer,
-                front,
-                &format!("trapezoid s = {s}, z = {z}"),
-            );
+            let what = format!("trapezoid s = {s}, z = {z}");
+            let out = carve(&body, &[e], verb, front, &what);
+            if let Verb::Fillet = verb {
+                ends_are_sections(&out, 2, &what);
+            }
         }
-        let top = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-        fillet_refuses_oblique(&body, &[top], &format!("trapezoid s = {s}"));
         let back = edge(&body, [s, 1.0, 1.0], [2.0 - s, 1.0, 1.0]);
-        let along_back = half * (2.0 - 2.0 * s * (1.0 - D / 3.0));
+        let along_back = half * (2.0 - 2.0 * s * (1.0 - c));
         carve(
             &body,
             &[back],
-            Verb::Chamfer,
+            verb,
             along_back,
             &format!("trapezoid back s = {s}"),
         );
     }
-    for s in [0.3, -0.5] {
+    for (verb, s) in [Verb::Chamfer, Verb::Fillet]
+        .into_iter()
+        .flat_map(|v| [0.3, -0.5].map(|s| (v, s)))
+    {
         let plane = sketch_from_axes(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
@@ -91,23 +136,23 @@ fn end_faces_leaning_along_the_support_cut_the_chamfer_at_the_centroid_length() 
             tol(),
         );
         let e = edge(&body, [0.0, 0.0, 0.0], [2.0, 0.0, 0.0]);
-        let removed = half * (2.0 - 2.0 * s * D / 3.0);
+        let removed = verb.section() * (2.0 - 2.0 * s * verb.centroid());
         carve(
             &body,
             &[e],
-            Verb::Chamfer,
+            verb,
             removed,
             &format!("xz trapezoid s = {s}"),
         );
     }
 }
 
-/// **End faces tilted out of the vertical**: a profile in `(z, x)`
-/// extruded along `y`, its end walls leaning inward (`L(z) = 2 − 0.6z`)
-/// or outward (`L(z) = 1.4 + 0.6z`). The top front edge's section has
-/// its centroid at `z̄ = 1 − d/3`, so `ΔV = (d²/2)·L(z̄)`.
+/// **End faces tilted out of the vertical**, both verbs: a profile in
+/// `(z, x)` extruded along `y`, its end walls leaning inward
+/// (`L(z) = 2 − 0.6z`) or outward (`L(z) = 1.4 + 0.6z`). The top front
+/// edge's section has its centroid at `z̄ = 1 − c`, so `ΔV = A·L(z̄)`.
 #[test]
-fn end_faces_tilted_out_of_the_vertical_cut_the_chamfer_at_the_centroid_length() {
+fn end_faces_tilted_out_of_the_vertical_cut_both_verbs_at_the_centroid_length() {
     let plane = sketch_from_axes(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
@@ -144,15 +189,13 @@ fn end_faces_tilted_out_of_the_vertical_cut_the_chamfer_at_the_centroid_length()
         }
         let body = prism_on(plane, ccw, 1.0, tol());
         let e = edge(&body, [x0, 0.0, 1.0], [x1, 0.0, 1.0]);
-        let zbar = 1.0 - D / 3.0;
-        carve(
-            &body,
-            &[e],
-            Verb::Chamfer,
-            D * D / 2.0 * (l0 + l1 * zbar),
-            what,
-        );
-        fillet_refuses_oblique(&body, &[e], what);
+        for verb in [Verb::Chamfer, Verb::Fillet] {
+            let zbar = 1.0 - verb.centroid();
+            let out = carve(&body, &[e], verb, verb.section() * (l0 + l1 * zbar), what);
+            if let Verb::Fillet = verb {
+                ends_are_sections(&out, 2, what);
+            }
+        }
     }
 }
 

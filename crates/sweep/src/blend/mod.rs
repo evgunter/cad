@@ -122,8 +122,7 @@
 //! ([`BlendError::SpineUnsupported`] — the canal-surface
 //! approximating-blend lane, banked as its own reviewed unit). An end
 //! whose configuration is the supported one but whose shape the cut-off
-//! does not build — an oblique end face under a fillet, a curved end
-//! face, a foot off its rim's span (landing inside a support), two
+//! does not build — a curved end face, a foot off its rim's span (landing inside a support), two
 //! cut-offs' feet crossing on the one rim they share — is a
 //! **run-out**, and refuses as [`BlendError::UnsupportedRunOut`] before
 //! any mutation.
@@ -923,16 +922,15 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// The ends it names are true of either verb on either material side:
 /// the uniform trivalent vertex carves wherever the material lies (the
 /// rolling ball's octant rests inside the material or in the void with
-/// its ball; the flat patch and the cut-off never had a side), and the
-/// sentence conditions on the band only where the door does — a round
-/// band's cut-off needs a perpendicular end face, a flat one's does
-/// not. It names the band's shape rather than either verb, being the
-/// shared arm both doors render. Held to it by
+/// its ball; the flat patch and the cut-off never had a side), and of
+/// either band at any angle of its plane end face — a chord, a circle
+/// or an ellipse. It names the band's shape rather than either verb,
+/// being the shared arm both doors render. Held to it by
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end each chain at trivalent vertices of one convexity \
      between planes, whatever is requested: all three edges, or the chain's edge alone, cut off in \
-     a plane end face (perpendicular, for a round band); no mitre is built";
+     a plane end face; no mitre is built";
 /// The lever of `fillet3_corner_independence`, shared by its in-band
 /// arm and its decided-Zero one ([`CornerConfig::DependentNormals`]).
 ///
@@ -1413,8 +1411,7 @@ pub enum BlendError {
     },
     /// **Frontier** (D2 addendum row 2): a chain ends at a
     /// configuration a band builds, but in a shape its end does not —
-    /// a run-out: an oblique end face under a fillet (the ellipse), a
-    /// curved end face, a foot off its rim's span (inside a face rather
+    /// a run-out: a curved end face, a foot off its rim's span (inside a face rather
     /// than on the end face's rim), two cut-offs' feet that cross on one
     /// shared rim.
     ///

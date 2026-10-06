@@ -33,10 +33,8 @@ use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::{
-    BlendRequest, END_FACE_CURVED, END_FACE_OBLIQUE, cap_transverse, run_battery,
-};
-use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
+use sweep::blend::battery::{BlendRequest, END_FACE_CURVED, EndSection, cap_transverse, run_battery};
+use sweep::blend::{BlendDecision, BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,
     rod_creases, rod_d_profile_at, rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
@@ -358,87 +356,172 @@ fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
     let _ = carve_and_check(&source, "D-profile rod");
 }
 
-/// **The oblique cap refuses typed and names the reserved run-out.**
-/// The rod's top is cut off by a plane tilted 0.3 rad off the ruling's
-/// normal plane, so each crease's upper end is trivalent with its two
-/// other edges in one plane face — the cap shape — but that face is
-/// not perpendicular to the ruling: `fillet3_cap_transverse` reads a
-/// definite departure and the request refuses as a run-out at that
-/// vertex, with the corner recourse's residue clause.
+/// **The first moment `∫∫ x dA` of the region [`rod_section_cut`]
+/// measures**, by the same decomposition: the quad's polygon moment,
+/// less the fillet sector's at `c`, plus the rod segment's (its sector
+/// at the origin less the triangle `O, V, f_a`). A sector of radius `ρ`
+/// and sweep `σ` has its centroid `4ρ·sin(σ/2)/(3σ)` out along its
+/// bisector.
+fn rod_section_moment_x(big_r: f64, flat: f64, r: f64) -> f64 {
+    let h = ((big_r - r).powi(2) - (flat - r).powi(2)).sqrt();
+    let c = (flat - r, h);
+    let v = (flat, (big_r.powi(2) - flat.powi(2)).sqrt());
+    let scale = big_r / (big_r - r);
+    let f_a = (c.0 * scale, c.1 * scale);
+    let quad = [c, (flat, h), v, f_a];
+    let mut quad_moment = 0.0;
+    for i in 0..4 {
+        let (p, q) = (quad[i], quad[(i + 1) % 4]);
+        quad_moment += (p.0 + q.0) * (p.0 * q.1 - q.0 * p.1) / 6.0;
+    }
+    let sector = |cx: f64, rho: f64, from: f64, sweep: f64| {
+        let reach = 4.0 * rho * (sweep / 2.0).sin() / (3.0 * sweep);
+        0.5 * rho * rho * sweep * (cx + reach * (from + sweep / 2.0).cos())
+    };
+    let theta = ((flat - r) / (big_r - r)).acos();
+    let beta = (flat / big_r).acos();
+    let triangle = 0.5 * (v.0 * f_a.1 - f_a.0 * v.1) * (v.0 + f_a.0) / 3.0;
+    quad_moment - sector(c.0, r, 0.0, theta) + sector(0.0, big_r, beta, theta - beta) - triangle
+}
+
+/// **An oblique cap cuts the ruled band off in an ellipse.** The rod's
+/// top is cut off by a plane tilted `φ` off the ruling's normal plane,
+/// `z = 0.7 − x·tan φ`, so each crease's upper end is a plane cap
+/// oblique to the ruling — and its rim on the rod is itself an ellipse.
+/// The band is cut off in the cap's section of it, an ellipse of minor
+/// semi-axis `r` and major `r / cos φ`; each crease removes its section
+/// over the length at the section's centroid,
+/// `ΔV = A·0.7 − tan φ·∫∫x dA` ([`rod_section_moment_x`]), alone and
+/// both in one call.
 #[test]
-fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
+fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
     let rod = rod_d_profile_at::<f64>(tol());
     let rod = sweep::test_support::finished("the rod", rod, tol());
-    let phi = 0.3f64;
-    let plane = topo::test_support::split_plane(
-        Point3::new(0.0, 0.0, 0.7),
-        Vec3::new(phi.sin(), 0.0, phi.cos()),
-        geom_core::Tol::witness(),
-    );
-    let result = split(&rod, &plane, tol()).expect("the tilted cut splits");
-    let SplitPart::Body(below) = &result.below else {
-        panic!("the lower part carries material");
-    };
-    validate_geometric(below, tol()).expect("the cut rod is tier-3 valid");
-    let creases = rod_creases(below);
-    assert_eq!(creases.len(), 2, "the creases survive the cut");
-    for e in creases {
-        let err = fillet_edges(below, &[e], R, tol()).expect_err("an oblique cap refuses");
-        let BlendError::UnsupportedRunOut { at, detail } = err.error else {
-            panic!("the oblique cap is a run-out, got {:?}", err.error);
-        };
-        assert_eq!(detail, END_FACE_OBLIQUE);
-        let topo::EntityId::Vertex(v) = at else {
-            panic!("the refusal names the vertex, got {at:?}");
-        };
-        let p = below
-            .get_vertex(v)
-            .and_then(|x| below.get_point(x.point))
-            .unwrap();
-        assert!(p.z > 0.5, "the refusing end is the oblique one, at {p:?}");
-        let shown = err.to_string();
-        assert!(
-            shown.contains("perpendicular, for a round band"),
-            "the sentence names the reserved run-out: {shown}"
+    for phi in [0.3f64, -0.2] {
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.7),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            geom_core::Tol::witness(),
         );
+        let result = split(&rod, &plane, tol()).expect("the tilted cut splits");
+        let SplitPart::Body(below) = &result.below else {
+            panic!("the lower part carries material");
+        };
+        validate_geometric(below, tol()).expect("the cut rod is tier-3 valid");
+        let creases = rod_creases(below);
+        assert_eq!(creases.len(), 2, "the creases survive the cut");
+        let one = rod_section_cut(ROD_R, ROD_FLAT, R) * 0.7
+            - phi.tan() * rod_section_moment_x(ROD_R, ROD_FLAT, R);
+        let enclosure = |body: &Body<f64>| {
+            let p = mass_properties(body, tol()).expect("certified props");
+            (p.volume, p.volume_pad)
+        };
+        let (vol0, pad0) = enclosure(below);
+        let what = format!("φ = {phi}");
+        for (request, removed) in [
+            (vec![creases[0]], one),
+            (vec![creases[1]], one),
+            (creases.clone(), 2.0 * one),
+        ] {
+            let out = fillet_edges(below, &request, R, tol())
+                .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
+            validate_geometric(&out.body, tol())
+                .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+            assert_naming_totality(below, &out, &request, &what);
+            // The rod's wall is trimmed by an ellipse already, so both
+            // volumes are the quadrature lane's certified enclosures.
+            let (vol1, pad1) = enclosure(&out.body);
+            let (dv, pad) = (vol0 - vol1, pad0 + pad1);
+            assert!(
+                pad < 1e-6 && (dv - removed).abs() < 1e-12 + pad,
+                "{what}: ΔV {dv} ± {pad} vs the closed form {removed}"
+            );
+            let rec = out.naming.as_ref().expect("births");
+            let mut ellipses = 0;
+            for (arc, _, _) in &rec.arcs {
+                let c = out
+                    .body
+                    .get_curve_geom(out.body.get_edge(*arc).unwrap().curve)
+                    .and_then(|g| g.certified())
+                    .expect("a certified end curve");
+                match *c.carrier() {
+                    Curve3::Circle { center, .. } => {
+                        assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
+                    }
+                    Curve3::Ellipse {
+                        major, minor, axis, ..
+                    } => {
+                        ellipses += 1;
+                        assert_eq!(minor, R, "{what}: minor = r");
+                        assert!(
+                            (major - R / phi.cos()).abs() < 1e-14,
+                            "{what}: major = r / cos φ, got {major}"
+                        );
+                        assert!(
+                            axis.cross(Vec3::new(phi.sin(), 0.0, phi.cos())).norm() < 1e-14,
+                            "{what}: the ellipse lies in the cap"
+                        );
+                        assert!(
+                            matches!(c.description(), EdgeDescription::Intersection { .. }),
+                            "{what}: the ellipse is the band × cap intersection"
+                        );
+                    }
+                    ref other => panic!("{what}: an end curve, got {other:?}"),
+                }
+            }
+            assert_eq!(ellipses, request.len(), "{what}: one ellipse per oblique end");
+        }
     }
 }
 
-/// **The two-tolerance trio for `fillet3_cap_transverse`** — each arm
-/// reachable and distinct: a perpendicular cap is Zero, a definite
-/// departure refuses as a run-out carrying the corner recourse, an
-/// in-band one escalates naming the predicate with the same recourse.
+/// **The kind-picker `fillet3_cap_transverse`** — each arm reachable
+/// and distinct: a perpendicular cap is Zero, the circle; a definite
+/// departure is the ellipse, `r / cos φ` along the tilt's trace; an
+/// in-band departure escalates naming the predicate; and a departure
+/// definite only at a long lever, whose ellipse's axes differ by the
+/// tilt SQUARED, escalates under the same decision through the ellipse
+/// door's own predicate — the near-perpendicular sliver band.
 #[test]
-fn cap_transverse_trio_definite_pass_definite_refuse_in_band_escalate() {
+fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let band = Band::linear(tol()).expect("a band");
     let v = VertexKey::default();
     let tau = Vec3::new(0.0, 0.0, 1.0);
-    cap_transverse(v, Vec3::new(0.0, 0.0, -1.0), tau, 1.0, band)
+    let circle = cap_transverse(v, Vec3::new(0.0, 0.0, -1.0), tau, R, 1.0, band)
         .expect("a perpendicular cap is Zero");
+    assert!(matches!(circle, EndSection::Circle), "{circle:?}");
     let phi = 0.3f64;
-    let oblique = cap_transverse(v, Vec3::new(phi.sin(), 0.0, phi.cos()), tau, 1.0, band)
-        .expect_err("an oblique cap refuses");
+    let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+    let EndSection::Ellipse {
+        major,
+        u_major,
+        normal,
+    } = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse")
+    else {
+        panic!("a definite departure picks the ellipse");
+    };
+    assert!((major - R / phi.cos()).abs() < 1e-15, "major = r / cos φ");
     assert!(
-        matches!(oblique, BlendError::UnsupportedRunOut { .. }),
-        "the oblique cap is a run-out, got {oblique:?}"
+        u_major.dot(n).abs() < 1e-15 && u_major.y.abs() < 1e-15,
+        "the major axis is the tilt's trace in the cap, got {u_major:?}"
     );
+    assert!(normal.cross(n).norm() < 1e-15, "the ellipse's axis is the cap's normal");
     let t = 0.5 * (band.zero() + band.escalate());
-    let escalated = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, 1.0, band)
+    let escalated = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, 1.0, band)
         .expect_err("an in-band cap escalates");
     let BlendError::Escalated { source, .. } = &escalated else {
         panic!("the in-band row must escalate, got {escalated:?}");
     };
     assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
-    // The lever matters: the same angle at a longer link is a larger
-    // departure in meters, so an in-band reading at lever 1 is a
-    // definite refusal at lever 1e3.
-    let levered = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, 1e3, band)
-        .expect_err("levered up, the departure is definite");
-    assert!(matches!(levered, BlendError::UnsupportedRunOut { .. }));
-    // Both refusing arms carry one recourse.
-    let (d, e) = (oblique.to_string(), escalated.to_string());
-    assert!(d.contains("perpendicular, for a round band"), "{d}");
-    assert!(e.contains("perpendicular, for a round band"), "{e}");
+    let sliver = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, 1e3, band)
+        .expect_err("levered up, the departure is definite and the axes are not");
+    let BlendError::Escalated {
+        source, decision, ..
+    } = &sliver
+    else {
+        panic!("the sliver band escalates, got {sliver:?}");
+    };
+    assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
+    assert_eq!(*decision, BlendDecision::CapTransverse);
 }
 
 /// **The vocabulary is the ratified one and the tag maps its policy.**
@@ -580,24 +663,25 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
 /// eps 1e-9, 1e-3 falls under the 1e-6 row's band, 1e-5 refuses
 /// `CircularAxes`). The lever is the crease's extent, `0.6·L` (the cut
 /// sits at six tenths of the rod), so the margins are `1.8e-3` and
-/// `1.5e-2`. At the fillet door's own band both are DEFINITE
-/// departures (every buildable tilt is, at every buildable length), so
-/// both rods refuse there identically; `run_battery` takes its band as
-/// an argument — explicit, so the same at every eps row — and under
-/// `Band::new(1.2e-3, 1.2e-2)` the same angle is IN BAND at `L = 0.3`
-/// (escalates naming the predicate) and DEFINITE at `L = 2.5` (refuses
-/// as the run-out). A lever of `T::one()` in place of the extent would
-/// put both at `1e-2` — in band — and red the long rod's arm; a band one
-/// decade lower admitted the short rod's tilted cap as transverse, which
-/// is the lever seen from the other side.
+/// `1.5e-2`. `run_battery` takes its band as an argument — explicit,
+/// so the same at every eps row — and under `Band::new(1.2e-3,
+/// 1.2e-2)` the same angle is IN BAND at `L = 0.3` (escalates naming
+/// the predicate) and DEFINITE at `L = 2.5`, where the picker reaches
+/// the ellipse and the ellipse's axes, `r·(1/cos φ − 1) = 5e-6` apart,
+/// are one circle under that band: it escalates under the same
+/// decision through `ellipse_axes_distinct`. A lever of `T::one()` in
+/// place of the extent would put both at `1e-2` — in band — and red the
+/// long rod's arm. At the fillet door's own band the departure is
+/// definite at either length, and the door builds the ellipse wherever
+/// its axes clear the band's escalate edge and escalates where they do
+/// not.
 #[test]
 fn the_cap_lever_is_the_links_extent() {
     let phi = 1e-2_f64;
     // Pinned on BOTH edges, so the row is the same at every eps row.
-    // The ×10 is this row's own ratio; it is the door's only while the
-    // run sits at the default K, which is why it is written out here
-    // rather than derived from the run.
     let band = Band::new(1.2e-3, 1.2e-2).expect("the row's own band, ten wide");
+    let axes_apart = R * (1.0 / phi.cos() - 1.0);
+    let door = Band::linear(tol()).expect("the door's band");
     for (len, in_band) in [(0.3, true), (2.5, false)] {
         let rod = rod_d_profile_of_length_at::<f64>(len, tol());
         let rod = sweep::test_support::finished("the rod", rod, tol());
@@ -613,14 +697,23 @@ fn the_cap_lever_is_the_links_extent() {
         let creases = rod_creases(below);
         assert_eq!(creases.len(), 2, "L = {len}: two creases");
         for e in creases {
-            // The door's band: definite at either length.
-            let err = fillet_edges(below, &[e], ROD_FILLET, tol()).expect_err("oblique");
-            assert!(
-                matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-                "L = {len}: the door refuses definitely, got {:?}",
-                err.error
-            );
-            // A band the tilt lands inside of at one length only.
+            match fillet_edges(below, &[e], ROD_FILLET, tol()) {
+                Ok(out) if axes_apart > door.escalate() => {
+                    validate_geometric(&out.body, tol()).expect("tier 3");
+                }
+                Err(err) if axes_apart <= door.escalate() => {
+                    let BlendError::Escalated { source, .. } = err.error else {
+                        panic!("L = {len}: the door's sliver escalates, got {:?}", err.error);
+                    };
+                    assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
+                }
+                other => panic!(
+                    "L = {len}: axes {axes_apart} apart against the door's escalate edge {}: \
+                     got {:?}",
+                    door.escalate(),
+                    other.map(|_| ()).map_err(|e| e.error)
+                ),
+            }
             let verdict = run_battery(
                 &BlendRequest {
                     body: below,
@@ -629,19 +722,20 @@ fn the_cap_lever_is_the_links_extent() {
                 },
                 band,
             )
-            .expect_err("the oblique end is never admitted");
-            match (in_band, verdict) {
-                (true, BlendError::Escalated { source, .. }) => {
-                    assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
-                }
-                (false, BlendError::UnsupportedRunOut { detail, .. }) => {
-                    assert_eq!(detail, END_FACE_OBLIQUE);
-                }
-                (_, other) => panic!(
-                    "L = {len}: the verdict must follow the lever (in band: {in_band}), got \
-                     {other:?}"
-                ),
-            }
+            .expect_err("the tilt is in band, or its axes are");
+            let BlendError::Escalated {
+                source, decision, ..
+            } = verdict
+            else {
+                panic!("L = {len}: the verdict escalates, got {verdict:?}");
+            };
+            assert_eq!(decision, BlendDecision::CapTransverse, "L = {len}");
+            let predicate = if in_band {
+                "fillet3_cap_transverse"
+            } else {
+                "ellipse_axes_distinct"
+            };
+            assert_eq!(source.predicate, Some(predicate), "L = {len}");
         }
     }
 }

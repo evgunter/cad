@@ -1,17 +1,18 @@
 //! **The ruled open band** — the open band on curved supports, cut off
-//! at transverse caps. The other open band is [`super::planar`]; what
+//! at its plane caps. The other open band is [`super::planar`]; what
 //! the two share, and the seam both rest on, is stated at [`super`].
 //!
 //! A ruled link (`BlendArm::CylinderPlaneCylinder`,
 //! `BlendArm::CylinderCylinderCylinder`) is a cylinder band about a
 //! straight spine whose two trimlines are lines along the ruling. It
 //! terminates where its supports do: at each end of the requested edge
-//! the two unrequested edges lie in one plane face perpendicular to
-//! the ruling — the CAP, classified `CornerConfig::EndFace` by the
-//! battery's predicate 6 — and the band is cut off there
-//! ([`super::end_face`]), in an arc of the band's radius about the
-//! spine's crossing (`RunOutPolicy::CutOffAtEndFace`). Exact and stored;
-//! no new surface kind.
+//! the two unrequested edges lie in one plane face — the CAP,
+//! classified `CornerConfig::EndFace` by the battery's predicate 6 —
+//! and the band is cut off there ([`super::end_face`]) in the cap's
+//! section of it about the spine's crossing: an arc of the band's
+//! radius where the cap is perpendicular to the ruling, of an ellipse
+//! where it is oblique (`RunOutPolicy::CutOffAtEndFace`). Exact and
+//! stored; no new surface kind.
 //!
 //! # The walk, per link
 //!
@@ -22,7 +23,7 @@
 //! along the ruling between the two feet carves the strip beside the
 //! crease; the crease's `kef` merges the two strips; and per end the
 //! cut-off's last step ([`fold_sliver`]). What is left is the band face,
-//! bounded by two trimlines and two arcs; the caps and supports keep
+//! bounded by two trimlines and two end arcs; the caps and supports keep
 //! their keys, surfaces, senses and rings, and what the carve removes
 //! from a cap is metered first ([`CapSliver`]).
 //!
@@ -69,6 +70,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, MefSite, VertexKey};
 
 use super::end_face::{CapSliver, CutRims, EndCurve, EndCut, cut_off, end_rims, fold_sliver};
 use crate::blend::BlendError;
+use crate::blend::battery::EndSection;
 use crate::blend::admit::AdmittedOpen;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
@@ -77,7 +79,7 @@ use crate::blend::surgery::{
 };
 use geom_brep::EdgeCurveSpec;
 
-/// **A ruled link whose two ends are transverse caps**, read off the
+/// **A ruled link whose two ends are plane caps**, read off the
 /// source body before any mutation. The battery classified each end
 /// (`fillet3_cap_transverse`); this token reads the structure that
 /// classification rests on and refuses where the body disagrees with
@@ -106,7 +108,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         body: &Body<T>,
         link: AdmittedOpen<'a, T>,
         opens: &[AdmittedOpen<'_, T>],
-        end_faces: &[VertexKey],
+        end_faces: &[(VertexKey, EndSection<T>)],
     ) -> Result<Self, BlendError> {
         let l = link.link();
         let edge = l.edge;
@@ -161,12 +163,12 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             // The battery's classification, read rather than re-made:
             // predicate 6 tagged this end `EndFace` and the verdict
             // carries it.
-            if !end_faces.contains(&v) {
+            let Some(&(_, section)) = end_faces.iter().find(|(e, _)| *e == v) else {
                 return Err(not_intact(
                     EntityId::Vertex(v),
                     "a ruled link's end is not among the end faces the verdict classified",
                 ));
-            }
+            };
             let (rim_a, rim_b, _) = end_rims(body, v, edge, l.face_a, l.face_b)?;
             if opens.iter().any(|o| o.edge() == rim_a || o.edge() == rim_b) {
                 return Err(unbuilt_chain(
@@ -175,8 +177,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
              implemented",
                 ));
             }
-            // Carried along the ruling: the battery's classification
-            // makes the cap's normal parallel to it.
+            // Carried along the ruling, which the battery's
+            // classification makes transverse to the cap.
             ends.push(EndCut::plan(
                 body,
                 v,
@@ -184,10 +186,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 (l.face_a, l.face_b),
                 (q_a, q_b),
                 tau,
-                EndCurve::Arc {
-                    center: spine_origin,
-                    radius,
-                },
+                EndCurve::of(section, spine_origin, radius),
             )?);
         }
         let Ok(ends) = <[EndCut<T>; 2]>::try_from(ends) else {

@@ -16,7 +16,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use sweep::blend::battery::{END_FACE_CURVED, END_FACE_OBLIQUE};
+use sweep::blend::battery::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
@@ -36,6 +36,14 @@ pub(crate) fn volume(body: &Body<f64>) -> f64 {
     let p = mass_properties(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
+}
+
+/// A body's volume and the half-width of its certified enclosure: zero
+/// on a closed-form inventory, the quadrature lane's on a curved face
+/// trimmed by an ellipse (a fillet's band at an oblique end face).
+pub(crate) fn volume_enclosure(body: &Body<f64>) -> (f64, f64) {
+    let p = mass_properties(body, tol()).expect("certified props");
+    (p.volume, p.volume_pad)
 }
 
 /// The edge of `body` between the two points, either way round.
@@ -88,6 +96,18 @@ impl Verb {
         }
     }
 
+    /// How far the section's centroid stands off each support, along
+    /// the other: `d/3` for the chamfer's triangle, `r·(10 − 3π)/(12 −
+    /// 3π)` for the region between a right dihedral and its ball. A
+    /// band cut off by two planes oblique to its edge removes the
+    /// section times the length between them at that centroid.
+    pub(crate) fn centroid(self) -> f64 {
+        match self {
+            Self::Chamfer => D / 3.0,
+            Self::Fillet => D * (10.0 - 3.0 * PI) / (12.0 - 3.0 * PI),
+        }
+    }
+
     /// What one corner patch takes back from the three prisms meeting
     /// at a right trihedron: the cube closed forms' per-corner term
     /// (`common::oracles`), `(2/3)d³` for the chamfer and
@@ -102,7 +122,8 @@ impl Verb {
 
 /// Carve, and check what holds of every built row: tier 3, Euler on one
 /// genus-0 shell, naming totality, and `ΔV = removed` (negative where
-/// the band adds material).
+/// the band adds material) — to `1e-12` on a closed-form inventory, and
+/// within the certified enclosure where an ellipse trims a band.
 pub(crate) fn carve(
     body: &Body<f64>,
     edges: &[EdgeKey],
@@ -122,10 +143,11 @@ pub(crate) fn carve(
         "{what} ({verb:?}): one closed genus-0 shell"
     );
     assert_naming_totality(body, &out, edges, what);
-    let dv = volume(body) - volume(&out.body);
+    let ((v0, pad0), (v1, pad1)) = (volume_enclosure(body), volume_enclosure(&out.body));
+    let (dv, pad) = (v0 - v1, pad0 + pad1);
     assert!(
-        (dv - removed).abs() < 1e-12,
-        "{what} ({verb:?}): ΔV {dv} vs the closed form {removed}"
+        pad < 1e-6 && (dv - removed).abs() < 1e-12 + pad,
+        "{what} ({verb:?}): ΔV {dv} ± {pad} vs the closed form {removed}"
     );
     out
 }
@@ -244,12 +266,12 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
 }
 
 /// **An oblique end face**: a parallelogram prism's top front edge
-/// ends at two parallel slanted side walls. The chamfer is cut off in a
-/// chord across each at the prism closed form — the end planes are
-/// parallel, so the band's length is the edge's — and the fillet,
-/// whose section there is an ellipse, refuses typed.
+/// ends at two parallel slanted side walls. Both verbs are cut off at
+/// the prism closed form — the end planes are parallel, so the band's
+/// length is the edge's — the chamfer in a chord across each wall and
+/// the fillet in an arc of the wall's elliptic section of its cylinder.
 #[test]
-fn an_oblique_end_face_cuts_the_chamfer_off_and_refuses_the_fillet() {
+fn an_oblique_end_face_cuts_both_verbs_off_at_the_prism_closed_form() {
     let body = prism(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
@@ -261,18 +283,9 @@ fn an_oblique_end_face_cuts_the_chamfer_off_and_refuses_the_fillet() {
         tol(),
     );
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    carve(
-        &body,
-        &[e],
-        Verb::Chamfer,
-        Verb::Chamfer.section() * 2.0,
-        "oblique ends",
-    );
-    match Verb::Fillet.run(&body, &[e]) {
-        Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-            assert_eq!(detail, END_FACE_OBLIQUE);
-        }
-        other => panic!("an oblique fillet end refuses as a run-out, got {other:?}"),
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let out = carve(&body, &[e], verb, verb.section() * 2.0, "oblique ends");
+        assert_eq!(out.naming.as_ref().expect("births").arcs.len(), 2);
     }
 }
 

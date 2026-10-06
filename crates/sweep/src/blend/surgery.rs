@@ -585,8 +585,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             if is_joint(v) {
                 continue;
             }
-            if verdict.end_faces.contains(&v) {
-                cut_offs.push(cut_off_plan(source, *o, v, kind)?);
+            if let Some((_, section)) = verdict.end_faces.iter().find(|(e, _)| *e == v) {
+                cut_offs.push(cut_off_plan(source, *o, v, *section)?);
                 continue;
             }
             match ends.iter_mut().find(|c| c.vertex() == v) {
@@ -2296,11 +2296,14 @@ pub(super) fn stored_piece<T: Decide>(
 /// **How near and how far one boundary piece comes to a point `c`**:
 /// `(near, far)` with `near ≤ ‖p − c‖ ≤ far` for every point `p` of
 /// `carrier` over the window `(ta, tb)`, in closed form; `None` for a
-/// carrier with no closed form here (neither a line nor a circle).
+/// carrier with no closed form here (neither a line, a circle nor an
+/// ellipse).
 ///
 /// On a LINE the distance is convex, so `far` is the larger end and
 /// `near` the distance to `c`'s foot clamped into the segment. On a
-/// CIRCLE it is [`CircleFrame::distance`].
+/// CIRCLE it is [`CircleFrame::distance`]. On an ELLIPSE it is a bound,
+/// not the extremes: every point lies within the semi-major axis of
+/// the centre, so within that of the centre's distance to `c`.
 pub(super) fn piece_distance<T: Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
@@ -2316,6 +2319,10 @@ pub(super) fn piece_distance<T: Bounds>(
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
+        Curve3::Ellipse { center, major, .. } => {
+            let d = (center - c).norm();
+            Some(((d - major).max(T::zero()), d + major))
+        }
         _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
     }
 }
@@ -2325,7 +2332,10 @@ pub(super) fn piece_distance<T: Bounds>(
 /// every point `p` of `carrier` over the window `(ta, tb)`, in closed
 /// form; `None` for a carrier with no closed form here. A linear
 /// function is extreme at a segment's ends; on a CIRCLE it is
-/// [`CircleFrame::along`].
+/// [`CircleFrame::along`], and on an ELLIPSE the same over the unit
+/// circle of its frame, whose image it is: `(p − center)·u` at `t` is
+/// the unit circle's height at `t` along
+/// `major·(u_ref·u)·u_ref + minor·(v·u)·v`.
 pub(super) fn piece_along<T: Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
@@ -2339,6 +2349,25 @@ pub(super) fn piece_along<T: Bounds>(
                 (origin + dir * tb - c).dot(u),
             );
             Some((la.min(lb), la.max(lb)))
+        }
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => {
+            let v = axis.cross(u_ref);
+            let unit = CircleFrame {
+                center,
+                axis,
+                radius: T::one(),
+                u_ref,
+            };
+            let lifted = u_ref * (major * u_ref.dot(u)) + v * (minor * v.dot(u));
+            let (low, high) = unit.along((ta, tb), center, lifted);
+            let mid = (center - c).dot(u);
+            Some((mid + low, mid + high))
         }
         _ => CircleFrame::of(carrier).map(|k| k.along((ta, tb), c, u)),
     }
@@ -2651,8 +2680,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 let margin = s.clearance(carrier, window).ok_or_else(|| {
                     unbuilt_geometry(
                         EntityId::Edge(edge),
-                        "an end-face edge beside a cut-off is neither a line nor a circle, \
-                         which the sliver meter needs",
+                        "an end-face edge beside a cut-off is neither a line, a circle nor \
+                         an ellipse, which the sliver meter needs",
                     )
                 })?;
                 ring_clearance(s.cap, convexity, margin, false, band)?;
@@ -3156,6 +3185,18 @@ pub(super) enum ContactCarrier<T: Real> {
     /// TRANSVERSALLY, so it is described as the plain intersection
     /// locus, never a tangent one.
     TransverseArc { center: Point3<T>, radius: T },
+    /// A cylinder band's cut-off at an oblique plane end face: the arc of
+    /// that plane's section of the band, an ellipse (sweep < π), met
+    /// TRANSVERSALLY like [`Self::TransverseArc`]. Its semi-axes are the
+    /// ones `fillet3_cap_transverse` passed through the ellipse door's
+    /// own predicate, so the carrier is built from them as they stand;
+    /// its normal is the turn from the edge's start to its end.
+    TransverseEllipse {
+        center: Point3<T>,
+        major: T,
+        minor: T,
+        u_major: Vec3<T>,
+    },
     /// An exact stored arc (the rim trim circles — π-safe).
     Exact(Curve3<T>, T, T),
     /// A torus band's SLIT: a double-traversed minor-circle arc
@@ -3321,8 +3362,9 @@ pub(super) fn seam_split_param<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BlendError::BodyNotIntact`] when the edge does not resolve;
-/// [`BlendError::UnsupportedGeometry`] when it carries no certified line
-/// or circle, or a circle window not under one period.
+/// [`BlendError::UnsupportedGeometry`] when it carries no certified
+/// carrier with a closed-form parameter, or a periodic window not under
+/// one period.
 pub(super) fn split_param_in_span<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
@@ -3347,7 +3389,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // whose whole enclosure is not strictly under a period refuses
     // typed rather than cutting blind.
     //
-    // A period is a CIRCLE's: a line carrier (a transverse cap's chord
+    // A period is a CIRCLE's or an ELLIPSE's: a line carrier (a transverse cap's chord
     // rim) has no branch to alias by, and its window is a length that
     // may exceed 2π without meaning anything. The skip is by
     // construction, not by measurement: no fixture in the tree splits a
@@ -3359,7 +3401,8 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // `bool_split_span_period` DECIDE row, which is the right posture
     // there and not here: that site is mid-classification with a band
     // in hand, this one is picking a representation and has neither.
-    if matches!(sc.carrier(), Curve3::Circle { .. }) && (T::tau() - (st1 - st0)).lo() <= 0.0 {
+    let periodic = matches!(sc.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. });
+    if periodic && (T::tau() - (st1 - st0)).lo() <= 0.0 {
         return Err(unbuilt_geometry(
             EntityId::Edge(seam),
             "a split edge's stored window is not under one period",
@@ -3372,8 +3415,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     let t = sc.carrier().param_near(target, T::zero()).ok_or_else(|| {
         unbuilt_geometry(
             EntityId::Edge(seam),
-            "a split edge's carrier is neither a circle nor a line, the only split \
-             carriers built",
+            "a split edge's carrier has no closed-form parameter of a point on it",
         )
     })?;
     // The window test is the representation pick's other half, and it
@@ -3392,7 +3434,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // parameter that lands inside is the branch, and the value is still
     // a function of the point and the carrier alone — the window only
     // says which turn.
-    if matches!(sc.carrier(), Curve3::Circle { .. }) {
+    if periodic {
         for shifted in [t + T::tau(), t - T::tau()] {
             if inside(shifted) {
                 return Ok(Some(shifted));
@@ -5003,7 +5045,9 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
     let transverse = matches!(
         carrier,
-        ContactCarrier::Chord | ContactCarrier::TransverseArc { .. }
+        ContactCarrier::Chord
+            | ContactCarrier::TransverseArc { .. }
+            | ContactCarrier::TransverseEllipse { .. }
     );
     let (curve, t0, t1) = match carrier {
         ContactCarrier::TrimLine | ContactCarrier::Chord => {
@@ -5040,6 +5084,32 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 T::zero(),
                 turn.norm().atan2(u.dot(w)),
             )
+        }
+        // The short arc from `p0` to `p1`, run forward: the frame's
+        // normal is turned to the arc's own, which an affine image of
+        // the circle keeps, so `p1` is read less than half a turn past
+        // `p0`.
+        ContactCarrier::TransverseEllipse {
+            center,
+            major,
+            minor,
+            u_major,
+        } => {
+            let curve = Curve3::Ellipse {
+                center,
+                axis: (p0 - center).cross(p1 - center).normalize(),
+                major,
+                minor,
+                u_ref: u_major,
+            };
+            let parameter = |p: Point3<T>, near: T| {
+                curve.param_near(p, near).ok_or_else(|| {
+                    not_intact(EntityId::Edge(edge), "a cut-off ellipse's end parameter")
+                })
+            };
+            let t0 = parameter(p0, T::zero())?;
+            let t1 = parameter(p1, t0)?;
+            (curve, t0, t1)
         }
         ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
     };

@@ -435,12 +435,14 @@ pub struct BatteryVerdict<T: Real> {
     /// The open-chain ends predicate 6 classified
     /// [`CornerConfig::EndFace`] — every end of every RULED link, and
     /// every plane–plane end where the request names the link's edge
-    /// alone — sorted and deduplicated. The open bands' plans read a
-    /// link's cut-off ends off this list rather than re-deciding them;
+    /// alone — each with the section its end face cuts, sorted by
+    /// vertex and deduplicated. The open bands' plans read a link's
+    /// cut-off ends and their kinds off this list rather than
+    /// re-deciding them;
     /// an end missing from it is a verdict the body disagrees with. The
     /// uniform trihedra the corner patch carves are not listed: that
     /// configuration has no tag of its own ([`corner_at`]).
-    pub end_faces: Vec<VertexKey>,
+    pub end_faces: Vec<(VertexKey, EndSection<T>)>,
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -783,6 +785,26 @@ pub fn corner_config<T: Decide + Bounds>(
     if !matches!(convex, 0 | 3) {
         return Err(refuse(CornerConfig::MixedConvexity { convex }));
     }
+    corner_independence(vertex, normals, radius, band)
+}
+
+/// **`fillet3_corner_independence`** at a trivalent vertex: its three
+/// face normals are independent, margin `|det(n₁, n₂, n₃)|` levered at
+/// the band's size. A plane–plane end reads it inside
+/// [`corner_config`]; a ruled cap at an oblique end face reads it alone
+/// ([`corner_at`]), where dependent normals are the cap nearly
+/// containing the ruling.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedCorner`] ([`CornerConfig::DependentNormals`])
+/// on a non-positive margin; [`BlendError::Escalated`] in band.
+fn corner_independence<T: Decide + Bounds>(
+    vertex: VertexKey,
+    normals: [Vec3<T>; 3],
+    radius: T,
+    band: Band,
+) -> Result<(), BlendError> {
     let det = normals[0].dot(normals[1].cross(normals[2]));
     let margin = Margin::levered(det.abs(), radius);
     match classify(
@@ -792,7 +814,10 @@ pub fn corner_config<T: Decide + Bounds>(
         band,
     )? {
         Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => Err(refuse(CornerConfig::DependentNormals)),
+        Sign::Zero | Sign::Negative => Err(super::surgery::unbuilt_corner_config(
+            vertex,
+            CornerConfig::DependentNormals,
+        )),
     }
 }
 
@@ -1728,16 +1753,14 @@ pub fn run_battery_for<T: Decide + Bounds>(
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
             for (v, link) in [(head, chain.first()), (tail, last)] {
-                if let Some(CornerConfig::EndFace) =
-                    corner_at(body, v, link, &req.edges, r, band, kind)?
-                {
-                    end_faces.push(v);
+                if let Some(section) = corner_at(body, v, link, &req.edges, r, band, kind)? {
+                    end_faces.push((v, section));
                 }
             }
         }
     }
-    end_faces.sort_unstable();
-    end_faces.dedup();
+    end_faces.sort_by_key(|(v, _)| *v);
+    end_faces.dedup_by_key(|(v, _)| *v);
 
     Ok(BatteryVerdict {
         chains,
@@ -1858,35 +1881,63 @@ fn is_seam_vertex<T: Decide>(
     }
 }
 
-/// The refusal for a cylinder band — the ruled band, the plane–plane
-/// fillet — ending at a plane end face that is not perpendicular to its
-/// spine ([`cap_transverse`]): its section there is an ellipse, which
-/// the cut-off does not build. A run-out, not a corner configuration,
-/// so it carries the run-out vocabulary and the corner recourse's
-/// residue.
-pub const END_FACE_OBLIQUE: &str = "a round band ends at a plane end face oblique to its \
-     spine, where its section is an ellipse, which is not built";
-
 /// The refusal for a straight band — either open band — ending at a
 /// curved end face.
 pub const END_FACE_CURVED: &str = "a straight band ends at a curved end face, where its \
      cut-off is not built; it is built in a plane end face";
 
-/// **`fillet3_cap_transverse`** — does a cylinder band's end face lie
-/// perpendicular to the band's spine (a ruled link's ruling, a
-/// plane–plane fillet's edge), so the band can be cut off in the end
-/// face's own section of it, a circle?
+/// **What a band's plane end face cuts from it**: a chord from a plane
+/// band, and from a cylinder band the kind [`cap_transverse`] picked —
+/// one kind per configuration (D3).
+#[derive(Clone, Copy, Debug)]
+pub enum EndSection<T: Real> {
+    /// A plane band's (the chamfer's) section, at any angle: the
+    /// straight chord between the feet.
+    Chord,
+    /// The end face is perpendicular to the spine: the section is the
+    /// circle of the band's radius about the spine's crossing.
+    Circle,
+    /// The end face is oblique: the section is the ellipse about the
+    /// spine's crossing whose minor semi-axis is the band's radius,
+    /// across the tilt, and whose major semi-axis is `major`, along
+    /// `u_major` — the radius over the cosine of the tilt.
+    Ellipse {
+        /// The semi-major axis, meters.
+        major: T,
+        /// The unit semi-major direction, in the end face's plane.
+        u_major: Vec3<T>,
+        /// The end face's unit normal, the ellipse's axis.
+        normal: Vec3<T>,
+    },
+}
+
+/// **`fillet3_cap_transverse`** — the kind-picker for a cylinder band's
+/// plane end face (a ruled link's cap, a plane–plane fillet's cut-off):
+/// is the face perpendicular to the band's spine, so its section of
+/// the band is a circle, or oblique, so it is an ellipse?
 ///
 /// Margin: the cap normal's **departure** from the ruling, `|n̂ × τ̂|`
 /// in METERS at the link's own lever arm — [`Link::arm_len`], the
 /// extent [`super::arms::Ruling::lever`] already meters the
 /// shared-ruling hypothesis at, so the two decisions about one link's
-/// ruling are levered alike. `Sign::Zero` is the cap being transverse;
-/// a definite departure is the oblique cap, refused as the run-out it
-/// is; an in-band reading escalates with the same recourse
+/// ruling are levered alike. `Sign::Zero` is the circle; a definite
+/// departure is the ellipse; an in-band reading escalates
 /// (two-tolerance, D4 ¶1 addendum). Nothing here reads a sampled
 /// normal: the cap plane's normal is the stored surface's, the ruling
 /// the arm's own cylinder axis.
+///
+/// The ellipse's semi-axes differ by `radius·(1/cos θ − 1)`, second
+/// order in the tilt, so a tilt the departure decides definitely may
+/// still name axes the ellipse door reads as one circle. That window
+/// is the same configuration's sliver band seen through the carrier,
+/// and it escalates under this decision, gated by
+/// `ellipse_axes_distinct` — [`geom::Curve3::ellipse`]'s own predicate
+/// on its own margin, so the stored ellipse the plan builds from these
+/// semi-axes is one that door admits. An end face that nearly contains
+/// the spine — a tilt near a right angle, whose ellipse runs off to
+/// infinity — is not this decision's: its three face normals at the
+/// vertex are dependent, which `fillet3_corner_independence` refuses
+/// with its margin ([`corner_independence`]).
 ///
 /// **Both directions are normalised HERE**, so the margin is the sine
 /// of the angle between them whatever a caller passes: the stored
@@ -1897,30 +1948,45 @@ pub const END_FACE_CURVED: &str = "a straight band ends at a curved end face, wh
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] on a definite departure;
-/// [`BlendError::Escalated`] on an in-band one.
+/// [`BlendError::Escalated`] on an in-band departure, or on a definite
+/// one whose ellipse's axes are not definitely distinct.
 pub fn cap_transverse<T: Decide + Bounds>(
     vertex: VertexKey,
     cap_normal: Vec3<T>,
     ruling: Vec3<T>,
+    radius: T,
     lever: T,
     band: Band,
-) -> Result<(), BlendError> {
-    let margin = Margin::levered(
-        cap_normal.normalize().cross(ruling.normalize()).norm(),
-        lever,
-    );
-    match classify(
-        BlendSite::Joint { vertex },
-        BlendDecision::CapTransverse,
-        margin,
-        band,
-    )? {
-        Sign::Zero => Ok(()),
-        _ => Err(super::surgery::unbuilt_run_out(
-            EntityId::Vertex(vertex),
-            END_FACE_OBLIQUE,
-        )),
+) -> Result<EndSection<T>, BlendError> {
+    let (n, tau) = (cap_normal.normalize(), ruling.normalize());
+    let tilt = tau.cross(n);
+    let site = BlendSite::Joint { vertex };
+    let margin = Margin::levered(tilt.norm(), lever);
+    match classify(site, BlendDecision::CapTransverse, margin, band)? {
+        Sign::Zero => Ok(EndSection::Circle),
+        // The margin is a norm: Negative is unreachable, and both
+        // definite verdicts are the departure.
+        Sign::Positive | Sign::Negative => {
+            let major = radius / n.dot(tau).abs();
+            geom_core::k_stats::decide_positive(
+                "ellipse_axes_distinct",
+                Margin::of(major - radius),
+                band,
+            )
+            .map_err(|source| BlendError::Escalated {
+                site,
+                decision: BlendDecision::CapTransverse,
+                source,
+            })?;
+            // The minor axis runs across the tilt, the major along its
+            // trace in the end plane — `plane_cylinder_section`'s frame.
+            let u_major = (tilt / tilt.norm()).cross(n);
+            Ok(EndSection::Ellipse {
+                major,
+                u_major,
+                normal: n,
+            })
+        }
     }
 }
 
@@ -1977,17 +2043,33 @@ pub(super) fn cap_incidence<T: Decide>(
     (cap == cap_b).then_some((rim_a, rim_b, cap))
 }
 
+/// A chain end's vertex point, for the face normals read there.
+fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, BlendError> {
+    body.get_vertex(vertex)
+        .and_then(|v| body.get_point(v.point))
+        .copied()
+        .ok_or_else(|| {
+            not_intact(
+                EntityId::Vertex(vertex),
+                "a chain end's vertex point, for its face normals",
+            )
+        })
+}
+
 /// Predicate 6 at one termination vertex, beside the link that reaches
 /// it and against the `requested` edges, returning the CARVED
-/// configuration it classified. A RULED link's end must be a transverse
-/// cap — decided by [`cap_transverse`] and returned as
-/// [`CornerConfig::EndFace`], the tag the verdict carries for the open
-/// bands' plans to read. Any other link's end is classified as a
+/// configuration it classified: `Some` section for a
+/// [`CornerConfig::EndFace`], which the verdict carries for the open
+/// bands' plans to read. A RULED link's end must be a plane cap, its
+/// section picked by [`cap_transverse`] — and where that is the
+/// ellipse, the cap's three face normals independent
+/// ([`corner_independence`]). Any other link's end is classified as a
 /// trivalent vertex of one convexity with independent support normals,
 /// and then by how many of its three edges the request names: all
 /// three, the corner patch; two, the [`CornerConfig::Turn`], refused;
-/// one, [`CornerConfig::EndFace`] — its end face a plane, and under a
-/// fillet perpendicular to the edge. The uniform trihedron returns
+/// one, [`CornerConfig::EndFace`] — its end face a plane, cutting a
+/// chord from a chamfer and from a fillet the section
+/// [`cap_transverse`] picks. The uniform trihedron returns
 /// `None`: the carved trihedral configuration has no tag of its own
 /// ([`CornerConfig::ThreeConvexEdges`] names the convex one and no name
 /// exists for the concave one — evgunter/cad issue 1355), so it is the
@@ -2000,7 +2082,7 @@ fn corner_at<T: Decide + Bounds>(
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<Option<CornerConfig>, BlendError> {
+) -> Result<Option<EndSection<T>>, BlendError> {
     let indeterminate =
         || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
     // In key order, so the supports below are gathered — and their
@@ -2060,8 +2142,21 @@ fn corner_at<T: Decide + Bounds>(
         let Surface::Cylinder { axis, .. } = link.blend.surface else {
             return Err(indeterminate());
         };
-        cap_transverse(vertex, *normal, axis, link.arm_len, band)?;
-        return Ok(Some(CornerConfig::EndFace));
+        let section = cap_transverse(vertex, *normal, axis, radius, link.arm_len, band)?;
+        if let EndSection::Ellipse { .. } = section {
+            let p = point_at(body, vertex)?;
+            let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
+            for (slot, f) in normals.iter_mut().zip([link.face_a, link.face_b, cap]) {
+                *slot = outward(body, f, p).ok_or_else(|| {
+                    not_intact(
+                        EntityId::Face(f),
+                        "a ruled cap's face or its stored surface, for its outward normal",
+                    )
+                })?;
+            }
+            corner_independence(vertex, normals, radius, band)?;
+        }
+        return Ok(Some(section));
     }
     if valence != 3 {
         return corner_config(
@@ -2144,20 +2239,12 @@ fn corner_at<T: Decide + Bounds>(
             }
         }
     }
-    let Some(p) = body
-        .get_vertex(vertex)
-        .and_then(|v| body.get_point(v.point))
-    else {
-        return Err(not_intact(
-            EntityId::Vertex(vertex),
-            "a chain end's vertex point, for its support normals",
-        ));
-    };
+    let p = point_at(body, vertex)?;
     if faces.len() != 3 {
         return corner_config(vertex, faces.len(), convex, normals, radius, band).map(|()| None);
     }
     for (i, f) in faces.iter().enumerate() {
-        normals[i] = outward(body, *f, *p).ok_or_else(|| {
+        normals[i] = outward(body, *f, p).ok_or_else(|| {
             not_intact(
                 EntityId::Face(*f),
                 "a corner's support face or its stored surface, for its outward normal",
@@ -2174,18 +2261,17 @@ fn corner_at<T: Decide + Bounds>(
             vertex,
             CornerConfig::Turn,
         )),
-        (1, Some(normal)) => {
-            // A cylinder band's section by the end face is a circle
-            // only where the face is perpendicular to the spine; a
-            // plane band's is a chord at any angle.
-            if let BlendKind::Fillet = kind {
+        // A plane band's section by the end face is a chord at any
+        // angle; a cylinder band's is the kind the picker decides.
+        (1, Some(normal)) => match kind {
+            BlendKind::Chamfer => Ok(Some(EndSection::Chord)),
+            BlendKind::Fillet => {
                 let Surface::Cylinder { axis, .. } = link.blend.surface else {
                     return Err(indeterminate());
                 };
-                cap_transverse(vertex, normal, axis, link.arm_len, band)?;
+                cap_transverse(vertex, normal, axis, radius, link.arm_len, band).map(Some)
             }
-            Ok(Some(CornerConfig::EndFace))
-        }
+        },
         _ => Err(not_intact(
             EntityId::Vertex(vertex),
             "a chain end's edge fan does not carry the requested link that reaches it",
