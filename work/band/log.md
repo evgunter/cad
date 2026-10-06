@@ -536,3 +536,19 @@ none was added; the overlap hole the lane found is
 empty body had begun to answer `SurgeryInvariant`. Filed JOIN's
 `pinch-tessellate-row-escalates-coincidence-at-eps-1e-6` (main red at 1e-6;
 merged over it). First BAND units run as cloud sessions.
+
+## 2026-10-06 — `fillet-support-ring-must-be-a-circle` closed (PR #4119)
+
+The ring carry-through meter reads a ring piece by piece: a polygonal ring
+(a prism unioned onto a face) is metered edge by edge against the region the
+carve sweeps, exactly, and a ring counts as one circle only when it is one
+closed circle edge. That second change also fixes three configurations
+where main builds a tier-3-INVALID body (a lens ring of two bores in one
+subtraction order, a three-arc ring, a hostless-annulus lens), each now a
+row. A multi-edge ring refuses at its least margin, independent of
+subtraction order. The duplicate whole-circle readings (`CircleMargins`,
+the `effective` widening) are retired: one home for ring reading. The heat
+sink rounds its plate after the union, gated on tier 3. Full review
+(APPROVE-WITH-FIXES, no MAJOR) taken in full. Filed:
+`a-ring-of-ellipse-edges-refuses-the-ring-meter` (P3). The lane's duplicate
+filing of main's 1e-6 pinch red was dropped for JOIN's (PR 4113).

@@ -829,3 +829,12 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **The last pass.** It added the circle row (the only red under that mutant, at three ε), measured the coefficient rounding against the charge, gave the test oracles one home with extremum refinement, and carried the review's notes to the filed items. One near-copy helper is left in `circle_wall_rows.rs:102`.
 - **Verification.** An independent verifier session found the pass VERIFIED: 0 wrong in the fuzz at three ε, and the mutant table holds. The single charge covers the rounding with about 3× room (max 0.316 of it, not the 0.19 the PR first quoted).
 — (REACH orchestrator)
+
+## 2026-10-06 — a trimmed sphere face is cut along its meridian (PR 4044)
+
+- **The change.** A section circle lying wholly inside a TRIMMED sphere face and a plane face used to refuse: the escape re-chart rotates closed groups only. Now the plane arm reads the section certificate. On R-loop it cuts the holding face along its own chart's meridian through the circle (`apply_cut_ins`), and the pipeline re-enters. Any other verdict refuses with the certificate's own reason. The lane chose the meridian cut over a ring cut by measurement: the ring hit three downstream lanes (join, containment, mesh) that the meridian needs none of.
+- **Tier.** Dual review (H / TRICKY). A cut on the wrong arc or the wrong piece ships a wrong body.
+- **Review.** Dual review frozen at `4bd8f5a8b9`. Both reviews came back APPROVE-WITH-FIXES with no MAJOR, so nothing enters the tally (DR-87). Bilaterally: a pole-to-pole span sign, a stale face key across two cut-ins, and an unguarded nearest-hit choice. Unilaterally: the R-loop gate loses its only guard once 4046 lands.
+- **The last pass.** It went to a replacement session, because the first lane blocked three times asking to confirm mid-task instructions. The pass merged main with 4046 and 4042 and fixed each finding with a row its mutant turns red. It flipped the pole-strut row from refusal to build at the closed forms, and filed three items.
+- **Verification.** An independent verifier session found the pass VERIFIED: every mutant red as claimed, and 0 wrong bodies in about 7,800 random-pose op runs per ε. Multi-cap poses refuse 61–80%, almost all at the plane arm's pre-existing near-boundary pre-check, upstream of the cut.
+— (REACH orchestrator)
