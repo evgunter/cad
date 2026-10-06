@@ -84,6 +84,8 @@ mod asm_upd_pin_update;
 mod assemble_one_local_battery;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_planar_cut_off_names.rs"]
+mod band_planar_cut_off_names;
 #[path = "band_run_wall_names.rs"]
 mod band_run_wall_names;
 #[path = "blend5_r1_probes.rs"]

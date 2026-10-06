@@ -289,10 +289,13 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
 
 /// Two ADJACENT box edges, requested alone: exactly two links meet at
 /// their shared vertex, so the walk makes it a JUNCTION — and a box
-/// corner is not G1, so predicate 4 refuses. (Request all twelve and
-/// the same vertex has three links and becomes a corner instead: the
-/// junction/termination rule is structural and the two predicates
-/// never overlap.)
+/// corner is not G1, so predicate 4 reads a definite turn. Between two
+/// plane–plane links that breaks the chain, and predicate 6 refuses the
+/// vertex as the turn. Where a CURVED link meets another at a kink —
+/// a prism's top edge and the half-round arc it runs into — predicate 4
+/// itself refuses, with its definite margin. (Request all twelve and
+/// the shared vertex has three links and becomes a corner instead: the
+/// junction/termination rule is structural.)
 #[test]
 fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let body = block::<f64>(1.0, 1.0, 1.0, Tol::witness());
@@ -320,6 +323,42 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         size: 0.1,
     };
     match run_battery(&req, band()) {
+        Err(BlendError::UnsupportedCorner {
+            corner: sweep::blend::CornerConfig::Turn,
+            ..
+        }) => {}
+        other => panic!("expected the turn, got {other:?}"),
+    }
+    let (round, front) = crate::common::operands::half_round_end();
+    let arc = topo::query::all_edges(&round)
+        .into_iter()
+        .find(|&e| {
+            let ed = round.get_edge(e).unwrap();
+            let he = ed.he_plus;
+            let s = round.get_half_edge(he).unwrap().start;
+            let t = round.half_edge_end(he).unwrap();
+            let z = |v| {
+                round
+                    .get_point(round.get_vertex(v).unwrap().point)
+                    .unwrap()
+                    .z
+            };
+            matches!(
+                round
+                    .get_curve_geom(ed.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(geom::Curve3::Circle { .. })
+            ) && z(s) > 0.5
+                && z(t) > 0.5
+        })
+        .expect("the half-round's top arc");
+    let req = BlendRequest {
+        body: &round,
+        edges: vec![front, arc],
+        size: 0.1,
+    };
+    match run_battery(&req, band()) {
         Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
             assert_eq!(margin.predicate, "fillet3_chain_g1");
             assert!(
@@ -328,7 +367,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
                     .diagnostic_f64_for_error_text()
                     .value()
                     .is_some_and(|m| m > 0.0),
-                "a 90° kink has a definitely positive margin"
+                "a kink has a definitely positive margin"
             );
             let geom_core::ErrorTextReading::Value(arm) = arm.diagnostic_f64_for_error_text()
             else {

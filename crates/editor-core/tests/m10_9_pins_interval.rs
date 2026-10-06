@@ -56,8 +56,9 @@ pub(crate) struct Study {
     /// whole there. Asserted, so the counts beside it are known to be
     /// a truncated replay's where they are one.
     pub(crate) refused_by: Option<&'static str>,
-    /// A multiple of ε that refuses.
-    pub(crate) refuses_at: f64,
+    /// A multiple of ε that refuses — `None` where the bisection found
+    /// no refusal up to its top, `1e6·ε`.
+    pub(crate) refuses_at: Option<f64>,
     /// `SymCounts::registered` at `certifies_at`, shipped set (over the
     /// decisions taken before the refusal, where `refused_by` names
     /// one).
@@ -112,42 +113,52 @@ pub(crate) struct Study {
 /// untoleranced variable binds as its nominal (VR8), and on these five
 /// that moved no decision.
 ///
-/// The scales are M10-9's brackets. The plate, the annulus and the link
-/// certify whole at them. The bracket and the pad refuse at the
-/// extrude's `pcurve_envelope` (`refused_by`, asserted;
-/// `work/pcert/fillet-meridian-radius-term-is-registered-only`), so
-/// their counts are over the decisions taken before that refusal.
+/// The scales are M10-9's brackets (the link's lowered to its new
+/// ceiling), and all five certify whole at them. The bracket and the pad
+/// refused at the extrude's `pcurve_envelope` until the constructions
+/// stored the carriers they build
+/// (`work/pcert/fillet-meridian-radius-term-is-registered-only`, closed
+/// by it); `refused_by` stays for the next document that refuses.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
             name: "two_hole_plate",
             certifies_at: 7.811e2,
-            refuses_at: 7.814e2,
+            refuses_at: None,
             refused_by: None,
-            registered: 148,
+            // 148 registered / 955 until the circles stored their
+            // authored carrier, the radius as `|r|`: the rim at a vertex
+            // folds onto it in the tier's own algebra, so every one is a
+            // THEOREM (`numeric` unmoved), and the plate stopped refusing
+            // anywhere the bisection reaches (`1e6·ε`); its ceiling was
+            // 7.814e2·ε.
+            registered: 0,
             // DECIDE-3: eight more THEOREMS (803 -> 811) out of
             // `numeric` (470 -> 462) — comparisons of two rational
             // constants A0 now decides exactly. `registered` unmoved.
-            symbolic_zero: [956, 956, 956],
+            symbolic_zero: [1103, 1103, 1103],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
             name: "r1_annulus",
             certifies_at: 7.805e2,
-            refuses_at: 7.810e2,
+            refuses_at: None,
             refused_by: None,
-            registered: 148,
+            // 148 / 440 until the circles stored their authored carrier
+            // (as the plate): all 148 are theorems, `numeric` unmoved,
+            // and no refusal up to `1e6·ε` (it was 7.810e2·ε).
+            registered: 0,
             // 432 until DECIDE-9 (a product with an ungated zero factor
             // rests on that factor alone): eight decisions the read
             // answered as `sign_gated` are theorems, `registered` and
             // `numeric` unmoved.
-            symbolic_zero: [442, 442, 442],
+            symbolic_zero: [588, 588, 588],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
             name: "r2_link",
-            certifies_at: 4.930e2,
-            refuses_at: 4.934e2,
+            certifies_at: 3.029e2,
+            refuses_at: Some(3.030e2),
             refused_by: None,
             // DECIDE-3: rule G re-keys the link's roots on their value
             // class, so six more of the rim identity's samples meet
@@ -165,21 +176,42 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exactly (`geom_brep::schedule_param`): two end residuals
             // the door now recognises. Measured by restoring the old end
             // samples on a probe, which restores 108.
-            registered: 118,
-            symbolic_zero: [691, 691, 691],
+            // 118 / 689 / numeric 748 at the old ceiling (4.930e2·ε),
+            // before the constructions stored their carriers; 52 / 824 /
+            // 679 here, at every ε. The ceiling fell to 3.029e2·ε: the
+            // tangent arc stores Δθ = 4·atan(across / (|d| + along)),
+            // and the quarter-tangent of a half-turn whose chord is the
+            // parameter `half_w` reads `2w / |2w|`, a sign the tier does
+            // not hold, so the rim identity the arc registers sits
+            // inside a frozen compound and the mapped-source residual is
+            // read numerically; it leaves the band first at 3.030e2·ε.
+            registered: 52,
+            symbolic_zero: [824, 824, 824],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
             name: "r2_filleted_bracket",
+            // Ceiling 3.873e2·ε until the constructions stored their
+            // carriers; 7.624e2·ε since (bounded by `arc_span`).
             certifies_at: 3.870e2,
-            refuses_at: 3.873e2,
-            refused_by: Some("pcurve_envelope"),
+            refuses_at: Some(7.624e2),
+            refused_by: None,
             // 144 until the certification schedule assigned its last
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
             // numeric decisions reach the door, verdicts unchanged. 156
             // until the variable table (the `symbolic_zero` note below).
-            registered: 154,
+            // 154 (over a replay truncated at `pcurve_envelope`) until
+            // the fillet stored its own centre and the authored radius
+            // and registered its incoming tangency: since, the bracket
+            // certifies whole here, its ceiling 7.624e2·ε (bounded by
+            // `arc_span`), and reads 49 registered / 1401 theorems /
+            // 45 gated / 1050 numeric at every ε. Eight
+            // `dihedral_wedge` theorems are registered instead: the
+            // fillet's tangency is the registration
+            // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
+            // centre's algebra.
+            registered: 49,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
             // and rule G, and decisions the read answers; `registered`
@@ -206,14 +238,14 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 1283/156 here (and 156/162 there): the move is the order
             // alone. How much the tier reaches depends on symbol order;
             // the orchestrator files that.
-            symbolic_zero: [1285, 1285, 1285],
+            symbolic_zero: [1401, 1401, 1401],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
             name: "r2_rounded_pad",
             certifies_at: 2.083e3,
-            refuses_at: 2.084e3,
-            refused_by: Some("pcurve_envelope"),
+            refuses_at: Some(2.7783e3),
+            refused_by: None,
             // 86 until SYM-5's rule E (`common_factor`). The pad is
             // the one of the five whose `registered` the rule moves,
             // and it moves it UP: as measured when rule E landed, with
@@ -288,14 +320,19 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
-            registered: 152,
+            // 152 (over a replay truncated at `pcurve_envelope`) until
+            // the constructions stored their carriers: since, the pad
+            // certifies whole here, its ceiling 2.7783e3·ε (bounded by
+            // `line_span`), and reads 54 registered / 1340 theorems /
+            // 2 gated / 1272 numeric at every ε.
+            registered: 54,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them. Every row
             // is up 36: 32 since DECIDE-9, the `dihedral_wedge` margins
             // the note on `registered` names, and 4 since check 5
             // decides only an escape's positive part (the note above).
-            symbolic_zero: [1016, 1040, 1016],
+            symbolic_zero: [1340, 1340, 1340],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -634,14 +671,12 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// to fold, and at the scale the pad certifies whole at, over its
 /// analyzed box, the two dials read the same receipt
 /// (`work/rules/the-negative-arm-lost-its-document-consumer`). Since the
-/// extrude closes with the pcurve mint, the pad refuses at
-/// `pcurve_envelope` at that scale under both dials
-/// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so the
-/// receipt below is over the decisions taken before that refusal; the
-/// claim is that the two dials still read the same one. Measured at the
-/// default ε: since DECIDE-9 it is `symbolic_zero` 1036, `sign_gated`
-/// 2, `registered` 152, `numeric` 1188, `frozen` 2587 under both
-/// dials.
+/// constructions store the carriers they build, the pad certifies whole
+/// there under both dials again (it refused at `pcurve_envelope` while
+/// the fillet lowered through chord and bulge,
+/// `work/pcert/fillet-meridian-radius-term-is-registered-only`). Measured
+/// at the default ε, both dials read `symbolic_zero` 1340, `sign_gated`
+/// 2, `registered` 54, `numeric` 1272 and `frozen` 3138.
 ///
 /// `#[ignore]`d: it is two whole-box replays of the heaviest of the
 /// five documents, on top of the one the gating row above already
@@ -671,11 +706,8 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
             t0.elapsed().as_secs_f64()
         );
         assert!(
-            refusal
-                .as_deref()
-                .is_some_and(|r| r.contains("pcurve_envelope")),
-            "{label}: the pad refuses at `pcurve_envelope` at this scale \
-             (`Study::refused_by`): {refusal:?}"
+            refusal.is_none(),
+            "{label}: the pad certifies whole at this scale: {refusal:?}"
         );
         got.push((
             c.symbolic_zero,
@@ -687,7 +719,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1036, 2, 152, 1188, 2587),
+        (1340, 2, 54, 1272, 3138),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(

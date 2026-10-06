@@ -216,13 +216,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // profile carries an ARC, so its barrel is a cylinder; the
     // chamfer's v1 door is plane-plane, and every closed edge chain on
     // that body runs into the curved lateral and refuses
-    // `ChamferArmUnsupported`. A single edge does not work either — the
-    // assembly admits only a FULLY-REQUESTED chain set, so one lateral
-    // edge terminating at a trivalent corner refuses
-    // `UnsupportedRunOut`. A four-sided prism with all twelve edges
-    // requested is the smallest thing the door actually accepts, and a
-    // golden that froze a refusing node would be the sick-bytes failure
-    // #117/#120 named.
+    // `ChamferArmUnsupported`. A four-sided prism with all twelve edges
+    // requested is accepted by the door, and a golden that froze a
+    // refusing node would be the sick-bytes failure #117/#120 named.
     let square = desc(
         plane,
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],

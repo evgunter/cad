@@ -129,12 +129,9 @@ fn r2_p2_lantern_triple_equality_off_the_fixture_radius() {
 }
 
 /// **P3 — two annulus rims sharing a PLANE CAP compose in one call.**
-/// The unit's fixtures all share revolution walls (sphere, cone); a
-/// full-revolution CAP has a radial seam meridian too, and the zone's
-/// top cap is shared by the top sphere rim and the bore's top rim. The
-/// refresh code is support-kind-agnostic, and MEASURED here it does
-/// serve the cap-sharing pair — this row is the measurement the unit
-/// did not take. The composition lands bit-equal on the bore-first
+/// The unit's fixtures all share revolution walls (sphere, cone); the
+/// zone's top cap, a plane annulus, is shared by the top sphere rim (its
+/// outer cycle) and the bore's top rim (its ring). The composition lands bit-equal on the bore-first
 /// sequential order and one summation ulp off the sphere-first order
 /// (1.59657466438555087e1 vs …051e1), the same integrator mechanism as
 /// P1's off-radius point.
@@ -248,7 +245,7 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
 
 /// **P3b/P4b — the naming records stay a partition on the cap-sharing
 /// pair and the four-rim cycle**, where the retire/re-cover path runs
-/// on a plane cap's RADIAL seam and on up to three earlier bands.
+/// on a plane cap shared by two rims and on up to three earlier bands.
 #[test]
 fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
     let body = zone();

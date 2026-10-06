@@ -79,14 +79,17 @@ fn full_wire_holed_revolve_names_totally() {
     for s in 0..4 {
         assert!(t.lookup(&band(rev, pe(&doc, rev, 1, s))).is_some());
         assert!(t.lookup(&band_rim(rev, pv(&doc, rev, 1, s))).is_some());
-        assert!(
+        // A seam meridian on a cylinder only; the hole's sides
+        // alternate between cylinders and plane annuli.
+        let has = |s: u32| {
             t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
-                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 1, s).into())
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 1, s).into()),
             ))
             .is_some()
-        );
+        };
+        assert_ne!(has(s), has((s + 1) % 4), "hole side {s}");
         assert!(
             t.lookup(&meridian_vertex(
                 MeridianEnd::Seam,
