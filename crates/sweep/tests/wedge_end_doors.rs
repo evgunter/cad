@@ -21,8 +21,9 @@
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Open, Profile, ProfileLoop, Start};
+use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
-use sweep::test_support::{brick, sketch_at};
+use sweep::test_support::{brick, finished, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
 use topo::{
     Body, BooleanErrorKind, ContactMark, EdgeKey, ShellError, SplitError, SplitFinishError,
@@ -54,7 +55,15 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Extruded<f64> {
     let profile = Profile::new(sketch_at(z0), loops)
         .validate(tol())
         .expect("the fixture's profile validates");
-    extrude(&profile, Extrusion::Distance(h), tol()).expect("the fixture extrudes")
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the fixture extrudes")
 }
 
 /// The 6 × 6 × 1 plate with a unit round hole on the z axis; the
@@ -243,11 +252,18 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
 /// has to land the undeclared refusal in the same change.
 #[test]
 fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
-    let big = extruded(vec![circle(0.0, 2.0, 2.0)], 0.0, 1.0).body;
-    let small = extruded(vec![circle(0.0, 1.0, 1.0)], -1.0, 3.0).body;
-    let left = extruded(vec![circle(0.0, 0.0, 1.0)], 0.0, 1.0).body;
-    let right = extruded(vec![circle(2.0, 0.0, 1.0)], 0.0, 1.0).body;
-    let cutter = brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol());
+    let disc = |what: &str, c: ProfileLoop<f64>, z0: f64, z1: f64| {
+        finished(what, extruded(vec![c], z0, z1).body, tol())
+    };
+    let big = disc("the big disc", circle(0.0, 2.0, 2.0), 0.0, 1.0);
+    let small = disc("the small disc", circle(0.0, 1.0, 1.0), -1.0, 3.0);
+    let left = disc("the left disc", circle(0.0, 0.0, 1.0), 0.0, 1.0);
+    let right = disc("the right disc", circle(2.0, 0.0, 1.0), 0.0, 1.0);
+    let cutter = finished(
+        "the cutter",
+        brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol()),
+        tol(),
+    );
     let rows = [
         (
             "internal kiss, subtract",
@@ -261,7 +277,11 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
         ),
         (
             "plane tangent to a hole, subtract",
-            topo::subtract(&plate_with_hole(), &cutter, tol()),
+            topo::subtract(
+                &finished("the holed plate", plate_with_hole(), tol()),
+                &cutter,
+                tol(),
+            ),
             BooleanErrorKind::CurvedBooleanUnsupported,
         ),
     ];

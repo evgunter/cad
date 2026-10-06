@@ -10,9 +10,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, ParamName, PersistError,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
-    StableName, StepId, Unplaced,
+    CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, PersistError, RecipeNodeId,
+    ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode, StableName, StepId,
+    Unplaced, VarName,
 };
 use test_utils::refusal::Admission;
 
@@ -37,16 +37,24 @@ fn name() -> SpokenName {
     )
 }
 
-fn param() -> ParamName {
-    ParamName::from_static("width")
+fn param() -> VarName {
+    VarName::from_static("width")
+}
+
+fn var() -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId(test_utils::refusal::tagged(8)),
+        Some(param()),
+    )
 }
 
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
-        TornGroup, CutHoldsGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
-        UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
-        HoistedMemberOffset, UncutParamReference, PartNameReachesRemainder,
+        TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
+        NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
+        UncutVarReference, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
     ];
@@ -55,8 +63,9 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
-        PartCarriesMetadata, ParamConflict, UnplaceableFrame, MatePlaced, Unplaced,
-        NeedsAGauge, PartDeadGauge, MateFrameCrosses, MateFaceFrameCrosses, MatePairSplits,
+        PartCarriesMetadata, VarNameConflict, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        UnplaceableFrame, MatePlaced, Unplaced,
+        MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
         StrandedPartName, Edit,
     ];
@@ -88,8 +97,9 @@ fn split_refusals() -> Vec<SplitError> {
             instance: s(4, "InstantiatePart"),
             root_is_cut: true,
         },
-        SplitError::CutHoldsGauge {
+        SplitError::SeveredGauge {
             gauge: s(1, "Gauge"),
+            kept: s(4, "InstantiatePart"),
         },
         SplitError::TwoAnchors {
             node: s(4, "Extrude"),
@@ -98,8 +108,15 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::PlacingMateLeft { mate: s(7, "Mate") },
         SplitError::DeadGaugeReference {
-            instance: s(4, "InstantiatePart"),
+            node: s(4, "InstantiatePart"),
             gauge: s(1, "Gauge"),
+        },
+        SplitError::NoMaterial {
+            node: s(1, "Gauge"),
+        },
+        SplitError::UnplaceableRoot {
+            root: s(6, "Measure"),
+            anchor: s(1, "Gauge"),
         },
         SplitError::UnplacedAlone {
             group: s(2, "InstantiatePart"),
@@ -108,18 +125,38 @@ fn split_refusals() -> Vec<SplitError> {
         SplitError::MateFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::B,
+            promote: None,
         },
-        SplitError::MateFaceFrameCrosses {
+        SplitError::MateFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::B,
+            promote: Some(Box::new(s(2, "InstantiatePart"))),
         },
-        SplitError::HoistedMemberOffset {
-            instance: s(4, "InstantiatePart"),
-        },
-        SplitError::UncutParamReference {
-            param: param(),
+        SplitError::UncutVarReference {
+            var: var(),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
+            promote: false,
+        },
+        SplitError::UncutVarReference {
+            var: var(),
+            cut_node: s(4, "InstantiatePart"),
+            kept_node: s(6, "Gauge"),
+            promote: true,
+        },
+        SplitError::AnonymousVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
+        },
+        SplitError::UnresolvedVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
         },
         SplitError::PartNameReachesRemainder {
             node: s(5, "Extrude"),
@@ -167,7 +204,10 @@ fn inline_refusals() -> Vec<InlineError> {
             by: s(5, "Union"),
         },
         InlineError::Unresolved {
-            failure: ResolveFailure::new(ResolveFault::Unresolved, "no such document"),
+            failure: ResolveFailure::new(
+                ResolveFault::EpsilonSeam,
+                "document ε 1e-6 conflicts with the process ε 1e-9 (one process, one ε)",
+            ),
         },
         InlineError::EpsilonSeam {
             host_eps: 1e-9,
@@ -176,30 +216,55 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::PartCarriesMetadata {
             key: "author".to_owned(),
         },
-        InlineError::ParamConflict { param: param() },
+        InlineError::VarNameConflict { name: param() },
+        InlineError::AnonymousVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+        },
+        InlineError::UnresolvedVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
+        },
         InlineError::UnplaceableFrame {
             root: s(3, "Extrude"),
         },
         InlineError::MatePlaced {
             instance: s(4, "InstantiatePart"),
-            root: s(2, "InstantiatePart"),
+            host_root: s(2, "InstantiatePart"),
             mates: vec![s(7, "Mate")],
+            part_root: None,
+            part_gauges: Vec::new(),
+        },
+        InlineError::MatePlaced {
+            instance: s(4, "InstantiatePart"),
+            host_root: s(2, "InstantiatePart"),
+            mates: vec![s(7, "Mate")],
+            part_root: Some(Box::new(s(1, "InstantiatePart"))),
+            part_gauges: Vec::new(),
+        },
+        InlineError::MatePlaced {
+            instance: s(4, "InstantiatePart"),
+            host_root: s(2, "InstantiatePart"),
+            mates: vec![s(7, "Mate")],
+            part_root: Some(Box::new(s(1, "InstantiatePart"))),
+            part_gauges: vec![s(6, "Gauge")],
         },
         InlineError::Unplaced {
             instance: s(4, "InstantiatePart"),
             cause: Unplaced::NoOffset,
         },
-        InlineError::NeedsAGauge {
-            instance: s(4, "InstantiatePart"),
+        InlineError::MovedMemberOffset {
+            member: s(5, "InstantiatePart"),
         },
         InlineError::PartDeadGauge {
             node: s(3, "Extrude"),
         },
         InlineError::MateFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::A,
-        },
-        InlineError::MateFaceFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::A,
         },
@@ -227,40 +292,7 @@ fn inline_refusals() -> Vec<InlineError> {
 
 /// The stage words a refactor refusal opens with, each on the row
 /// namespace that writes it.
-const LABELS: &[(&str, &str)] = &[
-    ("Split/", "split"),
-    ("Inline/", "inline"),
-    // The pin's own refusal, forwarded under its stage word.
-    ("Split/Pin", "persist"),
-];
-
-/// The rows that state no recourse, by exact row id, filed with their
-/// owner.
-const FILED_NO_RECOURSE: &[&str] = &[
-    // work/place/split-and-inline-refusals-short-of-the-shape-guard.md
-    "Split/EmptyCut",
-    "Split/UnknownCutNode",
-    "Split/PartIdCollides",
-    "Split/SeveredEdge",
-    "Split/OperandSeveredFromMate",
-    "Split/UncutParamReference",
-    "Split/PartNameReachesRemainder",
-    "Split/NameStraddlesCut",
-    "Split/NameOnDroppedStep",
-    "Split/BodyNameCrossesCut",
-    "Split/Pin",
-    "Inline/UnknownNode",
-    "Inline/NotAnInstance",
-    "Inline/InstanceConsumed",
-    "Inline/Unresolved",
-    "Inline/EpsilonSeam",
-    "Inline/PartCarriesMetadata",
-    "Inline/ParamConflict",
-    "Inline/InstanceBodyNameReferenced",
-    "Inline/ForeignInstanceName",
-    "Inline/NameOnDroppedStep",
-    "Inline/StrandedPartName",
-];
+const LABELS: &[(&str, &str)] = &[("Split/", "split"), ("Inline/", "inline")];
 
 /// The rows that name a document by its hex id, filed with their owner.
 const ADMISSIONS: &[Admission<'static>] = &[Admission {
@@ -275,7 +307,6 @@ const ADMISSIONS: &[Admission<'static>] = &[Admission {
 fn every_split_and_inline_refusal_states_one_recourse() {
     let mut problems = Vec::new();
     let mut names = Vec::new();
-    let mut used = std::collections::BTreeSet::new();
     let split: Vec<(String, String)> = split_refusals()
         .iter()
         .map(|e| {
@@ -314,29 +345,15 @@ fn every_split_and_inline_refusal_states_one_recourse() {
     }
     for (name, text) in split.iter().chain(&inline) {
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
-        let no_recourse = format!("{name} states no recourse");
         let allowed: Vec<&str> = LABELS
             .iter()
             .filter(|(ns, _)| name.starts_with(ns))
             .map(|(_, l)| *l)
             .collect();
-        for problem in
-            test_utils::refusal::problems_admitting(name, text, &allowed, false, ADMISSIONS)
-        {
-            if FILED_NO_RECOURSE.contains(&name.as_str()) && problem.starts_with(&no_recourse) {
-                used.insert(name.clone());
-            } else {
-                problems.push(problem);
-            }
-        }
+        problems.extend(test_utils::refusal::problems_admitting(
+            name, text, &allowed, false, ADMISSIONS,
+        ));
         names.push(name.clone());
-    }
-    for filed in FILED_NO_RECOURSE {
-        if !used.contains(*filed) {
-            problems.push(format!(
-                "the admission {filed} admits nothing a row renders"
-            ));
-        }
     }
     problems.extend(test_utils::refusal::unclaimed_admissions(
         ADMISSIONS,

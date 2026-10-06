@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -58,6 +59,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -97,6 +99,7 @@ fn band_cut() -> BandCut {
         Node::Extrude {
             profile: bp,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, transform) = insert(
@@ -116,7 +119,7 @@ fn band_cut() -> BandCut {
             op: BooleanOp::Subtract,
             a,
             b: transform,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     BandCut {
@@ -213,18 +216,18 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
             },
         ),
     );
-    // M4 PR 5: the slide's flush planes are declared (the disjoint
-    // position keeps the same coplanarity, so ONE declare serves both).
-    // The B side is read at the TRANSFORM, the boolean's operand;
+    // The slide's flush planes are declared on the union (the disjoint
+    // position keeps the same coplanarity, so ONE declared list serves
+    // both). The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
+    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let (doc2, _) = step(

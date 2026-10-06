@@ -13,28 +13,33 @@
 //!   neighbours are the two torus faces; today every op refuses at the
 //!   join's germ frame, which has no torus × plane arm);
 //! - a tube whose outer wall is two faces meeting in a circle, the box
-//!   top in that circle's plane holding an arc of it, or all of it
-//!   (today every op refuses at the join);
+//!   top in that circle's plane holding an arc of it (every op answers
+//!   its closed form; `point_in_solid` on the result refuses typed on
+//!   the notched full-turn wall,
+//!   `work/contact/a-notched-full-turn-wall-has-no-ray-trim.md`), or all
+//!   of it (today every op refuses at the join);
 //! - a die pip whose ball is poled along `y`, so its seam meridian and
 //!   both poles lie in the cube's top face (today every op refuses at
-//!   the join's tilted plane×sphere section; before the sweep recorded
-//!   the poles, the no-crossings fallback re-charted the ball and ∖
-//!   answered its closed form).
+//!   the join's role read, `SectionLoopUndecided`).
 //!
 //! Each op must refuse typed or answer its closed-form volume with
-//! `point_in_solid` agreeing on its set membership at witness points.
+//! `point_in_solid` agreeing on its set membership at witness points,
+//! or refusing typed there; which of the two each op does is pinned
+//! too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::germ_pair::cyl;
 use crate::revolve_common::{axis_y, validated};
 
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{Body, SolidContainment};
+use topo::{AtRestBody, Body, SolidContainment};
 
 fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let lp = ProfileLoop::polygon([
@@ -50,9 +55,16 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the box profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .expect("the box extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the box extrudes")
+    .body
 }
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
@@ -128,8 +140,8 @@ type Witness = ([f64; 3], bool, bool);
 
 struct Fixture {
     name: &'static str,
-    a: Body<f64>,
-    b: Body<f64>,
+    a: AtRestBody<f64>,
+    b: AtRestBody<f64>,
     vol_a: f64,
     vol_b: f64,
     overlap: f64,
@@ -142,11 +154,12 @@ struct Fixture {
 const DONUT_WINDOW: ((f64, f64), (f64, f64)) = ((-0.4, 0.4), (2.2, 3.0));
 
 fn fixtures() -> Vec<Fixture> {
+    let fin = |what: &str, body: Body<f64>| finished(what, body, Tol::witness());
     vec![
         Fixture {
             name: "cylinder cap in the box top",
-            a: cyl(1.0, 0.5),
-            b: boxed((0.0, 2.0), (-0.5, 0.5), (-1.0, 0.5)),
+            a: fin("the cylinder", cyl(1.0, 0.5)),
+            b: fin("the box", boxed((0.0, 2.0), (-0.5, 0.5), (-1.0, 0.5))),
             vol_a: PI,
             vol_b: 3.0,
             overlap: disc_band(0.5),
@@ -161,8 +174,11 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "outer equator arc in the box top",
-            a: equator_donut(),
-            b: boxed(DONUT_WINDOW.0, (-1.0, 0.0), DONUT_WINDOW.1),
+            a: fin("the equator donut", equator_donut()),
+            b: fin(
+                "the box",
+                boxed(DONUT_WINDOW.0, (-1.0, 0.0), DONUT_WINDOW.1),
+            ),
             vol_a: PI * PI,
             vol_b: 0.64,
             overlap: donut_under_window(DONUT_WINDOW.0, DONUT_WINDOW.1, 1000),
@@ -177,8 +193,8 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "tube strut arc in the box top",
-            a: strutted_tube(),
-            b: boxed((-0.3, 0.3), (-2.0, 0.0), (0.8, 1.3)),
+            a: fin("the strutted tube", strutted_tube()),
+            b: fin("the box", boxed((-0.3, 0.3), (-2.0, 0.0), (0.8, 1.3))),
             vol_a: 1.5 * PI,
             vol_b: 0.6,
             overlap: disc_band(0.3) - 0.48,
@@ -192,8 +208,8 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "whole tube strut in the box top",
-            a: strutted_tube(),
-            b: boxed((-1.5, 1.5), (-2.0, 0.0), (-1.5, 1.5)),
+            a: fin("the strutted tube", strutted_tube()),
+            b: fin("the box", boxed((-1.5, 1.5), (-2.0, 0.0), (-1.5, 1.5))),
             vol_a: 1.5 * PI,
             vol_b: 18.0,
             overlap: 0.75 * PI,
@@ -207,8 +223,8 @@ fn fixtures() -> Vec<Fixture> {
         },
         Fixture {
             name: "y-poled pip on the cube's top face",
-            a: sweep::test_support::cube(1.0, Tol::witness()),
-            b: y_poled_pip(),
+            a: fin("the cube", sweep::test_support::cube(1.0, Tol::witness())),
+            b: fin("the y-poled pip", y_poled_pip()),
             vol_a: 1.0,
             vol_b: 4.0 / 3.0 * PI * 0.027,
             overlap: 2.0 / 3.0 * PI * 0.027,
@@ -238,6 +254,7 @@ fn every_op_refuses_or_answers_its_closed_form() {
     let tol = Tol::witness();
     let mut failures = Vec::new();
     let mut refusals = Vec::new();
+    let mut outcomes = Vec::new();
     for fx in fixtures() {
         let (a, b, ov) = (&fx.a, &fx.b, fx.overlap);
         let rows: [Row; 3] = [
@@ -260,10 +277,11 @@ fn every_op_refuses_or_answers_its_closed_form() {
             let r = match r {
                 Ok(r) => r,
                 Err(e) => {
-                    refusals.push(format!("{what}: {:?}", e.kind()));
+                    outcomes.push(format!("{what}: {:?}", e.kind()));
                     continue;
                 }
             };
+            outcomes.push(format!("{what}: builds"));
             let Some(body) = r.body() else {
                 failures.push(format!("{what}: came back empty"));
                 continue;
@@ -287,9 +305,15 @@ fn every_op_refuses_or_answers_its_closed_form() {
                     SolidContainment::Out
                 };
                 let q = Point3::new(x, y, z);
-                let got = topo::point_in_solid(body, q, band, tol);
-                if !matches!(got, Ok(c) if c == expect) {
-                    failures.push(format!("{what}: point_in_solid{q:?} = {got:?}"));
+                match topo::point_in_solid(body, q, band, tol) {
+                    Ok(c) if c == expect => {}
+                    // The notched full-turn wall's ray trim (module docs).
+                    Err(topo::PointInSolidError::Escalated { diag, .. })
+                        if diag.predicate == Some("bool_wall_trim_period") =>
+                    {
+                        refusals.push(format!("{what}: point_in_solid{q:?}: {diag:?}"));
+                    }
+                    got => failures.push(format!("{what}: point_in_solid{q:?} = {got:?}")),
                 }
             }
         }
@@ -299,7 +323,33 @@ fn every_op_refuses_or_answers_its_closed_form() {
         "{}\n(refused: {refusals:?})",
         failures.join("\n")
     );
+    assert_eq!(
+        outcomes, OUTCOMES,
+        "which ops build and where the rest stop"
+    );
 }
+
+/// What each op of [`every_op_refuses_or_answers_its_closed_form`] does:
+/// builds to its closed form, or refuses at the door named (module
+/// docs). Pinned per op, so a change that moves one is a red row rather
+/// than a refusal the row above would also accept.
+const OUTCOMES: [&str; 15] = [
+    "cylinder cap in the box top: A ∪ B: UndeclaredCoincidence",
+    "cylinder cap in the box top: A ∩ B: UndeclaredCoincidence",
+    "cylinder cap in the box top: A ∖ B: UndeclaredCoincidence",
+    "outer equator arc in the box top: A ∪ B: GermFrameUnsupported",
+    "outer equator arc in the box top: A ∩ B: GermFrameUnsupported",
+    "outer equator arc in the box top: A ∖ B: GermFrameUnsupported",
+    "tube strut arc in the box top: A ∪ B: builds",
+    "tube strut arc in the box top: A ∩ B: builds",
+    "tube strut arc in the box top: A ∖ B: builds",
+    "whole tube strut in the box top: A ∪ B: Join",
+    "whole tube strut in the box top: A ∩ B: Join",
+    "whole tube strut in the box top: A ∖ B: Join",
+    "y-poled pip on the cube's top face: A ∪ B: Join",
+    "y-poled pip on the cube's top face: A ∩ B: Join",
+    "y-poled pip on the cube's top face: A ∖ B: Join",
+];
 
 /// The closed forms the row above holds an answer to, checked against
 /// the operands' own volumes, so an answer is not measured against a
@@ -332,4 +382,33 @@ fn the_closed_forms_hold_on_the_operands() {
         (coarse - fine).abs() < 1e-5,
         "the quadrature has converged: {coarse} against {fine}"
     );
+}
+
+/// **The whole tube strut in the box top closes its section loops at one
+/// site each**: the outer circle `ρ = 1` lies in the box top with one
+/// vertex on it, and the inner wall's section circle `ρ = 0.5` crosses
+/// the wall's seam once. Each loop's two ends meet at that one vertex,
+/// and every op refuses that typed, naming the class, rather than
+/// counting the ends as unpaired.
+#[test]
+fn a_closed_section_loop_with_one_site_refuses_typed() {
+    let fx = fixtures()
+        .into_iter()
+        .find(|f| f.name == "whole tube strut in the box top")
+        .expect("the fixture exists");
+    let tol = Tol::witness();
+    for (op, r) in [
+        ("A ∪ B", topo::union(&fx.a, &fx.b, tol)),
+        ("A ∩ B", topo::intersect(&fx.a, &fx.b, tol)),
+        ("A ∖ B", topo::subtract(&fx.a, &fx.b, tol)),
+    ] {
+        let err = r.expect_err("a one-site section loop refuses");
+        assert!(
+            matches!(
+                err,
+                topo::BooleanError::Join(topo::SplitJoinError::SingleSiteSectionLoop { count: 2 })
+            ),
+            "{op}: {err:?}"
+        );
+    }
 }

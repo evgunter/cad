@@ -15,11 +15,16 @@
 //! ladder ([`super::circle_roots::half_angle_roots`]) solves it — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
-//! (bicircular) torus pass. At most four crossings per turn.
+//! (bicircular) torus pass. At most four crossings per turn. The
+//! harmonics are read from the torus's one home along a conic
+//! ([`geom_brep::ConicTorusHarmonics`], of degree four on an ellipse);
+//! on a circle its third and fourth harmonics are rounding, charged to
+//! the noise.
 //!
 //! The ladder's rows here are `bool_circle_torus_pole`, `_conditioning`,
-//! `_noise`, `_root_slack` and the quartic's `bool_circle_torus_*`, and
-//! every in-band sign escalates as [`BooleanDecision::ArcTorusRoots`].
+//! `_noise` and the quartic's `bool_circle_torus_*`, and every in-band
+//! sign escalates as [`BooleanDecision::ArcTorusRoots`]; the answer is
+//! the certified subdivision's (`bool_circle_torus_sub_*`).
 //!
 //! # The noise meter's floor, and what it costs
 //!
@@ -36,12 +41,15 @@
 //! amplification, and the ladder's in-band answers are a known gap
 //! (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 //!
-//! **What the meter costs, measured.** Against a torus `R = 1,
-//! r = 0.25` at the default band, grazing circles at `ρ = 10` are
-//! answered (the shallowest grazes refuse on their root slack), and from
-//! `ρ = 30` every one refuses — where the unmetered door certified
-//! misses on real dips and phantom pairs on clearances from `ρ = 100`.
-//! The threshold scales as `ρ⁴ ≲ 10ε·r·R²/(u·NOISE_ULPS)`.
+//! **What the noise costs.** Measured when the ladder answered: against
+//! a torus `R = 1, r = 0.25` at the default band, grazing circles at
+//! `ρ = 10` were answered and from `ρ = 30` every one refused — where
+//! the unmetered door had certified misses on real dips and phantom
+//! pairs on clearances from `ρ = 100`. The threshold scales as
+//! `ρ⁴ ≲ 10ε·r·R²/(u·HARMONIC_NOISE_ULPS)`. The meter now only keeps the
+//! ladder from running past it; the subdivision charges the same noise
+//! to every Taylor term, so such a pose answers `Uncertain` there
+//! (`a_large_circles_dip_below_its_own_noise_is_not_certified_away`).
 //!
 //! # The lever
 //!
@@ -81,18 +89,21 @@
 //! - **The circle lies ON the torus** (a rim, meridian or Villarceau
 //!   circle, none of them parallel-axes except the rims, which are
 //!   coaxial): `F ≡ 0`, so the pole is on the torus at every anchor and
-//!   the answer is `Uncertain` — which is what keeps an undeclared
-//!   on-carrier circle away from every recording arm.
+//!   the answer is `Uncertain`, which keeps a meridian or Villarceau
+//!   circle from every recording arm. A coaxial rim is answered on the
+//!   coaxial arm instead (`OnSurface`), and the reduction records it only
+//!   under `reduce::lying_on`'s certificates.
 //! - **A tangency** — the carrier grazing the tube, a double root — is a
-//!   contour-reach margin in band on the parallel arm, and on the ladder
-//!   is whatever the ladder reads it as (module docs of
-//!   [`super::circle_roots`], "The ladder's noise meter").
+//!   contour-reach margin in band on the parallel arm, and on the
+//!   general arm a piece neither clear nor monotone down to the band's
+//!   width, answered `Uncertain` (module docs of [`super::circle_roots`],
+//!   "The half-angle ladder, and the subdivision that answers").
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, constant_residual_roots,
-    half_angle_roots, rounding_charge,
+    CircleRoots, HalfAngleFrame, HalfAngleRows, SubdivisionFrame, SubdivisionRows, TrigPoly,
+    constant_residual_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -103,7 +114,6 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
     pole: "bool_circle_torus_pole",
     conditioning: "bool_circle_torus_pole_conditioning",
     noise: "bool_circle_torus_noise",
-    root_slack: "bool_circle_torus_root_slack",
     quartic: QuarticRows {
         disc: "bool_circle_torus_disc",
         shape: "bool_circle_torus_shape",
@@ -111,6 +121,12 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
         odd: "bool_circle_torus_odd",
         split: "bool_circle_torus_split",
         split_lead: "bool_circle_torus_split_lead",
+    },
+    verify: SubdivisionRows {
+        clear: "bool_circle_torus_sub_clear",
+        monotone: "bool_circle_torus_sub_monotone",
+        side: "bool_circle_torus_sub_side",
+        width: "bool_circle_torus_sub_width",
     },
     decision: BooleanDecision::ArcTorusRoots,
 };
@@ -164,7 +180,6 @@ pub(super) fn circle_torus_roots<T: Decide>(
         });
     };
     let two = T::from_f64(2.0);
-    let four = T::from_f64(4.0);
     let v_ref = axis.cross(u_ref);
     let w0 = center - t_center;
     let point_at = |theta: T| {
@@ -240,43 +255,39 @@ pub(super) fn circle_torus_roots<T: Decide>(
         };
     }
 
-    // `F` along the carrier as a degree-2 trigonometric polynomial about
-    // `θ = 0`, from `S = S₀ + S₁c cos θ + S₁s sin θ` and
-    // `h = H₀ + H₁c cos θ + H₁s sin θ` (module docs), using
-    // `(x cos θ + y sin θ)² = (x² + y²)/2 + (x² − y²)/2·cos 2θ + x y sin 2θ`.
-    let half = T::from_f64(0.5);
-    let rr = major_radius.powi(2);
-    let four_rr = four * rr;
-    let s_k = w0.norm_squared() + radius.powi(2) + rr - minor_radius.powi(2);
-    let s0 = w0.norm_squared() + radius.powi(2);
-    let (s1c, s1s) = (two * radius * w0.dot(u_ref), two * radius * w0.dot(v_ref));
-    let (h1c, h1s) = (radius * u_ref.dot(t_axis), radius * v_ref.dot(t_axis));
-    let harmonics = Harmonics {
-        c0: s_k.powi(2) + (s1c.powi(2) + s1s.powi(2)) * half
-            - four_rr * (s0 - h0.powi(2) - (h1c.powi(2) + h1s.powi(2)) * half),
-        c1: two * s_k * s1c - four_rr * (s1c - two * h0 * h1c),
-        s1: two * s_k * s1s - four_rr * (s1s - two * h0 * h1s),
-        c2: (s1c.powi(2) - s1s.powi(2)) * half + four_rr * (h1c.powi(2) - h1s.powi(2)) * half,
-        s2: s1c * s1s + four_rr * h1c * h1s,
-    };
+    // `F` along the carrier from the torus's one home along a conic
+    // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
+    // third and fourth harmonics no more than the frame's rounding, which
+    // the noise carries.
+    let h = geom_brep::conic_torus_harmonics(
+        &geom_brep::Conic::circle(center, axis, radius, u_ref),
+        t_center,
+        t_axis,
+        major_radius,
+        minor_radius,
+    );
+    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+    let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
+    let harmonics = TrigPoly::second(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
     // The lever (module docs, "The lever").
     let lever = (two * radius).min(major_radius + minor_radius);
-    // The noise meter's inputs: a bound on every term the harmonics are
-    // built from, and the torus's floor on `|F|` per metre of residual.
-    let s_abs = s_k.abs() + s1c.abs() + s1s.abs();
-    let h_abs = h0.abs() + h1c.abs() + h1s.abs();
-    let terms = s_abs.powi(2) + four_rr * (s0.abs() + s1c.abs() + s1s.abs() + h_abs.powi(2));
-    let f_per_metre = two * minor_radius * (rr - minor_radius.powi(2));
     half_angle_roots(
         &harmonics,
         |theta| geom_brep::implicit_residual(torus, point_at(theta)),
         HalfAngleFrame {
-            t0,
-            t1,
-            radius,
+            walk: SubdivisionFrame {
+                t0,
+                t1,
+                speed_hi: radius,
+                noise: rounding_charge(h.terms) + dropped,
+                f_per_metre: h.f_per_metre_lo,
+                // The clear margin is read through the FLOOR, which
+                // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
+                f_per_metre_hi: h.f_per_metre_lo,
+                residual_reach: None,
+            },
+            speed_lo: radius,
             lever,
-            noise: rounding_charge(terms),
-            f_per_metre,
         },
         &CIRCLE_TORUS_ROWS,
         band,
@@ -456,7 +467,7 @@ fn parallel_axes_roots<T: Decide>(
         ),
     ];
     let mid = (t0 + t1) / two;
-    let mut thetas = [T::zero(); 4];
+    let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
     let mut count = 0usize;
     for (contour, hit) in crossed {
         if !hit {
@@ -815,8 +826,9 @@ mod tests {
     }
 
     /// A carrier ON the torus but not coaxial (a meridian circle of the
-    /// tube): `F ≡ 0`, so no pole is definite and the door refuses —
-    /// what keeps an on-carrier circle from any recording arm.
+    /// tube): `F ≡ 0`, so no pole is definite and the door refuses,
+    /// which keeps a non-coaxial on-carrier circle from any recording
+    /// arm.
     #[test]
     fn a_circle_lying_on_the_torus_is_uncertain() {
         let pose = Pose {

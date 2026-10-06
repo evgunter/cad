@@ -229,9 +229,9 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName,
+    ChecksReport, Doc, DocumentId, Evaluation, Maintenance, NodeErrorKind, NodeStanding,
     ParseError, PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId,
-    ResolveFault, Said, SlotId, Speaker,
+    ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
@@ -763,7 +763,9 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -869,7 +871,9 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::SetParam { .. }
         | SessionOp::SetParamUnit { .. }
         | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
         | SessionOp::PreviewGesture { .. }
@@ -1480,34 +1484,34 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// between notices is the one no sentence can carry ([`Message::new`]).
 ///
 /// **Every arm DM7 makes the door report is worded**: a stranded
-/// payload name, a stranded appearance key, and a declaration left
-/// with no consumer.
+/// payload name and a stranded appearance key.
 ///
 /// **The mate door's offset clear is not**: it is what inserting the
 /// mate means, and where the joined group now sits is what the picture
 /// draws. It still rides [`OpOutcome::maintenance`], where a reader of
 /// the API sees it.
 ///
-/// **Each worded arm answers [`Retold`] for itself**, and all three
-/// answer [`Retold::Never`]: none can show a retelling.
+/// **Each worded arm answers [`Retold`] for itself**, and each
+/// answers [`Retold::Never`]: none can show a retelling.
 ///
-/// - An orphaned declaration evaluates to its own payload and refuses
-///   nothing, and its row is by contract what speaks "instead of
-///   leaving the author a node nothing will mention again".
 /// - A stranded appearance key's `AppearanceLoss` is evaluation's
 ///   report to the API, and nothing in this viewer draws it.
 /// - A stranded payload name is retold only where its CARRIER fails on
-///   it, and this door cannot know that it will. A `Declare` carrier
-///   evaluates to its own payload without resolving its names, so its
-///   row stays `Ok`; any carrier poisoned by an upstream failure has a
-///   row that names the ancestor, not the strand; and the carrier's
+///   it, and this door cannot know that it will. Any carrier poisoned
+///   by an upstream failure has a row that names the ancestor, not the
+///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } => Retold::Never,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        Maintenance::OrphanedDeclare { .. } => Retold::Never,
+        // A fold's dropped label is said nowhere else: the gauge is
+        // gone, and nothing evaluates a label.
+        Maintenance::LabelDropped { .. } => Retold::Never,
+        // An anonymous variable's removal is said nowhere else: its
+        // panel row goes with it, and nothing reads it any more.
+        Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
         // the mate the person just placed is its notice.
@@ -2284,6 +2288,40 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
     )
 }
 
+/// **One row of the Checks window**: the root a finding is about, the
+/// label of the button that selects it, and the finding's sentence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckRow {
+    /// The root the finding is about, which the button selects.
+    pub root: RecipeNodeId,
+    /// The root, spoken.
+    pub button: String,
+    /// The finding, its roots spoken.
+    pub sentence: String,
+}
+
+/// **The Checks window's rows**, each root spoken from `landed`.
+///
+/// The report is the landed run's: its roots' ids are spelled in the
+/// document that run was over, which the committed one passes while a
+/// run is outstanding. `landed` must be that run's document
+/// (`DocSession::landed_pair`). [`ChecksReport::speaker`] refuses
+/// another document, but not another version of this one, since a
+/// document's id survives every edit: the landed-against-committed
+/// choice is the caller's, and `ViewerApp::checks_window` makes it.
+pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<CheckRow> {
+    let by = report.speaker(landed);
+    report
+        .findings
+        .iter()
+        .map(|finding| CheckRow {
+            root: finding.root,
+            button: by.node(finding.root).to_string(),
+            sentence: Said(finding, by).to_string(),
+        })
+        .collect()
+}
+
 /// **What the chrome badges about the δ the display budget chose**,
 /// and `None` the moment the user picks their own.
 ///
@@ -2864,14 +2902,14 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 /// expression's context does not determine the new parameter's
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
-pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
+pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
     match refusal.and_then(Refusal::parse_error)? {
         // The parse error carries the identifier as text (it is a
         // fact about the SOURCE); the offer mints the name the create
         // door would declare. The text is a token the lexer read, so
         // the constructor admits it; its answer is folded rather than
         // trusted.
-        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
+        ParseError::UnknownParam { name, .. } => VarName::new(name.as_str()).ok(),
         ParseError::UnexpectedChar { .. }
         | ParseError::UnexpectedEnd { .. }
         | ParseError::UnexpectedToken { .. }
@@ -2902,8 +2940,7 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchParam(_)
-        | Refusal::ParamNotANumber { .. }
-        | Refusal::ParamExists { .. }
+        | Refusal::ConstantRefused { .. }
         | Refusal::EmptyName
         | Refusal::WrongNodeKind { .. }
         | Refusal::Duplicate(_)

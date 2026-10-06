@@ -95,6 +95,18 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// [`decide`], keeping the reporting margin the classifier decided on,
+/// for a refusal that quotes the value it refused
+/// ([`geom_core::k_stats::decide_reported`]). Classification and
+/// recording are [`decide`]'s.
+pub(crate) fn decide_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::Decided, Indeterminate> {
+    geom_core::k_stats::decide_reported(name, margin, band)
+}
+
 /// Whether an arc's carrier centre lies on the material side of its
 /// chord, from the segment's CANONICAL turn: `true` unless the turn is
 /// `Negative`.
@@ -853,7 +865,7 @@ pub(crate) struct RunWalls {
 /// `at(end)` otherwise. `wall(body, run, faces)` gives the
 /// closing edge's spec and the wall's surface, or `None` for a run
 /// that sweeps no wall (a revolve's on-axis segment).
-pub(crate) fn build_run_walls<T: Decide, E: From<EulerOpError>>(
+pub(crate) fn build_run_walls<T: Decide + topo::AtRestPolicy, E: From<EulerOpError>>(
     body: &mut Body<T>,
     runs: &[Run],
     n: usize,
@@ -905,19 +917,21 @@ pub(crate) fn build_run_walls<T: Decide, E: From<EulerOpError>>(
     Ok(RunWalls { faces, tops })
 }
 
-/// Resolves a face's surface key (total: a stale key surfaces as the
-/// operator-layer typed error, which every sweep verb's error enum
-/// absorbs through its `From<EulerOpError>`).
-pub(crate) fn face_surface_key<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<SurfaceKey, EulerOpError> {
-    Ok(body
-        .get_face(face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(face),
-        })?
-        .surface)
+/// The surface key of `face`, a face the calling driver minted.
+///
+/// # Panics
+///
+/// If `face` is not live: every caller passes a face its own driver
+/// minted and never killed, so a miss is a kernel bug.
+#[track_caller]
+pub(crate) fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> SurfaceKey {
+    body.get_face(face)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "face {face:?} was minted by this driver and no step kills it before this read"
+            )
+        })
+        .surface
 }
 
 /// Every edge of `face` still described through the **scaffolding
@@ -939,38 +953,52 @@ pub(crate) fn face_surface_key<T: Real>(
 /// every edge is a cap–wall rim between a plane and a `Surface::Nurbs`
 /// wall; D2 exempts NURBS-adjacent edges from the must-carry demand,
 /// and loft's module doc says these rims are never classified.
-pub(crate) fn describe_face_rim_at_rest<T: Decide>(
+pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     tol: Tol,
 ) -> Result<(), EulerOpError> {
-    let chart = face_surface_key(body, face)?;
-    let stale = || EulerOpError::StaleKey {
-        key: topo::EntityId::Face(face),
-    };
-    let face_data = body.get_face(face).ok_or_else(stale)?.clone();
+    let chart = face_surface_key(body, face);
+    let face_data = body
+        .get_face(face)
+        .unwrap_or_else(|| unreachable!("face {face:?} resolved just above"))
+        .clone();
     let mut edges: Vec<topo::EdgeKey> = Vec::new();
     for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
-        let topo::LoopBoundary::Cycle { first } = body.get_loop(*lk).ok_or_else(stale)?.boundary
+        let topo::LoopBoundary::Cycle { first } = body
+            .get_loop(*lk)
+            .unwrap_or_else(|| {
+                unreachable!("loop {lk:?} is listed by live face {face:?} on a tier-1-valid body")
+            })
+            .boundary
         else {
             continue;
         };
-        for he in body.loop_cycle(first).ok_or_else(stale)? {
-            edges.push(body.get_half_edge(he).ok_or_else(stale)?.edge);
+        let cycle = body.loop_cycle(first).unwrap_or_else(|| {
+            unreachable!("loop {lk:?}'s cycle from {first:?} closes on a tier-1-valid body")
+        });
+        for he in cycle {
+            edges.push(
+                body.get_half_edge(he)
+                    .unwrap_or_else(|| {
+                        unreachable!("half-edge {he:?} is on loop {lk:?}'s closed cycle")
+                    })
+                    .edge,
+            );
         }
     }
     for edge in edges {
         let curve_key = body
             .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(edge),
-            })?
+            .unwrap_or_else(|| {
+                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
+            })
             .curve;
         let scaffolded = body
             .get_curve_geom(curve_key)
             .and_then(topo::CurveGeom::certified)
             // Null scaffolding carries no description at all.
-            .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)));
+            .is_some_and(|c| c.description().is_scaffold());
         if !scaffolded {
             continue;
         }
@@ -1088,7 +1116,10 @@ mod tests {
                     // A clockwise arc bowing up off the top of a unit
                     // square, over a bulge box wide enough that the
                     // numeric channel cannot decide the rim.
-                    let b = S::param(ParamSymbol::of("b"), Interval::from_bounds(-0.55, -0.45));
+                    let b = S::param(
+                        ParamSymbol::new(test_utils::symbol_id("b")),
+                        Interval::from_bounds(-0.55, -0.45),
+                    );
                     let closed = Open
                         .at(Point2::new(lit(0.0), lit(0.0)))
                         .arc_to(
@@ -1365,7 +1396,8 @@ mod tests {
         for (name, negative, reversed, turn) in cases {
             let at = |b: f64| if negative { -b } else { b };
             let (rows, counts) = with_session(budget(), || {
-                let b = Sym::<f64>::param(ParamSymbol::of("bulge"), at(0.7));
+                let b =
+                    Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("bulge")), at(0.7));
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });
@@ -1380,8 +1412,10 @@ mod tests {
                 (0.63, 0.77)
             };
             let (rows, counts) = with_session(budget(), || {
-                let b =
-                    Sym::<Interval>::param(ParamSymbol::of("bulge"), Interval::from_bounds(lo, hi));
+                let b = Sym::<Interval>::param(
+                    ParamSymbol::new(test_utils::symbol_id("bulge")),
+                    Interval::from_bounds(lo, hi),
+                );
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });

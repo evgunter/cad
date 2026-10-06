@@ -28,6 +28,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
@@ -118,9 +119,16 @@ fn tilted_halves() -> (Body<f64>, Body<f64>) {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&disc, Extrusion::Distance(2.5), Tol::witness())
-        .unwrap()
-        .body;
+    let cylinder = extrude(
+        &disc,
+        Extrusion::Distance {
+            depth: 2.5,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
         Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),

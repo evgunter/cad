@@ -43,3 +43,17 @@ walk already takes that reading.
 **Band.** P3 by the README's "interop with other tools". Raise it if
 the owner reads "the shell verb's ordinary output cannot leave the
 tree" as a normal verb broken on normal geometry (P0).
+
+## 2026-10-03 — the association exists now (FUSE, PR 3891)
+
+Ev ruled that a solid is one piece of material (PR 3901): one `Outer`
+shell and the `Void` shells of the cavities in its material. Every
+boolean, `shell` and `split` result is now sorted that way
+(`crates/topo/src/pieces.rs`), and tier 3's check 10 refuses two
+`Outer` shells under one solid (`ValidationError::SolidOuterShells`).
+So the nesting reading this row said the multi-`Outer` cases needed is
+no longer needed: every valid solid has exactly one `Outer`, which is
+the solid's own association, and the writer can emit
+`BREP_WITH_VOIDS(outer, (voids…))` per solid with the roles read by
+`topo::classify_shells_of`. The PR that landed the sort did not take
+the writer change; it is this row's whole remaining content.

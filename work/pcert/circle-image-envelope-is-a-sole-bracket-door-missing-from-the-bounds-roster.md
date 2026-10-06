@@ -2,10 +2,11 @@
 id: circle-image-envelope-is-a-sole-bracket-door-missing-from-the-bounds-roster
 kind: issue
 title: geom-core's bounds census is red on main: pcurve_cache's circle_image_envelope (PR 3733) is a sole-bracket bound door with no roster line
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: E
+closed: 2026-10-02
 ---
 
 
@@ -28,3 +29,7 @@ reproduces locally on a tree that does not touch `pcurve_cache.rs`.
 Add the roster line with the door's disposition. The disposition is
 the owner's call: what the bracket bounds, and whether it is sole.
 Found by TANG, 2026-10-02.
+
+## Closed
+
+Fixed on main by commit 467d4b42f ("bounds census: roster circle_image_envelope"), landed by another lane; `crates/geom-core/tests/bounds_census.rs` carries the line.

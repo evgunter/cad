@@ -35,7 +35,12 @@ use crate::sym11_witness_kind_rows::{adversary_of, budget, pole_of, witness_agre
 fn sym11_the_exact_witness_disputes_nothing_on_either_mechanism() {
     let band = Band::linear(Tol::witness()).expect("the witness tolerance has a linear band");
     let over = |name: &str, lo: f64, hi: f64| {
-        Sym::param_over(ParamSymbol::of(name), Interval::from_bounds(lo, hi), lo, hi)
+        Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id(name)),
+            Interval::from_bounds(lo, hi),
+            lo,
+            hi,
+        )
     };
     let cases: [(&str, &dyn Fn() -> Sym<Interval>); 3] = [
         ("the adversary over x ∈ [1e8 ∓ 1]", &|| {

@@ -18,6 +18,7 @@
 //!
 //! Dyadic mass pin: 2 × 2 × 1 box plus a 1 × 1 × 0.5 boss on top.
 
+use editor_core::ExtrudeSide;
 use editor_core::{CapEnd, DocEdit, Node, RoleSeg, SlotId};
 
 use crate::fixture::{ang, desc, fname, len, xy_frame};
@@ -53,6 +54,7 @@ pub fn document() -> CorpusDoc {
     let cube = r.insert(Node::Extrude {
         profile: box_p,
         distance: len(BOX_H),
+        side: ExtrudeSide::Along,
     });
 
     // ---- "sketch on this face": the frame derived from the top cap ----
@@ -81,6 +83,7 @@ pub fn document() -> CorpusDoc {
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(BOSS_H),
+        side: ExtrudeSide::Along,
     });
 
     CorpusDoc {

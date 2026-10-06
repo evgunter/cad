@@ -20,19 +20,23 @@
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{
-    arc_polygon, arc_run, bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, pocket_of_arcs,
+    arc_polygon, arc_run, bored_block_of_arcs, circle_arcs_at_z, disc_of_arcs, finished,
+    pocket_of_arcs,
 };
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, BooleanError, EdgeKey, subtract, union, validate_closed, validate_geometric};
+use topo::{
+    AtRestBody, Body, BooleanError, EdgeKey, subtract, union, validate_closed, validate_geometric,
+};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> Body<f64> {
+fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(x0, y0),
         Point2::new(x0 + sx, y0),
@@ -44,7 +48,29 @@ fn cube(x0: f64, y0: f64, z0: f64, sx: f64, sy: f64, sz: f64) -> Body<f64> {
         Point3::new(0.0, 0.0, z0) - Point3::origin(),
     ));
     let v = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(&v, Extrusion::Distance(sz), tol()).unwrap().body
+    let cube = extrude(
+        &v,
+        Extrusion::Distance {
+            depth: sz,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body;
+    finished("the tool cube", cube, tol())
+}
+
+/// An extrusion by `d` along the sketch normal, `−d` against it.
+fn by(d: f64) -> Extrusion<f64> {
+    Extrusion::Distance {
+        depth: d.abs(),
+        side: if d > 0.0 {
+            ExtrudeSide::Along
+        } else {
+            ExtrudeSide::Against
+        },
+    }
 }
 
 fn pts(p: &[(f64, f64)]) -> ProfileLoop<f64> {
@@ -89,8 +115,8 @@ fn holds(
     label: &str,
     b: &Body<f64>,
     faces: Option<usize>,
-    tools: &[Body<f64>],
-    answering: &[Body<f64>],
+    tools: &[AtRestBody<f64>],
+    answering: &[AtRestBody<f64>],
 ) {
     let t = tol();
     if let Some(f) = faces {
@@ -111,11 +137,12 @@ fn holds(
         merged.groups.is_empty(),
         "{label}: coplanar faces left to merge"
     );
+    let b = finished(label, b.clone(), t);
     let may = tools.iter().map(|t| (t, false));
     for (i, (tool, answers)) in may.chain(answering.iter().map(|t| (t, true))).enumerate() {
         for (op, r) in [
-            ("union", union(b, tool, t)),
-            ("subtract", subtract(b, tool, t)),
+            ("union", union(&b, tool, t)),
+            ("subtract", subtract(&b, tool, t)),
         ] {
             // A boolean may refuse for reasons of its own (a pierce it
             // has no chart for); it must never refuse the operand as
@@ -161,13 +188,26 @@ fn extruded_runs_build_one_wall_each() {
             q.rotate_left(start);
             let v = prof(vec![pts(&q)]);
             for ext in [
-                Extrusion::Distance(2.0),
-                Extrusion::Distance(-2.0),
+                Extrusion::Distance {
+                    depth: 2.0,
+                    side: ExtrudeSide::Along,
+                },
+                Extrusion::Distance {
+                    depth: 2.0,
+                    side: ExtrudeSide::Against,
+                },
                 Extrusion::Vector(Vec3::new(0.0, 0.0, 2.0)),
                 Extrusion::Vector(Vec3::new(0.0, 0.0, -2.0)),
             ] {
                 let s = match ext {
-                    Extrusion::Distance(d) => d,
+                    Extrusion::Distance {
+                        depth: d,
+                        side: ExtrudeSide::Along,
+                    } => d,
+                    Extrusion::Distance {
+                        depth: d,
+                        side: ExtrudeSide::Against,
+                    } => -d,
                     Extrusion::Vector(w) => w.z,
                 };
                 let e = extrude(&v, ext, tol()).unwrap();
@@ -199,7 +239,7 @@ fn extruded_runs_build_one_wall_each() {
     ]);
     let v = prof(vec![outer, hole]);
     for d in [2.0, -2.0] {
-        let e = extrude(&v, Extrusion::Distance(d), tol()).unwrap();
+        let e = extrude(&v, crate::common::to_offset(d), tol()).unwrap();
         let z0 = if d > 0.0 { 0.5 } else { -1.5 };
         holds(
             &format!("extrude hole d={d}"),
@@ -228,7 +268,7 @@ fn revolved_runs_build_one_wall_each() {
         RevolveAxis<f64>,
         usize,
         usize,
-        Vec<Body<f64>>,
+        Vec<AtRestBody<f64>>,
     );
     let off = RevolveAxis {
         origin: Point2::new(-1.0, 0.0),
@@ -385,7 +425,7 @@ fn revolved_runs_build_one_wall_each() {
                 &[],
             );
             let far = cube(10.0, 10.0, 10.0, 1.0, 1.0, 1.0);
-            union(&r.body, &far, tol())
+            union(&finished(label, r.body, tol()), &far, tol())
                 .unwrap_or_else(|e| panic!("{label} {rev:?}: disjoint union: {e:?}"));
         }
     }
@@ -480,7 +520,7 @@ fn extruded_arc_runs_build_one_wall_each() {
     for k in 1..=5usize {
         for start in starts(k) {
             let v = prof(vec![d_of_arcs(0.0, k, start)]);
-            let mut exts = vec![Extrusion::Distance(2.0), Extrusion::Distance(-2.0)];
+            let mut exts = vec![by(2.0), by(-2.0)];
             if k == 3 {
                 exts.extend([
                     Extrusion::Vector(Vec3::new(0.0, 0.0, 2.0)),
@@ -495,12 +535,12 @@ fn extruded_arc_runs_build_one_wall_each() {
             }
             let total = 1.5 * PI;
             let major = prof(vec![arcs_closed(0.0, -PI / 4.0, total, k, &[], start)]);
-            let e = extrude(&major, Extrusion::Distance(1.0), tol()).unwrap();
+            let e = extrude(&major, by(1.0), tol()).unwrap();
             let label = format!("extruded major arc of {k} arcs start={start}");
             one_wall(&label, &e.body, 4, 0.5 * (total - total.sin()));
             let outer = pts(&[(-3.0, -3.0), (3.0, -3.0), (3.0, 3.0), (-3.0, 3.0)]);
             let holed = prof(vec![outer, d_of_arcs(0.0, k, start)]);
-            let e = extrude(&holed, Extrusion::Distance(2.0), tol()).unwrap();
+            let e = extrude(&holed, by(2.0), tol()).unwrap();
             let label = format!("extruded D hole of {k} arcs start={start}");
             one_wall(&label, &e.body, 8, (36.0 - PI / 2.0) * 2.0);
         }
@@ -516,7 +556,7 @@ fn extruded_arc_runs_build_one_wall_each() {
             a += sweep;
         }
         v.push((Point2::new(a.cos(), a.sin()), 0.0));
-        let e = extrude(&prof(vec![bulge_loop(v)]), Extrusion::Distance(2.0), tol()).unwrap();
+        let e = extrude(&prof(vec![bulge_loop(v)]), by(2.0), tol()).unwrap();
         one_wall(&format!("extruded uneven D {ratios:?}"), &e.body, 4, PI);
     }
 }
@@ -606,7 +646,7 @@ fn arcs_kept_apart_share_one_key() {
     for k in 2..=4usize {
         let circle = |x0: f64| prof(vec![bulge_loop(arc_polygon(k, 1.0, Point2::new(x0, 0.0)))]);
         let label = format!("extruded circle of {k} arcs");
-        let e = extrude(&circle(0.0), Extrusion::Distance(2.0), tol()).unwrap();
+        let e = extrude(&circle(0.0), by(2.0), tol()).unwrap();
         assert_eq!(e.walls[0].len(), k, "{label}: the cut is kept");
         holds(&label, &e.body, Some(k + 2), &[], &[]);
         assert_eq!(
@@ -673,7 +713,10 @@ fn arc_runs_build_one_wall_at_interval() {
             let label = format!("D of {k} arcs start={start}");
             let e = extrude(
                 &at(d_chain(0.0, k, start)),
-                Extrusion::Distance(Interval::from_f64(2.0)),
+                Extrusion::Distance {
+                    depth: Interval::from_f64(2.0),
+                    side: ExtrudeSide::Along,
+                },
                 t,
             )
             .unwrap_or_else(|e| panic!("{label}: {e:?}"));

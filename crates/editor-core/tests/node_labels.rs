@@ -6,13 +6,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError, SplitError,
+    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SnapshotError, SplitError,
     content_pin, evaluate, inline, load, save, split,
 };
 use fixture::resolver::PartStore;
@@ -57,6 +58,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 3]) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, [frame, profile, extrude])
@@ -368,7 +370,7 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );
@@ -401,7 +403,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
         doc,
         Node::Union {
             members: vec![left, right],
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let doc = set_label(doc, union, Some("pair"));
@@ -440,8 +442,7 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
 /// The stranded name's minting node is the one the delete removed, so
 /// only the document before the edit still holds its label: a row
 /// spoken from the document the edit leaves would say `node <tag>`.
-/// The surviving carrier and an orphaned declaration are spoken the
-/// same way, label and all.
+/// The surviving carrier is spoken the same way, label and all.
 #[test]
 fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let doc = ProfileDoc::empty_derived("node-labels-strand", Tol::witness());
@@ -631,11 +632,12 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
     assert_eq!(
         text,
         format!(
-            "split: the cut severs the edge from Extrude \"base plate\" ({}) to its input \
-             Profile \"sketch\" ({}). The consumer is kept and the input is cut, but a cut \
-             must be closed under inputs and consumers",
-            tag(extrude.0),
-            tag(profile.0)
+            "split: the cut severs the edge from Extrude \"base plate\" ({e}) to its input \
+             Profile \"sketch\" ({p}). The consumer is kept and the input is cut, but a cut \
+             must be closed under inputs and consumers. Recourse: add Extrude \"base plate\" \
+             ({e}) to the cut, or leave Profile \"sketch\" ({p}) out of it",
+            e = tag(extrude.0),
+            p = tag(profile.0)
         )
     );
     for id in [extrude, profile] {
@@ -711,21 +713,23 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
 }
 
-/// A document holding a Declare whose `b` side was rebound onto the
-/// wall of a block inserted after it, labelled `late block`: the
-/// rebound name and that block's extrude.
+/// A document holding a fillet whose selection was rebound onto the
+/// wall of a block inserted after the fillet, labelled `late block`:
+/// the rebound name and that block's extrude. A selection is a frozen
+/// name with no document-order rule, so the rebind is admitted and the
+/// reference points forward.
 fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, [_, _, a]) = block(doc, 0.0);
     let (doc, [_, _, b]) = block(doc, 0.5);
-    let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
-    let early = fixture::fname(b, wb);
-    let (doc, _) = insert(
+    let early = fixture::fname(b, fixture::wall(&doc, b, 0));
+    let (doc, _fillet) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fixture::fname(a, wa)),
-            SitedRef::new(b, early.clone()),
-        )]),
+        Node::Fillet {
+            target: a,
+            radius: len(0.1),
+            selection: vec![early.clone()],
+        },
     );
     let (doc, [_, _, c]) = block(doc, 0.5);
     let late = fixture::fname(c, fixture::wall(&doc, c, 0));
@@ -796,10 +800,12 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     assert_eq!(
         refused.to_string(),
         format!(
-            "inline: InstantiatePart \"left bracket\" ({}) is consumed by Transform \"offset\" \
-             ({}) — the recipe cannot rewire a consumer onto a spliced product",
-            tag(inst.0),
-            tag(by.0)
+            "inline: InstantiatePart \"left bracket\" ({i}) is consumed by Transform \"offset\" \
+             ({b}), and the recipe cannot rewire a consumer onto a spliced product. Recourse: \
+             delete Transform \"offset\" ({b}), or re-author it without InstantiatePart \
+             \"left bracket\" ({i}), then inline",
+            i = tag(inst.0),
+            b = tag(by.0)
         )
     );
 }
@@ -813,7 +819,7 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
 fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{
-        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox, ParamName,
+        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McRefusal, McReport, ParamBox,
         Sensitivity, SensitivityOutcome, SlotId, StackupRefusal, render_sensitivity, sensitivities,
     };
 
@@ -841,7 +847,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         "{unknown_slot}"
     );
 
-    let not_a_measure = sensitivities(&doc, extrude, None, None, false, Tol::witness())
+    let not_a_measure = sensitivities(&doc, extrude, None, None, false, None, Tol::witness())
         .expect_err("an extrude is not a measure");
     assert_eq!(
         not_a_measure.to_string(),
@@ -850,20 +856,21 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 
     let pinned = Sensitivity {
         document: doc.id(),
-        param: ParamName::new("w").expect("an identifier"),
+        param: editor_core::VarId(7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: LiftRefusal::PinnedSection {
                 section: profile,
-                param: ParamName::new("w").expect("an identifier"),
+                param: editor_core::VarId(7),
             },
         },
     };
     assert_eq!(
         render_sensitivity(&pinned, &doc),
         format!(
-            "unliftable at {plate}: w feeds the section of Profile \"sketch\" ({p}), which \
-             stays f64 (C6/D9)"
+            "unliftable at {plate}: {} feeds the section of Profile \"sketch\" ({p}), which \
+             stays f64 (C6/D9)",
+            doc.spoken_var(editor_core::VarId(7))
         )
     );
 
@@ -956,7 +963,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 #[test]
 #[should_panic(expected = "its node ids would name another document's nodes")]
 fn a_report_rendered_from_another_document_fails_loud() {
-    use editor_core::{ParamName, Sensitivity, SensitivityOutcome, render_sensitivity};
+    use editor_core::{Sensitivity, SensitivityOutcome, render_sensitivity};
     let doc = ProfileDoc::empty_derived("node-labels-taken-of", Tol::witness());
     let (doc, [_, _, extrude]) = block(doc, 0.0);
     let other = ProfileDoc::empty_derived("node-labels-another", Tol::witness());
@@ -967,16 +974,118 @@ fn a_report_rendered_from_another_document_fails_loud() {
     );
     let entry = Sensitivity {
         document: doc.id(),
-        param: ParamName::new("w").expect("an identifier"),
+        param: editor_core::VarId(7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: editor_core::LiftRefusal::PinnedSection {
                 section: extrude,
-                param: ParamName::new("w").expect("an identifier"),
+                param: editor_core::VarId(7),
             },
         },
     };
     let _ = render_sensitivity(&entry, &other);
+}
+
+/// **A checks report holds ids and speaks them from the document the
+/// checks ran over**: a separation finding names both roots, and the
+/// refusal `enforce_checks` raises names its root, each as the
+/// document holds it, while the report's own `Display` (no document at
+/// hand) says each by its tag.
+#[test]
+fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
+    use editor_core::{CheckEvidence, ChecksConfig, Severity, enforce_checks, run_checks};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-checks", tol);
+    let (doc, [_, _, base]) = block(doc, 0.0);
+    let (doc, [_, _, boss]) = block(doc, 0.5);
+    let doc = set_label(doc, base, Some("base"));
+    let doc = set_label(doc, boss, Some("boss"));
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let (b, o) = (tag(base.0), tag(boss.0));
+    let strict = ChecksConfig {
+        connectedness: Severity::Error,
+        expected_components: [((base, 0), 2)].into_iter().collect(),
+        ..ChecksConfig::default()
+    };
+    let report = run_checks(&doc, &ev, &strict, tol).expect("the checks run");
+    assert!(
+        report.findings.iter().any(|finding| matches!(
+            finding.evidence,
+            CheckEvidence::NotSeparated { other_root, .. }
+                if finding.root == base && other_root == boss
+        )),
+        "the two overlapping roots are a separation finding: {report}"
+    );
+    let spoken = report.spoken(&doc);
+    assert!(
+        spoken.contains(&format!(
+            "check separation: Extrude \"base\" ({b}) output 0: not certifiably disjoint \
+             from Extrude \"boss\" ({o}) output 0"
+        )),
+        "the separation finding speaks both roots from the document: {spoken}"
+    );
+    assert!(
+        !spoken.contains(&format!("root {b}")) && !spoken.contains(&format!("root {o}")),
+        "no root is left at its bare tag: {spoken}"
+    );
+    let bare = report.to_string();
+    assert!(
+        bare.contains(&format!("root {b} output 0"))
+            && bare.contains(&format!("root {o} output 0"))
+            && !bare.contains("\"base\""),
+        "with no document at hand each root is its tag: {bare}"
+    );
+
+    let refusal = enforce_checks(&report, &strict).expect_err("connectedness is at Error");
+    let spoken = refusal.spoken(&doc);
+    assert!(
+        spoken.contains(&format!(
+            "check connectedness: Extrude \"base\" ({b}) output 0:"
+        )),
+        "the refusal speaks its root from the document: {spoken}"
+    );
+    assert!(
+        refusal.to_string().contains(&format!("root {b} output 0")),
+        "and its own Display says the tag: {refusal}"
+    );
+}
+
+/// The checks report is a report: rendered from another document that
+/// holds the same id, it fails loud rather than naming that document's
+/// node.
+#[test]
+#[should_panic(expected = "its node ids would name another document's nodes")]
+fn a_checks_report_spoken_from_another_document_fails_loud() {
+    use editor_core::{ChecksConfig, run_checks};
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-checks-taken-of", tol);
+    let (doc, [_, _, base]) = block(doc, 0.0);
+    let (doc, _) = block(doc, 0.5);
+    let other = ProfileDoc::empty_derived("node-labels-checks-another", tol);
+    let (other, [_, _, same]) = block(other, 0.0);
+    assert_eq!(
+        base, same,
+        "the two documents hold one id as two nodes: the hazard this guards"
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    assert!(
+        report.findings.iter().any(|finding| finding.root == base),
+        "a finding names the root the other document also holds: {report}"
+    );
+    let _ = report.spoken(&other);
 }
 
 /// **A selection door's refusal holds ids and is spoken by the frame**
@@ -1030,10 +1139,10 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let from_extrude = [editor_core::GeomPred::DatumDistance {
         datum: extrude,
         cmp: Cmp::Approx,
-        value: fixture::len(0.0),
+        value: editor_core::test_support::stored_expr(&fixture::len(0.0)),
     }];
     let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
-    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.param_env(), tol)
+    let refusal = select_where(&ev, extrude, &faces, &from_extrude, &doc.var_env(), tol)
         .expect_err("an extrude is not a datum");
     assert!(matches!(refusal, SelectRefusal::NotADatum { datum, .. } if datum == extrude));
     assert!(
@@ -1243,7 +1352,7 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
                 members: vec![extrude, extrude],
-                declare: None,
+                declare: Vec::new(),
             }),
         },
     );

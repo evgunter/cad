@@ -11,6 +11,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::resolve::{Diagnosis, RecipeEditRef, ResolveError};
@@ -59,6 +61,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let applied = apply(
@@ -81,7 +84,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, DocEdit, apply};
     use fixture::on_frame;
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
-    let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
+    let insert = |doc: &ProfileDoc, node: AuthoredNode| {
         let a = apply(
             doc,
             &DocEdit::InsertNode {
@@ -107,6 +110,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: bp,
             distance: len(4.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (d, up) = on_frame(
@@ -130,6 +134,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: up,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (d, us) = insert(
@@ -138,7 +143,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a: ua,
             b: ub,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc = d;
@@ -216,6 +221,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
             node: Box::new(Node::Extrude {
                 profile: doc.order()[1],
                 distance: len(2.0),
+                side: ExtrudeSide::Along,
             }),
         },
         Tol::witness(),

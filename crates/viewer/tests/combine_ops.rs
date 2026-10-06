@@ -21,12 +21,14 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::AuthoredNode;
+use pncad::document::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
+    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Formula, LoopProgram, Node,
     NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind, ProfileProgram,
     RecipeNodeId, SlotId,
 };
@@ -110,7 +112,7 @@ fn assert_volume(session: &mut DocSession, node: RecipeNodeId, want: f64, tol: T
 /// **The acceptance row**: a two-body boolean authored from nothing,
 /// evaluated, saved, reloaded and re-evaluated. The two boxes share no
 /// plane, so the union has no contact to declare and lands as one
-/// insert with no `Declare` beside it.
+/// undeclared insert.
 #[test]
 fn a_two_body_union_authors_evaluates_saves_and_reloads() {
     let tol = Tol::witness();
@@ -124,22 +126,15 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
             declare: Vec::new(),
         },
     );
-    // An op declaring nothing authors `declare: None`.
+    // An op declaring nothing authors an empty declaration.
     assert!(matches!(
         session.committed_doc().node(union),
         Some(Node::Boolean {
             op: BooleanOp::Union,
-            declare: None,
+            declare,
             ..
-        })
+        }) if declare.is_empty()
     ));
-    let doc = session.committed_doc();
-    assert!(
-        !doc.order()
-            .iter()
-            .any(|id| matches!(doc.node(*id), Some(Node::Declare { .. }))),
-        "and no `Declare` is authored beside it"
-    );
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
     let volume = body_volume(&mut session, union, tol);
@@ -506,7 +501,7 @@ fn the_transform_door_places_a_body_with_literal_slots() {
     // reach the OP either: the literal door refuses it where the
     // expression is built, so the op has no spelling for it.
     assert!(matches!(
-        Expr::literal(f64::NAN, Dimension::Length),
+        Formula::literal(f64::NAN, Dimension::Length),
         Err(DimensionError::NonFiniteLiteral)
     ));
 
@@ -564,7 +559,7 @@ fn the_pattern_door_spells_its_count_structurally() {
         .expect("a pattern has a count slot");
     assert_eq!(count.dim(), Dimension::Count);
     assert!(SlotId::Count.is_structural());
-    assert!(count.bit_eq(&Expr::count(3)));
+    assert!(count.bit_eq(&editor_core::test_support::stored_expr(&Formula::count(3))));
     assert!(matches!(
         session.committed_doc().node(linear),
         Some(Node::Pattern {
@@ -647,7 +642,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
         .and_then(|node| node.expr(SlotId::Count))
         .expect("a parametric placed union has a count slot");
     assert_eq!(count.dim(), Dimension::Count);
-    assert!(count.bit_eq(&Expr::count(2)));
+    assert!(count.bit_eq(&editor_core::test_support::stored_expr(&Formula::count(2))));
     assert!(matches!(
         session.committed_doc().node(fused),
         Some(Node::PlacedUnion {
@@ -1957,6 +1952,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1974,6 +1970,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         Node::Extrude {
             profile: profile_b,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -2020,7 +2017,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         &doc,
         Node::Pattern {
             input: body,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -2050,7 +2047,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     // One candidate per node kind this row can build, with the seat's
     // answer beside it. The seat's answer is READ, never restated: a
     // kind that moves sides moves in one place.
-    let candidates: Vec<(&str, Node<ProfileProgram>)> = vec![
+    let candidates: Vec<(&str, AuthoredNode)> = vec![
         (
             "datum",
             Node::Datum(Datum::Point {
@@ -2063,6 +2060,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             Node::Extrude {
                 profile,
                 distance: common::len(0.004),
+                side: ExtrudeSide::Along,
             },
         ),
         (
@@ -2079,7 +2077,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 op: BooleanOp::Union,
                 a: body,
                 b: other,
-                declare: None,
+                declare: Vec::new(),
             },
         ),
         // The n-ary union at its minimal size. Its two members are
@@ -2094,7 +2092,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "union",
             Node::Union {
                 members: vec![body, body_b],
-                declare: None,
+                declare: Vec::new(),
             },
         ),
         (
@@ -2119,7 +2117,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "pattern",
             Node::Pattern {
                 input: body,
-                count: Expr::count(2),
+                count: Formula::count(2),
                 kind: PatternKind::Linear {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                     spacing: common::len(0.05),
@@ -2139,14 +2137,14 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "part of a pattern",
             Node::Part {
                 of: pattern_of_body,
-                select: PartSelect::Instance(Expr::count(1)),
+                select: PartSelect::Instance(Formula::count(1)),
             },
         ),
         (
             "loft",
             Node::Loft {
                 profiles: vec![profile, profile_b],
-                v_degree: Expr::count(1),
+                v_degree: Formula::count(1),
             },
         ),
         (
@@ -2161,21 +2159,20 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "placed union",
             Node::PlacedUnion {
                 input: body,
-                count: Some(Expr::count(2)),
+                count: Some(Formula::count(2)),
                 kind: PatternKind::Linear {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                     spacing: common::len(0.05),
                 },
             },
         ),
-        ("declare", Node::Declare { pairs: Vec::new() }),
         (
             "sweep",
             Node::Sweep {
                 profile,
                 path: profile_b,
-                stations: Expr::count(8),
-                v_degree: Expr::count(3),
+                stations: Formula::count(8),
+                v_degree: Formula::count(3),
             },
         ),
     ];
@@ -2436,7 +2433,7 @@ fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
     };
     assert_eq!(
         *index,
-        Expr::count(1),
+        Formula::count(1),
         "the index is the exact Count literal, not a continuous one",
     );
     let one = A[0] * A[1] * A[2];
@@ -2599,7 +2596,7 @@ fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
             panic!("the gesture authored two instance projections");
         };
         assert_eq!(*of, pattern, "both read the pattern it just authored");
-        assert_eq!(*index, Expr::count(want), "instance {want}");
+        assert_eq!(*index, Formula::count(want), "instance {want}");
     }
     assert_eq!(
         session.committed_doc().roots(),
@@ -2805,7 +2802,7 @@ fn the_part_seats_track_the_evaluators_part_door() {
             ),
             (
                 NodeKindWanted::Instances,
-                PartSelect::Instance(Expr::count(0)),
+                PartSelect::Instance(Formula::count(0)),
             ),
         ] {
             let admitted = viewer::session::admits(doc.node(candidate), wanted);
@@ -3398,7 +3395,7 @@ fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
             op: BooleanOp::Union,
             a: block,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -3430,8 +3427,8 @@ fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
 /// first refusal offers one pair; accepting it is refused again with
 /// that pair kept and the second added, and nothing is committed until
 /// both are declared. Red if the second offer drops the first pair, or
-/// if accepting both lands anything but one `Declare` of both and one
-/// union that is the channelled block plus the boss.
+/// if accepting both lands anything but one union declaring both that
+/// is the channelled block plus the boss.
 #[test]
 fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
     const CHANNEL: [f64; 3] = [0.01, 0.04, 0.01];
@@ -3521,13 +3518,13 @@ fn a_second_contact_is_offered_with_the_first_and_both_land_as_one_action() {
 
     let outcome = session.perform(second.accept());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [declare, union] = outcome.minted[..] else {
-        panic!("a Declare and a union: {:?}", outcome.minted);
+    let [union] = outcome.minted[..] else {
+        panic!("one union: {:?}", outcome.minted);
     };
     assert_eq!(session.history().len(), steps + 1, "one action, one step");
     assert!(matches!(
-        session.committed_doc().node(declare),
-        Some(Node::Declare { pairs }) if pairs.len() == 2
+        session.committed_doc().node(union),
+        Some(Node::Boolean { declare, .. }) if declare.len() == 2
     ));
     let [width, depth, height] = common::BOSS_BLOCK;
     let cut = CHANNEL[0] * depth * (height - CHANNEL_DROP);

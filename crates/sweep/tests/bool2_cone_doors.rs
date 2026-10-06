@@ -56,7 +56,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileLoop;
 use profile::RawLoop;
 use revolve_common::*;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
 use topo::{Body, BooleanError, PointInSolidError, SolidContainment, point_in_solid};
 
@@ -454,8 +454,9 @@ fn the_azimuth_window_selects_the_swept_quadrant() {
 /// maximal-faces precondition (F7) has nothing to refuse.
 #[test]
 fn a_disjoint_union_with_a_cone_face_now_assembles() {
-    let a = cone();
+    let a = finished("the cone", cone(), Tol::witness());
     let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
+    let b = finished("the brick", b, Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
@@ -564,10 +565,8 @@ fn the_clamp_floor_clears_the_apex_escalation_shell() {
     let body = cone();
     let apex = Point3::new(0.0, 1.0, 0.0);
     let mut extent = 0.0_f64;
-    for (_, v) in body.vertices() {
-        if let Some(p) = body.get_point(v.point) {
-            extent = extent.max(p.distance(apex));
-        }
+    for (_, p) in body.vertex_points() {
+        extent = extent.max(p.distance(apex));
     }
     assert!(
         (extent - CONE_SLANT).abs() < 1e-12,

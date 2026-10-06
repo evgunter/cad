@@ -99,3 +99,11 @@ corners' events on it, W4), so nothing upstream guards the lens, and
 tracing it is the crossing layer's business. The day the arm lands
 here, that row goes red unless the lens is traced or given a real
 guard; the arm's lane owns that row, not a relaxation of it.
+
+## A tube on a torus latitude reaches this door (TANG, 2026-10-02)
+
+Measured on branch `tang/abutting-rim`: a z-axis tube of radius
+`2 + 1/√2` standing at `z = 1/√2` on a full torus `R = 2`, `r = 1` about
+`z` (its rim on the torus's 45° latitude), unioned undeclared. Since that
+branch the rim is an ON event at the crossing layer, and the union stops
+here, `GermFrameUnsupported { Plane × Torus }`, in both member orders.

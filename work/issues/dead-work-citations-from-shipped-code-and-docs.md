@@ -263,7 +263,7 @@ EDIT closed on 2026-10-02 (`docs/doc-ledger/edit-leaves-the-tracker.md`). Citati
 
 | citing file | cited row |
 | --- | --- |
-| `crates/editor-core/src/edit.rs`, `src/roots.rs`, `tests/dm7_delete_strands.rs` | `an-orphaned-declare-joins-the-product-root-set` |
+| ~~`crates/editor-core/src/edit.rs`, `src/roots.rs`, `tests/dm7_delete_strands.rs`~~ (cleared 2026-10-02: the citing prose went with `Maintenance::OrphanedDeclare`, RECIPE `declared-pairs-are-a-booleans-own-payload`) | `an-orphaned-declare-joins-the-product-root-set` |
 | `crates/editor-core/src/persist/check.rs` | `three-door-predicates-are-hand-copied-not-shared` |
 | `crates/editor-core/src/resolve/pick.rs`, `crates/viewer/tests/pick3_acceptance.rs` | `pick-closed-acceptance-loses-a-graze-to-rounding` |
 | `crates/editor-core/tests/edit_doc_param_unit.rs` | `doc-param-distribution-edit-has-no-door` |

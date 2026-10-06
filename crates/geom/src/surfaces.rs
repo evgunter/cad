@@ -2002,4 +2002,34 @@ mod tests {
             assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
     }
+
+    /// **A spindle a hair past the ring refuses without a false
+    /// tolerance offer.** `R − r ≈ −5e-10` decides zero on the negative
+    /// side of `ring_torus_convention`, which passes only a positive
+    /// margin: every smaller tolerance decides it negative, so the
+    /// refusal says so rather than offering one. A ring a hair inside
+    /// the convention, the same distance on the positive side, keeps
+    /// its offer, and the tolerance it names decides the convention.
+    #[test]
+    fn a_ring_convention_zero_on_the_spindle_side_offers_no_tolerance() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let spindle = require_ring_torus(1.0, 1.0 + 5e-10, band)
+            .unwrap_err()
+            .to_string();
+        assert!(!spindle.contains("tighten"), "{spindle}");
+        assert!(
+            spindle.contains("no smaller tolerance moves onto a side"),
+            "{spindle}"
+        );
+        let ring = require_ring_torus(1.0 + 5e-10, 1.0, band)
+            .unwrap_err()
+            .to_string();
+        assert!(ring.contains("tighten the tolerance below"), "{ring}");
+        let offered = Band::new(1e-11, 1e-10).unwrap();
+        assert_eq!(
+            require_ring_torus(1.0 + 5e-10, 1.0, offered),
+            Ok(()),
+            "the offered tolerance decides the ring"
+        );
+    }
 }

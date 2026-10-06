@@ -61,7 +61,7 @@ fn volume<T: Decide>(body: &Body<T>) -> T {
 
 /// A cube of side `l` built through the profile and the extrusion, so
 /// a seeded `l` reaches every face of the body.
-fn extruded_cube<T: Decide>(l: T) -> Body<T> {
+fn extruded_cube<T: Decide + topo::AtRestPolicy>(l: T) -> Body<T> {
     let z = T::zero();
     let verts = vec![
         (Point2::new(z, z), z),

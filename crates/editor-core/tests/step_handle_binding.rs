@@ -18,9 +18,10 @@ test_utils::gated_to![
 ];
 
 use crate::fixture::{self, insert, tol};
+use editor_core::Formula;
 use editor_core::{
-    AuthoredStep, DocEdit, EditError, LoopProgram, Node, ParamEnv, PieceRole, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, keep_grid,
+    AuthoredStep, DocEdit, EditError, LoopProgram, Node, PieceRole, ProfileDoc, ProfileEdgeRef,
+    ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, VarEnv, keep_grid,
 };
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step, Verb};
@@ -63,12 +64,12 @@ fn authored(s: f64) -> Authored {
     }
 }
 
-fn lifted(program: &[Step<f64>]) -> LoopProgram {
+fn lifted(program: &[Step<f64>]) -> LoopProgram<Formula> {
     LoopProgram::from_recorded(program).unwrap()
 }
 
 /// A document holding the chain placed as two profiles on one frame.
-fn placed_twice(loop_: &LoopProgram) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn placed_twice(loop_: &LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("step-handle-binding", tol());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let profile = |doc| {
@@ -127,7 +128,7 @@ fn a_handle_binds_to_the_id_its_placement_minted() {
             role: PieceRole::RunOut
         }
     );
-    let drawn = p.pieces(&ParamEnv::default(), tol()).unwrap();
+    let drawn = p.pieces(&VarEnv::default(), tol()).unwrap();
     assert!(
         drawn.edges[0].contains(&wall),
         "the run out is a drawn piece: {drawn:?}"

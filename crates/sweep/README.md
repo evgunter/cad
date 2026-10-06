@@ -51,9 +51,9 @@ the run's one surface key: one wall would carry each wedge cap's meridian
 in pieces, and the mass-properties meridian fold groups pieces by split
 lineage, which a station's pieces do not have
 (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
-A station inside a run stays a vertex wherever a cap carries the profile
-(extrude's caps, a partial revolve's wedge caps), splitting the rim or
-meridian chain into collinear edges; in a full revolve it has no entity.
+A station inside a run has no entity in the body: a cap carries the run as
+one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges). It
+stays in the profile, where `ProfileVertexRef` names it.
 Loft builds one wall per corresponding segment pair: across sections
 nothing declares two walls one surface, and the station pins the ruling.
 

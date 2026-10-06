@@ -4,7 +4,7 @@ kind: issue
 title: A part's per-node verdict and escalation logs are dropped with its nested Evaluation
 status: open
 opened: 2026-09-05
-refs: [k-stats-escalation-channel-and-redo, 1969]
+refs: [1969]
 priority: P2
 cost: D
 ---
@@ -38,3 +38,10 @@ instantiator's frame is defined as the flattened union. PR #1969 chose
 none of these on purpose — its rule is "a node's log is its own op's
 decisions, the same on a hit and a miss" — and this is the question
 that rule leaves open.
+
+## A reference that outlived its program (2026-10-03)
+
+`k-stats-escalation-channel-and-redo` was PROPS' and was deleted with `work/props/` when that program closed.
+It is dropped from this row's `refs:` because `refs` names live items; the
+finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
+and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.

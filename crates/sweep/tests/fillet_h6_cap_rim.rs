@@ -32,6 +32,7 @@ use geom_core::{Band, Point2, Tol, Vec3};
 use profile::{
     Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
 };
+use sweep::ExtrudeSide;
 use sweep::test_support::sketch_from_axes;
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey};
@@ -204,14 +205,20 @@ fn every_extruded_cap_rim_is_transverse() {
     // directions and through both doors.
     let rows: Vec<(&str, ValidatedProfile<f64>, Extrusion<f64>)> = vec![
         (
-            "square/+distance",
+            "square/along",
             validated(plane, vec![square()]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
-            "square/-distance",
+            "square/against",
             validated(plane, vec![square()]),
-            Extrusion::Distance(-1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Against,
+            },
         ),
         (
             "square/vector",
@@ -221,32 +228,50 @@ fn every_extruded_cap_rim_is_transverse() {
         (
             "L (concave corner)",
             validated(plane, vec![l_loop()]),
-            Extrusion::Distance(0.75),
+            Extrusion::Distance {
+                depth: 0.75,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             "circle (two semicircle arcs)",
             validated(plane, vec![circle_loop(0.0, 0.0, 1.5)]),
-            Extrusion::Distance(2.0),
+            Extrusion::Distance {
+                depth: 2.0,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             "obround (tangent line-arc joins)",
             validated(plane, vec![obround_loop()]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             "rounded square (quarter-arc fillets)",
             validated(plane, vec![stadium_corners_loop()]),
-            Extrusion::Distance(0.5),
+            Extrusion::Distance {
+                depth: 0.5,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             "concave arc leg",
             validated(plane, vec![concave_arc_loop()]),
-            Extrusion::Distance(1.25),
+            Extrusion::Distance {
+                depth: 1.25,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             "holed (square with a circular ring)",
             validated(plane, vec![square(), circle_loop(1.0, 1.0, 0.5)]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             // A tilted sketch plane moves the whole configuration
@@ -262,7 +287,10 @@ fn every_extruded_cap_rim_is_transverse() {
                 ),
                 vec![obround_loop()],
             ),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             // The direction gates admit an in-plane component up to
@@ -298,7 +326,10 @@ fn every_extruded_cap_rim_is_transverse() {
             // small-arm case it is written for.
             "tiny-radius arc leg (r = 1e4 eps)",
             validated(plane, vec![circle_loop(0.0, 0.0, 1e4 * tol.eps())]),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
         ),
         (
             // A near-closed arc rim, whose CHORD collapses: the meter
@@ -311,7 +342,10 @@ fn every_extruded_cap_rim_is_transverse() {
                     (Point2::new(1e4 * tol.eps(), 0.0), 0.0),
                 ])],
             ),
-            Extrusion::Distance(1.0),
+            Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
         ),
     ];
 
@@ -353,8 +387,15 @@ fn the_direction_gates_refuse_before_the_arm() {
         "expected the obliquity escalation, got {err:?}",
     );
 
-    let err = extrude(&profile(), Extrusion::Distance(5.0 * tol.eps()), tol)
-        .expect_err("a sliver height escalates");
+    let err = extrude(
+        &profile(),
+        Extrusion::Distance {
+            depth: 5.0 * tol.eps(),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect_err("a sliver height escalates");
     assert!(
         matches!(
             &err,

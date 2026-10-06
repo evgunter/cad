@@ -2,9 +2,12 @@
 id: body-has-no-vertex-point-door
 kind: issue
 title: the vertex-to-point chain vertices().filter_map(get_vertex).filter_map(get_point) is re-spelled by a demo and the sweep suites; Body has no door for it
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
+pr: 4014
+branch: topo/body-vertex-points-door
+closed: 2026-10-04
 ---
 
 Found by `linalg/doors` (PR 3710) while rewriting

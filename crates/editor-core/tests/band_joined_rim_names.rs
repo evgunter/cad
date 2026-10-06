@@ -11,6 +11,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
@@ -43,6 +45,7 @@ fn block(doc: ProfileDoc, (x0, x1): (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -52,14 +55,14 @@ fn a_joined_band_is_named_by_its_chains_edge_set() {
     let doc = ProfileDoc::empty_derived("band_joined_rim_names", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0));
     let (doc, b) = block(doc, (0.5, 2.0));
-    let (doc, decl) = declare_x_offset_flush(doc, a, b);
+    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     let ev = run(&doc);
@@ -87,7 +90,7 @@ fn a_joined_band_is_named_by_its_chains_edge_set() {
 /// union edges, and one plain band per unsplit edge.
 fn assert_named(
     doc: &ProfileDoc,
-    node: Node<editor_core::ProfileProgram>,
+    node: AuthoredNode,
     edges: &[editor_core::StableName],
     chamfer: bool,
 ) {

@@ -40,8 +40,8 @@ use geom_core::Point3;
 use geom_core::Tol;
 use topo::readback::euler_counts;
 use topo::{
-    Body, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite, ValidationError, validate,
-    validate_closed,
+    BadArgument, Body, EntityId, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite,
+    ValidationError, validate, validate_closed,
 };
 
 fn pt(x: f64, y: f64) -> Point3<f64> {
@@ -537,9 +537,10 @@ fn demotion_attack_battery_no_debug_panic() {
     assert_eq!(validate(&body), Ok(()));
 }
 
-/// Stale keys (killed entities) into every op: typed errors, no panics.
+/// A key the caller kept past its kill, into every op: each refuses
+/// with `Argument(Stale)` naming the argument the key was passed as.
 #[test]
-fn stale_keys_yield_typed_errors() {
+fn stale_keys_refuse_as_stale_arguments() {
     let (mut body, _seed, seg) = pillow();
     let strut = body
         .mev_line(
@@ -552,34 +553,44 @@ fn stale_keys_yield_typed_errors() {
         )
         .unwrap();
     let dead_he = strut.he_plus;
-    let killed = body.kev(dead_he).unwrap();
-    let _ = killed;
-    for r in [
-        body.kev(dead_he).unwrap_err(),
-        body.kef(dead_he).unwrap_err(),
-        body.kemr(dead_he, dead_he).unwrap_err(),
-        body.mev_line(
-            MevSite::Fan {
-                he1: dead_he,
-                he2: dead_he,
-            },
-            pt(2.0, 2.0),
-            Tol::witness(),
-        )
-        .unwrap_err(),
-        body.mef_chord(
-            MefSite::Chords {
-                he1: dead_he,
-                he2: dead_he,
-            },
-            Tol::witness(),
-        )
-        .unwrap_err(),
+    body.kev(dead_he).unwrap();
+    let stale = |role| {
+        EulerOpError::Argument(BadArgument::Stale {
+            role,
+            key: EntityId::HalfEdge(dead_he),
+        })
+    };
+    for (call, r, role) in [
+        ("kev", body.kev(dead_he).unwrap_err(), "he"),
+        ("kef", body.kef(dead_he).unwrap_err(), "he"),
+        ("kemr", body.kemr(dead_he, dead_he).unwrap_err(), "he1"),
+        (
+            "mev",
+            body.mev_line(
+                MevSite::Fan {
+                    he1: dead_he,
+                    he2: dead_he,
+                },
+                pt(2.0, 2.0),
+                Tol::witness(),
+            )
+            .unwrap_err(),
+            "he1",
+        ),
+        (
+            "mef",
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: dead_he,
+                    he2: dead_he,
+                },
+                Tol::witness(),
+            )
+            .unwrap_err(),
+            "he1",
+        ),
     ] {
-        assert!(
-            matches!(r, EulerOpError::StaleKey { .. }),
-            "expected StaleKey, got {r:?}"
-        );
+        assert_eq!(r, stale(role), "{call}");
     }
     assert_eq!(validate(&body), Ok(()));
 }

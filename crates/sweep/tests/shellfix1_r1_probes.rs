@@ -21,6 +21,7 @@
 use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError};
 
@@ -49,9 +50,16 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("profile validates");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("profile extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("profile extrudes")
+    .body
 }
 
 /// Every planar face whose plane origin sits at height `y` about the

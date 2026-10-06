@@ -89,3 +89,18 @@ nightly row is red on these eight.
 GERM — the predicate, its lane and the lily scene rows are germ's.
 Filed by the PROPS k-lint baseline unit, which measured the flags and
 does not own the lane.
+
+## The sphere sibling (2026-10-02, branch `reach/circle-sphere-slack`)
+
+The circle × sphere instance
+(`circle-sphere-root-slack-refuses-near-tangent-pairs-at-1e-12`) was
+fixed by charging its root slack with the NEAR extreme's own error,
+not the harmonics' whole term bound: the extremes evaluated factored,
+`(D∓ − r)(D∓ + r)/2r`, with a first-order running rounding bound
+(`Rounded` in `crates/geom-brep/src/implicit.rs`). That moved the
+sphere's slack about six times lower on the near-tangent snowman
+(1.40e-12 → 2.30e-13 at δ 1e-5). It does
+not transfer as is to this lane, whose residual is a quartic with no
+closed-form extremes, but the running bound can shadow `contour`,
+`offset` and the radius combination this meter charges with
+`NOISE_ULPS` half-ulps today.

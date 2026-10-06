@@ -36,6 +36,7 @@ use geom_core::{
     Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
 };
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis};
 
 fn budget() -> SymBudget {
@@ -49,7 +50,7 @@ fn budget() -> SymBudget {
 /// `(d, d, d)`, extruded by one unit along the plane normal: four
 /// arc-arm registrants per lamina rim (two arcs × {bottom, top} ×
 /// {rim, span}) plus the side walls'.
-fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
+fn stadium_extrude<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = bulge_loop(vec![
@@ -61,9 +62,16 @@ fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .map_err(|e| format!("validate: {e:?}"))?;
-    sweep::extrude(&vp, Extrusion::Distance(lit(1.0)), Tol::witness())
-        .map(|e| e.body.faces().count())
-        .map_err(|e| format!("extrude: {e:?}"))
+    sweep::extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: lit(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body.faces().count())
+    .map_err(|e| format!("extrude: {e:?}"))
 }
 
 /// **The M10-9 washer** — `sweep::revolve_washer`'s parametric
@@ -99,7 +107,7 @@ fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, S
 /// **R2's triangle**, adopted from that review's own e2e probe: three
 /// straight edges and no arc, so it carries no arc registrant at all —
 /// which is why its column moves independently of the other two.
-fn triangle_extrude<T: Decide>(d: T, _r: T) -> Result<usize, String> {
+fn triangle_extrude<T: Decide + topo::AtRestPolicy>(d: T, _r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::polygon([
@@ -110,9 +118,16 @@ fn triangle_extrude<T: Decide>(d: T, _r: T) -> Result<usize, String> {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .map_err(|e| format!("validate: {e:?}"))?;
-    sweep::extrude(&vp, Extrusion::Distance(lit(1.0)), Tol::witness())
-        .map(|e| e.body.faces().count())
-        .map_err(|e| format!("extrude: {e:?}"))
+    sweep::extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: lit(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .map(|e| e.body.faces().count())
+    .map_err(|e| format!("extrude: {e:?}"))
 }
 
 /// The three bodies, in the order [`TABLE`]'s cells list them.
@@ -188,10 +203,15 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   every point lane builds it (the enclosure straddles the band where
 ///   the point does not), and it builds the triangle everywhere,
 ///   including the cells where both point lanes refuse it.
+/// - **The certified lane builds the stadium** wherever the point lanes
+///   do, its extrude's closing pcurve mint included: the arc walls'
+///   rows are certified over the `r` box by their closed-form envelope,
+///   every term a theorem, the loop walk's branch a literal. The washer,
+///   minted by revolve already, and the arc-free triangle do not move.
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
-    // ε = 1e-6: nothing refuses anywhere, except the certified lane's
-    // washer at the furthest placement.
+    // ε = 1e-6: the point lanes refuse nothing anywhere; the certified
+    // lane refuses the stadium and the washer at the furthest.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
@@ -327,8 +347,8 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<f64>(d, |d| {
             (
-                Sym::param(ParamSymbol::of("d"), d),
-                Sym::param(ParamSymbol::of("r"), 1.0),
+                Sym::param(ParamSymbol::new(test_utils::symbol_id("d")), d),
+                Sym::param(ParamSymbol::new(test_utils::symbol_id("r")), 1.0),
             )
         })
         .unwrap_or_else(|m| {
@@ -358,8 +378,14 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<Probe>(d, |d| {
             (
-                Sym::param(ParamSymbol::of("d"), <Probe as Real>::from_f64(d)),
-                Sym::param(ParamSymbol::of("r"), <Probe as Real>::from_f64(1.0)),
+                Sym::param(
+                    ParamSymbol::new(test_utils::symbol_id("d")),
+                    <Probe as Real>::from_f64(d),
+                ),
+                Sym::param(
+                    ParamSymbol::new(test_utils::symbol_id("r")),
+                    <Probe as Real>::from_f64(1.0),
+                ),
             )
         })
         .unwrap_or_else(|m| {
@@ -393,11 +419,11 @@ fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
             let eps = Tol::witness().eps();
             (
                 Sym::param(
-                    ParamSymbol::of("d"),
+                    ParamSymbol::new(test_utils::symbol_id("d")),
                     Interval::from_bounds(d - eps / 64.0, d + eps / 64.0),
                 ),
                 Sym::param(
-                    ParamSymbol::of("r"),
+                    ParamSymbol::new(test_utils::symbol_id("r")),
                     Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
                 ),
             )

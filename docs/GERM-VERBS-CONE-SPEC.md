@@ -116,7 +116,7 @@ names its raising site.
 
 | site | status | what it does with a cone |
 |---|---|---|
-| `sweep_direction` plane lane (:683–950): a cone operand's rims and generators against a plane face | H | `conic_plane_crossing_roots` reads the edge's carrier, not its face's kind |
+| `sweep_direction` plane lane (:683–950): a cone operand's rims and generators against a plane face | H | `plane_crossing_lane` reads the edge's carrier, not its face's kind |
 | `curved_face_arm` with a cone operand's edge against a cylinder, sphere or torus face | H | dispatches on the partner's kind; a cone body's edges are lines and circles |
 | `curved_face_arm` NURBS/Approx guard (:1161–1172) | H | the cone is listed and passes to the arms below |
 | circle rung: `circle_clearance` against a cone face (:1237) | R | `circle_residual_extremes` has no cone form (`implicit.rs` :653), so it answers `None`, and `.ok_or_else(frontier)?` raises `CurvedPierceUnsupported`. Every circle edge whose box meets a cone face refuses, coaxial rims included (U2). |

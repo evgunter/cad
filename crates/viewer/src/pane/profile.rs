@@ -93,8 +93,9 @@ impl ViewerBehavior<'_> {
 /// its arcs, targets and split counts changed, exactly as a new one's
 /// are, and Apply commits the whole program as ONE
 /// [`SessionOp::EditProfile`] saying which committed step each held
-/// step is ([`ProfileEdit::ids`]). A name on a step the program drops
-/// is stranded; Apply says how many before it is clicked
+/// step is ([`ProfileEdit::ids`]). A name on a step the program drops,
+/// or on a kept step's piece it stops drawing, is stranded; Apply says
+/// how many before it is clicked
 /// ([`apply_and_revert`], from [`DocSession::edit_profile_report`]),
 /// and the op's outcome reports each after.
 ///
@@ -484,6 +485,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use eframe::egui;
+    use pncad::document::ExtrudeSide;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{PathErrorKind, ProfileError, SketchPlane, Step, Target, TipState, Verb};
@@ -1128,6 +1130,7 @@ mod tests {
             Node::Extrude {
                 profile,
                 distance: crate::test_support::len(0.01),
+                side: ExtrudeSide::Along,
             },
             tol,
         );
@@ -1243,7 +1246,7 @@ mod tests {
             "the named step moved down a row, id and all"
         );
         let drawn = program
-            .pieces(&session.committed_doc().param_env::<f64>(), Tol::witness())
+            .pieces(&session.committed_doc().var_env::<f64>(), Tol::witness())
             .expect("the reshaped program replays");
         assert!(
             drawn.edges.iter().flatten().any(|edge| *edge == piece),
@@ -1307,9 +1310,9 @@ mod tests {
             )),
             "the hover speaks the carrier and the name's minting node: {hovered}"
         );
-        // Another step dropped instead strands nothing — what Apply
-        // says is asked again of every held state, not kept from the
-        // last one ...
+        // Dropping another step instead leaves the named leg drawn and
+        // strands nothing — what Apply says is asked again of every
+        // held state, not kept from the last one ...
         let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);
         assert!(formed.is_none());
         let (painted, _) = click_door(&session, &mut drafts, profile, GLYPH_REMOVE, 3);

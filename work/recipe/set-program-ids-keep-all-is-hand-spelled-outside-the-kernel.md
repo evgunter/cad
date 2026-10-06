@@ -2,10 +2,13 @@
 id: set-program-ids-keep-all-is-hand-spelled-outside-the-kernel
 kind: issue
 title: SetProgram's keep-every-step ids live in the viewer, and the kernel's tests spell them by hand five times
-status: open
+status: closed
 opened: 2026-09-30
 priority: P4
 cost: E
+branch: recipe/set-program-undrawn-names
+pr: 3879
+closed: 2026-10-02
 ---
 
 
@@ -39,3 +42,12 @@ that the five test sites and the viewer both call, with the viewer's
 belongs beside it (the edit door has a no-op of its own) is EDIT's
 call. The viewer's copy is the one live consumer today, so nothing is
 wrong yet; this is where a second spelling would drift.
+
+## Built (2026-10-02, PR 3879)
+
+`ProfileProgram::kept_in_place` is the door. The viewer's
+`sketch::kept_in_place` is retired onto it; `is_committed` stays in the
+viewer and calls the door. The five listed sites use it now, and so do
+two sites the row missed: `run_wall_offers.rs` and
+`msolve6_part_extent.rs`. The PR body carries the sweep's hit list and
+its second pass.

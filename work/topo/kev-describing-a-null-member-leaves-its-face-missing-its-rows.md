@@ -2,10 +2,13 @@
 id: kev-describing-a-null-member-leaves-its-face-missing-its-rows
 kind: issue
 title: kev_describing gives a listed null member its first description without the re-mint set_edge_curve now runs
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: E
+branch: topo/kev-describing-null-member-remints
+pr: 4010
+closed: 2026-10-04
 ---
 
 
@@ -17,16 +20,15 @@ That unit makes a null edge's first description re-mint a minted
 face its halves are on through the site mint (`pcurves::site_rows`,
 selected by `StoredRows::remints`): every loop no other null edge
 holds open, and the whole face, whatever it misses, once no null edge
-is left on it. `Body::set_edge_curve_via`
+is left on it. `Body::set_edge_curve`
 (`crates/topo/src/attach.rs`) plans it
 (`null_description_rows`, through `pcurves::site_rows`) before it
-mutates, which covers `set_edge_curve` and
-`set_edge_curve_nurbs_lane`. `describe_at_rest` refuses a null edge
+mutates. `describe_at_rest` refuses a null edge
 (`NullScaffoldCurve`).
 
 `Body::kev_describing` (`crates/topo/src/euler_kill.rs`) is the one
 other door that writes a certified curve onto an existing edge
-(`replace_edge_curve`, bypassing `set_edge_curve_via`). A merged
+(`replace_edge_curve`, bypassing `set_edge_curve`). A merged
 member it lists may be a null edge — `kev_describing_gate` checks
 membership, adjacency and certification, not the curve's kind — and
 then the kill is that edge's first description, and the face its
@@ -40,3 +42,18 @@ two listing sites list chord members; `zip`, `rest`, the revolve and
 stated over the loop as the kill leaves it (the kill's own site
 description), not as `set_edge_curve` finds it; or the gate refusing a
 listed null member, if no caller should list one.
+
+## Closed (2026-10-04, PR 4010)
+
+Closed by (a), the kill's own re-mint. `Body::null_description_rows`
+(`attach.rs`) is the one planner for "a null edge's first description
+re-mints": it takes every edge a door describes with the curve it
+installs, and the loops the door's surgery rewires as the door leaves
+them. `set_edge_curve` passes none; `kev_describing` passes
+`kev_loops_after`, planned after its gate and before `kev_execute`.
+`kev_describing`'s posture is `Completes`. The faces a listed null
+member's halves are on leave complete with the pass's rows.
+
+A listed certified member's rows on its other faces are kept, as the
+posture declares; where its ends move they go stale. That residue is
+`kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale`.

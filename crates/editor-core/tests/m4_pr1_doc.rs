@@ -9,7 +9,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
-use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, RecipeNodeId, SlotId};
+use editor_core::ExtrudeSide;
+use editor_core::{Dimension, Doc, DocEdit, Formula, FreeVar, Node, RecipeNodeId, SlotId, VarName};
 use geom_core::Tol;
 
 /// Opaque profile payload (spec D1/D3): tests never look inside.
@@ -17,7 +18,28 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::ProfilePayload for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
+impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored(&self) -> Self {
+        self.clone()
+    }
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::VarEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -92,9 +114,9 @@ fn author_die() -> Die {
     let (doc, _) = step(
         doc,
         &mut log,
-        TEdit::SetDocParam {
-            name: ParamName::from_static("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+        TEdit::DeclareVar {
+            name: VarName::from_static("pip_depth"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
     );
     // Cube: profile wrap + extrude.
@@ -112,6 +134,7 @@ fn author_die() -> Die {
             node: Box::new(Node::Extrude {
                 profile: cube_profile.unwrap(),
                 distance: len(2.0 * HALF),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -129,7 +152,8 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
+                distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
             }),
         },
     );
@@ -172,7 +196,7 @@ fn author_die() -> Die {
                         op: editor_core::BooleanOp::Subtract,
                         a: body,
                         b: placed.unwrap(),
-                        declare: None,
+                        declare: Vec::new(),
                     }),
                 },
             );
@@ -221,16 +245,16 @@ fn die_authors_replays_and_diffs() {
         d.nodes,
         vec![editor_core::NodeChange::Changed(die.pip_extrude)]
     );
-    assert!(d.params.is_empty() && !d.order_changed && !d.epsilon_changed);
+    assert!(d.vars.is_empty() && !d.order_changed && !d.epsilon_changed);
 
     // Variant 2: pip depth changed through the DOC PARAM the pip
     // extrude references — node payloads identical, param diff only.
     let variant2 = die
         .doc
         .apply(
-            &TEdit::SetDocParam {
-                name: ParamName::from_static("pip_depth"),
-                value: DocParam::continuous(Dimension::Length, 0.003),
+            &TEdit::SetVarValue {
+                var: VarName::from_static("pip_depth").into(),
+                value: editor_core::FreeValue::Continuous(0.003),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -238,7 +262,10 @@ fn die_authors_replays_and_diffs() {
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());
-    assert_eq!(d2.params, vec![ParamName::from_static("pip_depth")]);
+    assert_eq!(
+        d2.vars,
+        vec![die.doc.var_named("pip_depth").expect("the die declares it")]
+    );
 
     // The original document is untouched by all of the above (D2:
     // apply is pure).

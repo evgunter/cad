@@ -53,12 +53,13 @@ Four things the guard does NOT see, named rather than summarised:
    the_material_the_tour_asserts` and the placement row below pin the
    consequences a body can show; a change that moves neither is not
    caught here.
-2. The ONE DELIBERATE difference between this scene and the tour's,
-   which is `bench_scene`'s own subject: the tour's prisms are
-   parametric where Python's are drawn from literals. The guard would
-   red if it compared recipes, and it does not compare recipes. (The
-   flat-pack's placed family used to be a second such difference; it
-   is `Node.pattern` on both sides now.)
+2. The two differences between this scene and the tour's, which are
+   `bench_scene`'s own subject: the tour's prisms are parametric where
+   Python's are drawn from literals, and the tour stands its stand on
+   a turntable gauge and sets a crate on the shelf where Python stands
+   it on the world. The guard would red if it compared recipes, and it
+   does not compare recipes. (The flat-pack's placed family used to be
+   a third such difference; it is `Node.pattern` on both sides now.)
 3. Anything in `assembly.rs` outside its constant block, `layout_doc`
    and `stand_doc` — the tour's own assertions above all.
 4. A rename or a reformat in the tour, which reds this guard as a false
@@ -97,7 +98,7 @@ from bench_scene import (
     ROOT_OFFSET_Y,
     PATTERN_COUNT,
     PATTERN_SPACING,
-    POST_CAP,
+    OWN_FACE,
     POST_HEIGHT,
     POST_SECTION,
     POST_VOLUME,
@@ -109,7 +110,7 @@ from bench_scene import (
     SHELF_VOLUME,
     STAND_SEATS,
 )
-from pncad import CapEnd, DocEdit, DocRef, Expr, Node, SegTag, Workspace, evaluate, m, mm
+from pncad import CapEnd, DocEdit, DocRef, Formula, Node, SegTag, Workspace, evaluate, m, mm
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -447,9 +448,9 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         moved = self.assembly.insert(
             Node.transform(
                 self.instance,
-                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         refusal = failures(evaluate(self.assembly, resolver=self.store))[moved]
@@ -482,22 +483,22 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         profile = part.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(0.02, m), Expr.length_in(0, m)),
-                    (Expr.length_in(0.02, m), Expr.length_in(0.02, m)),
-                    (Expr.length_in(0, m), Expr.length_in(0.02, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(0.02, m), Formula.length_in(0, m)),
+                    (Formula.length_in(0.02, m), Formula.length_in(0.02, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0.02, m)),
                 ],
-                plane=part.sketch_frame(elevation=Expr.length_in(0, m)),
+                plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
         # No length to extrude, so the extrude refuses.
-        self.extrude = part.insert(Node.extrude(profile, Expr.length_in(0.0, m)))
+        self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.0, m)))
         self.root = part.insert(
             Node.transform(
                 self.extrude,
-                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         self.store.create(part)
@@ -545,9 +546,9 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         bracket.insert(
             Node.transform(
                 inner,
-                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
-                Expr.literal(0.0 * pncad.rad),
+                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
+                Formula.literal(0.0 * pncad.rad),
             )
         )
         self.store.create(bracket)
@@ -787,7 +788,7 @@ class TestTheMemoIsObservable(CorpusCase):
         first = evaluate(post)
         frame, profile, extrude = first.order()
         post.apply(DocEdit.delete_node(extrude))
-        post.insert(Node.extrude(profile, Expr.length_in(2 * POST_HEIGHT, m)))
+        post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m)))
         again = evaluate(post, prior=first)
         # TWO reused: the post's sketch frame and the section drawn on
         # it are what the deleted extrude consumed, and neither moved.
@@ -1206,14 +1207,14 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             (0.0, ROOT_OFFSET_Y, 0.0),
             "the root post's offset",
         )
-        # A seat is an authored point (`mate_frame(NAME)`) or the
-        # post's cap face (`post_seat(post_top)`), read in document
-        # order.
+        # A seat is an authored point (`mate_frame(NAME, tol)`) or the
+        # side's own head face (`MateFrame::from_face()`, the post's
+        # cap), read in document order.
         seats = re.findall(
-            r"^\s+[ab]: (?:mate_frame\((\w+)\)|(post_seat)\(post_top\)),$", stand, re.M
+            r"^\s+[ab]: (?:mate_frame\((\w+), tol\)|(MateFrame::from_face\(\))),$", stand, re.M
         )
         self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
-        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "post_seat": POST_CAP}
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "MateFrame::from_face()": OWN_FACE}
         self.assertScene(
             tuple(named[point or face] for point, face in seats),
             tuple(seat for mate in STAND_SEATS for seat in mate),

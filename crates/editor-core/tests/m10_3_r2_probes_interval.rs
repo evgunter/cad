@@ -32,18 +32,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::UnitSym;
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, param_env_over};
+use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, var_env_over};
 use editor_core::drive::{
     BudgetKind, DriveConfig, ReasonClass, RefusalReason, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, ProfileDoc, ProfileLift, ProfileProgram, VarName, evaluate,
 };
 use geom_core::{Interval, Tol};
 
@@ -53,27 +54,27 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
 
 /// A square extruded by `distance`, with one continuous parameter
 /// `depth` carrying `dist`.
-fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
+fn slab_with(nominal: f64, dist: Distribution, distance: Formula) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("depth"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -84,34 +85,40 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
     r.insert(Node::Extrude {
         profile: p,
         distance,
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
 
-fn depth_param() -> Expr {
-    Expr::param(name("depth"), Dimension::Length)
+fn depth_param() -> Formula {
+    Formula::named(name("depth"), Dimension::Length)
 }
 
 /// **A document whose witness chamber is BOUNDED ON BOTH SIDES in the
-/// varying parameter**: the extrusion distance is
-/// `min(depth, 2·nominal - depth)`, so the solid exists exactly on
-/// `0 < depth < 2·nominal` and both ends of a wide enough box are
-/// definitely on the far branch. That is the shape E2's
+/// varying parameter**: [`crate::m10_3_driver_interval::notch`]'s
+/// vertex at height `−min(t, 2·nominal − t)`, so the vertex is a
+/// convex point exactly on `0 < t < 2·nominal` and a notch past either
+/// end — a body on another branch, so both ends of a wide enough box
+/// are definitely on the far branch. That is the shape E2's
 /// chamber-containment amendment describes, and the unit's own suite
 /// has no fixture for it.
 fn pinched(nominal: f64, half: f64) -> ProfileDoc {
-    let distance = Expr::min(
-        depth_param(),
-        Expr::sub(len(2.0 * nominal), depth_param()).expect("length minus length"),
+    let t = || Formula::named(name("height"), Dimension::Length);
+    let height = Formula::neg(
+        Formula::min(
+            t(),
+            Formula::sub(len(2.0 * nominal), t()).expect("length minus length"),
+        )
+        .expect("min of two lengths is a length"),
     )
-    .expect("min of two lengths is a length");
-    slab_with(
+    .expect("a shallow negation");
+    crate::m10_3_driver_interval::notch_with(
         nominal,
         Distribution::Uniform {
             lo: -half,
             hi: half,
         },
-        distance,
+        height,
     )
 }
 
@@ -234,14 +241,14 @@ fn the_unresolved_budget_is_refused_mass_plus_tail() {
 /// `contained()` that returned `false` unconditionally would pass the
 /// whole shipped suite.
 ///
-/// The construction: the extrusion distance is `min(depth, 2h - depth)`,
-/// so the witness chamber in `depth` is the OPEN interval `(0, 2h)` and
-/// the analyzed box `[-h, 3h]` strictly contains it. Both ends of the
+/// The construction: the notch's vertex sits at `−min(t, 2h − t)`, so
+/// the witness chamber in `t` is the OPEN interval `(0, 2h)` and the
+/// analyzed box `[-h, 3h]` strictly contains it. Both ends of the
 /// box are then definitely on the far branch, which is exactly E2's
 /// "the witness chamber is contained in the box".
 #[test]
 fn containment_fires_when_the_chamber_is_strictly_inside_the_box() {
-    let doc = pinched(20.0 * eps(), 40.0 * eps());
+    let doc = pinched(0.25, 0.5);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(
         &doc,
@@ -406,13 +413,14 @@ fn a_degenerate_varying_axis_is_one_leaf_and_never_a_silent_partial() {
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let mut axes = BTreeMap::new();
-    axes.insert(name("depth"), BoxAxis::Varying { lo: 0.0, hi: 0.0 });
+    let depth = doc.var_named("depth").expect("declared");
+    axes.insert(depth, BoxAxis::Varying { lo: 0.0, hi: 0.0 });
     let degenerate = ParamBox::from_axes(axes);
-    assert_eq!(degenerate.split_axis(&degenerate), Some(name("depth")));
-    assert_eq!(degenerate.split(&name("depth")), None);
+    assert_eq!(degenerate.split_axis(&degenerate), Some(depth));
+    assert_eq!(degenerate.split(depth), None);
     // And it binds at Interval as the nominal exactly.
-    let env = param_env_over::<Interval, _>(&doc, &degenerate).expect("a point axis binds");
-    let editor_core::ParamValue::Continuous { value, .. } = env.bindings[&name("depth")] else {
+    let env = var_env_over::<Interval, _>(&doc, &degenerate).expect("a point axis binds");
+    let editor_core::ParamValue::Continuous { value, .. } = env.bindings[&depth] else {
         panic!("depth is continuous")
     };
     use geom_core::Bounds;
@@ -599,9 +607,9 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
     let plate = |scale: f64| -> ProfileDoc {
         let mut r = Recorder::new();
         for (n, nominal) in [("hole_r", 0.25_f64), ("plate_h", 0.5)] {
-            r.push(DocEdit::SetDocParam {
+            r.push(DocEdit::DeclareVar {
                 name: name(n),
-                value: DocParam::Continuous {
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -609,7 +617,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                         lo: -scale * eps(),
                         hi: scale * eps(),
                     }),
-                },
+                }),
             });
         }
         let xy_frame_1 = r.insert(xy_frame());
@@ -620,14 +628,15 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
                     centre: [len(1.0), len(1.0)],
-                    radius: Expr::param(name("hole_r"), Dimension::Length),
+                    radius: Formula::named(name("hole_r"), Dimension::Length),
                 },
             ],
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
-            distance: Expr::param(name("plate_h"), Dimension::Length),
+            distance: Formula::named(name("plate_h"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         r.doc
     };

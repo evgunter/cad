@@ -7,6 +7,8 @@
 //! `BandRim`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     EntityKind, LoopProgram, MeridianEnd, Node, PieceRun, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName,
@@ -17,14 +19,14 @@ use crate::fixture::{
     ang, axis_in_plane, frame, insert, len, len2, minted, piece, run, scl, table, vpiece,
 };
 
-fn to(x: f64, y: f64) -> ProgramTarget {
+fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
 
 /// A rectangle `[x0, x0 + 2] × [0, 2]` with its bottom side drawn as a
 /// leg to `(x0 + 1, 0)` and the DECLARED straight continuation on to
 /// `(x0 + 2, 0)`: segments 0 and 1 are one run.
-fn subdivided(x0: f64) -> Vec<ProgramStep> {
+fn subdivided(x0: f64) -> Vec<ProgramStep<Formula>> {
     vec![
         ProgramStep::At(len2([x0, 0.0])),
         ProgramStep::LineTo(to(x0 + 1.0, 0.0)),
@@ -35,7 +37,7 @@ fn subdivided(x0: f64) -> Vec<ProgramStep> {
     ]
 }
 
-fn profiled(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("band_run_wall_names", Tol::witness());
     let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, p) = insert(
@@ -49,22 +51,23 @@ fn profiled(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId)
     (doc, plane, p)
 }
 
-fn extruded(steps: Vec<ProgramStep>) -> (ProfileDoc, RecipeNodeId) {
-    extruded_by(steps, 1.0)
+fn extruded(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId) {
+    extruded_by(steps, ExtrudeSide::Along)
 }
 
-fn extruded_by(steps: Vec<ProgramStep>, distance: f64) -> (ProfileDoc, RecipeNodeId) {
+fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileDoc, RecipeNodeId) {
     let (doc, _, p) = profiled(steps);
     insert(
         doc,
         Node::Extrude {
             profile: p,
-            distance: len(distance),
+            distance: len(1.0),
+            side,
         },
     )
 }
 
-fn revolved(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
+fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, plane, p) = profiled(steps);
     let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     insert(
@@ -253,14 +256,14 @@ fn a_one_piece_run_is_spelled_as_its_locator() {
     );
 }
 
-/// **A reversed extrusion names each wall by the piece it sweeps.** At a
-/// negative distance the sweep traverses the loop backwards; the names
+/// **A reversed extrusion names each wall by the piece it sweeps.**
+/// Against the sketch normal the sweep traverses the loop backwards; the names
 /// are read off canonical positions all the same, so the wall over the
 /// bottom side `y = 0` (segments 0 and 1) is the one named for them,
 /// and the wall over `x = 2` the one named for segment 2.
 #[test]
 fn a_reversed_extrusion_names_each_wall_by_its_own_pieces() {
-    let (doc, ex) = extruded_by(subdivided(0.0), -1.0);
+    let (doc, ex) = extruded_by(subdivided(0.0), ExtrudeSide::Against);
     let ev = run(&doc, &Default::default());
     let Some(editor_core::NodeResult::Ok(v)) = ev.nodes.get(&ex) else {
         panic!("the extrude evaluated");

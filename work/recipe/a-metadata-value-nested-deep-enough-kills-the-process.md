@@ -2,10 +2,13 @@
 id: a-metadata-value-nested-deep-enough-kills-the-process
 kind: issue
 title: editor-core: a MetaValue nests without bound through the Rust API, and the edit door's walk over one recurses per level, so a deep one kills the process
-status: open
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: E
+branch: recipe/meta-bound-and-rule-recourse
+pr: 3909
+closed: 2026-10-03
 ---
 
 (EDIT, found by the recursion sweep of `edit/expr-nesting-bound`.)
@@ -54,3 +57,9 @@ A nesting bound on `MetaValue` checked at the doors that take one
 (`SetAppearanceMeta`, `to_value`), refused typed and read by the load
 door's limit as the expression bound is; or walks that do not recurse,
 `Drop` included.
+
+## Built (2026-10-02, PR 3909)
+
+A value nests at most `meta::MAX_NESTING` levels, held by the type; `to_value` and `from_value` read a producer only `meta::MAX_PRODUCER_NESTING` calls deep. Pinned in `crates/editor-core/tests/meta_nesting_bound.rs`. The design, the sweep and the mutants are in the PR body.
+
+Filed: `the-load-doors-refusals-are-held-to-no-shape-guard`.

@@ -236,7 +236,7 @@ impl std::error::Error for LoftError {}
 
 impl From<EulerOpError> for LoftError {
     fn from(e: EulerOpError) -> Self {
-        Self::Euler(e)
+        Self::Euler(e.from_driver())
     }
 }
 
@@ -510,12 +510,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     hes.push(close.he_plus);
     let top_face = seed.face;
     let bottom_face = close.face;
-    let bottom_surface = body
-        .get_face(bottom_face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(bottom_face),
-        })?
-        .surface;
+    let bottom_surface = face_surface_key(&body, bottom_face);
     let mut bases: Vec<Vec<topo::HalfEdgeKey>> = Vec::with_capacity(bloops.len());
     bases.push(hes);
 
@@ -625,13 +620,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 first_top = Some(mef.he_plus);
             }
             faces.push(mef.face);
-            rims.push(
-                body.get_half_edge(mef.he_plus)
-                    .ok_or(EulerOpError::StaleKey {
-                        key: topo::EntityId::HalfEdge(mef.he_plus),
-                    })?
-                    .edge,
-            );
+            rims.push(mef.edge);
         }
         side_faces.push(faces);
         seam_edges.push(struts.iter().map(|s| s.edge).collect());
@@ -663,7 +652,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     for (li, seams) in seam_edges.iter().enumerate() {
         let n = seams.len();
         for j in 0..n {
-            let wall_key = face_surface_key(&body, side_faces[li][j])?;
+            let wall_key = face_surface_key(&body, side_faces[li][j]);
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
                 .map_err(|source| LoftError::SeamStructure { source })?;
             let spec = EdgeCurveSpec {

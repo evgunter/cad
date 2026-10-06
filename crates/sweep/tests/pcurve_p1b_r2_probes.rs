@@ -28,8 +28,9 @@ use geom::Surface;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::fillet_edges;
-use sweep::test_support::{cube, loft_prism};
+use sweep::test_support::{cube, finished, loft_prism};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
@@ -56,7 +57,7 @@ fn scaffold_descriptions(body: &Body<f64>) -> Vec<EdgeKey> {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)))
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .map(|(k, _)| k)
         .collect()
@@ -80,9 +81,16 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let validated = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&validated, Extrusion::Distance(height), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: height,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A profile with an ARC segment, extruded — the arc scaffolding door
@@ -98,9 +106,16 @@ fn arc_prism() -> Body<f64> {
     let validated = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&validated, Extrusion::Distance(0.7), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &validated,
+        Extrusion::Distance {
+            depth: 0.7,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Revolves the closed `(r, y)` polygon about the `y` axis.
@@ -182,25 +197,28 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     // cannot reach is invisible to the validator and visible here) and
     // a single place that lists every offender instead of stopping at
     // the first.
-    let a = slab(0.0, 0.0, 2.0, 0.0, 2.0);
-    let b = slab(1.0, 1.0, 2.0, 1.0, 2.0);
+    let a = finished("slab a", slab(0.0, 0.0, 2.0, 0.0, 2.0), Tol::witness());
+    let b = finished("slab b", slab(1.0, 1.0, 2.0, 1.0, 2.0), Tol::witness());
     for (name, r) in [
         ("boolean union", topo::union(&a, &b, Tol::witness())),
         ("boolean subtract", topo::subtract(&a, &b, Tol::witness())),
         ("boolean intersect", topo::intersect(&a, &b, Tol::witness())),
     ] {
-        if let Some(body) = r.ok().and_then(|r| r.body().map(|b| b.body.clone())) {
+        if let Some(body) = r
+            .ok()
+            .and_then(|r| r.body().map(|b| b.body.clone().into_body()))
+        {
             bodies.push((name, body));
         }
     }
     // A curved pair: a pocket cut out of the tube by a slab.
     if let Some(body) = topo::subtract(
-        &tube(0.4, 0.8, 0.6),
-        &slab(0.5, -1.0, 2.0, 0.2, 0.2),
+        &finished("the tube", tube(0.4, 0.8, 0.6), Tol::witness()),
+        &finished("the slab", slab(0.5, -1.0, 2.0, 0.2, 0.2), Tol::witness()),
         Tol::witness(),
     )
     .ok()
-    .and_then(|r| r.body().map(|b| b.body.clone()))
+    .and_then(|r| r.body().map(|b| b.body.clone().into_body()))
     {
         bodies.push(("boolean curved subtract", body));
     }

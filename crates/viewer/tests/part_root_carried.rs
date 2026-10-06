@@ -15,6 +15,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -23,7 +24,7 @@ use crate::fixture;
 
 use fixture::resolver::in_part;
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocRef, EvalOptions, Expr, MateFrame, MatePrimitive,
+    Alignment, AxisSense, CancelToken, Doc, DocRef, EvalOptions, Formula, MateFrame, MatePrimitive,
     Node, NodeResult, PatternKind, ProfileDoc, RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::Tol;
@@ -122,8 +123,9 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         &boss,
         Node::Extrude {
             profile,
-            distance: Expr::div(common::len(0.008), common::scl(0.0))
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -324,13 +326,15 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// **A mate's carried level inside a part is labelled with that part.**
@@ -360,7 +364,7 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         &sub,
         Node::Pattern {
             input: legs,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),

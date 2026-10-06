@@ -49,6 +49,7 @@
 //! registry would have run (both lanes, persistence, the bump). The
 //! item that schedules the resolution is on LIB's slate.
 
+use editor_core::ExtrudeSide;
 use editor_core::{CapEnd, DocEdit, LoopProgram, Node, ProfileProgram, RoleSeg, SlotId};
 
 use crate::fixture::{fname, len, xy_frame};
@@ -105,6 +106,7 @@ pub fn document() -> CorpusDoc {
     let blank = r.insert(Node::Extrude {
         profile,
         distance: len(H),
+        side: ExtrudeSide::Along,
     });
     // The top: the extrude's END cap, the face the sweep vector points
     // out of. Authored, not queried — a designation FREEZES, so the

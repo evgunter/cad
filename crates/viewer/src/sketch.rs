@@ -49,9 +49,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, ParamEnv,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
     ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    StepId, ValuePayload, resolve_loops, unparse,
+    StepId, ValuePayload, VarEnv, resolve_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -234,7 +234,7 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// come to be minted without its unit.
 fn recorded_notation(
     notation: Notation,
-    program: &LoopProgram,
+    program: &LoopProgram<Formula>,
 ) -> Result<RecordedNotation, DimensionError> {
     let mut recorded = RecordedNotation::new();
     for (step, arg) in program.step_args() {
@@ -273,7 +273,7 @@ fn recorded_notation(
 pub fn loop_program(
     shape: &ProfileShape,
     notation: Notation,
-) -> Result<LoopProgram, RecordedProgramError> {
+) -> Result<LoopProgram<Formula>, RecordedProgramError> {
     match shape {
         ProfileShape::Circle { centre, radius } => loop_program(
             &ProfileShape::Path {
@@ -337,7 +337,7 @@ pub fn authors_same_loops(a: &[ProfileShape], b: &[ProfileShape]) -> bool {
 pub fn loop_programs(
     shapes: &[ProfileShape],
     notation: Notation,
-) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
     shapes
         .iter()
         .map(|shape| loop_program(shape, notation))
@@ -390,12 +390,14 @@ pub fn held_loops(
             node: doc.spoken(node),
         });
     };
-    held_program(doc.spoken(node), program, &doc.param_env::<f64>())
+    held_program(doc.spoken(node), program, doc)
 }
 
 /// [`held_loops`] of a program in hand — `node` only names it in a
 /// refusal, spoken by the caller from the document that holds it, and
-/// `env` is the parameter environment it resolves under.
+/// `doc` is the document whose variables it reads: they resolve under
+/// its environment, and a driven argument's source is written by its
+/// names.
 ///
 /// # Errors
 ///
@@ -404,7 +406,7 @@ pub fn held_loops(
 pub fn held_program(
     node: SpokenNode,
     program: &ProfileProgram,
-    env: &ParamEnv<f64>,
+    doc: &Doc<ProfileProgram>,
 ) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
     let held = Node::Profile(program.clone());
     // Every argument, asked of the node's own slot walk. An address
@@ -416,7 +418,7 @@ pub fn held_program(
         .into_iter()
         .filter_map(|slot| match held.expr(slot) {
             Some(expr) if expr.literal_value().is_some() => None,
-            Some(expr) => Some((slot, unparse(expr))),
+            Some(expr) => Some((slot, doc.unparse(expr))),
             None => Some((slot, String::new())),
         })
         .collect();
@@ -426,20 +428,8 @@ pub fn held_program(
             slots: driven,
         });
     }
-    resolve_loops(&program.loops, env)
+    resolve_loops(&program.loops, &doc.var_env::<f64>())
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
-}
-
-/// **Every step of `program` kept where it is** — the `ids` of a
-/// `DocEdit::SetProgram` (and a `SessionOp::EditProfile`) that moves
-/// numbers and nothing else.
-#[must_use]
-pub fn kept_in_place(program: &ProfileProgram) -> Vec<Vec<Option<StepId>>> {
-    program
-        .ids
-        .iter()
-        .map(|ids| ids.iter().copied().map(Some).collect())
-        .collect()
 }
 
 /// **Whether `loops` under `ids` is `base` itself** — every step kept
@@ -448,16 +438,20 @@ pub fn kept_in_place(program: &ProfileProgram) -> Vec<Vec<Option<StepId>>> {
 #[must_use]
 pub fn is_committed(
     base: &ProfileProgram,
-    loops: &[LoopProgram],
+    loops: &[LoopProgram<Formula>],
     ids: &[Vec<Option<StepId>>],
 ) -> bool {
-    ids == kept_in_place(base).as_slice()
-        && *base
-            == ProfileProgram {
-                plane: base.plane,
-                loops: loops.to_vec(),
-                ids: base.ids.clone(),
-            }
+    ids == base.kept_in_place().as_slice()
+        && base.loops.len() == loops.len()
+        && ProfileProgram {
+            plane: base.plane,
+            loops: base.loops.iter().map(LoopProgram::authored).collect(),
+            ids: base.ids.clone(),
+        } == ProfileProgram {
+            plane: base.plane,
+            loops: loops.to_vec(),
+            ids: base.ids.clone(),
+        }
 }
 
 /// Why a committed node cannot be held by the path editor.
@@ -1077,7 +1071,13 @@ pub fn preview(
         // CANONICAL, and it makes no difference which: a display unit
         // is presentation metadata that no evaluation reads, and this
         // program is built to be replayed and drawn, never committed.
-        programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?);
+        let program = loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?;
+        // A form writes numbers, never a name, so its program is
+        // already the stored one.
+        match program.try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula)) {
+            Ok(stored) => programs.push(stored),
+            Err(fault) => unreachable!("a form's program reads no name, yet {fault}"),
+        }
     }
     // Literals only reach this door, so an empty environment binds
     // everything it can be asked about. It is passed rather than
@@ -1086,7 +1086,7 @@ pub fn preview(
     // program: a preview has no plane node and does not need one — the
     // plane it draws on arrives as a placement, from the frame the
     // form is pointed at.
-    let env = ParamEnv::default();
+    let env = VarEnv::default();
     let resolved = resolve_loops(&programs, &env)
         .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());

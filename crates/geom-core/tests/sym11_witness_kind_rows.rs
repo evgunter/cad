@@ -56,8 +56,14 @@ pub(crate) fn adversary_of<T: Real>(x: Sym<T>, y: Sym<T>) -> Sym<T> {
 /// has.
 fn adversary<T: Real>(x0: f64) -> Sym<T> {
     adversary_of(
-        Sym::param(ParamSymbol::of("x"), T::from_f64(x0)),
-        Sym::param(ParamSymbol::of("y"), T::from_f64(0.5)),
+        Sym::param(
+            ParamSymbol::new(test_utils::symbol_id("x")),
+            T::from_f64(x0),
+        ),
+        Sym::param(
+            ParamSymbol::new(test_utils::symbol_id("y")),
+            T::from_f64(0.5),
+        ),
     )
 }
 
@@ -76,7 +82,10 @@ pub(crate) fn pole_of<T: Real>(t: Sym<T>) -> Sym<T> {
 /// function has no value — the point channel has no clause 1 to refuse
 /// the pole with, which is what the certified lane supplies there.
 fn pole<T: Real>(t0: f64) -> Sym<T> {
-    pole_of(Sym::param(ParamSymbol::of("t"), T::from_f64(t0)))
+    pole_of(Sym::param(
+        ParamSymbol::new(test_utils::symbol_id("t")),
+        T::from_f64(t0),
+    ))
 }
 
 /// The margin AT THE POINT, read without asking for a decision: the
@@ -300,8 +309,13 @@ fn sym11_the_adversary_is_a_counted_dispute_at_sym_probe() {
 #[test]
 fn sym11_a_gated_theorem_disputes_into_the_same_column() {
     let resid = || {
-        let r = Sym::<f64>::param_over(ParamSymbol::of("r"), 1.25e-3, 1.0e-3, 2.0e-3);
-        let d = Sym::<f64>::param(ParamSymbol::of("d"), 1.0e9);
+        let r = Sym::<f64>::param_over(
+            ParamSymbol::new(test_utils::symbol_id("r")),
+            1.25e-3,
+            1.0e-3,
+            2.0e-3,
+        );
+        let d = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("d")), 1.0e9);
         (((r + d) - d) * ((r + d) - d)).sqrt() - r
     };
     let (l, c, n) = decide_under(SymRules::all(), resid)

@@ -541,10 +541,11 @@ pub enum RevolveError {
         loop_index: usize,
     },
     /// The void-insertion door refused a hole cavity's insertion
-    /// ([`topo::insert_void`]). The evidence arms are unreachable from
-    /// this construction (every hole shell is certified from the
-    /// profile's own validation before the call); the revert/graft
-    /// arms surface kernel-level corruption typed.
+    /// ([`topo::insert_void`]). The evidence and destination arms are
+    /// unreachable from this construction (every hole shell is
+    /// certified from the profile's own validation before the call, into
+    /// the solid the build minted); the revert arm surfaces a torn
+    /// cavity typed.
     VoidInsertion {
         /// Canonical index of the hole loop whose insertion refused.
         loop_index: usize,
@@ -797,7 +798,9 @@ impl std::error::Error for RevolveError {}
 
 impl From<EulerOpError> for RevolveError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 

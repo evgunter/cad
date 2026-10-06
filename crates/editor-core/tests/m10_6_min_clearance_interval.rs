@@ -37,6 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -45,10 +46,10 @@ use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separatio
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
+    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -75,8 +76,8 @@ const NECK_GAP: f64 = 0.4;
 /// answer a correct engine gives.
 const BOUND: f64 = 0.3;
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The analysis half-width, in metres — M10-5's, for M10-5's reason.
@@ -92,9 +93,9 @@ fn half() -> f64 {
 /// as a node over it.
 fn dumbbell() -> Dumbbell {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("place"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -102,7 +103,7 @@ fn dumbbell() -> Dumbbell {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
@@ -132,6 +133,7 @@ fn dumbbell() -> Dumbbell {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(2.0),
+        side: ExtrudeSide::Along,
     });
     // A rigid translation by the document parameter: identity rotation,
     // so every stored direction passes through the interval lane
@@ -141,7 +143,7 @@ fn dumbbell() -> Dumbbell {
         solid,
         editor_core::Step::Rigid {
             translation: [
-                Expr::param(name("place"), Dimension::Length),
+                Formula::named(name("place"), Dimension::Length),
                 len(0.0),
                 len(0.0),
             ],
@@ -239,10 +241,10 @@ impl<'v> Neck<'v> {
 }
 
 /// The leaf box: the one parameter at ±[`half`].
-fn leaf() -> ParamBox {
+fn leaf(doc: &ProfileDoc) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        name("place"),
+        doc.var_named("place").expect("the fixture declares it"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -324,7 +326,7 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
 #[test]
 fn the_interval_value_is_the_engine_bracket_re_derived() {
     let f = dumbbell();
-    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf()));
+    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let Some(NodeResult::Ok(v)) = ev.result(f.measure) else {
         panic!("the measure node evaluated at the interval scalar");
     };
@@ -359,7 +361,7 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
 #[test]
 fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
     let f = dumbbell();
-    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf()));
+    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
     let mut widths = Vec::new();
     for pairs in [2usize, 32, 512] {
@@ -489,7 +491,7 @@ fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
 #[test]
 fn a_pairing_the_wedge_rule_empties_refuses_typed() {
     let f = dumbbell();
-    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf()));
+    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
     match min_separation(&neck.side(0), &neck.side(0), MinSeparationConfig::default()) {
         Err(r) => assert_eq!(r.name(), "no_admitted_pair", "{r:?}"),
@@ -514,6 +516,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
     let solid = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let measure = r.insert(
         Node::measure(
@@ -569,6 +572,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
         &verdict,
         None,
         true,
+        None,
         Tol::witness(),
     )
     .expect("the report builds even though the nominal cannot");

@@ -1,10 +1,11 @@
 //! M4 PR 2 wiring tests (spec D3): datum evaluation, the revolve
 //! axis's decided in-plane projection, rotational transforms,
-//! patterns as data, Declare pass-through, and the typed operand
+//! patterns as data, declared boolean contacts, and the typed operand
 //! refusal doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -46,6 +47,7 @@ fn unit_cube(doc: ProfileDoc, x0: f64, y0: f64) -> (ProfileDoc, editor_core::Rec
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -211,7 +213,7 @@ fn linear_pattern_evaluates_instances_as_data() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(2.0), scl(0.0), scl(0.0)], // normalized by eval
                 spacing: len(2.0),
@@ -242,7 +244,7 @@ fn linear_pattern_evaluates_instances_as_data() {
             op: BooleanOp::Union,
             a: pat,
             b: other,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev2 = run(&doc2);
@@ -275,7 +277,7 @@ fn circular_pattern_rotates_about_the_datum_axis() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(4),
+            count: editor_core::Formula::count(4),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(FRAC_PI_2),
@@ -406,7 +408,7 @@ fn typed_refusal_doors() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(0),
+            count: editor_core::Formula::count(0),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.0),
@@ -438,7 +440,7 @@ fn typed_refusal_doors() {
             op: BooleanOp::Intersect,
             a: split_node,
             b: second,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -476,7 +478,7 @@ fn non_finite_pattern_direction_refuses_at_the_direction_door() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -532,7 +534,7 @@ fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -617,7 +619,7 @@ fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
             doc,
             Node::Pattern {
                 input: cube,
-                count: editor_core::Expr::count(3),
+                count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
                     spacing: len(2.0),
@@ -663,7 +665,7 @@ fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() 
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -782,7 +784,7 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
             doc,
             Node::Pattern {
                 input: cube,
-                count: editor_core::Expr::count(3),
+                count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
                     spacing: len(2.0),
@@ -913,7 +915,7 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
         doc,
         Node::Pattern {
             input: cube,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -937,28 +939,52 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
     }
 }
 
+/// **A boolean's declared pairs are its own payload, and `SetDeclare`
+/// replaces them on the live node.** Undeclared, the flush contacts are
+/// refused; the same boolean with the pairs set fuses. A node that
+/// declares no contacts refuses the edit at the door.
 #[test]
-fn declare_passes_through_and_boolean_accepts_it() {
+fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
     let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
-    // M4 PR 5: the flush contacts are DECLARED by name — this test's
-    // Declare is now the LIVE lane, not pass-through data.
-    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b);
+    let pairs = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, boolean) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(decl),
+            declare: Vec::new(),
         },
     );
-    let ev = run(&doc);
-    match &ev.value(decl).expect("declare is a value").payload {
-        ValuePayload::Declarations(pairs) => assert_eq!(pairs.len(), 4),
-        other => panic!("expected declarations, got {}", other.kind_name()),
-    }
+    let undeclared = run(&doc);
+    assert!(
+        matches!(
+            undeclared.nodes.get(&boolean),
+            Some(NodeResult::Failed(e))
+                if matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. })
+        ),
+        "the flush contacts are refused while undeclared, got {:?}",
+        undeclared.nodes.get(&boolean)
+    );
+
+    let declared = doc
+        .apply(
+            &editor_core::DocEdit::SetDeclare {
+                node: boolean,
+                pairs: pairs.clone(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a live boolean takes a declared-pair list");
+    assert_eq!(declared.record.minted, None, "the edit mints nothing");
+    let Some(Node::Boolean { declare, .. }) = declared.doc.node(boolean) else {
+        panic!("the boolean is live under its own id");
+    };
+    assert_eq!(declare, &pairs, "the list is the one set");
+    let ev = run(&declared.doc);
     let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
         &ev.value(boolean).expect("boolean evaluated").payload
     else {
@@ -966,31 +992,16 @@ fn declare_passes_through_and_boolean_accepts_it() {
     };
     assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
 
-    // A non-Declare node on the declare edge: refused at the EDIT
-    // door, where the mis-wire is made.
-    //
-    // The node named here is the union ABOVE, not operand `a`: a
-    // node's inputs are pairwise distinct (DM5), so a declare edge
-    // pointing at one of the operands is refused for THAT reason and
-    // would say nothing about this one. Any live non-`Declare` node
-    // makes the same point.
     let refused = doc.apply(
-        &editor_core::DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: BooleanOp::Union,
-                a,
-                b,
-                declare: Some(boolean),
-            }),
-        },
+        &editor_core::DocEdit::SetDeclare { node: a, pairs },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     assert!(
         matches!(
             &refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == boolean
+            Err(editor_core::EditError::SetDeclareOnNonDeclaring { node }) if node.id() == a
         ),
-        "expected the declare edge's kind refusal, got {refused:?}"
+        "an extrude declares no contacts, got {refused:?}"
     );
 }

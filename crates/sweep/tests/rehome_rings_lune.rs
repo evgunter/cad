@@ -17,7 +17,8 @@
 use core::f64::consts::PI;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::sketch_at;
+use sweep::ExtrudeSide;
+use sweep::test_support::{finished, sketch_at};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, split};
 use topo::{Body, BooleanResult};
@@ -58,9 +59,16 @@ fn extruded(plane: SketchPlane<f64>, loops: &[&[(f64, f64, f64)]], h: f64) -> Bo
     let profile = Profile::new(plane, loops)
         .validate(tol())
         .expect("a valid profile");
-    extrude(&profile, Extrusion::Distance(h), tol())
-        .expect("the profile extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the profile extrudes")
+    .body
 }
 
 fn bored_disc(outer: &[(f64, f64, f64)], (cx, cy): (f64, f64)) -> Body<f64> {
@@ -139,9 +147,12 @@ fn a_split_carries_a_lune_bore_with_its_half() {
 #[test]
 fn a_boolean_carries_a_lune_bore_with_its_half() {
     let (_, outer) = DISCS[0];
-    let (right, left) = (slab(0.0, 3.0), slab(-3.0, 0.0));
+    let (right, left) = (
+        finished("the right slab", slab(0.0, 3.0), tol()),
+        finished("the left slab", slab(-3.0, 0.0), tol()),
+    );
     for hole in HOLES {
-        let body = bored_disc(outer, hole);
+        let body = finished("the bored disc", bored_disc(outer, hole), tol());
         let rows = [
             (
                 "intersect x > 0",

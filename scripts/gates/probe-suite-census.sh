@@ -197,7 +197,7 @@ RUN_FLOOR=(
   plain:editor-core:parallel_node_map_probe:1
   plain:geom-brep:m8_f67_r1_probes:8
   plain:geom-brep:rim_dim_review_probes:2
-  plain:geom-brep:rim_dim_scale_twins:6
+  plain:geom-brep:rim_dim_scale_twins:7
   plain:geom-brep:span_meter_dim_twins:5
   plain:geom-core:certified_door:6
   plain:geom-core:k_stats_doors:2
@@ -213,7 +213,7 @@ RUN_FLOOR=(
   plain:sweep:k_report:0
   plain:sweep:must_carry_rule:10
   plain:sweep:r1_lane0_e2e:2
-  plain:sweep:ray_wall_margin_twins:1
+  plain:sweep:ray_wall_margin_twins:2
   plain:sweep:review_chamfer_r1_probes:7
   plain:sweep:review_contact_edge_must_carry_r1_probes:5
   plain:sweep:review_contact_edge_must_carry_r2_probes:6
@@ -222,6 +222,7 @@ RUN_FLOOR=(
   plain:sweep:review_ring_clearance_r1_probes:7
   plain:sweep:sym11_far_placement_rows:3
   plain:sweep:thread_count_probe_populations:2
+  plain:sweep:tilted_sphere_pair_k_rows:1
   plain:topo:lane0_r2_probes:6
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1

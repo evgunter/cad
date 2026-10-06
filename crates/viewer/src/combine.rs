@@ -21,8 +21,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::AuthoredNode;
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Expr, HeldNodes, Node, NodeStanding, PartSelect, PatternKind,
+    BooleanOp, Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, PartSelect, PatternKind,
     ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
@@ -234,9 +235,9 @@ impl TransformTool {
     /// [`SeatError::Empty`] until a body is picked.
     pub fn op(
         &self,
-        translation: [Expr; 3],
-        rotation_axis: [Expr; 3],
-        rotation_angle: Expr,
+        translation: [Formula; 3],
+        rotation_axis: [Formula; 3],
+        rotation_angle: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddTransform {
             input: self.seats.require(0)?,
@@ -362,8 +363,8 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        direction: [Expr; 3],
-        spacing: Expr,
+        direction: [Formula; 3],
+        spacing: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(pattern_op(
             output,
@@ -383,7 +384,7 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        step: Expr,
+        step: Formula,
     ) -> Result<SessionOp, SeatError> {
         // The BODY seat first, so an empty form names the pick a user
         // makes first rather than the one this rule adds.
@@ -414,7 +415,7 @@ fn pattern_op(
 /// Lower one pattern spec to its node, placing the authored
 /// expressions and minting the STRUCTURAL count.
 ///
-/// The count is [`Expr::count`] — an exact integer — and not a
+/// The count is `Formula::count` — an exact integer — and not a
 /// continuous literal, because `SlotId::Count` is Count-dimensioned and
 /// the structural/continuous split is typed rather than emergent (spec
 /// D3). That is the same reason it is authored as an `i64` all the way
@@ -427,14 +428,10 @@ fn pattern_op(
 /// slot it lands in is the edit door's question
 /// (`EditError::SlotDimensionMismatch`), asked of authored and
 /// hand-written documents alike.
-pub fn pattern_node(
-    input: RecipeNodeId,
-    count: i64,
-    rule: PatternRuleSpec,
-) -> Node<ProfileProgram> {
+pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::Pattern {
         input,
-        count: Expr::count(count),
+        count: Formula::count(count),
         kind: rule_kind(rule),
     }
 }
@@ -454,21 +451,17 @@ pub fn pattern_node(
 /// edit door's question. Whether the placements are DISJOINT is not
 /// asked here either — that certificate is evaluation's, reported on
 /// the node's own badge.
-pub fn placed_union_node(
-    input: RecipeNodeId,
-    count: i64,
-    rule: PatternRuleSpec,
-) -> Node<ProfileProgram> {
+pub fn placed_union_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::PlacedUnion {
         input,
-        count: Some(Expr::count(count)),
+        count: Some(Formula::count(count)),
         kind: rule_kind(rule),
     }
 }
 
 /// The rule vocabulary the two pattern nodes SHARE, lowered once: a
 /// spec is a `PatternKind`, whichever node is about to carry it.
-fn rule_kind(rule: PatternRuleSpec) -> PatternKind {
+fn rule_kind(rule: PatternRuleSpec) -> PatternKind<Formula> {
     match rule {
         PatternRuleSpec::Linear { direction, spacing } => {
             PatternKind::Linear { direction, spacing }
@@ -900,11 +893,11 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
 /// number is authorable keeps ONE home, the expression door.
 pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::DimensionError> {
     use pncad::document::Dimension;
-    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar);
+    let scalar = |v: f64| Formula::literal(v, Dimension::Scalar);
     let [x, y, z] = STEP_DIRECTION;
     Ok(PatternRuleSpec::Linear {
         direction: [scalar(x)?, scalar(y)?, scalar(z)?],
-        spacing: Expr::literal(step, Dimension::Length)?,
+        spacing: Formula::literal(step, Dimension::Length)?,
     })
 }
 
@@ -918,7 +911,7 @@ pub const DUPLICATE_COUNT: i64 = 2;
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.
 ///
-/// The index is [`Expr::count`] — an exact integer — for the reason
+/// The index is `Formula::count` — an exact integer — for the reason
 /// [`pattern_node`]'s count is: `SlotId::Instance` is Count-dimensioned
 /// and the structural/continuous split is typed rather than emergent
 /// (spec D3).
@@ -926,12 +919,12 @@ pub const DUPLICATE_COUNT: i64 = 2;
 /// Total, for [`pattern_node`]'s reason: whether the selection suits
 /// the value it reads is evaluation's question, asked of authored and
 /// hand-written documents alike.
-pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> Node<ProfileProgram> {
+pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
     Node::Part {
         of,
         select: match select {
             PartSelectSpec::SplitHalf(half) => PartSelect::SplitHalf(half),
-            PartSelectSpec::Instance(index) => PartSelect::Instance(Expr::count(index)),
+            PartSelectSpec::Instance(index) => PartSelect::Instance(Formula::count(index)),
         },
     }
 }
@@ -969,7 +962,7 @@ pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> Node<ProfileProgra
 /// among the bodies it collects, because collecting several is what it
 /// does. This answers the narrower question a single-body operand seat
 /// asks.
-pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
+pub fn denotes_body<P, S: pncad::document::Slot>(node: &Node<P, S>) -> bool {
     match node {
         Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -1000,7 +993,6 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Profile(_)
         | Node::Split { .. }
         | Node::Pattern { .. }
-        | Node::Declare { .. }
         | Node::Mate { .. }
         // A frame other placements stand on; no body.
         | Node::Gauge { .. }

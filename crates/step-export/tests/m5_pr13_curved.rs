@@ -7,8 +7,9 @@
 //! value, which the writer copies from `Tol::witness().get()` (or the
 //! explicit override the fixtures use); that single dependence is
 //! pinned by [`epsilon_reaches_only_the_uncertainty_record`], and the
-//! one new refusal arm is run at two tolerances by
-//! [`curved_multi_shell_refuses_at_both_tolerances`]. No other row
+//! two-stub body that once reached the one new refusal arm is exported
+//! at two tolerances by
+//! [`two_curved_stubs_are_two_solids_and_export_at_both_tolerances`]. No other row
 //! would change value if ε moved, because no other row reads a
 //! distance: they compare emitted floats to the body's OWN stored
 //! floats, bit for bit.
@@ -944,57 +945,27 @@ fn epsilon_reaches_only_the_uncertainty_record() {
     assert!(differing[0].1.contains("LENGTH_MEASURE(1.0E-6)"));
 }
 
-/// **The one new refusal arm, at two tolerances.** The outward/void
-/// classifier did not grow curved closed forms, so a MULTI-shell
-/// curved solid refuses even though every one of its faces has a
-/// printer — the message says exactly that. S12's two-stub
-/// `boss ∖ plate` complement is the only such body constructible at
-/// rest.
-///
-/// The refusal is reached by a **type-level match** on the surface
-/// variant, before any arithmetic: no distance, no comparison, no ε.
-/// It is therefore ε-independent by derivation, and the two-tolerance
-/// run below checks that rather than asserting it — both the writer's
-/// own ε input (the uncertainty override, the only tolerance this
-/// crate reads) and, in CI, the ambient `CAD_EPS` lane that rebuilds
-/// the body itself. The body construction is pinned too: two shells at
-/// whatever ε the process was built under.
-///
-/// The COMPLEMENT — the single-shell curved solids never reaching the
-/// classifier, which is why this refusal is narrow rather than a
-/// curved-export blocker — is the `SINGLE-SHELL` block of the corpus
-/// row (retired name:
-/// `single_shell_curved_solids_never_reach_the_classifier`).
-///
-/// Since VERBS-RING the two-stub complement is no longer the only
-/// reachable body in the class: the one-call hollow ring is a REAL
-/// two-shell curved solid, pinned on the same gate below
+/// **Two curved stubs are two solids, and export.** S12's two-stub
+/// `boss ∖ plate` complement used to be one solid of two curved shells,
+/// and the outward/void classifier (which has closed forms for planar
+/// faces only) refused it. A solid is one piece of material now
+/// (`docs/DESIGN.md`), so the complement is two solids of one shell
+/// each, which never reach the classifier: the body exports at both
+/// tolerances. The classifier's refusal stays pinned on the shape that
+/// still reaches it, the hollow ring below
 /// ([`hollow_ring_hits_the_curved_shell_gate`]).
 #[test]
-fn curved_multi_shell_refuses_at_both_tolerances() {
+fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
     let stubs = common::two_stub_complement();
     assert_eq!(stubs.shells().count(), 2, "two disjoint stubs");
-    assert!(
-        Tol::witness().get().eps > 0.0,
-        "the body above was built at the run's ambient tolerance"
-    );
+    assert_eq!(stubs.solids().count(), 2, "one solid per stub");
     for eps in [1e-9, 1e-6] {
         let options = StepOptions {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        match step_string(&stubs, &options, Tol::witness()) {
-            Err(StepExportError::CurvedShellClassification { kind, .. }) => {
-                // The classifier walks a shell face-first and each
-                // face surface-then-carriers, so the entity it meets
-                // first on a stub is the planar CAP's circular rim —
-                // not the cylinder wall one face later. Either way the
-                // refusal is typed and names the geometry; the exact
-                // kind is pinned so a change in walk order is visible.
-                assert_eq!(kind, "circle curve", "at eps = {eps}");
-            }
-            other => panic!("expected CurvedShellClassification at {eps}, got {other:?}"),
-        }
+        step_string(&stubs, &options, Tol::witness())
+            .unwrap_or_else(|e| panic!("the two stubs export at {eps}: {e}"));
     }
 }
 

@@ -5,9 +5,10 @@
 #![allow(clippy::float_cmp)]
 
 use crate::fixture::{ang, len, scl};
+use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, DocParam, EditError, Expr, ParamEnv, ParamName, RecipeNodeId, SitedRef,
-    SlotId, eval, eval_count,
+    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv,
+    VarName, eval, eval_count,
 };
 use geom_core::Tol;
 
@@ -16,12 +17,33 @@ use geom_core::Tol;
 // transparent local newtype carries the same test payloads.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
-impl editor_core::ProfilePayload for Fake {}
+impl editor_core::SlotPayload<editor_core::Expr> for Fake {}
+impl editor_core::SlotPayload<editor_core::Formula> for Fake {}
+impl editor_core::ProfilePayload for Fake {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+    ) -> Result<Self, E> {
+        Ok(*authored)
+    }
+    fn authored(&self) -> Self {
+        *self
+    }
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::VarEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 type Doc = editor_core::Doc<Fake>;
 type Edit = DocEdit<Fake>;
 
 /// Insert a datum point whose x-component is `x` (bit-exact carrier).
-fn point_edit(x: Expr) -> Edit {
+fn point_edit(x: Formula) -> Edit {
     DocEdit::InsertNode {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [x, len(0.0), len(0.0)],
@@ -62,9 +84,9 @@ fn r1_replay_bit_identity_adversarial() {
         f64::MAX,
         -f64::MAX,
     ];
-    let mut log: Vec<Edit> = vec![Edit::SetDocParam {
-        name: ParamName::from_static("neg_zero"),
-        value: DocParam::continuous(Dimension::Length, -0.0),
+    let mut log: Vec<Edit> = vec![Edit::DeclareVar {
+        name: VarName::from_static("neg_zero"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.0)),
     }];
     let mut doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&log[0], Tol::witness(), &editor_core::RefusingReach)
@@ -143,7 +165,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
             .unwrap()
             .expr(SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
-        &pos.param_env(),
+        &pos.var_env(),
     )
     .unwrap();
     let vn = eval::<f64>(
@@ -151,7 +173,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
             .unwrap()
             .expr(SlotId::Origin(editor_core::Axis3::X))
             .unwrap(),
-        &neg.param_env(),
+        &neg.var_env(),
     )
     .unwrap();
     assert_ne!(vp.to_bits(), vn.to_bits(), "bits differ");
@@ -170,7 +192,7 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     // NaN can no longer enter a document at all (door 1): the
     // conflation hazard for NaN is gone at the source.
     assert_eq!(
-        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        Formula::literal(f64::NAN, Dimension::Length).unwrap_err(),
         editor_core::DimensionError::NonFiniteLiteral
     );
 }
@@ -180,62 +202,62 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
 #[test]
 fn r2_dimension_smuggling_probes() {
     use editor_core::DimensionError as DE;
-    let c = || Expr::count(3);
+    let c = || Formula::count(3);
     // Nested promotion: CountToScalar(CountToScalar(c)) — inner is
     // Scalar, outer demands Count.
-    let inner = Expr::count_to_scalar(c()).unwrap();
+    let inner = Formula::count_to_scalar(c()).unwrap();
     assert!(matches!(
-        Expr::count_to_scalar(inner.clone()),
+        Formula::count_to_scalar(inner.clone()),
         Err(DE::NotCount { .. })
     ));
     // Synthetic dimensionless: Length × promoted Count → Length (ok),
     // then × Length must still refuse (no laundering through chains).
-    let l_times_promoted = Expr::mul(len(2.0), inner.clone()).unwrap();
+    let l_times_promoted = Formula::mul(len(2.0), inner.clone()).unwrap();
     assert_eq!(l_times_promoted.dim(), Dimension::Length);
     assert!(matches!(
-        Expr::mul(l_times_promoted.clone(), len(1.0)),
+        Formula::mul(l_times_promoted.clone(), len(1.0)),
         Err(DE::MulNeedsScalar { .. })
     ));
     // Div chain: (Length/Scalar) is Length; dividing BY it refused.
-    let l_div_s = Expr::div(len(1.0), scl(2.0)).unwrap();
+    let l_div_s = Formula::div(len(1.0), scl(2.0)).unwrap();
     assert_eq!(l_div_s.dim(), Dimension::Length);
     assert!(matches!(
-        Expr::div(scl(1.0), l_div_s.clone()),
+        Formula::div(scl(1.0), l_div_s.clone()),
         Err(DE::DivNeedsScalarDivisor { .. })
     ));
     // Div by raw Count and by promoted-Count-… : raw refused loudly;
     // promoted IS Scalar so it passes (correct: explicit promotion).
     assert!(matches!(
-        Expr::div(len(1.0), c()),
+        Formula::div(len(1.0), c()),
         Err(DE::CountNeedsExplicitPromotion { .. })
     ));
-    assert!(Expr::div(len(1.0), inner.clone()).is_ok());
+    assert!(Formula::div(len(1.0), inner.clone()).is_ok());
     // Count division is NOT closed (spec lists add/sub/mul/min/max).
-    assert!(Expr::div(c(), c()).is_err());
+    assert!(Formula::div(c(), c()).is_err());
     // min/max cross-dimension, including Count vs Scalar.
-    assert!(Expr::min(len(1.0), ang(1.0)).is_err());
-    assert!(Expr::max(c(), scl(1.0)).is_err());
+    assert!(Formula::min(len(1.0), ang(1.0)).is_err());
+    assert!(Formula::max(c(), scl(1.0)).is_err());
     // atan2 edges: mixed Length/Angle refused; Count/Count refused
     // (needs explicit promotion); Angle/Angle and Scalar/Scalar both
     // ACCEPTED under deviation 4's "any shared continuous dimension".
-    assert!(Expr::atan2(len(1.0), ang(1.0)).is_err());
+    assert!(Formula::atan2(len(1.0), ang(1.0)).is_err());
     assert!(matches!(
-        Expr::atan2(c(), c()),
+        Formula::atan2(c(), c()),
         Err(DE::CountNeedsExplicitPromotion { .. })
     ));
     assert_eq!(
-        Expr::atan2(ang(1.0), ang(2.0)).unwrap().dim(),
+        Formula::atan2(ang(1.0), ang(2.0)).unwrap().dim(),
         Dimension::Angle
     );
     assert_eq!(
-        Expr::atan2(scl(1.0), scl(2.0)).unwrap().dim(),
+        Formula::atan2(scl(1.0), scl(2.0)).unwrap().dim(),
         Dimension::Angle
     );
     // Neg is dimension-transparent: Neg(Length) still refuses ×Length.
-    let neg_l = Expr::neg(len(1.0)).expect("a shallow negation");
-    assert!(Expr::mul(neg_l, len(1.0)).is_err());
+    let neg_l = Formula::neg(len(1.0)).expect("a shallow negation");
+    assert!(Formula::mul(neg_l, len(1.0)).is_err());
     // Trig on promoted Count refused (Scalar, not Angle).
-    assert!(Expr::sin(inner).is_err());
+    assert!(Formula::sin(inner).is_err());
 }
 
 /// R2 — a single expression referencing one param under TWO
@@ -243,30 +265,39 @@ fn r2_dimension_smuggling_probes() {
 /// caller); both `apply` and `eval` must catch it downstream.
 #[test]
 fn r2_contradictory_param_dims_caught_downstream() {
-    let p_scl = Expr::param(ParamName::from_static("q"), Dimension::Scalar);
-    let p_len = Expr::param(ParamName::from_static("q"), Dimension::Length);
-    // mul(Scalar, Length) → Length: constructible with BOTH refs.
-    let expr = Expr::mul(p_scl, p_len).unwrap();
-    // eval: whichever binding "q" has, one ref mismatches — typed.
-    let mut env: ParamEnv<f64> = ParamEnv::default();
+    // mul(Scalar, Length) → Length: constructible with BOTH reads, by
+    // id or by name.
+    let q = editor_core::VarId(1);
+    let by_id = Formula::mul(
+        Formula::var(q, Dimension::Scalar),
+        Formula::var(q, Dimension::Length),
+    )
+    .unwrap();
+    let expr = Formula::mul(
+        Formula::named(VarName::from_static("q"), Dimension::Scalar),
+        Formula::named(VarName::from_static("q"), Dimension::Length),
+    )
+    .unwrap();
+    // eval: whichever binding q has, one read mismatches — typed.
+    let mut env: VarEnv<f64> = VarEnv::default();
     env.bindings.insert(
-        ParamName::from_static("q"),
+        q,
         editor_core::ParamValue::Continuous {
             dim: Dimension::Length,
             value: 2.0,
         },
     );
     assert!(matches!(
-        eval::<f64>(&expr, &env),
-        Err(editor_core::EvalError::ParamDimensionMismatch { .. })
+        eval::<f64>(&editor_core::test_support::stored_expr(&by_id), &env),
+        Err(editor_core::EvalError::VarKindMismatch { .. })
     ));
     // apply: a slot carrying the contradiction is refused whichever
     // dimension the doc table declares.
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
-            &Edit::SetDocParam {
-                name: ParamName::from_static("q"),
-                value: DocParam::continuous(Dimension::Length, 2.0),
+            &Edit::DeclareVar {
+                name: VarName::from_static("q"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -279,7 +310,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(res, Err(EditError::SlotDocParamDimension { .. })),
+        matches!(res, Err(EditError::SlotVarKind { .. })),
         "got {res:?}"
     );
 }
@@ -291,15 +322,17 @@ fn r2_contradictory_param_dims_caught_downstream() {
 /// error as any other out-of-range count — never a panic.
 #[test]
 fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
-    let env = ParamEnv::<f64>::default();
+    let env = VarEnv::<f64>::default();
     for n in [
         i64::MIN,
         i64::MAX,
         i64::from(i32::MAX) + 1,
         i64::from(i32::MIN) - 1,
     ] {
-        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
-        let outcome = std::panic::catch_unwind(|| eval::<f64>(&e, &env));
+        let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
+        let outcome = std::panic::catch_unwind(|| {
+            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env)
+        });
         let r = outcome.expect("must never panic");
         assert_eq!(
             r,
@@ -309,10 +342,13 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
     }
     // Boundary values promote exactly.
     for n in [i64::from(i32::MIN), i64::from(i32::MAX)] {
-        let e = Expr::count_to_scalar(Expr::count(n)).unwrap();
+        let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
         #[allow(clippy::cast_precision_loss)] // |n| ≤ 2^31: exact
         let expected = n as f64;
-        assert_eq!(eval::<f64>(&e, &env).unwrap(), expected);
+        assert_eq!(
+            eval::<f64>(&editor_core::test_support::stored_expr(&e), &env).unwrap(),
+            expected
+        );
     }
 }
 
@@ -327,7 +363,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
 fn r3_ancestor_replace_silently_repoints_exprpath() {
     use editor_core::{Axis3, ExprPath};
     // Slot: x = 1.0 + 2.0; path [1] refers to the literal 2.0.
-    let e0 = Expr::add(len(1.0), len(2.0)).unwrap();
+    let e0 = Formula::add(len(1.0), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
@@ -342,7 +378,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         slot: SlotId::Origin(Axis3::X),
         path: vec![1],
     };
-    let before = eval::<f64>(a.doc.expr_at(&path).unwrap(), &a.doc.param_env()).unwrap();
+    let before = eval::<f64>(a.doc.expr_at(&path).unwrap(), &a.doc.var_env()).unwrap();
     assert_eq!(before, 2.0);
     // Replace the ANCESTOR (whole slot, path []) with 5.0 + 7.0.
     let replaced = a
@@ -354,7 +390,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
                     slot: SlotId::Origin(Axis3::X),
                     path: vec![],
                 },
-                expr: Expr::add(len(5.0), len(7.0)).unwrap(),
+                expr: Formula::add(len(5.0), len(7.0)).unwrap(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -362,7 +398,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         .unwrap()
         .doc;
     // The old path still RESOLVES — to a different subexpression.
-    let after = eval::<f64>(replaced.expr_at(&path).unwrap(), &replaced.param_env()).unwrap();
+    let after = eval::<f64>(replaced.expr_at(&path).unwrap(), &replaced.var_env()).unwrap();
     assert_eq!(after, 7.0, "silent re-point (witness): 2.0 became 7.0");
     // Arity-shrinking ancestor replace: old path now dangles as None
     // (detectable, but an Option, not a typed error).
@@ -391,7 +427,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
 fn r3_referent_survives_out_of_claim_edits_bitwise() {
     use editor_core::{Axis3, ExprPath};
     let marker = f64::from_bits(0x3FF00000000000AB); // recognizable bits
-    let e0 = Expr::add(len(marker), len(2.0)).unwrap();
+    let e0 = Formula::add(len(marker), len(2.0)).unwrap();
     let ins = DocEdit::InsertNode {
         node: Box::new(editor_core::Node::Datum(editor_core::Datum::Point {
             position: [e0, len(0.0), len(0.0)],
@@ -407,7 +443,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
         path: vec![0],
     };
     let check = |d: &Doc| {
-        let v = eval::<f64>(d.expr_at(&referent).unwrap(), &d.param_env()).unwrap();
+        let v = eval::<f64>(d.expr_at(&referent).unwrap(), &d.var_env()).unwrap();
         assert_eq!(v.to_bits(), marker.to_bits(), "referent bits");
     };
     check(&a.doc);
@@ -423,7 +459,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
                     slot: SlotId::Origin(Axis3::X),
                     path: vec![1],
                 },
-                expr: Expr::mul(scl(3.0), len(8.0)).unwrap(),
+                expr: Formula::mul(scl(3.0), len(8.0)).unwrap(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -448,72 +484,96 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
 }
 
 /// R4 (RULED, spec D3 carve-out) — `StableName.node` is a REFERENCE,
-/// not a DAG edge (`Declare::inputs()` stays empty), so:
-/// (1) DeleteNode of a node referenced ONLY by a Declare's pairs is
-///     ACCEPTED → the Declare strands (N5 dangling semantics: loud
-///     `NodeGone` at resolution, `Rebind` repairs — documented on
-///     `Node::Declare`);
-/// (2) InsertNode of a Declare naming a node that does not EXIST at
-///     edit time is a TYPED REFUSAL (a never-existed id is a typo,
-///     caught at the best-diagnostics door).
+/// not a DAG edge (a boolean's `inputs()` are its operands, never what
+/// its declared pairs name), so:
+/// (1) DeleteNode of a node referenced ONLY by a boolean's declared
+///     pairs is ACCEPTED → the pairs strand (N5 dangling semantics:
+///     loud `NodeGone` at resolution, `Rebind` repairs);
+/// (2) declared pairs naming a node that does not EXIST at edit time
+///     are a TYPED REFUSAL (a never-existed id is a typo, caught at the
+///     best-diagnostics door).
 #[test]
 fn r4_stablename_node_refs_escape_ref_validation() {
-    use editor_core::{EntityKind, Node, StableName};
+    use editor_core::{BooleanOp, EntityKind, Node, StableName};
     let (doc, ids) = apply_all(
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[point_edit(len(1.0))], // the node the name will denote
+        &[
+            point_edit(len(1.0)), // the node the name will denote
+            point_edit(len(2.0)),
+            point_edit(len(3.0)),
+        ],
     );
-    let target = ids[0];
-    let declare = |node| Edit::InsertNode {
-        node: Box::new(Node::declare_rest(vec![(
-            SitedRef::at_mint(StableName {
-                kind: EntityKind::Face,
-                node,
-                path: vec![],
-            }),
-            SitedRef::at_mint(StableName {
-                kind: EntityKind::Face,
-                node,
-                path: vec![],
-            }),
-        )])),
+    let (target, a, b) = (ids[0], ids[1], ids[2]);
+    // Each side is read at an operand; the name is `node`'s.
+    let pairs = |node| {
+        let name = StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![],
+        };
+        editor_core::declare_rest(vec![(
+            SitedRef::new(a, name.clone()),
+            SitedRef::new(b, name),
+        )])
     };
-    let a = doc
+    let boolean = |node| Edit::InsertNode {
+        node: Box::new(Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: pairs(node),
+        }),
+    };
+    let inserted = doc
         .apply(
-            &declare(target),
+            &boolean(target),
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    let declare_id = a.record.minted.unwrap();
-    // (1) Delete the named node — ACCEPTED despite the live Declare.
-    let after = a.doc.apply(
+    let boolean_id = inserted.record.minted.unwrap();
+    // (1) Delete the named node — ACCEPTED despite the live boolean.
+    let after = inserted.doc.apply(
         &Edit::DeleteNode { id: target },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     let after = after.expect("WITNESS: delete of name-referenced node accepted");
     assert!(after.doc.node(target).is_none());
-    // The Declare survives, holding a stale id.
-    match after.doc.node(declare_id).unwrap() {
-        Node::Declare { pairs } => {
-            assert_eq!(pairs[0].0.0.name.node, target, "stale RecipeNodeId held");
+    // The boolean survives, holding a stale id.
+    match after.doc.node(boolean_id).unwrap() {
+        Node::Boolean { declare, .. } => {
+            assert_eq!(declare[0].0.0.name.node, target, "stale RecipeNodeId held");
         }
-        n => panic!("expected Declare, got {n:?}"),
+        n => panic!("expected Boolean, got {n:?}"),
     }
-    // (2) Insert a Declare naming an id that never existed: REFUSED
-    // (fix pass, ruled carve-out).
+    // (2) Declared pairs naming an id that never existed: REFUSED, at
+    // the insert and at `SetDeclare` alike.
     let phantom = RecipeNodeId(9999);
-    let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
-        &declare(phantom),
+    let inserting = doc.apply(
+        &boolean(phantom),
         Tol::witness(),
         &editor_core::RefusingReach,
     );
-    match res {
-        Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.name().node, phantom, "refusal names the typo'd id");
+    let setting = inserted.doc.apply(
+        &Edit::SetDeclare {
+            node: boolean_id,
+            pairs: pairs(phantom),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    for (door, res) in [("insert", inserting), ("SetDeclare", setting)] {
+        match res {
+            Err(EditError::DeclareNamesMissingNode { name }) => {
+                assert_eq!(
+                    name.name().node,
+                    phantom,
+                    "{door}: refusal names the typo'd id"
+                );
+            }
+            other => panic!("{door}: phantom StableName.node must be refused, got {other:?}"),
         }
-        other => panic!("phantom StableName.node must be refused, got {other:?}"),
     }
     // Contrast: a DAG-edge ref to the same phantom is refused.
     let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
@@ -521,6 +581,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
             node: Box::new(Node::Extrude {
                 profile: phantom,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             }),
         },
         Tol::witness(),
@@ -550,6 +611,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 node: Box::new(Node::Extrude {
                     profile: ids[0],
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),
@@ -577,7 +639,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 op: editor_core::BooleanOp::Union,
                 a: extrude,
                 b: next_would_be,
-                declare: None,
+                declare: Vec::new(),
             }),
         },
         Tol::witness(),
@@ -590,19 +652,19 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     assert_eq!(slots, vec![SlotId::Distance]);
 }
 
-/// R4 — SetDocParam re-declaration sweep + the flagged no-delete-arm
+/// R4 — DefineVar redefinition sweep + the flagged no-delete-arm
 /// hole: a dimension flip under a referencing slot is REFUSED (sweep
 /// works); a Count→Count value change passes; and since NO edit can
 /// remove a param, reference stranding via deletion is impossible in
 /// v1 (the hole is the absent arm, not a validation gap).
 #[test]
 fn r4_setdocparam_sweep_and_no_delete_arm() {
-    let name = ParamName::from_static("d");
+    let name = VarName::from_static("d");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
-            &Edit::SetDocParam {
+            &Edit::DeclareVar {
                 name: name.clone(),
-                value: DocParam::continuous(Dimension::Length, 0.5),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -611,53 +673,51 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc;
     let (doc, _) = apply_all(
         doc,
-        &[point_edit(Expr::param(name.clone(), Dimension::Length))],
+        &[point_edit(Formula::named(name.clone(), Dimension::Length))],
     );
-    // Dimension flip out from under the referencing slot: refused.
+    // Dimension flip under the referencing slot: refused, because a
+    // variable's kind is fixed whatever reads it.
     let flip = doc.apply(
-        &Edit::SetDocParam {
-            name: name.clone(),
-            value: DocParam::continuous(Dimension::Angle, 0.5),
+        &Edit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(flip, Err(EditError::SlotDocParamDimension { .. })),
+        matches!(flip, Err(EditError::VarKindFixed { .. })),
         "got {flip:?}"
     );
     // Kind flip Continuous→Count under a reference: also refused.
     let kind_flip = doc.apply(
-        &Edit::SetDocParam {
-            name: name.clone(),
-            value: DocParam::Count { value: 2 },
+        &Edit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 2 }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     );
-    assert!(matches!(
-        kind_flip,
-        Err(EditError::SlotDocParamDimension { .. })
-    ));
+    assert!(matches!(kind_flip, Err(EditError::VarKindFixed { .. })));
     // Same-dimension value change: accepted, non-structural.
     let ok = doc
         .apply(
-            &Edit::SetDocParam {
-                name,
-                value: DocParam::continuous(Dimension::Length, 0.75),
+            &Edit::DefineVar {
+                var: name.into(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!ok.record.structural);
-    // An UNREFERENCED param may flip freely (nothing to strand).
+    // A new count variable is a structural declare.
     let free = ok
         .doc
         .apply(
-            &Edit::SetDocParam {
-                name: ParamName::from_static("unused"),
-                value: DocParam::Count { value: 1 },
+            &Edit::DeclareVar {
+                name: VarName::from_static("unused"),
+                def: editor_core::VarDecl::Free(FreeVar::Count { value: 1 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -708,17 +768,17 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     assert_bit_identical(&a1.doc, &a2.doc);
     assert_eq!(a1.record, a2.record);
     // eval purity in (expr, params): repeated evals bit-identical.
-    let expr = Expr::div(len(0.1), scl(0.3)).unwrap();
-    let env = ParamEnv::<f64>::default();
+    let expr = Formula::div(len(0.1), scl(0.3)).unwrap();
+    let env = VarEnv::<f64>::default();
     let (v1, v2) = (
-        eval::<f64>(&expr, &env).unwrap(),
-        eval::<f64>(&expr, &env).unwrap(),
+        eval::<f64>(&editor_core::test_support::stored_expr(&expr), &env).unwrap(),
+        eval::<f64>(&editor_core::test_support::stored_expr(&expr), &env).unwrap(),
     );
     assert_eq!(v1.to_bits(), v2.to_bits());
 }
 
 /// R6 (RULED, fixed) — both non-finite doors are CLOSED:
-/// door 1: literal(NaN/inf) and SetDocParam(NaN/inf) are typed
+/// door 1: literal(NaN/inf) and DeclareVar(NaN/inf) are typed
 ///         refusals at construction/edit time;
 /// door 2: a non-finite RESULT (inf from 1/0, NaN from 0/0, overflow
 ///         to inf) is a typed `NonFiniteResult` at the eval boundary
@@ -727,58 +787,72 @@ fn r5_apply_pure_and_deterministic_bitwise() {
 #[test]
 fn r6_nonfinite_doors_closed() {
     use editor_core::{DimensionError, EvalError};
-    let env = ParamEnv::<f64>::default();
+    let env = VarEnv::<f64>::default();
     // Door 2: pole and indeterminate-form conduits refused.
     assert_eq!(
-        eval::<f64>(&Expr::div(len(1.0), scl(0.0)).unwrap(), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(&Formula::div(len(1.0), scl(0.0)).unwrap()),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "1/0"
     );
     assert_eq!(
-        eval::<f64>(&Expr::div(len(0.0), scl(0.0)).unwrap(), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(&Formula::div(len(0.0), scl(0.0)).unwrap()),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "0/0"
     );
     // Arithmetic overflow to inf from finite literals: also refused.
     assert_eq!(
-        eval::<f64>(&Expr::mul(len(f64::MAX), scl(2.0)).unwrap(), &env),
+        eval::<f64>(
+            &editor_core::test_support::stored_expr(
+                &Formula::mul(len(f64::MAX), scl(2.0)).unwrap()
+            ),
+            &env
+        ),
         Err(EvalError::NonFiniteResult),
         "overflow"
     );
     // Mid-tree poison that CANCELS still refuses at the boundary
     // check only if the FINAL value is non-finite: (1/0) flows into
     // min(inf, 1) = 1 → finite → Ok (poison-flows-through-values).
-    let cancelled = Expr::min(Expr::div(len(1.0), scl(0.0)).unwrap(), len(1.0)).unwrap();
+    let cancelled = Formula::min(Formula::div(len(1.0), scl(0.0)).unwrap(), len(1.0)).unwrap();
     assert_eq!(
-        eval::<f64>(&cancelled, &env),
+        eval::<f64>(&editor_core::test_support::stored_expr(&cancelled), &env),
         Ok(1.0),
         "finite final value passes"
     );
     // Door 1: construction and edit-time injection refused, typed.
     assert_eq!(
-        Expr::literal(f64::NAN, Dimension::Length).unwrap_err(),
+        Formula::literal(f64::NAN, Dimension::Length).unwrap_err(),
         DimensionError::NonFiniteLiteral
     );
     assert_eq!(
-        Expr::literal(f64::NEG_INFINITY, Dimension::Angle).unwrap_err(),
+        Formula::literal(f64::NEG_INFINITY, Dimension::Angle).unwrap_err(),
         DimensionError::NonFiniteLiteral
     );
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
-            &Edit::SetDocParam {
-                name: ParamName::from_static("poison"),
-                value: DocParam::continuous(Dimension::Length, poison),
+        let empty = Doc::empty_derived("review_m4_pr1", Tol::witness());
+        let def = editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, poison));
+        let spoken = empty.spoken_declare(&VarName::from_static("poison"), &def);
+        let res = empty.apply(
+            &Edit::DeclareVar {
+                name: VarName::from_static("poison"),
+                def,
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         );
         assert_eq!(
             res.unwrap_err(),
-            EditError::NonFiniteDocParam {
-                name: ParamName::from_static("poison"),
+            EditError::NonFiniteVar {
+                var: spoken,
                 field: editor_core::DocParamField::Nominal,
             },
-            "SetDocParam({poison})"
+            "DeclareVar({poison})"
         );
     }
 }
@@ -793,22 +867,26 @@ fn r6_nonfinite_doors_closed() {
 fn r8_interval_lane_representative_and_zero_divisor() {
     use editor_core::eval;
     use geom_core::Interval;
-    let env_f = ParamEnv::<f64>::default();
-    let env_i = ParamEnv::<Interval>::default();
-    let cases: Vec<Expr> = vec![
-        Expr::add(len(0.1), len(0.2)).unwrap(),
-        Expr::mul(scl(3.0), Expr::div(len(1.0), scl(7.0)).unwrap()).unwrap(),
-        Expr::sin(ang(std::f64::consts::FRAC_PI_6)).unwrap(),
-        Expr::atan2(len(1.0), len(2.0)).unwrap(),
-        Expr::min(ang(1.0), Expr::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
-        Expr::max(len(-0.0), len(0.0)).unwrap(),
-        Expr::mul(Expr::count_to_scalar(Expr::count(21)).unwrap(), len(0.002)).unwrap(),
-        Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
+    let env_f = VarEnv::<f64>::default();
+    let env_i = VarEnv::<Interval>::default();
+    let cases: Vec<Formula> = vec![
+        Formula::add(len(0.1), len(0.2)).unwrap(),
+        Formula::mul(scl(3.0), Formula::div(len(1.0), scl(7.0)).unwrap()).unwrap(),
+        Formula::sin(ang(std::f64::consts::FRAC_PI_6)).unwrap(),
+        Formula::atan2(len(1.0), len(2.0)).unwrap(),
+        Formula::min(ang(1.0), Formula::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
+        Formula::max(len(-0.0), len(0.0)).unwrap(),
+        Formula::mul(
+            Formula::count_to_scalar(Formula::count(21)).unwrap(),
+            len(0.002),
+        )
+        .unwrap(),
+        Formula::neg(Formula::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
             .expect("a shallow negation"),
     ];
     for (i, e) in cases.iter().enumerate() {
-        let vf = eval::<f64>(e, &env_f).unwrap();
-        let vi = eval::<Interval>(e, &env_i).unwrap();
+        let vf = eval::<f64>(&editor_core::test_support::stored_expr(e), &env_f).unwrap();
+        let vi = eval::<Interval>(&editor_core::test_support::stored_expr(e), &env_i).unwrap();
         let (lo, hi, dec) = vi.repr_bits();
         let (lo, hi) = (f64::from_bits(lo), f64::from_bits(hi));
         assert!(dec >= 2, "case {i}: decoration {dec} (poisoned?)");
@@ -821,20 +899,20 @@ fn r8_interval_lane_representative_and_zero_divisor() {
     // empty/Trv refusal is REFUSED at the eval boundary — the same
     // typed door as the f64 lane's inf/NaN, never a confident (or
     // any) enclosure.
-    let div0 = Expr::div(len(1.0), scl(0.0)).unwrap();
+    let div0 = Formula::div(len(1.0), scl(0.0)).unwrap();
     assert!(
         matches!(
-            eval::<Interval>(&div0, &env_i),
+            eval::<Interval>(&editor_core::test_support::stored_expr(&div0), &env_i),
             Err(editor_core::EvalError::NonFiniteResult)
         ),
         "interval 1/[0,0] refused at the boundary"
     );
     // NaN literal can no longer enter ANY lane (door 1).
-    assert!(Expr::literal(f64::NAN, Dimension::Length).is_err());
+    assert!(Formula::literal(f64::NAN, Dimension::Length).is_err());
 }
 
 /// R4 (deviation 6) — the `structural` flag admits FALSE POSITIVES
-/// (Declare insert — pure intent metadata — flags structural) but no
+/// (`SetDeclare` — pure intent metadata — flags structural) but no
 /// FALSE NEGATIVE is constructible: a Count slot expression CANNOT
 /// reference a continuous doc param (refused), so no continuous-
 /// flagged edit can ever move a structural value. Pinned here; the
@@ -842,12 +920,12 @@ fn r8_interval_lane_representative_and_zero_divisor() {
 #[test]
 fn r4_structural_flag_false_positive_but_no_false_negative() {
     use editor_core::{Node, PatternKind};
-    let cnt_param = ParamName::from_static("n");
+    let cnt_param = VarName::from_static("n");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
-            &Edit::SetDocParam {
+            &Edit::DeclareVar {
                 name: cnt_param.clone(),
-                value: DocParam::Count { value: 4 },
+                def: editor_core::VarDecl::Free(FreeVar::Count { value: 4 }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -855,7 +933,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .unwrap()
         .doc;
     let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
-    let pattern = |count: Expr| Edit::InsertNode {
+    let pattern = |count: Formula| Edit::InsertNode {
         node: Box::new(Node::Pattern {
             input: ids[0],
             count,
@@ -868,7 +946,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // Count slot referencing the Count doc param: accepted.
     let a = doc
         .apply(
-            &pattern(Expr::param(cnt_param.clone(), Dimension::Count)),
+            &pattern(Formula::named(cnt_param.clone(), Dimension::Count)),
             Tol::witness(),
             &editor_core::RefusingReach,
         )
@@ -880,7 +958,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // CONTINUOUS param. The only promotion is Count→Scalar (wrong
     // direction), and a Length-dim ref in a Count slot is refused at
     // the slot-dimension check — unrepresentable, not just unvalidated.
-    let smuggle = Expr::param(ParamName::from_static("d_len"), Dimension::Length);
+    let smuggle = Formula::named(VarName::from_static("d_len"), Dimension::Length);
     let res = doc.apply(
         &Edit::SetStructuralParam {
             node: pat_id,
@@ -894,18 +972,18 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         matches!(res, Err(EditError::SlotDimensionMismatch { .. })),
         "got {res:?}"
     );
-    // Continuous SetDocParam is flagged non-structural AND provably
+    // Declaring a continuous variable is flagged non-structural AND provably
     // cannot move the pattern count: value before == after.
     let n_before = eval_count(
         doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
-        &doc.param_env::<f64>(),
+        &doc.var_env::<f64>(),
     )
     .unwrap();
     let a2 = doc
         .apply(
-            &Edit::SetDocParam {
-                name: ParamName::from_static("other"),
-                value: DocParam::continuous(Dimension::Length, 9.0),
+            &Edit::DeclareVar {
+                name: VarName::from_static("other"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 9.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -914,23 +992,35 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     assert!(!a2.record.structural);
     let n_after = eval_count(
         a2.doc.node(pat_id).unwrap().expr(SlotId::Count).unwrap(),
-        &a2.doc.param_env::<f64>(),
+        &a2.doc.var_env::<f64>(),
     )
     .unwrap();
     assert_eq!(n_before, n_after);
-    // FALSE POSITIVE witness: inserting a Declare (no geometry, no
-    // slots, no inputs) is flagged structural under the wide reading.
-    let a3 = a2
-        .doc
+    // FALSE POSITIVE witness: `SetDeclare` re-setting a boolean's empty
+    // declared-pair list (no geometry, no slots, no inputs move) is
+    // flagged structural under the wide reading.
+    let (doc, boolean) = apply_all(
+        a2.doc,
+        &[Edit::InsertNode {
+            node: Box::new(Node::Boolean {
+                op: editor_core::BooleanOp::Union,
+                a: ids[0],
+                b: pat_id,
+                declare: Vec::new(),
+            }),
+        }],
+    );
+    let a3 = doc
         .apply(
-            &Edit::InsertNode {
-                node: Box::new(Node::declare_rest(vec![])),
+            &Edit::SetDeclare {
+                node: boolean[0],
+                pairs: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert!(a3.record.structural, "Declare insert flags structural");
+    assert!(a3.record.structural, "SetDeclare flags structural");
 }
 
 /// BIT-compare two docs: structure via PartialEq fields, floats via
@@ -944,20 +1034,22 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     assert_eq!(a.order(), b.order(), "order");
     assert_eq!(a.epsilon().to_bits(), b.epsilon().to_bits(), "epsilon");
     assert_eq!(a.metadata(), b.metadata(), "metadata");
-    let (pa, pb) = (a.params(), b.params());
-    assert_eq!(pa.len(), pb.len(), "param count");
-    for (name, p) in pa {
-        match (p, pb.get(name).expect("param present")) {
+    let (pa, pb) = (a.vars(), b.vars());
+    assert_eq!(pa.len(), pb.len(), "variable count");
+    assert_eq!(a.var_names(), b.var_names(), "variable names");
+    for (name, var) in pa {
+        let theirs = pb.get(name).expect("variable present");
+        match (var.free().expect("free"), theirs.free().expect("free")) {
             (
-                DocParam::Continuous { dim, value, .. },
-                DocParam::Continuous {
+                FreeVar::Continuous { dim, value, .. },
+                FreeVar::Continuous {
                     dim: d2, value: v2, ..
                 },
             ) => {
                 assert_eq!(dim, d2, "param dim {name:?}");
                 assert_eq!(value.to_bits(), v2.to_bits(), "param bits {name:?}");
             }
-            (DocParam::Count { value }, DocParam::Count { value: v2 }) => {
+            (FreeVar::Count { value }, FreeVar::Count { value: v2 }) => {
                 assert_eq!(value, v2, "count param {name:?}");
             }
             (x, y) => panic!("param kind mismatch {name:?}: {x:?} vs {y:?}"),
@@ -972,13 +1064,13 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
             assert_eq!(ea.dim(), eb.dim(), "slot dim {id:?}/{slot:?}");
             if slot.is_structural() {
                 let (va, vb) = (
-                    eval_count(ea, &a.param_env::<f64>()),
-                    eval_count(eb, &b.param_env::<f64>()),
+                    eval_count(ea, &a.var_env::<f64>()),
+                    eval_count(eb, &b.var_env::<f64>()),
                 );
                 assert_eq!(va, vb, "count slot {id:?}/{slot:?}");
             } else {
-                let va = eval::<f64>(ea, &a.param_env()).unwrap();
-                let vb = eval::<f64>(eb, &b.param_env()).unwrap();
+                let va = eval::<f64>(ea, &a.var_env()).unwrap();
+                let vb = eval::<f64>(eb, &b.var_env()).unwrap();
                 assert_eq!(
                     va.to_bits(),
                     vb.to_bits(),
