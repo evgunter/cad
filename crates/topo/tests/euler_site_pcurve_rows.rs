@@ -879,11 +879,11 @@ fn a_null_edge_described_off_the_chart_leaves_the_wall_rowless() {
     loud_at_rest(&mut body);
 }
 
-/// **A description that keeps the carrier keeps the rows.** Re-describing
-/// the edge once it is certified, by the carrier and interval it has,
-/// moves none of its rows and leaves every row where it is: a wall
-/// missing the edge's own row stays missing it, though the face is one
-/// a null edge's description would re-mint.
+/// **A certified edge's description leaves a half-minted face as
+/// found.** Re-describing the edge once it is certified, by the carrier
+/// and interval it has, on a wall missing the edge's own row, leaves
+/// every row where it is and the row still missing, though the face is
+/// one a null edge's description would re-mint.
 #[test]
 fn a_second_description_leaves_the_rows_as_found() {
     let (mut body, face, m) = wall();

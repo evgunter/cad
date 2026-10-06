@@ -281,8 +281,7 @@ impl<T: Decide> Body<T> {
     /// chart, dropped on another); a re-described edge's rows on a face
     /// that keeps its chart are kept as found, for the tier-3 pcurve
     /// pass to re-certify against the new carrier, where
-    /// [`Body::set_edge_curve`] re-mints that face when the carrier or
-    /// interval moves
+    /// [`Body::set_edge_curve`] re-mints that face
     /// (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`).
     ///
     /// Minting order (D9): the new charts' surfaces in `charts` order,

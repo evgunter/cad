@@ -402,8 +402,8 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
 /// as found.** On the lofted prism, every edge with a half on a minted
 /// wall — each rim and each vertical seam — is re-described by the line
 /// between its ends, its parameter shifted by one: the same points,
-/// another interval. `set_edge_curve` re-mints the faces of an edge
-/// whose interval it moves, but the site mint derives a spline chart's
+/// another interval. `set_edge_curve` re-mints the faces of a certified
+/// edge it describes, but the site mint derives a spline chart's
 /// rows only through the fitted lane it does not carry, so the wall is
 /// left for tier 3: the door returns `Ok` rather than refusing
 /// `SplineChart`, and no image a spline wall stores moves.
