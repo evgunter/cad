@@ -1,11 +1,13 @@
 ---
 id: a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped
 kind: issue
-title: "A carried v-v row whose ends the boolean splits into null-edge copies is dropped: remap_carried does not reach copies"
-status: open
+title: A carried v-v row whose ends the boolean splits into null-edge copies is dropped: remap_carried does not reach copies
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: E
+closed: 2026-10-03
+pr: 3955
 ---
 
 ## What
@@ -51,15 +53,25 @@ copies in `desc.copies_of`.
 
 ## Third and fourth witnesses (FUSE, 2026-10-03)
 
-`two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`
-(same test file). The two lenses are tied at both rays, which now
-build. `y ∖ cube` fails 3′ with `UndeclaredContact` `VertexVertex` at
-the far ends, both for `y = cut ∪ lens` and for that `y` with a notch
-cut from the inner lens (with or without a lens in the notch). Pinned
-there as it stands.
+`two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_every_op`
+(same test file). The two lenses are tied at both rays, which build
+(PR 3953). Before this row's fix, `y ∖ cube` failed 3′ with
+`UndeclaredContact` `VertexVertex` at the far ends. That held for `y`
+built either way, and for that `y` with a notch cut from the inner lens,
+with or without a lens in the notch. With PR 3955 merged, all of them
+pass 3′, and the test asserts it.
 
 ## Owed
 
 Have `remap_carried` record a carried row between the live copies of
 its two ends, as `remap_contacts` does for its groups, then flip the
 pins to 3′ passing in all six ops.
+
+## Closed (FUSE, PR 3955, 2026-10-03)
+
+`remap_contacts` and `remap_carried` became one substitution door
+(`carry` in `crates/topo/src/boolean/ops.rs`): carried and discovered
+v-v rows are one group per shared vertex end, and every end reaches its
+null-edge copies. Both pins in
+`crates/topo/tests/union_flush_onto_edge_contact.rs` pass 3′ in all six
+ops.

@@ -34,6 +34,7 @@ use sweep::test_support::{block, brick, corners, revolved_about_y};
 use topo::{Body, ShellKey, ShellRole, SolidKey};
 
 use super::cavity::cut;
+use sweep::test_support::finished;
 
 /// **The vessel**: a rectangular meridian revolved a full turn about
 /// the `y` axis — a solid cylinder of radius `r` and height `h`,
@@ -60,9 +61,17 @@ pub fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
 /// two shells, the hollow operand every row that shells a hollow body
 /// starts from.
 pub fn hollow_box() -> Body<f64> {
-    topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
-        .expect("the first shell is the sealed row's own green")
-        .body
+    topo::shell(
+        &finished(
+            "the operand",
+            block(2.0, 3.0, 4.0, Tol::witness()),
+            Tol::witness(),
+        ),
+        0.25,
+        Tol::witness(),
+    )
+    .expect("the first shell is the sealed row's own green")
+    .body
 }
 
 /// **The two-void box**: a `6 × 4 × 4` box with two voids of
