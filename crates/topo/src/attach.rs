@@ -1610,12 +1610,14 @@ impl Named {
         a.into_iter().chain(b)
     }
 
-    /// Whether the description, its keys read as stored, stays coherent
-    /// once the face on one side leaves the chart it wears for a fresh
-    /// one while the face on the other side wears `kept`
-    /// ([`Named::adjacent_to`] asked of that move).
-    pub(crate) fn survives_one_side_leaving(self, kept: SurfaceKey) -> bool {
-        self.adjacent_to([Slot::Minted(0), Slot::Kept(kept)], Slot::Kept)
+    /// Whether the face on one side leaving `left`, the chart it wears,
+    /// for a fresh one strands the description while the face on the
+    /// other side wears `kept`: coherent before the move and not after,
+    /// its keys read as stored ([`Body::set_face_surfaces_describing`]'s
+    /// `RechartUndescribed` question, asked of that one move).
+    pub(crate) fn stranded_by_one_side_leaving(self, left: SurfaceKey, kept: SurfaceKey) -> bool {
+        self.adjacent_to([Slot::Kept(left), Slot::Kept(kept)], Slot::Kept)
+            && !self.adjacent_to([Slot::Minted(0), Slot::Kept(kept)], Slot::Kept)
     }
 
     /// Whether the description is coherent with faces wearing `plus`

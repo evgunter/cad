@@ -53,9 +53,9 @@ pose from this paragraph if they are gone).
   plane, the seam edge was already incoherent before the move and the door skipped it. That is
   why some seam poses answered on main (a frustum under one normal, a tube's bore off the axis).
 
-**Fix**: `section_plane_restatements` restates an edge naming the face's chart when its
-description would not survive the face leaving that chart (`Named::survives_one_side_leaving`,
-the door's own adjacency rule), not when the other face wears another chart. The seam edge is
+**Fix**: `section_plane_restatements` restates an edge exactly when the face leaving its chart
+strands it (`Named::stranded_by_one_side_leaving`): coherent before the move and not after, under
+the door's own adjacency rule. Before, the test was whether the other face wears another chart. The seam edge is
 restated as a plain image on the chart, which the door reads as the wall that keeps it; the
 boundary pass then describes it as the plane × wall intersection.
 

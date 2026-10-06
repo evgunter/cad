@@ -587,16 +587,15 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The re-descriptions a section face's re-chart takes: every edge of
-/// `face` whose description names the chart the face wears now and
-/// would not survive the face leaving it
-/// ([`Named::survives_one_side_leaving`]), stated as an image in that
-/// chart. The re-chart reads that image as the section plane the face
-/// moves onto ([`Body::set_face_surfaces_describing`]), or, where the
-/// edge's other face keeps the chart, as that chart itself: an operand
-/// edge the plane runs along, such as a periodic wall's seam, keeps an
-/// image on the wall without the seam claim one side can no longer
-/// make. Carrier, interval and a declared authority travel verbatim; a
-/// null edge has no description to restate.
+/// `face` that the face leaving its chart strands
+/// ([`Named::stranded_by_one_side_leaving`]), stated as an image in
+/// that chart. The re-chart reads that image as the section plane the
+/// face moves onto ([`Body::set_face_surfaces_describing`]), or, where
+/// the edge's other face keeps the chart, as that chart itself: an
+/// operand edge the plane runs along, such as a periodic wall's seam,
+/// keeps an image on the wall without the seam claim one side can no
+/// longer make. Carrier, interval and a declared authority travel
+/// verbatim; a null edge has no description to restate.
 fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -630,7 +629,7 @@ fn section_plane_restatements<T: Decide>(
                 continue;
             };
             let named = Named::of(geom);
-            if !named.keys().any(|k| k == chart) || named.survives_one_side_leaving(kept) {
+            if !named.stranded_by_one_side_leaving(chart, kept) {
                 continue;
             }
             let image = geom_brep::EdgeDescriptionSpec::chart(chart);
