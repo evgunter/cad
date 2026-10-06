@@ -5,7 +5,7 @@ title: An edge-edge record has no carriage into a later op: CarriedContacts hold
 status: closed
 opened: 2026-10-06
 closed: 2026-10-06
-pr: PRNUM
+pr: 4140
 priority: P2
 cost: M
 ---
@@ -35,7 +35,7 @@ op. Nothing reaches this today: no output stage runs the join yet.
   vertex the record names; an edge-edge record names no vertex, so the
   rule for it has to be written, not copied.
 
-## Closed (FUSE, PR PRNUM, 2026-10-06)
+## Closed (FUSE, PR 4140, 2026-10-06)
 
 - `CarriedContacts.ee` holds edge-edge rows, validated at the door
   (`carried e-e edge key does not resolve`, `carried e-e pair names
