@@ -211,8 +211,8 @@ pub enum SeatEvent {
     PickLost {
         /// Which seat was emptied.
         seat: Seat,
-        /// The node that was held, as the document spoke it when it was
-        /// picked — the words the panel showed.
+        /// The node that was held, by the last label the document gave
+        /// it ([`Seats::respeak`]).
         node: SpokenNode,
     },
 }
@@ -249,7 +249,8 @@ impl core::fmt::Display for SeatEvent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Seats {
     roles: [Seat; 2],
-    /// Each seat's pick, as the document spoke it when it was taken.
+    /// Each seat's pick, as the document last spoke it
+    /// ([`Seats::respeak`]).
     held: [Option<SpokenNode>; 2],
 }
 
@@ -347,6 +348,14 @@ impl Seats {
         self.held = [None, None];
     }
 
+    /// **The held picks' nodes, spoken again from `doc`**, the shown
+    /// document after an operation ([`SpokenNode::respoken`]'s rule): a
+    /// node `doc` holds takes its label now, and one it no longer holds
+    /// keeps the last it had, which is what a drop names it by.
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        respeak_each(&mut self.held, doc);
+    }
+
     /// Re-read the held picks against the document, dropping any whose
     /// node is gone (module docs: the survival semantics). Returns the
     /// typed drops.
@@ -376,6 +385,14 @@ impl Seats {
         self.held(i).ok_or(SeatError::Empty {
             seat: self.roles[i],
         })
+    }
+}
+
+/// **Each held node spoken again from `doc`** ([`SpokenNode::respoken`]):
+/// the seats' picks and the mate tool's.
+pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfileProgram>) {
+    for node in held.iter_mut().flatten() {
+        *node = node.respoken(doc);
     }
 }
 
