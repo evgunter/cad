@@ -1248,6 +1248,32 @@ pub mod bounds_allowlist {
     //! door, said plainly so the next ride is argued rather than
     //! inherited.
     //!
+    //! `topo::boolean::carrier_touch` — the crossing layer's reading of a
+    //! root set its door could not settle, against the face — falls under
+    //! this entry on the same terms. It bisects an edge's span, reading a
+    //! piece's half-length bracket only to stop bisecting (the subdivision
+    //! driver), and it prunes the face's boundary edges by their certified
+    //! `edge_box` against a touch's ball before a distance bound is decided
+    //! (the box constructors' pruning side). Its verdicts are `Decide`
+    //! calls, the second-order bound's premise among them, with one
+    //! exception: `edge_clear_of_ball` answers clear at once when the
+    //! edge's box misses the ball's, a terminal `Bounds` grant. It is the
+    //! grant the box constructors' pruning makes, in the disjointness
+    //! direction the #571 rule allows: a box miss can only clear an edge
+    //! of the ball, never place one in it. The weakest bound that works
+    //! is `Decide + Bounds`: sole `Decide` reads no box and drives no
+    //! bisection, and sole `Bounds` decides nothing. The next tighter,
+    //! `Decide + CertifiedBounds`, does not survive the public boolean.
+    //! Carried up through every caller (`curved_face_arm`,
+    //! `wall_crossing`, `settle_deferred`, `sweep_direction`, `ops`'
+    //! entries and `boolean_reduce`), each signature compiles. The first
+    //! failure is `Dual64: CertifiedEnclosure` where the public boolean is
+    //! instantiated at a dual (`crates/topo/tests/inside_out_operand.rs`),
+    //! and a dual has no certified enclosure to give. Three of `reduce`'s
+    //! crossing-layer functions (`curved_face_arm`, `wall_crossing`,
+    //! `settle_deferred`) carry the bound as a reachability ride to it and
+    //! read no bracket of their own.
+    //!
     //! `topo::face_boxes` — `FaceBoxes::of`, the blend's candidate prune
     //! for predicate 2's reach meter — falls under this entry on the
     //! census's terms: it boxes every face through `face_box` and builds

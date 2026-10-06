@@ -66,7 +66,19 @@
 //!    [`ExtrudeError::SmoothJoinRefuted`]); Indeterminate ⇒ the typed
 //!    [`ExtrudeError::SliverRim`]. Which pairs reach the Smooth arm,
 //!    and at which K, is stated at the arm in `upgrade_rim`.
-//! 7. **Declared cusps.** Every declared cusp joint
+//! 7. **One-segment loops.** A loop of one segment is D1's full turn:
+//!    one vertex, one self-loop edge. It has no chain to lay down and
+//!    no run to close, so it is swept whole where its chain would be
+//!    laid — the outer in step 1, a hole in step 2 — FAR rim first
+//!    (`swept::build_full_turn`): the seed (an `mvfs` at the far vertex,
+//!    or a ring planted there) keeps the top rim, a `mef(Lone)` mints
+//!    the wall, the strut runs down to the near vertex, and a self-loop
+//!    `mef` there mints the bottom cap (a hole's disc, demoted by
+//!    `kfmrh` as in step 2). Both strut halves bound the one wall, on
+//!    whose cylinder `u_ref` aims at the vertex, so the strut is the
+//!    wall's seam and is described as one. Rims upgrade in step 6 like
+//!    any other.
+//! 8. **Declared cusps.** Every declared cusp joint
 //!    ([`profile::ValidatedLoop::cusp_joints`]) sweeps a strut at
 //!    material wedge 0 (2π on a hole loop). The profile's `.cusp()` is
 //!    where that tangency's intent is declared; at rest the strut is
@@ -76,9 +88,11 @@
 //!
 //! Everything runs in a fixed, documented order (D9): loops outer
 //! first then holes in canonical order; per loop, struts in traversal
-//! order, then side faces, then join classification; finally rim
-//! upgrades per loop, per segment, bottom before top. Two calls with
-//! identical inputs replay byte-identically.
+//! order, then side faces, then join classification — except a
+//! one-segment loop, swept whole where its chain is laid, which mints
+//! its wall before its strut (step 7); finally rim upgrades per loop,
+//! per segment, bottom before top. Two calls with identical inputs
+//! replay byte-identically.
 
 use core::fmt;
 
@@ -431,7 +445,7 @@ pub enum ExtrudeError {
     /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
     /// along a strut, and a rim that reads smooth is a line between two
     /// planes (arc walls are ruled in the sketch normal —
-    /// `work/carve/extrude-arc-walls-are-ruled-in-n-not-w.md` would
+    /// `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
     /// change that), so in either case both normals are constant along
     /// the edge and every station reads what the witness read. Reaching this means
     /// the inputs carried something a validated profile cannot, and it
@@ -785,125 +799,183 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     // check below is what the door pays, and it subsumes tier 1.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0], true)?;
-    let mut hes = Vec::with_capacity(n);
-    let first = body.mev(
-        MevSite::Lone {
-            r#loop: seed.r#loop,
-        },
-        qs[1 % n],
-        placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n], tol),
-        tol,
-    )?;
-    hes.push(first.he_plus);
-    let mut prev = first;
-    for j in 2..n {
-        let m = body.mev(
-            MevSite::Fan {
-                he1: prev.he_minus,
-                he2: prev.he_minus,
-            },
-            qs[j],
-            placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j], tol),
-            tol,
-        )?;
-        hes.push(m.he_plus);
-        prev = m;
-    }
-    // Bottom cap plane: the mef-minted face's loop runs the chain
-    // reversed — first cap point kept, the rest reversed (outward
-    // normal opposite the extrusion). Cap points are the loop vertices
-    // plus arc apexes (see `cap_points`).
-    let forward = cap_points(outer, qs, place);
-    let mut bottom_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
-    if let Some(&p0) = forward.first() {
-        bottom_order.push(p0);
-    }
-    for &p in forward.iter().skip(1).rev() {
-        bottom_order.push(p);
-    }
-    let bottom_plane =
-        newell_plane(&bottom_order, band).map_err(|source| ExtrudeError::CapPlane { source })?;
-    let close = body.mef(
-        MefSite::Chords {
-            he1: prev.he_minus,
-            he2: first.he_plus,
-        },
-        placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
-        // Newell over the loop the cap runs: its normal is the cap's
-        // outward normal, so the material agrees with the chart.
-        FaceSurface::New {
-            surface: bottom_plane,
+    // Bottom cap plane: the bottom cap's loop runs the chain reversed —
+    // first cap point kept, the rest reversed (outward normal opposite
+    // the extrusion). Cap points are the loop vertices plus arc apexes
+    // (see `cap_points`). Newell over the loop the cap runs: its
+    // normal is the cap's outward normal, so the material agrees with
+    // the chart. Fitted where the cap is minted, after the chain's
+    // certifications.
+    let bottom_cap = || -> Result<FaceSurface<T>, ExtrudeError> {
+        let forward = cap_points(outer, qs, place);
+        let mut bottom_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
+        if let Some(&p0) = forward.first() {
+            bottom_order.push(p0);
+        }
+        for &p in forward.iter().skip(1).rev() {
+            bottom_order.push(p);
+        }
+        let surface = newell_plane(&bottom_order, band)
+            .map_err(|source| ExtrudeError::CapPlane { source })?;
+        Ok(FaceSurface::New {
+            surface,
             sense: true,
-        },
-        tol,
-    )?;
-    hes.push(close.he_plus);
-    let top_face = seed.face;
-    let bottom_face = close.face;
-    let bottom_surface = face_surface_key(&body, bottom_face);
+        })
+    };
+    // A loop swept whole in phases 1–2 (a one-segment loop, which is
+    // built far rim first: `sweep_full_turn`) carries its sweep here.
+    let mut swept_early: Vec<Option<LoopSwept>> = (0..loops.len()).map(|_| None).collect();
     let mut bases = Vec::with_capacity(loops.len());
-    bases.push(LoopBase { hes });
-
-    // ---- Phase 2: holes (rings in the seed face + kfmrh into the
-    // bottom cap). ----
-    let anchor = bases[0].hes[0];
-    for (li, segs) in loops.iter().enumerate().skip(1) {
-        let hq = &points[li];
-        let m = segs.len();
-        // Plant the hole anchor: bridge strut, immediately killed into
-        // an empty ring at the hole's first vertex (§9.3's state).
-        let bridge = body.mev_line(
-            MevSite::Fan {
-                he1: anchor,
-                he2: anchor,
-            },
-            hq[0],
+    let (seed, bottom_face, anchor) = if profile::is_full_turn(outer) {
+        let seed = body.mvfs(qs[0] + w, true)?;
+        let turn = sweep_full_turn(
+            &mut body,
+            0,
+            &outer[0],
+            seed.r#loop,
+            qs[0],
+            [place, top_place],
+            normal,
+            w,
+            w_norm,
+            bottom_cap()?,
+            band,
             tol,
         )?;
-        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
-        // Grow the hole chain inside the ring loop.
-        let mut hole_hes = Vec::with_capacity(m);
+        bases.push(LoopBase {
+            hes: vec![turn.near_in_wall],
+        });
+        let (far_kept, near_face) = (turn.far_kept, turn.near_face);
+        swept_early[0] = Some(turn.into());
+        (seed, near_face, far_kept)
+    } else {
+        let seed = body.mvfs(qs[0], true)?;
+        let mut hes = Vec::with_capacity(n);
         let first = body.mev(
-            MevSite::Lone { r#loop: ring },
-            hq[1 % m],
-            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m], tol),
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            qs[1],
+            placed_segment_spec(&outer[0], place, normal, qs[0], qs[1], tol),
             tol,
         )?;
-        hole_hes.push(first.he_plus);
+        hes.push(first.he_plus);
         let mut prev = first;
-        for j in 2..m {
-            let mv = body.mev(
+        for j in 2..n {
+            let m = body.mev(
                 MevSite::Fan {
                     he1: prev.he_minus,
                     he2: prev.he_minus,
                 },
-                hq[j],
-                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j], tol),
+                qs[j],
+                placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j], tol),
                 tol,
             )?;
-            hole_hes.push(mv.he_plus);
-            prev = mv;
+            hes.push(m.he_plus);
+            prev = m;
         }
-        // Close the hole cycle: the ring keeps the forward chain; the
-        // new face is the transient disc, on the bottom cap's plane.
-        // `kfmrh` kills it at once, and nothing reads its bit.
         let close = body.mef(
             MefSite::Chords {
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
-            FaceSurface::Shared {
-                key: bottom_surface,
-                sense: false,
-            },
+            placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
+            bottom_cap()?,
             tol,
         )?;
-        hole_hes.push(close.he_plus);
+        hes.push(close.he_plus);
+        let anchor = hes[0];
+        bases.push(LoopBase { hes });
+        (seed, close.face, anchor)
+    };
+    let top_face = seed.face;
+    let bottom_surface = face_surface_key(&body, bottom_face);
+
+    // ---- Phase 2: holes (rings in the seed face + kfmrh into the
+    // bottom cap). ----
+    for (li, segs) in loops.iter().enumerate().skip(1) {
+        let hq = &points[li];
+        let m = segs.len();
+        let full_turn = profile::is_full_turn(segs);
+        // Plant the hole anchor: bridge strut, immediately killed into
+        // an empty ring (§9.3's state) — at the hole's first vertex, or
+        // a full turn's FAR vertex: it is swept whole there, far rim
+        // first (`sweep_full_turn`), so the ring keeps the far rim.
+        let bridge = body.mev_line(
+            MevSite::Fan {
+                he1: anchor,
+                he2: anchor,
+            },
+            if full_turn { hq[0] + w } else { hq[0] },
+            tol,
+        )?;
+        let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
+        // The transient disc, on the bottom cap's plane: `kfmrh` kills
+        // it at once, and nothing reads its bit.
+        let disc_surface = FaceSurface::Shared {
+            key: bottom_surface,
+            sense: false,
+        };
+        let (disc, hole_hes) = if full_turn {
+            let turn = sweep_full_turn(
+                &mut body,
+                li,
+                &segs[0],
+                ring,
+                hq[0],
+                [place, top_place],
+                normal,
+                w,
+                w_norm,
+                disc_surface,
+                band,
+                tol,
+            )?;
+            let disc = turn.near_face;
+            let hes = vec![turn.near_in_wall];
+            swept_early[li] = Some(turn.into());
+            (disc, hes)
+        } else {
+            // Grow the hole chain inside the ring loop.
+            let mut hole_hes = Vec::with_capacity(m);
+            let first = body.mev(
+                MevSite::Lone { r#loop: ring },
+                hq[1],
+                placed_segment_spec(&segs[0], place, normal, hq[0], hq[1], tol),
+                tol,
+            )?;
+            hole_hes.push(first.he_plus);
+            let mut prev = first;
+            for j in 2..m {
+                let mv = body.mev(
+                    MevSite::Fan {
+                        he1: prev.he_minus,
+                        he2: prev.he_minus,
+                    },
+                    hq[j],
+                    placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j], tol),
+                    tol,
+                )?;
+                hole_hes.push(mv.he_plus);
+                prev = mv;
+            }
+            // Close the hole cycle: the ring keeps the forward chain;
+            // the new face is the disc.
+            let close = body.mef(
+                MefSite::Chords {
+                    he1: prev.he_minus,
+                    he2: first.he_plus,
+                },
+                placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
+                disc_surface,
+                tol,
+            )?;
+            hole_hes.push(close.he_plus);
+            (close.face, hole_hes)
+        };
         // Consume the disc: its loop becomes the bottom cap's ring —
         // the same-shell genus supplier.
-        body.kfmrh(bottom_face, close.face)?;
+        body.kfmrh(bottom_face, disc)?;
         bases.push(LoopBase { hes: hole_hes });
     }
 
@@ -914,9 +986,12 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     let mut top_rims = Vec::with_capacity(loops.len());
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
         let qs = &points[li];
-        let swept = sweep_loop(
-            &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band, tol,
-        )?;
+        let swept = match swept_early[li].take() {
+            Some(swept) => swept,
+            None => sweep_loop(
+                &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band, tol,
+            )?,
+        };
         side_faces.push(swept.faces);
         walls.push(
             swept
@@ -1329,6 +1404,93 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     })
 }
 
+/// Sweeps a one-segment loop (D1's full turn) whose far vertex is the
+/// lone vertex of the empty loop `r#loop`, near vertex `q`
+/// ([`swept::build_full_turn`], which says why far first): the far rim
+/// at `places[1]` (`top_place`), the wall, a strut from the far vertex
+/// down to `q`, and the near rim at `places[0]` on `near_cap`. The
+/// strut's two halves both bound the wall, whose cylinder aims its
+/// `u_ref` at the vertex ([`side_surface`]), so it is the wall's seam
+/// and is described as one. Its description and carrier read the
+/// translation from the far end back (`vec = −w`), the direction its
+/// plus half runs.
+#[allow(clippy::too_many_arguments)] // two call sites; the sweep's fixed context.
+fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    loop_index: usize,
+    seg: &WallSeg<T>,
+    r#loop: topo::LoopKey,
+    q: Point3<T>,
+    [place, top_place]: [Affine3<T>; 2],
+    normal: Vec3<T>,
+    w: Vec3<T>,
+    w_norm: T,
+    near_cap: FaceSurface<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<swept::FullTurn, ExtrudeError> {
+    let segs = core::slice::from_ref(seg);
+    let wall = side_surface(
+        body,
+        loop_index,
+        segs,
+        &[swept::Join::Corner],
+        &[None],
+        swept::Run { first: 0, len: 1 },
+        0,
+        &[q],
+        place,
+        normal,
+        w,
+        band,
+        tol,
+    )?;
+    let far = q + w;
+    let back = Vec3::zero() - w;
+    let strut = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
+            point: seg.chord.a,
+            place: top_place,
+            vec: back,
+        }),
+        carrier: strut_carrier(far, back),
+        param_start: T::zero(),
+        param_end: w_norm,
+    };
+    let turn = swept::build_full_turn(
+        body,
+        r#loop,
+        q,
+        placed_segment_spec(seg, top_place, normal, far, far, tol),
+        wall,
+        strut,
+        placed_segment_spec(seg, place, normal, q, q, tol),
+        near_cap,
+        tol,
+    )?;
+    let wall_key = face_surface_key(body, turn.wall);
+    swept::describe_seam(body, turn.strut, wall_key, tol)?;
+    Ok(turn)
+}
+
+impl From<swept::FullTurn> for LoopSwept {
+    /// A one-segment loop's sweep products: one wall, led by the strut,
+    /// over the loop's one segment.
+    fn from(turn: swept::FullTurn) -> Self {
+        Self {
+            faces: vec![turn.wall],
+            walls: vec![SideWall {
+                face: turn.wall,
+                strut: turn.strut,
+                segments: vec![0],
+                bottom_rims: vec![turn.near],
+                top_rims: vec![turn.far],
+            }],
+            top_rims: vec![turn.far],
+        }
+    }
+}
+
 /// One loop's sweep products, in swept order (see [`sweep_loop`]).
 struct LoopSwept {
     /// Side-wall faces, one per segment (a run's segments share one).
@@ -1495,7 +1657,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // tilt, and the wedge is metered as `sin θ` over a rim the
         // profile door floors at `K·ε`. An ARC leg's wall is a cylinder
         // whose axis is `±n` on both doors ([`side_surface`];
-        // `work/carve/extrude-arc-walls-are-ruled-in-n-not-w.md` would
+        // `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
         // move it), so it is perpendicular to the cap at every rim
         // point and never reads smooth. `fillet_h6_cap_rim` measures
         // both facts.

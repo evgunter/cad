@@ -2126,10 +2126,35 @@ pub fn walked_chains(
     size: f64,
     band: Band,
 ) -> Vec<Chain<f64>> {
-    let links = edges
+    walked_links(resolved_links(body, edges, size, band))
+}
+
+/// **`edges` resolved as fillet links of `size`**, in request order —
+/// [`walked_chains`]' first half, for a suite that edits a link's
+/// incidence before walking it ([`walked_links`]).
+///
+/// # Panics
+///
+/// If an edge does not resolve to a link.
+#[must_use]
+pub fn resolved_links(
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    size: f64,
+    band: Band,
+) -> Vec<Link<f64>> {
+    edges
         .iter()
         .map(|&e| resolve_link(body, e, size, band, BlendKind::Fillet))
         .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"));
+        .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"))
+}
+
+/// **The battery's walk over `links` as given** — the incidence a
+/// suite hands in, which no body need carry. The walk reads a link's
+/// `start` and `end` and nothing else, so a row can state an incidence
+/// no door builds yet.
+#[must_use]
+pub fn walked_links(links: Vec<Link<f64>>) -> Vec<Chain<f64>> {
     walk_chains(links)
 }

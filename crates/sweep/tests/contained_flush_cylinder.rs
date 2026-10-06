@@ -31,3 +31,41 @@ fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     );
     assert_eq!(topo::validate_geometric(&union.body, tol), Ok(()));
 }
+
+/// **A carried edge-edge row on an arc refuses at the door**: edge-split
+/// lineage reads each edge of the row as the segment between its ends,
+/// which only a line edge is. Two arcs of the cylinder's top cap, carried
+/// as an edge-edge row, refuse typed before any op runs. Red when the
+/// door admits a curved edge-edge row.
+#[test]
+fn a_carried_edge_edge_row_on_an_arc_refuses_at_the_door() {
+    let tol = Tol::witness();
+    let block = topo::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol);
+    let block = finished("the block", block, tol);
+    let cylinder = finished("the cylinder", disc_of_arcs(3, 0.5, 1.0, tol), tol);
+    let arcs: Vec<topo::EdgeKey> = cylinder
+        .edges()
+        .filter(|&(k, _)| {
+            topo::readback::edge_carrier_kind(&cylinder, k)
+                .is_ok_and(|c| c == geom::CurveKind::Circle)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert!(arcs.len() >= 2, "the caps are rings of arcs");
+    let mut decls = declare_all(&find_flush_candidates(&cylinder, &block, tol).expect("decides"));
+    decls.carried_a.ee = vec![topo::EeContact {
+        a: arcs[0],
+        b: arcs[1],
+    }];
+    let got = union_with(&cylinder, &block, &decls, tol).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(topo::BooleanError::InvalidDeclaration {
+                operand: topo::Operand::A,
+                what: "carried e-e edge is not a certified line",
+            })
+        ),
+        "{got:?}"
+    );
+}

@@ -2,10 +2,11 @@
 id: blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex
 kind: issue
 title: A shaft ending inside a full-turn bore refuses in the REST zip - ChordEndpointRevisited (a seam chord's end on the bore's self-mated seam) or ChordBetweenIsolatedPierces
-status: open
+status: parked
 opened: 2026-10-02
 priority: P0
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -106,3 +107,7 @@ orders, and the 1e-9, 1e-6 and 1e-12 rows.
   `HalfGerm.he`, and `undo_struts` removes the struts. `mint_chord`
   then lists the face's halves at `u` (`halves_at`); `u` has two, and
   nothing it reads tells them apart.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.

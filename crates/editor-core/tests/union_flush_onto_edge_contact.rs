@@ -73,6 +73,47 @@ fn the_union_node_folds_a_flush_partner_onto_the_edge_contact() {
     }
 }
 
+/// **`Node::Union` publishes one table in every member order.** For
+/// each span of `c`, every member order names every entity of the union
+/// alike, each name denoting the same geometry
+/// (`emit_union_rim_piece_ranks::signature`). The bodies are one complex
+/// in every order (maximal edges), and the names are read off it: the
+/// flush rims `a` and `b` share are each one edge named for the set of
+/// their two rims, and a vertex where `c` touches one cites the rim it
+/// lies on.
+#[test]
+fn the_union_node_publishes_one_table_in_every_member_order() {
+    for span in C_SPANS {
+        let mut tables = Vec::new();
+        for order in ORDERS {
+            let (doc, ids) = blocks(span);
+            let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
+            let pairs = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]));
+            let (doc, union) = declared_union(doc, &members, pairs);
+            let ev = run(&doc);
+            let label = order.map(|i| NAMES[i]);
+            assert!(failure(&ev, union).is_none(), "{label:?}");
+            tables.push((
+                label,
+                crate::emit_union_rim_piece_ranks::signature(&ev, union),
+            ));
+        }
+        let joined = tables[0]
+            .1
+            .keys()
+            .filter(|n| {
+                n.kind == editor_core::EntityKind::Edge
+                    && matches!(n.path.as_slice(), [RoleSeg::Merged(_)])
+            })
+            .count();
+        assert!(joined >= 3, "c over {span:?}: {joined} set-named edges");
+        let (first_at, first) = &tables[0];
+        for (at, table) in &tables[1..] {
+            assert_eq!(first, table, "c over {span:?}: {first_at:?} against {at:?}");
+        }
+    }
+}
+
 /// **Two chained pair unions build in every order.** The flush pair
 /// is declared at whichever union joins `a` and `b`: between the two
 /// blocks when they are its operands, and between the inner union's
