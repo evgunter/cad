@@ -3383,7 +3383,6 @@ fn import_report_row_tags_are_stable() {
             NormalizationKind::DegenerateApexCone,
             "degenerate_apex_cone",
         ),
-        (NormalizationKind::FullPeriodTorus, "full_period_torus"),
         (
             NormalizationKind::SeamlessPeriodicBand,
             "seamless_periodic_band",
@@ -5524,7 +5523,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "degenerate_apex_cone",
             "edge_free_sphere",
-            "full_period_torus",
             "seamless_periodic_band",
             "surface_promotion",
         ],

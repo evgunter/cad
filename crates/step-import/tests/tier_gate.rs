@@ -504,7 +504,7 @@ const CORPUS: [(&str, Disposition); 75] = [
         Pass(1, 1, 14, 32, 20),
     ),
     ("tests/fixtures/freecad/sphere.step", Pass(1, 1, 2, 2, 2)),
-    ("tests/fixtures/freecad/torus.step", Pass(1, 1, 2, 4, 2)),
+    ("tests/fixtures/freecad/torus.step", Pass(1, 1, 1, 2, 1)),
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),

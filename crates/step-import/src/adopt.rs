@@ -546,7 +546,11 @@ fn adopt_edges(
                         | Surface::Torus { .. }
                 )
             });
-            if periodic {
+            // A wrap edge is a fact about one face: both its uses bound
+            // it (D1). Two faces on one surface meet at an ordinary
+            // edge, which takes the conventional rung below.
+            let (f_plus, f_minus) = sides.faces();
+            if periodic && f_plus == f_minus {
                 candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
             }
         }

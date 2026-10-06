@@ -334,11 +334,6 @@ impl<T: SpanLocate> LoopEdge<T> {
         self.carrier.eval(self.t1)
     }
 
-    /// The vertex tag at the interval start `t0` (`he_plus` start).
-    pub(crate) fn tag_at_t0(&self) -> u32 {
-        if self.forward { self.start } else { self.end }
-    }
-
     /// The carrier points at the edge's TRAVERSAL ends, in traversal
     /// order — `(p0, p1)` forward, swapped otherwise, the geometric
     /// twin of the `(start, end)` tag pair.

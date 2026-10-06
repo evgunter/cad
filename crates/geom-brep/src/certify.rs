@@ -63,7 +63,7 @@ use crate::description::{
 use crate::dihedral::{
     DihedralClass, WedgeEscalation, decide, decide_positive, decide_reported, wedge_decided,
 };
-use crate::implicit::{implicit_residual, seam_frame};
+use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 use crate::recourse::{
@@ -169,14 +169,6 @@ pub enum CertCheck {
     /// the fenced scaffolding arm's meter, the one conventional
     /// residual that has no chart to state itself against (D3).
     MappedSource,
-    /// Chart, periodic-seam obligation: the out-of-halfplane component
-    /// `|w · v_ref|` at a sample.
-    SeamHalfplane,
-    /// Chart, periodic-seam obligation: the wrong-side excess
-    /// `max(0, −w · u_ref)` at a sample (distinguishes the seam from
-    /// the antipodal meridian — the unified meter alone cannot, since
-    /// the antipodal ruling IS a chart image of the same surface).
-    SeamSide,
     /// The **mint step** of the collapsed conventional description
     /// (D4): deriving the chart image the meter is stated against.
     /// Not a sampled check — like [`CertCheck::ParamSpan`] it runs
@@ -239,12 +231,10 @@ pub enum CertCheck {
 ///
 /// **The word carries the KIND of quantity the check meters**, because
 /// the sentence cannot. [`CertifyError::ResidualExceeded`] wrote the
-/// noun itself — "{check} residual at sample …" — for all fifteen
-/// checks that reach it, and five of them meter no residual:
+/// noun itself — "{check} residual at sample …" — for all thirteen
+/// checks that reach it, and three of them meter no residual:
 /// [`CertCheck::TangentHull`] and [`CertCheck::PlaneNurbsHull`] are sup
-/// bounds, [`CertCheck::TangentParallel`] a parallelism defect,
-/// [`CertCheck::SeamHalfplane`] a component and [`CertCheck::SeamSide`]
-/// an excess. A noun owned by the sentence is a noun the sentence
+/// bounds, and [`CertCheck::TangentParallel`] a parallelism defect. A noun owned by the sentence is a noun the sentence
 /// cannot get right for every check that reaches it.
 impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -266,8 +256,6 @@ impl core::fmt::Display for CertCheck {
             Self::TangentHull => "the between-samples sag bound",
             Self::TangentTube => "the second-order tube bound",
             Self::MappedSource => "the mapped-source residual",
-            Self::SeamHalfplane => "the out-of-halfplane component",
-            Self::SeamSide => "the wrong-side seam excess",
             Self::ChartImage => "the chart-image mint",
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
@@ -769,8 +757,6 @@ impl CertCheck {
             | Self::WitnessMidpoint
             | Self::TangentParallel
             | Self::MappedSource
-            | Self::SeamHalfplane
-            | Self::SeamSide
             | Self::ChartResidual => Ending::Unsized(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
             // A fold over samples that each decided transverse: a poison
@@ -1170,8 +1156,6 @@ impl<T: Decide> EdgeCurve<T> {
     ///      edge's honest extent ([`edge_extent`] — carrier diameter,
     ///      not the collapsing chord, for closed circle carriers).
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
-    ///    - a `Chart` curve flagged `seam`: implicit residual, halfplane
-    ///      residual `|w·v_ref|`, wrong-side excess `max(0, −w·u_ref)`.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
@@ -1689,15 +1673,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // land a few ulps away from it.
                 EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                     surface: c.surface,
-                    // A seam names its chart and nothing else, so the
-                    // child re-derives its image there exactly as the
-                    // parent did (the mint reads the carrier, which
-                    // the split does not change — same bits). Every
-                    // other image is a function of the carrier's own
-                    // parameter, so the sub-arc's image IS the
-                    // parent's: stated exactly rather than
-                    // re-derived a few ulps away from it.
-                    image: if c.seam { None } else { Some(c.pcurve.clone()) },
+                    image: Some(c.pcurve.clone()),
                     seam: c.seam,
                     declared: match self.authority {
                         EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
@@ -1741,13 +1717,9 @@ impl<T: Real> EdgeCurve<T> {
     /// a spec from a certified edge goes through (a transplant, a
     /// re-anchor, a re-certification at rest).
     ///
-    /// A chart image travels EXACTLY: restating a description must
-    /// re-meter the image the edge already carries, never derive a
-    /// second one and meter that. A SEAM image is the one exception
-    /// and for the opposite reason — a seam names its chart and
-    /// nothing else, so its image is whatever that chart's own mint
-    /// makes it, which is what keeps a seam a seam when the chart
-    /// underneath it moves.
+    /// A chart image travels EXACTLY, a wrap edge's included: restating
+    /// a description must re-meter the image the edge already carries,
+    /// never derive a second one and meter that.
     #[must_use]
     pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
         let declared = match self.authority {
@@ -1763,7 +1735,7 @@ impl<T: Real> EdgeCurve<T> {
             }
             EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
-                image: if c.seam { None } else { Some(c.pcurve.clone()) },
+                image: Some(c.pcurve.clone()),
                 seam: c.seam,
                 declared,
             },
@@ -2189,32 +2161,28 @@ fn run_checks<T: Decide>(
             }
         }
         EdgeDescriptionSpec::Scaffold(mc) => Resolved::Scaffold(mc),
-        // The chart arm resolves through the door its IMAGE needs. A
-        // seam's image is derived from the analytic chart machinery,
-        // so its surface must BE analytic and periodic — the plane is
-        // the one non-periodic analytic kind (`Nurbs` already
-        // rejected above). An image the construction states is
-        // evaluated on the chart itself, so a described spline chart
-        // is exactly what it needs and is admitted here and nowhere
-        // else (the mvfs placeholder, an all-poison control, is not a
-        // described surface and keeps refusing).
+        // The chart arm resolves through the door its IMAGE needs. An
+        // image the construction states is evaluated on the chart
+        // itself, so a described spline chart is exactly what it needs
+        // and is admitted here and nowhere else (the mvfs placeholder,
+        // an all-poison control, is not a described surface and keeps
+        // refusing); a derived image comes from the analytic chart
+        // machinery. A wrap edge names a chart that closes on itself,
+        // which the plane never does.
         EdgeDescriptionSpec::Chart {
             surface,
             ref image,
             seam,
             ref declared,
         } => {
-            let s = if seam {
-                let s = resolve(surface)?;
-                if matches!(s, Surface::Plane { .. }) {
-                    return Err(CertifyError::SeamOnNonPeriodic);
-                }
-                s
-            } else if image.is_some() {
+            let s = if image.is_some() {
                 resolve_iso(surface)?
             } else {
                 resolve(surface)?
             };
+            if seam && matches!(s, Surface::Plane { .. }) {
+                return Err(CertifyError::SeamOnNonPeriodic);
+            }
             Resolved::Chart {
                 surface: s,
                 key: surface,
@@ -2704,10 +2672,7 @@ fn run_checks<T: Decide>(
             // (`sweep/src/revolve/upgrade.rs:219`) mints exact seams
             // and is unaffected, which the whole-body batteries show.
             Resolved::Chart {
-                surface,
-                seam,
-                declared,
-                ..
+                surface, declared, ..
             } => {
                 let Some(chart) = canonical.chart() else {
                     return Err(CertifyError::Unimplemented);
@@ -2743,34 +2708,6 @@ fn run_checks<T: Decide>(
                         CertCheck::MappedSource,
                         i,
                         Margin::of(p.distance(mc.eval(frac))),
-                        band,
-                        &mut max_residual,
-                    )?;
-                }
-                // D1's retained obligation. The unified meter cannot
-                // see the difference between a seam meridian and its
-                // antipode — both ARE chart images of the same
-                // surface, and the meter is satisfied by either — so a
-                // chart image that claims to be THE seam owes the two
-                // half-plane/side predicates as well. They are an
-                // obligation on periodic charts, never a second form.
-                //
-                // seam_frame is Some: plane and Nurbs were rejected in
-                // check 1, and every remaining kind is axisymmetric.
-                if *seam && let Some((w, u_ref, v_ref)) = seam_frame(surface, p) {
-                    check_residual(
-                        "carrier_in_seam_halfplane",
-                        CertCheck::SeamHalfplane,
-                        i,
-                        Margin::of(w.dot(v_ref)),
-                        band,
-                        &mut max_residual,
-                    )?;
-                    check_residual(
-                        "carrier_on_seam_side",
-                        CertCheck::SeamSide,
-                        i,
-                        Margin::of((T::zero() - w.dot(u_ref)).max(T::zero())),
                         band,
                         &mut max_residual,
                     )?;
@@ -3156,8 +3093,6 @@ mod tests {
         CertCheck::TangentHull,
         CertCheck::TangentTube,
         CertCheck::MappedSource,
-        CertCheck::SeamHalfplane,
-        CertCheck::SeamSide,
         CertCheck::ChartImage,
         CertCheck::ChartResidual,
         CertCheck::PlaneNurbsOnLocus,
@@ -3182,32 +3117,30 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 26,
-            CertCheck::ParamWinding => 26,
-            CertCheck::EndpointStart => 26,
-            CertCheck::EndpointEnd => 26,
-            CertCheck::Surface1Residual => 26,
-            CertCheck::Surface2Residual => 26,
-            CertCheck::WitnessSurface1 => 26,
-            CertCheck::WitnessSurface2 => 26,
-            CertCheck::WitnessMidpoint => 26,
-            CertCheck::Transversality => 26,
-            CertCheck::TransversalityArm => 26,
-            CertCheck::TangentPlanes => 26,
-            CertCheck::TangentParallel => 26,
-            CertCheck::TangentSecondOrder => 26,
-            CertCheck::TangentHull => 26,
-            CertCheck::TangentTube => 26,
-            CertCheck::MappedSource => 26,
-            CertCheck::SeamHalfplane => 26,
-            CertCheck::SeamSide => 26,
-            CertCheck::ChartImage => 26,
-            CertCheck::ChartResidual => 26,
-            CertCheck::PlaneNurbsOnLocus => 26,
-            CertCheck::PlaneNurbsHull => 26,
-            CertCheck::PlaneNurbsReportedTransversality => 26,
-            CertCheck::PlaneNurbsChartSpeed => 26,
-            CertCheck::PlaneNurbsChartSpeedBound => 26,
+            CertCheck::ParamSpan => 24,
+            CertCheck::ParamWinding => 24,
+            CertCheck::EndpointStart => 24,
+            CertCheck::EndpointEnd => 24,
+            CertCheck::Surface1Residual => 24,
+            CertCheck::Surface2Residual => 24,
+            CertCheck::WitnessSurface1 => 24,
+            CertCheck::WitnessSurface2 => 24,
+            CertCheck::WitnessMidpoint => 24,
+            CertCheck::Transversality => 24,
+            CertCheck::TransversalityArm => 24,
+            CertCheck::TangentPlanes => 24,
+            CertCheck::TangentParallel => 24,
+            CertCheck::TangentSecondOrder => 24,
+            CertCheck::TangentHull => 24,
+            CertCheck::TangentTube => 24,
+            CertCheck::MappedSource => 24,
+            CertCheck::ChartImage => 24,
+            CertCheck::ChartResidual => 24,
+            CertCheck::PlaneNurbsOnLocus => 24,
+            CertCheck::PlaneNurbsHull => 24,
+            CertCheck::PlaneNurbsReportedTransversality => 24,
+            CertCheck::PlaneNurbsChartSpeed => 24,
+            CertCheck::PlaneNurbsChartSpeedBound => 24,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -3411,8 +3344,13 @@ mod tests {
         for i in 0..CERT_SAMPLES {
             let p = spec.carrier.eval(sample_param(t0, t1, i));
             m = m.max(implicit_residual(surface, p).abs());
-            if let Some((w, u_ref, v_ref)) = seam_frame(surface, p) {
-                m = m.max(w.dot(v_ref).abs());
+            if let Surface::Cylinder {
+                origin, axis, u_ref, ..
+            } = *surface
+            {
+                let d = p - origin;
+                let w = d - axis * d.dot(axis);
+                m = m.max(w.dot(axis.cross(u_ref)).abs());
                 m = m.max((0.0 - w.dot(u_ref)).max(0.0).abs());
             }
         }
@@ -4315,9 +4253,11 @@ mod tests {
     }
 
     #[test]
-    fn seam_certifies_on_cylinder_and_rejects_antiseam() {
-        // Cylinder about +z through the origin, seam (u_ref) at +x: the
-        // seam ruling is the line x = r, y = 0.
+    fn a_wrap_edge_certifies_wherever_the_construction_cut() {
+        // Cylinder about +z through the origin, u_ref at +x. A wrap
+        // edge sits where its construction cut the wall (D1), so the
+        // ruling at u = 0 and its antipode both certify; a ruling off
+        // the surface does not.
         let r = 2.0;
         let (keys, lookup) = table(vec![Surface::Cylinder {
             origin: Point3::origin(),
@@ -4338,22 +4278,30 @@ mod tests {
         };
         EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band()).unwrap();
 
-        // The antipodal ruling (x = −r) is on the surface and in the
-        // seam plane, but on the wrong side: the side check has teeth.
         let q0 = Point3::new(-r, 0.0, 0.0);
         let q1 = Point3::new(-r, 0.0, 3.0);
-        let mut bad = spec.clone();
-        bad.carrier = Curve3::Line {
+        let mut antipode = spec.clone();
+        antipode.carrier = Curve3::Line {
             origin: q0,
             dir: Vec3::unit_z(),
         };
-        let err = EdgeCurve::certify(bad, q0, q1, &lookup, band()).unwrap_err();
-        assert_eq!(
-            err,
-            CertifyError::ResidualExceeded {
-                check: CertCheck::SeamSide,
-                sample: 0
-            }
+        let cut = EdgeCurve::certify(antipode, q0, q1, &lookup, band()).unwrap();
+        let chart = cut.description().chart().expect("a wrap edge is a chart image");
+        assert!(chart.seam, "the antipodal ruling carries the wrap flag");
+        assert!(
+            (chart.pcurve.eval(0.0).x - core::f64::consts::PI).abs() < 1e-12,
+            "its image is the iso line at its own chart u: {:?}",
+            chart.pcurve.eval(0.0)
+        );
+        let (o0, o1) = (Point3::new(r + 1.0, 0.0, 0.0), Point3::new(r + 1.0, 0.0, 3.0));
+        let mut off = spec.clone();
+        off.carrier = Curve3::Line {
+            origin: o0,
+            dir: Vec3::unit_z(),
+        };
+        assert!(
+            EdgeCurve::certify(off, o0, o1, &lookup, band()).is_err(),
+            "a ruling off the cylinder is no image of it"
         );
 
         // A seam on a plane is malformed.
@@ -5226,8 +5174,6 @@ mod tests {
             (CertCheck::TangentHull, LastResort),
             (CertCheck::TangentTube, Sized(Positive)),
             (CertCheck::MappedSource, Defect),
-            (CertCheck::SeamHalfplane, Defect),
-            (CertCheck::SeamSide, Defect),
             (CertCheck::ChartResidual, Defect),
             (CertCheck::ChartImage, Defect),
             (CertCheck::PlaneNurbsOnLocus, LastResort),

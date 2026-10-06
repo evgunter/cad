@@ -1045,9 +1045,11 @@ pub enum ValidationError {
         /// The re-certification failure.
         error: CertifyError,
     },
-    /// Tier 3: an `Intersection`/`Seam` description's surface keys are
-    /// not the edge's two adjacent faces' surfaces (D2 adjacency
-    /// coherence — an intersection edge's surfaces are its faces').
+    /// Tier 3: an edge's description is incoherent with the faces it
+    /// bounds (D2 adjacency coherence): an intersection's surface keys
+    /// are not its two faces' surfaces, a chart image names neither, or
+    /// a wrap edge's two halves bound two faces (D1: a wrap edge is
+    /// where ONE face's chart closes on itself).
     DescriptionNotAdjacent {
         /// The edge whose description is incoherent with its faces.
         edge: EdgeKey,
@@ -2686,8 +2688,6 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::TangentParallel
         | CertCheck::TangentHull
         | CertCheck::MappedSource
-        | CertCheck::SeamHalfplane
-        | CertCheck::SeamSide
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
         | CertCheck::PlaneNurbsHull => {
@@ -3345,8 +3345,9 @@ impl fmt::Display for ValidationError {
             }
             Self::DescriptionNotAdjacent { .. } => write!(
                 f,
-                "an edge's description names surfaces that are not its two faces' \
-                 surfaces. {DEFECT}"
+                "an edge's description does not fit the faces it bounds: it names surfaces \
+                 other than theirs, or calls the edge the place where one face closes on \
+                 itself while its two sides bound two faces. {DEFECT}"
             ),
             Self::PlanarFaceResidual { .. } => write!(
                 f,
@@ -4070,9 +4071,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    fixed schedule, transversality for `Intersection` — with the same
 ///    deterministic sampling as at attachment
 ///    ([`ValidationError::EdgeCertification`]); then the
-///    **description-adjacency coherence** check: an
-///    `Intersection`/`Seam` description's surfaces must be exactly the
-///    edge's two faces' surfaces
+///    **description-adjacency coherence** check: an `Intersection`
+///    description's surfaces must be exactly the edge's two faces'
+///    surfaces, a chart image must name one of them, and a wrap edge's
+///    two halves must bound one face
 ///    ([`ValidationError::DescriptionNotAdjacent`]).
 /// 3. **Planar-face residuals** (faces, arena order; per face the outer
 ///    loop then rings in list order, vertices in cycle order): every
@@ -5827,11 +5829,12 @@ pub(crate) fn tier3_local_checks_marked<
             // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'
             // surfaces — a wall–wall seam is the u-boundary iso of
-            // either wall, and the minted convention names one. An
-            // image that claims to BE the chart's parameterization
-            // seam owes more: both sides of a seam are one surface.
+            // either wall, and the minted convention names one. A wrap
+            // edge owes more (D1): both its halves bound ONE face, the
+            // face whose chart closes across it.
             geom_brep::EdgeDescription::Chart(c) if c.seam => {
-                c.surface == fs_plus && c.surface == fs_minus
+                let (f_plus, f_minus) = sides.faces();
+                c.surface == fs_plus && f_plus == f_minus
             }
             geom_brep::EdgeDescription::Chart(c) => c.surface == fs_plus || c.surface == fs_minus,
             // A scaffold names no surface; the fence above is the
