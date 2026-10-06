@@ -23,7 +23,9 @@ confirms it stale where the edges do not meet.
 A boolean takes an operand's own records back in through
 `CarriedContacts`, which holds `vv`, `vf` and `ve` rows and no `ee`
 rows, so an edge-edge record on an operand does not re-enter the next
-op. Nothing reaches this today: no output stage runs the join yet.
+op. Nothing reached this when it was filed, since no output stage ran
+the join yet; step 2 (PR 4140) wires the join into every output stage
+and closes this row with it.
 
 ## Owed (with step 2, the join at every output stage)
 

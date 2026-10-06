@@ -2,7 +2,8 @@
 //! [`intersect`], [`subtract`] — functional (operands untouched),
 //! composing reduce → classify (PR 4) → join → `setopfinish` → the
 //! combine door → seam zip → the `merge_coplanar_faces` output stage
-//! (F7) → tier gates. Every stage's refusal passes through typed as a
+//! (F7) → the edge join (maximal edges) → the records' carriage → tier
+//! gates. Every stage's refusal passes through typed as a
 //! [`BooleanError`] variant.
 //!
 //! # Results (F8)
@@ -57,15 +58,26 @@
 //! cross-operand *numeric* coplanarity is honestly left unmerged (the
 //! coincidence ladder has no numeric rung).
 //!
+//! After the merge and its re-description, every output stage (the
+//! seamed path, the graft and single-operand fallbacks, the declared
+//! REST lane) runs the edge join ([`super::edge_join::join_stage`]): a
+//! vertex of valence 2 between the same two planar faces on one line is
+//! joined away, so every result has maximal edges (`docs/DESIGN.md`,
+//! the merge stage). Each join writes its substitution rows into the
+//! op's descendant map before the records are carried.
+//!
 //! # Carried contacts
 //!
 //! Result bodies carry the contact records, discovered and carried, in
 //! result keys, through one substitution door ([`carry`]): B-side keys
 //! cross by the combine door's graft map, and a record whose cell an op
-//! replaced names the replacement. A record leaves only where its cell
-//! left the result (a contact between A and B is only meaningful in a
-//! result holding both sides), or where its two cells became one or
-//! incident, which is structure.
+//! replaced names the replacement: a zip's survivor, the merge's kept
+//! face, the edge a join made, or the chord the join minted along an
+//! edge it then dropped. A record leaves only where its cell left the
+//! result with no such row (a contact between A and B is only
+//! meaningful in a result holding both sides), or where its two cells
+//! became one, incident, or a pair no record kind stores, which is
+//! structure ([`record`]'s arms say which and why).
 //!
 //! # Known limitations (PR 5.5 — the honest envelope)
 //!
@@ -3024,10 +3036,12 @@ type End = (Operand, Cell);
 /// cell an op replaced now names the replacement: a fused vertex its
 /// survivor, an absorbed face its kept face, a zipped ring edge its
 /// seam edge, a cell the merge swallowed the face it lies in, a joined
-/// vertex or edge the edge the join made. A record is never re-derived
-/// from geometry, and leaves only where its cell left the result (a
-/// discarded fragment) or where its two cells became one or incident,
-/// which is structure.
+/// vertex or edge the edge the join made, an edge the op dropped the
+/// chord the join minted along it ([`Descendants::live`]). A record is
+/// never re-derived from geometry, and leaves only where its cell left
+/// the result with no such row (a discarded fragment), or where its two
+/// cells became one, incident, or a pair no record kind stores, which
+/// is structure ([`record`]).
 ///
 /// **Vertex records are carried as groups.** Records that share a
 /// vertex end, discovered and carried alike, are one group, closed

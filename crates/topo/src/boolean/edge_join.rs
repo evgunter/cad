@@ -143,7 +143,9 @@ fn joinable<T: Real>(
 }
 
 /// Every joinable vertex of `body`, in vertex-arena order: the vertices
-/// an op's output must not hold (maximal edges).
+/// an op's output must not hold (maximal edges). Planar only today: a
+/// valence-2 vertex between curved faces is neither listed nor joined
+/// (`work/fuse/curved-joinable-vertices-are-left-unjoined.md`).
 pub fn joinable_vertices<T: Real>(body: &Body<T>) -> Vec<VertexKey> {
     let starts = starts(body);
     body.vertices()
