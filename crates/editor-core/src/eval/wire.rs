@@ -509,7 +509,8 @@ where
             .unplaced
             .iter()
             .map(|row| {
-                let (route, (group, cause), held) = row.through(id);
+                let (route, crate::assembly::UnplacedGroup { group, cause }, held) =
+                    row.through(id);
                 crate::assembly::CarriedUnplaced {
                     route,
                     group,

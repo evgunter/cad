@@ -109,9 +109,10 @@ impl Say for ExportError {
                 for (node, group, cause) in parts {
                     write!(
                         f,
-                        " {} (its group, rooted at {}, is unplaced because {cause});",
+                        " {} (its group, rooted at {}, is unplaced because {});",
                         by.node(*node),
-                        by.node(*group)
+                        by.node(*group),
+                        Said(cause, by)
                     )?;
                 }
                 write!(
@@ -145,7 +146,9 @@ impl Say for ExportError {
     }
 }
 
-/// The sentence where no document is at hand: each node by its tag.
+/// The sentence where no document is at hand: this document's nodes
+/// by their tags, and each group below as its own `Display` says it
+/// ([`CarriedUnplaced`]).
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::TAG)

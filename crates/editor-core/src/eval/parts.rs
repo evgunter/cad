@@ -91,6 +91,12 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// seam with its geometry, in the same keys), and the MATE BOOKKEEPING
 /// that says whose declaration each record is and which of the
 /// document's mates it could not mint at all.
+///
+/// Each of the three row lists (`minted`, `unminted`, `unplaced`) is
+/// the referenced document's OWN rows first, then what it carried up
+/// from ITS parts, each as a [`PartRow`] that already holds the
+/// document's nodes it names. Instantiation adds its own instance to
+/// the route; nothing below is re-read.
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
@@ -99,12 +105,6 @@ pub(crate) struct PartValue<T: Decide> {
     /// records, keyed in the same arena the records are. The records
     /// already crossed the seam; without these rows a finding against
     /// one names nobody.
-    ///
-    /// Each of these three lists is the referenced document's OWN rows
-    /// first, then what it carried up from ITS parts, each as a
-    /// [`PartRow`] that already holds the document's nodes it names.
-    /// Instantiation adds its own instance to the route; nothing below
-    /// is re-read.
     pub minted: Arc<Vec<PartRow<crate::assembly::MintedDeclaration>>>,
     /// The MINT REFUSALS: mates that could not be minted at all.
     /// Carried because inner mint health is the outermost gate's
@@ -114,7 +114,7 @@ pub(crate) struct PartValue<T: Decide> {
     /// The UNPLACED GROUPS, by root, with their causes, in their
     /// documents' order: material a world product leaves out (A9),
     /// which the instantiating document must still be able to name.
-    pub unplaced: Arc<Vec<PartRow<(RecipeNodeId, crate::mate::Unplaced)>>>,
+    pub unplaced: Arc<Vec<PartRow<crate::assembly::UnplacedGroup>>>,
     /// How many parts the referenced document's product is: its
     /// distinct root outputs ([`crate::product::Product::solid_roots`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -727,13 +727,24 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         let unplaced = evaluation
             .unplaced_groups(doc)
             .into_iter()
-            .map(|group| PartRow::own(doc, doc_ref.id, group))
-            .chain(
-                evaluation
-                    .all_unplaced_below()
-                    .into_iter()
-                    .map(|row| PartRow::below(doc, row.route, (row.group, row.cause), row.held)),
-            )
+            .map(|(group, cause)| {
+                PartRow::own(
+                    doc,
+                    doc_ref.id,
+                    crate::assembly::UnplacedGroup { group, cause },
+                )
+            })
+            .chain(evaluation.all_unplaced_below().into_iter().map(|row| {
+                PartRow::below(
+                    doc,
+                    row.route,
+                    crate::assembly::UnplacedGroup {
+                        group: row.group,
+                        cause: row.cause,
+                    },
+                    row.held,
+                )
+            }))
             .collect();
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and

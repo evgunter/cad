@@ -446,9 +446,10 @@ impl crate::spoken::Say for PoseRefusal {
             } => write!(
                 f,
                 "{} has no world pose: its group (rooted at {}) is unplaced, \
-                 because {cause}. {}",
+                 because {}. {}",
                 by.node_as(*instance, "instance"),
                 by.node(*group),
+                Said(cause, by),
                 crate::sentence::Recourse(UNPLACED_RECOURSE)
             ),
             Self::Placement { node, error } => write!(

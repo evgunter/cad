@@ -104,6 +104,23 @@ pub struct MintedDeclaration {
     pub faces: (FaceKey, FaceKey),
 }
 
+// The declaration as a finding names it: its mate and its class. A
+// carried row keeps the nodes this sentence names ([`PartRow::own`]).
+impl crate::spoken::Say for MintedDeclaration {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "{}'s declared {} contact",
+            by.node_as(self.mate, "mate"),
+            self.class.name()
+        )
+    }
+}
+
 /// How a row of another document's reached THIS document: the
 /// instantiating node here, the document the row is of, and the
 /// instantiating nodes in between.
@@ -190,37 +207,12 @@ pub(crate) struct PartRow<B> {
     held: Arc<HeldNodes>,
 }
 
-/// What a row's body names in its document, kept beside it
-/// ([`PartRow`]).
-pub(crate) trait RowBody {
-    /// `self`'s nodes as `doc`, the document its ids are numbered in,
-    /// holds them.
-    fn held_in<P>(&self, doc: &Doc<P>) -> HeldNodes;
-}
-
-impl RowBody for MintedDeclaration {
-    fn held_in<P>(&self, doc: &Doc<P>) -> HeldNodes {
-        core::iter::once(doc.spoken(self.mate)).collect()
-    }
-}
-
-impl RowBody for MintRefusal {
-    fn held_in<P>(&self, doc: &Doc<P>) -> HeldNodes {
-        crate::spoken::held_by(self, doc)
-    }
-}
-
-impl RowBody for (RecipeNodeId, crate::mate::Unplaced) {
-    fn held_in<P>(&self, doc: &Doc<P>) -> HeldNodes {
-        crate::spoken::held_by(&UnplacedGroup(self.0, &self.1), doc)
-    }
-}
-
-impl<B: RowBody> PartRow<B> {
+impl<B: crate::spoken::Say> PartRow<B> {
     /// `doc`'s own row, reached through no instance of `doc`'s, its
-    /// nodes as `doc` holds them.
+    /// nodes as `doc` holds them: the ones the body's own sentence
+    /// names, the sentence every carrier says it by.
     pub(crate) fn own<P>(doc: &Doc<P>, of: crate::ident::DocumentId, body: B) -> Self {
-        let held = Arc::new(body.held_in(doc));
+        let held = Arc::new(crate::spoken::held_by(&body, doc));
         Self {
             of,
             via: Vec::new(),
@@ -385,7 +377,10 @@ impl crate::spoken::Say for CarriedUnplaced {
             "{}: {}",
             crate::spoken::Said(&self.route, by),
             crate::spoken::Said(
-                &UnplacedGroup(self.group, &self.cause),
+                &UnplacedGroup {
+                    group: self.group,
+                    cause: self.cause,
+                },
                 crate::spoken::Speaker::held(&self.held)
             )
         )
@@ -394,9 +389,15 @@ impl crate::spoken::Say for CarriedUnplaced {
 
 /// A group below and its cause, in its document's ids: what a
 /// [`CarriedUnplaced`] says of `route.of`, and what its `held` keeps.
-struct UnplacedGroup<'a>(RecipeNodeId, &'a crate::mate::Unplaced);
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct UnplacedGroup {
+    /// The group, by its root.
+    pub(crate) group: RecipeNodeId,
+    /// Why nothing places it.
+    pub(crate) cause: crate::mate::Unplaced,
+}
 
-impl crate::spoken::Say for UnplacedGroup<'_> {
+impl crate::spoken::Say for UnplacedGroup {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -405,8 +406,8 @@ impl crate::spoken::Say for UnplacedGroup<'_> {
         write!(
             f,
             "the group rooted at {} is unplaced, because {}",
-            by.node(self.0),
-            crate::spoken::Said(self.1, by)
+            by.node(self.group),
+            crate::spoken::Said(&self.cause, by)
         )
     }
 }
@@ -642,13 +643,7 @@ impl crate::spoken::Say for Attribution {
                        m: &MintedDeclaration,
                        relation: Relation,
                        by: crate::spoken::Speaker<'_>| {
-            write!(
-                f,
-                "{}'s declared {} contact, {}",
-                by.node_as(m.mate, "mate"),
-                m.class.name(),
-                relation.name()
-            )
+            write!(f, "{}, {}", crate::spoken::Said(m, by), relation.name())
         };
         match self {
             Self::Refuted(m) => subject(f, m, Relation::Refuted, by),
@@ -677,7 +672,10 @@ impl crate::spoken::Say for Attribution {
     }
 }
 
-/// The sentence where no document is at hand: each node by its tag.
+/// The sentence where no document is at hand: this document's mate by
+/// its tag, a carried declaration's mate and its route's deeper hops as
+/// their own documents hold them, its route's first instance by its
+/// tag.
 impl core::fmt::Display for Attribution {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -718,7 +716,8 @@ impl crate::spoken::Say for AtRestFinding {
     }
 }
 
-/// The finding where no document is at hand: its mate by tag.
+/// The finding where no document is at hand: its attribution's
+/// ([`Attribution`]'s `Display`).
 impl core::fmt::Display for AtRestFinding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
@@ -1035,9 +1034,10 @@ impl crate::spoken::Say for AssemblyError {
                 refusal,
             } => write!(
                 f,
-                "the own space of the group rooted at {}, unplaced because {cause}, does not \
+                "the own space of the group rooted at {}, unplaced because {}, does not \
                  gather: {}",
                 by.node(*group),
+                crate::spoken::Said(cause, by),
                 crate::spoken::Said(&**refusal, by)
             ),
             Self::Mint { refusals } => {
@@ -1084,7 +1084,9 @@ impl crate::spoken::Say for AssemblyError {
     }
 }
 
-/// The sentence where no document is at hand: each node by its tag.
+/// The sentence where no document is at hand: this document's nodes
+/// by their tags, and each carried row's as its own `Display` says them
+/// ([`CarriedRefusal`], [`Attribution`]).
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
