@@ -196,7 +196,8 @@ fn uncrossable() -> crate::splitting::Uncrossable {
 }
 
 /// Every refusal the solid door can hand the face door's curved reads,
-/// carried as [`ContainError::Curved`]; `Loop` once per loop refusal.
+/// carried as [`ContainError::Curved`]; `Loop` once per loop refusal, and
+/// `OffPlane` once per cause.
 fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
     use crate::boolean::PointInSolidError as S;
     use crate::splitting::{OffPlane, OffPlaneCause, PointInLoopError as L};
@@ -215,7 +216,17 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
         S::Loop(L::Uncrossable(uncrossable())),
         S::Loop(L::OffPlane(OffPlane {
             r#loop,
+            cause: OffPlaneCause::Loop {
+                edge: crate::entity::EdgeKey::default(),
+            },
+        })),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
             cause: OffPlaneCause::Query,
+        })),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
+            cause: OffPlaneCause::NormalNotUnit,
         })),
         S::CorruptFace { face },
         S::KindUnsupported {
@@ -786,8 +797,8 @@ fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
 }
 
 /// `arm/Curved/Loop/Variant`: [`label`] read down the arms that carry a
-/// solid or loop refusal whole, so each carried refusal gets its own
-/// label.
+/// solid or loop refusal whole, and down to an off-plane loop's cause,
+/// so each carried refusal gets its own label.
 fn path_label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
     let debug = format!("{nested:?}");
     let mut path = arm.to_owned();
@@ -800,6 +811,11 @@ fn path_label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
         path = format!("{path}/{head}");
         match rest[head.len()..].strip_prefix('(') {
             Some(inner) if matches!(head.as_str(), "Curved" | "Loop") => rest = inner,
+            // An off-plane loop's refusals differ by cause alone.
+            _ if head == "OffPlane" => match rest.split_once("cause: ") {
+                Some((_, cause)) => rest = cause,
+                None => return path,
+            },
             _ => return path,
         }
     }

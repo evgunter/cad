@@ -2958,9 +2958,14 @@ pub(crate) enum Undecided {
     /// Arm 2: the contained instance has no vertex.
     NoVertex,
     /// Arm 2: the point-in-solid door could not place a vertex near
-    /// the boundary (escalated, every ray grazed, or its loop walk).
+    /// the boundary (escalated, or its loop walk escalated).
     WitnessTooClose,
-    /// Arm 2: an instance of (near-)zero signed volume.
+    /// Arm 2: every ray the point-in-solid door cast grazed, for a
+    /// vertex its pre-pass placed off the boundary.
+    WitnessGrazed,
+    /// Arm 2: an instance of (near-)zero signed volume. Tier 3's +V
+    /// check passes a volume in band of zero, so the part is the
+    /// model's to fix, as tier 3 reads it too.
     ZeroVolume,
     /// Arm 2: an instance whose closed-form volume is uncertified.
     VolumeUncertified,
@@ -2968,6 +2973,9 @@ pub(crate) enum Undecided {
     FaceKindUnsupported,
     /// Arm 2: an instance whose topology the door could not walk.
     CorruptInstance,
+    /// Arm 2: a flat face of an instance the door could not read in
+    /// its own plane.
+    OffPlane,
 }
 
 impl Undecided {
@@ -3093,6 +3101,11 @@ impl Undecided {
                  tolerance. Recourse: move the parts until their bounding boxes no longer \
                  overlap"
             }
+            Self::WitnessGrazed => {
+                "a corner of one is off the other's boundary, but every test ray from it \
+                 grazed that boundary. Recourse: move the parts until their bounding boxes \
+                 no longer overlap"
+            }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \
                  so it encloses a volume"
@@ -3112,6 +3125,10 @@ impl Undecided {
                 "one part's topology could not be walked. ",
                 geom_core::kernel_or_file_defect_ending!()
             ),
+            Self::OffPlane => concat!(
+                "the check could not read a flat face of one in that face's own plane. ",
+                geom_core::kernel_or_file_defect_ending!()
+            ),
         }
     }
 
@@ -3121,9 +3138,8 @@ impl Undecided {
         use crate::boolean::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. }
-            | E::RayExhausted
-            | E::Loop(L::Escalated { .. } | L::RayExhausted { .. }) => Self::WitnessTooClose,
+            E::Escalated { .. } | E::Loop(L::Escalated { .. }) => Self::WitnessTooClose,
+            E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }
@@ -3133,9 +3149,10 @@ impl Undecided {
             | E::EdgeCarrierUnsupported { .. }
             | E::WallOutlineUnsupported { .. }
             | E::Loop(L::Uncrossable(_)) => Self::FaceKindUnsupported,
-            E::CorruptFace { .. }
-            | E::NoSuchSolid { .. }
-            | E::Loop(L::CorruptLoop { .. } | L::OffPlane(_)) => Self::CorruptInstance,
+            E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::Loop(L::CorruptLoop { .. }) => {
+                Self::CorruptInstance
+            }
+            E::Loop(L::OffPlane(_)) => Self::OffPlane,
         }
     }
 }
@@ -5808,8 +5825,9 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    /// A loop refusal the solid door carries reads by its own kind: only
-    /// an in-band or exhausted walk is a witness too close to call.
+    /// A refusal the solid door carries reads by its own kind: only an
+    /// in-band walk is a witness too close to call, and one every ray
+    /// grazed is not.
     #[test]
     fn a_carried_loop_refusal_is_placed_by_its_kind() {
         use crate::boolean::PointInSolidError as E;
@@ -5818,21 +5836,41 @@ mod tests {
         };
         let r#loop = crate::entity::LoopKey::default();
         let read = |e: L| Undecided::of_point_in_solid(&E::Loop(e)).what();
-        assert_eq!(
+        for grazed in [
+            Undecided::of_point_in_solid(&E::RayExhausted).what(),
             read(L::RayExhausted { r#loop }),
+        ] {
+            assert_eq!(grazed, Undecided::WitnessGrazed.what());
+        }
+        assert_eq!(
+            read(L::Escalated {
+                r#loop,
+                diag: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::value(5e-9),
+                    band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
+                    predicate: None,
+                    terminal_sliver: false,
+                },
+            }),
             Undecided::WitnessTooClose.what()
         );
         assert_eq!(
             read(L::CorruptLoop { r#loop }),
             Undecided::CorruptInstance.what()
         );
-        assert_eq!(
-            read(L::OffPlane(OffPlane {
-                r#loop,
-                cause: OffPlaneCause::Query,
-            })),
-            Undecided::CorruptInstance.what()
-        );
+        for cause in [
+            OffPlaneCause::Query,
+            OffPlaneCause::NormalNotUnit,
+            OffPlaneCause::Loop {
+                edge: crate::entity::EdgeKey::default(),
+            },
+        ] {
+            assert_eq!(
+                read(L::OffPlane(OffPlane { r#loop, cause })),
+                Undecided::OffPlane.what(),
+                "{cause:?}"
+            );
+        }
         assert_eq!(
             read(L::Uncrossable(Uncrossable {
                 r#loop,
