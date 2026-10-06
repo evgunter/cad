@@ -507,11 +507,16 @@ fn chord_length_parameters(
     }
     #[allow(clippy::cast_precision_loss)]
     let denom = counted as f64;
+    // Each section's mean is taken as `min + Σ (sᵢ − min) / m` over its
+    // sorted shares: a function of the multiset, and EXACT when the
+    // rows agree (evenly stacked identical sections give every row the
+    // same share, and the mean must not round it to a neighbour).
     let mut params: Vec<f64> = shares
         .iter_mut()
         .map(|s| {
             s.sort_by(f64::total_cmp);
-            s.iter().sum::<f64>() / denom
+            let lo = s.first().copied().unwrap_or(0.0);
+            lo + s.iter().map(|x| x - lo).sum::<f64>() / denom
         })
         .collect();
     // The averaged accumulation pins 0 and 1 in exact arithmetic; make
