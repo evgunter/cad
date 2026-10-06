@@ -49,8 +49,8 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::contain::FaceContainment;
 use super::{BooleanDecision, BooleanError, CrossingDecision, Operand};
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, LoopBoundary};
-use crate::live::{linked, proven};
+use crate::entity::{EntityId, FaceKey};
+use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 use crate::validate::decide;
 
@@ -86,8 +86,8 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 /// # Panics
 ///
 /// Where a record past `face` does not resolve or a loop walk does not
-/// close (D2 row 4): its loops, their members, a member's start point,
-/// edge and curve. `y` is the reduction's working copy, whose links
+/// close (D2 row 4): its loops, a lone vertex's point, their members, a
+/// member's start point, edge and curve. `y` is the reduction's working copy, whose links
 /// hold mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(super) fn boundary_crossing<T: Decide>(
     y: &Body<T>,
@@ -111,28 +111,17 @@ pub(super) fn boundary_crossing<T: Decide>(
             what: "on-carrier crossing: face lost",
         })?;
     let mut candidates: Vec<Point3<T>> = Vec::new();
-    for (_, l) in y.face_loops_linked(face, face_data) {
-        let first = match l.boundary {
-            LoopBoundary::Cycle { first } => first,
-            LoopBoundary::Empty { .. } => return Ok(BoundaryCrossing::Unread),
+    for member in y.face_boundary_linked(face, face_data) {
+        let BoundaryMember::Edge { he, half, ek, edge } = member else {
+            return Ok(BoundaryCrossing::Unread);
         };
-        for he in y.loop_walk(first).closed("loop", first) {
-            let half = proven(&y.half_edges, he, EntityId::HalfEdge);
-            candidates.push(y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start"));
-            let edge = linked(
-                &y.edges,
-                half.edge,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            let CurveGeom::Certified(other) = y.edge_curve_linked(half.edge, edge) else {
-                return Ok(BoundaryCrossing::Unread);
-            };
-            match meetings(carrier, other.carrier(), reach, band)? {
-                Some(points) => candidates.extend(points),
-                None => return Ok(BoundaryCrossing::Unread),
-            }
+        candidates.push(y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start"));
+        let CurveGeom::Certified(other) = y.edge_curve_linked(ek, edge) else {
+            return Ok(BoundaryCrossing::Unread);
+        };
+        match meetings(carrier, other.carrier(), reach, band)? {
+            Some(points) => candidates.extend(points),
+            None => return Ok(BoundaryCrossing::Unread),
         }
     }
     // The first meeting in the boundary's walk order: the sweep splits
@@ -657,6 +646,14 @@ mod crossing_rows {
                 Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
             ),
             "a face the caller passed that does not resolve refuses typed"
+        );
+        let mut torn = body.clone();
+        let named = crate::boolean::torn_hop_rows::tear_ring(&mut torn, face);
+        assert_torn_op_panics(
+            "boundary_crossing (ring)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
         );
         // A member's start, on a span no candidate falls strictly inside:
         // no containment read follows, so the start is the only read that

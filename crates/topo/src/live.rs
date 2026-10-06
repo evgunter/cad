@@ -302,10 +302,16 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
 
 /// One member of a face's boundary ([`Body::face_boundary_linked`]).
 pub(crate) enum BoundaryMember<'a, T: Real> {
-    /// An isolated-vertex loop's point.
-    Isolated(Point3<T>),
-    /// A loop cycle member's edge `ek`, whose record is `edge`.
-    Edge { ek: EdgeKey, edge: &'a Edge },
+    /// An isolated-vertex loop's `vertex`, at `point`.
+    Isolated { vertex: VertexKey, point: Point3<T> },
+    /// A loop cycle member `he`, whose record is `half`, and its edge
+    /// `ek`, whose record is `edge`.
+    Edge {
+        he: HalfEdgeKey,
+        half: &'a HalfEdge,
+        ek: EdgeKey,
+        edge: &'a Edge,
+    },
 }
 
 impl<T: Real> Body<T> {
@@ -365,40 +371,55 @@ impl<T: Real> Body<T> {
     }
 
     /// `face`'s boundary, member by member, in [`Body::face_loops_linked`]'s
-    /// order: each isolated-vertex loop's point, and each closed loop
-    /// cycle member's edge. Every hop is a link, and a loop
-    /// walk that does not close panics ([`crate::body::Walk::closed`]).
+    /// order: each isolated-vertex loop's vertex and point, and each
+    /// closed loop cycle member with its edge. Every hop is a link, and a
+    /// loop walk that does not close panics ([`crate::body::Walk::closed`]).
     pub(crate) fn face_boundary_linked<'a>(
         &'a self,
         face: FaceKey,
         data: &'a Face,
     ) -> impl Iterator<Item = BoundaryMember<'a, T>> + 'a {
+        self.face_boundary_by_loop(face, data)
+            .flat_map(|(_, members)| members)
+    }
+
+    /// [`Body::face_boundary_linked`] a loop at a time: each loop's key
+    /// and its members, so a reader that needs a cycle whole has it.
+    pub(crate) fn face_boundary_by_loop<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = (LoopKey, Vec<BoundaryMember<'a, T>>)> + 'a {
         self.face_loops_linked(face, data)
-            .flat_map(move |(lk, l)| match l.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    vec![BoundaryMember::Isolated(self.linked_vertex_point(
-                        vertex,
-                        EntityId::Loop(lk),
-                        "vertex",
-                    ))]
-                }
-                LoopBoundary::Cycle { first } => self
-                    .loop_walk(first)
-                    .closed("loop", first)
-                    .into_iter()
-                    .map(|he| {
-                        let ek = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
-                        let edge = linked(
-                            &self.edges,
-                            ek,
-                            EntityId::Edge,
-                            EntityId::HalfEdge(he),
-                            "edge",
-                        );
-                        BoundaryMember::Edge { ek, edge }
-                    })
-                    .collect(),
-            })
+            .map(move |(lk, l)| (lk, self.loop_members_linked(lk, l)))
+    }
+
+    /// Loop `lk`'s members (its record is `l`), as
+    /// [`Body::face_boundary_linked`] yields them.
+    pub(crate) fn loop_members_linked(&self, lk: LoopKey, l: &Loop) -> Vec<BoundaryMember<'_, T>> {
+        match l.boundary {
+            LoopBoundary::Empty { vertex } => {
+                let point = self.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex");
+                vec![BoundaryMember::Isolated { vertex, point }]
+            }
+            LoopBoundary::Cycle { first } => self
+                .loop_walk(first)
+                .closed("loop", first)
+                .into_iter()
+                .map(|he| {
+                    let half = proven(&self.half_edges, he, EntityId::HalfEdge);
+                    let ek = half.edge;
+                    let edge = linked(
+                        &self.edges,
+                        ek,
+                        EntityId::Edge,
+                        EntityId::HalfEdge(he),
+                        "edge",
+                    );
+                    BoundaryMember::Edge { he, half, ek, edge }
+                })
+                .collect(),
+        }
     }
 
     /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`

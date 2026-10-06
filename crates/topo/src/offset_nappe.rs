@@ -48,8 +48,8 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EntityId, Face, FaceKey, LoopBoundary};
-use crate::live::{linked, proven};
+use crate::entity::{EntityId, Face, FaceKey};
+use crate::live::{BoundaryMember, proven};
 use crate::replace_face::ReplaceFaceError;
 
 pub use geom_brep::Nappe;
@@ -173,31 +173,59 @@ fn corner_stations<T: Decide>(
     axis: Vec3<T>,
 ) -> (T, T) {
     let station = |p: Point3<T>| (p - apex).dot(axis);
-    let mut stations: Vec<T> = Vec::new();
-    let loops =
-        core::iter::once(("outer", data.outer)).chain(data.rings.iter().map(|&l| ("rings", l)));
-    for (field, lk) in loops {
-        match linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary {
-            LoopBoundary::Empty { vertex } => {
-                stations.push(station(body.linked_vertex_point(
-                    vertex,
-                    EntityId::Loop(lk),
-                    "boundary",
-                )));
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_walk(first).closed("loop", first) {
-                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                    let p = body.linked_vertex_point(start, EntityId::HalfEdge(he), "start");
-                    stations.push(station(p));
+    let stations: Vec<T> = body
+        .face_boundary_linked(face, data)
+        .map(|member| {
+            station(match member {
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
-            }
-        }
-    }
+            })
+        })
+        .collect();
     let Some(&first) = stations.first() else {
         unreachable!("{face:?}'s outer loop holds a vertex or a cycle, so it has a corner")
     };
     stations
         .iter()
         .fold((first, first), |(a, b), &h| (a.min(h), b.max(h)))
+}
+
+/// **`corner_stations` panics on a ring link that does not resolve**,
+/// where it stepped over it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom_core::Tol;
+
+    #[test]
+    fn the_corner_stations_panic_on_a_torn_ring_link() {
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let (face, data) = body.faces().next().map(|(k, d)| (k, d.clone())).unwrap();
+        let (apex, axis) = (Point3::new(0.0, 0.0, -1.0), Vec3::unit_z());
+        let (lo, hi) = corner_stations(&body, face, &data, apex, axis);
+        assert!(lo <= hi, "ordered stations");
+        let record = body.get_loop(data.outer).unwrap().clone();
+        let ring = body.loops.insert(record);
+        body.loops.remove(ring);
+        body.faces.get_mut(face).unwrap().rings.push(ring);
+        let named = format!(
+            "{}'s rings names {}",
+            EntityId::Face(face),
+            EntityId::Loop(ring)
+        );
+        assert_torn_op_panics(
+            "corner_stations",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| {
+                let data = b.get_face(face).unwrap().clone();
+                corner_stations(b, face, &data, apex, axis)
+            },
+        );
+    }
 }

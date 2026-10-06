@@ -2916,77 +2916,67 @@ fn boundary_meets_circle_only_at<T: Decide>(
             Err(_) => None,
         }
     };
-    for (_, l) in y.face_loops_linked(face, f) {
-        match l.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => {
+    for member in y.face_boundary_linked(face, f) {
+        match member {
+            crate::live::BoundaryMember::Isolated { vertex, .. } => {
                 if place(vertex).is_none() {
                     return Ok(false);
                 }
             }
-            crate::entity::LoopBoundary::Cycle { first } => {
-                for he in y.loop_walk(first).closed("loop", first) {
-                    let ek = crate::live::proven(&y.half_edges, he, EntityId::HalfEdge).edge;
-                    let e = crate::live::linked(
-                        &y.edges,
-                        ek,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
-                    let end = |h, field| {
-                        crate::live::linked(
-                            &y.half_edges,
-                            h,
-                            EntityId::HalfEdge,
-                            EntityId::Edge(ek),
-                            field,
-                        )
-                        .start
-                    };
-                    let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
-                    let (Some(sa), Some(sb)) = (place(a), place(b)) else {
-                        return Ok(false);
-                    };
-                    let Some(c) = y.edge_curve_linked(ek, e).certified() else {
-                        return Ok(false);
-                    };
-                    let (t0, t1) = c.params();
-                    let clear = match crate::splitting::plane_crossing_lane(
-                        c.carrier(),
-                        t0,
-                        t1,
-                        center,
-                        axis,
-                        band,
-                    ) {
-                        PlaneCrossingLane::Line => {
-                            let (pa, pb) = (point(a), point(b));
-                            match (sa, sb) {
-                                (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
-                                    let (ha, hb) = (height(pa), height(pb));
-                                    off_circle(pa + (pb - pa) * (ha / (ha - hb)))
-                                }
-                                (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
-                                (PlaneSide::At, PlaneSide::At) => {
-                                    off_circle(pa.lerp(pb, T::from_f64(0.5)))
-                                }
-                                _ => false,
+            crate::live::BoundaryMember::Edge { ek, edge: e, .. } => {
+                let end = |h, field| {
+                    crate::live::linked(
+                        &y.half_edges,
+                        h,
+                        EntityId::HalfEdge,
+                        EntityId::Edge(ek),
+                        field,
+                    )
+                    .start
+                };
+                let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
+                let (Some(sa), Some(sb)) = (place(a), place(b)) else {
+                    return Ok(false);
+                };
+                let Some(c) = y.edge_curve_linked(ek, e).certified() else {
+                    return Ok(false);
+                };
+                let (t0, t1) = c.params();
+                let clear = match crate::splitting::plane_crossing_lane(
+                    c.carrier(),
+                    t0,
+                    t1,
+                    center,
+                    axis,
+                    band,
+                ) {
+                    PlaneCrossingLane::Line => {
+                        let (pa, pb) = (point(a), point(b));
+                        match (sa, sb) {
+                            (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
+                                let (ha, hb) = (height(pa), height(pb));
+                                off_circle(pa + (pb - pa) * (ha / (ha - hb)))
                             }
+                            (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
+                            (PlaneSide::At, PlaneSide::At) => {
+                                off_circle(pa.lerp(pb, T::from_f64(0.5)))
+                            }
+                            _ => false,
                         }
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
-                            roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
-                        }
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
-                            decide("bool_arc_plane_side", Margin::of(offset), band),
-                            Ok(Sign::Positive | Sign::Negative)
-                        ),
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
-                        | PlaneCrossingLane::Unlaned => false,
-                    };
-                    if !clear {
-                        return Ok(false);
                     }
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
+                        roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
+                    }
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
+                        decide("bool_arc_plane_side", Margin::of(offset), band),
+                        Ok(Sign::Positive | Sign::Negative)
+                    ),
+                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
+                    | PlaneCrossingLane::Unlaned => false,
+                };
+                if !clear {
+                    return Ok(false);
                 }
             }
         }
@@ -5776,8 +5766,9 @@ mod esc_tests {
 }
 
 /// **`boundary_meets_circle_only_at`: a stale face refuses typed; a torn
-/// curve past one that resolves panics**, where it read as a curve the
-/// certificate cannot place and answered `Ok(false)`.
+/// ring link or curve past one that resolves panics**, where the ring
+/// was stepped over and the curve read as one the certificate cannot
+/// place, answering `Ok(false)`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -5806,6 +5797,14 @@ mod torn_hop_rows {
                 Err(BooleanError::ClassificationInvariant { .. })
             ),
             "a face the caller carries that does not resolve refuses typed"
+        );
+        let mut torn = body.clone();
+        let named = crate::boolean::torn_hop_rows::tear_ring(&mut torn, face);
+        assert_torn_op_panics(
+            "boundary_meets_circle_only_at (ring)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| boundary_meets_circle_only_at(b, face, circle, &[], band),
         );
         let outer = body.get_face(face).unwrap().outer;
         let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary

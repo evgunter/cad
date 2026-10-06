@@ -61,14 +61,14 @@ fn drop_curve(body: &mut Body<f64>, he: HalfEdgeKey) -> String {
 }
 
 /// Drops `face`'s outer loop, and names the link that now dangles.
-fn drop_outer(body: &mut Body<f64>, face: FaceKey) -> String {
+pub(super) fn drop_outer(body: &mut Body<f64>, face: FaceKey) -> String {
     let outer = body.get_face(face).unwrap().outer;
     body.loops.remove(outer);
     format!("'s outer names {}", EntityId::Loop(outer))
 }
 
 /// Gives `face` a ring link that does not resolve, and names it.
-fn tear_ring(body: &mut Body<f64>, face: FaceKey) -> String {
+pub(super) fn tear_ring(body: &mut Body<f64>, face: FaceKey) -> String {
     let outer = body.get_face(face).unwrap().outer;
     let record = body.get_loop(outer).unwrap().clone();
     let ring = body.loops.insert(record);
@@ -320,6 +320,46 @@ fn the_boundary_arcs_panic_on_a_torn_curve() {
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
         |b| face_boundary_arcs(b, face).len(),
+    );
+}
+
+/// `rim_wedge.rs` `face_boundary_arcs`: a ring link that does not
+/// resolve panics, where it was stepped over.
+#[test]
+fn the_boundary_arcs_panic_on_a_torn_ring_link() {
+    use super::rim_wedge::face_boundary_arcs;
+    let (mut body, face) = cyl_sheet();
+    assert_eq!(face_boundary_arcs(&body, face).len(), 4, "four sides");
+    let named = tear_ring(&mut body, face);
+    assert_torn_op_panics(
+        "face_boundary_arcs (ring)",
+        &mut body,
+        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+        |b| face_boundary_arcs(b, face).len(),
+    );
+}
+
+/// `surface_group.rs` `unmated_boundary` (through `wrap_rims`): an
+/// outer link that does not resolve panics, where it was read as an
+/// outline that is not a cycle.
+#[test]
+fn the_wrap_scan_panics_on_a_torn_outer_link() {
+    use super::surface_group::{WrapRims, wrap_rims};
+    let (mut body, face) = cyl_sheet();
+    let rims = WrapRims::Coaxial {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+    };
+    assert!(
+        wrap_rims(&body, face, rims, band()).is_ok(),
+        "the sound sheet answers"
+    );
+    let named = drop_outer(&mut body, face);
+    assert_torn_op_panics(
+        "wrap_rims (outer)",
+        &mut body,
+        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+        |b| wrap_rims(b, face, rims, band()).map(|r| r.is_some()),
     );
 }
 

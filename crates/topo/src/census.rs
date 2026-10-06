@@ -2696,11 +2696,11 @@ fn boundary_axial<T: Decide>(
     let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
     for member in body.face_boundary_linked(f, face) {
         let sp = match member {
-            BoundaryMember::Isolated(p) => {
+            BoundaryMember::Isolated { point: p, .. } => {
                 let p = SpanBox::point(p);
                 edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p))
             }
-            BoundaryMember::Edge { ek, edge: e } => {
+            BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
                 let certified = body.edge_curve_linked(ek, e).certified();
                 let carrier = certified.map(geom_brep::EdgeCurve::carrier);
@@ -2756,11 +2756,11 @@ fn boundary_reach<T: Decide>(
     };
     for member in body.face_boundary_linked(f, face) {
         match member {
-            BoundaryMember::Isolated(p) => {
+            BoundaryMember::Isolated { point: p, .. } => {
                 let p = frame.point(p);
                 grow((p, p));
             }
-            BoundaryMember::Edge { ek, edge } => grow(edge_reach_of(body, ek, edge, frame)?),
+            BoundaryMember::Edge { ek, edge, .. } => grow(edge_reach_of(body, ek, edge, frame)?),
         }
     }
     acc
