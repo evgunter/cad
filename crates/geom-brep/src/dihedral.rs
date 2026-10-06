@@ -407,11 +407,11 @@ pub(crate) fn max_principal_curvature<T: Real>(j: &geom::SurfaceJet<T>) -> T {
         n.dot(j.duv) / area,
         n.dot(j.dvv) / area,
     );
-    let det = area * area;
+    let det = area.powi(2);
     let two = T::from_f64(2.0);
-    let gauss = (l * nn - m * m) / det;
+    let gauss = (l * nn - m.powi(2)) / det;
     let mean = (e * nn - two * f * m + g * l) / (two * det);
-    mean.abs() + (mean * mean - gauss).max(T::zero()).sqrt()
+    mean.abs() + (mean.powi(2) - gauss).max(T::zero()).sqrt()
 }
 
 /// **`tangent_second_order`** — the must-carry rule's one metered
