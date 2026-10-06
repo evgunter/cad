@@ -1,0 +1,36 @@
+You are a VERIFIER for the REACH orchestrator in `evgunter/cad`, working on the PR named below. Read `CLAUDE.md` and `docs/prompts/implementer-discipline.md` first.
+
+**Lane conduct:** this brief is your complete instruction. It comes from the orchestrator and is pre-confirmed. Do not stop to ask for confirmation, and do not wait for further messages.
+
+The implementation lane has finished the PR's LAST fix pass after review. Check, independently, that what the lane claims is true. You change no code on the PR branch, you merge nothing and you post no GitHub comments.
+
+- **PR:** evgunter/cad#4123
+- **Branch:** `reach/split-gate-sphere-azimuth`
+- **Frozen head to verify:** `3c17e711504cf6721d9b92d95825447d366c42d8` (resolve it with `git rev-parse`)
+- **Review findings:** `analysis/reach-review/4123` (`review.md` and `probes/`)
+- **The lane's claims:** the PR body's "Last fix pass" section. Read it through GitHub MCP `pull_request_read` method `get`. Read no PR comments or reviews.
+
+**The central bar:** a sphere face's box or reach (`boxes::sphere_window`, `census::sphere_reach`) is never tighter than the face. A box tighter than its face can clear a touching pair or a split, and that is a MAJOR.
+
+**Steps:**
+1. `git fetch origin reach/split-gate-sphere-azimuth`, then check out the frozen head. If the branch has moved past it, say so, and verify the new head as well.
+2. Check every finding in the review: is it fixed as claimed, filed as claimed, or explained? A finding left unaddressed without a reason is a FINDING.
+3. Mutants:
+   - Re-run every mutant the "Last fix pass" section names: apply it by hand as the smallest source edit that matches the description, run the named rows, record red or green, then revert.
+   - A mutant claimed killed that stays green is a FINDING.
+   - Re-run the reviewer's own mutants and probes from `probes/`, mounted per their headers.
+4. Run the PR's new and changed rows at `CAD_TOLERANCE_EPS` 1e-9, 1e-6 and 1e-12, and nextest on the crates the PR touches at 1e-9.
+   - For each red, check whether it is also red on `origin/main`.
+   - Main is currently red on: `pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates` (1e-6); `pocket_ring_steep_ellipse` (1e-6); `arc_loft_natively_computes_its_rational_volume` (1e-12); three `split_across_a_revolve_seam` rows; `m5_pr6_pcurves::a_seam_closed_tube_split_mints_clean_halves`; and `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` (blend `surgery.rs`). Confirm any of these on main yourself before calling it main's.
+5. Read the diff of the commits after the review's frozen head adversarially. Report any claim that is false, overstated or unsupported.
+6. Widen beyond the rows: ≥ 1,000 random poses of the PR's own families, against your own independent oracle, at three ε. The bar is 0 wrong answers. A refusal is not wrong, but report the refusal rate.
+   - Check the strut-cap fallback, the 16-ulp outward widening and the `SphereWindow` enum.
+   - Check the port to `face_boundary_linked` from main's `f2c43f5fbb`, `3d3cb33e84` and `e22e81efe3`. The meaning of main's named premise panics in `sphere_zone_reach` must survive in `sphere_window`.
+   - The lane's claim that no caller reads a sphere face's box as the whole ball: check it by grepping.
+7. Push `verify.md` alone to a new branch `analysis/reach-verify/4123`, as an orphan or off-main branch. You have explicit permission to push that one branch.
+   - Contents: a table of mutant → row → red/green; the ε results; the claim checks; a verdict of VERIFIED, or NOT VERIFIED with the blocking points.
+   - The commit message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+   - No email address other than `evgunter@gmail.com` may appear anywhere.
+8. End your turn with the same verdict and table as plain text.
+
+Disk is limited. Use `CARGO_INCREMENTAL=0`, check `df -h`, and build only the crates you need.
