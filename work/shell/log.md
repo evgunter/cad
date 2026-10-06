@@ -1058,6 +1058,23 @@ its PR. Units 3 (PR 4115) and 4 (PR 4117) are still in their lanes;
 4117's first red was its own (a `NurbsLane` field the census helper
 did not compare).
 
+## Unit 1 MERGED (2026-10-06, PR 4111)
+
+The pole-touching ball no longer refuses. The item closes on asserting
+rows; the PR has no kernel change. Single full review:
+APPROVE-WITH-FIXES, no MAJOR. The fix pass:
+- builds the ball from `test_support::ball_poled_y`;
+- drops the decorative seam axis;
+- corrects the stale two-arc prose;
+- uses one tolerance rule;
+- corrects the pinch item's cause to `ci.yml`'s `eps_extra` path rule.
+The CI gap that rule leaves was already CIW's
+(`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`),
+so the lane added evidence there instead of filing a duplicate. Merged
+over the inherited `pinch_faces_tessellate` ε = 1e-6 red, which is
+JOIN's `pinch-tessellate-row-escalates-at-eps-1e-6` (filed here), as
+the merge rules allow.
+
 ## Unit 2 MERGED (2026-10-06, PR 4112)
 
 The shell doors take an `AtRestBody`. Single full review:

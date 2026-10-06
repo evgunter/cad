@@ -24,7 +24,7 @@
 use crate::common::approx::band;
 use crate::common::charts::{charts, moves_by};
 use geom_core::{Band, Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -164,47 +164,6 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
                 );
             }
         }
-    }
-}
-
-/// **P4 — a bare BALL: one sphere chart, two axis poles, no planes.**
-/// The corpus's sphere rows always pair the sphere with caps; the pole
-/// arm whose one constraint is the sphere itself (`Profile::Circle`,
-/// `side_of` on the equator) is only reachable here. The wall must be
-/// the difference of two balls.
-#[test]
-fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
-    let tol = Tol::witness();
-    let r: f64 = 3.0 / 64.0;
-    let lp: ProfileLoop<f64> = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 1.0),
-        (Point2::new(0.0, 2.0 * r), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the half-disc validates");
-    let ball = revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .expect("the ball revolves")
-    .body;
-    match topo::shell(&finished("the operand", ball.clone(), tol), T, tol) {
-        Ok(topo::Shelled { body: hollow, .. }) => {
-            let got = topo::mass_properties(&hollow, tol).expect("props").volume;
-            let want = 4.0 / 3.0 * core::f64::consts::PI * (r.powi(3) - (r - T).powi(3));
-            println!("[r1p4] ball wall volume {got} vs closed form {want}");
-            assert!(
-                (got - want).abs() <= 1e-15,
-                "the ball's wall is the difference of two balls: got {got}, want {want}"
-            );
-        }
-        Err(e) => println!("[r1p4] the ball REFUSES (a finding, not a failure here): {e:?}"),
     }
 }
 
