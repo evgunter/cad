@@ -7491,3 +7491,11 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
   - choice 3: the twin derives (A) or the caller states with `Carry` (B);
   - whether PR 2527's "no default" ruling reaches derivable key swaps.
 - New-comment check: page 12, perPage 1.
+
+## 16:40 (2026-10-06): PR 3970, choice 2 ruled; round 5 dispatched
+
+- **Ev: choice 2 = tier 1** ("i agree with the recommendation on choice 2").
+- On choice 3, Ev asked for the arguments and leans A. B's case is that forgetting is a typed refusal. It fails at the risky case: a derived restatement that certifies but has the wrong kind (round-3 residual (c)) is exposed identically under A and B.
+- At Ev's request, two designers are weighing **how to make A structural**. The brief states the problem only, and Ev's expensive `debug_assert`, skipped in production, is an explicit option to weigh. The orchestrator's suggestion (a kind check inside restatement or certification) is withheld for at least round 1.
+  - Designers: A `session_01VKoofj8TXfjP4YKX5pzzXK`, B `session_01TsEEZBc38YHfFWL4RD6N4i`, using the fork's existing labels (record on `analysis/design-fork/topo-kef-kfmrh-across-keys`).
+  - Reports go to `analysis/design-fork/topo-kef-kfmrh-r5-{A,B}`.
