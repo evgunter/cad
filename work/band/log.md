@@ -553,6 +553,24 @@ sink rounds its plate after the union, gated on tier 3. Full review
 `a-ring-of-ellipse-edges-refuses-the-ring-meter` (P3). The lane's duplicate
 filing of main's 1e-6 pinch red was dropped for JOIN's (PR 4113).
 
+## 2026-10-06 — run-out steps 1–2 landed (PR #4121): the plane–plane band cuts off at its end face
+
+Under Ev's PR 4085 ruling: chain G1 classifies plane–plane junctions (a
+definite turn breaks the chain into two ends; `Turn` refuses until the
+mitre, step 4); predicate 6 reads the request count; the planar band carves
+locally (`blend/open/end_face.rs`, shared with the ruled band), so one edge,
+any subset ending at unrequested corners, and three edges of one corner
+(patch + cut-offs) chamfer and fillet at their closed forms; an oblique
+chamfer builds, an oblique fillet refuses until step 3. The whole-face
+planar path was deleted early (step 5), shown bit-identical by both
+reviewers' and the fix pass's base/head differentials. The bracket's chord
+walls retired. Dual review, class H (DR-89): R1 NOT-MERGEABLE-AS-IS on a
+concave cut-off swallowing end-face features unmetered (tally 1); R2
+APPROVE-WITH-FIXES. The union was taken: the concave end face LOSES the
+sliver too (the README sentence from PR 4085 corrected to say so — the
+decision unchanged, Ev told), arm (d) pinned by a witness, crossing cut-off
+feet refused at plan. Filed `a-requested-ring-edge-refuses-at-the-ring-meter`.
+The row stays open for steps 3–5 (oblique fillet, mitre, overrun).
 ## 2026-10-06 — `lamina-plane-annulus-keeps-its-slit` closed (PR #4136)
 
 A lamina full revolve's plane annulus is one face with its bore as a ring:

@@ -301,11 +301,13 @@ fn n_arc_bores_and_boss_feet_carve_the_ladder_at_their_closed_forms() {
 /// **The open case.** Three cube edges in a row walk into one open
 /// chain whose two junctions are its inner vertices, each between
 /// exactly the two links that meet there; and the battery's verdict on
-/// it is the one those pairs owe — `ChainNotG1` at the FIRST junction,
-/// `sin 90° · 1 m` — not a verdict on a far-end tangent. No pairing the
-/// tree has had broke the open case; the pin here is the verdict.
+/// it is the one those pairs owe — each junction a definite turn, so
+/// chain G1 breaks the chain there, and the first chain end the corner
+/// predicate reaches refuses as the turn at the FIRST junction — not a
+/// verdict on a far-end tangent. No pairing the tree has had broke the
+/// open case; the pin here is the verdict.
 #[test]
-fn an_open_three_link_chain_refuses_chain_g1_at_its_first_junction() {
+fn an_open_three_link_chain_refuses_a_turn_at_its_first_junction() {
     let body = cube(1.0, tol());
     let edges = three_top_edges_in_a_row(&body);
     let chains = walked_chains(&body, &edges, RHO, band());
@@ -338,18 +340,14 @@ fn an_open_three_link_chain_refuses_chain_g1_at_its_first_junction() {
         },
         band(),
     ) {
-        Err(BlendError::ChainNotG1 { vertex, margin, .. }) => {
+        Err(BlendError::UnsupportedCorner {
+            vertex,
+            corner: sweep::blend::CornerConfig::Turn,
+            ..
+        }) => {
             assert_eq!(
                 vertex, chain.junctions[0].vertex,
                 "refused at the first junction"
-            );
-            assert!(
-                margin
-                    .reading
-                    .diagnostic_f64_for_error_text()
-                    .value()
-                    .is_some_and(|m| (m - 1.0).abs() < 1e-12),
-                "sin 90° at a 1 m arm: {margin:?}"
             );
         }
         other => panic!("box edges meet at 90°, got {other:?}"),
