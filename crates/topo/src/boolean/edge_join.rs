@@ -49,6 +49,19 @@ pub struct EdgeJoin {
     pub kept: EdgeKey,
 }
 
+/// `e`'s certified curve, where it is a line: the one home of "a
+/// certified line edge", read by the join and by the carried-record
+/// door, whose edge-edge lineage reads an edge as its two ends.
+pub(super) fn certified_line<'a, T: Real>(
+    body: &'a Body<T>,
+    e: EdgeKey,
+    d: &crate::entity::Edge,
+) -> Option<&'a geom_brep::EdgeCurve<T>> {
+    body.edge_curve_linked(e, d)
+        .certified()
+        .filter(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
+}
+
 /// Every half-edge starting at each vertex.
 fn starts<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<HalfEdgeKey>> {
     let mut out: BTreeMap<VertexKey, Vec<HalfEdgeKey>> = BTreeMap::new();
@@ -111,13 +124,12 @@ fn joinable<T: Real>(
     // intersection of these two planes, which is one line (planes that
     // do not cross certify no intersection).
     let on_the_pair = |e: EdgeKey, d| {
-        body.edge_curve_linked(e, d).certified().is_some_and(|c| {
-            matches!(c.carrier(), geom::Curve3::Line { .. })
-                && matches!(
-                    c.description(),
-                    geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                        if Body::<T>::cites_pair((*s1, *s2), sf, sg)
-                )
+        certified_line(body, e, d).is_some_and(|c| {
+            matches!(
+                c.description(),
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+                    if Body::<T>::cites_pair((*s1, *s2), sf, sg)
+            )
         })
     };
     if !on_the_pair(e1, d1) || !on_the_pair(e2, d2) {

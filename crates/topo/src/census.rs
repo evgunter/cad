@@ -5845,13 +5845,19 @@ pub(crate) fn on_segment_interior<T: Decide>(
 }
 
 /// A census answer, or the escalation it pushed.
+///
+/// # Panics
+///
+/// Where the question answered `None` and pushed no escalation: its
+/// contract is `None` exactly where a decision escalated, so a `None`
+/// with nothing pushed is a broken invariant, never a "no".
 fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool, Indeterminate> {
     for e in errors {
         if let ValidationError::CensusEscalated { cause } = e {
             return Err(cause);
         }
     }
-    Ok(answer.unwrap_or(false))
+    Ok(answer.expect("a census question answers `None` only where it pushed an escalation"))
 }
 
 /// The at-rest confirmation of the two CURVED granularities (C3), the

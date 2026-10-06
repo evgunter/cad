@@ -3327,7 +3327,23 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
                 list.push(VfContact { vertex, face });
             }
         }
-        _ => {}
+        // One cell (the arms above take two distinct ones): structure.
+        (Cell::Vertex(_), Cell::Vertex(_)) | (Cell::Edge(_), Cell::Edge(_)) => {}
+        // A point record whose vertex was joined away (PR 3881's
+        // ruling): a vertex-on-face record's vertex had valence 2
+        // between two planar faces, so both its edges lay in the face it
+        // rested on (else it was a pierce the boolean had already cut),
+        // and the joined edge's rest in that face is backed at its own
+        // bounds. Consumed into structure, with no stored kind: a wrong
+        // drop is the census's `EdgeFaceOverlap` unbacked, or its
+        // `EdgeFacePierce`, both loud.
+        (Cell::Edge(_), Cell::Face(_)) | (Cell::Face(_), Cell::Edge(_)) => {}
+        // A point record both of whose cells a merge absorbed: one face
+        // (structure), or a point on both faces' interiors, a face-face
+        // rest (two shells touching across coincident faces) that the
+        // census checks at face granularity against its patch record or
+        // declared pair. Consumed; no point record has that kind.
+        (Cell::Face(_), Cell::Face(_)) => {}
     }
 }
 
