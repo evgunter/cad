@@ -112,3 +112,11 @@ this row is its deeper half, `contact_tangent_opposed` as
 `classify_material_pairing`'s undisclosed twin, and the seventh
 spelling pair above (the parallelism fallback lever).
 
+
+## Evidence from CLEAVE (branch cleave/smooth-arms)
+
+`folded_lever_arm`'s doc (`crates/geom-brep/src/dihedral.rs`) still
+read "Two hand-rolled siblings of this fold remain … `contact_verify`
+and `topo::boolean::ops`" after FUSE removed both. It now says that no
+copy of the fold is left, and that `contact_tangent_opposed` is still
+the remaining twin.

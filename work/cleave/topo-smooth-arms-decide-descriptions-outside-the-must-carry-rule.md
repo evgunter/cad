@@ -57,3 +57,49 @@ corner at a station keeps the conventional description. (The comment's
 an in-band sample `SliverDihedral`.) Item 2, `splitting/finish.rs`,
 stays open.
 
+
+## Built (branch cleave/smooth-arms)
+
+Item 1 was already done on main (FUSE, PR 3889). Re-checked: the
+boolean's `describe_edges` smooth arm decides through
+`must_carry_reading` → `geom_brep::must_carry_over_edge`, and an
+in-band station refuses typed. The tier-3 stance its old comment cited
+is C7 (`crates/geom-brep/README.md`, *Tangency*):
+"`SmoothUnderdetermined` when the surfaces under-determine the locus"
+and "an in-band second-order tie escalates". That is zero side only,
+which agrees with the rule. `git log -S` traces both phrases to the
+2026-09-03 move of the design text beside the code (585b3422ff). No
+conflict between the contracts.
+
+Item 2: `describe_section_boundary`'s smooth arm
+(`crates/topo/src/splitting/finish.rs`) now asks
+`must_carry_over_edge(..).description(s_self, s_other, witness)` over
+the carrier it restates:
+
+- jet-determinate ⇒ `TangentIntersection { s_self, s_other }`;
+- under-determined ⇒ the section-chart image;
+- in band ⇒ `DescribeEscalated` with the deciding station's diag;
+- a transverse station ⇒ conventional (the boolean seams' posture;
+  tier 3 holds a mixed edge to neither description).
+
+A description is kept verbatim only when it is of the demanded kind
+and names the current pair. The material-pairing knife-edge refusal
+runs first, as before.
+
+Measured with a probe in both arms, over every test in topo, sweep and
+editor-core (7370 tests), the demos/tour suite (96 tests) and the
+demos/tour binary's full walk:
+
+- Boolean arm: 55 487 (crates) and 13 056 + 2 173 (tour suite, tour
+  walk) visits. Every visit is `JetDeterminate` or `UnderDetermined`;
+  none is in band or transverse.
+- Split arm: 207 visits in the crates and none in the tour. 206 are
+  plane–plane `UnderDetermined`, with no change: a coherent chart is
+  kept and an `Intersection` is restated. One is `JetDeterminate`:
+  `wedge_end_doors::a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam`,
+  whose seam previously restated to `chart(s_self)` and now stores
+  `TangentIntersection` over its current pair. The test asserts it.
+- No visit is in band. The in-band case is not reachable through the
+  split's door on the shoulder family: the join's certification of the
+  tangent chord refuses the same sagitta first. Filed as
+  `work/tang/split-tangent-chord-mints-tangency-without-the-must-carry-rule.md`.
