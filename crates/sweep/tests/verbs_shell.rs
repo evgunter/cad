@@ -959,13 +959,14 @@ fn the_open_face_designation_gates_refuse_typed() {
 ///
 /// Nothing structural forbids that body: `step-import`'s adoption
 /// shares surface keys outright, so the sharing is not always a
-/// revolve's two co-oriented wall bands. This row builds the
-/// configuration the honest way available from outside the kernel —
-/// sharing the outer wall's chart onto the inner wall, whose sense is
-/// the opposite — and pins that the verb decides it rather than reading
-/// the first face's bit and hoping.
+/// revolve's two co-oriented wall bands. The way available from
+/// outside the kernel to build it — sharing the outer wall's chart onto
+/// the inner wall, whose sense is the opposite — is not a finished
+/// body: the inner wall's edges do not lie on the shared carrier. The
+/// operand gate refuses it, so the verb's own `ChartSenseMixed` is not
+/// reached from here.
 #[test]
-fn a_mixed_sense_chart_refuses_typed() {
+fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
     let mut body = tube(0.6, 1.0, 2.0);
     let cyl = |b: &Body<f64>, r: f64| -> FaceKey {
         b.faces()
@@ -994,15 +995,15 @@ fn a_mixed_sense_chart_refuses_typed() {
     )
     .expect("the attach-layer door shares a live key");
 
-    let e = topo::shell(
-        &finished("the operand", body.clone(), Tol::witness()),
-        0.1,
-        Tol::witness(),
-    )
-    .expect_err("a mixed-sense chart has no single inward");
+    // The inner wall now wears a carrier its edges do not lie on, so
+    // the body is not finished and the verb is never handed it.
+    let errors = topo::AtRestBody::validate(body, Tol::witness())
+        .expect_err("the re-charted tube is not a finished body");
     assert!(
-        matches!(e, ShellError::ChartSenseMixed { .. }),
-        "expected the chart-sense gate, got {e}"
+        errors
+            .iter()
+            .any(|e| matches!(e, topo::ValidationError::DescriptionNotAdjacent { .. })),
+        "the gate refuses the inner wall's edges off its chart: {errors:?}"
     );
 }
 

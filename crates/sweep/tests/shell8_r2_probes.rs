@@ -242,12 +242,11 @@ fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
 }
 
 #[test]
-fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
+fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
     // A solid with NO outer shell: two inside-out cubes filed under one
-    // solid (the `sweep-testing` merge door), beside a plain block. The
-    // sort leaves it alone (it has no second `Outer` to move), and the
-    // verb refuses it naming that solid and its own count — the plain
-    // neighbour's shell is never classified.
+    // solid (the `sweep-testing` merge door), beside a plain block. Its
+    // total is negative, so tier 3's check 7 refuses it naming that
+    // solid, and the verb is never handed it.
     let cube = |at: Vec3<f64>| {
         topo::transform_rigid(
             &block(0.5, 0.5, 0.5, Tol::witness()),
@@ -266,15 +265,13 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
         &block(2.0, 3.0, 4.0, Tol::witness()),
         Vec3::new(10.0, 0.0, 0.0),
     );
-    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
-        .expect_err("a solid of only cavities refuses");
     let voids_solid = body.solids().next().unwrap().0;
-    assert!(
-        matches!(
-            e,
-            ShellError::OperandOuterShells { solid, outer: 0 } if solid == voids_solid
-        ),
-        "{e}"
+    let errors = topo::AtRestBody::validate(body, tol())
+        .expect_err("a solid of only cavities is not a finished body");
+    assert_eq!(
+        errors,
+        vec![topo::ValidationError::NegativeVolume { solid: voids_solid }],
+        "the gate names the cavities' solid alone"
     );
 }
 
@@ -285,33 +282,21 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
 // (the ownership door then files them as two solids, below).
 // ---------------------------------------------------------------------
 
-/// The un-moved split slab is one solid with two OUTER shells. The
-/// shell door takes bodies and sorts its operand into pieces first, so
-/// it thickens the slab as two solids, closed and opened — whichever of
-/// the shared top's wearers is named.
+/// The un-moved split slab is one solid with two OUTER shells, which
+/// only the test-only merge door makes: tier 3's check 10 refuses it,
+/// so the verb is never handed it. The public product, one solid per
+/// component, shells below (`split_slab(true)`).
 #[test]
-fn r2_the_shell_door_sorts_two_outer_shells_under_one_solid() {
+fn r2_two_outer_shells_under_one_solid_are_refused_at_the_gate() {
     let body = split_slab(false);
     let solid = body.solids().next().unwrap().0;
-    let shelled = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
-        .expect("sorted, then shelled");
+    let errors = topo::AtRestBody::validate(body, tol())
+        .expect_err("two pieces under one solid is not a finished body");
     assert_eq!(
-        shelled.body.solids().count(),
-        2,
-        "closed: one thin solid per piece"
+        errors,
+        vec![topo::ValidationError::SolidOuterShells { solid, outer: 2 }],
+        "the gate counts the solid's two pieces"
     );
-    let tops = plane_face_at_z(&body, solid, 1.0);
-    assert_eq!(tops.len(), 2, "one top wearer per component");
-    for open in [&tops[..1], &tops[1..], &tops[..]] {
-        let opened = topo::shell_open(
-            &finished("the operand", body.clone(), tol()),
-            0.05,
-            open,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("opened at {open:?}: {e}"));
-        assert_eq!(opened.body.solids().count(), 2, "opened at {open:?}");
-    }
 }
 
 // ---------------------------------------------------------------------
