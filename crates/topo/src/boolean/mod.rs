@@ -4384,6 +4384,17 @@ fn split_root(splits: &[EdgeSplit], operand: Operand, piece: EdgeKey) -> EdgeKey
     edge
 }
 
+/// The two vertices each null edge joins, `(operand, below end, above
+/// end)` in clone keys (`BooleanNaming::null_copies`).
+pub(super) fn null_copy_rows<T: Real>(
+    null_edges: &[BoolNullEdgeRecord<T>],
+) -> Vec<(Operand, VertexKey, VertexKey)> {
+    null_edges
+        .iter()
+        .map(|r| (r.operand, r.attr.below_end, r.attr.above_end))
+        .collect()
+}
+
 /// `rows`, read at every vertex the null edges join a classified vertex
 /// to as well: the copies lie on its point, and the join hands each of
 /// them some of its edges. Sorted and deduplicated.

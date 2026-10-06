@@ -414,6 +414,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let reduction_contacts = red.contacts;
     let covered = red.covered;
     let edge_classes = red.edge_classes;
+    let null_copies = super::null_copy_rows(&red.null_edges);
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -450,6 +451,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discards,
         covered,
         edge_classes,
+        null_copies,
         edge_joins,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {

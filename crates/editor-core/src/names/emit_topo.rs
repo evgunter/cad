@@ -1998,8 +1998,9 @@ fn fused_partners(naming: &topo::BooleanNaming) -> BTreeMap<VertexKey, Vec<Verte
 
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
 /// that operand's clone keys: its own key read through the layout
-/// ([`operand_key`]), each key fused into it, and each B key a B-side
-/// weld fused into one of those.
+/// ([`operand_key`]), each key fused into it, each B key a B-side weld
+/// fused into one of those, and every copy a null edge joins any of
+/// them to, transitively (`BooleanNaming::null_copies`: one point).
 fn operand_vertex_keys(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -2018,7 +2019,19 @@ fn operand_vertex_keys(
         .map(|&(dead, _)| (topo::Operand::B, dead))
         .collect();
     keys.extend(welded);
-    Ok(keys)
+    loop {
+        let copies: Vec<_> = naming
+            .null_copies
+            .iter()
+            .flat_map(|&(side, x, y)| [((side, x), (side, y)), ((side, y), (side, x))])
+            .filter(|(from, to)| keys.contains(from) && !keys.contains(to))
+            .map(|(_, to)| to)
+            .collect();
+        if copies.is_empty() {
+            return Ok(keys);
+        }
+        keys.extend(copies);
+    }
 }
 
 /// One operand edge with a piece the boolean classified at a result
@@ -2042,12 +2055,16 @@ struct EdgeSense {
 ///
 /// The vertex is read at its own key and at every key fused into it,
 /// each in its operand's clone. A piece `In` or `On` lies in the closed
-/// body, and a side of the vertex with no piece counts as outside it.
+/// body. A side of the vertex with no piece counts as outside it where
+/// the vertex is the operand edge's own end on that side, so no portion
+/// of the edge lies there.
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] where one side of the vertex holds pieces
-/// of one edge on both sides of the other operand.
+/// of one edge on both sides of the other operand, or where a side with
+/// edge beyond the vertex has no classified piece: a row the boolean
+/// owed is missing, not a fact of the edge.
 fn senses_at<T: Decide>(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -2067,25 +2084,23 @@ fn senses_at<T: Decide>(
                 .insert(row.class != topo::SideCode::Out);
         }
     }
-    let one = |set: &BTreeSet<bool>| match set.len() {
-        0 => Ok(false),
-        1 => Ok(set.contains(&true)),
-        _ => Err(bug(
-            "a crossing's edge has pieces on both sides of the other operand on one side of it",
-        )),
-    };
     let mut out = Vec::with_capacity(sides.len());
     for ((side, edge), [before, after]) in sides {
         let op = match side {
             topo::Operand::A => a,
             topo::Operand::B => b,
         };
+        // A side with no piece lies past the edge's own end there.
+        let (start, end) = edge_ends(op.body, edge)?;
+        let one = |set: &BTreeSet<bool>, end_here: VertexKey| {
+            side_in_body(set, keys.contains(&(side, end_here)))
+        };
         let name = op
             .table
             .name_of(&ent(0, EntityKey::Edge(edge)))
             .ok_or(bug("a classified operand edge is not named"))?
             .clone();
-        let sense = match (one(&before)?, one(&after)?) {
+        let sense = match (one(&before, start)?, one(&after, end)?) {
             (false, true) => Some(Sense::Enters),
             (true, false) => Some(Sense::Leaves),
             _ => None,
@@ -2103,6 +2118,59 @@ fn senses_at<T: Decide>(
         });
     }
     Ok(out)
+}
+
+/// **Whether one side of a vertex lies in the other operand's closed
+/// body** along a crossed edge, from the classes of the edge's pieces
+/// there (`true` for `In` or `On`): the one class read, or outside where
+/// no piece lies there because the edge ends at the vertex
+/// (`ends_here`).
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] where the edge runs on past the vertex but
+/// no piece of it there was classified — a row the boolean owed, not a
+/// fact of the edge — or where its pieces there read both ways.
+fn side_in_body(classes: &BTreeSet<bool>, ends_here: bool) -> Result<bool, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    match classes.len() {
+        0 if ends_here => Ok(false),
+        0 => Err(bug(UNCLASSIFIED_SIDE)),
+        1 => Ok(classes.contains(&true)),
+        _ => Err(bug(
+            "a crossing's edge has pieces on both sides of the other operand on one side of it",
+        )),
+    }
+}
+
+/// A crossed edge runs on past the crossing with no piece classified.
+const UNCLASSIFIED_SIDE: &str =
+    "a crossing's edge runs on past the crossing on a side the boolean classified no piece of";
+
+#[cfg(test)]
+mod side_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::{NamingError, UNCLASSIFIED_SIDE, side_in_body};
+
+    /// **A side of a crossing with no classified piece is outside only
+    /// where the edge ends there** (N2): past its own end no portion of
+    /// the edge lies on that side; where it runs on, a missing class is a
+    /// row the boolean owed, and refuses.
+    #[test]
+    fn a_side_with_no_classified_piece_is_outside_only_past_the_edges_end() {
+        use std::collections::BTreeSet;
+
+        let none = BTreeSet::new();
+        assert!(!side_in_body(&none, true).unwrap());
+        assert!(matches!(
+            side_in_body(&none, false),
+            Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
+        ));
+        assert!(side_in_body(&BTreeSet::from([true]), false).unwrap());
+        assert!(!side_in_body(&BTreeSet::from([false]), true).unwrap());
+        assert!(side_in_body(&BTreeSet::from([true, false]), false).is_err());
+    }
 }
 
 /// **The sense at a vertex of `side`'s edge `edge`**, among the
@@ -2827,6 +2895,7 @@ mod tests {
     )]
 
     use super::*;
+
     use crate::names::emit_sweep::name_extrude;
     use crate::node::RecipeNodeId;
     use geom_core::Tol;
