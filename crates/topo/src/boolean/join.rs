@@ -2218,8 +2218,8 @@ fn loose_partners<T: Decide>(
 ///
 /// - **Different loops** (the mekr lane): a pure loop merge — role
 ///   order is orientation-neutral; keep the given order. Loops of two
-///   faces take this lane too, and what runs on the plan's face refuses them
-///   ([`JoinPlan::of`]).
+///   faces take this lane too, and what runs on the plan's face
+///   refuses them ([`JoinPlan::of`]).
 /// - **Same loop, the face's OUTER**: the split partitions real
 ///   boundary between two faces; either partition names the same two
 ///   directed cycles (role order moves only face identity), so the
