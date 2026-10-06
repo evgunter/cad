@@ -859,7 +859,7 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
 ///
 /// This row's fixture is the one that falsified the first reading of
 /// the class: a revolved TUBE's meridian is a closed off-axis loop, so
-/// it closes its own seam and the mouth chart is exactly ONE face,
+/// the full revolve builds its mouth whole and the chart is exactly ONE face,
 /// with no axis apex anywhere on the body — and the rim was wrong here
 /// too, in a different shape (genus 2, one ring, untessellatable).
 ///
@@ -868,11 +868,10 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
 /// built: the counterpart's hole is promoted to its own rim face
 /// before the glue (`mfkrh`) and takes the designated face's matching
 /// hole with it after (`ring_move`). Both are existing doors; the
-/// surgery gained no new machinery. What the operand contributed was
-/// the seam again, in its other form — the annulus arrives SLIT along
-/// a radial edge its own loop walks twice — and `kemr` retires that
-/// before the glue for the same reason `kef`/`kev` retire the axis
-/// apex above.
+/// surgery gained no new machinery. The annulus arrives with its bore
+/// already a ring; an annulus that arrives SLIT along a radial edge its
+/// own loop walks twice has that edge retired by `kemr` before the
+/// glue, for the same reason `kef`/`kev` retire the axis apex above.
 ///
 /// (`verbs_teapot_r2_probes::r2_revolved_tube_separates_seam_from_axis`
 /// and `r2_annular_mouth_anatomy` are where the wrong shape was first
@@ -898,7 +897,7 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
     assert_eq!(
         chart.len(),
         1,
-        "a closed OFF-AXIS meridian closes its own seam, so this cap is ONE face — \
+        "a full revolve builds an OFF-AXIS annular cap whole, so this cap is ONE face — \
          which is the whole point of the row"
     );
     let cup = pncad::topo::shell_open(
@@ -916,8 +915,9 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
     );
     assert_eq!(
         (rings(&cup), genus(&cup)),
-        (2, 1),
-        "TWO rim annuli, one ring each; the bore runs through, so the cup is genus 1"
+        (4, 1),
+        "TWO rim annuli and the two floor annuli, one ring each; the bore runs through, \
+         so the cup is genus 1"
     );
     assert_eq!(
         plane_chart_at(&cup, h).len(),

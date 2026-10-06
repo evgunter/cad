@@ -33,7 +33,9 @@ use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
+use sweep::blend::battery::{
+    BlendRequest, END_FACE_CURVED, END_FACE_OBLIQUE, cap_transverse, run_battery,
+};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, finished, revolved_about_y,
@@ -362,7 +364,7 @@ fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
 /// other edges in one plane face — the cap shape — but that face is
 /// not perpendicular to the ruling: `fillet3_cap_transverse` reads a
 /// definite departure and the request refuses as a run-out at that
-/// vertex, with the corner recourse's "general run-outs" clause.
+/// vertex, with the corner recourse's residue clause.
 #[test]
 fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
     let rod = rod_d_profile_at::<f64>(tol());
@@ -385,7 +387,7 @@ fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
         let BlendError::UnsupportedRunOut { at, detail } = err.error else {
             panic!("the oblique cap is a run-out, got {:?}", err.error);
         };
-        assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+        assert_eq!(detail, END_FACE_OBLIQUE);
         let topo::EntityId::Vertex(v) = at else {
             panic!("the refusal names the vertex, got {at:?}");
         };
@@ -396,7 +398,7 @@ fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
         assert!(p.z > 0.5, "the refusing end is the oblique one, at {p:?}");
         let shown = err.to_string();
         assert!(
-            shown.contains("general run-outs") && shown.contains("oblique"),
+            shown.contains("perpendicular, for a round band"),
             "the sentence names the reserved run-out: {shown}"
         );
     }
@@ -435,24 +437,24 @@ fn cap_transverse_trio_definite_pass_definite_refuse_in_band_escalate() {
     assert!(matches!(levered, BlendError::UnsupportedRunOut { .. }));
     // Both refusing arms carry one recourse.
     let (d, e) = (oblique.to_string(), escalated.to_string());
-    assert!(d.contains("general run-outs"), "{d}");
-    assert!(e.contains("general run-outs"), "{e}");
+    assert!(d.contains("perpendicular, for a round band"), "{d}");
+    assert!(e.contains("perpendicular, for a round band"), "{e}");
 }
 
 /// **The vocabulary is the ratified one and the tag maps its policy.**
 #[test]
 fn the_transverse_cap_names_its_policy() {
     assert_eq!(
-        CornerConfig::TransverseCap.policy(),
-        Some(RunOutPolicy::CutOffAtTransverseCap)
+        CornerConfig::EndFace.policy(),
+        Some(RunOutPolicy::CutOffAtEndFace)
     );
     let shown = format!(
         "{} / {}",
-        CornerConfig::TransverseCap,
-        RunOutPolicy::CutOffAtTransverseCap
+        CornerConfig::EndFace,
+        RunOutPolicy::CutOffAtEndFace
     );
     assert!(
-        shown.contains("transverse cap") && shown.contains("cut the band off"),
+        shown.contains("an end face") && shown.contains("cut the band off"),
         "{shown}"
     );
 }
@@ -537,11 +539,11 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
 /// unioned — has no body: the rims' crossings of the walls are
 /// certified, but the two pairs of cap discs overlap in their planes,
 /// an undeclared coincidence the boolean never infers, so the concave
-/// ruled band has no fixture. And a
-/// box's single edge is NOT a ruled link, so it still refuses as the
-/// run-out it always was: the cut-off is not widened to plane–plane.
+/// ruled band has no fixture. And a box's single edge, which is not a
+/// ruled link, is cut off at its end faces by the plane–plane band's
+/// own cut-off.
 #[test]
-fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out() {
+fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
     let cyl = |cx: f64| {
         let lp = profile::circle(Point2::new(cx, 0.0), 0.5, tol()).unwrap();
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
@@ -567,12 +569,7 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];
-    let err = fillet_edges(&body, &[e], R, tol()).expect_err("one box edge refuses");
-    assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "a partly requested corner is a run-out, got {:?}",
-        err.error
-    );
+    fillet_edges(&body, &[e], R, tol()).expect("one box edge is cut off at its end faces");
 }
 
 /// **The lever `corner_at` hands `fillet3_cap_transverse` is the link's
@@ -638,7 +635,7 @@ fn the_cap_lever_is_the_links_extent() {
                     assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
                 }
                 (false, BlendError::UnsupportedRunOut { detail, .. }) => {
-                    assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+                    assert_eq!(detail, END_FACE_OBLIQUE);
                 }
                 (_, other) => panic!(
                     "L = {len}: the verdict must follow the lever (in band: {in_band}), got \
@@ -677,7 +674,7 @@ fn a_curved_end_face_refuses_typed_before_metering() {
         let BlendError::UnsupportedRunOut { at, detail } = err.error else {
             panic!("the curved end is a run-out, got {:?}", err.error);
         };
-        assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+        assert_eq!(detail, END_FACE_CURVED);
         let topo::EntityId::Vertex(v) = at else {
             panic!("the refusal names the vertex, got {at:?}");
         };

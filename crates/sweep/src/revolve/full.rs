@@ -298,20 +298,25 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     let victim = c_plus(&body, tops[n - 1]);
     body.kef(victim)?;
 
-    // ---- Phase 4: meridian upgrades — each surviving chain edge now
-    // has both halves in its wall; periodic walls take `Seam`, plane
-    // walls keep the conventional description (module docs). A plane
-    // annulus keeps its slit here: it is one face already, and the
-    // doubly-traversed meridian is what a one-edge rim's blend reads
-    // its support by. ----
+    // ---- Phase 4: each surviving chain edge now has both halves in
+    // its wall. A periodic wall's takes `Seam`; a plane wall's is a
+    // slit through an annulus, killed into the ring that separates its
+    // inner circle (`kemr`), as the wire case's annulus is. ----
     let mut meridians: Vec<Option<EdgeKey>> = vec![None; n];
     for (j, he) in hes.iter().enumerate() {
-        if let Some(f) = swept.faces[j] {
-            let wall = face_surface_key(&body, f);
-            let edge = he_edge(&body, *he);
-            upgrade_meridian_seam(&mut body, edge, wall, tol)?;
-            meridians[j] = Some(edge);
+        let Some(f) = swept.faces[j] else { continue };
+        if let WallClass::Wall {
+            kind: WallKind::Plane { outward },
+            ..
+        } = cls.walls[j]
+        {
+            unslit_plane_wall(&mut body, *he, SlitEnd::Annulus { outward })?;
+            continue;
         }
+        let wall = face_surface_key(&body, f);
+        let edge = he_edge(&body, *he);
+        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        meridians[j] = Some(edge);
     }
 
     #[cfg(debug_assertions)]

@@ -46,3 +46,19 @@ copy into one, and it is a candidate home for the ladder: it already
 takes the faces' surfaces as parameters, so a door asking about a state
 it has not written yet can ask it. `validate.rs`'s tier-3 reader and
 `splitting/finish.rs`'s keep-vs-restate arm still spell it by hand.
+
+## Evidence from CLEAVE (branch cleave/smooth-arms)
+
+`splitting/finish.rs`'s keep-vs-restate arm now chooses the kind
+through `geom_brep::must_carry_over_edge`, the same rule the boolean
+arm asks. It keeps an existing description only when that description
+is of the demanded kind and names the current pair. So a coherent
+chart on a jet-determinate seam is now re-minted intrinsic, and a
+`TangentIntersection` on an under-determined one is restated. The
+adjacency half of the ladder is still spelled by hand at both sites,
+and the sites still differ:
+
+- On a jet-determinate edge, the boolean re-mints even a coherent
+  `TangentIntersection`, while the split keeps it.
+- On an under-determined edge, the boolean keeps a coherent
+  `TangentIntersection`, while the split restates it.

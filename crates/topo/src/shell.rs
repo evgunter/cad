@@ -128,11 +128,12 @@
 //! pair whose operand footprints are disjoint by less than `2t` across
 //! a gap under `2t` (an S-bend's risers, two voids offset diagonally)
 //! refuses too. **What the gate decides** is that no two antiparallel
-//! PLANAR faces have offsets whose projected boxes meet across less
-//! than `2t`; **what it still cannot see** is a curved wall (below), a
-//! planar pair that is not antiparallel (two offsets meeting at an
-//! angle), and the corner solves' own refusals, which are the offset
-//! doors'.
+//! PLANAR faces — to within a drift of `t` across the pair, or a
+//! cosine antiparallel to the band — have offsets whose projected boxes
+//! meet across less than `2t`; **what it still cannot see** is a curved wall (below), a planar pair tilted
+//! further than that (two offsets meeting at an angle,
+//! `work/shell/shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel.md`),
+//! and the corner solves' own refusals, which are the offset doors'.
 //!
 //! **The curved residue is an open window, and it is not caught by
 //! anything downstream.** A curved thin neck — two facing cylinder or
@@ -224,9 +225,10 @@
 //! no `StableName` for a loop; a rim's anchor is its `ring_edges` /
 //! `ring_vertices`, whose source columns are operand edges and vertices.
 //! A hole's loop in particular is a result key on every operand and an
-//! operand key on only some — an extruded holed slab's mouth carries its
-//! ring already, while a revolve's slit annular cap has none until
-//! `kemr` mints one during the chart reduction.
+//! operand key on only some — an extruded holed slab's mouth or a
+//! revolve's annular cap carries its ring already, while a cap whose
+//! hole is joined to its outer cycle by a slit has none until `kemr`
+//! mints one during the chart reduction.
 //!
 //! # The opened arm
 //!
@@ -287,15 +289,17 @@
 //! The glue's only output shape is "one region per face, an outer loop
 //! plus rings", so a designated face is safe exactly when its cavity
 //! counterpart's boundary can become an INTERIOR-DISJOINT ring of it.
-//! A revolve's chart does not arrive that way: a full revolve of an
-//! axis-touching profile splits the cap into two half-discs meeting at
-//! the axis apex, and a full revolve of a closed off-axis profile
-//! leaves the annular cap SLIT along a radial seam. Gluing onto either
-//! puts the counterpart's boundary ON the designated face's own —
-//! sharing the apex, running back along the seam — and the result is a
-//! body every structural tier blesses and no triangulator accepts.
+//! A chart need not arrive that way: it may be several faces meeting
+//! along edges only they share — two half-discs meeting at an apex —
+//! or one face SLIT, its loop walking one edge both ways to join a hole
+//! to its outer cycle. A full revolve mints neither (each plane wall is
+//! one face, a disc or an annulus carrying its hole as a ring), but the
+//! glue's hypothesis does not name where the operand came from. Gluing
+//! onto either puts the counterpart's boundary ON the designated face's
+//! own — sharing the apex, running back along the slit — and the result
+//! is a body every structural tier blesses and no triangulator accepts.
 //!
-//! Both are facts about how the operand was swept rather than about
+//! Both are facts about how the operand was built rather than about
 //! the region, and step 3 removes them through the Euler doors alone
 //! (`kef`, `kev`, `kemr`). What survives step 3 is genuinely about the
 //! region and is refused typed
@@ -327,7 +331,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
-use geom_core::k_stats::decide;
+use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::SecondaryMap;
 
@@ -386,21 +390,18 @@ pub enum ShellError<T: Real> {
         /// The sort's typed refusal, verbatim.
         error: crate::pieces::PieceSortError,
     },
-    /// One of the operand's solids, once sorted into pieces, does not
-    /// classify to exactly one outer shell. Not a shape this verb
-    /// thickens. Two ways reach it: no outer shell at all (only
-    /// cavities, which bound no material), or more than one where the
-    /// sort's role reader ([`crate::validate::shell_role`]) left a shell
-    /// undecided — silent beside one decided `Outer` — and this verb's
-    /// classifier ([`crate::props::classify_shells_of`]) decided it
-    /// `Outer`: two readers of one sign that can part in band
-    /// (`work/fuse/one-home-for-where-a-shell-stands.md`). The roles are
-    /// read per solid, so the refusal names which solid it is about.
+    /// One of the operand's solids, once sorted into pieces, has no
+    /// outer shell: only cavities, which bound no material. Not a shape
+    /// this verb thickens. More than one cannot reach here: the sort
+    /// reads roles through [`crate::props::shell_role`], and this verb
+    /// classifies through the same lane at the reporting target, which
+    /// reads a role only where that walk read the same one
+    /// (`props::role_at_target`). So the sort leaves no solid with a
+    /// second decided `Outer`, and a shell the sort left undecided
+    /// refuses [`Self::Roles`].
     OperandOuterShells {
-        /// The solid whose shells did not classify to one boundary.
+        /// The solid with no outer shell.
         solid: SolidKey,
-        /// How many of ITS shells classified as outer boundaries.
-        outer: usize,
     },
     /// The re-partition of an operand void and its dilated twin into a
     /// solid of their own refused. The keys are the shell op's own —
@@ -591,10 +592,10 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the body could not be sorted into solids before it is thickened: {error}"
             ),
-            Self::OperandOuterShells { outer, .. } => write!(
+            Self::OperandOuterShells { .. } => write!(
                 f,
-                "a solid of the body has {outer} outer shells once sorted into pieces, not \
-                 one, which the shell op cannot thicken"
+                "a solid of the body has no outer shell, only cavities, which bound no \
+                 material to thicken"
             ),
             Self::Partition { shell, error } => write!(
                 f,
@@ -856,9 +857,10 @@ pub struct HoleRim {
     ///
     /// **A result key, not a source key**, and the distinction is not
     /// academic: on an extruded holed slab this key is the operand's
-    /// own ring loop, while on a revolve's SLIT annular cap the
-    /// designated face carries no ring at all in the operand and this
-    /// loop is minted by `kemr` during the chart reduction. Reading it
+    /// own ring loop, while on a SLIT cap — its hole joined to its outer
+    /// cycle by a slit — the designated face carries no ring at all in
+    /// the operand and this loop is minted by `kemr` during the chart
+    /// reduction. Reading it
     /// as a source key is right on one operand and wrong on the other,
     /// which is why the edge-level rows below exist.
     pub ring: LoopKey,
@@ -1033,11 +1035,15 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         if shells.len() == 1 {
             continue;
         }
-        let roles = crate::props::classify_shells_of(body, shells, tol)
+        let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
             .map_err(|error| ShellError::Roles { error })?;
-        let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
-        if outer != 1 {
-            return Err(ShellError::OperandOuterShells { solid, outer });
+        match roles.iter().filter(|c| c.role == ShellRole::Outer).count() {
+            0 => return Err(ShellError::OperandOuterShells { solid }),
+            1 => {}
+            outer => unreachable!(
+                "{outer} decided outer shells under one solid after the sort, whose \
+                 sign walk reads every role the classification reads"
+            ),
         }
         voids.extend(
             roles
@@ -1316,7 +1322,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // Per chart, ONCE — not once per designated face. The rim a
     // designation asks for is one region of the mouth plane, and how
     // many faces the operand spent on that region is a fact about the
-    // operand's construction (a full revolve's seam) rather than about
+    // operand's construction rather than about
     // the rim. Both sides of the glue are reduced to one face carrying
     // proper, mutually disjoint loops first
     // ([`canonicalize_chart`]) — which is exactly the condition that
@@ -1816,11 +1822,11 @@ fn undesignated(face: FaceKey) -> ! {
 /// **One face per chart, loops disjoint** — the shape the rim glue's
 /// only output form needs on both sides of it.
 ///
-/// A chart arrives from a revolve carrying that construction's seam:
-/// an axis-touching cap is TWO faces meeting along a diameter, and an
-/// annular cap is one face slit radially, its loop walking the seam
-/// edge in both directions. Neither is a fact about the region — both
-/// are facts about how the operand was swept — and both are exactly
+/// A chart may arrive carrying edges that are no fact about the region:
+/// several faces meeting along edges only they share (two half-discs
+/// meeting along a diameter), or one face SLIT, its loop walking one
+/// edge in both directions to join a hole to its outer cycle. Both are
+/// facts about how the operand was built, and both are exactly
 /// what makes a counterpart's boundary land ON the designated face's
 /// boundary instead of strictly inside it. This reduces them, through
 /// the Euler doors and nothing else:
@@ -1829,10 +1835,10 @@ fn undesignated(face: FaceKey) -> ! {
 ///    (`kef`), leaving the merged loop walking each killed edge's
 ///    surviving partner twice;
 /// 2. a SPUR — such a duplicate whose far vertex the merge left with
-///    one edge on it, the axis apex of a revolved cap — dies with that
+///    one edge on it, the apex of two half-discs — dies with that
 ///    vertex (`kev`);
-/// 3. a SLIT — a duplicate still anchored at both ends, an annular
-///    cap's radial seam — splits the loop in two (`kemr`), the
+/// 3. a SLIT — a duplicate still anchored at both ends, joining a hole
+///    to the outer cycle — splits the loop in two (`kemr`), the
 ///    inner side becoming the ring it always was.
 ///
 /// Returns the surviving face. A chart this cannot reduce refuses
@@ -2014,7 +2020,7 @@ fn pair_rings<T: Decide>(
 
 /// A loop of `face` that walks one edge in BOTH directions, with the
 /// two halves in cycle order — the seam remnant a chart merge leaves,
-/// and the slit a full revolve of a closed profile is born with.
+/// and a slit joining a hole to its outer cycle.
 /// `face` is one this call resolved; its loops, their walks, each
 /// member's edge and a lone vertex's point are links, so a miss panics
 /// naming the record.
@@ -2250,6 +2256,9 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
         | ReplaceFaceError::ReanchorOffCarrier { edge, .. }
+        | ReplaceFaceError::ReanchorPastCarrierEnd { edge, .. }
+        | ReplaceFaceError::ReanchorInconclusive { edge, .. }
+        | ReplaceFaceError::NurbsLaneUnsupported { edge, .. }
         | ReplaceFaceError::NeighborPoseUnroutable { edge, .. } => {
             face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus)
         }
@@ -2366,13 +2375,18 @@ fn loop_rekeyed<T: Decide>(
 /// aimed at M10.
 ///
 /// **Conservative in the #571 direction.** Footprint overlap is tested
-/// on projected bounding boxes GROWN by `thickness` on every side —
+/// on projected bounding boxes of each face's whole boundary, arcs
+/// included ([`footprint`]), GROWN by `thickness` on every side —
 /// the footprint an inward offset has past a concave edge
 /// ([`footprints_may_overlap`]) — and an ambiguous or escalating box
-/// comparison counts as OVERLAPPING. The gate may therefore refuse a
-/// staircase body whose faces do not really face each other, or a
-/// convex-edged pair whose offsets would have cleared; it cannot miss
-/// a planar pair that crosses.
+/// comparison counts as OVERLAPPING. A pair tilted off antiparallel
+/// is read when its planes drift apart by at most `t` across its
+/// extent, or when its normals' cosine is antiparallel to the band, and
+/// its gap is then taken short by that drift. The gate may therefore
+/// refuse a staircase body whose faces do not really face each other,
+/// or a convex-edged pair whose offsets would have cleared; it cannot
+/// miss a planar pair within either window that crosses. A pair tilted
+/// further is not read (module docs).
 fn wall_clearance<T: Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
@@ -2391,12 +2405,42 @@ fn wall_clearance<T: Decide>(
             if a.solid != b.solid {
                 continue;
             }
-            // Facing each other: outward normals antiparallel.
-            let anti = Margin::of(-(a.normal.dot(b.normal)) - T::one());
-            if !matches!(
-                decide("shell_walls_antiparallel", anti, band),
-                Ok(Sign::Zero)
-            ) {
+            // Facing each other. `|n_a + n_b|` is the chord between one
+            // outward normal and the other's reverse, exactly `2·sin(δ/2)`
+            // for a tilt `δ` off antiparallel; levered by `L`, a bound on
+            // how far apart two points of the pair stand, it is how far
+            // one plane drifts from the other across the pair. A pair is
+            // read when that drift is within one wall, OR when the cosine
+            // is antiparallel to the band — the window the gate read
+            // before the lever, which is the wider one when `t/L` is
+            // below `√(2ε)`. A pair outside both is the tilted residue
+            // (module docs).
+            let lever = gate_measured(
+                "shell_walls_extent",
+                a.reach + b.reach + (b.origin - a.origin).norm(),
+                band,
+            )
+            .map_err(|source| ShellError::Escalated { source })?;
+            let drift = (a.normal + b.normal).norm() * lever;
+            let within_a_wall = !matches!(
+                decide(
+                    "shell_walls_antiparallel",
+                    Margin::of(drift - thickness),
+                    band,
+                ),
+                Ok(Sign::Positive)
+            );
+            let antiparallel_cosine = || {
+                matches!(
+                    decide(
+                        "shell_walls_antiparallel_cosine",
+                        Margin::of(-(a.normal.dot(b.normal)) - T::one()),
+                        band,
+                    ),
+                    Ok(Sign::Zero)
+                )
+            };
+            if !within_a_wall && !antiparallel_cosine() {
                 continue;
             }
             if face_neighbours(body, a.face).contains(&b.face) {
@@ -2405,9 +2449,19 @@ fn wall_clearance<T: Decide>(
             if !footprints_may_overlap(a, b, thickness, band) {
                 continue;
             }
+            // `gap - drift` bounds the wall from below: for `q` on `b`,
+            // `(q − o_a)·n_a = ±gap + (q − o_b)·(n_a + n_b)`, since
+            // `(q − o_b)·n_b = 0`, and `|q − o_b| ≤ L`. Together the two
+            // offsets close that separation by `t·(1 − n_a·n_b) ≤ 2t`, so
+            // a wall of at least `2t` everywhere keeps them apart. Read in either window, so a tilted pair the cosine
+            // admits is not measured as parallel.
             let gap = (b.origin - a.origin).dot(a.normal).abs();
-            match decide("shell_wall_clearance", Margin::of(gap - two_t), band)
-                .map_err(|source| ShellError::Escalated { source })?
+            match decide(
+                "shell_wall_clearance",
+                Margin::of(gap - drift - two_t),
+                band,
+            )
+            .map_err(|source| ShellError::Escalated { source })?
             {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
@@ -2425,8 +2479,9 @@ fn wall_clearance<T: Decide>(
 }
 
 /// One planar face reduced to what the clearance gate reads: its
-/// OUTWARD normal, a point on it, an in-plane frame, and the projected
-/// footprint of its boundary in that frame.
+/// OUTWARD normal, a point on it, an in-plane frame, the projected
+/// footprint of its boundary in that frame, and how far that footprint
+/// reaches from the point.
 struct PlanarFace<T: Real> {
     face: FaceKey,
     /// The solid the face belongs to: the gate is a claim about ONE
@@ -2438,13 +2493,17 @@ struct PlanarFace<T: Real> {
     v_ref: geom_core::Vec3<T>,
     box_u: (T, T),
     box_v: (T, T),
+    /// The farthest corner of the footprint box from `origin`. Poison
+    /// when a boundary term was, so the gate escalates on it rather
+    /// than folding it away.
+    reach: T,
 }
 
 /// Every planar face of `body`, with its outward normal and projected
 /// footprint. Every face is read off the arena, so its records are
 /// links and a miss panics naming one.
 #[track_caller]
-fn planar_faces<T: geom_core::Decide>(
+fn planar_faces<T: Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
 ) -> Vec<PlanarFace<T>> {
@@ -2459,24 +2518,16 @@ fn planar_faces<T: geom_core::Decide>(
             continue;
         };
         let normal = plane_outward_normal(data, *normal).vec();
-        let v_ref = normal.cross(*u_ref);
-        let mut box_u: Option<(T, T)> = None;
-        let mut box_v: Option<(T, T)> = None;
-        for point in face_boundary_points(body, face) {
-            let w = point - *origin;
-            let (u, v) = (w.dot(*u_ref), w.dot(v_ref));
-            box_u = Some(match box_u {
-                None => (u, u),
-                Some((lo, hi)) => (lo.min(u), hi.max(u)),
-            });
-            box_v = Some(match box_v {
-                None => (v, v),
-                Some((lo, hi)) => (lo.min(v), hi.max(v)),
-            });
-        }
-        let (Some(box_u), Some(box_v)) = (box_u, box_v) else {
+        let frame = InPlane {
+            origin: *origin,
+            u: *u_ref,
+            v: normal.cross(*u_ref),
+            n: normal,
+        };
+        let Some((box_u, box_v)) = footprint(body, face, &frame) else {
             continue;
         };
+        let far = |(lo, hi): (T, T)| lo.abs().max(hi.abs());
         out.push(PlanarFace {
             face,
             solid: partition.solid_of(face).unwrap_or_else(|| {
@@ -2487,13 +2538,99 @@ fn planar_faces<T: geom_core::Decide>(
             }),
             origin: *origin,
             normal,
-            u_ref: *u_ref,
-            v_ref,
+            u_ref: frame.u,
+            v_ref: frame.v,
             box_u,
             box_v,
+            reach: (far(box_u).powi(2) + far(box_v).powi(2)).sqrt(),
         });
     }
     out
+}
+
+/// A plane's frame: `origin`, the in-plane `u` and `v`, and the normal
+/// `n`, all three unit and orthogonal.
+struct InPlane<T: Real> {
+    origin: geom_core::Point3<T>,
+    u: geom_core::Vec3<T>,
+    v: geom_core::Vec3<T>,
+    n: geom_core::Vec3<T>,
+}
+
+impl<T: Real> InPlane<T> {
+    fn point(&self, p: geom_core::Point3<T>) -> geom_core::Point3<T> {
+        let w = p - self.origin;
+        geom_core::Point3::new(w.dot(self.u), w.dot(self.v), w.dot(self.n))
+    }
+}
+
+/// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
+/// whole boundary — every vertex, and every edge's arc on its carrier
+/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
+/// out of the vertex hull carries region past it, and an extruded
+/// disc's cap has its two vertices on one diameter. A poisoned term
+/// poisons all four ends. `None` for a face with no boundary member to
+/// fold.
+#[track_caller]
+fn footprint<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    frame: &InPlane<T>,
+) -> Option<((T, T), (T, T))> {
+    let mut points = Vec::new();
+    for he in body.face_cycles_linked(face) {
+        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
+        let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
+        points.push((start.x, start.y));
+        let edge = linked(
+            &body.edges,
+            h.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he),
+            "edge",
+        );
+        // Null scaffolding is a zero-length chord its vertex holds.
+        if let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() {
+            points.extend(
+                carrier_box(curve.carrier(), curve.params(), frame)
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+    }
+    let poison = points
+        .iter()
+        .flat_map(|&(u, v)| [u, v])
+        .find(|x| x.is_poison());
+    if let Some(p) = poison {
+        return Some(((p, p), (p, p)));
+    }
+    let (&(u0, v0), rest) = points.split_first()?;
+    Some(
+        rest.iter()
+            .fold(((u0, u0), (v0, v0)), |((ulo, uhi), (vlo, vhi)), &(u, v)| {
+                ((ulo.min(u), uhi.max(u)), (vlo.min(v), vhi.max(v)))
+            }),
+    )
+}
+
+/// The `(u, v)` box of `frame` holding `carrier`'s arc over `params`:
+/// the projection of [`carrier_ball`]'s ball, which holds the whole arc.
+/// `None` for a line, whose two vertices hold it.
+///
+/// [`carrier_ball`]: crate::splitting::containment::carrier_ball
+fn carrier_box<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    params: (T, T),
+    frame: &InPlane<T>,
+) -> Option<[(T, T); 2]> {
+    if matches!(carrier, geom::Curve3::Line { .. }) {
+        return None;
+    }
+    let (center, radius) = crate::splitting::containment::carrier_ball(carrier, params)
+        .unwrap_or_else(|| unreachable!("a certified spline carrier has control points"));
+    let c = frame.point(center);
+    Some([(c.x - radius, c.y - radius), (c.x + radius, c.y + radius)])
 }
 
 /// Do the two footprints overlap when both are projected into `a`'s
@@ -2557,23 +2694,6 @@ fn footprints_may_overlap<T: Decide>(
         )
     };
     !(separated(grown(a.box_u), grown(re_u)) || separated(grown(a.box_v), grown(re_v)))
-}
-
-/// Every point on `face`'s boundary loops, for a face this call read
-/// off the arena: the walk reads links, so a miss panics naming the
-/// record.
-#[track_caller]
-fn face_boundary_points<T: geom_core::Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Vec<geom_core::Point3<T>> {
-    body.face_cycles_linked(face)
-        .into_iter()
-        .map(|he| {
-            let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-            body.linked_vertex_point(start, EntityId::HalfEdge(he), "start")
-        })
-        .collect()
 }
 
 /// The signed distance that moves `face` INTO the material: the
@@ -2700,6 +2820,9 @@ fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 mod tests {
     use super::*;
     use crate::test_support::finished;
+
+    #[allow(clippy::panic)]
+    mod footprint_fuzz;
 
     /// **The duplicate scan panics on a ring link that does not
     /// resolve**, where it stepped over it.

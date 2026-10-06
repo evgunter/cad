@@ -358,5 +358,7 @@ mod door_backstop_settled_residue;
 mod pierce_strut_at_a_pinch;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "spline_reanchor_rows.rs"]
+mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;

@@ -35,6 +35,7 @@ use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
+use super::fragments::Lineage;
 use super::join::CompletedPolygonPair;
 use super::sectors;
 use super::shell_witness::{
@@ -306,7 +307,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
     if op == BooleanOp::Subtract {
-        b_kept = b_kept.revert().map_err(BooleanError::Revert)?;
+        b_kept = b_kept.revert();
     }
 
     // ---- The combine door. ----
@@ -510,8 +511,8 @@ impl Welds {
 /// vertex it leaves is split per cone with the rest
 /// (`zip::split_cones`).
 ///
-/// The site is read from lineage: the pierced face's fragments
-/// (`lineage`, `(new face, divided-from face)` rows), section faces
+/// The site is read from the pierced face's [`Lineage`] through the
+/// join's fragment `rows` and the welds' own, section faces
 /// (`sections`) aside. Pierces that survive on different fragments, or
 /// meet only on a section face, stay apart, as the contact's own
 /// vertices do; so do two whose corners of the site do not nest
@@ -519,7 +520,7 @@ impl Welds {
 /// edges do not run in.
 fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    (operand, lineage, sections): (
+    (operand, rows, sections): (
         Operand,
         &[(FaceKey, FaceKey)],
         &SecondaryMap<FaceKey, SideCode>,
@@ -572,8 +573,8 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 })? {
                     continue;
                 }
-                let fragments = descendants(pierced, lineage.iter().chain(&welds.fragments));
-                let in_lineage = |f: FaceKey| fragments.contains(&f) && !sections.contains_key(f);
+                let lineage = Lineage::of(pierced, rows.iter().chain(&welds.fragments));
+                let in_lineage = |f: FaceKey| lineage.contains(f) && !sections.contains_key(f);
                 let Some((face, joint)) = pinch_site(body, u, w, in_lineage)? else {
                     continue;
                 };
@@ -674,25 +675,6 @@ fn corner_holds<T: Decide>(
         Sign::Negative => true,
         Sign::Zero => true,
     })
-}
-
-/// `face` and every face divided from it, through `rows` (`(new face,
-/// divided-from face)`, in any order).
-fn descendants<'r>(
-    face: FaceKey,
-    rows: impl Iterator<Item = &'r (FaceKey, FaceKey)>,
-) -> BTreeSet<FaceKey> {
-    let rows: Vec<_> = rows.collect();
-    let mut out = BTreeSet::from([face]);
-    let mut todo = vec![face];
-    while let Some(f) = todo.pop() {
-        for &&(new, from) in &rows {
-            if from == f && out.insert(new) {
-                todo.push(new);
-            }
-        }
-    }
-    out
 }
 
 /// The one face `allowed` admits whose boundary runs through both `u`

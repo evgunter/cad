@@ -490,9 +490,7 @@ fn a_declared_seat_with_a_keel_is_probed() {
 #[test]
 fn a_solid_whose_cavity_crosses_its_wall_blocks_its_pair() {
     let mut body = block((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
-    let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75))
-        .revert()
-        .unwrap();
+    let cavity = block((2.0, 4.0), (1.0, 2.0), (0.25, 0.75)).revert();
     topo::graft_disjoint(&mut body, &cavity).unwrap();
     let mut body = body.with_solids_merged_for_tests();
     topo::graft_disjoint(&mut body, &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0))).unwrap();

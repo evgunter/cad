@@ -2,7 +2,8 @@
 id: a-pair-boolean-names-a-declared-covered-pair-by-operand-order
 kind: issue
 title: A pair boolean names a declared covered pair by operand order: emit_topo reads merge_groups, not covered
-status: open
+status: parked
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 opened: 2026-10-02
 design: true
 priority: P2
@@ -21,3 +22,15 @@ The pair boolean does read `DiscardRow::held`, through `borders::Obstacles`, so 
 ## The question
 
 Should the pair boolean follow member-space consumption as the union now does? That would make a declared covered pair one parent, `Merged` of both faces, whichever operand is A. The other answer is that the pair boolean keeps naming by the faces the result keeps. The ruling covered the union only, so this is Ev's call.
+
+## Parked on D10 (2026-10-06)
+
+The question is how a pair boolean names a *declared* covered pair.
+Declared pairs (`Boolean`/`Union` `declare`) are on the D10 hold's
+ground (`work/emit/log.md`, 2026-10-03). Under D10, declarations retire
+at intent plan stage 4 (`work/intent/plan.md`: "booleans glue on Zero;
+declared pairs … retire"), and coincidence becomes a margined verdict.
+When that stage is built, re-ask this as "how does a pair boolean name a
+coincident covered pair the verdict glued", if it still arises. Parked on
+`d10-one-way-to-say-intent-is-unbuilt`, as the union member-order row
+was (PR 4141).
