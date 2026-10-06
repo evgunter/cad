@@ -12,6 +12,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Tol, Vec3};
 use sweep::test_support::ball_poled_y;
+use sweep::test_support::finished;
 
 #[test]
 fn a_pole_touching_ball_shells_to_the_difference_of_two_balls() {
@@ -28,7 +29,7 @@ fn a_pole_touching_ball_shells_to_the_difference_of_two_balls() {
         let label = format!("r {r} t {t} centre {c}");
         let ball = ball_poled_y(r, Vec3::new(0.0, c, 0.0), tol);
         assert_eq!(ball.faces().count(), 2, "{label}: one wall in two π-bands");
-        let out = topo::shell(&ball, t, tol)
+        let out = topo::shell(&finished("the operand", ball.clone(), tol), t, tol)
             .unwrap_or_else(|e| panic!("{label}: the ball shells, got {e:?}"))
             .body;
         assert_eq!(

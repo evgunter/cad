@@ -139,14 +139,7 @@ impl<T: Decide> Body<T> {
                      directions: on a tier-1-valid body a face's shell lists it and an edge's \
                      two faces share a shell"
                 );
-                for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-                    let loop_data = linked(
-                        &self.loops,
-                        loop_key,
-                        EntityId::Loop,
-                        EntityId::Face(face_key),
-                        "loops",
-                    );
+                for (loop_key, loop_data) in self.face_loops_linked(face_key, &face) {
                     assert!(
                         loop_data.face == face_key,
                         "{face_key:?} lists loop {loop_key:?}, which names face {:?}: on a \
@@ -546,6 +539,23 @@ mod tests {
 
     fn p(x: f64) -> Point3<f64> {
         Point3::new(x, 0.0, 0.0)
+    }
+
+    /// **movefac panics on a ring link that does not resolve**, where
+    /// the loop walk reads it.
+    #[test]
+    fn movefac_panics_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let (face, shell) = body.faces().next().map(|(k, f)| (k, f.shell)).unwrap();
+        let named = tear_ring(&mut body, face);
+        assert_torn_op_panics(
+            "movefac",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| b.movefac(shell),
+        );
     }
 
     /// The PR 4 detached-digon transient: pillow + a digon hanging on a

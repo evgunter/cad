@@ -7,6 +7,7 @@ opened: 2026-10-05
 priority: P3
 cost: M
 refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, torn-body-refusal-families-beyond-the-six-doors]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What

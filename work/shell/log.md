@@ -1074,3 +1074,75 @@ so the lane added evidence there instead of filing a duplicate. Merged
 over the inherited `pinch_faces_tessellate` ε = 1e-6 red, which is
 JOIN's `pinch-tessellate-row-escalates-at-eps-1e-6` (filed here), as
 the merge rules allow.
+
+## Unit 2 MERGED (2026-10-06, PR 4112)
+
+The shell doors take an `AtRestBody`. Single full review:
+NOT-MERGEABLE-AS-IS on one MAJOR. `AtRestBody` derefs to `Body`, so
+reverting the doors still compiled, and every "refused at the gate"
+row tested `validate`, not the door. The fix pass:
+- pins the three doors' operand types at compile time, verified by
+  planting the revert (E0308 at all three);
+- rewrites the gate rows' docs to say what they prove;
+- records that no document reaches `UnfinishedOperand` through a Shell
+  node;
+- corrects the stale docs;
+- files S7 as `shelf/shelled-result-discards-its-own-closing-verdict`.
+S6 (finished fixtures) was skipped because it grows. Merged over the
+inherited pinch ε = 1e-6 red.
+
+## Unit 6 measured; the klein elbow is a design fork (2026-10-06, PR 4138)
+
+The lane measured the decline and stopped at the design question, as
+briefed. The lift's scope holds the cavity's meridian caps, translated
+one wall off the axis, and `offset_axial::classify` refuses "a plane
+parallel to the axis but not through it". So the scope is not axial
+under the gate's definition, and this is not a gap in it. The together
+door would need two new arms:
+- the gate admits such a plane, either roster-wide or lift-only;
+- the torus × meridian edge arm accepts a spiric old rim. An
+  experiment showed it refuses `TogetherAxialEdge` one stage later.
+PR 4138 records the measurement and the probe and merged on the
+orchestrator's read (comments and item prose only, no kernel change,
+CI green). The item stays open, re-priced H with `design: true`, for a
+designer pair. `offset_axial.rs` is OFFSET's and CURVED's shared ground
+too.
+
+Reviews of PRs 4115 and 4117 were both APPROVE-WITH-FIXES; fix passes
+are out.
+
+## Unit 6 weighed (2026-10-06)
+
+The designer pair on the klein-elbow lift converged in round 1, and
+both rejected the item's framing. The together door's domain is
+"revolves at rest", so it is not closed under its own output, and the
+lift is that door applied to its output. They agreed on the fix:
+- widen "axial" to every axis-parallel plane, everywhere;
+- `classify` reads one surface;
+- rim carriers come from the moved pair, with one plane×torus section
+  home in `geom_brep::plane_torus_section`;
+- a zero-offset spiric is unrepresentable.
+No ratified text moves, so there is no `[ev]` PR. The spec basis is in
+the item. Unit 6 now runs BEFORE unit 7, whose partial-revolve lift
+depends on it. Its review tier is DUAL: the gate change re-routes many
+bodies and is hard to reverse once rows are rebuilt on it.
+
+## Unit 4 MERGED (2026-10-06, PR 4117)
+
+Lofted and NURBS-walled bodies get past the wall-seam re-anchor. The
+re-anchor is certified and seeded on spline carriers and in closed form
+on ellipses. Single full review: APPROVE-WITH-FIXES, no MAJOR. The fix
+pass:
+- adds a seed-sensitive row (red under the reviewer's seedless mutant);
+- makes the analytic arms explicit;
+- re-measures |δ| over the new carrier kinds;
+- uses one `NurbsLaneUnsupported` spelling within the door;
+- corrects the refusal docs and the vase number.
+Filed:
+- the closed-carrier seam case, the three-spellings class and the
+  spline-extension residue (shell);
+- the zero-span "kernel defect" text, riding unit 5;
+- the ellipse boolean `param_near` sites (HONE);
+- the interior-row iso arm (ISO).
+ENCL's rigid-map row, which was parked on the closed item, is re-parked
+on the oblique-corner item that now gates it.

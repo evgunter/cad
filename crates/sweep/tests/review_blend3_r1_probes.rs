@@ -4,10 +4,11 @@
 //! against the claims BLEND-3 makes rather than against its
 //! implementation. Four questions, each answered by execution:
 //!
-//! 1. **Is the "third door" really the ring gate?** The unit says the
+//! 1. **Is the "third door" really the ring gate?** The unit said the
 //!    fixture's vent is round because a square chimney refused on the
-//!    ring-clearance pass, which is not a convexity door at all. The
-//!    square vent is built here and the refusal is read.
+//!    ring-clearance pass, which is not a convexity door at all. That
+//!    pass now meters a square ring edge by edge, so the square vent
+//!    passes all three doors and carves.
 //! 2. **Is the shape argument tight?** BLEND-3 argues that the
 //!    requested set must be a whole component of the edge graph, so a
 //!    pocket cannot supply one, an unvented cavity is two shells, and
@@ -72,15 +73,15 @@ fn cavity_edges_of(body: &Body<f64>, poly: &[Point2<f64>], z0: f64, z1: f64) -> 
 // 1. The third door.
 // ---------------------------------------------------------------
 
-/// **The door that shaped the fixture is the RING gate, and it is not
-/// a convexity door.** BLEND-3 reports that its first draft vented the
-/// cavity through a square chimney and was refused because a ring
-/// edge's carrier was not a circle. Same cavity, same twelve edges,
-/// square vent: the refusal is read here rather than taken on the
-/// record's word, which is what makes the three-door ordering claim
-/// checkable by someone who was not there.
+/// **A square vent passes every door, the convexity doors included.**
+/// BLEND-3's first draft vented the cavity through a square chimney
+/// and was refused at the ring gate because a ring edge's carrier was
+/// not a circle. The ring gate meters a ring of lines edge by edge now,
+/// and the chimney's mouth sits 0.7 inside the ceiling's edges against
+/// a 0.25 setback: same cavity, same twelve edges, the chamfer carves
+/// to a closed body.
 #[test]
-fn r1_a_square_vent_refuses_on_the_ring_gate_not_on_convexity() {
+fn r1_a_square_vent_carves_past_the_ring_gate_and_both_convexity_doors() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = brick(Point3::new(1.7, 1.7, 2.5), Point3::new(2.3, 2.3, 5.0));
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
@@ -101,16 +102,12 @@ fn r1_a_square_vent_refuses_on_the_ring_gate_not_on_convexity() {
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the cavity's twelve edges");
 
-    let err = chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect_err("a square vent's ring is not a circle");
-    let text = err.error.to_string();
-    assert!(
-        !text.contains("mixed-convexity") && !text.contains("concave chain"),
-        "the third door must not be a convexity door — got {text}"
-    );
-    assert!(
-        text.contains("circle") || text.contains("ring"),
-        "expected the ring gate's own refusal, got {text}"
+    let out = chamfer_edges(&body, &edges, D, Tol::witness())
+        .unwrap_or_else(|e| panic!("a square vent's ring is clear of the carve: {}", e.error));
+    assert_eq!(
+        validate_closed(&out.body),
+        Ok(()),
+        "the carved body, tier 2"
     );
 }
 
@@ -180,10 +177,11 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
     );
 }
 
-/// **Step two: an UNVENTED cavity is two shells and the body door
-/// says so.** This is the step that forces a vent to exist at all.
+/// **Step two: an UNVENTED cavity is two shells, and its twelve edges
+/// chamfer inside the void's own.** The vent is a fixture choice, not
+/// a door's demand: the blend carves the shell its chains lie in.
 #[test]
-fn r1_an_unvented_cavity_refuses_at_the_body_door() {
+fn r1_an_unvented_cavity_chamfers_inside_its_own_shell() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
     let body = cut("cavity", &block, &cavity);
@@ -201,8 +199,14 @@ fn r1_an_unvented_cavity_refuses_at_the_body_door() {
     ];
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the sealed cavity still has twelve edges");
-    chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect_err("the surgery's body door admits one shell");
+    let out = chamfer_edges(&body, &edges, D, Tol::witness())
+        .unwrap_or_else(|e| panic!("the sealed cavity chamfers: {e}"));
+    assert_eq!(out.shells.len(), 1, "only the void's shell is carved");
+    assert_eq!(
+        out.body.shells().count(),
+        2,
+        "and the outer one rides through"
+    );
 }
 
 /// **The minimality claim is FALSE as written.** BLEND-3's fixture doc

@@ -43,6 +43,34 @@ chart-free statement of it (the side of the section plane the island
 lies on, read from the germs), with this probe's pose under every op
 against its closed form.
 
+## Evidence (2026-10-05, `reach/trimmed-sphere-escape`)
+
+A chart-free sphere arm was written and measured on that branch and
+taken back out of it (the unit found a cut that makes no ring); the
+code is at `cd76b9c3a3`, `boolean::join::sphere_island_ccw`. The
+statement, for a ring lane of a sphere face whose chord lies in the
+section plane `Π`:
+
+- the run lies in one closed cap of `Π` (side `σ`, read off every
+  charted run edge's midpoint), so run ∪ arc bounds one region inside
+  that cap and one holding the other; the region LEFT of the closing
+  arc is the inner one exactly when `N × t` at the arc's midpoint
+  points to `σ`;
+- the ring is a hole, so the two candidate runs bound the two pieces
+  the arc cuts off the face's side of the ring, and the outer loop lies
+  in one: an outer-loop vertex `w` off `Π` on the side opposite `σ`
+  says the run's patch is the island exactly when it is the inner
+  region; `w` on `σ` is read against the other run, which must lie on
+  the opposite side.
+
+"The side of the section plane the island lies on" alone does not
+decide it: both candidates' left regions lie inside their own caps,
+and only the outer loop tells them apart. On this item's probe pose it
+built ∩ in both orders and slab ∖ ball, tier 3 clean; ∪ and ball ∖ slab
+then refuse `ResultInvalid { VolumeUncomputable { source:
+RingOnCurvedFace } }`, the ringed sphere face the result carries
+(`sphere-face-with-a-hole-has-no-closed-form`).
+
 ## Evidence (2026-10-05, PR 4046's dual review)
 
 PR 4046 lets a carved sphere body (one with a face bounded by a tilted

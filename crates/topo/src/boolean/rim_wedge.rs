@@ -860,34 +860,24 @@ fn rides<T: Decide>(
 /// # Panics
 ///
 /// Where a record past `face` does not resolve or a loop walk does not
-/// close (D2 row 4): its loops, their members, each member's edge and
-/// curve. A torn curve is not null scaffolding. The links hold at rest
-/// and, mid-operation, by [`crate::live::OPERATORS_KEEP_LINKS`].
+/// close (D2 row 4): its loops, a lone vertex's point, their members,
+/// each member's edge and curve. A torn curve is not null scaffolding.
+/// The links hold at rest and, mid-operation, by
+/// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn face_boundary_arcs<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Vec<(bool, &geom_brep::EdgeCurve<T>)> {
-    use crate::entity::EntityId;
     let mut out = Vec::new();
     let Some(f) = body.get_face(face) else {
         return out;
     };
-    for (_, l) in body.face_loops_linked(face, f) {
-        let crate::entity::LoopBoundary::Cycle { first } = l.boundary else {
+    for member in body.face_boundary_linked(face, f) {
+        let crate::live::BoundaryMember::Edge { he, ek, edge, .. } = member else {
             continue;
         };
-        for he in body.loop_walk(first).closed("loop", first) {
-            let h = crate::live::proven(&body.half_edges, he, EntityId::HalfEdge);
-            let e = crate::live::linked(
-                &body.edges,
-                h.edge,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            if let Some(c) = body.edge_curve_linked(h.edge, e).certified() {
-                out.push((e.he_plus == he, c));
-            }
+        if let Some(c) = body.edge_curve_linked(ek, edge).certified() {
+            out.push((edge.he_plus == he, c));
         }
     }
     out
