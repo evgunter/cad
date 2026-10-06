@@ -71,7 +71,10 @@ The unit adds
 those profiles at those poses, every op in both member orders, held to
 tiers 1–3, the closed-form volume (exact upright, within the measured
 pad where a tilt bounds a face by ellipse arcs) and the exact census,
-derived from the profile's segments and walls. Tier 3′ passes
+derived from the prism's sides and the vertices drawn on its arcs
+(PR 3826 sweeps a run of cocircular arcs as one wall, so a vertex
+drawn on an arc stays on the prism's caps and leaves none in the
+section). Tier 3′ passes
 everywhere but on the two stubs of a tilted `prism ∖ slab`, where
 CONTACT's census cannot yet decide two parts' curved faces apart; the
 row pins that refusal and the CONTACT issue carries the witness. Red at

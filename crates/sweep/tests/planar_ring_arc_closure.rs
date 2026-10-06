@@ -8,9 +8,10 @@
 //!
 //! The profiles are the D (an arc and its diameter) at bulges from a
 //! shallow cap past the half-disc, the crescent and the lens (two arcs
-//! on one chord, bowing the same way and opposite ways), and each with
-//! an arc split at a vertex lying on its circle, so the section has a
-//! vertex at a smooth point of the arc. Every profile is driven through
+//! on one chord, bowing the same way and opposite ways), and the D and
+//! the crescent drawn with an arc split at a vertex on its circle, which
+//! the extrude sweeps as one wall, so the vertex drawn on the arc stays
+//! on the prism's caps and must leave none in the section. Every profile is driven through
 //! the slab upright, off the origin, spun about its axis and tilted
 //! about one axis and two, and every op is asked in both member orders.
 
@@ -44,25 +45,31 @@ fn census(body: &topo::Body<f64>) -> Census {
     )
 }
 
-/// **The census of a slab pierced by a prism of `n` segments and `w`
-/// wall faces**, for ∪, ∩, slab ∖ prism and prism ∖ slab. Two arcs on
-/// one circle meeting at a vertex are one wall face, so `w ≤ n`: the
-/// prism's long edges are the `w` joints between walls, and the vertex
-/// between two arcs of one wall stays on its caps and on the slab's
-/// rings.
+/// **The census of a slab pierced by an `n`-sided prism whose caps
+/// each carry `k` vertices drawn on an arc**, for ∪, ∩, slab ∖ prism and
+/// prism ∖ slab. A vertex drawn between two arcs of one circle splits
+/// the cap's edge there but no wall, so the slab's sections never meet
+/// it: it shows only on the prism's own caps, which ∪ and prism ∖ slab
+/// keep.
 ///
 /// - ∪: the slab's two faces each keep a ring of `n` edges and `n`
-///   vertices, and the prism's `w` walls are cut into the stub above
-///   and the stub below, its `w` long edges into two each;
+///   vertices, and the prism's `n` walls are cut into the stub above and
+///   the stub below, its `n` long edges into two each;
 /// - ∩: the prism one unit long between the slab's planes;
 /// - slab ∖ prism: the slab with a hole through it, genus 1;
 /// - prism ∖ slab: the two stubs.
-fn pierced(n: usize, w: usize) -> [Census; 4] {
+fn pierced(n: usize, k: usize) -> [Census; 4] {
     [
-        (1, 8 + 4 * n, 12 + 4 * n + 2 * w, 8 + 2 * w, 10 + 2 * w),
-        (1, 2 * n, 2 * n + w, 2 + w, 2 + w),
-        (1, 8 + 2 * n, 12 + 2 * n + w, 6 + w, 8 + w),
-        (2, 4 * n, 4 * n + 2 * w, 4 + 2 * w, 4 + 2 * w),
+        (
+            1,
+            8 + 4 * n + 2 * k,
+            12 + 6 * n + 2 * k,
+            8 + 2 * n,
+            10 + 2 * n,
+        ),
+        (1, 2 * n, 3 * n, 2 + n, 2 + n),
+        (1, 8 + 2 * n, 12 + 3 * n, 6 + n, 8 + n),
+        (2, 4 * n + 2 * k, 6 * n + 2 * k, 4 + 2 * n, 4 + 2 * n),
     ]
 }
 
@@ -73,14 +80,15 @@ fn bulge(turn: f64) -> f64 {
     -(turn / 4.0).tan()
 }
 
-/// One profile: its name, its chain, its area in closed form, and its
-/// numbers of segments and of wall faces ([`pierced`]).
+/// One profile: its name, its chain, its area in closed form, the
+/// number of sides its prism has, and the number of its vertices drawn
+/// on an arc ([`pierced`]).
 struct Shape {
     name: String,
     chain: Vec<(Point2<f64>, f64)>,
     area: f64,
     sides: usize,
-    walls: usize,
+    on_arc: usize,
 }
 
 /// The area between a chord of length 2 and an arc through `turn` on it.
@@ -99,11 +107,13 @@ fn shapes() -> Vec<Shape> {
             chain: vec![(p(-1.0, 0.0), bulge(turn)), (p(1.0, 0.0), 0.0)],
             area: segment_area(turn),
             sides: 2,
-            walls: 2,
+            on_arc: 0,
         });
     }
     // The D's half-disc arc split at its apex, and at a third of its turn:
-    // the section's vertex lies on the arc's circle.
+    // a run of two arcs on one circle, which sweeps one wall, so the
+    // prism has two sides and the vertex drawn on the arc stays on its
+    // caps.
     out.push(Shape {
         name: "D split at its apex".into(),
         chain: vec![
@@ -112,8 +122,8 @@ fn shapes() -> Vec<Shape> {
             (p(1.0, 0.0), 0.0),
         ],
         area: PI / 2.0,
-        sides: 3,
-        walls: 2,
+        sides: 2,
+        on_arc: 1,
     });
     out.push(Shape {
         name: "D split at a third".into(),
@@ -123,8 +133,8 @@ fn shapes() -> Vec<Shape> {
             (p(1.0, 0.0), 0.0),
         ],
         area: PI / 2.0,
-        sides: 3,
-        walls: 2,
+        sides: 2,
+        on_arc: 1,
     });
     // The crescent: over the top on the half-disc's arc, back on a
     // shallower one bowing the same way.
@@ -133,7 +143,7 @@ fn shapes() -> Vec<Shape> {
         chain: vec![(p(-1.0, 0.0), bulge(PI)), (p(1.0, 0.0), bulge(-0.6))],
         area: segment_area(PI) - segment_area(0.6),
         sides: 2,
-        walls: 2,
+        on_arc: 0,
     });
     // The crescent with its outer arc split at its apex.
     out.push(Shape {
@@ -144,8 +154,8 @@ fn shapes() -> Vec<Shape> {
             (p(1.0, 0.0), bulge(-0.6)),
         ],
         area: segment_area(PI) - segment_area(0.6),
-        sides: 3,
-        walls: 2,
+        sides: 2,
+        on_arc: 1,
     });
     // The lens: over the top, and back under the bottom.
     out.push(Shape {
@@ -153,7 +163,7 @@ fn shapes() -> Vec<Shape> {
         chain: vec![(p(-1.0, 0.0), bulge(PI)), (p(1.0, 0.0), bulge(0.6))],
         area: segment_area(PI) + segment_area(0.6),
         sides: 2,
-        walls: 2,
+        on_arc: 0,
     });
     out
 }
@@ -274,7 +284,8 @@ fn check(
 
 /// **Every profile through the slab, at every pose, under every op in
 /// both member orders**: tiers 3 and 3′, the closed-form volume, and the
-/// census [`pierced`] derives from the profile's segments and walls. An
+/// census [`pierced`] derives from the prism's sides and the vertices
+/// drawn on its arcs. An
 /// upright, shifted or spun prism meets the slab in circle arcs, and its
 /// volume must be exact; a tilted one meets it in ellipse arcs, whose
 /// faces measure within a pad, and leaves two stubs whose walls overhang
@@ -293,7 +304,7 @@ fn a_prism_with_arc_walls_through_a_slab_builds_every_op() {
             let prism = prism(&shape, &map);
             let v = shape.area * LENGTH;
             let shared = shape.area / dz;
-            let want = pierced(shape.sides, shape.walls);
+            let want = pierced(shape.sides, shape.on_arc);
             // Tilted, the two stubs' walls overhang each other across the
             // slab.
             let stubs = if dz < 1.0 {
