@@ -869,10 +869,12 @@ fn validate_sections<L: SectionLoop>(
 /// `l` in every section, so every section must present the same loop
 /// and vertex counts. The canonical form decides only what validity
 /// forces — each loop's traversal sense, outer counterclockwise and
-/// holes clockwise, since a correspondence that reversed one section
-/// against another would sweep the walls through each other — and
-/// keeps everything else as authored: each loop starts at its authored
-/// vertex 0 and holes keep their authored order. So segment `j` is
+/// holes clockwise about the section's OWN plane normal — and keeps
+/// everything else as authored. Whether two sections' senses agree
+/// depends on how their normals face along the stack, which this door
+/// does not check: the loft body door decides every section's normal
+/// against its slabs (`crate::loft`'s stacking fold). Beyond the sense, each loop starts
+/// at its authored vertex 0 and holes keep their authored order. So segment `j` is
 /// counted from the author's start in every section, and which edges
 /// line up — the loft's twist — is the author's choice, carried by
 /// where each section's loop starts. No per-section rule could recover
