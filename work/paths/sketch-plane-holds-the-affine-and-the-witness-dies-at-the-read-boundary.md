@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-15
 priority: P0
 cost: H
+refs: [a-reflected-loft-placement-evades-both-normal-checks]
 ---
 
 ## What
@@ -78,8 +79,7 @@ public door decides one:
   about `c2`, so `cap_plane` would flip a cap Newell had right
   (traced, not measured). The sibling on the loft's own placements is
   CARVE's
-  `a-reflected-loft-placement-evades-both-normal-checks` (being filed
-  by PR 4188's lane).
+  `a-reflected-loft-placement-evades-both-normal-checks`.
 
 The fix this row describes (store the frame witness; make `new` decide
 or go) removes the precondition `cap_plane` states. Until then the
