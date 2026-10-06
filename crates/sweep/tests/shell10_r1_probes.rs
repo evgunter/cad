@@ -14,6 +14,7 @@ use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
 use crate::common::shell_operands::vessel;
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume};
+use sweep::test_support::finished;
 
 fn y() -> Vec3<f64> {
     Vec3::new(0.0, 1.0, 0.0)
@@ -121,7 +122,7 @@ fn r1_e2e_box_beside_a_hollow_vessel_opened_on_its_void_ceiling() {
     );
 
     let t0 = 0.1;
-    let hollow = topo::shell(&pair, t0, tol())
+    let hollow = topo::shell(&finished("the operand", pair.clone(), tol()), t0, tol())
         .expect("both solids hollow")
         .body;
     let want = (24.0 - 1.8 * 2.8 * 3.8) + (pi * 2.0 - pi * 0.9 * 0.9 * 1.8);
@@ -149,9 +150,15 @@ fn r1_e2e_box_beside_a_hollow_vessel_opened_on_its_void_ceiling() {
     let (_, void) = outer_and_void_of(&hollow, ves);
 
     let t = 0.02;
-    let sealed = topo::shell(&hollow, t, tol()).expect("the sealed arm");
-    let opened = topo::shell_open(&hollow, t, &cap(&hollow, void, y(), 1.9), tol())
-        .expect("the void ceiling opens");
+    let sealed = topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol())
+        .expect("the sealed arm");
+    let opened = topo::shell_open(
+        &finished("the operand", hollow.clone(), tol()),
+        t,
+        &cap(&hollow, void, y(), 1.9),
+        tol(),
+    )
+    .expect("the void ceiling opens");
 
     assert_eq!(
         topo::validate_geometric(&opened.body, tol()),
@@ -195,7 +202,9 @@ fn r1_e2e_four_solids_hollowed_then_one_opened() {
     assert!((volume(&four) - 32.0).abs() < 1e-9);
 
     let t = 0.2;
-    let hollow = topo::shell(&four, t, tol()).expect("all four hollow").body;
+    let hollow = topo::shell(&finished("the operand", four.clone(), tol()), t, tol())
+        .expect("all four hollow")
+        .body;
     let want = 4.0 * (8.0 - 1.6 * 1.6 * 1.6);
     println!(
         "[r1e2e-b] four-solid hollow {} want {want}",
@@ -207,8 +216,15 @@ fn r1_e2e_four_solids_hollowed_then_one_opened() {
     // Open the third solid's top lid, sealing the other three.
     let target = solids[2];
     let lid = crate::shell8_common::top_chart(&four, target, 2.0);
-    let opened = topo::shell_open(&four, t, &lid, tol()).expect("one lid opens");
-    let sealed = topo::shell(&four, t, tol()).expect("the sealed arm");
+    let opened = topo::shell_open(
+        &finished("the operand", four.clone(), tol()),
+        t,
+        &lid,
+        tol(),
+    )
+    .expect("one lid opens");
+    let sealed = topo::shell(&finished("the operand", four.clone(), tol()), t, tol())
+        .expect("the sealed arm");
     assert_eq!(topo::validate_geometric(&opened.body, tol()), Ok(()));
     let m = mesh::tessellate(&opened.body, 5e-3, tol()).expect("tessellates");
     mesh::validate::check_mesh(&m).expect("watertight");
