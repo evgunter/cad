@@ -5335,6 +5335,58 @@ mod tests {
         );
     }
 
+    /// **The fusion list a boolean names is the A side's pinch welds,
+    /// then the rows after them, checked as one list.** A weld `(a, b)`
+    /// then a zip `(b, c)` fold `a` onto `c`; a zip row keeping the
+    /// weld's dead `a` is sound against the zips alone, so only the
+    /// derived list can refuse it. Red if [`Descendants::vertex_merges`]
+    /// drops the welds, puts them after the zips, or does not check the
+    /// two together: no other test in the topo or editor-core suites
+    /// goes red when the A welds leave `BooleanNaming::vertex_merges`.
+    #[test]
+    fn the_derived_vertex_merges_lead_with_the_a_welds_and_check_across_them() {
+        use super::Descendants;
+        use crate::entity::VertexKey;
+
+        let mut arena: slotmap::SlotMap<VertexKey, ()> = slotmap::SlotMap::with_key();
+        let [a, b, c, d] = [(); 4].map(|()| arena.insert(()));
+        let one = |row| {
+            let mut f = super::Fusions::default();
+            f.push(row).unwrap();
+            f
+        };
+        let none = super::Fusions::default();
+
+        let mut desc = Descendants::welded(&one((a, b)), &none);
+        desc.absorb_fusions(&one((b, c))).unwrap();
+        desc.absorb_fusions(&one((d, c))).unwrap();
+        let merges = desc.vertex_merges().unwrap();
+        assert_eq!(
+            merges.rows(),
+            [(a, b), (b, c), (d, c)],
+            "the A weld first, then the later rows in mint order"
+        );
+        assert_eq!(
+            merges.survivor(a),
+            c,
+            "the weld's dead key folds through the zip"
+        );
+
+        let mut corrupt = Descendants::welded(&one((a, b)), &none);
+        corrupt
+            .absorb_fusions(&one((c, a)))
+            .expect("the zips' own list cannot see the weld's kill");
+        assert!(
+            matches!(
+                corrupt.vertex_merges(),
+                Err(BooleanError::JoinDesync {
+                    what: "a fusion row names a key an earlier row killed"
+                })
+            ),
+            "a zip row keeping the weld's dead a refuses where the list is derived"
+        );
+    }
+
     /// **A cycle in the face absorption rows refuses; a chain that ends
     /// at a dead key drops the record.** The two dead faces name each
     /// other, so the chase never reaches a live face nor a key without
