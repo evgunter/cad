@@ -40,3 +40,15 @@ met with the ball. That is a split-local copy of the tightening this
 row asks for, now with a side guard (a rectangle's boundary also
 bounds its complement). Folding it into `FaceBoxRule` is its own unit,
 `split-gate-sphere-zone-folds-into-face-box-rule`.
+
+## Since `reach/split-gate-sphere-azimuth` (2026-10-06)
+
+The rule's sphere arm is no longer the whole ball for the rectangle
+class: a sphere face whose boundary is latitude rims and meridians, on
+its rectangle's side, is boxed by that rectangle's own support
+(`FaceBoxRule::SphereRect`, `boxes::sphere_reach`), in both box lanes.
+The ball is left for faces outside the class: a boundary circle tilted
+against the chart (a plane's or another sphere's section that is no
+rim), which `topo::boolean::sphere_region` reads for containment but no
+box reads yet, and a ringed face.
+

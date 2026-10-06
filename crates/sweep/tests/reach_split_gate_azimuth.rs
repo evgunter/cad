@@ -514,11 +514,14 @@ fn cuts(f: &Fixture, sigma: f64, s: f64, clear: bool) -> Vec<(Vec3<f64>, f64)> {
 /// latitudes, which the gate used to bound it by, meets about two in
 /// five of these cuts.
 ///
-/// Two refusals downstream of the gate are named and let stand loudly:
-/// a half whose volume quadrature cannot decide its own convergence
-/// (`work/props/…`), and the split's sector decision at a vertex a cut
-/// passes within `10⁻⁷` of, at the millimetre scale
-/// (`work/…`). Both are typed, and neither is the gate's.
+/// Two refusals downstream of the gate are named and let stand loudly,
+/// each under a floor: a half whose volume quadrature cannot decide its
+/// own convergence
+/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`),
+/// and the split's sector decision at a vertex a cut passes within
+/// `10²` ε of, on a body under `10⁷` ε across
+/// (`work/reach/split-bisector-side-in-band-off-a-corner-at-millimetre-scale.md`).
+/// Both are typed, and neither is the gate's.
 #[test]
 fn every_cut_clear_of_a_partial_turn_sphere_face_splits() {
     for f in fixtures() {
@@ -542,6 +545,10 @@ fn every_cut_clear_of_a_partial_turn_sphere_face_splits() {
             );
         }
         for s in [1e-3, 1.0, 1e3] {
+            let posed = posed_bodies(&f, s);
+            if posed.is_empty() {
+                continue;
+            }
             let cuts = cuts(&f, sigma, s, true);
             assert!(
                 cuts.len() >= 60,
@@ -556,7 +563,7 @@ fn every_cut_clear_of_a_partial_turn_sphere_face_splits() {
                     [1.0, -1.0].map(|sign| half_volume(&f, s, sigma, n * sign, d * s * sign))
                 })
                 .collect();
-            for (pose, map, posed) in posed_bodies(&f, s) {
+            for (pose, map, posed) in posed {
                 let (mut props_refused, mut sector) = (0, 0);
                 for (&(n, d), &[above, below]) in cuts.iter().zip(&oracles) {
                     let what = format!("{} at scale {s}, {pose}, n = {n:?}, d = {d}", f.name);
@@ -572,13 +579,13 @@ fn every_cut_clear_of_a_partial_turn_sphere_face_splits() {
                     ) {
                         Ok(()) => {}
                         Err(SplitError::Reduce(SplitReduceError::SliverSector { .. }))
-                            if s < 1.0 =>
+                            if s < 1e7 * Tol::witness().eps() =>
                         {
                             sector += 1;
                             test_utils::vacuity::stood_down(
                                 &what,
                                 "the split's sector decision is in band at a vertex this cut \
-                                 passes within 1e-7 of",
+                                 passes within 100 ε of",
                             );
                         }
                         Err(e) => panic!("{what}: a cut clear of the face must split: {e}"),
