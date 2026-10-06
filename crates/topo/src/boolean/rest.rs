@@ -2241,8 +2241,32 @@ pub(crate) mod chord_probe {
             end(body, host, u, rings),
             end(body, host, v, rings),
         ));
+        if let (Some(Twin::Line), Some(geom::Surface::Cylinder { axis, .. })) = (
+            twin,
+            body.get_face(host)
+                .and_then(|f| body.get_surface(f.surface)),
+        ) {
+            let pt = |w: VertexKey| {
+                body.get_vertex(w)
+                    .and_then(|x| body.get_point(x.point))
+                    .copied()
+            };
+            if let (Some(pu), Some(pv)) = (pt(u), pt(v)) {
+                let d = pv - pu;
+                emit(&format!(
+                    "LINE_TWIN_ON_CYL host={host:?} chord_cross_axis={:?} chord={:?}",
+                    d.cross(*axis),
+                    d
+                ));
+            }
+        }
         let plane = surf.as_deref() == Some("Plane");
-        let straight = !matches!(twin, Some(Twin::Circle { .. }));
+        let straight = twin.and_then(|t| t.spec(u)).is_none();
+        if matches!(twin, Some(Twin::Circle { .. })) && straight {
+            emit(&format!(
+                "CIRCLE_TWIN_SPEC_NONE caller={caller} host={host:?} (an arc twin whose spec failed takes the straight chord)"
+            ));
+        }
         if straight && !plane {
             emit(&format!(
                 "STRAIGHT_ON_CURVED caller={caller} host={host:?} host_surface={} twin_kind={twin_kind}",
