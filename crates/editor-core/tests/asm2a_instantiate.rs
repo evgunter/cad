@@ -1116,8 +1116,9 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
             side: ExtrudeSide::Along,
         },
     );
-    let p3_own = match run(&p3, &EvalOptions::default()).result(p3_root) {
-        Some(NodeResult::Failed(e)) => e.spoken(&p3),
+    let p3_ev = run(&p3, &EvalOptions::default());
+    let p3_own = match p3_ev.result(p3_root) {
+        Some(NodeResult::Failed(e)) => e.spoken(&p3, &p3_ev),
         other => panic!("p3's extrude refuses on its own: {other:?}"),
     };
     let r3 = store.insert(p3, tol);
@@ -1257,8 +1258,9 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// `node`'s own refusal line, as `doc`'s own tree draws it.
 fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
-    match run(doc, opts).result(node) {
-        Some(NodeResult::Failed(e)) => e.spoken(doc),
+    let ev = run(doc, opts);
+    match ev.result(node) {
+        Some(NodeResult::Failed(e)) => e.spoken(doc, &ev),
         other => panic!(
             "node {} refuses on its own: {other:?}",
             test_utils::refusal::tag(node.0)
