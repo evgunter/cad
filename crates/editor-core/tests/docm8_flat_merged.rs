@@ -353,7 +353,11 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
             .count()
     };
     assert_eq!(merged(EntityKind::Face), 4);
-    assert_eq!(merged(EntityKind::Edge), 4, "the four long edges are joined");
+    assert_eq!(
+        merged(EntityKind::Edge),
+        4,
+        "the four long edges are joined"
+    );
     // The edit-log replay is the same document with the same table.
     let empty = ProfileDoc::empty_derived("mod", tol);
     let text = editor_core::persist::save(&empty, &rec.edits, tol).expect("saves");

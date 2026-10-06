@@ -416,7 +416,9 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     let merged: Vec<&StableName> = t
         .iter()
         .map(|(n, _)| n)
-        .filter(|n| n.kind == EntityKind::Face && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+        .filter(|n| {
+            n.kind == EntityKind::Face && matches!(n.path.first(), Some(RoleSeg::Merged(_)))
+        })
         .collect();
     assert_eq!(
         merged.len(),

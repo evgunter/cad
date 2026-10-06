@@ -937,8 +937,8 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
 /// x = 0 → 1 at y = 0, z = 1) is cut by `g`'s walls at 0.3 and 0.4:
 /// x = 0.3..0.4 is inside `g`, x = 0.0..0.3 lies within `a`'s rim alone,
 /// and x = 0.4..1.5 runs along `a`'s rim and on along `b`'s. In both
-/// orders the first is `a`'s rim whole and the second is named for the
-/// set of the two rims.
+/// orders the second is named for the set of the two rims, and the
+/// first, the one piece of `a`'s rim outside it, by its ends.
 #[test]
 fn fam010_names_a_rim_the_same_way_in_both_orders() {
     let g = ((0.3, 0.4), (-1.0, 0.5), (0.5, 3.0));
@@ -991,8 +991,17 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
             node: union,
             path: vec![RoleSeg::Merged(set)],
         };
-        let want = BTreeMap::from([(x(0.0, 0.3), whole), (x(0.4, 1.5), joined)]);
-        assert_eq!(table, &want, "the edges along a's rim line");
+        assert_eq!(table.len(), 2, "the edges along a's rim line: {table:?}");
+        assert_eq!(table.get(&x(0.4, 1.5)), Some(&joined), "{table:?}");
+        let piece = &table[&x(0.0, 0.3)];
+        assert_eq!(piece.path[..1], whole.path[..], "{piece:?}");
+        assert!(
+            matches!(
+                piece.path[1..],
+                [RoleSeg::Fragment(editor_core::Qualifier::Ends(_))]
+            ),
+            "{piece:?}"
+        );
     }
 }
 

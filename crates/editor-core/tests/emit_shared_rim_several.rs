@@ -118,7 +118,10 @@ fn every_member_edge_lies_on_its_source(
     // line, and its parameter along it.
     let place = |p: geom_core::Point3<f64>, (q0, q1): (geom_core::Point3<f64>, _)| {
         let d: geom_core::Vec3<f64> = q1 - q0;
-        ((p - q0).cross(d).norm() / d.norm(), (p - q0).dot(d) / d.dot(d))
+        (
+            (p - q0).cross(d).norm() / d.norm(),
+            (p - q0).dot(d) / d.dot(d),
+        )
     };
     let on = |(off, s): (f64, f64)| off < 1e-9 && s > -1e-9 && s < 1.0 + 1e-9;
     for (name, entry) in t.iter() {
@@ -149,7 +152,8 @@ fn every_member_edge_lies_on_its_source(
                     })
                     .collect();
                 for &(q0, q1) in &segs {
-                    let ((o0, s0), (o1, s1)) = (place(q0, (ends[0], ends[1])), place(q1, (ends[0], ends[1])));
+                    let ((o0, s0), (o1, s1)) =
+                        (place(q0, (ends[0], ends[1])), place(q1, (ends[0], ends[1])));
                     assert!(
                         o0 < 1e-9 && o1 < 1e-9 && s0.max(s1) > 1e-9 && s0.min(s1) < 1.0 - 1e-9,
                         "{at}: {name:?} lists a member edge {q0:?}..{q1:?} it does not run along"
@@ -212,7 +216,11 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
         node: union,
         path: vec![RoleSeg::Merged(set)],
     };
-    assert_eq!(span(&joined), (micro(0.4), micro(1.5)), "the set-named edge");
+    assert_eq!(
+        span(&joined),
+        (micro(0.4), micro(1.5)),
+        "the set-named edge"
+    );
 }
 
 /// **No order of the review probe's documents refuses
@@ -339,9 +347,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
         .take(2)
         .collect();
     let mut piece = rim(a);
-    piece
-        .path
-        .push(RoleSeg::Fragment(Qualifier::Ends(corners)));
+    piece.path.push(RoleSeg::Fragment(Qualifier::Ends(corners)));
     let ctx = editor_core::RunCtx {
         doc: &docx,
         eval: &ev,

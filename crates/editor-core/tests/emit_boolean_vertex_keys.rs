@@ -519,7 +519,11 @@ fn a_b_edge_in_a_b_clone_descends_to_its_b_edge() {
                 })
             })
             .collect();
-        assert_eq!(halves.len(), 1, "{kind:?}: the line is one edge: {halves:?}");
+        assert_eq!(
+            halves.len(),
+            1,
+            "{kind:?}: the line is one edge: {halves:?}"
+        );
         let want = if side {
             RoleSeg::FromA(NameRef::new(root.clone()))
         } else {

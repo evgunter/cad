@@ -236,13 +236,22 @@ The qualifier depends on what was split:
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing.
 
-**Flush edges at a union.** An edge that lies along several members' edges,
+**Flush edges at a union.** An edge that lies within several members' edges,
 where they run flush, is a piece of the least of them in name order, and an
-edge lying along a member edge is a piece of it whatever the fold named it
-(`emit_union::Flush`). A seam vertex cites such an edge whole,
-`FromMember(m, e)`, never a piece; a vertex at a member vertex is that vertex,
-and one where a single face crosses a member edge is `Seam` of that edge and
-that face.
+edge lying within a member edge is a piece of it whatever the fold named it
+(`emit_union::Flush`). An edge that lies within none, but runs along several
+member edges that together cover it — a flush rim the output stage joined
+across two members (maximal edges, `docs/DESIGN.md`) — is named for that set,
+`Merged` of the member edges, flat and in name order, as a merged face is
+(N3); several pieces of one set are told apart by their ends (N2). A pair
+boolean names such an edge for the set of the operand edges it covers, and the
+union's set is read off the finished body and the members, so it is the same
+in every member order. A reference to a member edge a set holds, or to a piece
+of one, is offered the set-named edge. A seam vertex cites a member edge
+whole, `FromMember(m, e)`, never a piece and never a set: the one it lies on,
+the least where several do; a vertex at a member vertex is that vertex, and
+one where a single face crosses a member edge is `Seam` of that edge and that
+face.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
 all of these hold: their members are declared coincident on them, or share a

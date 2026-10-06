@@ -209,7 +209,12 @@ fn a_vanished_rim_piece_is_diagnosed_by_its_cutters_flip_over_its_group_resizing
         ),
         "the row is about a piece named by its ends: {name:?}"
     );
-    let Diagnosis::PredicateFlip { predicate, from, to } = vanished(res) else {
+    let Diagnosis::PredicateFlip {
+        predicate,
+        from,
+        to,
+    } = vanished(res)
+    else {
         panic!("expected the cutter's flip: {res:?}");
     };
     assert_eq!(*predicate, "bool_point_in_solid_plane", "{res:?}");

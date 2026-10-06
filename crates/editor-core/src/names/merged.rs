@@ -26,9 +26,9 @@ use super::role::{MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 pub(crate) const NESTED_MERGED: &str =
     "a boolean table carries a merged face whose constituent is itself a merged face";
 
-/// The constituents of a merged face read through its descent
-/// wrappers, each re-wrapped by that same chain — or `None` when the
-/// name, peeled to its foot, is not a merged face.
+/// The constituents of a merged face, or of an edge set, read through
+/// its descent wrappers, each re-wrapped by that same chain — or `None`
+/// when the name, peeled to its foot, is not a `Merged` set.
 ///
 /// Only a bare `FromA`/`FromB` chain is peeled: a foot that carries a
 /// tail (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face,

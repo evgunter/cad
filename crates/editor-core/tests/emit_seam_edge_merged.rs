@@ -98,10 +98,11 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
 }
 
 /// `a`'s rim between its top cap and its y = 1 wall publishes one
-/// piece at y = z = 1, x = 0.0..0.3, named as the rim whole, since no
-/// other piece of it stands alone: x = 0.3..0.4 is inside `c`, and
-/// x = 0.4..1.5 runs along `a`'s rim and on along `b`'s, one edge named
-/// for the set of the two (`emit_union::Flush`).
+/// piece at y = z = 1, x = 0.0..0.3, named by its ends: x = 0.3..0.4 is
+/// inside `c`, and x = 0.4..1.5 runs along `a`'s rim and on along
+/// `b`'s, one edge named for the set of the two (`emit_union::Flush`),
+/// which holds the rest of the rim, so the lone piece is not the rim
+/// whole (N3).
 fn assert_rim_pieces(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -141,8 +142,17 @@ fn assert_rim_pieces(
         .map(|(n, _)| n.clone())
         .collect();
     let whole = crate::fixture::member_entity(union, a, rim(a), EntityKind::Edge);
-    assert_eq!(pieces, vec![whole.clone()], "{order:?}: a's rim stands alone once");
-    assert_eq!(span(&whole), (0, micro(0.3)), "{order:?}: a's rim");
+    let [piece] = pieces.as_slice() else {
+        panic!("{order:?}: a's rim stands alone once: {pieces:?}");
+    };
+    assert!(
+        matches!(
+            piece.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ),
+        "{order:?}: the piece is named by its ends: {piece:?}"
+    );
+    assert_eq!(span(piece), (0, micro(0.3)), "{order:?}: a's rim");
     let mut set = vec![
         whole,
         crate::fixture::member_entity(union, b, rim(b), EntityKind::Edge),

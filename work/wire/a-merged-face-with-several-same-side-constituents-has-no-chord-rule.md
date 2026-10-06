@@ -127,3 +127,18 @@ were left unmerged), waits on this rule. The kernel tour's crosslap
 declares the whole inventory and glues; only the naming layer stops.
 Pinned in `crates/pncad-py/tests/test_north_star.py`
 (`TestCrosslapAtTheNamingWall`).
+
+## The arm loses its witnesses again (FUSE, 2026-10-06, `fuse/set-names`)
+
+With maximal edges at every boolean output stage (PR 4140) and joined
+edges named for the set of the edges they cover, every
+`SeamVertexParentage` order in the three
+`wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact` rows
+fuses at the volume the geometry says: 2 of 6, 8 of 24 and 18 of 24
+orders flip to `Fused`. The vertex the arm refused was a cut vertex
+the join now removes, or a vertex on a joined edge that the set's
+constituents now name. No document in the editor-core suite reaches
+`emit_topo`'s `([_], [], _, _)` arm on that branch; only
+`display_contract` and the concision rows pin its sentence. The
+`MergedChordConstituents` orders of the split fixture (`[c,s,a,big]`)
+remain, and are this row's subject.

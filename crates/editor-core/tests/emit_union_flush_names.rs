@@ -468,7 +468,10 @@ fn the_zip_document_publishes_one_table_in_every_order() {
         .count();
     // The two bottom rims run along both blocks' rims; past the slab,
     // each top rim lies within `b`'s alone and is a piece of it.
-    assert_eq!(joined, 2, "the two uncut flush rims are each one set-named edge");
+    assert_eq!(
+        joined, 2,
+        "the two uncut flush rims are each one set-named edge"
+    );
     let (first_at, first) = &tables[0];
     for (at, table) in &tables[1..] {
         assert_eq!(first, table, "{first_at} against {at}");
