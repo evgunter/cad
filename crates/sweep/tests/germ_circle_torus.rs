@@ -509,9 +509,21 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let b = b_quarter();
     let seam = circle_edges(&a, contour);
     assert_eq!(seam.len(), 1, "the seam on B's contour");
-    assert!(
-        !accepted_against_torus(&a, &b, &seam).is_empty(),
-        "the seam's ends are recorded on B's wall"
+    let walls = torus_faces(&b);
+    let (ab, _) = sweep_traces(&a, &b, SweepStrategy::Realized, None, tol)
+        .unwrap_or_else(|e| panic!("the sweep answers: {e:?}"));
+    let on_walls = |pairs: &[(EdgeKey, FaceKey)]| {
+        pairs
+            .iter()
+            .filter(|(e, f)| seam.contains(e) && walls.contains(f))
+            .count()
+    };
+    // Read once against B's wall and recorded there, never split: a
+    // split re-reads the seam's fragment against the same face.
+    assert_eq!(
+        (on_walls(&ab.examined), on_walls(&ab.accepted)),
+        (1, 1),
+        "the whole seam arc is placed on B's wall by its ends: {ab:?}"
     );
     let (a, b) = (
         sweep::test_support::finished("A", a, tol),

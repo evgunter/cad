@@ -1473,7 +1473,10 @@ fn quartered_tube() -> AtRestBody<f64> {
 /// same turns, where each semicircle crosses TWO rulings; and the
 /// four-face tube at `0` and `1/4` of a turn, where the rim's vertices
 /// sit on two rulings and each semicircle crosses the one between. Each
-/// at both sink depths, every op in both member orders.
+/// at both sink depths, every op in both member orders. Where a
+/// semicircle crosses two rulings, its second crossing is met against
+/// the next wall face, not by reading the first split's fragment against
+/// the same face again: that re-reading is not pinned here.
 ///
 /// The closed forms: the dome's sphere (radius `√2·R`, its rim at
 /// `z = H + dz`) holds a cap of height `√2·R − R + dz` above the tube's
@@ -2260,4 +2263,193 @@ fn narrow_review_corner_on_ball_battery() {
     }
     println!("NR2 SUMMARY builds={builds} bad={bad} refusals={refusals:?}");
     assert_eq!(bad, 0);
+}
+
+/// [`rod_z`] from `z = −1` to [`H`], less everything under the plane
+/// `z = 0.5 + 0.2·x`: its wall faces are bounded below by an ellipse.
+fn slanted_tube() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let tube = rod_z(R, -1.0, H + 1.0);
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -(0.2_f64).atan());
+    let under = topo::transform_rigid(
+        &brick((-3.0, 3.0), (-3.0, 3.0), (-5.0, 0.0), tol),
+        &tilt,
+        tol,
+    )
+    .unwrap();
+    let under = finished(
+        "the slab under the plane",
+        topo::transform_rigid(&under, &Affine3::translation(Vec3::new(0.0, 0.0, 0.5)), tol)
+            .unwrap(),
+        tol,
+    );
+    match topo::subtract(&tube, &under, tol) {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("the slanted tube builds: {other:?}"),
+    }
+}
+
+/// **A wall bounded by an ellipse keeps the door.** The turned sunk dome
+/// on a tube whose bottom is cut by a slanted plane: the interior
+/// question has no closed form for a circle against an ellipse, so the
+/// rim arc lying on the wall, which neither certificate places, keeps
+/// the crossing layer's door in every op, both member orders
+/// (`work/tang/a-line-edge-lying-on-a-wall-keeps-the-door.md`, its
+/// ellipse section). The refusal is on the dome's edge, against a wall
+/// face (its edge key is the reduction's working copy's).
+#[test]
+fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
+    let tol = Tol::witness();
+    let none = BooleanDeclarations::none();
+    let tube = slanted_tube();
+    for dz in [-1e-3, -0.3] {
+        let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
+        let sunk = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
+        for turn in [1.0 / 12.0, 1.0 / 5.0] {
+            let spin =
+                Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 2.0 * PI * turn);
+            let d = finished(
+                "the turned dome",
+                topo::transform_rigid(&sunk, &spin, tol).unwrap(),
+                tol,
+            );
+            for (op, r, dome_is) in [
+                (
+                    "t ∪ d",
+                    topo::union_with(&tube, &d, &none, tol),
+                    topo::Operand::B,
+                ),
+                (
+                    "d ∪ t",
+                    topo::union_with(&d, &tube, &none, tol),
+                    topo::Operand::A,
+                ),
+                (
+                    "t ∖ d",
+                    topo::subtract_with(&tube, &d, &none, tol),
+                    topo::Operand::B,
+                ),
+                (
+                    "d ∖ t",
+                    topo::subtract_with(&d, &tube, &none, tol),
+                    topo::Operand::A,
+                ),
+                (
+                    "t ∩ d",
+                    topo::intersect_with(&tube, &d, &none, tol),
+                    topo::Operand::B,
+                ),
+                (
+                    "d ∩ t",
+                    topo::intersect_with(&d, &tube, &none, tol),
+                    topo::Operand::A,
+                ),
+            ] {
+                let label = format!("dz = {dz}, turn {turn}: {op}");
+                let Err(BooleanError::CurvedPierceUnsupported { operand, face, .. }) = r else {
+                    panic!("{label}: the crossing layer's door: {r:?}");
+                };
+                assert_eq!(operand, dome_is, "{label}: on the dome's edge");
+                assert!(
+                    faces_of(&tube, SurfaceKind::Cylinder).contains(&face),
+                    "{label}: against a wall face"
+                );
+            }
+        }
+    }
+}
+
+/// **A rod's rim lying on the dome's sphere across its seam meridian.**
+/// A rod of radius `0.3` and length `0.6` on an axis through the
+/// sphere's centre, tilted `α` off the dome's axis and turned `θ` about
+/// it, its top rim on the sphere: the rim crosses the dome's revolve
+/// seam, a meridian CIRCLE, mid-arc, so the split there is a
+/// circle × circle meeting. The rod runs out through the dome's base
+/// disc, so `a ∩ d` is the rod between its top and the plane `z = H`,
+/// which cuts clean across its wall: `π·0.09·(h₀ − 1/cos α)`, `h₀` the
+/// top's distance from the centre. Every op in both member orders, at
+/// tiers 3 and 3′; the volumes are read to `1e-8`, the quadrature's
+/// reach on the tilted pieces. The rim's split vertices stay valence-2
+/// in the intersections
+/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
+#[test]
+fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
+    let tol = Tol::witness();
+    let none = BooleanDeclarations::none();
+    let dome = dome_on_the_cap();
+    let rho = 2.0_f64.sqrt() * R;
+    let (r, l) = (0.3, 0.6);
+    let h0 = (rho * rho - r * r).sqrt();
+    let vd = cap_volume(rho, rho - R);
+    let va = PI * r * r * l;
+    for (alpha, theta, own) in [
+        (15.0_f64, 31.0_f64, 0.0_f64),
+        (20.0, 20.0, 0.0),
+        (15.0, 20.0, 90.0),
+    ] {
+        let mut rod = rod_z(r, h0 - l, l).into_body();
+        for m in [
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), own.to_radians()),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), alpha.to_radians()),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), theta.to_radians()),
+            Affine3::translation(Vec3::new(0.0, 0.0, H - R)),
+        ] {
+            rod = topo::transform_rigid(&rod, &m, tol).unwrap();
+        }
+        let a = finished("the tilted rod", rod, tol);
+        let i = PI * r * r * (h0 - 1.0 / alpha.to_radians().cos());
+        for (op, res, want, census, contacts) in [
+            (
+                "a ∪ d",
+                topo::union_with(&a, &dome, &none, tol),
+                va + vd - i,
+                (6, 12, 9, 1),
+                [0; 4],
+            ),
+            (
+                "d ∪ a",
+                topo::union_with(&dome, &a, &none, tol),
+                va + vd - i,
+                (6, 12, 9, 1),
+                [0; 4],
+            ),
+            (
+                "a ∖ d",
+                topo::subtract_with(&a, &dome, &none, tol),
+                va - i,
+                (4, 6, 4, 1),
+                [0; 4],
+            ),
+            (
+                "d ∖ a",
+                topo::subtract_with(&dome, &a, &none, tol),
+                vd - i,
+                (6, 14, 11, 1),
+                [2, 2, 0, 0],
+            ),
+            (
+                "a ∩ d",
+                topo::intersect_with(&a, &dome, &none, tol),
+                i,
+                (4, 8, 6, 1),
+                [0; 4],
+            ),
+            (
+                "d ∩ a",
+                topo::intersect_with(&dome, &a, &none, tol),
+                i,
+                (4, 8, 6, 1),
+                [0; 4],
+            ),
+        ] {
+            let label = format!("α {alpha}°, θ {theta}°, own {own}°: {op}");
+            let (v, c, k) = built(&label, res);
+            assert!(
+                (v - want).abs() <= 1e-8 * want,
+                "{label}: the closed form: {v} vs {want}"
+            );
+            assert_eq!(c, census, "{label}: F, E, V, shells");
+            assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
+        }
+    }
 }

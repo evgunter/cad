@@ -2342,8 +2342,8 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         //   is then a curve where two different carriers meet, not a
         //   cosurface question. It takes the coplanar conic's posture,
         //   endpoint processing only, once its interior is certified to
-        //   meet this face's boundary nowhere it does not run along
-        //   ([`lying_on`]).
+        //   meet this face's boundary nowhere it does not run along, and
+        //   is split where it does meet it ([`lying_on`]).
         //
         // Every other answer keeps the door: the undeclared cosurface
         // question (CONTACT-DESIGN C2/C4), a parent the ladder does not
@@ -2712,6 +2712,22 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   mid-arc is such a meeting: (a) reads the whole circle, which the
 ///   ruling meets wherever the rim is turned, and (b) has no chain.
 ///
+/// Over line and circle boundaries (a) is a fast path: what it certifies
+/// the interior question would too. It still decides alone where a
+/// boundary edge is another conic, which (a) reads through its plane
+/// crossings and the interior question does not read at all.
+///
+/// The interior question's candidates overlap. On a surface of
+/// revolution a boundary ruling's end vertex projects onto the arc at
+/// the ruling's crossing, so the line closed form finds nothing the
+/// vertices do not. And where both of the arc's ends lie in this face, a
+/// circle boundary's crossing missed here is split by the other sweep
+/// direction, when that boundary edge pierces the arc's parent face at
+/// it. Only the circle closed form for an arc that runs from this face
+/// into another is pinned alone
+/// (`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`,
+/// `a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared`).
+///
 /// The ends are placed, and recorded, before any certificate runs:
 /// certificate (a) reads the vertices of `y` the placements pair them
 /// with, minting one where an end lands on an edge. That is sound
@@ -2720,7 +2736,8 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 /// caller turns into the frontier that ends the op, so no record or
 /// split made here outlives a certificate that did not hold. A `Pierce`
 /// keeps the records: its fragments carry the same ends, and placing
-/// them again records nothing new (the accumulator dedups).
+/// them again records nothing new ([`ContactAcc`] keeps each record
+/// once, by key).
 fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     arc: &ArcOnCarrier<'_, T>,
     y: &mut Body<T>,
@@ -5854,6 +5871,40 @@ mod torn_hop_rows {
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| boundary_meets_circle_only_at(b, face, circle, &[], band),
+        );
+    }
+}
+
+/// **The accumulator keeps each record once, by key**: what lets a
+/// caller place an endpoint again after a split without minting a
+/// second record ([`lying_on`]'s `Pierce`).
+#[cfg(test)]
+mod contact_acc_rows {
+    use super::ContactAcc;
+    use crate::boolean::{Operand, VfContact, VvContact};
+    use crate::test_support_fixtures::prism_z;
+    use geom_core::Tol;
+
+    #[test]
+    fn a_record_pushed_twice_is_kept_once() {
+        let p = prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let (a, b, face) = (p.bottom[0], p.top[0], p.bottom_face);
+        let mut acc = ContactAcc::default();
+        for _ in 0..2 {
+            acc.vv(VvContact { a, b });
+            acc.vf(Operand::A, VfContact { vertex: a, face });
+            acc.vf(Operand::B, VfContact { vertex: b, face });
+        }
+        let r = acc.finish();
+        assert_eq!(
+            (r.vv.len(), r.a_on_b.len(), r.b_on_a.len()),
+            (1, 1, 1),
+            "one record of each kind"
         );
     }
 }

@@ -58,3 +58,22 @@ keeps the door too. No fixture was found: the usual source of an
 ellipse on a wall is a section of that same wall, whose parent shares
 the carrier and is refused before this lane (the cosurface question
 the D10 hold covers).
+
+## An ellipse in the partner's boundary
+
+The other side of the same gap. `carrier_cross::meetings` has no
+closed form for a circle against an ellipse (its `_ => return Ok(None)`
+arm), so `boundary_crossing` answers `Unread` for a lying-on arc whose
+face's boundary holds an ellipse. Then `lying_on` keeps the door unless
+certificate (a) or (b) already holds. This is pinned:
+`sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`,
+`a_turned_rim_on_a_wall_bounded_by_an_ellipse_keeps_the_door`, the
+turned sunk dome on a tube whose bottom is cut by the plane
+`z = 0.5 + 0.2·x`.
+
+The closed form exists. An ellipse is a plane section, so its meetings
+with a circle are the circle's meetings with the ellipse's plane: the
+same circle-against-plane roots `splitting::plane_crossing_lane` already
+certifies, each then kept if it lies on the ellipse. That is complete
+except when the circle lies in the ellipse's plane, which needs the
+coplanar conic pair.
