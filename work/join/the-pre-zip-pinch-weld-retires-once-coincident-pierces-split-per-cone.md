@@ -44,3 +44,28 @@ already per cone (each pierce's ring vertex holding the corners of its
 own cone), so no repair weld is needed. Then retire `weld_pinches`,
 `pinch_site` and `Joint::Hole`. The declared rows move only when D10
 lifts, and their contact records then have to name both copies.
+
+## 2026-10-06 — the weld's site must nest (PR 4139's review r1, MAJOR-1)
+
+A pinched operand (two reflex corners touching only at `v`) against a
+face through `v`, one corner crossing the face in two sectors and the
+other in one between them (r1's set `dbl`). The first corner leaves a
+copy of its pierce vertex per pair of sector edges, each with a corner
+of the face, and the second's pierce lies inside one copy's corner
+only. `pinch_site` asks only for a lineage face both vertices have a
+corner of, so the weld chorded the second pierce to the copy it met
+first. Its fan then spliced out of angular order, `split_cones` read
+two cones where the link holds one, and 16 lines refused
+`LoopRoleInverted` (12 of them `SOUND` on main).
+
+A weld now joins two pierces only where their corners of the site face
+nest: every edge leaving either vertex runs inside the other's corner
+(`finish::corners_nest`, read on `sectors::orbit_corners`). Against the
+PR's previous head `7863f27b`, over `dbl`
+(4320 lines) 108 lines move, every one refusal → built (99 `SOUND`, 9
+failing tier 3′ only, on the undeclared contact at `v`), none to a
+wrong vertex count; pinned by
+`a_pinched_operands_pierces_weld_where_their_corners_nest`
+(`crates/sweep/tests/join_pierce_runs_sweep.rs`). The shape to give
+above stands: minting the coincident pierces on one point key with
+their corners already per cone would need no nesting read at all.

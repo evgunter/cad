@@ -511,7 +511,9 @@ impl Welds {
 /// (`lineage`, `(new face, divided-from face)` rows), section faces
 /// (`sections`) aside. Pierces that survive on different fragments, or
 /// meet only on a section face, stay apart, as the contact's own
-/// vertices do.
+/// vertices do; so do two whose corners of the site do not nest
+/// ([`corners_nest`]), one of them a copy whose corner the other's
+/// edges do not run in.
 fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     (operand, lineage, sections): (
