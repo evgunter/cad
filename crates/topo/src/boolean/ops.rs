@@ -125,7 +125,7 @@ use super::voids;
 use super::zip::{SeamCorrespondence, survivor, survivor_checked, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell,
-    ContactRecords, CurveContact, EeContact, FacePairDeclaration, Operand, PatchContact,
+    ContactRecords, CurveContact, EeContact, FacePairDeclaration, Operand, PatchContact, SelfCheck,
     SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
@@ -658,7 +658,6 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
-
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
@@ -673,7 +672,6 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .merge_coplanar_faces_declared(&declared_pairs, tol)
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
-
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
     let contacts = carry(
@@ -2770,17 +2768,21 @@ impl Descendants {
 /// rests on. The reduction's split log ([`super::EdgeSplit`]) says
 /// which pieces an edge became, in split order; at each split of the
 /// piece the row names, the split's own vertex decides the side: the
-/// parent keeps the span from its start to that vertex, so the row's
-/// vertex stays on the parent when it lies before the split vertex
-/// along the parent, moves to the child when after, and is a
-/// vertex-vertex row with the split vertex when at it. Nothing searches
-/// the result for an edge the vertex lies on.
+/// parent keeps the span from its start to that vertex, so the row is a
+/// vertex-vertex row with the split vertex when its vertex is at it,
+/// stays on the parent when its vertex lies on the parent's span, and
+/// moves to the child otherwise. Each is asked as the census asks it
+/// ([`crate::census::on_segment_interior`]), as [`ee_lineage`] asks
+/// its own, so what lands is what the census confirms. Every edge-edge
+/// row is placed by [`ee_lineage`]. Nothing searches the result for an
+/// edge the vertex lies on.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] (`VertexOnVertex`) where the side is
-/// in band of the split vertex; [`BooleanError::JoinDesync`] where a
-/// logged key does not resolve in its clone.
+/// [`BooleanError::Escalated`]: `VertexOnVertex` where a vertex is in
+/// band of a split vertex, `SelfCheck(CarriedLineage)` where a span
+/// question is; [`BooleanError::JoinDesync`] where a logged key does
+/// not resolve in its clone.
 pub(super) fn split_lineage<T: Decide>(
     red: &BooleanReduction<T>,
     decls: &BooleanDeclarations,
@@ -2815,21 +2817,27 @@ pub(super) fn split_lineage<T: Decide>(
                     .ok_or_else(|| desync("a split parent does not resolve in its clone"))?;
                 let (p_start, p_split, p_vertex) =
                     (point(start)?, point(split.vertex)?, point(vertex)?);
-                let along = p_split - p_start;
-                let past = (p_vertex - p_split).dot(along / along.norm());
-                match decide("bool_carried_ve_split_side", Margin::of(past), band) {
-                    Ok(Sign::Negative) => {}
-                    Ok(Sign::Positive) => edge = split.child,
-                    Ok(Sign::Zero) => {
-                        at = Some(split.vertex);
-                        break;
-                    }
-                    Err(diag) => {
-                        return Err(BooleanError::Escalated {
+                // The census's own questions ([`ee_lineage`]'s): at the
+                // split vertex, else on the parent's span from its start
+                // to the split, else past it, on the child.
+                let gap = Margin::norm3(p_vertex - p_split);
+                let apart =
+                    geom_core::k_stats::decide_magnitude("bool_carried_ve_split_vertex", gap, band)
+                        .map_err(|diag| BooleanError::Escalated {
                             decision: BooleanDecision::VertexOnVertex,
                             diag,
-                        });
-                    }
+                        })?;
+                if apart == geom_core::k_stats::Magnitude::Zero {
+                    at = Some(split.vertex);
+                    break;
+                }
+                let stays = crate::census::on_segment_interior(p_vertex, (p_start, p_split), band)
+                    .map_err(|diag| BooleanError::Escalated {
+                        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+                        diag,
+                    })?;
+                if !stays {
+                    edge = split.child;
                 }
             }
             match at {
@@ -2914,7 +2922,11 @@ fn ee_lineage<T: Decide>(
         carried.ee.push(row);
         return Ok(());
     }
-    let escalated = |diag| BooleanError::Escalated {
+    let lineage = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+        diag,
+    };
+    let coincide = |diag| BooleanError::Escalated {
         decision: BooleanDecision::VertexOnVertex,
         diag,
     };
@@ -2931,7 +2943,7 @@ fn ee_lineage<T: Decide>(
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if crate::census::segment_interiors_meet(sa, sb, band).map_err(escalated)?
+            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)?
                 && !carried.ee.iter().any(|r| (r.a, r.b) == (pa.0, pb.0))
             {
                 carried.ee.push(EeContact { a: pa.0, b: pb.0 });
@@ -2942,7 +2954,7 @@ fn ee_lineage<T: Decide>(
             {
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
-                    if crate::census::on_segment_interior(q, their_seg, band).map_err(escalated)? {
+                    if crate::census::on_segment_interior(q, their_seg, band).map_err(lineage)? {
                         if !carried.ve.contains(&VeContact {
                             vertex: v,
                             edge: theirs.0,
@@ -2962,7 +2974,7 @@ fn ee_lineage<T: Decide>(
                                 gap,
                                 band,
                             )
-                            .map_err(escalated)?
+                            .map_err(coincide)?
                                 == geom_core::k_stats::Magnitude::Zero
                             && !carried
                                 .vv
