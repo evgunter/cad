@@ -8,6 +8,7 @@ priority: P0
 cost: H
 design: true
 needs_ev: true
+pr: 4085
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo`, whose scene

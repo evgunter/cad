@@ -432,3 +432,20 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — the plane–plane run-out fork goes to Ev (`[ev]` PR #4085)
+
+`a-plane-plane-blend-cannot-end-at-an-unrequested-corner` (P0) put
+through the design-fork protocol: fork-log row 72. Designers A and B
+both diagnosed one missing idea (a band's end as its section by the face
+it runs into) and a face-whole planar carve, recommended the cut-off /
+mitre / patch by request count, and converged after three rounds; the
+only crossover was the mitre's name key, settled once both measured that
+a wider role variant is additive on the wire. PR 4085 asks Ev to rule
+the rule itself, the C8 and H7 text, whether an extruded box's isosceles
+mitre should lint as an unproven coincidence under D10, and the
+vocabulary. The designers flagged three rows to file once Ev rules:
+`CornerConfig::policy` maps `MixedConvexity` to `RunOutFeather`;
+`RuledPlan::plan` refuses a requested cap rim (the ruled band's own
+2-of-3 gap); the inner corner of an L-shaped rim (a torus pivot about L,
+or the end-face rule; the torus is degenerate there).
