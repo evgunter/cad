@@ -656,6 +656,155 @@ fn an_edge_edge_record_carries_onto_the_piece_of_a_split_edge_that_holds_it() {
     }
 }
 
+/// **A split that lands on the crossing turns the edge-edge record into
+/// a vertex-on-edge record.** [`skew_crossing`]'s record carried into a
+/// union with a slab one of whose faces is the plane x = 0.5, through
+/// the crossing: the slab splits the cube's top-front edge at (0.5, 0,
+/// 1), on the box's edge, which lies in that plane and stays whole. The
+/// split's vertex is recorded on the box's edge, a vertex-on-edge
+/// record, and each result certifies 3′, the slab on either side of the
+/// crossing. A slab across it, x∈(0.3, 0.7), buries the crossing in its
+/// material: no record is left there, and the result certifies. Red
+/// when split lineage drops a minted vertex that rests on the other
+/// edge (3′ refuses `VertexOnEdge` there).
+#[test]
+fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
+    let tol = Tol::witness();
+    let y = skew_crossing(tol);
+    let across = crossing_into(&y, (0.3, 0.7), tol);
+    assert_eq!(
+        across.contacts,
+        ContactRecords::default(),
+        "the slab buries the crossing"
+    );
+    assert_eq!(errors(&across.body, &across.contacts), vec![]);
+    for slab in [(0.5, 0.6), (0.4, 0.5), (0.5, 0.95)] {
+        let out = crossing_into(&y, slab, tol);
+        let at_crossing: Vec<_> = out
+            .contacts
+            .ve
+            .iter()
+            .filter(|r| same(point(&out.body, r.vertex), [0.5, 0.0, 1.0]))
+            .collect();
+        assert_eq!(
+            at_crossing.len(),
+            1,
+            "slab {slab:?}: one vertex-on-edge record at the crossing: {:?}",
+            out.contacts
+        );
+        assert_eq!(
+            errors(&out.body, &out.contacts),
+            vec![],
+            "slab {slab:?}: the result certifies"
+        );
+    }
+}
+
+/// **A split that lands on the other edge's end turns the edge-edge
+/// record into a vertex-vertex record.** Two boxes touching along a
+/// collinear overlap: `a`'s top-front edge runs x∈[0, 1] and `b`'s
+/// bottom-back edge x∈[0.5, 1.5], both on y = 0, z = 1, and the union
+/// leaves both edges whole with a vertex-on-edge record at each bound.
+/// Its bound at (0.5, 0, 1) and the overlap's edge-edge record are
+/// carried into a union with a thin plate tilted off the axes whose face passes
+/// through `a`'s end (1, 0, 1) and that enters only `b`: the plate
+/// splits `b`'s edge there, and the split's vertex meets `a`'s end
+/// vertex. The record lands as a vertex-vertex record between them,
+/// and the result certifies 3′. Red when split lineage drops a minted
+/// vertex that meets the other piece's end (3′ refuses `VertexVertex`
+/// there).
+#[test]
+fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
+    let tol = Tol::witness();
+    let a = common::finished(
+        "a",
+        common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = common::finished(
+        "b",
+        common::brick((0.5, 1.5), (-1.0, 0.0), (1.0, 2.0), tol),
+        tol,
+    );
+    let topo::BooleanResult::Body(y) =
+        topo::union_with(&a, &b, &topo::BooleanDeclarations::none(), tol).expect("a ∪ b")
+    else {
+        panic!("a ∪ b came back empty");
+    };
+    let a_edge = edge_between(&y.body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]);
+    let b_edge = edge_between(&y.body, [0.5, 0.0, 1.0], [1.5, 0.0, 1.0]);
+    assert_eq!(y.contacts.ve.len(), 2, "a bound at each end of the overlap");
+    // The plate: a 0.8 × 0.8 × 0.1 slab whose face is the plane through
+    // (1, 0, 1) with normal n ∝ (1, −0.3, 0.3); `a` lies wholly on the
+    // face's back side, touching it only at (1, 0, 1).
+    let unit = |v: [f64; 3]| {
+        let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+        v.map(|c| c / l)
+    };
+    let cross = |p: [f64; 3], q: [f64; 3]| {
+        [
+            p[1] * q[2] - p[2] * q[1],
+            p[2] * q[0] - p[0] * q[2],
+            p[0] * q[1] - p[1] * q[0],
+        ]
+    };
+    let n = unit([1.0, -0.3, 0.3]);
+    let u = unit(cross(n, [0.0, 0.0, 1.0]));
+    let v = cross(n, u);
+    let plate = common::finished(
+        "plate",
+        common::mapped_cube::<f64>(
+            |x, yy, z| {
+                let at = |k: usize| {
+                    [1.0, 0.0, 1.0][k]
+                        + 0.8 * ((x - 0.5) * u[k] + (yy - 0.5) * v[k])
+                        + 0.1 * z * n[k]
+                };
+                geom_core::Point3::new(at(0), at(1), at(2))
+            },
+            tol,
+        ),
+        tol,
+    );
+    // The overlap's bound at (0.5, 0, 1) is carried; the one at (1, 0, 1)
+    // is left to the edge-edge record, so only its lineage can place it.
+    let far: Vec<VeContact> = y
+        .contacts
+        .ve
+        .iter()
+        .copied()
+        .filter(|r| same(point(&y.body, r.vertex), [0.5, 0.0, 1.0]))
+        .collect();
+    assert_eq!(far.len(), 1, "the bound at (0.5, 0, 1)");
+    let decls = topo::BooleanDeclarations {
+        carried_a: topo::CarriedContacts {
+            ve: far,
+            ee: vec![topo::EeContact {
+                a: a_edge,
+                b: b_edge,
+            }],
+            ..topo::CarriedContacts::default()
+        },
+        ..topo::BooleanDeclarations::none()
+    };
+    let topo::BooleanResult::Body(out) =
+        topo::union_with(&y.body, &plate, &decls, tol).expect("y ∪ plate")
+    else {
+        panic!("y ∪ plate came back empty");
+    };
+    let at_end = |k: VertexKey| same(point(&out.body, k), [1.0, 0.0, 1.0]);
+    assert!(
+        out.contacts.vv.iter().any(|r| at_end(r.a) && at_end(r.b)),
+        "a vertex-vertex record at (1, 0, 1): {:?}",
+        out.contacts
+    );
+    assert_eq!(
+        errors(&out.body, &out.contacts),
+        vec![],
+        "the result certifies"
+    );
+}
+
 /// **A carried edge-edge row is validated at the door**, as its
 /// siblings are. Red when the door reads carried e-e rows unchecked.
 #[test]
