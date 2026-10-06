@@ -296,6 +296,10 @@ pub struct BooleanNaming {
     /// clone keys, as `reduction_contacts`. Read off the classification,
     /// so a path that never classifies has none.
     pub edge_classes: Vec<super::EdgePieceClass>,
+    /// Every operand edge the reduction split, `(operand, edge)` in the
+    /// operand's own keys, sorted: an edge here survives, if at all, as
+    /// pieces, a lone one included, never whole.
+    pub divided_edges: Vec<(super::Operand, EdgeKey)>,
 }
 
 impl BooleanNaming {
@@ -585,6 +589,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
+    let divided_edges = super::divided_edges(&red.edge_splits);
     let copies = Descendants::null_copies(&red.null_edges);
     let carried = split_lineage(&red, decls, band)?;
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
@@ -662,6 +667,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discards: fin.discards,
         covered,
         edge_classes,
+        divided_edges,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -4468,6 +4474,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
                 edge_classes: red.edge_classes.clone(),
+                divided_edges: super::divided_edges(&red.edge_splits),
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -4528,6 +4535,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
             edge_classes: red.edge_classes.clone(),
+            divided_edges: super::divided_edges(&red.edge_splits),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -4539,6 +4547,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
             edge_classes: red.edge_classes.clone(),
+            divided_edges: super::divided_edges(&red.edge_splits),
             ..BooleanNaming::default()
         },
     };

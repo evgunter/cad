@@ -6,8 +6,9 @@
 //! and its outer two Below, and a Below piece descends through the
 //! middle piece's key, which only the Above half holds.
 //!
-//! The two Below pieces of the rim are pieces of one parent edge on one
-//! side, told apart by their ends (N2's `Ends`); the two crossings are
+//! Every piece of the rim is named by its ends (N2's `Ends`), the Above
+//! half's one piece included, which tells the two Below pieces apart;
+//! the two crossings are
 //! told apart on each side by their senses (N2), so neither is ranked:
 //! the rim enters the Above half at one and leaves it at the other, and
 //! the Below half the other way round.
@@ -98,10 +99,16 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
         1,
         "the middle piece is the Above half's one piece of the rim: {above_pieces:?}"
     );
-    assert_eq!(
-        above_pieces[0].path.len(),
-        1,
-        "one piece takes no qualifier"
+    assert!(
+        matches!(
+            above_pieces[0].path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
+                && ends.iter().all(|e| matches!(
+                    e.path.first(),
+                    Some(RoleSeg::CrossingVertex { side: SplitHalf::Above, .. })
+                ))
+        ),
+        "a lone piece is named by its ends too, the two Above crossings: {above_pieces:?}"
     );
     let below_pieces = &pieces[&SplitHalf::Below];
     assert_eq!(

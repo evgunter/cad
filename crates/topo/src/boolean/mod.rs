@@ -4368,6 +4368,37 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     })
 }
 
+/// Every operand edge `splits` divides, `(operand, edge)` in the
+/// operand's own keys: each split's parent read back through the splits
+/// before it. Sorted and deduplicated.
+pub(crate) fn divided_edges(splits: &[EdgeSplit]) -> Vec<(Operand, EdgeKey)> {
+    let mut out: Vec<(Operand, EdgeKey)> = splits
+        .iter()
+        .map(|split| {
+            (
+                split.operand,
+                split_root(splits, split.operand, split.parent),
+            )
+        })
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// The operand edge `piece` of `operand`'s clone lies on: read back
+/// through `splits`, each child to the parent it was split from.
+fn split_root(splits: &[EdgeSplit], operand: Operand, piece: EdgeKey) -> EdgeKey {
+    let mut edge = piece;
+    while let Some(split) = splits
+        .iter()
+        .find(|s| s.operand == operand && s.child == edge)
+    {
+        edge = split.parent;
+    }
+    edge
+}
+
 /// `rows`, read at every vertex the null edges join a classified vertex
 /// to as well: the copies lie on its point, and the join hands each of
 /// them some of its edges. Sorted and deduplicated.
@@ -4420,17 +4451,10 @@ fn piece_classes<T: Real>(
             .ok_or_else(|| desync("a classified edge does not resolve in its clone"))?
             .he_plus
             == he;
-        let mut edge = piece;
-        while let Some(split) = splits
-            .iter()
-            .find(|s| s.operand == operand && s.child == edge)
-        {
-            edge = split.parent;
-        }
         out.push(EdgePieceClass {
             operand,
             vertex,
-            edge,
+            edge: split_root(splits, operand, piece),
             starts,
             class,
         });

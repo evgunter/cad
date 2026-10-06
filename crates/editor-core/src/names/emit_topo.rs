@@ -486,7 +486,10 @@ fn name_split_edges_vertices<T: Decide>(
     tie.flush(t)?;
     for ((slot, base), (from_tie, edges)) in edge_groups {
         let s = &sides[slot];
-        name_edge_pieces(t, tie, from_tie, &base, s.body, s.ix, &edges)?;
+        // A lone section chord is the whole of the section line across
+        // its face; an operand edge's fragment is always a piece of it.
+        let whole = matches!(base.path.first(), Some(RoleSeg::SectionEdge { .. }));
+        name_edge_pieces(t, tie, from_tie, &base, s.body, s.ix, &edges, whole)?;
     }
     Ok(())
 }
@@ -1005,7 +1008,9 @@ pub(crate) fn name_boolean<T: Decide>(
     )?;
     tie.flush(&mut t)?;
     for g in &edge_groups {
-        name_edge_pieces(&mut t, &mut tie, g.from_tie, &g.base, body, 0, &g.edges)?;
+        name_edge_pieces(
+            &mut t, &mut tie, g.from_tie, &g.base, body, 0, &g.edges, g.whole,
+        )?;
     }
     tie.flush(&mut t)?;
 
@@ -1350,6 +1355,7 @@ fn name_boolean_edges<T: Decide>(
             base,
             from_tie,
             edges,
+            whole: true,
         });
     }
     for (root, edges) in groups {
@@ -1361,10 +1367,22 @@ fn name_boolean_edges<T: Decide>(
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
             root.map(EntityKey::Edge).parent(),
         );
+        // Undivided: the one edge is the operand edge itself, which no
+        // split of the reduction divided. A child of a split carries a
+        // key of its own, and the kept leading piece the record says.
+        let whole = match edges.as_slice() {
+            [one] => {
+                let (side, _) = operand_key(naming, inv_edges, *one)?;
+                side.of_operand().1 == root_key
+                    && !naming.divided_edges.contains(&(root.operand(), root_key))
+            }
+            _ => false,
+        };
         out.push(EdgeGroup {
             base,
             from_tie: inner.tied,
             edges,
+            whole,
         });
     }
     Ok(out)
@@ -1378,6 +1396,9 @@ struct EdgeGroup {
     base: StableName,
     from_tie: bool,
     edges: Vec<EdgeKey>,
+    /// One edge of the group is its whole parent: a seam's one edge, or
+    /// an operand edge passed through undivided.
+    whole: bool,
 }
 
 /// Boolean vertices: operand pass-downs (`FromA`/`FromB`), and seam
@@ -2112,16 +2133,20 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
     )
 }
 
-/// **Names the pieces of one parent edge** (N2): a lone piece is
-/// `base`, and each of several is `base` + `Fragment(Ends)`, the sorted
-/// pair of its two end vertices' names as `t` publishes them, read off
-/// body `ix`. Pieces with equal pairs are N4's tie. Every end vertex is
-/// named before this runs, so `t` holds its name.
+/// **Names the edges of one parent** (N2): each piece of it is `base`
+/// followed by `Fragment(Ends)`, the sorted pair of its two end
+/// vertices' names as `t` publishes them, read off body `ix`, a lone
+/// piece of a divided edge included, so no such piece's name says how
+/// many siblings it has. Pieces with equal pairs are N4's tie. Where `whole` and `edges`
+/// is one edge, that edge is the parent itself — an edge no cut divided,
+/// a seam or a section chord in one stretch — and is `base`. Every end
+/// vertex is named before this runs, so `t` holds its name.
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] for a piece ending at a vertex `t` does
 /// not name, and the insert doors' own refusals.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn name_edge_pieces<T: geom_core::Real>(
     t: &mut NameTable,
     tie: &mut TieRows,
@@ -2130,8 +2155,9 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
     body: &Body<T>,
     ix: u32,
     edges: &[EdgeKey],
+    whole: bool,
 ) -> Result<(), NamingError> {
-    if let [one] = edges {
+    if let ([one], true) = (edges, whole) {
         return Ok(put(
             t,
             tie,
@@ -2267,11 +2293,12 @@ pub(super) struct CrossedEdge<'a, T: geom_core::Real> {
     pub(super) name: &'a StableName,
 }
 
-/// **Ranks the crossings of one edge by one face** (N2): a lone crossing
-/// is `base`, and several, each an entity and the point it lies at on
-/// the crossed edge, take `base` + `Fragment(OrderAlong)` by the edge's
-/// carrier parameter, oriented by [`crossed_edge_orientation`]; with no
-/// orientation or no parameter they tie.
+/// **Ranks the crossings of one edge by one face with one sense** (N2):
+/// a lone crossing is `base`, and several, each an entity and the point
+/// it lies at on the crossed edge, take `base` + `Fragment(OrderAlong)`
+/// by the edge's carrier parameter, oriented by
+/// [`crossed_edge_orientation`]; with no orientation or no parameter
+/// they tie.
 pub(super) fn rank_crossings<T: Decide>(
     t: &mut NameTable,
     tie: &mut TieRows,

@@ -138,7 +138,9 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
 /// **A second crossing by a face that already crosses the edge renames
 /// neither the first crossing nor the pieces ending at it.** A crossing
 /// is named by its sense (N2), a fact of the one vertex, and a second
-/// crossing of the other sense leaves it as it was.
+/// crossing of the other sense leaves it as it was; a piece is named by
+/// its ends, a lone one too, so the piece from P to 180° keeps its name
+/// when a second Below piece of the rim appears.
 ///
 /// One document, edited in place: a cylinder (radius 0.3, its rims the
 /// profile's two semicircles, `Piece(0)` the `+y` one) split by a
@@ -149,7 +151,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
 /// plane's normal puts 180° Below, so the rim enters the Below half at P
 /// and, once crossed at 30°, leaves it there.
 #[test]
-fn a_second_crossing_by_the_same_face_keeps_the_first_crossings_name() {
+fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_names() {
     use editor_core::{Datum, Sense, SplitHalf};
 
     use crate::emit_union_borders::cylinder;
@@ -251,6 +253,30 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossings_name() {
     };
     let (p_once, p_twice) = (at_p(&once), at_p(&twice));
     assert_eq!(p_once, p_twice, "the crossing at P keeps its name");
+    // The rim's pieces ending at P, by their `Ends`: one Below piece,
+    // P to 180°, once the rim is crossed once and once it is crossed
+    // twice. (The cap's section chord ends at P too, and at the other
+    // crossing, which the edit moved.)
+    let ending_at = |ev: &editor_core::Evaluation<f64>, vertex: &StableName| {
+        table(ev, cut)
+            .iter()
+            .filter(|(n, _)| {
+                matches!(n.path.first(), Some(RoleSeg::SplitFragment { .. }))
+                    && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.contains(vertex))
+            })
+            .map(|(n, _)| n.clone())
+            .collect::<Vec<_>>()
+    };
+    let (ending_once, ending_twice) = (ending_at(&ev, &p_once), ending_at(&ev2, &p_twice));
+    assert_eq!(
+        ending_once.len(),
+        1,
+        "one rim piece ends at P: {ending_once:?}"
+    );
+    assert_eq!(
+        ending_once, ending_twice,
+        "the rim piece ending at P keeps its name"
+    );
     assert!(
         matches!(
             p_once.path.as_slice(),

@@ -25,9 +25,9 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, Datum, Diagnosis, DocEdit, Entry, EvalOptions, Evaluation,
-    GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
-    SlotId, StableName, evaluate, resolve_with_prior,
+    Axis3, BooleanOp, CancelToken, Datum, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
+    Evaluation, GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg,
+    RunCtx, SlotId, StableName, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -286,7 +286,7 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
     let rows = vanished((&doc, &ev2), (&doc, &ev1), split, |n, _| {
-        matches!(n.path.first(), Some(RoleSeg::SplitFragment { .. }))
+        n.kind == EntityKind::Face && matches!(n.path.first(), Some(RoleSeg::SplitFragment { .. }))
     });
     assert!(
         !rows.is_empty(),
@@ -516,13 +516,12 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
         let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Y), 2.5);
         let ev2 = silent(run(&doc2, Some(&ev1)));
         let ev1 = silent(ev1);
-        // The plate's own entities: its top's fragments and its rim.
-        let rows = vanished(
-            (&doc, &ev2),
-            (&doc, &ev1),
-            u,
-            |n, _| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate),
-        );
+        // The plate's own faces: its top's fragments. (Its rim's one
+        // piece is named by its ends, and the slide moves one of them.)
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, _| {
+            n.kind == EntityKind::Face
+                && matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+        });
         assert!(rows.is_empty(), "{label}: {rows:?}");
         for ev in [&ev1, &ev2] {
             let t = &ev.value(u).expect("the union evaluates").name_table;

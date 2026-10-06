@@ -540,9 +540,11 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
     // (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`).
     // What does not follow it is which member's rims carry a
     // `Fragment`: the union names a member edge's pieces by their ends
-    // over the finished body (`emit_union::group_member_edges`), and
-    // qualifies them where that member edge is held in several pieces,
-    // which is the A-side member's in both orders.
+    // over the finished body (`emit_union::group_member_edges`), every
+    // piece of a member edge the finished body does not hold whole, a
+    // lone one included. Both members' flush rims are such edges, in
+    // both orders: the shared stretch is a piece of the lesser member's
+    // edge, and the rest of the other's is a lone piece of it.
     let fragmented_members = |ev: &Evaluation<f64>, id: RecipeNodeId| {
         let mut out: Vec<RecipeNodeId> = table(ev, id)
             .iter()
@@ -556,12 +558,9 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
         out.dedup();
         out
     };
-    // The A side is the lower member id (the union's pair fold), and
-    // ids are digests of the mint chain, so which of the two it is is
-    // read off the ids rather than pinned.
-    let a_side = a.min(b);
-    assert_eq!(fragmented_members(&ev, union), vec![a_side]);
-    assert_eq!(fragmented_members(&ev2, union2), vec![a_side]);
+    let both = if a < b { vec![a, b] } else { vec![b, a] };
+    assert_eq!(fragmented_members(&ev, union), both);
+    assert_eq!(fragmented_members(&ev2, union2), both);
     // The two documents are built separately, so the ids are the same
     // ones in the same seats: `a` is the first block of both.
     assert_eq!((a, b), (a2, b2));

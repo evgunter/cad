@@ -1701,21 +1701,23 @@ fn border_delta<T: Decide>(
 /// # Why a fragment name can vanish with no flip
 ///
 /// This is the one statement of it; the sites that need it point
-/// here. A fragment qualifier exists only while its group has two or
-/// more members (N2), and `OrderAlong` spells the group's size into
-/// the name as `of`. So a fragment name vanishes whenever its group
-/// stops being divided, and a ranked crossing's whenever its group
-/// changes size, and neither event need flip any discriminator: a
-/// `Borders` group that stops being divided leaves no piece whose walls
-/// could be compared — the walls still stand where they stood relative
-/// to the survivor — and an `OrderAlong` group ranks its members
-/// against EACH OTHER, so a group of one runs no pair. What remains in
-/// evidence is the count. An edge piece's `Ends` holds no count, so a
-/// cut elsewhere on its parent, by a face that does not already cross
-/// it, leaves its name as it was. A crossing keeps an ordinal, so a
-/// second crossing by a face that already crosses the parent renames
-/// the first, and every piece whose `Ends` cite it vanishes too; so do
-/// a piece whose own end moves and a group that collapses to one.
+/// here. A face fragment's qualifier exists only while its group has
+/// two or more members (N2), an edge piece's `Ends` while its parent is
+/// divided, and `OrderAlong` spells the size of a group of crossings of
+/// one sense into the name as `of`. So a fragment name vanishes
+/// whenever its group stops being divided, and a ranked crossing's
+/// whenever its group changes size, and neither event need flip any
+/// discriminator: a `Borders` group that stops being divided leaves no
+/// piece whose walls could be compared — the walls still stand where
+/// they stood relative to the survivor — and an `OrderAlong` group
+/// ranks its members against EACH OTHER, so a group of one runs no
+/// pair. What remains in evidence is the count. An edge piece's `Ends`
+/// holds no count and a crossing's sense is its own, so a cut elsewhere
+/// on its parent leaves the piece's name as it was, and so do the
+/// crossings it ends at; a second crossing of the same sense by a face
+/// that already crosses the parent ranks the first, and every piece
+/// whose `Ends` cite it vanishes too; so does a piece whose own end
+/// moves, which leaves its group's count as it was.
 ///
 /// # What is counted
 ///

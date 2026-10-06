@@ -141,7 +141,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             "missing surviving x-wall of {node:?}"
         );
     }
-    // Cut rims are told apart by their ends (never bare indices).
+    // Every piece of a cut rim, a lone one included, is named by its
+    // ends (never bare indices).
     let pieces = t
         .iter()
         .filter(|(n, _)| {
@@ -152,8 +153,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         })
         .count();
     assert_eq!(
-        pieces, 8,
-        "rim pieces named by their ends (per-operand rims cut in two)"
+        pieces, 12,
+        "rim pieces named by their ends (four rims cut in two, four cut to one piece)"
     );
     // Seam vertices exist, with operand-name arguments.
     let seams = t
