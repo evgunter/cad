@@ -444,3 +444,24 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   row stays, because #3955 (started before the hold) folds it in.
   Dispatched `one-home-for-where-a-shell-stands` (P2, off the held
   ground) on `fuse/one-home-shell-stands`.
+
+- 2026-10-06 — PR 3955 (step 1 of the 3881 build), dual review:
+  - Lane 1 (records, census, D10): mergeable.
+  - Lane 2 (carriage, lineage, join): not mergeable, on three MAJORs:
+    - **M1:** zip `edge_merges` pairs each ring edge one seam edge off.
+    - **M2:** the join collapses a transverse crossing's v-v pair onto
+      (edge, edge) and drops it. The orchestrator rules this within
+      Ev's PR 3881 text, so not a fork: a cell-pair record of two edge
+      interiors meeting is a contact record. Add a stored edge/edge
+      *crossing* record, which the census uses to back
+      `EdgeEdgeCross`. Excluding contact vertices from the join would
+      break maximal edges.
+    - **M3:** edge-split lineage's stay-on-parent branch is unreached.
+  - Sent as one fix pass, with lane 1's minors: stale premises, the two
+    DESIGN.md definitions of a contact record made to agree, and D10
+    wording in the pyi.
+  - PR 3953 lands first, then 3955 flips its lens pins to clean.
+- 2026-10-06 — PR 3953: FULL review, mergeable. The fix pass is out:
+  stale variant doc, the equal-codes arm made an invariant, the hook
+  reverses within-plan record order and counts only the op under test,
+  and the pins assert locations.
