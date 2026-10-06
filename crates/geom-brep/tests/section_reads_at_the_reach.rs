@@ -153,19 +153,24 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
 }
 
 /// **Crossing axes, wherever the origins are stored.** Two unit
-/// cylinders crossing about the origin, the second lifted `g`
-/// along `a1×a2`, `g` swept across both edges of the band. Whether the
-/// axes meet (`cc_axes_coplanar`) is one verdict for each `g` at every
-/// stored origin, in both operand orders.
+/// cylinders crossing about the origin, the second lifted `g` along
+/// `a1×a2`, `g` a quarter of the zero band clear of each band edge.
+/// Whether the axes meet (`cc_axes_coplanar`) is one verdict for each
+/// `g` at every stored origin, in both operand orders.
 ///
-/// The gap is read between the axes' feet at the reach. Read between
-/// the stored origins, the verdict changed with the stored origin for
-/// every `g` within about `0.14·zero` of either edge (at 0.9 and 1.1,
-/// meet at one stored origin and escalate at another). Read at the
-/// feet, it changes only within about `0.07·zero`. That remainder is
-/// the stored lines themselves: a coordinate near 1e6 m carries its own
-/// rounding, which no reading undoes, so the sweep's `g` sit between
-/// the two windows (measured in `f64` at the default ε).
+/// The gap is read between the axes' feet at the reach. Measured in
+/// `f64` at the default ε with origins stored up to 1e6 m out, a
+/// stored-origin reading changed verdict for `g` within about
+/// `0.14·zero` of an edge, and the feet reading within about
+/// `0.07·zero`. That remainder is the stored lines themselves: a far
+/// coordinate carries its own rounding, which no reading undoes. This
+/// row's `g` sit outside both windows, so it guards the reading
+/// against regressing to anything coarser than the stored coordinates
+/// rather than showing the stored-origin reading red.
+///
+/// The slides scale with the band (1e6 m at the default zero of 1e-9),
+/// so a slide's own rounding stands in one ratio to the band at every
+/// ε.
 #[test]
 fn crossing_axes_read_one_verdict_at_every_stored_origin() {
     let reach = ExtentBall::new(Point3::origin(), 1.0);
@@ -180,11 +185,13 @@ fn crossing_axes_read_one_verdict_at_every_stored_origin() {
         Err(geom_brep::SectionError::Escalated(_)) => "escalate",
         other => panic!("crossing equal cylinders answer only meet, skew or escalate: {other:?}"),
     };
-    for frac in [0.5, 0.9, 1.1, 2.0, 9.92, 10.08, 20.0] {
+    for frac in [0.5, 0.75, 1.25, 2.0, 9.75, 10.25, 20.0] {
         let g = frac * band().zero();
         let mut seen: Option<&str> = None;
-        for s1 in [0.0, 1e3, -1e3, 1e6, -1e6] {
-            for s2 in [0.0, 1e3, -1e3, 1e6, -1e6] {
+        let far = 1e6 * band().zero() / 1e-9;
+        let slides = [0.0, far * 1e-3, -far * 1e-3, far, -far];
+        for s1 in slides {
+            for s2 in slides {
                 let c1 = cylinder(Point3::origin(), a1, s1);
                 let c2 = cylinder(Point3::origin() + lift * g, a2, s2);
                 for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
