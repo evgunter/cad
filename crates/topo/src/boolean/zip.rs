@@ -185,6 +185,9 @@ pub(super) struct ZipReport {
     /// interior to the contact region). Empty for a plain
     /// [`zip_seam`].
     pub interior_edges: Vec<crate::entity::EdgeKey>,
+    /// Edge fusions, `(dead, kept)`: each ring edge the zip kills and
+    /// the seam edge it lay on, which keeps its key.
+    pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
 }
 
 /// The order the loopglue zip fuses a seam's `n` vertex pairs in:
@@ -450,6 +453,14 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
         vmap,
     )?;
     let n = ob.len();
+    let ring_edges = rs
+        .iter()
+        .map(|&r| {
+            body.get_half_edge(r)
+                .map(|h| h.edge)
+                .ok_or_else(|| corr("ring half-edge no longer resolves"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     // ---- The loopglue zip (the reassembly-oracle sequence, driven by
     // records): pair 0 via mekr (kills the ring loop) + kev; pairs
@@ -488,6 +499,13 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
             .edge;
         report.seam_edges.push(edge);
     }
+    // `rs[j]` runs between the correspondents of `ob[j]`'s start and
+    // `ob[j - 1]`'s (`align`), so it lies on `ob[j - 1]`'s segment.
+    report.edge_merges = ring_edges
+        .into_iter()
+        .enumerate()
+        .map(|(j, dead)| (dead, report.seam_edges[(j + n - 1) % n]))
+        .collect();
     Ok(report)
 }
 

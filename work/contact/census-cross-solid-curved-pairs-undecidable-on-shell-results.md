@@ -82,6 +82,20 @@ the same battery printed 0 `BAD`, which fits the one-solid-per-piece sort
 landing in between. So the grid's assertion (`bad == 0`) stays red until
 this lane decides curved × planar pairs across solids.
 
+## 2026-10-06 — a plug cut out of a plate (ZIP)
+
+A round tube cut right through a plate leaves a holed plate and a
+loose plug, and 3′ refuses the pair. The plate is `[0,3] × [0,2] × [0,1]`.
+The tube is `circle_split((1.5, 1), 0.6, ..)` with its bore
+`circle_split((1.5, 1), 0.4, ..)`, extruded 2.5 from `z = −0.5`.
+`topo::subtract(plate, tube)` returns two solids at the closed-form
+volume. They pass tier 2 and the at-rest certificate, and 3′ gives
+`CensusUndecidable` between the plug's wall and the hole's wall, which
+are 0.2 apart. The 16-gon twin passes 3′. In ZIP's sweep this held for
+all 144 rim and bore splits and phases tried
+(`a-round-tube-standing-on-a-plate-refuses-seam-orientation`,
+`## Closed`).
+
 ## Measured (JOIN's pinch unit, branch `join/pinch-one-vertex-per-cone-build`)
 
 Booleans now reach this class too. Under Ev's ruling on PR 4057 a
