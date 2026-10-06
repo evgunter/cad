@@ -96,8 +96,12 @@
 //!   rung (b)); REST sub-frontiers the lane names
 //!   (`RestZipUnsupported` — e.g. ring-carrying contact patches,
 //!   non-star patch adjacency); and boundary-on-boundary
-//!   configurations that are not pure REST contacts (the original
-//!   `Join(UnpairedLooseEnds)` surfaces verbatim). The ∩ and ∖ of a
+//!   configurations whose seam has a segment off the contact patches
+//!   (the join's own refusal stands verbatim, whichever of `Join`,
+//!   `JoinDesync` or `CurvedBooleanUnsupported` it was). An edge-in-face
+//!   contact beside the patch that leaves no segment is not seen there
+//!   (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
+//!   The ∩ and ∖ of a
 //!   pure REST contact leave no null pair, so they take the
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch

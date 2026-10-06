@@ -158,7 +158,7 @@ Pinned in `crates/sweep/tests/rest_zip_admission.rs`:
 
 - `a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice`:
   the 8 poses, in both orders. All 16 now refuse with the join's own
-  payload, `Join(SectionInvariant { what: "tangent plane×cylinder germ
+  payload (the pin asserts each refusal is `BooleanError::Join`), `Join(SectionInvariant { what: "tangent plane×cylinder germ
   pair …" })` for `a ∪ b′` and `"tangent section chord endpoints
   coincide along the ruling"` for `b′ ∪ a`. The pin asserts the volume
   against `v∩` wherever a body comes back, and that the post still
@@ -171,3 +171,14 @@ Pinned in `crates/sweep/tests/rest_zip_admission.rs`:
   the tangent lever with a box above the plate (the control, built by the
   zip) and three dips. Each dip refuses, one of them only at the result gate:
   `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`.
+- `the_reflex_lever_off_the_pins_poses_never_ships_the_overlap_twice`
+  (the review's): six more overlapping poses, which ship `vol a + vol b′`
+  with the check disabled, and six pure contacts the zip builds.
+- `the_tangent_lever_keeps_building_pure_contacts` (the review's): eight
+  pure contacts behind the tangent lever that the zip builds; its dips
+  are refused before the check, so it pins what the check must keep
+  building, not the check.
+
+Not caught by the admission: an edge-in-face contact with no section
+segment, a dip inside the contact or a line kiss beside it, both on
+`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`.

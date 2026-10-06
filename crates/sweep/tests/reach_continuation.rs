@@ -1160,8 +1160,9 @@ fn a_declared_continuation_across_a_rabbet_step_builds_every_op() {
 /// **Three bricks folded in any order build the L.** `a` = (0,1)³, `c`
 /// = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5), y∈(0,1), all z∈(0,1),
 /// united pairwise with every flush finding declared at each step. In
-/// `(a ∪ c) ∪ b` the block `b` lies flush against both arms of the
-/// stepped `a ∪ c`, the rabbet's reflex-step shape; it used to refuse
+/// `(a ∪ c) ∪ b` the block `b` overlaps the stepped `a ∪ c`'s `a` arm
+/// (x∈(0.5,1)) and rests on its `c` arm, at the rabbet's reflex step;
+/// it used to refuse
 /// `Join(UnpairedLooseEnds { count: 6 })`
 /// (`work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`).
 /// Each step builds at box arithmetic, tiers 3 and 3′; the L has eight

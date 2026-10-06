@@ -16,6 +16,7 @@ use sweep::test_support::{extruded, sketch_at};
 use topo::{Body, BooleanOp};
 
 use crate::common::differential::outcome;
+use crate::common::rounded;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -50,36 +51,6 @@ fn prism(pts: &[(f64, f64, f64)], z0: f64, h: f64) -> Body<f64> {
         h,
         tol(),
     )
-}
-
-pub(crate) fn rounded(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
-    let t = tol();
-    Open.at(Point2::new(w / 2.0, 0.0))
-        .toward(1.0, 0.0, t)
-        .unwrap()
-        .fillet(r, t)
-        .unwrap()
-        .at(Point2::new(w, h / 2.0), t)
-        .unwrap()
-        .toward(0.0, 1.0, t)
-        .unwrap()
-        .fillet(r, t)
-        .unwrap()
-        .at(Point2::new(w / 2.0, h), t)
-        .unwrap()
-        .toward(-1.0, 0.0, t)
-        .unwrap()
-        .fillet(r, t)
-        .unwrap()
-        .at(Point2::new(0.0, h / 2.0), t)
-        .unwrap()
-        .toward(0.0, -1.0, t)
-        .unwrap()
-        .fillet(r, t)
-        .unwrap()
-        .to(Start, t)
-        .unwrap()
-        .into()
 }
 
 fn ell_rounded(r: f64) -> ProfileLoop<f64> {

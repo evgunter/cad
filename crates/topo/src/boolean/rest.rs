@@ -9,11 +9,15 @@
 //! seam — runs along operand edges or across single faces, never
 //! through material. The lane reads that premise off the section, not
 //! the interiors: every segment the join matched must bound a contact
-//! patch on both solids (step 5). The chord joining ([`super::join`]) matches the
-//! germs into segments that name one cell per solid at both of their
-//! ends (germs carry their loci; a segment along an edge of a solid is
-//! that edge, and at an edge-edge site each solid folds it by its own
-//! membership), and its surgery refuses typed where it cannot build a
+//! patch on both solids (step 5), so an edge-in-face contact beside
+//! the patch that leaves no segment (a dip into the patch, a line
+//! kiss) passes it unseen
+//! (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
+//! The chord joining ([`super::join`]) matches the germs into segments
+//! that name one cell per solid at both of their ends (germs carry
+//! their loci; a segment along an edge of a solid is that edge, and at
+//! an edge-edge site each solid folds it by its own membership), and
+//! its surgery refuses typed where it cannot build a
 //! segment's chord — for a seam the join has no section arm for, its
 //! per-kind refusal. This lane takes over those refusals, on the
 //! join's own segments.
@@ -79,7 +83,10 @@
 //!    along already-fused seam runs — ONE run or several: a closed
 //!    cosurface band's last panel shares a run on each side, and the
 //!    band closure kills the later runs by the configuration each is
-//!    found in). Glue order is a BFS over the patch adjacency.
+//!    found in). Glue order is a BFS over the patch adjacency. The
+//!    disjointness is step 5's reading of the section, so an
+//!    edge-in-face contact with no segment is zipped unseen (the row
+//!    named above).
 //!
 //! The result passes the same output stages as every seamed boolean:
 //! declared coplanar merge, D6 edge descriptions, contact remapping
