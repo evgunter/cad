@@ -26,15 +26,15 @@ fn tol() -> Tol {
 
 type Span = (f64, f64);
 
-fn box_of(x: Span, y: Span, z: Span) -> AtRestBody<f64> {
+pub(crate) fn box_of(x: Span, y: Span, z: Span) -> AtRestBody<f64> {
     finished("a brick", brick(x, y, z, tol()), tol())
 }
 
-fn vol(b: &AtRestBody<f64>) -> f64 {
+pub(crate) fn vol(b: &AtRestBody<f64>) -> f64 {
     topo::mass_properties(b, tol()).unwrap().volume
 }
 
-fn union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
+pub(crate) fn union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
     match topo::union(p, q, tol()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("an operand's own union: {other:?}"),
@@ -43,7 +43,11 @@ fn union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
 
 /// Whether the join alone refuses `p ∪ q` under `d`: the lever that
 /// hands the union to the zip.
-fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>, d: &BooleanDeclarations) -> bool {
+pub(crate) fn join_refuses(
+    p: &AtRestBody<f64>,
+    q: &AtRestBody<f64>,
+    d: &BooleanDeclarations,
+) -> bool {
     topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, p, q, d, tol())
         .expect("the reduction runs")
         .is_some()
@@ -53,7 +57,7 @@ fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>, d: &BooleanDeclaration
 /// and 3′ and the at-rest certificate, and is a legal operand.
 /// `overlap` is the interiors' common volume, which a zip that kept
 /// both solids whole would add back. Answers whether it built.
-fn never_twice(
+pub(crate) fn never_twice(
     what: &str,
     r: Result<BooleanResult<f64>, BooleanError>,
     want: f64,
@@ -89,7 +93,7 @@ fn never_twice(
 /// starts at `x0`. At `x0 = −2` the post's west wall is flush with
 /// `a`'s where its fillets start, and the join refuses the tangent
 /// site. Answers the pose, `b′` and `vol a + vol b′ − v∩`.
-fn reflex_beside_a_post(
+pub(crate) fn reflex_beside_a_post(
     profile: &str,
     sx: f64,
     sy: f64,
