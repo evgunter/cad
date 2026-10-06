@@ -39,10 +39,14 @@ use crate::entity::{EdgeKey, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
 
-/// K name: a candidate separating direction's length before it is read
-/// as a unit axis — the offset between two anchors (metres), or a
-/// planar carrier's normal.
+/// K name: the offset between two items' anchors (metres), before it
+/// is read as a unit axis.
 const PAIR_AXIS: &str = "bool_pair_axis";
+
+/// K name: a planar face's normal, a pure number levered by the face's
+/// reach diagonal ([`UnitVec3::levered`]), before it is read as a unit
+/// axis.
+const PAIR_NORMAL: &str = "bool_pair_normal";
 
 /// K name: two reaches' gap along a candidate direction, less both
 /// items' pads (metres).
@@ -72,9 +76,11 @@ pub(crate) enum Item<T: Real> {
 }
 
 /// The outward normal of every planar face of `a` and of `b`, as unit
-/// directions: the candidate axes that turn with the
-/// operands. A normal the band cannot read as a direction is left out,
-/// which only drops a candidate.
+/// directions: the candidate axes that turn with the operands. A normal
+/// is a pure number, so it is read as a direction levered by its face's
+/// reach diagonal, the length it is consumed over. One the band cannot
+/// read, or a face with no reach, is left out, which only drops a
+/// candidate.
 pub(crate) fn operand_axes<T: Decide>(a: &Body<T>, b: &Body<T>, band: Band) -> Vec<UnitVec3<T>> {
     let mut axes: Vec<UnitVec3<T>> = Vec::new();
     for body in [a, b] {
@@ -82,7 +88,10 @@ pub(crate) fn operand_axes<T: Decide>(a: &Body<T>, b: &Body<T>, band: Band) -> V
             let Some(n) = crate::face_normal::face_outward_normal(body, key) else {
                 continue;
             };
-            if let Ok(unit) = UnitVec3::new(n.vec(), PAIR_AXIS, band) {
+            let Some((lo, hi)) = crate::census::face_reach(body, key, band) else {
+                continue;
+            };
+            if let Ok(unit) = UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()) {
                 axes.push(unit);
             }
         }
