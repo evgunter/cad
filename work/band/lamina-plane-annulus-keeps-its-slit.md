@@ -1,12 +1,14 @@
 ---
 id: lamina-plane-annulus-keeps-its-slit
 kind: issue
-title: "sweep: a lamina full revolve's plane annulus keeps its seam slit and its Meridian(Seam, s) name, where the ruling says a planar wall is one face with no meridian"
-status: open
+title: sweep: a lamina full revolve's plane annulus keeps its seam slit and its Meridian(Seam, s) name, where the ruling says a planar wall is one face with no meridian
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
 parent: swept-continuation-walls-reach-the-boolean-unmerged
+pr: 4136
+closed: 2026-10-06
 ---
 
 Left behind by `swept-continuation-walls-reach-the-boolean-unmerged`.
