@@ -1090,3 +1090,39 @@ row tested `validate`, not the door. The fix pass:
 - files S7 as `shelf/shelled-result-discards-its-own-closing-verdict`.
 S6 (finished fixtures) was skipped because it grows. Merged over the
 inherited pinch ε = 1e-6 red.
+
+## Unit 6 measured; the klein elbow is a design fork (2026-10-06, PR 4138)
+
+The lane measured the decline and stopped at the design question, as
+briefed. The lift's scope holds the cavity's meridian caps, translated
+one wall off the axis, and `offset_axial::classify` refuses "a plane
+parallel to the axis but not through it". So the scope is not axial
+under the gate's definition, and this is not a gap in it. The together
+door would need two new arms:
+- the gate admits such a plane, either roster-wide or lift-only;
+- the torus × meridian edge arm accepts a spiric old rim. An
+  experiment showed it refuses `TogetherAxialEdge` one stage later.
+PR 4138 records the measurement and the probe and merged on the
+orchestrator's read (comments and item prose only, no kernel change,
+CI green). The item stays open, re-priced H with `design: true`, for a
+designer pair. `offset_axial.rs` is OFFSET's and CURVED's shared ground
+too.
+
+Reviews of PRs 4115 and 4117 were both APPROVE-WITH-FIXES; fix passes
+are out.
+
+## Unit 6 weighed (2026-10-06)
+
+The designer pair on the klein-elbow lift converged in round 1, and
+both rejected the item's framing. The together door's domain is
+"revolves at rest", so it is not closed under its own output, and the
+lift is that door applied to its output. They agreed on the fix:
+- widen "axial" to every axis-parallel plane, everywhere;
+- `classify` reads one surface;
+- rim carriers come from the moved pair, with one plane×torus section
+  home in `geom_brep::plane_torus_section`;
+- a zero-offset spiric is unrepresentable.
+No ratified text moves, so there is no `[ev]` PR. The spec basis is in
+the item. Unit 6 now runs BEFORE unit 7, whose partial-revolve lift
+depends on it. Its review tier is DUAL: the gate change re-routes many
+bodies and is hard to reverse once rows are rebuilt on it.
