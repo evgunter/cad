@@ -1926,17 +1926,19 @@ fn loop_walk<T: Decide>(
 /// **One boundary edge of `face` as the piece the clearance meters**:
 /// its stored carrier over its stored window, or, for an edge requested
 /// in the same call, its own trim on `face` ([`co_requested_trim`]). An
-/// edge with no certified carrier refuses, `what` naming the edge.
+/// edge with no certified carrier refuses.
 fn metered_piece<'b, T: Decide>(
     body: &'b Body<T>,
     edge: EdgeKey,
     face: FaceKey,
     opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
-    what: &'static str,
 ) -> Result<MeteredPiece<'b, T>, BlendError> {
     let Some((stored, window)) = stored_piece(body, edge)? else {
-        return Err(unbuilt_geometry(EntityId::Edge(edge), what));
+        return Err(unbuilt_geometry(
+            EntityId::Edge(edge),
+            "a support's boundary edge carries no certified carrier",
+        ));
     };
     Ok(
         match co_requested_trim(edge, face, stored, window, opens, rims)? {
@@ -1981,14 +1983,7 @@ fn ring_pieces<'b, T: Decide>(
     );
     walk.into_iter()
         .map(|(_, _, edge)| {
-            let (carrier, window) = metered_piece(
-                body,
-                edge,
-                face,
-                opens,
-                rims,
-                "a ring edge carries no certified carrier",
-            )?;
+            let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
             match *carrier {
                 Curve3::Line { .. } | Curve3::Circle { .. } => Ok((edge, carrier, window)),
                 Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
@@ -2650,14 +2645,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
                 .get_half_edge(he)
                 .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim support's boundary"))?
                 .edge;
-            let (carrier, window) = metered_piece(
-                body,
-                edge,
-                face,
-                opens,
-                rims,
-                "an outer-boundary edge of a rim's support carries no certified carrier",
-            )?;
+            let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
             outer_pieces.push((edge, carrier, window));
         }
         let mut cycles = vec![(outer_pieces, true)];

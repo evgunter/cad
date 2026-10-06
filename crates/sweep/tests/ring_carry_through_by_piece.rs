@@ -340,8 +340,7 @@ fn a_curved_mates_ring_refuses_at_the_ladder_gate() {
     validate_geometric(&body, tol()).expect("the notched hole is valid");
     let rim = rim_at(&body, 1.0, 0.3);
     let err = fillet_edges(&body, &rim, 0.09, tol())
-        .err()
-        .expect("refuses")
+        .expect_err("refuses")
         .error;
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
@@ -362,8 +361,7 @@ fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
     let rim = rim_at(&body, 1.0, 0.15);
     for r in [0.05, 0.1] {
         let err = fillet_edges(&body, &rim, r, tol())
-            .err()
-            .expect("refuses")
+            .expect_err("refuses")
             .error;
         assert!(
             matches!(&err, BlendError::UnsupportedGeometry { detail, .. }
@@ -492,8 +490,7 @@ mod interval_lane {
         let eps = t().get().eps;
         for r in [0.2 - 5.0 * eps, 0.2 + 5.0 * eps] {
             let err = fillet_edges(&body, &outer, iv(r), t())
-                .err()
-                .expect("refuses")
+                .expect_err("refuses")
                 .error;
             assert!(
                 matches!(&err, BlendError::Escalated { source, .. }
@@ -504,8 +501,7 @@ mod interval_lane {
         }
 
         let err = fillet_edges(&body, &outer, iv(0.201), t())
-            .err()
-            .expect("refuses")
+            .expect_err("refuses")
             .error;
         let BlendError::RingClearance { margin, .. } = &err else {
             panic!("r = 0.201 refuses RingClearance, got {err:?}")
