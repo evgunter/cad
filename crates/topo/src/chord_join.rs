@@ -2353,9 +2353,9 @@ pub(crate) fn chart_island_winding<T: Decide>(
 /// face of the other, whose lane computes the section the chord takes
 /// (the rod's ruling, a lens rim on a wall).
 ///
-/// `segment` is a key the boolean carries from its contact records, so
-/// one that no longer resolves refuses typed. Past it, its curve and
-/// halves are links, mid-operation
+/// `segment`, `u1` and `u2` are keys the join carries, so one that no
+/// longer resolves refuses typed. Past them, the ends' points and the
+/// segment's curve and halves are links, mid-operation
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]): a miss panics, and a torn
 /// curve is not an uncertified one.
 fn along_edge_spec<T: Decide>(
@@ -2371,11 +2371,10 @@ fn along_edge_spec<T: Decide>(
     };
     let point = |v: VertexKey| {
         body.get_vertex(v)
-            .and_then(|d| body.get_point(d.point))
-            .copied()
+            .map(|d| body.point_of(v, d))
             .ok_or(SplitJoinError::SectionInvariant {
                 face,
-                what: "a chord end along the segment's edge has no point",
+                what: "a chord end along the segment's edge no longer resolves",
             })
     };
     let (p1, p2) = (point(u1)?, point(u2)?);
@@ -3695,6 +3694,7 @@ mod torn_hop_rows {
 
     use super::{Datum, Departure, JoinLane, SectionCtx, SplitJoinError};
     use crate::body::Body;
+    use crate::body::WALKS_CLOSE;
     use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
@@ -3794,6 +3794,36 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| images(b),
         );
+
+        // A member's edge: the walk steps by `next` and closes past it.
+        let mut torn = body.clone();
+        let he = first_member(&torn, face);
+        let edge = torn.get_half_edge(he).unwrap().edge;
+        torn.edges.remove(edge);
+        let named = format!(
+            "{}'s edge names {}",
+            EntityId::HalfEdge(he),
+            EntityId::Edge(edge)
+        );
+        assert_torn_op_panics(
+            "face_azimuth_images (edge)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
+
+        // A member past the first: the outer loop's walk breaks.
+        let mut torn = body.clone();
+        let first = first_member(&torn, face);
+        let second = torn.get_half_edge(first).unwrap().next;
+        torn.half_edges.remove(second);
+        let named = format!("the loop walk from {first:?} breaks at {first:?}");
+        assert_torn_op_panics(
+            "face_azimuth_images (walk)",
+            &mut torn,
+            &[&named, WALKS_CLOSE, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
     }
 
     /// `between_edge_is_section`: a torn curve panics, where it read as
@@ -3823,9 +3853,23 @@ mod torn_hop_rows {
             Some(false),
             "a sound rim lies off the plane z = 0.5"
         );
+        let mut torn = body.clone();
+        let edge = torn.get_half_edge(he).unwrap().edge;
+        torn.edges.remove(edge);
+        let named = format!(
+            "{}'s edge names {}",
+            EntityId::HalfEdge(he),
+            EntityId::Edge(edge)
+        );
+        assert_torn_op_panics(
+            "between_edge_is_section (edge)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::between_edge_is_section(b, &ctx, he, band()),
+        );
         let named = drop_curve(&mut body, he);
         assert_torn_op_panics(
-            "between_edge_is_section",
+            "between_edge_is_section (curve)",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| super::between_edge_is_section(b, &ctx, he, band()),
@@ -3900,12 +3944,93 @@ mod torn_hop_rows {
             ),
             "a stale segment edge is the boolean's key, refused typed"
         );
+        let mut stale = body.clone();
+        stale.vertices.remove(u2);
+        assert!(
+            matches!(
+                spec(&stale, edge),
+                Err(SplitJoinError::SectionInvariant {
+                    what: "a chord end along the segment's edge no longer resolves",
+                    ..
+                })
+            ),
+            "a chord end that no longer resolves is the join's key, refused typed"
+        );
+        let mut torn = body.clone();
+        let point = torn.get_vertex(u2).unwrap().point;
+        torn.points.remove(point);
+        let named = format!(
+            "{}'s point names {}",
+            EntityId::Vertex(u2),
+            GeomRef::Point(point)
+        );
+        assert_torn_op_panics(
+            "along_edge_spec (point)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| spec(b, edge),
+        );
         let named = drop_curve(&mut body, he);
         assert_torn_op_panics(
-            "along_edge_spec",
+            "along_edge_spec (curve)",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| spec(b, edge),
+        );
+    }
+
+    /// `along_edge_spec`'s circle arm, on a cylinder sheet's rim: the
+    /// segment edge's `he_plus` and that half-edge's `next` are links.
+    #[test]
+    fn the_along_edge_arc_panics_on_a_torn_half_edge() {
+        let (body, face) = cyl_sheet();
+        let edge = body
+            .loop_cycle(first_member(&body, face))
+            .unwrap()
+            .into_iter()
+            .map(|h| body.get_half_edge(h).unwrap().edge)
+            .find(|&e| {
+                body.get_curve_geom(body.get_edge(e).unwrap().curve)
+                    .and_then(super::CurveGeom::certified)
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+            })
+            .unwrap();
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let u1 = body.get_half_edge(he).unwrap().start;
+        let u2 = body.half_edge_end(he).unwrap();
+        let spec = |b: &Body<f64>| {
+            super::along_edge_spec(b, &JoinLane::AlongEdge, Some(edge), face, u1, u2)
+                .map(|s| s.is_some())
+        };
+        assert!(spec(&body).unwrap(), "a rim segment's chord is its own arc");
+
+        let mut torn = body.clone();
+        torn.half_edges.remove(he);
+        let named = format!(
+            "{}'s he_plus names {}",
+            EntityId::Edge(edge),
+            EntityId::HalfEdge(he)
+        );
+        assert_torn_op_panics(
+            "along_edge_spec (he_plus)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| spec(b),
+        );
+
+        let mut torn = body.clone();
+        let next = torn.get_half_edge(he).unwrap().next;
+        torn.half_edges.remove(next);
+        let named = format!(
+            "{}'s next names {}",
+            EntityId::HalfEdge(he),
+            EntityId::HalfEdge(next)
+        );
+        assert_torn_op_panics(
+            "along_edge_spec (end)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| spec(b),
         );
     }
 }

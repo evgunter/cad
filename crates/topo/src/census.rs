@@ -275,7 +275,7 @@ use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
 };
 use crate::geometry::PointKey;
-use crate::live::{linked, proven};
+use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
@@ -2690,53 +2690,41 @@ fn boundary_axial<T: Decide>(
     };
     let (o, ax) = (SpanBox::point(origin), SpanBox::vector(axis));
     let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
-    for (lk, l) in body.face_loops_linked(f, face) {
-        match l.boundary {
-            LoopBoundary::Empty { vertex } => {
-                let p =
-                    SpanBox::point(body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex"));
-                let sp = edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p));
-                acc = Some(acc.map_or(sp, |a| a.hull(sp)));
+    for member in body.face_boundary_linked(f, face) {
+        let sp = match member {
+            BoundaryMember::Isolated(p) => {
+                let p = SpanBox::point(p);
+                edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p))
             }
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_walk(first).closed("loop", first) {
-                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-                    let e = linked(
-                        &body.edges,
-                        ek,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
-                    let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                    let certified = body.edge_curve_linked(ek, e).certified();
-                    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-                    let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
-                        // No axial-span closed form is written for the
-                        // spiric (the boolean lane's own reading).
-                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
-                        EdgeBoxRule::Chord => AxialCarrier::Chord,
-                        EdgeBoxRule::ConicAmplitude {
-                            center,
-                            axis: c_axis,
-                            semi_u,
-                            semi_v,
-                            u_ref,
-                        } => AxialCarrier::Conic {
-                            center: SpanBox::point(center),
-                            u_ref: SpanBox::vector(u_ref),
-                            v_ref: SpanBox::vector(c_axis.cross(u_ref)),
-                            semi_u,
-                            semi_v,
-                            params: certified.map(geom_brep::EdgeCurve::params),
-                        },
-                    };
-                    let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
-                    let sp = edge_axial_span(&o, &ax, &axial, (&a, &b));
-                    acc = Some(acc.map_or(sp, |a| a.hull(sp)));
-                }
+            BoundaryMember::Edge { ek, edge: e } => {
+                let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
+                let certified = body.edge_curve_linked(ek, e).certified();
+                let carrier = certified.map(geom_brep::EdgeCurve::carrier);
+                let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
+                    // No axial-span closed form is written for the
+                    // spiric (the boolean lane's own reading).
+                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                    EdgeBoxRule::Chord => AxialCarrier::Chord,
+                    EdgeBoxRule::ConicAmplitude {
+                        center,
+                        axis: c_axis,
+                        semi_u,
+                        semi_v,
+                        u_ref,
+                    } => AxialCarrier::Conic {
+                        center: SpanBox::point(center),
+                        u_ref: SpanBox::vector(u_ref),
+                        v_ref: SpanBox::vector(c_axis.cross(u_ref)),
+                        semi_u,
+                        semi_v,
+                        params: certified.map(geom_brep::EdgeCurve::params),
+                    },
+                };
+                let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
+                edge_axial_span(&o, &ax, &axial, (&a, &b))
             }
-        }
+        };
+        acc = Some(acc.map_or(sp, |a| a.hull(sp)));
     }
     acc
 }
@@ -2762,25 +2750,13 @@ fn boundary_reach<T: Decide>(
             ),
         });
     };
-    for (lk, l) in body.face_loops_linked(f, face) {
-        match l.boundary {
-            LoopBoundary::Empty { vertex } => {
-                let p = frame.point(body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex"));
+    for member in body.face_boundary_linked(f, face) {
+        match member {
+            BoundaryMember::Isolated(p) => {
+                let p = frame.point(p);
                 grow((p, p));
             }
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_walk(first).closed("loop", first) {
-                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-                    let e = linked(
-                        &body.edges,
-                        ek,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
-                    grow(edge_reach_of(body, ek, e, frame)?);
-                }
-            }
+            BoundaryMember::Edge { ek, edge } => grow(edge_reach_of(body, ek, edge, frame)?),
         }
     }
     acc
@@ -9327,6 +9303,46 @@ mod torn_reach_rows {
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| super::edge_reach_in(b, edge, &BoxFrame::World).is_some(),
+        );
+
+        // An edge end's point, which the edge rule reads before the curve.
+        let mut torn = body.clone();
+        let v = torn.get_half_edge(first_member(&torn, face)).unwrap().start;
+        let point = torn.get_vertex(v).unwrap().point;
+        torn.points.remove(point);
+        let named = format!(
+            "{}'s point names {}",
+            EntityId::Vertex(v),
+            GeomRef::Point(point)
+        );
+        assert_torn_op_panics(
+            "face_reach_in (point)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b, face),
+        );
+    }
+
+    /// `boundary_axial` on a cone wall (the cone arm, where the axial
+    /// window is the only boundary read): a torn curve.
+    #[test]
+    fn the_cone_window_panics_on_a_torn_curve() {
+        let (mut body, face) =
+            crate::boolean::boxes::tests::cone_wall(30.0_f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
+        assert!(reach(&body, face), "the sound cone wall has a reach");
+        let edge = body.get_half_edge(first_member(&body, face)).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "face_reach_in (cone axial)",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b, face),
         );
     }
 

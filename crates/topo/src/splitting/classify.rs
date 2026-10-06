@@ -217,13 +217,7 @@ fn sphere_zone_reach<T: Decide>(
     let outer = match crate::props::loop_edges(body, f.outer) {
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
-        Err(LoopEdgesError::Corrupt { what }) => unreachable!(
-            "the outer loop {:?} of {}, a cycle, does not flatten ({what}): {}; {}",
-            f.outer,
-            EntityId::Face(face),
-            crate::live::NAMES_ONLY_LIVE,
-            crate::live::OPERATORS_KEEP_LINKS
-        ),
+        Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
     };
     let side_certified = geom_brep::props::boundary_material_sign(surface, &outer, band)
         .ok()
@@ -242,12 +236,7 @@ fn sphere_zone_reach<T: Decide>(
     ) {
         Ok(trim) => trim?,
         Err(PointInSolidError::Escalated { .. }) => return None,
-        Err(e) => unreachable!(
-            "the sphere trim of {}, a face the gate resolved, refused {e:?}: {}; {}",
-            EntityId::Face(face),
-            crate::live::NAMES_ONLY_LIVE,
-            crate::live::OPERATORS_KEEP_LINKS
-        ),
+        Err(refusal) => torn_outer_loop(body, face, f, refusal),
     };
     let unit = UnitVec3::new(*axis, SPLIT_GATE_SPHERE_AXIS, band).ok()?;
     let window = (
@@ -261,6 +250,49 @@ fn sphere_zone_reach<T: Decide>(
         zone_extent(c.z, a.z, window, *radius),
     );
     Some((Point3::new(xl, yl, zl), Point3::new(xh, yh, zh)))
+}
+
+/// The torn hop under `refusal`, a record-miss refusal of a reading of
+/// `face`'s outer loop ([`crate::props::loop_edges`],
+/// `sphere_chart_trim`) past `face`, which resolved to `f`. Each hop
+/// those readings take is re-read as a link, so the one that does not
+/// resolve panics naming its holder, its field and both premises
+/// ([`crate::live::dangling_link`]).
+#[track_caller]
+fn torn_outer_loop<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+    refusal: impl core::fmt::Debug,
+) -> ! {
+    use crate::live::{linked, proven};
+    body.face_surface_linked(face, f);
+    let outer = linked(
+        &body.loops,
+        f.outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    );
+    if let LoopBoundary::Cycle { first } = outer.boundary {
+        for he in body.loop_walk(first).closed("loop", first) {
+            let data = proven(&body.half_edges, he, EntityId::HalfEdge);
+            let edge = linked(
+                &body.edges,
+                data.edge,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            body.edge_curve_linked(data.edge, edge);
+            body.linked_vertex_point(data.start, EntityId::HalfEdge(he), "start");
+            body.proven_half_edge_end(he);
+        }
+    }
+    unreachable!(
+        "the outer loop of {} refused {refusal:?} with every record on it resolved",
+        EntityId::Face(face)
+    )
 }
 
 /// **One coordinate of a sphere's latitude zone, exactly**: the least
@@ -1467,7 +1499,7 @@ mod zone_rows {
 
     use crate::body::Body;
     use crate::boolean::boxes::BoxFrame;
-    use crate::entity::{EntityId, FaceKey, LoopBoundary};
+    use crate::entity::{EntityId, FaceKey, GeomRef, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
     use crate::{FaceSurface, MefSite, MevSite};
@@ -1663,9 +1695,9 @@ mod zone_rows {
         let curve = torn.get_edge(edge).unwrap().curve;
         torn.curves.remove(curve);
         let named = format!(
-            "the outer loop {outer:?} of {}, a cycle, does not flatten (curve key does not \
-             resolve)",
-            EntityId::Face(face)
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
         );
         assert_torn_op_panics(
             "sphere_zone_reach (flattening)",
@@ -1680,8 +1712,9 @@ mod zone_rows {
         let point = torn.get_vertex(v).unwrap().point;
         torn.points.remove(point);
         let named = format!(
-            "the sphere trim of {}, a face the gate resolved, refused CorruptFace",
-            EntityId::Face(face)
+            "{}'s point names {}",
+            EntityId::Vertex(v),
+            GeomRef::Point(point)
         );
         assert_torn_op_panics(
             "sphere_zone_reach (trim)",
