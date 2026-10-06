@@ -307,7 +307,7 @@
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::{Decide, Point3, Real, Tol};
 
-use crate::attach::{Remints, Slot};
+use crate::attach::Slot;
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -1029,12 +1029,8 @@ impl<T: Decide> Body<T> {
             .iter()
             .map(|(edge, curve)| (*edge, curve))
             .collect();
-        let mut rows = self.description_rows(
-            &curves,
-            Remints::Every,
-            |body| Ok(body.kev_loops_after(&plan)),
-            tol,
-        )?;
+        let mut rows =
+            self.description_rows(&curves, |body| Ok(body.kev_loops_after(&plan)), tol)?;
         rows.extend(self.kev_released_rows(&plan, &curves, Some(tol))?);
         let result = self.kev_execute(plan);
         // Every listed edge is a merged member, and no merged member is
@@ -1377,7 +1373,7 @@ impl<T: Decide> Body<T> {
             let face = proven(&self.loops, lk, EntityId::Loop).face;
             let planned = described
                 .iter()
-                .any(|&(edge, _)| self.description_remints(edge, Remints::Every, face));
+                .any(|&(edge, _)| self.description_remints(edge, face));
             if !planned && !read.contains(&face) {
                 read.push(face);
             }

@@ -74,6 +74,7 @@ mod arcs;
 pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
+mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;
@@ -162,6 +163,7 @@ pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, orient
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
 pub use shell_witness::ShellOrientation;
+pub use zip::Fusions;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
@@ -702,6 +704,8 @@ pub struct CarriedContacts {
     /// coincidence an op decided and recorded (D10), which asserts no
     /// class.
     pub ve: Vec<VeContact>,
+    /// Edge-edge records within the operand, carried back in, as `ve`.
+    pub ee: Vec<EeContact>,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -733,8 +737,8 @@ pub struct CarriedVf {
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        let Self { vv, vf, ve } = self;
-        vv.is_empty() && vf.is_empty() && ve.is_empty()
+        let Self { vv, vf, ve, ee } = self;
+        vv.is_empty() && vf.is_empty() && ve.is_empty() && ee.is_empty()
     }
 }
 
@@ -2211,10 +2215,11 @@ pub enum BooleanError {
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
     /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: two dangling null
-    /// edges with one segment, or a null edge both of whose ways round
-    /// hold one (`insert::reconcile_shared`). A dangling null edge whose
-    /// segment holds another's whole builds: the inner hangs at its tip.
+    /// orbit that holds none of another pair's cuts: a null edge both
+    /// of whose ways round hold one (`insert::reconcile_shared`). A
+    /// dangling null edge whose segment holds another's whole builds:
+    /// the inner hangs at its tip, and of two with one segment the Out
+    /// one holds (`insert::holds_whole`).
     /// It also refuses where the shared vertex is B's and B's walk order
     /// nests one of its pairs' runs inside another's: the reconcile turns
     /// runs to clear the other pairs' cuts, and a nested run turned would
@@ -4261,10 +4266,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let orbits: Vec<_> = classified
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unused_mut))]
+    let mut orbits: Vec<_> = classified
         .iter()
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
+    #[cfg(any(test, feature = "test-support"))]
+    insert::reverse_when_asked(&mut plans, &mut orbits);
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges);
@@ -5189,6 +5197,22 @@ fn validate_declarations<T: Decide>(
             }
             if body.get_edge(rest.edge).is_none() {
                 return Err(bad(operand, "carried v-on-e edge key does not resolve"));
+            }
+        }
+        for touch in &c.ee {
+            if touch.a == touch.b {
+                return Err(bad(operand, "carried e-e pair names one edge twice"));
+            }
+            for e in [touch.a, touch.b] {
+                let Some(d) = body.get_edge(e) else {
+                    return Err(bad(operand, "carried e-e edge key does not resolve"));
+                };
+                // Edge-split lineage reads each edge as the segment
+                // between its ends (`ops::ee_lineage`), which only a
+                // line edge is.
+                if edge_join::certified_line(body, e, d).is_none() {
+                    return Err(bad(operand, "carried e-e edge is not a certified line"));
+                }
             }
         }
         Ok(())

@@ -196,16 +196,18 @@ fn vertex_on_face_kiss_promoted() {
 /// edge with interior overhang — B's endpoint lands on A's edge
 /// INTERIOR and A's corner on B's edge interior. Reduction refines
 /// BOTH vertex-on-edge events into v-v records by splitting
-/// (`split_other_at_point` — no vertex-on-edge record type exists,
-/// by derivation), and the census certifies the collinear overlap
-/// segment from those bounding records (D3).
+/// (`split_other_at_point`); the output stage joins each split vertex
+/// away (maximal edges), which makes each v-v record a
+/// `(vertex, edge)` record, and the census certifies the collinear
+/// overlap segment from those bounding records (D3).
 fn edge_rest_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     let a = finished_brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<T>((1.0, 3.0), (-2.0, 0.0), (2.0, 4.0));
     let body = run_body(union_with as BoolOp<T>, &a, &b);
-    // Two refined v-v pairs: B's corner (1,0,2) on A's edge interior;
+    // Two joined records: B's corner (1,0,2) on A's edge interior;
     // A's corner (2,0,2) on B's edge interior.
-    assert_eq!(body.contacts.vv.len(), 2, "{:?}", body.contacts);
+    assert_eq!(body.contacts.ve.len(), 2, "{:?}", body.contacts);
+    assert!(body.contacts.vv.is_empty(), "{:?}", body.contacts);
     assert_promoted(&body);
 }
 

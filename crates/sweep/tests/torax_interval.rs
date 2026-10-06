@@ -334,7 +334,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 
 /// **The klein elbow at `T = Interval`**: the carried-datum arm, the
 /// kind-changing spiric mint (its six `decide` sites), both endpoint
-/// meters, the rim window's forward read (`offset_axial_rim_window`)
+/// meters, the rim window's forward read (`offset_axial_edge_window`)
 /// and the equator seams' re-author — each end's out-of-plane decide
 /// and the turned start's verification — execute at the certified
 /// scalar on the way to the door f64 measures: tier 3's check 7,

@@ -431,7 +431,7 @@ pub enum ExtrudeError {
     /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
     /// along a strut, and a rim that reads smooth is a line between two
     /// planes (arc walls are ruled in the sketch normal —
-    /// `work/carve/extrude-arc-walls-are-ruled-in-n-not-w.md` would
+    /// `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
     /// change that), so in either case both normals are constant along
     /// the edge and every station reads what the witness read. Reaching this means
     /// the inputs carried something a validated profile cannot, and it
@@ -1495,7 +1495,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // tilt, and the wedge is metered as `sin θ` over a rim the
         // profile door floors at `K·ε`. An ARC leg's wall is a cylinder
         // whose axis is `±n` on both doors ([`side_surface`];
-        // `work/carve/extrude-arc-walls-are-ruled-in-n-not-w.md` would
+        // `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
         // move it), so it is perpendicular to the cap at every rim
         // point and never reads smooth. `fillet_h6_cap_rim` measures
         // both facts.

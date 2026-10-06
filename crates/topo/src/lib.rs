@@ -234,6 +234,7 @@ pub mod shell;
 pub mod source;
 pub mod split;
 pub mod splitting;
+pub(crate) mod stands;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
@@ -338,6 +339,21 @@ pub mod test_support {
             .collect()
     }
     pub use crate::test_support_samples::validation_error_samples;
+
+    /// Runs `f` with every boolean on this thread taking its vertex
+    /// pairs, and each pair's crossing records, in reverse order, and
+    /// returns how many reductions inside [`ops_under_test`] held two
+    /// crossing pairs at one vertex: a row that asserts the same results
+    /// both ways round reads that count to know it was not vacuous.
+    pub fn with_vertex_pairs_reversed<R>(f: impl FnOnce() -> R) -> (R, usize) {
+        crate::boolean::insert::with_vertex_pairs_reversed(f)
+    }
+
+    /// Runs `f` as the ops a row tests, apart from the booleans that
+    /// built their operands ([`with_vertex_pairs_reversed`]).
+    pub fn ops_under_test<R>(f: impl FnOnce() -> R) -> R {
+        crate::boolean::insert::ops_under_test(f)
+    }
 
     /// The boolean's volume backstop over `a`, `b` and a `result`, as the
     /// pipeline gates a finished body
@@ -737,17 +753,17 @@ pub use boolean::{
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
     ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow, EdgeJoin, EeContact,
-    FaceContainment, FacePairDeclaration, HeldEdge, LeverArm, NeighbourOffset, NullEdgePairRecord,
-    Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
-    PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling, ShellOrientation,
-    SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace,
-    TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, intersect_with, joinable_vertices, lineage_root,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
-    subtract_with, tangent_pair_relation, union, union_with,
+    FaceContainment, FacePairDeclaration, Fusions, HeldEdge, LeverArm, NeighbourOffset,
+    NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread,
+    PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
+    PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling,
+    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
+    SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    joinable_vertices, lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces,
+    point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union, union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;

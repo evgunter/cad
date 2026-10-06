@@ -76,8 +76,10 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let (bx, vs) = (solids[0], solids[1]);
 
-    // Whole-body reading: not axial (the box is in it).
-    assert!(!topo::is_axial(&pair, band()).unwrap());
+    // Whole-body reading: axial, the box's faces standing normal and
+    // parallel to the vessel's axis; the scope below is what keeps the
+    // box out of the door's writes.
+    assert!(topo::is_axial(&pair, band()).unwrap());
 
     // The vessel's charts only, through the axial door.
     let mut work = pair.clone();

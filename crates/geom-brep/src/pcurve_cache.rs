@@ -1412,9 +1412,6 @@ pub enum UncoveredClass {
     /// A line, ellipse or spiric offered a fitted-grade image: no such
     /// class exists, its images are closed-form or iso.
     NoFittedClass,
-    /// A zero-offset spiric — a meridian circle of its torus — on a
-    /// chart that is neither its own torus nor its cutting plane.
-    ZeroOffsetSpiric,
     /// A spiric on its torus's mirror through the cutting plane, which
     /// holds the oval while the wall image maps only through the
     /// carrier's own torus.
@@ -1444,10 +1441,6 @@ impl UncoveredClass {
                  fitted certificate"
             }
             Self::NoFittedClass => "a line, ellipse or spiric has no fitted-grade image class",
-            Self::ZeroOffsetSpiric => {
-                "a zero-offset spiric is a meridian circle of its torus, and the spiric lane \
-                 images it only on that torus and its cutting plane"
-            }
             Self::MirrorTorusSpiric => {
                 "the chart is the mirror of the spiric's torus through its cutting plane, \
                  which holds the oval, and the wall image maps only through the carrier's \
@@ -1480,7 +1473,6 @@ impl UncoveredClass {
                 "Recourse: state the edge's image in its closed-form or iso class rather \
                  than as a Fitted or General one"
             }
-            Self::ZeroOffsetSpiric => "Recourse: describe the edge as the Circle carrier it is",
             Self::MirrorTorusSpiric => "Recourse: re-state the spiric about the chart's own torus",
         }
     }
@@ -4928,13 +4920,11 @@ fn run_spiric_checks<T: Decide>(
                             }
                         }
                         let verdict = spiric_off_own_chart(
-                            c_offset,
                             on_mirror,
                             "the chart torus is neither the carrier's own nor its mirror \
-                             through the cutting plane, and a spiric oval of nonzero offset \
-                             lies on no other torus",
-                            band,
-                        )?;
+                             through the cutting plane, and a spiric oval lies on no other \
+                             torus",
+                        );
                         return Err(verdict.refusal(surface, carrier));
                     }
                 }
@@ -7676,12 +7666,10 @@ fn spiric_chart_pcurve<T: Decide>(
                 Sign::Negative => T::zero() - T::one(),
                 Sign::Zero => {
                     let verdict = spiric_off_own_chart(
-                        offset,
                         false,
                         "the chart torus's axis is perpendicular to the carrier's, and a \
-                         spiric oval of nonzero offset lies only on tori parallel to its own",
-                        band,
-                    )?;
+                         spiric oval lies only on tori parallel to its own",
+                    );
                     return Err(verdict.refusal(surface, carrier));
                 }
             };
@@ -7693,12 +7681,10 @@ fn spiric_chart_pcurve<T: Decide>(
         }
         Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
             let verdict = spiric_off_own_chart(
-                offset,
                 false,
-                "a spiric oval of nonzero offset is an irreducible quartic, and every \
-                 planar curve on a cylinder, cone or sphere is a conic",
-                band,
-            )?;
+                "a spiric oval is an irreducible quartic, and every planar curve on a \
+                 cylinder, cone or sphere is a conic",
+            );
             Err(verdict.refusal(surface, carrier))
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
@@ -7796,43 +7782,25 @@ fn cone_conic_incidence<T: Decide>(
 }
 
 /// A spiric met with a chart that is neither its own torus nor its own
-/// cutting plane: off the chart unless the oval can still lie on it.
+/// cutting plane: off the chart.
 ///
-/// For `offset ≠ 0` the section is an irreducible bicircular quartic
-/// (genus 1, the variant docs), so a curve containing one oval of it
-/// contains all of it (Bézout). A cylinder, cone or sphere meets the
-/// cutting plane in a conic, which holds no such quartic. Another
-/// torus meets it in a bicircular quartic too, and matching the two
-/// equations coefficient by coefficient in the plane's frame forces
-/// a parallel axis, the same `R` and `r`, and a centre either the
-/// carrier's or its MIRROR through the plane (`center + 2·offset·n`)
-/// — the caller says whether the chart is that mirror (`on_mirror`).
-/// For `offset = 0` the oval is a meridian circle, which lies on many
-/// charts; whether it lies on THIS one is not tested, so the pair is
-/// called uncovered unchecked
-/// (`work/issues/uncovered-chart-classes-have-no-incidence-test.md`).
-///
-/// # Errors
-///
-/// [`PcurveCertifyError::Escalated`] when `pcurve_spiric_offset_circle`
-/// lands in the sliver band.
-fn spiric_off_own_chart<T: Decide>(
-    offset: T,
-    on_mirror: bool,
-    why: &'static str,
-    band: Band,
-) -> Result<NoImage, PcurveCertifyError> {
+/// A spiric's offset is nonzero ([`geom::Curve3::spiric`] refuses a
+/// plane through the axis, whose ovals are `Circle`s), so its oval is
+/// an irreducible bicircular quartic (genus 1, the variant docs), and a
+/// curve containing one oval of it contains all of it (Bézout). A
+/// cylinder, cone or sphere meets the cutting plane in a conic, which
+/// holds no such quartic. Another torus meets it in a bicircular
+/// quartic too, and matching the two equations coefficient by
+/// coefficient in the plane's frame forces a parallel axis, the same
+/// `R` and `r`, and a centre either the carrier's or its MIRROR through
+/// the plane (`center + 2·offset·n`) — the caller says whether the
+/// chart is that mirror (`on_mirror`).
+fn spiric_off_own_chart(on_mirror: bool, why: &'static str) -> NoImage {
     if on_mirror {
-        return Ok(NoImage::Uncovered(UncoveredClass::MirrorTorusSpiric));
+        NoImage::Uncovered(UncoveredClass::MirrorTorusSpiric)
+    } else {
+        NoImage::OffChart(why)
     }
-    Ok(
-        match decide("pcurve_spiric_offset_circle", Margin::of(offset), band)
-            .map_err(winding_escalated)?
-        {
-            Sign::Zero => NoImage::Uncovered(UncoveredClass::ZeroOffsetSpiric),
-            Sign::Positive | Sign::Negative => NoImage::OffChart(why),
-        },
-    )
 }
 
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
@@ -8909,7 +8877,6 @@ mod tests {
             UncoveredClass::SphereGeneralCircle,
             UncoveredClass::TorusGeneralCircle,
             UncoveredClass::NoFittedClass,
-            UncoveredClass::ZeroOffsetSpiric,
             UncoveredClass::MirrorTorusSpiric,
         ];
         for class in classes {
@@ -8919,7 +8886,6 @@ mod tests {
                 | UncoveredClass::SphereGeneralCircle
                 | UncoveredClass::TorusGeneralCircle
                 | UncoveredClass::NoFittedClass
-                | UncoveredClass::ZeroOffsetSpiric
                 | UncoveredClass::MirrorTorusSpiric => {}
             }
         }

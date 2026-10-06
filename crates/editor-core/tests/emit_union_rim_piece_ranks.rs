@@ -19,13 +19,13 @@
 //! them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{
     declared_union, declared_union_classed, failure, flush_pairs, run,
 };
-use crate::emit_shared_rim_several::{Bx, document, is_rim_piece, permutations, probe_corpus};
+use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus};
 use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
 
 use editor_core::{
@@ -806,21 +806,19 @@ fn a_member_face_another_holds_is_a_constituent_in_every_order() {
     }
 }
 
-/// **A member flush with two others names its rim pieces by the body,
-/// whoever holds each stretch.** `r2ends`: `a` = x 0..3 is flush with
-/// `b` over x 2..3 and with `c` over x 0..1. Its bottom start rim (x 0 →
-/// 3 at y = z = 0) is cut at x = 1 and 2, so each piece of it `a` holds
-/// spans one of x = k..k + 1 in every order: `a` always holds the middle
-/// one, and each end one when it was folded before that end's partner.
-/// Ranked over the pieces `a` keeps, `#0 of 2` was once x = 0..1 in
-/// `[b, a, c]` and x = 1..2 in `[c, a, b]`; named by its ends, a piece
-/// is the same name wherever it is published.
+/// **A member flush with two others names their shared rim line for
+/// the set of the three rims, in every order.** `r2ends`: `a` = x 0..3
+/// is flush with `b` (x 2..4) and with `c` (x −1..1). Their bottom start
+/// rims (y = z = 0) lie on one line, and the output stage joins it into
+/// one edge from x = −1 to 4, along all three rims and within none: it
+/// is named `Merged` of the three, whichever member each fold step met
+/// first.
 #[test]
 fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
     let case = r2ends();
     let (doc, _) = document(&case.blocks, &case.creation);
     let mut fused = 0;
-    let mut named: BTreeMap<i64, StableName> = BTreeMap::new();
+    let mut named = BTreeSet::new();
     runs(&r2ends(), |at, ev, ids, unions| {
         let union = unions[0].1;
         assert!(
@@ -829,35 +827,37 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
             failure(ev, union)
         );
         fused += 1;
-        let a = ids[0];
-        let rim = StableName {
+        let mut set: Vec<StableName> = ids
+            .iter()
+            .map(|&m| {
+                crate::fixture::member_entity(
+                    union,
+                    m,
+                    StableName {
+                        kind: EntityKind::Edge,
+                        node: m,
+                        path: vec![RoleSeg::RimEdge(
+                            CapEnd::Start,
+                            crate::fixture::piece(&doc, m, 0, 0),
+                        )],
+                    },
+                    EntityKind::Edge,
+                )
+            })
+            .collect();
+        set.sort();
+        let line = StableName {
             kind: EntityKind::Edge,
-            node: a,
-            path: vec![RoleSeg::RimEdge(
-                CapEnd::Start,
-                crate::fixture::piece(&doc, a, 0, 0),
-            )],
+            node: union,
+            path: vec![RoleSeg::Merged(set)],
         };
         let geo = geometry(ev, union);
         let x = |k: i64| (k * 1_000_000, 0, 0);
-        let mut held = Vec::new();
-        for (n, sig) in &geo {
-            if !is_rim_piece(n, a, &rim) {
-                continue;
-            }
-            let k = sig[0].0 / 1_000_000;
-            assert_eq!(sig, &vec![x(k), x(k + 1)], "{at}: {n:?} spans one cell");
-            if let Some(was) = named.insert(k, n.clone()) {
-                assert_eq!(&was, n, "{at}: x = {k}..{} is named one way", k + 1);
-            }
-            held.push(k);
-        }
-        assert!(
-            held.contains(&1),
-            "{at}: a does not hold its middle cell: {held:?}"
-        );
+        assert_eq!(geo.get(&line), Some(&vec![x(-1), x(4)]), "{at}: {line:?}");
+        named.insert(line);
     });
     assert_eq!(fused, 6);
+    assert_eq!(named.len(), 1, "one name in every order");
 }
 
 /// **A vertex name cites a member edge whole, and lies on it.** A seam
@@ -865,8 +865,8 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
 /// edge a face crossed as far as it had cut it by then (`#k of n` of THAT
 /// step), which is fold history and names no published piece. Over every
 /// case and order, each edge a vertex's seam cites in the union's space
-/// is a member edge with no rank, and the vertex lies on that edge in
-/// the member's own body. On main 112 cited edges carried a fold rank;
+/// is a member edge with no rank, never a set of them, and the vertex
+/// lies on that edge in the member's own body. On main 112 cited edges carried a fold rank;
 /// ranked over the finished body without this rewrite, 318 cited a rank
 /// no published row carries.
 #[test]
@@ -897,10 +897,14 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                             if side.kind != EntityKind::Edge || side.node != union {
                                 continue;
                             }
+                            let here = format!("{} {tag} {at}: {name:?}", case.label);
+                            assert!(
+                                !matches!(side.path.first(), Some(RoleSeg::Merged(_))),
+                                "{here} cites a set of edges, not one it lies on: {side:?}"
+                            );
                             let Some(RoleSeg::FromMember { member, of }) = side.path.first() else {
                                 continue;
                             };
-                            let here = format!("{} {tag} {at}: {name:?}", case.label);
                             assert_eq!(side.path.len(), 1, "{here} cites a piece: {side:?}");
                             let Some(Entry::Unique(me)) = table(ev, *member).lookup(of) else {
                                 panic!("{here}: its member does not name {of:?} once")
@@ -930,12 +934,11 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
 }
 
 /// **`fam010`, the row's own case.** `a`'s bottom-y rim (segment 0,
-/// x = 0 → 1 at y = 0, z = 1) is cut by the body's vertices at 0.3, 0.4
-/// and 0.5: x = 0.3..0.4 is inside `g`, and x = 0.5..1.0 is the stretch
-/// `a` runs flush with `b`, which `a` holds in `[a, b, g]` and `b` in
-/// `[b, a, g]`. Each piece `a` holds in both orders is one name in both.
-/// Ranked over the pieces `a` kept, `#1 of 2` was once x = 0.5..1.0 in
-/// the first order and x = 0.4..0.5 in the second.
+/// x = 0 → 1 at y = 0, z = 1) is cut by `g`'s walls at 0.3 and 0.4:
+/// x = 0.3..0.4 is inside `g`, x = 0.0..0.3 lies within `a`'s rim alone,
+/// and x = 0.4..1.5 runs along `a`'s rim and on along `b`'s. In both
+/// orders the second is named for the set of the two rims, and the
+/// first, the one piece of `a`'s rim outside it, by its ends.
 #[test]
 fn fam010_names_a_rim_the_same_way_in_both_orders() {
     let g = ((0.3, 0.4), (-1.0, 0.5), (0.5, 3.0));
@@ -948,16 +951,16 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         &[0, 1, 2],
     );
     let (a, b, c) = (ids[0], ids[1], ids[2]);
-    let rim = StableName {
+    let rim = |m: RecipeNodeId| StableName {
         kind: EntityKind::Edge,
-        node: a,
+        node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, a, 0, 0),
+            crate::fixture::piece(&doc, m, 0, 0),
         )],
     };
-    // x-span → the name of the piece of `a`'s rim there.
-    let pieces = |order: [editor_core::RecipeNodeId; 3]| {
+    // x-span → the name there, for every edge along the rim line.
+    let along = |order: [editor_core::RecipeNodeId; 3]| {
         let (docx, union) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
@@ -965,25 +968,41 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        geometry(&ev, union)
+        let names: BTreeMap<_, _> = geometry(&ev, union)
             .into_iter()
-            .filter(|(n, _)| is_rim_piece(n, a, &rim))
+            .filter(|(n, sig)| {
+                n.kind == EntityKind::Edge && sig.iter().all(|p| p.1 == 0 && p.2 == 1_000_000)
+            })
             .map(|(n, sig)| (sig.iter().map(|p| p.0).collect::<Vec<_>>(), n))
-            .collect::<BTreeMap<_, _>>()
+            .collect();
+        (union, names)
     };
     let x = |a: f64, b: f64| vec![(a * 1e6).round() as i64, (b * 1e6).round() as i64];
-    let (first, second) = (pieces([a, b, c]), pieces([b, a, c]));
-    for span in [x(0.0, 0.3), x(0.4, 0.5)] {
-        assert!(first.contains_key(&span), "[a, b, g]: no piece at {span:?}");
-        assert_eq!(first.get(&span), second.get(&span), "{span:?}");
+    let ((u1, first), (u2, second)) = (along([a, b, c]), along([b, a, c]));
+    for (union, table) in [(u1, &first), (u2, &second)] {
+        let whole = crate::fixture::member_entity(union, a, rim(a), EntityKind::Edge);
+        let mut set = vec![
+            whole.clone(),
+            crate::fixture::member_entity(union, b, rim(b), EntityKind::Edge),
+        ];
+        set.sort();
+        let joined = StableName {
+            kind: EntityKind::Edge,
+            node: union,
+            path: vec![RoleSeg::Merged(set)],
+        };
+        assert_eq!(table.len(), 2, "the edges along a's rim line: {table:?}");
+        assert_eq!(table.get(&x(0.4, 1.5)), Some(&joined), "{table:?}");
+        let piece = &table[&x(0.0, 0.3)];
+        assert_eq!(piece.path[..1], whole.path[..], "{piece:?}");
+        assert!(
+            matches!(
+                piece.path[1..],
+                [RoleSeg::Fragment(editor_core::Qualifier::Ends(_))]
+            ),
+            "{piece:?}"
+        );
     }
-    // The flush stretch is named for the lesser of `a` and `b`
-    // (`emit_union::Flush`).
-    assert_eq!(
-        first.contains_key(&x(0.5, 1.0)),
-        a < b,
-        "[a, b, g]: the lesser member holds the flush stretch"
-    );
 }
 
 /// `h` of the review corpus: x 1.0..1.1, its x = 1.0 wall against `a`'s

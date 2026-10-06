@@ -1947,15 +1947,15 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
 
 /// **The sibling setter is not the same case.** `set_edge_curve` moves
 /// neither a row's key nor its chart — it changes what the row must
-/// agree WITH — and the pcurve pass re-derives that agreement from the
-/// edge's CURRENT carrier on every run. So a carrier swap that leaves a
-/// row saying the old image is refused per half-edge, loud, on the same
-/// body where the surface setter was silent: this row swaps a rim ARC
-/// for the straight line between its own endpoints and reads, on each
-/// side of the edge, the row's interval refused (the line's is not the
-/// arc's) and its certification refused.
+/// agree WITH — so a carrier swap re-mints the faces the edge's halves
+/// are on, as the site mint the Euler operators run does. This row
+/// swaps a rim ARC for the straight line between its own endpoints,
+/// which leaves the cylinder: the closed-form lane has no row set for
+/// either face, so each stores nothing, and tier 3 reads on each the
+/// refusal the mint would raise: the line's own row does not represent
+/// it.
 #[test]
-fn an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud() {
+fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
     let mut s = sheet();
     let he = first_he(&s.body, s.low);
     let edge = s.body.get_half_edge(he).unwrap().edge;
@@ -1973,20 +1973,20 @@ fn an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud() {
     s.body
         .set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
         .unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(rows_of(&s.body, s.low), (0, 4));
     let findings = validate_pcurves(&s.body, band());
-    let certify = findings
-        .iter()
-        .filter(|f| matches!(f, PcurveMintError::Certify { .. }))
-        .count();
-    let interval = findings
-        .iter()
-        .filter(|f| matches!(f, PcurveMintError::RowInterval { .. }))
-        .count();
-    assert_eq!(
-        (certify, interval, findings.len()),
-        (2, 2, 4),
-        "{findings:?}"
+    let refused = topo::mint_pcurves(&mut s.body, tol()).unwrap_err();
+    assert!(
+        findings.len() == 2
+            && findings.iter().all(|f| matches!(
+                f,
+                PcurveMintError::Certify {
+                    error: PcurveCertifyError::ResidualExceeded { .. },
+                    ..
+                }
+            ))
+            && findings.contains(&refused),
+        "tier 3 reads the mint's refusal on each face the line bounds: {findings:?}"
     );
 }
 
@@ -1999,20 +1999,17 @@ fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
     body.loop_cycle(first).unwrap()
 }
 
-/// **The sibling setter's loudness is the pcurve pass's, on a
-/// half-minted face too.** `validate_pcurves` re-certifies every row a
-/// face stores, whether or not the set is complete, so the carrier swap
-/// the row above reads refused on both sides is refused on both sides
-/// here as well — the half-minted face's staled row and the mate face's,
-/// each for its interval and its certification — beside the half-minted
-/// face's gap and the refusal its re-derivation meets with the new
-/// carrier in its loop.
-///
-/// So `set_edge_curve` keeps the rows it finds — re-minting only where
-/// a null edge gets its first carrier — and a row it stales is measured
-/// wherever it is stored.
+/// **A half-minted face is left as found, and its staled row is the
+/// pcurve pass's to refuse.** The site mint re-mints no face it finds
+/// half-minted, so the carrier swap the row above reads re-mints the
+/// mate's face alone, which stores nothing once the line leaves the
+/// chart. The half-minted face keeps the swapped edge's row, and
+/// `validate_pcurves`, which re-certifies every row a face stores
+/// whether or not the set is complete, refuses it for its interval and
+/// its certification, beside the face's gap. The mate's face, left
+/// rowless, re-derives and refuses the line's row.
 #[test]
-fn a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides() {
+fn a_carrier_swap_on_a_half_minted_face_leaves_its_staled_row_refused() {
     let mut s = sheet();
     let he = first_he(&s.body, s.low);
     let edge = s.body.get_half_edge(he).unwrap().edge;
@@ -2044,49 +2041,47 @@ fn a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides() {
         .set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
         .unwrap();
     let findings = validate_pcurves(&s.body, band());
-    let refused: Vec<topo::HalfEdgeKey> = findings
-        .iter()
-        .filter_map(|f| match f {
-            PcurveMintError::Certify { half_edge, .. } => Some(*half_edge),
-            _ => None,
-        })
-        .collect();
-    let absent: Vec<topo::HalfEdgeKey> = findings
-        .iter()
-        .filter_map(|f| match f {
-            PcurveMintError::MissingCache { half_edge } => Some(*half_edge),
-            _ => None,
-        })
-        .collect();
+    let of_kind = |kind: fn(&PcurveMintError) -> Option<topo::HalfEdgeKey>| -> Vec<_> {
+        findings.iter().filter_map(kind).collect()
+    };
+    let refused = of_kind(|f| match f {
+        PcurveMintError::Certify { half_edge, .. } => Some(*half_edge),
+        _ => None,
+    });
+    let interval = of_kind(|f| match f {
+        PcurveMintError::RowInterval { half_edge } => Some(*half_edge),
+        _ => None,
+    });
+    let absent = of_kind(|f| match f {
+        PcurveMintError::MissingCache { half_edge } => Some(*half_edge),
+        _ => None,
+    });
     assert_eq!(absent, vec![victim], "{findings:?}");
     // The first is the half-minted face's re-derivation: its walk lifts
-    // every joint, and the chord's own row refuses certification.
+    // every joint, and the chord's own row refuses certification. The
+    // last is the mate's face, which the swap left rowless: tier 3
+    // re-derives it and the line's row refuses there too.
     assert_eq!(
         refused,
         vec![he, he, mate],
-        "the re-derivation refuses the chord's row, and both stored rows of the swapped edge \
-         re-certify, and refuse: {findings:?}"
+        "the re-derivation refuses the chord's row, the kept row re-certifies and refuses, \
+         and the mate's rowless face re-derives and refuses its own: {findings:?}"
     );
-    let interval: Vec<topo::HalfEdgeKey> = findings
-        .iter()
-        .filter_map(|f| match f {
-            PcurveMintError::RowInterval { half_edge } => Some(*half_edge),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(interval, vec![he, mate], "both rows state the old interval");
     assert_eq!(
-        findings.len(),
-        6,
-        "beside them, only the half-minted face's re-derivation refusal: {findings:?}"
+        interval,
+        vec![he],
+        "it states the old interval: {findings:?}"
     );
     assert!(
         s.body.pcurve(he).is_some(),
         "the staled row is still there — measured, not removed"
     );
+    assert!(
+        s.body.pcurve(mate).is_none(),
+        "the mate's face is re-minted, and stores nothing off the chart"
+    );
 }
 
-// ---------------------------------------------------------------
 // The one tie across two keys: a shared payload `Arc`.
 // ---------------------------------------------------------------
 //
