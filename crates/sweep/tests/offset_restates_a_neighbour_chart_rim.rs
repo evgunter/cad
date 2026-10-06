@@ -13,20 +13,25 @@
 //! cube: its top edge re-described as an image in a side's chart, the
 //! top moved and every other chart held.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::sync::Arc;
 
 use crate::common::approx::band;
-use geom::Surface;
+use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_brep::{
-    EdgeAuthority, EdgeCurve, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment,
+    EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
+    Pcurve, SketchSegment,
 };
+use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::readback::edge_sides;
 use topo::{
-    Body, ChartMove, CurveGeom, EdgeKey, SurfaceKey, ValidationError, offset_charts_together,
-    offset_planes_together, replace_faces_offset, validate_closed, validate_geometric,
+    Body, ChartMove, CurveGeom, EdgeKey, FaceSurface, HalfEdgeKey, LoopBoundary, MefSite,
+    SurfaceKey, ValidationError, offset_charts_together, offset_planes_together,
+    replace_faces_offset, validate_closed, validate_geometric,
 };
 
 const R: f64 = 3.0 / 64.0;
@@ -404,4 +409,195 @@ fn the_planar_door_derives_the_image_afresh_when_both_charts_move() {
             "declared {declared}: tier 3 names the declaration and nothing else"
         );
     }
+}
+
+/// The cube's top split along its diagonal by a quadratic spline chord
+/// in the top plane (`bow` pushes its middle control point off the
+/// diagonal), the chord described by a fitted image in the top's
+/// chart: a SEAM, both its faces on the one top plane. The chord and
+/// the top's key.
+fn cube_with_a_spline_seam_on_the_top(bow: f64) -> (Body<f64>, EdgeKey, SurfaceKey) {
+    let mut body: Body<f64> = sweep::test_support::cube(1.0, Tol::witness());
+    let (face, top) = body
+        .faces()
+        .map(|(k, f)| (k, f.surface))
+        .find(|&(_, s)| {
+            is_top(&body, s)
+                && matches!(body.get_surface(s), Some(Surface::Plane { origin, .. }) if origin.z == 1.0)
+        })
+        .expect("the cube's top");
+    let Some(&Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    }) = body.get_surface(top)
+    else {
+        panic!("the top is a plane")
+    };
+    let v_ref = normal.cross(u_ref);
+    let leaving = |at: Point3<f64>| -> HalfEdgeKey {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the top's loop is a cycle")
+        };
+        body.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .find(|&he| {
+                let v = body.get_half_edge(he).unwrap().start;
+                body.get_point(body.get_vertex(v).unwrap().point)
+                    .unwrap()
+                    .distance(at)
+                    == 0.0
+            })
+            .expect("a half-edge of the top leaves the corner")
+    };
+    let (a, b) = (Point3::new(0.0, 0.0, 1.0), Point3::new(1.0, 1.0, 1.0));
+    let (he1, he2) = (leaving(a), leaving(b));
+    let control = vec![a, Point3::new(0.5 - bow, 0.5 + bow, 1.0), b];
+    let knots = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let image = NurbsCurve2::new(
+        knots(),
+        control
+            .iter()
+            .map(|&p| Point2::new((p - origin).dot(u_ref), (p - origin).dot(v_ref)))
+            .collect(),
+        vec![1.0; 3],
+    )
+    .unwrap();
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Chart {
+            surface: top,
+            image: Some(Pcurve::Fitted(Arc::new(image))),
+            seam: false,
+            declared: None,
+        },
+        carrier: Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(knots(), control, vec![1.0; 3]).unwrap(),
+        )),
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    let made = body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            spec,
+            FaceSurface::Inherit,
+            Tol::witness(),
+        )
+        .expect("the chord splits the top");
+    (body, made.edge, top)
+}
+
+/// Every chart of `body` offset through the planar door, `distance`
+/// choosing each chart's move by its key; the result.
+fn offset_planes_by(
+    body: &mut Body<f64>,
+    distance: impl Fn(SurfaceKey) -> f64,
+) -> Result<(), topo::ReplaceFaceError<f64>> {
+    let moves: Vec<ChartMove<f64>> = crate::common::charts::charts(body)
+        .into_iter()
+        .map(|faces| ChartMove {
+            distance: distance(body.get_face(faces[0]).unwrap().surface),
+            faces,
+        })
+        .collect();
+    offset_planes_together(body, &moves, band(), Tol::witness())
+}
+
+/// **A seam keeps its image, at rest and with its plane moving.** Its
+/// carrier translates rigidly with its one plane, which is re-minted
+/// with the same in-plane frame, so the stored image is still exact —
+/// and a spline carrier has no image to derive afresh, so deriving it
+/// refuses `RechartFalsifies { Unimplemented }`. The top split by a
+/// straight and by a bowed spline chord; every chart at zero, then the
+/// top alone moved by 1/64.
+#[test]
+fn the_planar_door_keeps_a_seams_image_at_rest_and_with_its_plane_moving() {
+    for bow in [0.0, 1.0 / 8.0] {
+        for d in [0.0, 1.0 / 64.0] {
+            let label = format!("bow {bow}, top {d}");
+            let (mut body, edge, top) = cube_with_a_spline_seam_on_the_top(bow);
+            let before = description_of(&body, edge).clone();
+            let got = offset_planes_by(&mut body, |k| if k == top { d } else { 0.0 });
+            assert!(got.is_ok(), "{label}: the offset: {got:?}");
+            let valid = validate_geometric(&body, Tol::witness());
+            assert!(valid.is_ok(), "{label}: tier-3 valid: {valid:?}");
+            let after = description_of(&body, edge);
+            let (EdgeDescription::Chart(was), EdgeDescription::Chart(now)) =
+                (before.description(), after.description())
+            else {
+                panic!("{label}: the seam stays a chart image: {after:?}")
+            };
+            assert!(
+                is_top(&body, now.surface) && now.surface != top,
+                "{label}: the image is in the minted top's chart: {now:?}"
+            );
+            assert!(
+                matches!((&was.pcurve, &now.pcurve), (Pcurve::Fitted(a), Pcurve::Fitted(b)) if format!("{a:?}") == format!("{b:?}")),
+                "{label}: the seam keeps its stored image: {:?}",
+                now.pcurve
+            );
+            let lift = after.carrier().eval(0.5).z;
+            assert_eq!(lift, 1.0 + d, "{label}: the seam moved with its plane");
+        }
+    }
+}
+
+/// **An edge whose two planes both hold keeps its image**, while
+/// another chart of the body moves: the cube's top edge on `y = 0`
+/// described by a fitted image in the side's chart, the bottom moved
+/// by 1/64.
+#[test]
+fn the_planar_door_keeps_the_image_of_an_edge_whose_planes_both_hold() {
+    let (mut body, edge, top, side) = cube_with_the_top_edge_in_the_sides_chart(false);
+    let mut spec = description_of(&body, edge).restated_spec();
+    let EdgeDescriptionSpec::Chart { image, .. } = &mut spec.description else {
+        panic!("the top edge is an image in the side's chart")
+    };
+    let Some(&Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    }) = body.get_surface(side)
+    else {
+        panic!("the side is a plane")
+    };
+    let v_ref = normal.cross(u_ref);
+    let uv = |t: f64| {
+        let p = spec.carrier.eval(t) - origin;
+        Point2::new(p.dot(u_ref), p.dot(v_ref))
+    };
+    let (t0, t1) = (spec.param_start, spec.param_end);
+    *image = Some(Pcurve::Fitted(Arc::new(
+        NurbsCurve2::new(
+            KnotVector::clamped(vec![t0, t0, t1, t1], 1).unwrap(),
+            vec![uv(t0), uv(t1)],
+            vec![1.0, 1.0],
+        )
+        .unwrap(),
+    )));
+    body.set_edge_curve(edge, spec, Tol::witness())
+        .expect("the fitted image lies in the side's chart");
+    let before = description_of(&body, edge).clone();
+    let bottom = body
+        .faces()
+        .map(|(_, f)| f.surface)
+        .find(|&k| is_top(&body, k) && k != top)
+        .expect("the cube's bottom");
+    let got = offset_planes_by(&mut body, |k| if k == bottom { 1.0 / 64.0 } else { 0.0 });
+    assert!(got.is_ok(), "the bottom's offset: {got:?}");
+    let after = description_of(&body, edge);
+    let (EdgeDescription::Chart(was), EdgeDescription::Chart(now)) =
+        (before.description(), after.description())
+    else {
+        panic!("the edge stays a chart image: {after:?}")
+    };
+    assert!(
+        matches!((&was.pcurve, &now.pcurve), (Pcurve::Fitted(a), Pcurve::Fitted(b)) if format!("{a:?}") == format!("{b:?}")),
+        "the edge keeps its stored image: {:?}",
+        now.pcurve
+    );
+    let valid = validate_geometric(&body, Tol::witness());
+    assert!(valid.is_ok(), "tier-3 valid: {valid:?}");
 }

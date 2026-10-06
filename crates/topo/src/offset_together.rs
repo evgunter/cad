@@ -65,11 +65,17 @@
 //!    moving too and slides them ALONG it. The old carrier's
 //!    conventional data survives that (a `t = 0` anchor on a line is
 //!    conventional, D2), which is what keeps an unmoved corner's edge
-//!    bit-identical; a seam between two faces of ONE chart is not an
-//!    intersection at all and translates with its own plane;
-//! 3. **the description** — an intrinsic one re-points at the new
-//!    surface keys and re-states its witness at the new mid-parameter;
-//!    a mapped one translates by the edge's own displacement, which is
+//!    carrier bit-identical; a seam between two faces of ONE chart is
+//!    not an intersection at all and translates with its own plane;
+//! 3. **the description** (`offset_restate::restate`) — an
+//!    intrinsic one re-points at the new surface keys and re-states its
+//!    witness at the new mid-parameter. A chart image in a plane that
+//!    holds while the edge's other side moves becomes the section of
+//!    the two; any other image is derived afresh from the moved carrier
+//!    where the edge slides within its chart (two distinct planes, one
+//!    moving), and kept where it does not (a seam, whose plane is
+//!    re-minted with the same in-plane frame, or two planes that both
+//!    hold). A declaration translates by the edge's own displacement,
 //!    the same rigid vector the carrier moved by.
 //!
 //! The conditioning of step 1 is metered, not assumed. A corner's
@@ -91,7 +97,7 @@
 //! reaches the word "singular" is one that is.
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+use geom_brep::EdgeCurveSpec;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -102,6 +108,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, SolidKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::live::{NAMES_ONLY_LIVE, linked, proven};
+use crate::offset_restate::chart_moves;
 use crate::replace_face::ReplaceFaceError;
 
 /// One chart's move: the faces wearing it, and the signed distance
@@ -132,8 +139,8 @@ struct MovedPlane<T: Real> {
     c: T,
     /// The rigid displacement the plane itself underwent.
     delta: Vec3<T>,
-    /// Whether the move asks the plane to move at all.
-    moves: bool,
+    /// The signed offset along the stored normal — the caller's number.
+    distance: T,
 }
 
 /// **Offset every chart of `body` at once** (module docs).
@@ -210,11 +217,6 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
                 });
             };
             let delta = *normal * m.distance;
-            let moves = match decide("offset_together_chart_motion", Margin::of(m.distance), band) {
-                Ok(Sign::Zero) => false,
-                Ok(_) => true,
-                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-            };
             planes.push((
                 face,
                 MovedPlane {
@@ -222,7 +224,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
                     normal: *normal,
                     c: normal.dot(radius(*origin + delta)),
                     delta,
-                    moves,
+                    distance: m.distance,
                 },
             ));
         }
@@ -370,16 +372,40 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
 
         let mid = carrier.mid_point(t0, t1);
         let displacement = p_start - old_start;
+        let sides = [
+            (pa.old_key, chart_moves(pa.distance, band)?),
+            (pb.old_key, chart_moves(pb.distance, band)?),
+        ];
+        // An image SLIDES within its chart exactly when the edge lies
+        // between two distinct planes and one of them moves: the
+        // section then moves within each plane. A seam's carrier
+        // translates rigidly with its one plane, which is re-minted
+        // with the same in-plane frame, so its image is still exact;
+        // an edge whose planes both hold does not move.
+        let slides = pa.old_key != pb.old_key && (sides[0].1 || sides[1].1);
+        // A declaration is 3-space sketch data, so it translates with
+        // the edge. The planes move rigidly by construction, so a
+        // displacement always exists and only the rotation-family
+        // refusal is reachable.
+        let carried = |mc: geom_brep::MappedCurve<T>| {
+            crate::replace_face::translate_mapped(mc, displacement).ok_or(
+                ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "a rotation-family mapped description (its trajectory does not \
+                           translate)",
+                },
+            )
+        };
         specs.push((
             edge,
             EdgeCurveSpec {
-                description: restate(
+                description: crate::offset_restate::restate(
                     description,
                     authority,
-                    [(pa.old_key, pa.moves), (pb.old_key, pb.moves)],
+                    sides,
+                    slides,
                     mid,
-                    displacement,
-                    edge,
+                    carried,
                 )?,
                 carrier,
                 param_start: t0,
@@ -450,79 +476,6 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     }
     body.adopt(staged);
     Ok(())
-}
-
-/// `description` re-stated for the moved edge: an intrinsic one keeps
-/// its (about to be remapped) surfaces with the witness at the new
-/// mid-parameter; a chart image is derived afresh from the moved
-/// carrier, or, in a chart that holds while the edge's other side
-/// moves, restated against the moving side
-/// ([`crate::replace_face::held_neighbour_image`]); a declaration or a
-/// scaffold translates by the edge's own rigid displacement. `sides`
-/// is each side's key and whether its plane moves.
-///
-/// **A near-twin of `replace_face::plan_edge`'s description arm, and
-/// the difference is why it is not shared.** That one re-states a
-/// description in which exactly ONE named surface moved, so it must
-/// pick out the moved key and route the pair through the C5 table;
-/// here any of the named planes may move, every one is re-minted, and
-/// the remap is a bulk pass at the end.
-fn restate<T: Real>(
-    description: EdgeDescription<T>,
-    authority: EdgeAuthority<T>,
-    sides: [(SurfaceKey, bool); 2],
-    mid: Point3<T>,
-    displacement: Vec3<T>,
-    edge: EdgeKey,
-) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    // A declaration is 3-space sketch data, so it translates with the
-    // edge. The planes move rigidly by construction, so a displacement
-    // always exists and only the rotation-family refusal is reachable.
-    let carried = |mc: geom_brep::MappedCurve<T>| {
-        crate::replace_face::translate_mapped(mc, displacement).ok_or(
-            ReplaceFaceError::CarrierLaneUnsupported {
-                edge,
-                what: "a rotation-family mapped description (its trajectory does not \
-                       translate)",
-            },
-        )
-    };
-    Ok(match description {
-        EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
-            witness: mid,
-        },
-        EdgeDescription::TangentIntersection { s1, s2, .. } => {
-            EdgeDescriptionSpec::TangentIntersection {
-                s1,
-                s2,
-                witness: mid,
-            }
-        }
-        EdgeDescription::Chart(c) => {
-            let declared = match authority {
-                EdgeAuthority::Derived => None,
-                EdgeAuthority::Declared(mc) => Some(carried(mc)?),
-            };
-            match crate::replace_face::beside_moving(c.surface, sides) {
-                Some(moving) => {
-                    crate::replace_face::held_neighbour_image(moving, c.surface, declared, mid)
-                }
-                // The image is the REQUEST to derive it from the moved
-                // carrier: the edge slides within its chart whenever
-                // the other side moves, so the old image would draw
-                // the old locus.
-                None => EdgeDescriptionSpec::Chart {
-                    surface: c.surface,
-                    image: None,
-                    seam: c.seam,
-                    declared,
-                },
-            }
-        }
-        EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
-    })
 }
 
 /// Whether the moves ask the corner on `at`'s planes to move —

@@ -210,7 +210,7 @@
 
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+use geom_brep::EdgeCurveSpec;
 use geom_core::k_stats::decide;
 use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -219,6 +219,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::live::{linked, proven};
+use crate::offset_restate::chart_moves;
 use crate::offset_together::{ChartMove, unmoved_in_scope, unplaced_in_scope};
 use crate::replace_face::ReplaceFaceError;
 
@@ -265,18 +266,6 @@ struct MovedChart<T: Real> {
     /// The rigid displacement the chart underwent, when its offset IS a
     /// rigid translation — `None` when it is not.
     rigid: Option<Vec3<T>>,
-}
-
-impl<T: Decide> MovedChart<T> {
-    /// Whether the door re-mints this chart: a chart asked to move
-    /// nothing keeps its key.
-    fn rekeyed(&self, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-        match decide("offset_axial_chart_motion", Margin::of(self.distance), band) {
-            Ok(Sign::Zero) => Ok(false),
-            Ok(_) => Ok(true),
-            Err(source) => Err(ReplaceFaceError::Escalated { source }),
-        }
-    }
 }
 
 /// A moved chart's constraint on a corner, in the axial frame.
@@ -621,13 +610,25 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         specs.push((
             edge,
             EdgeCurveSpec {
-                description: restate(
+                // Every image this door does not restate on a held
+                // neighbour SLIDES within its own chart: the door
+                // re-solves both endpoints against every surface meeting
+                // them, so an edge shortens and moves along its chart,
+                // and a constant shift of the old image describes none of
+                // that (measured: it refuses `ChartResidual` on the cone
+                // frustum's anti-seam). A declaration is RE-AUTHORED in
+                // its own sketch plane ([`reauthor`]): the offset moves
+                // the profile within the meridian plane and leaves the
+                // placement alone, which covers a translated chart and a
+                // reshaped one alike.
+                description: crate::offset_restate::restate(
                     description,
                     authority,
                     [
-                        (ca.old_key, ca.rekeyed(band)?),
-                        (cb.old_key, cb.rekeyed(band)?),
+                        (ca.old_key, chart_moves(ca.distance, band)?),
+                        (cb.old_key, chart_moves(cb.distance, band)?),
                     ],
+                    true,
                     mid,
                     |mc| reauthor(mc, &carrier, (p_start, p_end), edge, band),
                 )?,
@@ -656,7 +657,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         // surface — which is not a no-op to anything reading keys, and
         // this door is called with a mixed set (the rim LIFT moves ONE
         // chart of a body whose others must hold still).
-        if !c.rekeyed(band)? {
+        if !chart_moves(c.distance, band)? {
             continue;
         }
         charts.push(crate::replace_face::offset_rechart(
@@ -2453,85 +2454,6 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
         }
         _ => T::zero(),
     }
-}
-
-/// `description` re-stated for the moved edge.
-///
-/// - an **intrinsic** one keeps its (about to be remapped) surfaces
-///   with the witness at the new mid-parameter;
-/// - a **chart image** is asked for rather than carried: `image: None`
-///   is the spec's documented REQUEST to derive it from the carrier.
-///   This paragraph said "except on a CONE, whose offset slides `v` by
-///   `d·cot α`" while the code did exactly that, and the cone frustum's
-///   anti-seam refused at the attach layer's `ChartResidual` — a
-///   constant shift describes a door that keeps its parameter WINDOW,
-///   and this one re-solves both endpoints, so an edge shortens and
-///   slides within its own chart. One in a chart that holds beside a
-///   re-minted face is restated on the re-minted chart, which it would
-///   otherwise not name;
-/// - a **declaration** — the sketch entity under a sweep map that the
-///   authority record keeps whole — is 3-space data and does owe the
-///   transport. It is RE-AUTHORED in its own sketch plane rather than
-///   translated: an offset moves the profile WITHIN the meridian plane
-///   (a line perpendicular to itself, an arc concentrically) and the
-///   placement is unchanged, so the sketch source's own points are
-///   what move. That one rule covers a translated chart and a reshaped
-///   one, which is why a sphere's seam needs no special case, and it
-///   is what the per-face door cannot do — it has only a rigid delta,
-///   so a reshaping chart makes it refuse.
-///
-/// Nothing authored here is trusted: the attach layer re-derives the
-/// declaration against the carrier and refuses a mismatch.
-fn restate<T: Decide>(
-    description: EdgeDescription<T>,
-    authority: EdgeAuthority<T>,
-    sides: [(SurfaceKey, bool); 2],
-    mid: Point3<T>,
-    carried: impl Fn(
-        geom_brep::MappedCurve<T>,
-    ) -> Result<geom_brep::MappedCurve<T>, ReplaceFaceError<T>>,
-) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let declared = match authority {
-        EdgeAuthority::Derived => None,
-        EdgeAuthority::Declared(mc) => Some(carried(mc)?),
-    };
-    Ok(match description {
-        EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
-            witness: mid,
-        },
-        EdgeDescription::TangentIntersection { s1, s2, .. } => {
-            EdgeDescriptionSpec::TangentIntersection {
-                s1,
-                s2,
-                witness: mid,
-            }
-        }
-        EdgeDescription::Chart(c) => match crate::replace_face::beside_moving(c.surface, sides) {
-            Some(moving) => {
-                crate::replace_face::held_neighbour_image(moving, c.surface, declared, mid)
-            }
-            None => EdgeDescriptionSpec::Chart {
-                surface: c.surface,
-                // **`None` is the REQUEST to derive the image from the
-                // carrier**, and it is the right one here for every chart
-                // image, not only for a seam. The per-face door carries an
-                // image forward under a constant `v` shift because it keeps
-                // the edge's parameter WINDOW — it moves one chart and the
-                // endpoints ride along. This door re-solves both endpoints
-                // against every surface meeting them, so an edge SHORTENS
-                // and slides within its own chart, and a constant shift
-                // describes none of that. Measured: shifting it instead
-                // refuses at the attach layer's `ChartResidual` on the cone
-                // frustum's anti-seam, which is the gate doing its job.
-                image: None,
-                seam: c.seam,
-                declared,
-            },
-        },
-        EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
-    })
 }
 
 /// A mapped description re-authored in its own sketch plane from the

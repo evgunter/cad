@@ -51,17 +51,19 @@ translated. The door has each plane's distance in hand
 
 ## Closed 2026-10-06
 
-`offset_together.rs` `restate`'s chart arm takes the rule the other
-two doors take, from one home: `replace_face::held_neighbour_image`
-(the section of the moving side and the held chart, or, with a
-declaration riding the image, an image in the moving side's chart
-carrying it) and `replace_face::beside_moving` (which side holds),
-both now called by `replace_face::plan_edge`, `offset_axial::restate`
-and `offset_together::restate`. Every other chart image in this door
-is derived afresh from the moved carrier (`image: None`): an image in a
-chart that moves while the edge's other side moves too slid within that
-chart as well, and refused the same `ChartResidual` (measured on the
-same cube, top and side both moved).
+`offset_planes_together` restates through the one restate core the
+three offset doors share, `crate::offset_restate`
+(`restate`, `held_neighbour_image`, `beside_moving`, and
+`chart_moves`, the one decision of whether a chart moves), called by
+`replace_face::plan_edge` (its held-neighbour arm), `offset_axial` and
+`offset_together`. An image in a chart that holds while the edge's
+other side moves becomes the section of the two (or, declared, an
+image in the moving side's chart). Any other image is derived afresh
+from the moved carrier exactly where the edge slides within its chart
+(two distinct planes, one of them moving: an image whose own chart
+moves beside a moving side refused the same `ChartResidual`), and kept
+where it does not slide (a seam, which translates rigidly with its
+re-minted plane, and an edge whose planes both hold).
 
 Witnesses in `crates/sweep/tests/offset_restates_a_neighbour_chart_rim.rs`:
 `the_planar_door_restates_an_edge_in_a_held_sides_chart_as_the_section`,
