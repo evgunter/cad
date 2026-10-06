@@ -375,8 +375,8 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
     let table = &ev.value(shell).expect("evaluated").name_table;
     let cap = fixture::piece(&doc, pot, 0, vessel::SEG_CAP as usize);
     for (which, name) in [
-        ("the u = 0 half", editor_core::band(pot, cap.clone())),
-        ("the u = π half", editor_core::band_pi(pot, cap.clone())),
+        ("the u = 0 half", editor_core::band(pot, cap)),
+        ("the u = π half", editor_core::band_pi(pot, cap)),
     ] {
         let rim = shelled(shell, EntityKind::Face, RoleSeg::Rim(name.into()));
         assert!(

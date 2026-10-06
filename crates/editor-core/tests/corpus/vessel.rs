@@ -183,7 +183,7 @@ pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         angle: ang(std::f64::consts::TAU),
     });
     let cap = crate::fixture::piece(&r.doc, pot, 0, SEG_CAP as usize);
-    let open = vec![band(pot, cap.clone()), editor_core::band_pi(pot, cap)];
+    let open = vec![band(pot, cap), editor_core::band_pi(pot, cap)];
     let shell = r.insert(Node::shell(pot, len(WALL), open));
     (r.doc, shell, pot)
 }

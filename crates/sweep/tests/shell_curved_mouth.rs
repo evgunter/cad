@@ -389,4 +389,3 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
         props.volume_pad
     );
 }
-
