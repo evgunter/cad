@@ -1202,21 +1202,23 @@ fn a_kill_that_describes_a_null_member_beside_a_certified_one_completes_the_wall
     );
 }
 
-/// **A kill that re-describes a certified member re-mints its far
-/// face too.** The wall's side ruling `u = 0.2` is split at mid-height,
-/// with a null strut at the split vertex, and the kill takes the lower
-/// side segment toward the split: a general kill across the wall and
-/// the seed face, merging the split vertex into the bottom corner. The
-/// listing is both merged members, the null strut and the upper side
-/// segment, each with the line between its merged ends. The upper
-/// segment's end moves down to the corner, and its half on the seed
-/// face — which no null member's half is on — is re-derived over the
-/// interval it now spans: both faces leave with the pass's rows. At
-/// this unit's merge base tier 3 read `RowInterval` on that half and
-/// `LoopNotClosed` on the seed face. (Adopted from PR 4010's review
-/// probe P3.)
-#[test]
-fn a_kill_that_re_describes_a_certified_member_re_mints_its_far_face() {
+/// The minted wall sheet over `[0.2, 1.4] x [0, 1]` with its side
+/// ruling `u = 0.2` split at mid-height and a null strut at the split
+/// vertex, and the kill of the lower side segment toward the split: a
+/// general kill across the wall and the seed face, merging the split
+/// vertex into the bottom corner, listing both merged members — the
+/// null strut and the upper side segment — each with the line between
+/// its merged ends. (PR 4010's review probe P3.)
+///
+/// Returns the body, the wall, the seed face, the half that kills the
+/// lower segment toward the split, and the listing.
+fn side_split_under_a_null_strut() -> (
+    Body<f64>,
+    FaceKey,
+    FaceKey,
+    HalfEdgeKey,
+    Vec<(topo::EdgeKey, geom_brep::EdgeCurveSpec<f64>)>,
+) {
     let mut body = Body::<f64>::new();
     let face = cyl_wall_sheet(
         &mut body,
@@ -1230,13 +1232,13 @@ fn a_kill_that_re_describes_a_certified_member_re_mints_its_far_face() {
         topo::readback::vertex_point(body, body.get_half_edge(he).unwrap().start).unwrap()
     };
     let near = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-9;
-    // The side ruling's half from the bottom corner up.
+    let corner = at(0.2, 0.0);
     let up = body
         .half_edges()
         .map(|(h, _)| h)
         .find(|&h| {
             let next = body.get_half_edge(h).unwrap().next;
-            near(point(&body, h), at(0.2, 0.0)) && near(point(&body, next), at(0.2, 1.0))
+            near(point(&body, h), corner) && near(point(&body, next), at(0.2, 1.0))
         })
         .expect("the wall has a side ruling at u = 0.2");
     let side = body.get_half_edge(up).unwrap().edge;
@@ -1254,24 +1256,22 @@ fn a_kill_that_re_describes_a_certified_member_re_mints_its_far_face() {
         vec![],
         "the split carries the rows"
     );
-    // The lower segment's half from the corner to the split vertex.
     let toward_mid = body
         .half_edges()
         .map(|(h, _)| h)
         .find(|&h| {
             let he = body.get_half_edge(h).unwrap();
-            body.get_half_edge(he.next).unwrap().start == mid && near(point(&body, h), at(0.2, 0.0))
+            body.get_half_edge(he.next).unwrap().start == mid && near(point(&body, h), corner)
         })
         .expect("the lower side segment has a half from the corner to the split");
-    let seed = {
-        let mate = body.mate(toward_mid).unwrap();
-        let lk = body.get_half_edge(mate).unwrap().parent_loop;
+    let face_of = |body: &Body<f64>, he: HalfEdgeKey| {
+        let lk = body.get_half_edge(he).unwrap().parent_loop;
         body.get_loop(lk).unwrap().face
     };
-    let own = body.get_half_edge(toward_mid).unwrap().parent_loop;
+    let seed = face_of(&body, body.mate(toward_mid).unwrap());
     assert_ne!(
         seed,
-        body.get_loop(own).unwrap().face,
+        face_of(&body, toward_mid),
         "the side lies between two faces"
     );
     let at_mid = leaving(&body, face, mid);
@@ -1293,6 +1293,19 @@ fn a_kill_that_re_describes_a_certified_member_re_mints_its_far_face() {
         "the split vertex's fan is the null strut and the upper segment"
     );
     assert!(listed.iter().any(|(e, _)| *e == null.edge));
+    (body, face, seed, toward_mid, listed)
+}
+
+/// **A kill that re-describes a certified member re-mints its far face
+/// too.** [`side_split_under_a_null_strut`]: the upper side segment's
+/// end moves down to the corner, and its half on the seed face — which
+/// no null member's half is on — is re-derived over the interval it now
+/// spans, so both faces leave with the pass's rows. At this unit's
+/// merge base tier 3 read `MissingCache` and `LoopDiscontinuity` on the
+/// seed face's bottom rim and `RowInterval` on that half.
+#[test]
+fn a_kill_that_re_describes_a_certified_member_re_mints_its_far_face() {
+    let (mut body, face, seed, toward_mid, listed) = side_split_under_a_null_strut();
     body.kev_describing(toward_mid, &listed, tol()).unwrap();
     assert_eq!(
         validate_pcurves(&body, band()),
@@ -1466,6 +1479,25 @@ fn a_kev_mirror_re_mints_the_member_it_re_describes() {
         "the kill writes the bridged element"
     );
     kept_rows_are_the_pass_s(body, face, "kev mirror");
+}
+
+/// **A later operator walks the rows the kill re-minted.** After the
+/// [`a_kev_mirror_re_mints_the_member_it_re_describes`] kill, a strut up
+/// the ruling from `s` runs the site mint over the loop the re-described
+/// arc is on, which keeps the arc's images; the wall leaves with the
+/// pass's rows. Where the kill kept the arc's old rows, the site mint's
+/// debug assertion that a kept image spans its edge's interval fires
+/// here.
+#[test]
+fn a_strut_after_a_kev_mirror_keeps_the_re_minted_rows() {
+    let (mut body, face, s_q, q_t) = arc_chain_over_the_jump(tol());
+    let edge = body.get_half_edge(s_q[0]).unwrap().edge;
+    body.kev_describing(q_t[1], &[(edge, cyl_arc_at(0.5, 4.6, 5.0))], tol())
+        .unwrap();
+    let he = s_q[0];
+    body.mev_line(MevSite::Fan { he1: he, he2: he }, at(4.6, 0.7), tol())
+        .unwrap();
+    kept_rows_are_the_pass_s(body, face, "kev mirror, then a strut");
 }
 
 /// **A `kemr` sums each side's bridged elements.** Killing the arc

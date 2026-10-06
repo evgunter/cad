@@ -3484,13 +3484,19 @@ pub(crate) fn site_rows<T: Decide>(
             match (stands[i], halves[i]) {
                 (Some(cache), SiteHalf::Existing(he)) => {
                     let (t0, t1) = cache.params();
+                    // Tier 3's reading, recorded nowhere: a check that
+                    // compiles out must not move the decision stream.
                     debug_assert!(
-                        half_edge_curve(body, he).is_ok_and(|curve| {
-                            format!("{:?}", curve.params()) == format!("{:?}", (t0, t1))
-                        }),
-                        "site_rows: the image kept for {he:?} spans an interval its edge does not: \
-                         every door that moves an edge's interval re-derives the rows of its \
-                         halves on a chart that mints"
+                        !matches!(
+                            geom_core::k_stats::detached(|| {
+                                let (carrier, ..) = traversal(SiteHalf::Existing(he));
+                                row_interval(body, he, cache, &carrier, band)
+                            })
+                            .0,
+                            Err(PcurveMintError::RowInterval { .. })
+                        ),
+                        "site_rows: the image kept for {he:?} spans an interval its edge does \
+                         not: a door that moves an edge's interval re-derives its halves' rows"
                     );
                     Ok(WalkItem {
                         base: Cow::Borrowed(cache.pcurve()),
