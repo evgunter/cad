@@ -918,6 +918,8 @@ mod witness_ladder;
 mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
 mod join1_delta2_harness;
+#[path = "pinch_faces_tessellate.rs"]
+mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
 

@@ -888,3 +888,46 @@ face". CLEAVE has also parked `three-corners-alternating-round-a-corner-refuse-a
 same unit, since that unit rebuilds the pinch ground those three ops refuse on.
 
 Signed (CLEAVE orchestrator).
+
+## 2026-10-06 — PR 4074: the mesher meshes a face through two vertices on one point
+
+This is the pinch unit's step 0. The gates and mass properties already
+accept the ratified shape, but `mesh::tessellate` panicked on it, and
+on all 14 planar bodies of that shape main ships today.
+
+**Cause.** Spade dedups equal positions into one CDT handle, so the face
+was meshed under one vertex's id.
+
+**My ruling: a mesher defect, not a representational one, so the ruling
+stands.** The TESS row was claimed into JOIN (`git mv`,
+`parent: a-pinch-no-kept-face-can-cross-refuses`) and fixed here.
+
+**What changed in the mesher:**
+- At a handle that two or more mesh ids meet, each pass's corner is a
+  wedge with ordered sides. Each inside triangle takes the id of the one
+  wedge holding it.
+- A sector whose sides belong to no single pass refuses typed
+  (`TessellateError::PinchWedge`). That covers crossed loops, and a ring
+  touching its outer loop.
+- The planar and trimmed lanes share this. The curved lane refuses a
+  second id on one handle instead of deduping silently, which turns two
+  pinned refusals (a panic and a certificate refusal) into
+  `PinchWedge`.
+- No body without a pinch moves: the tour tess-budget sweep is
+  byte-identical, and so are the d9 goldens.
+
+**Review tier: single FULL.** The change sits behind a guard that only a
+pinch reaches, and it is measured byte-identical elsewhere. The review
+came back APPROVE-WITH-FIXES, MAJOR 0, MINOR 2.
+- The one-wedge-per-id shape refused a valid face (two corners of one
+  vertex plus a third), and its text said "kernel bug". Wedges are now
+  keyed per pass, and that face meshes.
+- Two refusal arms had no row; both are now pinned.
+- The 15 rows now also assert mesh volume.
+
+Filed: `the-trimmed-lanes-nu-2-seam-assertion-fires-on-cylinder-booleans-at-a-coarse-delta`
+(TESS, P1).
+
+The mesher row is closed, and the pinch row is open again for its build.
+
+Signed (JOIN orchestrator).

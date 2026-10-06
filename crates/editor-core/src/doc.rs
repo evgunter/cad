@@ -1580,7 +1580,7 @@ impl<P> Doc<P> {
     /// here, and at the delete door
     /// `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
     /// and
-    /// `dm7_delete_strands::an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`.
+    /// `dm7_delete_strands::a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset`.
     ///
     /// **Cost.** Lazy: the carriers are yielded as they are found, so
     /// a reader that refuses at the first bad name stops there
