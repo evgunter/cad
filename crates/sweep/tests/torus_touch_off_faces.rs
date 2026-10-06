@@ -28,17 +28,20 @@ use super::extent_scan_off_face_tangency::{
     dir, rod_z,
 };
 
-/// The donut of the torus doors: the circle of radius 0.5 about
-/// `(2, 0)` in the xy-plane, revolved about y.
-fn donut() -> Body<f64> {
+/// The donut of the torus doors at scale `l`: the circle of radius
+/// `0.5·l` about `(2l, 0)` in the xy-plane, revolved about y.
+fn donut(l: f64) -> Body<f64> {
     sweep::test_support::revolved_about_y(
-        vec![(Point2::new(2.0, -0.5), 1.0), (Point2::new(2.0, 0.5), 1.0)],
+        vec![
+            (Point2::new(2.0 * l, -0.5 * l), 1.0),
+            (Point2::new(2.0 * l, 0.5 * l), 1.0),
+        ],
         Revolution::Full,
         Tol::witness(),
     )
 }
 
-/// `2π²Rr²`.
+/// `2π²Rr²` at unit scale.
 const DONUT_VOLUME: f64 = TAU * PI * 2.0 * 0.25;
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -68,7 +71,11 @@ fn trimmed_ball(r: f64, c: Vec3<f64>, cut: f64, above: bool) -> (Body<f64>, f64)
     let body = built(
         BooleanOp::Subtract,
         &ball(r, c),
-        &brick((c.x - 2.0, c.x + 2.0), (c.y - 2.0, c.y + 2.0), z),
+        &brick(
+            (c.x - 4.0 * r, c.x + 4.0 * r),
+            (c.y - 4.0 * r, c.y + 4.0 * r),
+            z,
+        ),
     )
     .expect("the trimmed ball");
     let h = if above {
@@ -81,34 +88,38 @@ fn trimmed_ball(r: f64, c: Vec3<f64>, cut: f64, above: bool) -> (Body<f64>, f64)
 
 /// The plane `z = 2.5 + δ`, the bottom of a brick, against the outer
 /// equator's top at `(0, 0, 2.5)`: off its face (`x ∈ [1, 2]`) or over
-/// it (`x ∈ [−1, 1]`). `δ` is the carriers' distance.
-fn plane_brick(over: bool, delta: f64) -> (Body<f64>, f64) {
-    let (x, y, z) = (
-        if over { (-1.0, 1.0) } else { (1.0, 2.0) },
-        (-1.0, 1.0),
-        (2.5 + delta, 3.5),
-    );
+/// it (`x ∈ [−1, 1]`). `δ` is the carriers' distance. At scale `l`
+/// every length but `δ` is `l` times its own.
+fn plane_brick(over: bool, delta: f64, l: f64) -> (Body<f64>, f64) {
+    let x = if over { (-1.0, 1.0) } else { (1.0, 2.0) };
+    let (x, y, z) = ((x.0 * l, x.1 * l), (-l, l), (2.5 * l + delta, 3.5 * l));
     (brick(x, y, z), brick_volume(x, y, z))
 }
 
 /// A ball of radius 0.5 above the outer equator, `δ` clear of it: its
 /// carrier touches the tube at `(0, 0, 2.5)` at `δ = 0`. Off the face,
-/// its cap below `z = 2.6 + δ` is taken off.
-fn top_ball(over: bool, delta: f64) -> (Body<f64>, f64) {
-    let c = Vec3::new(0.0, 0.0, 3.0 + delta);
+/// its cap below `z = 2.6 + δ` is taken off. At scale `l` every length
+/// but `δ` is `l` times its own.
+fn top_ball(over: bool, delta: f64, l: f64) -> (Body<f64>, f64) {
+    let c = Vec3::new(0.0, 0.0, 3.0 * l + delta);
     if over {
-        (ball(0.5, c), ball_volume(0.5))
+        (ball(0.5 * l, c), ball_volume(0.5 * l))
     } else {
-        trimmed_ball(0.5, c, 2.6 + delta, false)
+        trimmed_ball(0.5 * l, c, 2.6 * l + delta, false)
     }
 }
 
 /// A rod of radius 0.5 along y through `(0, 3 + δ)`: its wall touches
 /// the outer equator at `(0, 0, 2.5)` at `δ = 0`, past the rod's end
-/// (`y ≥ 0.2`) or along it (`y ∈ [−2, 2]`).
-fn top_rod(over: bool, delta: f64) -> (Body<f64>, f64) {
+/// (`y ≥ 0.2`) or along it (`y ∈ [−2, 2]`). At scale `l` every length
+/// but `δ` is `l` times its own.
+fn top_rod(over: bool, delta: f64, l: f64) -> (Body<f64>, f64) {
     let y = if over { (-2.0, 2.0) } else { (0.2, 2.0) };
-    (rod_y(0.5, (0.0, 3.0 + delta), y), PI * 0.25 * (y.1 - y.0))
+    let y = (y.0 * l, y.1 * l);
+    (
+        rod_y(0.5 * l, (0.0, 3.0 * l + delta), y),
+        PI * 0.25 * l * l * (y.1 - y.0),
+    )
 }
 
 /// The plane `z = 1.5 − δ`, the top of a brick standing in the hole,
@@ -139,10 +150,10 @@ fn tangent(e: &BooleanError) -> bool {
 /// arm reads a touch there (mutant: R-tan on any `Zero` margin).
 #[test]
 fn a_brick_whose_plane_touches_the_outer_equator_off_its_face_builds() {
-    let (b, vb) = plane_brick(false, 0.0);
+    let (b, vb) = plane_brick(false, 0.0, 1.0);
     assert_every_op(
         "donut, brick",
-        &donut(),
+        &donut(1.0),
         &b,
         (DONUT_VOLUME, vb),
         Pose::Apart,
@@ -153,16 +164,28 @@ fn a_brick_whose_plane_touches_the_outer_equator_off_its_face_builds() {
 /// cap about the touch is taken off, so its face does not hold it.
 #[test]
 fn a_ball_touching_the_outer_equator_off_its_face_builds() {
-    let (b, vb) = top_ball(false, 0.0);
-    assert_every_op("donut, ball", &donut(), &b, (DONUT_VOLUME, vb), Pose::Apart);
+    let (b, vb) = top_ball(false, 0.0, 1.0);
+    assert_every_op(
+        "donut, ball",
+        &donut(1.0),
+        &b,
+        (DONUT_VOLUME, vb),
+        Pose::Apart,
+    );
 }
 
 /// **A wall parallel to the axis touching the outer equator past the
 /// rod's end builds.**
 #[test]
 fn a_rod_whose_wall_touches_the_outer_equator_past_its_end_builds() {
-    let (b, vb) = top_rod(false, 0.0);
-    assert_every_op("donut, rod", &donut(), &b, (DONUT_VOLUME, vb), Pose::Apart);
+    let (b, vb) = top_rod(false, 0.0, 1.0);
+    assert_every_op(
+        "donut, rod",
+        &donut(1.0),
+        &b,
+        (DONUT_VOLUME, vb),
+        Pose::Apart,
+    );
 }
 
 /// **The same touches on both faces keep their refusals**: the brick
@@ -171,11 +194,11 @@ fn a_rod_whose_wall_touches_the_outer_equator_past_its_end_builds() {
 /// without placing it).
 #[test]
 fn the_same_touches_on_both_faces_refuse() {
-    let d = donut();
+    let d = donut(1.0);
     for (label, (b, _)) in [
-        ("brick over the touch", plane_brick(true, 0.0)),
-        ("whole ball", top_ball(true, 0.0)),
-        ("rod along the touch", top_rod(true, 0.0)),
+        ("brick over the touch", plane_brick(true, 0.0, 1.0)),
+        ("whole ball", top_ball(true, 0.0, 1.0)),
+        ("rod along the touch", top_rod(true, 0.0, 1.0)),
     ] {
         assert_every_op_refuses(label, &d, &b, tangent);
     }
@@ -187,7 +210,7 @@ fn the_same_touches_on_both_faces_refuse() {
 /// half of the tube).
 #[test]
 fn a_touch_on_the_inner_equator_refuses_off_the_faces() {
-    let d = donut();
+    let d = donut(1.0);
     for (label, (b, _)) in [
         ("brick in the hole", hole_brick(0.0)),
         ("ball in the hole", hole_ball(0.0)),
@@ -206,15 +229,15 @@ fn a_touch_on_the_inner_equator_refuses_off_the_faces() {
 #[test]
 fn near_misses_answer_by_the_closed_form_distance() {
     let eps = Tol::witness().eps();
-    let d = donut();
+    let d = donut(1.0);
     type Fixture = fn(f64) -> (Body<f64>, f64);
     let poses: [(&str, Fixture, bool); 8] = [
-        ("off-face brick", |t| plane_brick(false, t), false),
-        ("brick over the touch", |t| plane_brick(true, t), true),
-        ("trimmed ball", |t| top_ball(false, t), false),
-        ("whole ball", |t| top_ball(true, t), true),
-        ("short rod", |t| top_rod(false, t), false),
-        ("rod along the touch", |t| top_rod(true, t), true),
+        ("off-face brick", |t| plane_brick(false, t, 1.0), false),
+        ("brick over the touch", |t| plane_brick(true, t, 1.0), true),
+        ("trimmed ball", |t| top_ball(false, t, 1.0), false),
+        ("whole ball", |t| top_ball(true, t, 1.0), true),
+        ("short rod", |t| top_rod(false, t, 1.0), false),
+        ("rod along the touch", |t| top_rod(true, t, 1.0), true),
         ("brick in the hole", hole_brick, false),
         ("ball in the hole", hole_ball, false),
     ];
@@ -238,6 +261,29 @@ fn near_misses_answer_by_the_closed_form_distance() {
     }
 }
 
+/// **The off-face touches build at ×1e-3 and ×1e3**: the brick, the
+/// ball and the rod, every length scaled with the donut's, against the
+/// closed form scaled by `l³`.
+#[test]
+fn the_off_face_touches_build_at_every_scale() {
+    for l in [1e-3, 1e3] {
+        let d = donut(l);
+        for (label, (b, vb)) in [
+            ("brick", plane_brick(false, 0.0, l)),
+            ("ball", top_ball(false, 0.0, l)),
+            ("rod", top_rod(false, 0.0, l)),
+        ] {
+            assert_every_op(
+                &format!("donut ×{l:e}, {label}"),
+                &d,
+                &b,
+                (DONUT_VOLUME * l.powi(3), vb),
+                Pose::Apart,
+            );
+        }
+    }
+}
+
 /// **The off-face touches in a tilted frame**: the brick and the ball,
 /// both operands turned 0.7 rad about `(1, 2, 3)`, build as they do
 /// axis-aligned.
@@ -245,10 +291,10 @@ fn near_misses_answer_by_the_closed_form_distance() {
 fn the_off_face_touches_build_in_a_tilted_frame() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), dir(1.0, 2.0, 3.0), 0.7);
     let tilt = |b: &Body<f64>| topo::transform_rigid(b, &turn, Tol::witness()).unwrap();
-    let d = tilt(&donut());
+    let d = tilt(&donut(1.0));
     for (label, (b, vb)) in [
-        ("brick", plane_brick(false, 0.0)),
-        ("ball", top_ball(false, 0.0)),
+        ("brick", plane_brick(false, 0.0, 1.0)),
+        ("ball", top_ball(false, 0.0, 1.0)),
     ] {
         assert_every_op(
             &format!("tilted donut, {label}"),

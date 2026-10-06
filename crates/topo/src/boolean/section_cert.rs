@@ -100,8 +100,10 @@
 //! where the elliptic or extreme reading is undecided, is a pinch. The
 //! arm does not count the section there. In the exact pose
 //! the carriers share `at` alone. In a pose the decided margin admits
-//! where they cross, they share one small loop `γ` about `at`, inside
-//! which they stand within the margin of each other. On a pair with no
+//! where they cross, they share one loop `γ` about `at`, bounding a
+//! connected region of each carrier inside which they stand within the
+//! margin of each other. The argument needs that region connected, not
+//! small: a plane near the top parallel cuts a long cap. On a pair with no
 //! event, the touch clears when `at` places `Out` of either face. With
 //! no event, `γ ∩ F ∩ G` is empty or `γ ⊂ int F ∩ int G` (L1). In the
 //! second case, a path on `F`'s carrier from `γ` inward to `at` leaves
@@ -286,7 +288,8 @@ pub(crate) enum Section<T: Real> {
 /// **A touch of two carriers**: a margin decided `Zero` on an arm whose
 /// tangent pose meets in one point. The carriers share that point in
 /// the exact pose and, in a pose the decided margin admits where they
-/// cross, one small loop about it.
+/// cross, one loop about it bounding a connected region of each carrier
+/// where they stand within the margin (not necessarily a small one).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Touch<T: Real> {
     /// The margin decided `Zero`.
@@ -367,6 +370,24 @@ fn unit<T: Real>(v: Vec3<T>) -> Vec3<T> {
     v / v.norm()
 }
 
+/// `v`'s part perpendicular to the unit `a`, and its norm. Taken as
+/// `a × (v × a)`, which stands square to `a` to the rounding of its own
+/// size: `v − a·(a·v)` keeps a component along `a` of `v`'s size times
+/// the rounding, which dividing by a small norm (a plane or a centre
+/// near the axis) turns into a direction off the plane square to `a`.
+fn square_to<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
+    let perp = a.cross(v.cross(a));
+    (perp, perp.norm())
+}
+
+/// **The meridian half-plane `Π` of the torus `(c, a)` toward `v`**: the
+/// norm `s` of `v`'s part square to `a`, and the map from `Π`'s
+/// coordinates — `x` along that part, `y` along `a` — to space.
+fn meridian<T: Real>(c: Point3<T>, a: Vec3<T>, v: Vec3<T>) -> (T, impl Fn(T, T) -> Point3<T>) {
+    let (perp, s) = square_to(v, a);
+    (s, move |x: T, y: T| c + perp / s * x + a * y)
+}
+
 /// A margin's sign, `None` when undecided.
 fn sign<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign> {
     decide(name, m, band).ok()
@@ -377,6 +398,8 @@ fn sign<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign>
 #[derive(Clone, Copy, Debug)]
 struct Pinch {
     name: &'static str,
+    /// The margin's place in the list [`signs`] decided.
+    index: usize,
     zero: bool,
 }
 
@@ -388,8 +411,9 @@ impl<T: Real> From<Pinch> for Section<T> {
 
 impl Pinch {
     /// A [`Touch`] at `at()` when the pinch is one of `names` decided
-    /// `Zero`, the one reading under which the carriers share at most a
-    /// small loop about it; R-tan otherwise.
+    /// `Zero`, the one reading under which the carriers share at most one
+    /// loop about it, bounding a connected region where they stand within
+    /// the margin; R-tan otherwise.
     fn touch<T: Real>(self, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
         if self.zero && names.contains(&self.name) {
             Section::Touch(Touch {
@@ -409,12 +433,24 @@ fn signs<T: Decide, const N: usize>(
     band: Band,
 ) -> Result<[bool; N], Pinch> {
     let mut out = [false; N];
-    for (slot, (name, m)) in out.iter_mut().zip(ms) {
+    for (index, (slot, (name, m))) in out.iter_mut().zip(ms).enumerate() {
         match sign(name, Margin::of(m), band) {
             Some(Sign::Positive) => *slot = true,
             Some(Sign::Negative) => {}
-            Some(Sign::Zero) => return Err(Pinch { name, zero: true }),
-            None => return Err(Pinch { name, zero: false }),
+            Some(Sign::Zero) => {
+                return Err(Pinch {
+                    name,
+                    index,
+                    zero: true,
+                });
+            }
+            None => {
+                return Err(Pinch {
+                    name,
+                    index,
+                    zero: false,
+                });
+            }
         }
     }
     Ok(out)
@@ -708,9 +744,7 @@ fn axis_pose<T: Decide>(
     if sign("section_axes_tilt", Margin::levered(tilt, lever), band) != Some(Sign::Zero) {
         return Pose::Other;
     }
-    let w = at - c;
-    let perp = w - a * w.dot(a);
-    let e = perp.norm();
+    let (perp, e) = square_to(at - c, a);
     match sign("section_axes_offset", Margin::of(e), band) {
         Some(Sign::Zero) => Pose::Coaxial,
         Some(Sign::Positive) => Pose::Parallel {
@@ -735,13 +769,11 @@ fn torus_plane<T: Decide>(
     const FAR: &str = "section_torus_plane_far_tube";
     let h = n.dot(p0 - c);
     let na = n.dot(a);
-    let n_perp = n - a * na;
-    let s = n_perp.norm();
+    let (s, in_pi) = meridian(c, a, n);
     // In Π, with x along ê = n⊥/s and y along a: the tube circle T_σ is
     // centred (σR, 0), radius r, and the plane is the line
     // s·x + n_a·y = h, whose unit normal is (s, n_a); `d` is the
     // plane's offset from T_σ's centre and `(σR + d·s, d·n_a)` its foot.
-    let in_pi = |x: T, y: T| c + n_perp / s * x + a * y;
     let offset = |sigma: T| h - sigma * s * big_r;
     let [near, far] = match signs(
         [
@@ -756,18 +788,13 @@ fn torus_plane<T: Decide>(
         // the height `n·(x − c)`, whose other critical values `±(sR − r)`
         // stand `2·min(sR, r) ≥ 2·σ·d·s` away.
         Err(tan) => {
-            let sigma = if tan.name == NEAR {
-                T::one()
-            } else {
-                -T::one()
-            };
+            let sigma = if tan.index == 0 { T::one() } else { -T::one() };
             let d = offset(sigma);
-            if !tan.zero
-                || sign(
-                    "section_torus_plane_touch_elliptic",
-                    Margin::of(sigma * d * s),
-                    band,
-                ) != Some(Sign::Positive)
+            if sign(
+                "section_torus_plane_touch_elliptic",
+                Margin::of(sigma * d * s),
+                band,
+            ) != Some(Sign::Positive)
             {
                 return tan.into();
             }
@@ -812,18 +839,13 @@ fn torus_sphere<T: Decide>(
     const FAR: &str = "section_torus_sphere_far_tube";
     let w = cs - c;
     let ca = w.dot(a);
-    let w_perp = w - a * ca;
-    let s = w_perp.norm();
-    let in_pi = |x: T, y: T| c + w_perp / s * x + a * y;
+    let (s, in_pi) = meridian(c, a, w);
     let dist = |x: T| Vec3::new(x, ca, T::zero()).norm();
     let (d_near, d_far) = (dist(s - big_r), dist(s + big_r));
     let cuts = |d: T| (d + r - rho).min(rho - (d - r).abs());
     let [near, far] = match signs([(NEAR, cuts(d_near)), (FAR, cuts(d_far))], band) {
         Ok(x) => x,
         Err(tan) => {
-            if !tan.zero {
-                return tan.into();
-            }
             return torus_sphere_touch(tan, big_r, r, s, ca, rho, [d_near, d_far], band)
                 .map_or_else(
                     || tan.into(),
@@ -890,7 +912,7 @@ fn torus_sphere_touch<T: Decide>(
     [d_near, d_far]: [T; 2],
     band: Band,
 ) -> Option<(T, T)> {
-    let (sigma, d, d_other) = if tan.name == "section_torus_sphere_near_tube" {
+    let (sigma, d, d_other) = if tan.index == 0 {
         (T::one(), d_near, d_far)
     } else {
         (-T::one(), d_far, d_near)
@@ -947,7 +969,9 @@ fn torus_parallel_cylinder<T: Decide>(
         // axis over the torus (its minimum beside the torus, its maximum
         // about it), at an elliptic point, clear of the next critical
         // value by `2r` beside the torus and by `min(2r, 2e)` about it,
-        // both decided.
+        // both decided upstream: `r` by `torus_pair`'s
+        // `geom::require_ring_torus`, `e` by `axis_pose`'s `Positive`
+        // offset, the one pose that reaches this arm.
         Err(tan) if tan.name == NEAR_OUTER => {
             return tan.touch(&[NEAR_OUTER], || c + toward * (e - rc));
         }

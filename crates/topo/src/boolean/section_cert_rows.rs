@@ -2040,3 +2040,341 @@ fn an_apex_face_wound_past_a_turn_neither_describes_nor_trims() {
     assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
     assert_eq!(contain_at(&body, face, cone_at(0.5, 0.25 * PI)), None);
 }
+
+// -------------------------------------------------------------------
+// Torus touches against a sampling oracle
+// -------------------------------------------------------------------
+
+/// A ring torus about any axis, with the frame its sampling reads.
+#[derive(Clone, Copy)]
+struct Tor {
+    c: Point3<f64>,
+    e1: Vec3<f64>,
+    e2: Vec3<f64>,
+    a: Vec3<f64>,
+    big_r: f64,
+    r: f64,
+}
+
+impl Tor {
+    fn new(c: Point3<f64>, a: Vec3<f64>, big_r: f64, r: f64) -> Self {
+        let a = a.normalize();
+        let (e1, e2) = a.orthonormal_basis();
+        Self {
+            c,
+            e1,
+            e2,
+            a,
+            big_r,
+            r,
+        }
+    }
+
+    fn at(&self, u: f64, v: f64) -> Point3<f64> {
+        let rho = self.big_r + self.r * v.cos();
+        self.c + (self.e1 * u.cos() + self.e2 * u.sin()) * rho + self.a * (self.r * v.sin())
+    }
+
+    fn normal(&self, u: f64, v: f64) -> Vec3<f64> {
+        (self.e1 * u.cos() + self.e2 * u.sin()) * v.cos() + self.a * v.sin()
+    }
+
+    fn uv(&self, x: Point3<f64>) -> (f64, f64) {
+        let w = x - self.c;
+        let (px, py, z) = (w.dot(self.e1), w.dot(self.e2), w.dot(self.a));
+        (py.atan2(px), z.atan2(px.hypot(py) - self.big_r))
+    }
+
+    /// The distance from `x` to the torus.
+    fn off(&self, x: Point3<f64>) -> f64 {
+        let (u, v) = self.uv(x);
+        (self.at(u, v) - x).norm()
+    }
+
+    fn surface(&self) -> Surface<f64> {
+        Surface::Torus {
+            center: self.c,
+            axis: self.a,
+            major_radius: self.big_r,
+            minor_radius: self.r,
+            u_ref: self.e1,
+        }
+    }
+}
+
+/// A partner of the torus arms, with its signed level `g`: the plane's
+/// height, or the distance from the sphere's centre or the wall's axis
+/// less the radius.
+#[derive(Clone, Copy, Debug)]
+enum Partner {
+    Plane(Point3<f64>, Vec3<f64>),
+    Sphere(Point3<f64>, f64),
+    Wall(Point3<f64>, Vec3<f64>, f64),
+}
+
+impl Partner {
+    fn g(&self, x: Point3<f64>) -> f64 {
+        match *self {
+            Self::Plane(o, n) => n.dot(x - o),
+            Self::Sphere(c, rho) => (x - c).norm() - rho,
+            Self::Wall(o, d, rc) => {
+                let w = x - o;
+                (w - d * w.dot(d)).norm() - rc
+            }
+        }
+    }
+
+    fn surface(&self) -> Surface<f64> {
+        match *self {
+            Self::Plane(o, n) => plane(o, n),
+            Self::Sphere(c, rho) => sphere(c, rho),
+            Self::Wall(o, d, rc) => cylinder(o, d, rc),
+        }
+    }
+}
+
+/// A pattern-search descent of `f` from `(u, v)` at step `h`.
+fn descend(f: &impl Fn(f64, f64) -> f64, mut u: f64, mut v: f64, mut h: f64) -> (f64, f64, f64) {
+    let mut best = f(u, v);
+    while h > 1e-15 {
+        let step = [
+            (h, 0.0),
+            (-h, 0.0),
+            (0.0, h),
+            (0.0, -h),
+            (h, h),
+            (-h, -h),
+            (h, -h),
+            (-h, h),
+        ]
+        .into_iter()
+        .map(|(du, dv)| (u + du, v + dv))
+        .find(|&(x, y)| f(x, y) < best);
+        match step {
+            Some((x, y)) => {
+                (u, v, best) = (x, y, f(x, y));
+            }
+            None => h *= 0.5,
+        }
+    }
+    (u, v, best)
+}
+
+/// **The oracle on one touch**, from the torus and the partner alone:
+/// `at` stands on both carriers within `k`, on the tube's outer half,
+/// and on one side of the partner `g` has no other local minimum at or
+/// below `k` over the torus (refined from an `n × n/2` grid), and none
+/// deeper near `at` — the partner touches there and nowhere else.
+fn touch_holds(
+    t: &Tor,
+    partner: &Partner,
+    at: Point3<f64>,
+    k: f64,
+    n: usize,
+) -> Result<(), String> {
+    let scale = t.big_r + t.r;
+    let slack = k + 1e-12 * scale;
+    let (off_t, off_p) = (t.off(at), partner.g(at).abs());
+    if off_t > slack || off_p > slack {
+        return Err(format!(
+            "at off a carrier: torus {off_t:e}, partner {off_p:e}"
+        ));
+    }
+    let (ua, va) = t.uv(at);
+    if va.cos() <= 0.0 {
+        return Err(format!("at on the hyperbolic half: v = {va}"));
+    }
+    let (nu, nv) = (n, n / 2);
+    let (du, dv) = (TAU / nu as f64, TAU / nv as f64);
+    let mut why = Vec::new();
+    for side in [1.0, -1.0] {
+        let f = |u: f64, v: f64| side * partner.g(t.at(u, v));
+        let (_, _, here) = descend(&f, ua, va, 1e-3);
+        if here < -k {
+            why.push(format!("side {side}: {here:e} below the touch"));
+            continue;
+        }
+        let grid: Vec<f64> = (0..nu * nv)
+            .map(|i| f((i % nu) as f64 * du, (i / nu) as f64 * dv))
+            .collect();
+        let at_grid = |i: usize, j: usize| grid[(j % nv) * nu + i % nu];
+        let other = (0..nv)
+            .flat_map(|j| (0..nu).map(move |i| (i, j)))
+            .filter(|&(i, j)| {
+                let y = at_grid(i, j);
+                [
+                    (nu - 1, 0),
+                    (1, 0),
+                    (0, nv - 1),
+                    (0, 1),
+                    (1, 1),
+                    (nu - 1, nv - 1),
+                    (1, nv - 1),
+                    (nu - 1, 1),
+                ]
+                .into_iter()
+                .all(|(a, b)| at_grid(i + a, j + b) >= y)
+            })
+            .map(|(i, j)| descend(&f, i as f64 * du, j as f64 * dv, du))
+            .find(|&(u, v, m)| m <= k && (t.at(u, v) - at).norm() > 1e-4 * scale);
+        match other {
+            Some((u, v, m)) => why.push(format!(
+                "side {side}: another minimum {m:e} at {:?}",
+                t.at(u, v)
+            )),
+            None => return Ok(()),
+        }
+    }
+    Err(why.join("; "))
+}
+
+/// **A plane touch near the top parallel stands on both carriers**
+/// (`Touch::at`'s contract): a plane tangent to the donut at
+/// `v = π/2 − t`, `t` from 1e-5 down to 1e-8 rad, about a generic axis,
+/// at ×1 and ×1e3. Its `at` is read in the meridian half-plane through
+/// the plane's normal, whose direction is that normal's small part
+/// square to the axis. Mutant: that part taken as `n − a·(a·n)`, whose
+/// component along the axis is `n`'s rounding over `s` and stands `at`
+/// 8.9ε off each carrier at ×1e3 and 1e-5 rad, 1.2e4ε at 1e-8 rad.
+#[test]
+fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
+    let band = band();
+    let k = band.zero();
+    let mut touches = 0;
+    for scale in [1.0, 1e3] {
+        for (u, axis) in [
+            (0.9, v(0.0, 0.0, 1.0)),
+            (0.9, v(1.0, 2.0, 3.0)),
+            (2.3, v(-0.3, 0.2, 1.0)),
+        ] {
+            let tor = Tor::new(p(0.0, 0.0, 0.0), axis, 2.0 * scale, 0.5 * scale);
+            for t in [1e-5, 1e-6, 1e-7, 1e-8] {
+                let x = tor.at(u, PI / 2.0 - t);
+                let pl = Partner::Plane(x, tor.normal(u, PI / 2.0 - t));
+                let reach = Reach {
+                    centre: tor.c,
+                    radius: 5.0 * scale,
+                };
+                let label = format!("×{scale:e}, axis {axis:?}, u {u}, t {t:e}");
+                match super::classify(&tor.surface(), &pl.surface(), reach, band) {
+                    Section::Touch(touch) => {
+                        touches += 1;
+                        let (off_t, off_p) = (tor.off(touch.at), pl.g(touch.at).abs());
+                        assert!(
+                            off_t <= k && off_p <= k,
+                            "{label}: at {:?} stands {off_t:e} off the torus, {off_p:e} off \
+                             the plane (ε = {k:e})",
+                            touch.at
+                        );
+                    }
+                    Section::Tangent(_) => {}
+                    other => panic!("{label}: neither a touch nor a pinch: {other:?}"),
+                }
+            }
+        }
+    }
+    assert!(touches >= 12, "only {touches} touches decided");
+}
+
+/// **Every torus touch holds against a sampling oracle** (a bounded cut
+/// of the review's 900-torus fuzz): random ring tori, any axis, `r/R`
+/// from 0.02 to 0.98, at ×1e-3, ×1 and ×1e3, against a plane, three
+/// spheres (outside, inside the tube, about the torus) and three walls
+/// parallel to the axis (beside, about, in the hole), each tangent at a
+/// random point biased to the equators and the top and bottom parallels
+/// and pushed by up to ±100ε. Every `Touch` either operand order
+/// answers passes [`touch_holds`]. Mutants, each red here: the plane's
+/// or the sphere's elliptic margin taken as `abs` (a touch on the
+/// hyperbolic half), the sphere's extreme margin dropped, and
+/// [`super::square_to`] as `v − a·(a·v)`.
+#[test]
+fn every_torus_touch_holds_against_a_sampling_oracle() {
+    use super::super::conic_oracle::unit;
+    use core::f64::consts::FRAC_PI_2;
+    use test_utils::fuzz;
+    let band = band();
+    let eps = band.zero();
+    let k = band.escalate();
+    let mut rng = fuzz::start("section_cert::every_torus_touch_holds_against_a_sampling_oracle");
+    let (mut touches, mut bad) = (0, Vec::new());
+    for scale in [1e-3, 1.0, 1e3] {
+        for case in 0..fuzz::scaled(60) {
+            let big_r = rng.range(0.5, 3.0) * scale;
+            let ratio = match rng.below(3) {
+                0 => rng.range(0.02, 0.1),
+                1 => rng.range(0.85, 0.98),
+                _ => rng.range(0.1, 0.85),
+            };
+            let c = p(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            let t = Tor::new(
+                Point3::origin() + (c - Point3::origin()) * scale,
+                unit(&mut rng),
+                big_r,
+                ratio * big_r,
+            );
+            let u = rng.range(-3.2, 3.2);
+            let jitter = [0.0, eps, 10.0 * eps, 1e-6, 1e-4, 1e-2][rng.below(6)];
+            let jitter = if rng.below(2) == 0 { jitter } else { -jitter };
+            let vv = match rng.below(6) {
+                0 => jitter,
+                1 => FRAC_PI_2 + jitter,
+                2 => -FRAC_PI_2 + jitter,
+                3 => PI + jitter,
+                _ => rng.range(-3.2, 3.2),
+            };
+            let delta = [0.0, 1.0, -1.0, 10.0, -10.0, 100.0, -100.0, 0.5, -0.5][rng.below(9)] * eps;
+            let (x, nrm) = (t.at(u, vv), t.normal(u, vv));
+            let mut partners = vec![Partner::Plane(x + nrm * delta, nrm)];
+            for (side, rho) in [
+                (1.0, rng.range(0.05, 3.0) * scale),
+                (-1.0, rng.range(0.05, 0.99) * t.r),
+                (-1.0, rng.range(1.0, 4.0) * (t.big_r + t.r)),
+            ] {
+                partners.push(Partner::Sphere(x + nrm * (side * rho), rho + delta));
+            }
+            for v_eq in [0.0, PI] {
+                let (x, nrm) = (t.at(u, v_eq), t.normal(u, v_eq));
+                for (side, rc) in [
+                    (1.0, rng.range(0.05, 2.0) * scale),
+                    (-1.0, rng.range(1.0, 3.0) * (t.big_r + t.r)),
+                    (-1.0, rng.range(0.05, 0.99) * (t.big_r - t.r)),
+                ] {
+                    let o = x + nrm * (side * rc) + t.a * (rng.range(-1.0, 1.0) * scale);
+                    partners.push(Partner::Wall(o, t.a, rc + delta));
+                }
+            }
+            let reach = Reach {
+                centre: t.c,
+                radius: 2.0 * (t.big_r + t.r),
+            };
+            for partner in partners {
+                for section in [
+                    super::classify(&t.surface(), &partner.surface(), reach, band),
+                    super::classify(&partner.surface(), &t.surface(), reach, band),
+                ] {
+                    if let Section::Touch(touch) = section {
+                        touches += 1;
+                        if let Err(why) = touch_holds(&t, &partner, touch.at, k, 120) {
+                            bad.push(format!(
+                                "×{scale:e} case {case} v {vv} δ {delta:e} {}: {why} :: {partner:?}",
+                                touch.name
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(touches > 0, "no touch drawn: {}", fuzz::replay());
+    assert!(
+        bad.is_empty(),
+        "{} of {touches} touches fail:\n{}\n{}",
+        bad.len(),
+        bad.join("\n"),
+        fuzz::replay()
+    );
+}

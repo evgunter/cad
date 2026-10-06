@@ -144,7 +144,9 @@ pub(crate) fn built(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<
 
 /// Every tier of validation, a closed tessellation, then the volume
 /// against `want` through the kernel's mass properties (exact on
-/// closed-form faces), to 1e-9 of the result floored at unit scale.
+/// closed-form faces), to 1e-9 of the result: relative, so a body at
+/// ×1e-3 is held as tightly as one at ×1. The tessellation's chord
+/// tolerance is 1e-3 of the result's own length, `want^⅓`.
 pub(crate) fn assert_body(label: &str, body: &Body<f64>, want: f64) {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
@@ -158,7 +160,7 @@ pub(crate) fn assert_body(label: &str, body: &Body<f64>, want: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let m = mesh::tessellate(body, 1e-3, tol)
+    let m = mesh::tessellate(body, 1e-3 * want.cbrt(), tol)
         .unwrap_or_else(|e| panic!("{label}: tessellates, got {e:?}"));
     assert_eq!(
         mesh::validate::check_mesh(&m),
@@ -169,7 +171,7 @@ pub(crate) fn assert_body(label: &str, body: &Body<f64>, want: f64) {
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
-        (p.volume - want).abs() <= 1e-9 * want.max(1.0),
+        (p.volume - want).abs() <= 1e-9 * want,
         "{label}: volume {} against the closed form {want}",
         p.volume
     );
