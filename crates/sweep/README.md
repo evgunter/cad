@@ -160,7 +160,11 @@ every blend trimline in closed form, every other outer-boundary edge
 of a closed rim's supports — one requested in the same call at its own
 trim — against that support's trim, and every edge
 a convex ruled cut-off leaves on its cap against the sliver it
-removes). A merged cap that is an ANNULUS
+removes). A full revolve's plane wall is such a host as built: one face
+with no seam, a ONE-EDGE rim its outer cycle or, at an annulus's inner
+circle, one of its rings, whose trim then replaces that ring. Its one
+crossing takes the strut, and the trim is minted so the host keeps its
+key (`lone_host_trim`). A merged cap that is an ANNULUS
 therefore carves on both its rims, one call each. A CURVED single face
 carrying every arc is authorable through `topo`'s `kef` and refuses at
 the half-band gate on both routes

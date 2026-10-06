@@ -352,9 +352,9 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
     );
     let ev = run(&doc);
     let t = table(&ev, rev);
-    // Square torus: 1 body + 4 bands + (4 rims + 4 seam meridians) +
-    // 4 meridian vertices.
-    assert_eq!(t.len(), 17);
+    // Square torus: 1 body + 4 bands + (4 rims + 2 seam meridians, the
+    // cylinders'; a plane annulus has none) + 4 meridian vertices.
+    assert_eq!(t.len(), 15);
     for s in 0..4 {
         assert!(
             t.lookup(&minted(
@@ -372,13 +372,16 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
             ))
             .is_some()
         );
-        assert!(
+        // Sides 0 and 2 sweep the plane annuli, 1 and 3 the cylinders.
+        assert_eq!(
             t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
                 RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s).into())
             ))
-            .is_some()
+            .is_some(),
+            s % 2 == 1,
+            "side {s}: a seam meridian on a cylinder only"
         );
         assert!(
             t.lookup(&minted(
@@ -395,8 +398,8 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
 fn full_holed_revolve_names_the_cavity_loop() {
     // VERBS-RING: a holed profile fully revolved — the hollow ring.
     // The hole's cavity shell names exactly like a second lamina
-    // loop: bands, full rims, seam meridians, meridian vertices, all
-    // under loop index 1.
+    // loop: bands, full rims, its cylinders' seam meridians, meridian
+    // vertices, all under loop index 1.
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let (doc, plane, p) = on_frame_keeping(
         doc,
@@ -425,21 +428,24 @@ fn full_holed_revolve_names_the_cavity_loop() {
     );
     let ev = run(&doc);
     let t = table(&ev, rev);
-    // Two square-torus shells: 1 body + 2·(4 bands + 4 rims + 4 seam
+    // Two square-torus shells: 1 body + 2·(4 bands + 4 rims + 2 seam
     // meridians + 4 meridian vertices).
-    assert_eq!(t.len(), 33);
+    assert_eq!(t.len(), 29);
     for l in 0..2 {
         for s in 0..4 {
             assert!(t.lookup(&band(rev, pe(&doc, rev, l, s))).is_some());
             assert!(t.lookup(&band_rim(rev, pv(&doc, rev, l, s))).is_some());
-            assert!(
+            // A seam meridian on a cylinder only; the loop's sides
+            // alternate between cylinders and plane annuli.
+            let has = |s: u32| {
                 t.lookup(&minted(
                     EntityKind::Edge,
                     rev,
-                    RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, l, s).into())
+                    RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, l, s).into()),
                 ))
                 .is_some()
-            );
+            };
+            assert_ne!(has(s), has((s + 1) % 4), "loop {l} side {s}");
             assert!(
                 t.lookup(&meridian_vertex(
                     MeridianEnd::Seam,

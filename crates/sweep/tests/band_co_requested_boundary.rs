@@ -6,23 +6,26 @@
 //! behind it answer the same question in closed form. Which reader each
 //! row pins:
 //!
-//! - THE SUPPORT-BOUNDARY WALK, at a co-requested edge's trim (the two
-//!   rod rows, red before the walk read trims): a RULED link lying in
-//!   an annulus rim's host outer cycle, a rod on a washer's bottom face
-//!   whose ends are transverse caps. Its closest approach to the rim
-//!   falls between the screen's stations, so the walk is what refuses,
-//!   reading the rod's TRIMLINE; the sweep row walks that boundary
-//!   across azimuths, offsets and radii, and checks each carved body's
-//!   trims against the closed form;
+//! - ARM (A) of the ring pass, at a co-requested rim's trim (the two
+//!   rod rows): a RULED link in the outer cycle of the washer's bottom
+//!   face, whose ring is the bore rim, a rod whose ends are transverse
+//!   caps. Its closest approach to the rim falls between the screen's
+//!   stations, so the exact reader is what refuses: the rod's TRIMLINE
+//!   against the bore's widened ring, the clearance the support-
+//!   boundary walk reads from the rim's side at the rod's trim; the
+//!   sweep row walks that boundary across azimuths, offsets and radii,
+//!   and checks each carved body's trims against the closed form;
 //! - ARM (A) of the ring pass (green either way): a box edge in a
 //!   LADDER host's outer cycle, its trimline read against the rim's
 //!   widened ring;
 //! - THE SCREEN (green either way): two coaxial rims on one shared
 //!   revolution wall, whose seam meridian puts a vertex of each rim on
 //!   one azimuth, a station of both;
-//! - ADMISSION (green either way): an open plane–plane link in an
-//!   annulus host's outer cycle never reaches the walk, because its
-//!   chain cannot close without passing the host's seam foot.
+//! - ADMISSION AND THE RING PASS: an open plane–plane link on an
+//!   annulus host's outer cycle refuses at a chain vertex where its
+//!   chain turns at an unrequested corner, and carves where the whole
+//!   square is requested, the bore's widened trim read against each
+//!   trimline.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -145,9 +148,9 @@ impl Rod {
 /// half-side 2.1 whose sides face azimuths `az + 90°k`, with a round rod
 /// lying along its bottom face: axis at `y = 0`, parallel to the side
 /// facing `az`, its near ruling `near` from the axis, cut off by planes
-/// perpendicular to it at `t = ±2`. The bottom face carries
-/// the bore rim, its seam and the rod's near ruling in one outer cycle,
-/// and both of the rod's ends are transverse caps.
+/// perpendicular to it at `t = ±2`. The bottom face carries the rod's
+/// near ruling in its outer cycle and the bore rim as its ring, and
+/// both of the rod's ends are transverse caps.
 fn rodded_washer(rod: Rod) -> Body<f64> {
     let washer = revolved_about_y(
         vec![
@@ -291,7 +294,7 @@ fn a_ruled_link_co_requested_with_an_annulus_rim_is_metered_at_its_trimline() {
         margin, bounded, ..
     } = err
     else {
-        panic!("the support-boundary meter answers, not the sampled screen; got {err:?}")
+        panic!("an exact reader answers, not the sampled screen; got {err:?}")
     };
     assert!(!bounded, "a line read exactly");
     let want = THE_ROD.clearance(r);
@@ -388,17 +391,17 @@ fn the_co_requested_rod_refuses_and_carves_on_its_closed_form_clearance() {
     }
 }
 
-/// **An open plane–plane link in an annulus host's outer cycle never
-/// reaches the walk.** The squared washer's bottom face carries the bore
-/// rim, its seam and the square's bottom edges in one outer cycle. Every
-/// vertex of an open chain must be a joint or a corner whose three
-/// edges are all requested, so a chain along that cycle has to pass the
-/// seam's foot on the square, and it refuses at a chain vertex before
-/// any meter runs — with the bottom edges alone (a chain turning at an
-/// unrequested corner) or with every edge of the square (a corner at
-/// the seam's foot).
+/// **An open plane–plane link on an annulus rim's host closes on the
+/// host's outer cycle.** The squared washer's bottom face is ONE plane
+/// face: the square's bottom edges are its outer cycle and the bore rim
+/// its ring, with no seam meeting either. Every vertex of an open chain
+/// must be a joint or a corner whose three edges are all requested, so
+/// the bottom edges alone (a chain turning at an unrequested corner)
+/// refuse at a chain vertex before any meter runs, while every edge of
+/// the square closes its corners and carves beside the bore's band, the
+/// ring pass reading the bore's widened trim against each trimline.
 #[test]
-fn a_plane_link_in_an_annulus_hosts_outer_cycle_refuses_at_admission() {
+fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() {
     let washer = revolved_about_y(
         vec![
             (Point2::new(1.0, 0.0), 0.0),
@@ -418,25 +421,44 @@ fn a_plane_link_in_an_annulus_hosts_outer_cycle_refuses_at_admission() {
     let body = boolean(BooleanOp::Intersect, &washer, &square);
     validate_geometric(&body, tol()).expect("the fixture is tier-3 valid");
     let on_square = |p: Vec3<f64>| p.x.hypot(p.z) > 2.05;
-    for bottom_only in [true, false] {
+    let request = |bottom_only: bool| {
         let mut edges = rim_arcs_at(&body, 1.0, 0.0);
         edges.extend(body.edges().map(|(k, _)| k).filter(|&k| {
             let [p, q] = ends(&body, k);
             on_square(p) && on_square(q) && (!bottom_only || (p.y == 0.0 && q.y == 0.0))
         }));
-        let err = fillet_edges(&body, &edges, 0.2, tol())
-            .expect_err("the chain cannot close past the seam's foot")
-            .error;
-        assert!(
-            matches!(
-                err,
-                BlendError::UnsupportedCorner { .. }
-                    | BlendError::UnsupportedRunOut { .. }
-                    | BlendError::ChainNotG1 { .. }
-            ),
-            "bottom only {bottom_only}: refused at a chain vertex, got {err:?}"
-        );
-    }
+        edges
+    };
+    let err = fillet_edges(&body, &request(true), 0.2, tol())
+        .expect_err("the bottom edges turn at unrequested corners")
+        .error;
+    assert!(
+        matches!(
+            err,
+            BlendError::UnsupportedCorner { .. }
+                | BlendError::UnsupportedRunOut { .. }
+                | BlendError::ChainNotG1 { .. }
+        ),
+        "the bottom edges alone: refused at a chain vertex, got {err:?}"
+    );
+    let edges = request(false);
+    assert_eq!(
+        edges.len(),
+        13,
+        "the bore rim and the square's twelve edges"
+    );
+    let out = fillet_edges(&body, &edges, 0.2, tol())
+        .unwrap_or_else(|e| panic!("the whole square carves beside the bore, got {e:?}"));
+    validate_geometric(&out.body, tol()).expect("the carve is tier-3 valid");
+    assert_eq!(
+        (
+            out.band_faces.len(),
+            out.blend_faces.len(),
+            out.corner_faces.len()
+        ),
+        (1, 12, 8),
+        "the bore's band, a blend per square edge and a corner per square corner"
+    );
 }
 
 // ---- The ladder plate ----
