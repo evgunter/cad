@@ -690,6 +690,32 @@ impl<T: Real> Body<T> {
         Some(new)
     }
 
+    /// Rebinds every vertex in `vertices` onto the existing point
+    /// `onto`, and frees each old point no vertex sits on any longer.
+    /// `None` (body untouched) if a vertex or `onto` does not resolve.
+    ///
+    /// No coordinate is read or written: the caller vouches, by its own
+    /// records, that the vertices already sit at `onto`'s point (for the
+    /// boolean, the seam correspondence the zips fuse, which they require
+    /// coincident). Where they do not, [`Body::move_vertices`] is the
+    /// door that moves vertices.
+    pub(crate) fn share_point(&mut self, vertices: &[VertexKey], onto: PointKey) -> Option<()> {
+        self.points.get(onto)?;
+        let old: Vec<PointKey> = vertices
+            .iter()
+            .map(|&v| self.vertices.get(v).map(|d| d.point))
+            .collect::<Option<_>>()?;
+        for &v in vertices {
+            self.vertices[v].point = onto;
+        }
+        for k in old {
+            if k != onto {
+                self.remove_point_if_orphaned(k);
+            }
+        }
+        Some(())
+    }
+
     /// Removes `point` from the point arena iff no vertex references it,
     /// returning whether it was removed. Used by vertex-killing operators
     /// (`kev`/`kvfs`) and [`Body::move_vertices`]: an op's copies of one

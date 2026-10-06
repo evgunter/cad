@@ -1610,6 +1610,19 @@ fn corner_pairs_battery() {
     }
 }
 
+/// The L-prism ([`PROFILE`]) as a corner at `V`, tiled by [`BOXES`]'
+/// footprints.
+fn ltop() -> Corner {
+    Corner {
+        profile: PROFILE.to_vec(),
+        pieces: BOXES
+            .iter()
+            .map(|&(l, h)| vec![(l[0], l[1]), (h[0], l[1]), (h[0], h[1]), (l[0], h[1])])
+            .collect(),
+        v: V,
+    }
+}
+
 /// The asymmetric reflex corner: `(1, 1, 1)`, a 0° edge and a 34° one
 /// round a 326° notch (PR 4139's review r1, `asym`).
 fn asym() -> Corner {
@@ -1649,9 +1662,9 @@ fn fibonacci(i: u32, n: u32) -> [f64; 3] {
     [r * t.cos(), r * t.sin(), z]
 }
 
-/// PR 4139's review r1's `dbl` pose `seed`, `fib`: two [`asym`] corners
-/// touching only at their corner `v` (their union, two vertices at `v`),
-/// the second turned by a seeded rotation, and the cube whose near face
+/// PR 4139's review r1's `dbl` pose `seed`, `fib`: corner `a` at rest
+/// and corner `b` turned by a seeded rotation about it, touching only at
+/// their corner `v` (their union, two vertices at `v`), and the cube whose near face
 /// holds `v`, along Fibonacci direction `fib` of 600 and turned 0.4
 /// about it; with the operand's pieces and volume, the cube's planes,
 /// and the volume they share.
@@ -1664,15 +1677,14 @@ struct Dbl {
     common: f64,
 }
 
-fn dbl(seed: u64, fib: u32) -> Dbl {
+fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
     let pose = format!("seed={seed} fib{fib}");
-    let corner = asym();
-    let v = corner.v;
+    let v = a.v;
     let x1 = finished(
         "a corner",
-        fixtures::prism::<f64>(&corner.profile, 1.0, tol()).body,
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
     );
-    let (x2, posed_pieces) = posed(&corner, seeded_rotation(seed * 31 + 5), v);
+    let (x2, posed_pieces) = posed(b, seeded_rotation(seed * 31 + 5), v);
     let pinched = topo::union_with(&x1, &x2, &BooleanDeclarations::default(), tol())
         .unwrap_or_else(|e| panic!("{pose}: the corners' union: {e:?}"));
     let pinched = pinched.body().expect("the union is not empty").body.clone();
@@ -1681,7 +1693,7 @@ fn dbl(seed: u64, fib: u32) -> Dbl {
         2,
         "{pose}: the operand's pinch"
     );
-    let mut pieces: Pieces = corner.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let mut pieces: Pieces = a.pieces.iter().map(|p| polygon_prism(p)).collect();
     pieces.extend(posed_pieces);
     let f = frame(fibonacci(fib, 600), 0.4);
     let lo = [-2.0, -2.0, 0.0];
@@ -1718,7 +1730,7 @@ fn dbl(seed: u64, fib: u32) -> Dbl {
 #[test]
 fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
     let v = asym().v;
-    let d = dbl(268, 11);
+    let d = dbl((&asym(), &asym()), 268, 11);
     let want = d.volume + SIDE.powi(3) - d.common;
     let r = topo::union_with(&d.pinched, &d.cube, &BooleanDeclarations::default(), tol());
     let body = r
@@ -1778,7 +1790,7 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
             planes,
             volume,
             common,
-        } = dbl(seed, fib);
+        } = dbl((&asym(), &asym()), seed, fib);
         let runs = every_op(
             ["xy", "yx"],
             (&pinched, volume),
@@ -1808,6 +1820,53 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
                 );
             }
             assert_eq!(finding, Some(None), "{pose} {tag}");
+        }
+    }
+}
+
+/// **A pinch's cones sit on one point key** (`zip::share_points`). Six
+/// of [`dbl`]'s poses whose union with the cube pinches at `v` in two
+/// cones: one cone's vertex descends from the pinched operand's own two
+/// vertices, which the corners' union left on two keys, the other's
+/// from the cube's pierce copies. The seam correspondence ties all of
+/// them, so after the zips the two cones' vertices move onto one key.
+/// Both unions build `SOUND` at the clipped volume, with one vertex per
+/// cone at `v`, on one key, and mesh. Red without the move: tier 3′
+/// refuses `UndeclaredContact { VertexVertex }` at `v`, and the output
+/// stage's join, which reads the pinch from its keys, kills a cone's
+/// vertex (one vertex for two cones; the mesher refuses or panics).
+#[test]
+fn a_pinchs_cones_share_one_point_key() {
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+        ("asym asym", (asym(), asym()), 15, 6),
+        ("asym asym", (asym(), asym()), 225, 6),
+    ] {
+        let pose = format!("{names} seed={seed} fib{fib}");
+        let v = a.v;
+        let d = dbl((&a, &b), seed, fib);
+        let want = d.volume + SIDE.powi(3) - d.common;
+        let cube_pieces = vec![d.planes.clone()];
+        for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+            let r = topo::union_with(x, y, &BooleanDeclarations::default(), tol());
+            let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                point_key_finding(&bb.body, v)
+                    .or_else(|| cone_finding(&bb.body, v, (&d.pieces, &cube_pieces, Cones::Union)))
+                    .or_else(|| {
+                        match mesh::tessellate(&bb.body, 0.05, tol())
+                            .map(|m| mesh::validate::check_mesh(&m))
+                        {
+                            Ok(Ok(())) => None,
+                            other => Some(format!("the body does not mesh: {other:?}")),
+                        }
+                    })
+            });
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
+            assert_eq!(finding, Some(None), "{pose} {order} U");
         }
     }
 }

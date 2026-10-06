@@ -46,6 +46,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
+use crate::geometry::PointKey;
 use crate::live::{linked, proven};
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
@@ -229,6 +230,94 @@ pub(super) struct ZipReport {
 /// 1 (each a `mef` and the `kef` of the strip behind it).
 pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
     core::iter::once(0).chain((1..n).rev())
+}
+
+/// **The point keys the seams tie are one point**: a pinch is several
+/// vertices on one point key (Ev, PR 4057).
+///
+/// Each seam pair's two vertices are one point, which the zips need
+/// (their scaffolding certifies only coincident pairs), and an op's
+/// copies of one vertex share its key (`Body::mev_null`). So every key
+/// the correspondence `vmap` reaches, through its pairs and through the
+/// keys its vertices share, names one point. Returns those classes of
+/// two or more keys, read before any zip; [`share_points`] reads them
+/// after. Decided by the records alone: no position is read.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where a correspondent no longer
+/// resolves.
+pub(super) fn point_classes<T: geom_core::Real>(
+    body: &Body<T>,
+    vmap: &SeamCorrespondence,
+) -> Result<Vec<BTreeSet<PointKey>>, BooleanError> {
+    let corr = || BooleanError::ZipCorrespondence {
+        what: "a seam correspondent no longer resolves",
+    };
+    let key = |v: VertexKey| body.get_vertex(v).map(|d| d.point).ok_or_else(corr);
+    let mut root: BTreeMap<PointKey, PointKey> = BTreeMap::new();
+    let find = |root: &BTreeMap<PointKey, PointKey>, mut k: PointKey| {
+        while let Some(&up) = root.get(&k) {
+            k = up;
+        }
+        k
+    };
+    for (&a, bs) in vmap {
+        let ka = key(a)?;
+        for &b in bs {
+            let (ra, rb) = (find(&root, ka), find(&root, key(b)?));
+            if ra != rb {
+                root.insert(ra.max(rb), ra.min(rb));
+            }
+        }
+    }
+    let mut classes: BTreeMap<PointKey, BTreeSet<PointKey>> = BTreeMap::new();
+    for &k in root.keys() {
+        let r = find(&root, k);
+        classes
+            .entry(r)
+            .or_insert_with(|| BTreeSet::from([r]))
+            .insert(k);
+    }
+    Ok(classes.into_values().collect())
+}
+
+/// **A pinch's cones sit on one point key** ([`point_classes`]). After
+/// the zips, the vertices of one point fused where they lie in one cone,
+/// and a fused vertex keeps one key; the vertices of a pinch's other
+/// cones keep theirs. So where a class's live vertices still sit on
+/// several keys (an operand's own pinch, built by an earlier op on two
+/// keys; a pierce's ring copies, minted on the pierce point's value in
+/// the other operand's arena), each such class moves onto its smallest
+/// live key ([`Body::share_point`]). Elsewhere the zips left one vertex,
+/// and nothing moves. The census's same-point rung and the output
+/// stage's join then read the pinch from its keys.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where a vertex no longer
+/// resolves.
+pub(super) fn share_points<T: geom_core::Real>(
+    body: &mut Body<T>,
+    classes: &[BTreeSet<PointKey>],
+) -> Result<(), BooleanError> {
+    for class in classes {
+        let on: Vec<(VertexKey, PointKey)> = body
+            .vertices()
+            .filter(|(_, d)| class.contains(&d.point))
+            .map(|(v, d)| (v, d.point))
+            .collect();
+        let keys: BTreeSet<PointKey> = on.iter().map(|&(_, k)| k).collect();
+        let Some(&onto) = keys.first().filter(|_| keys.len() > 1) else {
+            continue;
+        };
+        let vertices: Vec<VertexKey> = on.into_iter().map(|(v, _)| v).collect();
+        body.share_point(&vertices, onto)
+            .ok_or(BooleanError::ZipCorrespondence {
+                what: "a pinch vertex no longer resolves",
+            })?;
+    }
+    Ok(())
 }
 
 /// Each vertex's section corners, as pair indices in orbit order.
