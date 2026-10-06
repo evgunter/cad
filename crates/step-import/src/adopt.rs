@@ -43,7 +43,7 @@
 
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SurfacePair};
 use geom_core::spline::SplineError;
 use geom_core::{Affine3, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
@@ -422,16 +422,14 @@ fn adopt_edges(
             candidates.push((
                 AdoptionCandidate::Intersection,
                 EdgeDescriptionSpec::Intersection {
-                    s1: fs_plus,
-                    s2: fs_minus,
+                    pair: SurfacePair::new(fs_plus, fs_minus),
                     witness,
                 },
             ));
             candidates.push((
                 AdoptionCandidate::TangentIntersection,
                 EdgeDescriptionSpec::TangentIntersection {
-                    s1: fs_plus,
-                    s2: fs_minus,
+                    pair: SurfacePair::new(fs_plus, fs_minus),
                     witness,
                 },
             ));

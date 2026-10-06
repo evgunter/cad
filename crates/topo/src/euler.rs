@@ -5100,8 +5100,7 @@ mod tests {
             Point3::new(1.0, 0.0, 0.0),
         );
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: s_seed,
-            s2: s_plus,
+            pair: geom_brep::SurfacePair::new(s_seed, s_plus),
             witness: Point3::new(0.5, 0.0, 0.0),
         };
         body.set_edge_curve(split.edge, spec, tol).unwrap();
@@ -5556,8 +5555,7 @@ mod tests {
         .unwrap();
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
-                s1: s_seed,
-                s2: s_plus,
+                pair: geom_brep::SurfacePair::new(s_seed, s_plus),
                 witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(chord)),

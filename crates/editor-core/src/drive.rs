@@ -2286,7 +2286,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, SurfacePair};
     use geom_core::k_stats::{Bracket, Escalation};
     use geom_core::{Band, Point3, Real, Vec3};
 
@@ -2336,8 +2336,7 @@ mod tests {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::TangentIntersection {
-                s1: k1,
-                s2: k2,
+                pair: SurfacePair::new(k1, k2),
                 witness: carrier.eval(lift(0.5)),
             },
             carrier,

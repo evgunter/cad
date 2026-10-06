@@ -679,17 +679,15 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             // Re-mint (module docs above): construction-fresh witness
             // from the MAPPED carrier at the pinned mid parameter
             // (params are transform-invariant).
-            EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-                s1: *s1,
-                s2: *s2,
+            EdgeDescription::Intersection { pair, .. } => EdgeDescriptionSpec::Intersection {
+                pair: *pair,
                 witness: carrier.mid_point(param_start, param_end),
             },
             // TangentIntersection maps as Intersection does: keys are
             // stable, the witness re-mints from the mapped carrier.
-            EdgeDescription::TangentIntersection { s1, s2, .. } => {
+            EdgeDescription::TangentIntersection { pair, .. } => {
                 EdgeDescriptionSpec::TangentIntersection {
-                    s1: *s1,
-                    s2: *s2,
+                    pair: *pair,
                     witness: carrier.mid_point(param_start, param_end),
                 }
             }

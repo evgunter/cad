@@ -2223,15 +2223,17 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
-                body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
-                    .map_err(|_| {
-                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Intersection)
-                    })?;
+                body.set_edge_curve(
+                    edge,
+                    draft.into_spec(geom_brep::SurfacePair::new(s1, s2)),
+                    tol,
+                )
+                .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Intersection))?;
             }
             geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
                 // smooth-adjacency edge whose existing
-                // `Intersection`/`Seam` description no longer cites
+                // intrinsic or chart description no longer cites
                 // its two adjacent faces' surfaces would violate D2
                 // adjacency coherence at tier 3 — the glue its
                 // description anticipated was skipped (or the merge
@@ -2239,9 +2241,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                 // new faces). Re-describe conventionally where the
                 // surfaces under-determine the locus (D2's split).
                 let stale = match existing.as_ref().ok_or_else(corrupt)?.description() {
-                    geom_brep::EdgeDescription::Intersection { s1: d1, s2: d2, .. }
-                    | geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } => {
-                        !Body::<T>::cites_pair((*d1, *d2), s1, s2)
+                    geom_brep::EdgeDescription::Intersection { pair, .. }
+                    | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                        *pair != geom_brep::SurfacePair::new(s1, s2)
                     }
                     // A chart image cites ONE adjacent surface (its
                     // residual chart); stale iff neither side is it
@@ -2281,8 +2283,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     let (t0, t1) = c.params();
                     let spec = geom_brep::EdgeCurveSpec {
                         description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                            s1,
-                            s2,
+                            pair: geom_brep::SurfacePair::new(s1, s2),
                             witness,
                         },
                         carrier: c.carrier().clone(),
@@ -4290,8 +4291,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             },
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: sphere,
-                    s2: plane,
+                    pair: geom_brep::SurfacePair::new(sphere, plane),
                     witness: carrier.mid_point(T::zero(), span),
                 },
                 carrier,

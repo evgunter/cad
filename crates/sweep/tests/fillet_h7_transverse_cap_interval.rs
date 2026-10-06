@@ -129,14 +129,14 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
             radius.lo() <= r && r <= radius.hi() && radius.hi() - radius.lo() < 1e-15,
             "the section circle brackets the band's radius tightly: {radius:?}"
         );
-        let EdgeDescription::Intersection { s1, s2, .. } = c.description() else {
+        let EdgeDescription::Intersection { pair, .. } = c.description() else {
             panic!(
                 "the arc is a transverse intersection, got {:?}",
                 c.description()
             );
         };
         assert!(
-            band_surfaces.contains(s1) || band_surfaces.contains(s2),
+            pair.keys().iter().any(|k| band_surfaces.contains(k)),
             "the arc's description cites a band"
         );
     }
@@ -147,13 +147,13 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
             matches!(c.carrier(), Curve3::Line { .. }),
             "a trimline is a line"
         );
-        let EdgeDescription::TangentIntersection { s1, s2, .. } = c.description() else {
+        let EdgeDescription::TangentIntersection { pair, .. } = c.description() else {
             panic!("a trimline is a tangent contact, got {:?}", c.description());
         };
         let support_surface = out.body.get_face(*support).unwrap().surface;
         assert!(
-            (*s1 == support_surface && band_surfaces.contains(s2))
-                || (*s2 == support_surface && band_surfaces.contains(s1)),
+            pair.other(support_surface)
+                .is_some_and(|band| band_surfaces.contains(&band)),
             "the trimline's description cites the band and its support"
         );
     }

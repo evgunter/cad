@@ -1999,28 +1999,19 @@ fn plan_edge<T: Decide>(
             seam: false,
             declared: carried_declaration()?,
         },
-        EdgeDescription::Intersection { s1, s2, .. }
-        | EdgeDescription::TangentIntersection { s1, s2, .. }
-            if s1 == old_key || s2 == old_key =>
+        EdgeDescription::Intersection { pair, .. }
+        | EdgeDescription::TangentIntersection { pair, .. }
+            if let Some(other) = pair.other(old_key) =>
         {
-            let other = if s1 == old_key { s2 } else { s1 };
             neighbour_section(other)?;
-            let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
-            let (n1, n2) = if s1 == old_key {
-                (old_key, s2)
-            } else {
-                (s1, old_key)
-            };
-            if tangent {
+            if matches!(description, EdgeDescription::TangentIntersection { .. }) {
                 EdgeDescriptionSpec::TangentIntersection {
-                    s1: n1,
-                    s2: n2,
+                    pair,
                     witness: new_mid,
                 }
             } else {
                 EdgeDescriptionSpec::Intersection {
-                    s1: n1,
-                    s2: n2,
+                    pair,
                     witness: new_mid,
                 }
             }
@@ -2087,11 +2078,11 @@ fn plan_edge<T: Decide>(
             }
             crate::offset_restate::held_neighbour_image(old_key, c.surface, declared, new_mid)
         }
-        EdgeDescription::Intersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        EdgeDescription::Intersection { pair, witness } => {
+            EdgeDescriptionSpec::Intersection { pair, witness }
         }
-        EdgeDescription::TangentIntersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        EdgeDescription::TangentIntersection { pair, witness } => {
+            EdgeDescriptionSpec::TangentIntersection { pair, witness }
         }
     };
 
@@ -2295,17 +2286,13 @@ pub(crate) fn remap_description<T: Real>(
 ) -> EdgeDescriptionSpec<T> {
     let map = |k: SurfaceKey| if k == old { new } else { k };
     match description {
-        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
-            EdgeDescriptionSpec::Intersection {
-                s1: map(s1),
-                s2: map(s2),
-                witness,
-            }
-        }
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+        EdgeDescriptionSpec::Intersection { pair, witness } => EdgeDescriptionSpec::Intersection {
+            pair: pair.map(map),
+            witness,
+        },
+        EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection {
-                s1: map(s1),
-                s2: map(s2),
+                pair: pair.map(map),
                 witness,
             }
         }
@@ -2535,17 +2522,11 @@ fn plan_reanchors<T: Decide>(
         // read at the new midpoint.
         let mid = carrier.mid_point(t0, t1);
         description = match description {
-            EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
-                witness: mid,
-            },
-            EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
-                EdgeDescriptionSpec::TangentIntersection {
-                    s1,
-                    s2,
-                    witness: mid,
-                }
+            EdgeDescriptionSpec::Intersection { pair, .. } => {
+                EdgeDescriptionSpec::Intersection { pair, witness: mid }
+            }
+            EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
+                EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
             }
             other => other,
         };

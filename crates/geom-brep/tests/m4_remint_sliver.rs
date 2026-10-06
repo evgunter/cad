@@ -12,7 +12,9 @@ use crate::shared::surf::table;
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{
+    CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair,
+};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 
@@ -47,8 +49,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
     let witness = Point3::new(true_mid.x + offset, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: keys[0],
-            s2: keys[1],
+            pair: SurfacePair::new(keys[0], keys[1]),
             witness,
         },
         carrier,

@@ -356,8 +356,7 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
                 k,
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        s1,
-                        s2,
+                        pair: geom_brep::SurfacePair::new(s1, s2),
                         witness: mid,
                     },
                     carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),

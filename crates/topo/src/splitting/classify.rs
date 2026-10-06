@@ -969,7 +969,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 SplitReduceError::CrossingInsertion {
                     edge: target,
                     endpoints: (u, v),
-                    source: source.from_driver(),
+                    source: Box::new(source.from_driver()),
                 }
             })?;
             sides.insert(created.vertex, PlaneSide::On);
@@ -1499,7 +1499,7 @@ mod torn_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod zone_rows {
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use crate::body::Body;
@@ -1555,8 +1555,7 @@ mod zone_rows {
             let witness = carrier.mid_point(t0, t1);
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: sphere,
-                    s2: plane,
+                    pair: SurfacePair::new(sphere, plane),
                     witness,
                 },
                 carrier,

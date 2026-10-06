@@ -31,7 +31,7 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, Pcurve,
-    PcurveCache, PcurveCertifyError, PcurveCheck,
+    PcurveCache, PcurveCertifyError, PcurveCheck, SurfacePair,
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
@@ -190,7 +190,10 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
     let witness = carrier.eval((t0 + t1) * 0.5);
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        },
         carrier,
         param_start: t0,
         param_end: t1,

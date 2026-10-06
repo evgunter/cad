@@ -74,7 +74,7 @@ use crate::{
     MefSite, MevCreated, MevSite, MvfsCreated,
 };
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real, Vec3};
 
@@ -708,7 +708,10 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
             geom_brep::DihedralClass::Transverse => {}
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        spec.description = EdgeDescriptionSpec::Intersection { s1, s2, witness };
+        spec.description = EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        };
         body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
 }
@@ -1324,8 +1327,7 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         };
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
+                pair: SurfacePair::new(cyl, plane),
                 witness: frame.at((u0 + u1) * 0.5, v),
             },
             carrier,

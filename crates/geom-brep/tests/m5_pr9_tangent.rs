@@ -16,7 +16,7 @@ use geom_brep::SurfaceKey;
 use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
-    PlaneCylinderSection,
+    PlaneCylinderSection, SurfacePair,
 };
 use geom_core::{Interval, MarginDiag, Point3, Real, Vec3};
 
@@ -51,8 +51,7 @@ fn ruling_spec(k1: SurfaceKey, k2: SurfaceKey) -> EdgeCurveSpec<f64> {
     };
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -147,8 +146,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -206,8 +204,7 @@ fn an_in_band_second_order_margin_escalates_f6() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -238,8 +235,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -272,8 +268,7 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -321,8 +316,7 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.75),
         },
         carrier,
@@ -364,8 +358,7 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.75),
         },
         carrier,
@@ -407,8 +400,7 @@ fn outside_the_span_bound_lane_refuses_typed() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(1.0),
         },
         carrier,
@@ -574,8 +566,7 @@ fn certify_line_at(
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -686,8 +677,7 @@ fn certify_line_at_interval(
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(lift(0.5)),
         },
         carrier,

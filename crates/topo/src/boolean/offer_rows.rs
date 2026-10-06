@@ -1621,7 +1621,10 @@ fn described_at_this_tolerance(mut body: crate::body::Body<f64>) -> crate::body:
         let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
         spec = match transverse {
             Ok(geom_brep::DihedralClass::Transverse) => {
-                spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
+                spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
+                    pair: geom_brep::SurfacePair::new(s1, s2),
+                    witness,
+                };
                 spec
             }
             _ => spec.at_rest_in_chart(s1, false),

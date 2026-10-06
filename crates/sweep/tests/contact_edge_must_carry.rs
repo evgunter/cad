@@ -147,9 +147,10 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let EdgeDescription::TangentIntersection { s1, s2, .. } = *c.description() else {
+        let EdgeDescription::TangentIntersection { pair, .. } = *c.description() else {
             continue;
         };
+        let [s1, s2] = pair.keys();
         let s1 = body.get_surface(s1).expect("a described edge's surface");
         let s2 = body.get_surface(s2).expect("a described edge's surface");
         let carrier = c.carrier();

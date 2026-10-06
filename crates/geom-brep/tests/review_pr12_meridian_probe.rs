@@ -8,7 +8,8 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, tangent_certificate_lane,
+    EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, SurfacePair,
+    tangent_certificate_lane,
 };
 use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
@@ -56,8 +57,7 @@ fn probe_meridian_sphere_torus() {
     let quarter = core::f64::consts::FRAC_PI_2;
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: circle.eval(quarter / 2.0),
         },
         carrier: circle,

@@ -936,8 +936,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
             let len = p.distance(q);
             let spec = geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: wall,
-                    s2: key,
+                    pair: geom_brep::SurfacePair::new(wall, key),
                     witness: p + (q - p) * 0.5,
                 },
                 carrier: geom::Curve3::Line {

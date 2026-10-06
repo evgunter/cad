@@ -48,6 +48,7 @@
 use geom_core::Real;
 
 use crate::keys::SurfaceKey;
+pub use crate::keys::SurfacePair;
 use crate::mapped::MappedCurve;
 use crate::pcurve_cache::Pcurve;
 
@@ -121,20 +122,16 @@ pub enum EdgeDescription<T: Real> {
     /// Intrinsic: the transverse intersection component selected by
     /// `witness` (D2, verbatim).
     Intersection {
-        /// The first surface.
-        s1: SurfaceKey,
-        /// The second surface.
-        s2: SurfaceKey,
+        /// The two surfaces, as a set.
+        pair: SurfacePair,
         /// The mid-parameter witness point.
         witness: geom_core::Point3<T>,
     },
     /// Intrinsic, one differential order up: the tangential contact
     /// component selected by `witness` (D2 as sharpened by OQ7).
     TangentIntersection {
-        /// The first surface.
-        s1: SurfaceKey,
-        /// The second surface.
-        s2: SurfaceKey,
+        /// The two surfaces, as a set.
+        pair: SurfacePair,
         /// The mid-parameter witness point.
         witness: geom_core::Point3<T>,
     },
@@ -160,6 +157,15 @@ impl<T: Real> EdgeDescription<T> {
     pub fn chart(&self) -> Option<&ChartCurve<T>> {
         match self {
             EdgeDescription::Chart(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    /// The surface pair, when this is an intrinsic description.
+    pub fn pair(&self) -> Option<SurfacePair> {
+        match self {
+            EdgeDescription::Intersection { pair, .. }
+            | EdgeDescription::TangentIntersection { pair, .. } => Some(*pair),
             _ => None,
         }
     }
@@ -205,20 +211,16 @@ pub enum EdgeDescriptionSpec<T: Real> {
     /// Intrinsic: the transverse intersection component selected by
     /// `witness` (D2).
     Intersection {
-        /// The first surface.
-        s1: SurfaceKey,
-        /// The second surface.
-        s2: SurfaceKey,
+        /// The two surfaces, as a set.
+        pair: SurfacePair,
         /// The mid-parameter witness point.
         witness: geom_core::Point3<T>,
     },
     /// Intrinsic, one differential order up: the tangential contact
     /// component selected by `witness` (D2 as sharpened by OQ7).
     TangentIntersection {
-        /// The first surface.
-        s1: SurfaceKey,
-        /// The second surface.
-        s2: SurfaceKey,
+        /// The two surfaces, as a set.
+        pair: SurfacePair,
         /// The mid-parameter witness point.
         witness: geom_core::Point3<T>,
     },

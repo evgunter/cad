@@ -483,10 +483,10 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
     use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
     let text = BlendError::Op {
         site: "meridian split",
-        source: topo::EulerOpError::SplitParamEscalated {
+        source: Box::new(topo::EulerOpError::SplitParamEscalated {
             edge: topo::EdgeKey::default(),
             diag: escalation(Some("split_edge_param_interior")),
-        },
+        }),
     }
     .to_string();
     assert_eq!(recourse_markers(&text), 1, "{text}");

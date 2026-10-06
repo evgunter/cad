@@ -113,8 +113,8 @@ fn joinable<T: Real>(
             matches!(c.carrier(), geom::Curve3::Line { .. })
                 && matches!(
                     c.description(),
-                    geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                        if Body::<T>::cites_pair((*s1, *s2), sf, sg)
+                    geom_brep::EdgeDescription::Intersection { pair, .. }
+                        if *pair == geom_brep::SurfacePair::new(sf, sg)
                 )
         })
     };

@@ -23,7 +23,7 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
     CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, SpiricImage,
-    SurfaceKey,
+    SurfaceKey, SurfacePair,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -515,8 +515,7 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
     let edge = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: a,
-                s2: b,
+                pair: SurfacePair::new(a, b),
                 witness: carrier.eval(0.5),
             },
             carrier,

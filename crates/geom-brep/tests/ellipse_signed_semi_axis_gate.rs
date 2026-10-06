@@ -6,7 +6,9 @@
 #![allow(clippy::unwrap_used)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+use geom_brep::{
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, SurfacePair,
+};
 use geom_core::{Band, Point3, Tol, Vec3};
 use slotmap::SlotMap;
 
@@ -48,8 +50,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
         };
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: cyl,
+                pair: SurfacePair::new(plane, cyl),
                 witness: e.eval(core::f64::consts::FRAC_PI_4),
             },
             carrier: e.clone(),

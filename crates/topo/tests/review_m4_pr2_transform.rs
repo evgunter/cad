@@ -236,9 +236,9 @@ fn max_witness_residual(b: &Body<f64>) -> f64 {
             Some(topo::CurveGeom::Certified(ec)) => ec,
             _ => continue,
         };
-        if let EdgeDescription::Intersection { s1, s2, witness } = geom.description() {
-            for sk in [s1, s2] {
-                if let Some(Surface::Plane { origin, normal, .. }) = b.get_surface(*sk) {
+        if let EdgeDescription::Intersection { pair, witness } = geom.description() {
+            for sk in pair.keys() {
+                if let Some(Surface::Plane { origin, normal, .. }) = b.get_surface(sk) {
                     let d = (*witness - *origin).dot(normal.normalize()).abs();
                     worst = worst.max(d);
                 }

@@ -24,7 +24,7 @@
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -193,8 +193,7 @@ fn main() {
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: new_key,
+                pair: SurfacePair::new(plane, new_key),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -213,7 +212,7 @@ fn main() {
     println!("widened chart u domain = {:?}", chart.knots_u().domain());
 
     // ---- Q1: would the mint's OWN mate lookup find an operand pair? ----
-    // `mate_surface` (private) reads `Intersection{s1,s2}` from the
+    // `mate_surface` (private) reads `Intersection { pair, .. }` from the
     // edge's description and requires the FACE'S CURRENT surface key
     // to be one of the pair. Replicated here verbatim.
     let desc_pair = {
@@ -222,7 +221,7 @@ fn main() {
             .unwrap();
         match body.get_curve_geom(e.curve) {
             Some(topo::CurveGeom::Certified(c)) => match *c.description() {
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => Some((s1, s2)),
+                geom_brep::EdgeDescription::Intersection { pair, .. } => Some(pair),
                 _ => None,
             },
             _ => None,
@@ -237,7 +236,7 @@ fn main() {
         .unwrap()
         .surface;
     let mate_found = match desc_pair {
-        Some((s1, s2)) => own == s1 || own == s2,
+        Some(pair) => pair.contains(own),
         None => false,
     };
     println!("\nQ1  description pair = {desc_pair:?}, face's CURRENT surface = {own:?}");

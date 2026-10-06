@@ -21,7 +21,7 @@ use crate::common::approx::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_brep::{
     EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
-    Pcurve, SketchSegment,
+    Pcurve, SketchSegment, SurfacePair,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
@@ -137,7 +137,7 @@ fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
     assert!(
         matches!(
             *description,
-            EdgeDescription::Intersection { s1, s2, .. } if (s1, s2) == (minted, cap)
+            EdgeDescription::Intersection { pair, .. } if pair == SurfacePair::new(minted, cap)
         ),
         "the rim is the section of the minted wall and the held cap: {description:?}"
     );
@@ -207,7 +207,7 @@ fn the_per_chart_door_restates_a_rim_in_the_caps_chart_as_the_section() {
         assert!(
             matches!(
                 *description,
-                EdgeDescription::Intersection { s1, s2, .. } if (s1, s2) == (minted, cap)
+                EdgeDescription::Intersection { pair, .. } if pair == SurfacePair::new(minted, cap)
             ),
             "offset by {d}, the rim is the section of the minted wall and the held cap: \
              {description:?}"
@@ -253,7 +253,7 @@ fn the_planar_door_restates_an_edge_in_a_held_sides_chart_as_the_section() {
     assert!(
         matches!(
             *description,
-            EdgeDescription::Intersection { s1, s2, .. } if (s1, s2) == (minted, held)
+            EdgeDescription::Intersection { pair, .. } if pair == SurfacePair::new(minted, held)
         ),
         "the edge is the section of the minted top and the held side: {description:?}"
     );

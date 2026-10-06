@@ -798,17 +798,17 @@ fn graft_solids_impl<T: geom_core::Decide>(
             continue;
         };
         let description = match *curve.description() {
-            geom_brep::EdgeDescription::Intersection { s1, s2, witness } => {
+            geom_brep::EdgeDescription::Intersection { pair, witness } => {
                 geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: image(&surfaces, s1, GeomRef::Surface, GeomRef::Curve(k), "s1"),
-                    s2: image(&surfaces, s2, GeomRef::Surface, GeomRef::Curve(k), "s2"),
+                    pair: pair
+                        .map(|s| image(&surfaces, s, GeomRef::Surface, GeomRef::Curve(k), "pair")),
                     witness,
                 }
             }
-            geom_brep::EdgeDescription::TangentIntersection { s1, s2, witness } => {
+            geom_brep::EdgeDescription::TangentIntersection { pair, witness } => {
                 geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                    s1: image(&surfaces, s1, GeomRef::Surface, GeomRef::Curve(k), "s1"),
-                    s2: image(&surfaces, s2, GeomRef::Surface, GeomRef::Curve(k), "s2"),
+                    pair: pair
+                        .map(|s| image(&surfaces, s, GeomRef::Surface, GeomRef::Curve(k), "pair")),
                     witness,
                 }
             }

@@ -4542,7 +4542,7 @@ mod winding_arm_tests {
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::loop_winding::RunClosing::{self, Straight};
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Point3, Sign, Vec3};
 
     /// The plane every fixture here lives on, and the outward normal
@@ -5640,14 +5640,14 @@ mod winding_arm_tests {
             let (t0, t1) = curve.params();
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: body
-                        .get_face(body.get_loop(disc).unwrap().face)
-                        .unwrap()
-                        .surface,
-                    s2: body
-                        .get_face(body.get_loop(disc).unwrap().face)
-                        .unwrap()
-                        .surface,
+                    pair: SurfacePair::new(
+                        body.get_face(body.get_loop(disc).unwrap().face)
+                            .unwrap()
+                            .surface,
+                        body.get_face(body.get_loop(disc).unwrap().face)
+                            .unwrap()
+                            .surface,
+                    ),
                     witness: curve.carrier().mid_point(t0, t1),
                 },
                 carrier: curve.carrier().clone(),

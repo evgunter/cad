@@ -13,7 +13,7 @@
 use crate::common::approx::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::test_support::bulge_loop;
@@ -164,8 +164,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: bowed,
+                pair: SurfacePair::new(plane, bowed),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -317,8 +316,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
             edge,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: bowed,
-                    s2: bowed,
+                    pair: SurfacePair::new(bowed, bowed),
                     witness: carrier.eval((t0 + t1) * 0.5),
                 },
                 carrier,

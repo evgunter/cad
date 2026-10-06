@@ -435,7 +435,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
         .filter(|(_, e)| {
             matches!(
                 body.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified).map(|c| c.description()),
-                Some(EdgeDescription::Intersection { s1, s2, .. }) if *s1 == old_surface || *s2 == old_surface
+                Some(EdgeDescription::Intersection { pair, .. }) if pair.contains(old_surface)
             )
         })
         .map(|(k, _)| k)

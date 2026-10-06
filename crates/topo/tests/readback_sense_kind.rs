@@ -33,7 +33,7 @@ use geom::Curve3;
 use geom::NurbsCurve3;
 use geom::SurfaceKind;
 use geom_brep::OutwardNormal;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol, Vec3};
 use topo::readback::{ReadbackError, edge_carrier_kind, edge_pose, face_carrier_kind, face_pose};
@@ -288,8 +288,7 @@ fn nurbs_edge() -> (Body<f64>, EdgeKey) {
         edge_key,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: carrier.eval(0.5),
             },
             carrier,

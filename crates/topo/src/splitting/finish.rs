@@ -753,7 +753,11 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             let (witness, arm) = (draft.witness, draft.extent);
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, arm, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
-                    body.set_edge_curve(edge, draft.into_spec(s_self, s_other), tol)?;
+                    body.set_edge_curve(
+                        edge,
+                        draft.into_spec(geom_brep::SurfacePair::new(s_self, s_other)),
+                        tol,
+                    )?;
                 }
                 // A curved wall smooth against the section plane is
                 // either a π seam or a wedge end, and only the material
@@ -804,7 +808,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         arm,
                         band,
                     )
-                    .description(s_self, s_other, witness)
+                    .description(geom_brep::SurfacePair::new(s_self, s_other), witness)
                     .map_err(|refusal| match refusal {
                         geom_brep::MustCarryRefusal::InBand(
                             geom_brep::MustCarryEscalation::FirstOrder(escalation),
@@ -837,10 +841,8 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         geom_brep::EdgeDescription::Chart(ref ch) => {
                             !intrinsic && (ch.surface == s_self || ch.surface == s_other)
                         }
-                        geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                            intrinsic
-                                && ((s1 == s_self && s2 == s_other)
-                                    || (s1 == s_other && s2 == s_self))
+                        geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                            intrinsic && pair == geom_brep::SurfacePair::new(s_self, s_other)
                         }
                         geom_brep::EdgeDescription::Intersection { .. }
                         | geom_brep::EdgeDescription::Scaffold(_) => false,
@@ -1408,8 +1410,7 @@ mod smooth_arm_rows {
             .unwrap()
             .restated_spec();
         spec.description = geom_brep::EdgeDescriptionSpec::TangentIntersection {
-            s1: s_self,
-            s2: s_other,
+            pair: geom_brep::SurfacePair::new(s_self, s_other),
             witness: mid,
         };
         body.set_edge_curve(edge, spec, tol())

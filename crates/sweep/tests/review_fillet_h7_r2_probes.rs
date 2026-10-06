@@ -148,10 +148,10 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
     else {
         panic!("a cut-off arc is a circle");
     };
-    let EdgeDescription::Intersection { s1, s2, witness } = c.description() else {
+    let EdgeDescription::Intersection { pair, witness } = c.description() else {
         panic!("a cut-off arc is a transverse intersection");
     };
-    let (s1, s2, witness) = (*s1, *s2, *witness);
+    let (pair, witness) = (*pair, *witness);
     let (t0, t1) = c.params();
     for (label, carrier) in [
         (
@@ -177,7 +177,7 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+                description: EdgeDescriptionSpec::Intersection { pair, witness },
                 carrier,
                 param_start: t0,
                 param_end: t1,

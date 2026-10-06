@@ -1,6 +1,6 @@
 //! M3 PR 5 acceptance (consumer finding, binding addition): operands
 //! built through the REAL profile → `extrude` path — whose edges carry
-//! `Intersection { s1, s2 }` descriptions referencing adjacent faces'
+//! `Intersection { pair, .. }` descriptions referencing adjacent faces'
 //! surface keys — must run through the public boolean ops without any
 //! caller-side description normalization (the M3 exit criterion:
 //! booleans on prismatic solids end-to-end through public ops only).
