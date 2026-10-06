@@ -38,3 +38,11 @@ and pin a chain whose first dead key carries the only name. Check
 first whether a two-hop chain reaches this pass on any corpus scene:
 `fused-into-names-vertices-not-live-in-the-result` (FUSE) says some
 survivors are not live, which this pass would then also miss.
+
+## Measured (PR 4116's delta review, 2026-10-06)
+
+Two-hop chains do reach this pass. On the review's probe corpus, 632 of
+3,639 Ok results have a row in `BooleanNaming::vertex_merges` whose kept
+key is a later row's dead key: pierce welds 507 of 780, pinch scenes
+119 of 1,048, brick lattices 6 of 1,811. Whether a chain changes a
+minted name is unmeasured.

@@ -504,8 +504,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 /// after the graft. Copies of one pierce not on one point refuse too.
 /// `fused` is the fusions `(dead, kept)` before this pass, in result
 /// keys; `groups` (from [`FinishOut::pierce_copies`]) is read through
-/// them, then through this pass's own. Returns this pass's fusions. It runs from the op stage after the
-/// zips (`ops::boolean_op_recut`), not from [`setopfinish`].
+/// them, then through this pass's own. Returns this pass's fusions.
+/// It runs from the op stage after the zips
+/// (`ops::boolean_op_recut`), not from [`setopfinish`].
 pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     groups: &[Vec<VertexKey>],

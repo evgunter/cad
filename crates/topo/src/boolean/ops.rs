@@ -2480,10 +2480,9 @@ impl KeyView<'_> {
 pub(super) struct Descendants {
     /// Each operand's pinch-weld fusions, in its clone keys: read
     /// before its key view. A weld fuses ring vertices minted after the
-    /// contacts were recorded, so no record cites a weld's keys: no rest
-    /// is consumed by a pinch weld (`fused` holds none of these rows'
-    /// keys), and these rows chase only a record a producer mints in
-    /// clone keys.
+    /// contacts were recorded, so no record cites a weld's keys, and
+    /// these rows chase only a record a producer mints in clone keys. A
+    /// later zip may still fuse a weld's kept vertex.
     a_welds: Fusions,
     b_welds: Fusions,
     /// The fusions after the pinch welds, in mint order, result keys:

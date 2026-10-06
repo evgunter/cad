@@ -1,7 +1,7 @@
 ---
 id: fused-into-names-vertices-not-live-in-the-result
 kind: issue
-title: BooleanNaming::fused_into maps a fused vertex to a key that is not a live vertex of the result in about 1 in 10 Ok lattice-brick results
+title: BooleanNaming::fused_into maps a fused vertex to a key that is not a live vertex of the result in about 1 in 8 lattice-brick results that build a body
 status: open
 opened: 2026-10-06
 priority: P1
@@ -17,7 +17,8 @@ Measured by that review; cause unfound.
 `BooleanNaming::fused_into` (`boolean/ops.rs`) documents each fused
 result vertex → "the vertex it finally fused into", read off
 `vertex_merges` through `Fusions::survivor`. Over the lattice-brick
-corpus, in 1,221 of about 12,600 Ok results some value of
+corpus, in 1,221 of the 10,288 results that build a body (12,638 Ok,
+Empty included) some value of
 `fused_into()` is not a live vertex of the result body. The count is
 identical on PR 4116's base and head, so it predates the `Fusions`
 type; that PR makes every list fold well within itself, which shows
