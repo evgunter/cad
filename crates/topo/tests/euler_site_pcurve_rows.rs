@@ -26,7 +26,8 @@
 use geom_core::{Band, Point3, Tol};
 use topo::pcurves::validate_pcurves;
 use topo::test_support::{
-    CylFrame, arc_chain_over_the_jump, cyl_arc_at, cyl_wall_sheet, kill_under_a_null_strut,
+    CylFrame, NullStrutListing, arc_chain_over_the_jump, cyl_arc_at, cyl_wall_sheet,
+    kill_under_a_null_strut,
 };
 use topo::{Body, FaceKey, HalfEdgeKey, MekrSite, MevSite, PcurveMintError, VertexKey};
 
@@ -1212,13 +1213,7 @@ fn a_kill_that_describes_a_null_member_beside_a_certified_one_completes_the_wall
 ///
 /// Returns the body, the wall, the seed face, the half that kills the
 /// lower segment toward the split, and the listing.
-fn side_split_under_a_null_strut() -> (
-    Body<f64>,
-    FaceKey,
-    FaceKey,
-    HalfEdgeKey,
-    Vec<(topo::EdgeKey, geom_brep::EdgeCurveSpec<f64>)>,
-) {
+fn side_split_under_a_null_strut() -> (Body<f64>, FaceKey, FaceKey, HalfEdgeKey, NullStrutListing) {
     let mut body = Body::<f64>::new();
     let face = cyl_wall_sheet(
         &mut body,
