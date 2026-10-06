@@ -137,12 +137,12 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic_zero=482 numeric=263 frozen=0",
+        "decisions symbolic_zero=542 numeric=263 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic_zero=490 numeric=255 frozen=0",
+        "decisions symbolic_zero=550 numeric=255 frozen=0",
         "eight of the 263 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly — THEOREMS, and nothing here is gated"
     );

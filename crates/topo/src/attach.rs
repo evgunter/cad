@@ -73,6 +73,9 @@ use crate::live::{Arg, dangling_link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
 
+/// The predicate [`Body::description_moves`] decides under.
+pub(crate) const DESCRIPTION_MOVES: &str = "description_moves_carrier";
+
 /// Which described edges' faces [`Body::description_rows`] re-mints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Remints {
@@ -1122,7 +1125,7 @@ impl<T: Decide> Body<T> {
         });
         Ok(ends.into_iter().chain(between).any(|(a, b)| {
             !matches!(
-                decide("description_moves_carrier", Margin::of(a.distance(b)), band),
+                decide(DESCRIPTION_MOVES, Margin::of(a.distance(b)), band),
                 Ok(Sign::Zero)
             )
         }))

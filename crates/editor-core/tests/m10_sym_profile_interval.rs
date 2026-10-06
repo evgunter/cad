@@ -269,6 +269,12 @@ fn eps_row(eps: f64) -> usize {
 /// at every row while every count — calls, forms, frozen — holds, and
 /// `Early/Decision`, which reads no variable, holds its digest.
 ///
+/// Re-captured when `Body::set_edge_curve` began measuring whether a
+/// description moves the edge's carrier or interval
+/// (`description_moves_carrier`): `Plain/Decision` makes 120 more calls
+/// and builds 670 more forms (9426 → 10096), its digest moving at every
+/// row; every other line holds.
+///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
 /// minted with, the certificate's midpoint check and its schedule's
@@ -277,17 +283,17 @@ fn eps_row(eps: f64) -> usize {
 /// here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest ebd5dc4da3bdeaa10c0afd94b42b2d87\n\
+     Plain/Decision calls 1100 forms 10096 frozen 0 digest cf7cdb3aac509c49ecf63efe08c64d3e\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 94e74ce235f1ad337f14d70fee78dfaa\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest e5cb8ee95d081c9f651fd197dd80e7e9",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 8494d680ab698df2f3469e823fc87b98\n\
+     Plain/Decision calls 1100 forms 10096 frozen 0 digest a114dde761a1abcf0b677461a32a0453\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest c4e86cf612989dd24ae45b72f30fd596\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 6fd6d5b744c7357422ed4a8d661ba4d6",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 22f0ef9b79cc104cbde46fca27614b59\n\
+     Plain/Decision calls 1100 forms 10096 frozen 0 digest 12540a9f4a4902456ed1b242a1beca91\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest a8c20d17a2cffae31de30c639ce090f4\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 37994725fc1705f26abe6dff8c3ececf",

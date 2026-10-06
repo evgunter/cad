@@ -483,6 +483,16 @@ fn sym_9_what_each_retry_recovers() {
 /// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
 /// Theorems, `sign_gated`, `registered` and `retried` do not move.
 ///
+/// `Body::set_edge_curve` measuring whether a description moves the
+/// edge's carrier or interval (`description_moves_carrier`, five
+/// distance readings per certified edge it re-describes) adds those
+/// readings to every document: theorems up (the plate +104, the
+/// annulus +44, the boss +48, the bracket +145, the link +74) and
+/// `registered` up (the plate, the annulus and the link +16, the boss
+/// +12, the bracket +18 without the ladder and +20 with it). The bracket's two that land `numeric` without
+/// the ladder are retried into `registered` with it (`retried` 6 → 8).
+/// Nothing moved down.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -502,21 +512,26 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [955, 0, 148, 704], [955, 0, 148, 704], 0),
-        ("r1_annulus", [440, 32, 148, 451], [440, 32, 148, 451], 0),
+        (
+            "two_hole_plate",
+            [1059, 0, 164, 704],
+            [1059, 0, 164, 704],
+            0,
+        ),
+        ("r1_annulus", [484, 32, 164, 451], [484, 32, 164, 451], 0),
         (
             "r1_segment_boss",
-            [459, 26, 102, 414],
-            [459, 26, 102, 414],
+            [507, 26, 114, 414],
+            [507, 26, 114, 414],
             0,
         ),
         (
             "r2_filleted_bracket",
-            [1259, 45, 154, 1087],
-            [1259, 45, 160, 1081],
-            6,
+            [1404, 45, 172, 1089],
+            [1404, 45, 180, 1081],
+            8,
         ),
-        ("r2_link", [689, 0, 118, 748], [691, 0, 130, 734], 14),
+        ("r2_link", [763, 0, 134, 748], [765, 0, 146, 734], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -582,9 +597,10 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// memo installed) — against the same leaf with `SymRetry::none()`.
 ///
 /// It reads both receipts the drive writes: the goldening line carries
-/// `retried=6` after the discharge columns, and the human form names
-/// the six as discharges a second attempt reached, not as a clause of
-/// `registered`'s. Without the ladder neither appears and the line is
+/// `retried=8` after the discharge columns, and the human form names
+/// the eight as discharges a second attempt reached, not as a clause of
+/// `registered`'s (six before `set_edge_curve`'s carrier readings,
+/// two of which land `numeric` without the ladder). Without the ladder neither appears and the line is
 /// the one a drive wrote before the ladder existed. The six themselves
 /// are the rule-A attempt's, and they are `registered` (156 → 162).
 /// Against the pin before PCERT's incidence-and-fidelity unit the
@@ -633,16 +649,16 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1259, 45, 160, 1081, 6],
+        [1404, 45, 180, 1081, 8],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=160 retried=6\n"),
+        line.contains("registered=180 retried=8\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 6 of those discharges reached only by a second attempt"),
-        "the human form names the six as the ladder's: {human}"
+        human.contains("; 8 of those discharges reached only by a second attempt"),
+        "the human form names the eight as the ladder's: {human}"
     );
     let b = bare.decisions();
     assert_eq!(
@@ -653,7 +669,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1259, 45, 154, 1087, 0]
+        [1404, 45, 172, 1089, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
