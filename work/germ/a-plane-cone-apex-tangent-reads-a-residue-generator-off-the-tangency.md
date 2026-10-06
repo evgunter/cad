@@ -52,3 +52,6 @@ measured.
 
 `cleave/inband-graze`'s sweep for a pair of in-band roots read as two
 crossings.
+
+The same solve exists in two other places. The proposal for one home is
+`work/hone/the-conic-plane-root-solve-has-three-homes.md`.

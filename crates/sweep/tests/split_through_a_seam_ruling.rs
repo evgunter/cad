@@ -227,7 +227,12 @@ fn a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly() {
                     let b = whole
                         .body()
                         .unwrap_or_else(|| panic!("{label}: both sides empty"));
+                    topo::validate(b).unwrap_or_else(|e| panic!("{label}: tier 1: {e:?}"));
                     topo::validate_closed(b).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
+                    topo::validate_geometric(b, tol)
+                        .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+                    topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
+                        .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
                     let m = mass_properties(b, tol)
                         .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"));
                     assert!(

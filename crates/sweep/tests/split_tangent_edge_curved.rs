@@ -249,21 +249,21 @@ fn a_concave_graze_of_a_round_hole_refuses() {
 }
 
 /// The round hole's wall and a plane δ off tangency (δ < 0 inside the
-/// hole), at every azimuth of [`THETAS`] with either normal: one graze
-/// decision across the band. Tangent within ε on either side, it refuses
-/// its knife edge ([`refuses_the_knife_edge`]), the contact read at the
-/// rim's extremum rather than at one of the two roots the residue solves
-/// for inside the hole (4.5e-5 apart along the rim at δ = −ε/2, ε =
-/// 1e-9). In the band
-/// the plane's distance from the wall escalates: at the seam vertex, or
-/// across the rim. Beyond it the split answers.
+/// hole), at every azimuth of [`THETAS`] with either normal, read
+/// across the band by the decision each pose reaches. Within ε on either
+/// side, the entity on the plane is ON and rule (a) refuses the wall's
+/// knife edge ([`refuses_the_knife_edge`]), the rim's contact read at
+/// its extremum rather than at one of the residue's two roots (4.5e-5
+/// apart along the rim at δ = −ε/2, ε = 1e-9). In the band the seam
+/// vertex's side (`split_vertex_side`) or the rim's reach
+/// (`split_conic_belly_graze`) escalates. Beyond it the split answers,
+/// each side at its closed form ([`plate_side`]).
 #[test]
-fn a_plane_within_the_band_of_a_hole_wall_tells_one_story() {
+fn a_plane_off_a_hole_wall_reads_each_decision_across_the_band() {
     let tol = Tol::witness();
     let (eps, k) = (tol.eps(), tol.k());
     let b = extruded(vec![outer(), vec![((-0.5, 0.0), 1.0), ((0.5, 0.0), 1.0)]]);
     let operand = sweep::test_support::finished("the plate", b.clone(), tol);
-    let plate = 16.0 - std::f64::consts::PI * 0.25;
     for t in THETAS {
         let u = unit(t);
         let seam = t == 0.0 || t == std::f64::consts::PI;
@@ -280,8 +280,18 @@ fn a_plane_within_the_band_of_a_hole_wall_tells_one_story() {
                 let got = split(&operand, &p, tol);
                 if d.abs() >= k * eps {
                     let r = got.unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
-                    let sum = volume(&label, &r.above).unwrap() + volume(&label, &r.below).unwrap();
-                    assert!(close(Some(sum), Some(plate)), "{label}: {sum} ≠ {plate}");
+                    let (plus, minus) =
+                        (plate_side(u, 0.5 + d), plate_side((-u.0, -u.1), -0.5 - d));
+                    let want = if s > 0.0 {
+                        (plus, minus)
+                    } else {
+                        (minus, plus)
+                    };
+                    let got = (volume(&label, &r.above), volume(&label, &r.below));
+                    assert!(
+                        close(got.0, Some(want.0)) && close(got.1, Some(want.1)),
+                        "{label}: {got:?}, want {want:?}"
+                    );
                     continue;
                 }
                 let predicate =
@@ -304,6 +314,44 @@ fn a_plane_within_the_band_of_a_hole_wall_tells_one_story() {
             }
         }
     }
+}
+
+/// The volume of the 4 × 4 plate (depth 1) with its r = 0.5 hole on the
+/// side `x·u > c` of a line, `u` a unit direction: the square clipped
+/// to the half-plane, less the hole's circular segment beyond the line.
+fn plate_side(u: (f64, f64), c: f64) -> f64 {
+    let sq = [(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)];
+    let h = |p: (f64, f64)| p.0 * u.0 + p.1 * u.1 - c;
+    let mut kept = Vec::new();
+    for i in 0..4 {
+        let (p, q) = (sq[i], sq[(i + 1) % 4]);
+        if h(p) > 0.0 {
+            kept.push(p);
+        }
+        if (h(p) > 0.0) != (h(q) > 0.0) {
+            let t = h(p) / (h(p) - h(q));
+            kept.push((p.0 + t * (q.0 - p.0), p.1 + t * (q.1 - p.1)));
+        }
+    }
+    let n = kept.len();
+    let area = (0..n)
+        .map(|i| {
+            let (p, q) = (kept[i], kept[(i + 1) % n]);
+            p.0 * q.1 - q.0 * p.1
+        })
+        .sum::<f64>()
+        / 2.0;
+    let r = 0.5f64;
+    let segment = if c.abs() >= r {
+        if c < 0.0 {
+            std::f64::consts::PI * r * r
+        } else {
+            0.0
+        }
+    } else {
+        r * r * (c / r).acos() - c * (r * r - c * c).sqrt()
+    };
+    area - segment
 }
 
 /// The section query at the round hole's graze, along its seam and off
@@ -416,8 +464,8 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
 /// Planes just off the cylinder's top ruling, inside (a thin circular
 /// segment above) and outside (the whole below), both normals. An
 /// answer is the true one, or — inside, where the segment is below
-/// rounding scale or its depth within ε — the whole; the tightest inside
-/// offsets refuse.
+/// rounding scale or its depth within ε — the whole, on its material
+/// side; the tightest inside offsets refuse.
 #[test]
 fn a_near_graze_of_a_cylinder_never_answers_wrongly() {
     let disc = extruded(vec![vec![((-0.5, 0.0), 1.0), ((0.5, 0.0), 1.0)]]);
@@ -443,7 +491,15 @@ fn a_near_graze_of_a_cylinder_never_answers_wrongly() {
                 };
                 let got = (volume(&label, &res.above), volume(&label, &res.below));
                 let graze = seg < 1e-12 || (inside && d <= Tol::witness().eps());
-                let whole = graze && got.0.xor(got.1).is_some_and(|g| (g - v).abs() < 1e-9);
+                // The disc's material lies below its top ruling, so a
+                // whole answer lands on the side the normal points away from.
+                let on_material = if s > 0.0 {
+                    got.0.is_none()
+                } else {
+                    got.1.is_none()
+                };
+                let whole =
+                    graze && on_material && got.0.xor(got.1).is_some_and(|g| (g - v).abs() < 1e-9);
                 assert!(
                     (close(got.0, want.0) && close(got.1, want.1)) || whole,
                     "{label}: {got:?}, want {want:?}"

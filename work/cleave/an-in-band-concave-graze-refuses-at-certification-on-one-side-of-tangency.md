@@ -34,11 +34,17 @@ same on main and on the PR's head.
 
 ## Why it matters
 
-The three δ values are the in-band arms of one decision: whether the plane
-grazes the wall. Two of them name the knife edge. Off the seam, the third
-reads the plane as crossing the rim at two roots ~2e-5 apart. The join then
-mints a chord between them that does not certify, and the refusal names a
-certification residual (D4(i): one decision, one payload across its band).
+The three δ values are the Zero arm of one decision,
+`split_conic_belly_graze` (off the seam) or `split_vertex_side` (at the
+seam). Both say the plane touches the wall within ε, and that sends the
+contact to rule (a), whose knife edge is the one honest refusal. Off the
+seam inside the hole, the root of that Zero arm was placed on one of the
+residue's two crossings, about 2e-5 m from the tangency. Rule (a) then
+read the wall as not tangent there, and the join refused a certification
+residual that names neither decision. The in-band poses at |δ| = 2e-9
+reach different decisions at different sites. Each escalates in its own
+words, and both recourses say to move the plane. They are not this
+row's subject (`## Built`).
 
 ## Where to look
 
@@ -72,25 +78,36 @@ extremum (`pc_parallel_gap` `Zero`), and the chord's start, 2.2e-5 m
 off it, fails `EndpointStart`. The crossing lane and the section lane
 placed one contact in two places.
 
-**What landed.** On the graze arm the root is the sinusoid's extremum
-nearest the plane, `cos(θ − φ) = −sign D`, on either side of
-tangency (`splitting/classify.rs`, `conic_plane_meet`). The Boolean's
+**What landed.** On the graze arm, the root is the sinusoid's extremum
+nearest the plane: `φ` or `φ + π`, on the side of the conic's centre that
+`split_conic_graze_side` decides. This holds on either side of tangency
+(`splitting/classify.rs`, `conic_plane_meet`). An undecided side
+escalates as the belly graze. It can only arise when the conic's reach
+is itself within the band. The Boolean's
 readers of the same lane (`boolean/reduce.rs`, `boolean/offer_rows.rs`)
 get the same root.
 
 **After**, pinned by
-`split_tangent_edge_curved::a_plane_within_the_band_of_a_hole_wall_tells_one_story`
+`split_tangent_edge_curved::a_plane_off_a_hole_wall_reads_each_decision_across_the_band`
 (every azimuth of `THETAS`, δ ∈ {0, ±ε/2, ±2ε, ±100ε}, both normals,
 read per ε row): |δ| ≤ ε refuses `Reduce(KnifeEdge)` at every azimuth,
 along the seam or through the rim vertex; ε < |δ| < Kε escalates; |δ| ≥
-Kε answers, the two pieces' volumes summing to the plate's. Red on main
+Kε answers, each piece at its closed-form volume. Red on main
 at all three rows, first at θ = π/2, δ = −ε/2, `Join(Euler(Certification
 { ResidualExceeded { EndpointStart } }))`. At 1e-6 the absolute-δ probe
 also gave that payload at δ ∈ {−5e-10, −2e-9, −1e-7} off the seam, and
 `Reduce(SliverSector)` on `split_conic_departure` at θ = 0.3,
 δ = −5e-10; all are the knife edge now. The lane's own row
 (`classify::tests::belly_graze_trio`) pins the root at the extremum
-for a plane ε/2 inside and outside.
+for a plane ε/2 inside and outside, above the centre and below it.
+`an_interval_graze_root_is_as_tight_as_its_phase` pins it under
+`Interval` to 1e-14. Taking acos of a ratio at ±1 left it about 4e-8 wide
+(review of PR 4179).
+
+The band's edges, δ = ±ε and ±Kε, are not sampled. There the margin
+differs from the threshold only by the rounding of the plane's offset
+and of `(centre − origin)·n` (about 1e-18 at 1e-9), so which arm a pose
+reaches is decided by that rounding and varies with azimuth.
 
 **The in-band payloads (|δ| = 2e-9 at 1e-9) are not this decision's.**
 At the seam the seam vertex's own side is in band
@@ -111,5 +128,14 @@ L-bracket cove (r = 0.5) refuses its knife edge across the cove
 refused `SliverSector`, 4.2 at margin 5.34e-9 as DR-4098 measured, and
 `Certification` at 1e-12). `a_near_graze_of_a_cylinder_never_answers_wrongly`
 at 1e-6, δ = 1e-7 inside: lands whole where main cut a 4.2e-11 m³
-segment 1e-7 deep, inside ε; the row now admits the whole where the
-segment's depth is within ε.
+segment 1e-7 deep, inside ε. The row now admits the whole where the
+segment's depth is within ε, and only on the material side.
+`split_through_a_seam_ruling::a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly`
+(from #4158), at 1e-9, a = 0.3, t = 1e-5: the sliver is 5e-11 deep and
+the cylinder lands whole on its material side. Every validity tier
+passes (1, 2, 3, 3′).
+
+**Sweep-crate Booleans that reach the graze arm** (review of PR 4179:
+join2, `pi_seam`, `m9_3` kissing rounds, `wall_face_tangent_reach`).
+Their exact tangencies had their root 1.5–2.6e-8 rad off the contact on
+main and on the contact here. No output moved.
