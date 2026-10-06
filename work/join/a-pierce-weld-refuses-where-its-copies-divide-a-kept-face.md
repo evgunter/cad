@@ -53,3 +53,34 @@ before them:
   lines, all block ∖ cube. One is pinned in
   `join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_crosses_and_builds`
   (`holed c00 side=4 g6.0`, whose cube ∖ block now builds).
+
+## Built (branch `join/pinch-one-vertex-per-cone-build`)
+
+Under Ev's ruling on PR 4057 (one vertex per cone), the post-zip
+pierce weld (`finish::weld_pierce_copies`) retires. A pierce's copies
+that a face meets stay apart, on one point key, and the face runs
+through both.
+
+Item 1 ("a pierce's copies divide a face the zips kept"), main
+`f9bf3bca` vs head, release:
+- r2 shapes battery: 214 → `SOUND`;
+- r2 cube: 48 → `SOUND`;
+- r1 cube: 92 → `SOUND`;
+- holed: 14 → `SOUND`;
+- r2 near-tangent: 66 → 59 `SOUND` and 7 `BAD` (tier-3′ `CensusEscalated`);
+- r2 cylinder: 40 → 38 `BAD` on the operand check only (the curved
+  legal-operand class) and 2 `ResultInvalid { VolumeUncomputable }`.
+
+Item 2 ("two fragments of a pierced face meet one pinch"): holed 22 →
+`SOUND`.
+
+PR 4051's island families add 162 item-1 lines and 156 item-2 lines,
+all → `SOUND`, and 4 item-1 lines on its cylinder walls → operand-only
+`BAD`. Every newly built planar body meshes.
+
+Pinned by `join_pierce_strut_facing`'s rows, each of which now
+tessellates its bodies:
+- `two_out_runs_at_the_corner_build_in_every_op`;
+- `a_wide_run_builds_in_every_op`;
+- `two_edge_runs_build_in_every_op`;
+- `a_pinch_keeps_one_vertex_per_cone`.

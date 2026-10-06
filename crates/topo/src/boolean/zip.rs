@@ -227,6 +227,9 @@ pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
 /// round it, where the split faces do not pair one to one, or where a
 /// cone still fuses a vertex to itself (the seams meet one cone twice at
 /// one vertex of each operand).
+/// Each vertex's section corners, as pair indices in orbit order.
+type RunsAt = BTreeMap<VertexKey, Vec<usize>>;
+
 pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     seams: &[(FaceKey, FaceKey)],
@@ -263,9 +266,9 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     // and each vertex's runs in orbit order.
     let sigma = |body: &Body<T>,
                  he_of: &dyn Fn(usize) -> HalfEdgeKey|
-     -> Result<(Vec<usize>, BTreeMap<VertexKey, Vec<usize>>), BooleanError> {
+     -> Result<(Vec<usize>, RunsAt), BooleanError> {
         let pair_of: BTreeMap<HalfEdgeKey, usize> = (0..n).map(|k| (he_of(k), k)).collect();
-        let mut runs: BTreeMap<VertexKey, Vec<usize>> = BTreeMap::new();
+        let mut runs = RunsAt::new();
         let mut step = vec![usize::MAX; n];
         for k in 0..n {
             let v = start_of(body, he_of(k))?;

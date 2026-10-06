@@ -246,6 +246,9 @@ fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
+/// One run of an op: its tag, its result and the oracle's volume.
+type Run = (String, Result<BooleanResult<f64>, BooleanError>, f64);
+
 type Op = fn(
     &AtRestBody<f64>,
     &AtRestBody<f64>,
@@ -269,10 +272,7 @@ fn direction(i: u32, j: u32) -> [f64; 3] {
 }
 
 /// Every op in both orders at one pose: `(tag, result, want)`.
-fn pose_runs(
-    (place, lo): (&str, [f64; 3]),
-    (i, j, psi): (u32, u32, f64),
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+fn pose_runs((place, lo): (&str, [f64; 3]), (i, j, psi): (u32, u32, f64)) -> Vec<Run> {
     let prism = finished(
         "the prism",
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
@@ -295,7 +295,7 @@ fn every_op(
     (x, vx): (&AtRestBody<f64>, f64),
     (y, vy): (&AtRestBody<f64>, f64),
     common: f64,
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+) -> Vec<Run> {
     let decls = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, p, q, vp) in [(orders[0], x, y, vx), (orders[1], y, x, vy)] {
@@ -663,17 +663,16 @@ fn two_pinches_in_one_op_are_each_split_per_cone() {
     }
 }
 
-/// **A pinch split on both operands' sides.** The L-prism's bottom
-/// reflex corner `(1, 1, 0)` at a corner of the cube, the cube along
-/// Fibonacci direction 19 of 120 and turned 1.9 about it (PR 4038's
-/// review r2, `Lbot fib19 corner psi=1.9`). Cube ∪ prism pinches at the
-/// corner, and the second operand's vertex is split per cone as the
-/// first's is, its new vertex taking correspondents from the edges the
-/// zips join. The union builds `SOUND`, its vertices at the corner on one
-/// point key, and meshes. Red if the new vertex gains no correspondents:
-/// the zip finds no ring half-edge for it.
+/// **A corner pinch on the second operand's side builds.** The
+/// L-prism's bottom reflex corner `(1, 1, 0)` at a corner of the cube,
+/// the cube along Fibonacci direction 19 of 120 and turned 1.9 about it
+/// (PR 4038's review r2, `Lbot fib19 corner psi=1.9`). Cube ∪ prism
+/// holds two vertices at the corner, one per cone, on one point key: the
+/// seams meet each cone once, so the zips leave them apart and no vertex
+/// is split. The union builds `SOUND` and meshes. Red if the vertices at
+/// the corner leave their point key, or the body does not mesh.
 #[test]
-fn a_pinch_split_on_both_operands_sides_builds() {
+fn a_corner_pinch_on_the_second_operands_side_builds() {
     let v = [1.0, 1.0, 0.0];
     let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
     let z: f64 = 1.0 - 2.0 * (19.0 + 0.5) / 120.0;
@@ -718,11 +717,7 @@ fn a_four_germ_pinch_the_pairing_start_avoids_builds_every_op() {
 
 /// Asserts that the `tag` run's body has a face through two vertices at
 /// `at`: one vertex per cone, the face passing both.
-fn assert_a_face_runs_through_two_vertices(
-    runs: &[(String, Result<BooleanResult<f64>, BooleanError>, f64)],
-    tag: &str,
-    at: [f64; 3],
-) {
+fn assert_a_face_runs_through_two_vertices(runs: &[Run], tag: &str, at: [f64; 3]) {
     let body = runs
         .iter()
         .find(|(t, ..)| t == tag)
@@ -762,9 +757,7 @@ fn faces_through_two_vertices_at(body: &Body<f64>, at: [f64; 3]) -> usize {
 
 /// Asserts that every run builds `SOUND`, and that each body tessellates
 /// and passes `check_mesh`.
-fn assert_every_run_builds_and_meshes(
-    runs: Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)>,
-) {
+fn assert_every_run_builds_and_meshes(runs: Vec<Run>) {
     for (tag, r, want) in runs {
         let meshed = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
             mesh::tessellate(&bb.body, 0.05, tol()).map(|m| mesh::validate::check_mesh(&m))
@@ -876,6 +869,37 @@ fn a_staircases_second_pinch_round_a_notch_is_one_vertex_per_cone() {
 fn an_island_face_pinched_to_its_holes_ring_stays_its_own_face() {
     let v = [0.5, 0.5, 2.0];
     let f = frame(direction(6, 0), 0.0);
+    let lo = [-2.0, -2.0, 0.0];
+    let mut block = fixtures::holed_block::<f64>(2.0, &[1.0], tol());
+    fixtures::describe_as_intersections(&mut block, tol());
+    let block = finished("the holed block", block);
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let planes = cube_planes_at(v, f, lo);
+    let common = boxes_within(&[([0.0; 3], [2.0; 3])], &planes)
+        - boxes_within(&[([0.5, 0.5, 0.0], [1.5, 1.5, 2.0])], &planes);
+    assert!(common > 1e-3, "the cube holds some of the block: {common}");
+    assert_every_run_builds_and_meshes(every_op(
+        ["xy", "yx"],
+        (&block, 6.0),
+        (&cube, SIDE.powi(3)),
+        common,
+    ));
+}
+
+/// **The holed block's intersection pinched at its hole corner builds.**
+/// The holed block of
+/// [`an_island_face_pinched_to_its_holes_ring_stays_its_own_face`], its
+/// hole corner `(0.5, 0.5, 2)` inside the cube's near face, the cube
+/// along the grid's direction `i = 0, j = 5` (PR 4026's review r2,
+/// `holed c00 side=4 g0.5`). Block ∩ cube pinches at the corner, where
+/// the cube's plane meets the hole's two walls; the result holds one
+/// vertex per cone there, on one point key. Every op in both orders
+/// builds `SOUND` at the clipped volume and meshes. Red if the zips fuse
+/// the pinch to itself.
+#[test]
+fn the_holed_blocks_intersection_pinched_at_its_hole_corner_builds() {
+    let v = [0.5, 0.5, 2.0];
+    let f = frame(direction(0, 5), 0.0);
     let lo = [-2.0, -2.0, 0.0];
     let mut block = fixtures::holed_block::<f64>(2.0, &[1.0], tol());
     fixtures::describe_as_intersections(&mut block, tol());
@@ -1214,11 +1238,7 @@ fn posed(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> (AtRestBody<f64>, Vec<Ve
 
 /// `a` at rest and `b` posed by `f` with its corner on `a`'s: every op
 /// in both orders, against the two corners' pieces clipped pairwise.
-fn corner_pair_runs(
-    a: &Corner,
-    b: &Corner,
-    f: [[f64; 3]; 3],
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
     let x = finished(
         "a corner",
         fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
@@ -1391,10 +1411,7 @@ fn pinch_runs_battery() {
 /// at that corner, in opposite octants of the frame, united undeclared.
 /// Every op in both orders, against the pinch's two cubes clipped by
 /// the notch's pieces.
-fn pinch_runs(
-    m: [f64; 3],
-    psi: f64,
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+fn pinch_runs(m: [f64; 3], psi: f64) -> Vec<Run> {
     let c = notch343();
     let a = finished(
         "the notch",
