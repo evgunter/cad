@@ -369,10 +369,10 @@ fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column
 /// are continuations, the loop opens one iso side, and the guard refuses
 /// it. The residue is the sphere's and the cone's.
 ///
-/// Both profiles are pinned. The assertions-off answer is the one that
-/// matters — `Ok` with two empty patches, and `check_mesh` naming it
-/// (`NoTriangles`, since TESS-4) while `tessellate` does not run
-/// `check_mesh` in any build.
+/// The two edges' chord points land on one point of the chart, two mesh
+/// ids on one CDT handle, and the curved lane refuses that typed
+/// ([`mesh::TessellateError::PinchWedge`]) in every profile, before the
+/// zero-width walk can mesh as a hole or panic at the census.
 #[test]
 fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
     let tol = Tol::witness();
@@ -408,20 +408,7 @@ fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
             mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
         ),
     };
-    // The cross-face census is a `debug_assert`, so which of the two the
-    // caller sees is a profile setting and both are the same defect. The
-    // second arm compiles only where debug assertions are OFF, which no
-    // profile this workspace builds produces (the root `Cargo.toml` sets
-    // `debug-assertions = true` on release), so CI never runs it: its
-    // expectation was measured under
-    // `CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false` by hand and is the half
-    // of this defect a shipping build would show — silently.
-    let want = if cfg!(debug_assertions) {
-        "panic: chord segment"
-    } else {
-        "Ok: patches [0, 0], check_mesh Err(\"NoTriangles\")"
-    };
-    assert_eq!(said, want);
+    assert!(said.starts_with("refused: PinchWedge"), "{said}");
 }
 
 /// **The member another door owns.** The sphere cut along a whole great
