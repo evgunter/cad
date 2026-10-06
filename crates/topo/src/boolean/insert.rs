@@ -1402,6 +1402,15 @@ fn mint_directed<T: Decide>(
                 strut_anchor(body, (operand, at), sectors, first, w.segment.0, hung, band)?,
             ))
         }
+        // Any other strut splices past its corner's bound half.
+        None if empty => Some((
+            vertex,
+            orbit_step_at(
+                body,
+                vertex,
+                corner_bound(body, vertex, sectors[gf.0].he, fan_half)?,
+            ),
+        )),
         None => None,
     };
     let at = site.map_or(vertex, |(v, _)| v);
@@ -1542,11 +1551,10 @@ fn corner_bound<T: geom_core::Real>(
 /// `vertex`, proven to land on one that starts there too: a strut site
 /// is one half, which no later read ties to `vertex`.
 ///
-/// The caller establishes that `he` starts at `vertex`: `mint_directed`
-/// refuses a strut whose corner half an earlier run of the same plan
-/// carried to its copy (`ClassificationInvariant`) before any caller
-/// reaches here, and the `keyed` sort mints shared struts before any fan,
-/// whose `mev_null` is the only mint that moves a sector's half.
+/// The caller establishes that `he` starts at `vertex`: every strut's
+/// corner half is [`corner_bound`]'s, which refuses one an earlier run
+/// carried to its copy (`ClassificationInvariant`), and [`strut_anchor`]
+/// steps on from an orbit step's result.
 #[track_caller]
 fn orbit_step_at<T: geom_core::Real>(
     body: &Body<T>,
@@ -2022,8 +2030,8 @@ fn run_fan<T: Decide>(
 ///
 /// An empty fan — `from == to`, or germs in two twins of one physical
 /// sector — is the dangling strut, spliced INSIDE that physical
-/// sector: at the orbit successor of the sector's own half
-/// (`next(mate(sectors[from].he))`), which is twin-stable (twins share
+/// sector before `anchor`, which [`mint_directed`] reads past the
+/// corner's bound half ([`corner_bound`]; twin-stable, twins sharing
 /// `he`).
 #[allow(clippy::too_many_arguments)]
 fn mint_run<T: Decide>(
@@ -2058,10 +2066,12 @@ fn mint_run<T: Decide>(
         },
         // The dangling strut, inside `from`'s physical sector.
         _ => {
-            let he = match anchor {
-                Some(he) => he,
-                None => orbit_step_at(body, vertex, sectors[from].he),
-            };
+            let he = anchor.unwrap_or_else(|| {
+                unreachable!(
+                    "the strut {from} -> {to} at {vertex:?} has no anchor: mint_directed anchors \
+                     every run whose fan `is_strut` reads empty, and this arm reads the same fan"
+                )
+            });
             (MevSite::Fan { he1: he, he2: he }, true)
         }
     };
