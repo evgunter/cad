@@ -1116,6 +1116,70 @@ mod decide10_review {
         );
     }
 
+    /// Claim 1/4: the read-free proof at the TOP rung. `Q = (s·P)·s − y·P`
+    /// with `s = sqrt(y)` and `P` past `EARLY_AB_TERMS` (512), so the early
+    /// walk's per-node rule A is skipped and only the top residual's
+    /// reduction proves `Q = 0`. `max(x, 3)·Q − 3·Q`: read on, the early
+    /// form is a GATED zero (3Q − 3Q); read shut, the early form is not
+    /// zero and the top rung proves it.
+    #[test]
+    fn review_a_top_rung_theorem_above_the_read() {
+        let shapes: [Shape; 3] = [
+            (
+                "max(x, 3)·Q - 3·Q, Q = (s·P)·s - y·P, |P| = 560",
+                || {
+                    let x = over("x", 1.0, 2.0);
+                    let y = over("y", 3.0, 4.0);
+                    let (u, v, ww) = (
+                        over("u", 0.1, 0.2),
+                        over("v", 0.1, 0.2),
+                        over("w", 0.1, 0.2),
+                    );
+                    let p = (lit(1.0) + u + v + ww).powi(13);
+                    let s = y.sqrt();
+                    let q = (s * p) * s - y * p;
+                    x.max(lit(3.0)) * q - lit(3.0) * q
+                },
+            ),
+            (
+                "[control] max(x, 3)·Q - 3·Q, |P| = 20 (inside EARLY_AB_TERMS)",
+                || {
+                    let x = over("x", 1.0, 2.0);
+                    let y = over("y", 3.0, 4.0);
+                    let (u, v, ww) = (
+                        over("u", 0.1, 0.2),
+                        over("v", 0.1, 0.2),
+                        over("w", 0.1, 0.2),
+                    );
+                    let p = (lit(1.0) + u + v + ww).powi(3);
+                    let s = y.sqrt();
+                    let q = (s * p) * s - y * p;
+                    x.max(lit(3.0)) * q - lit(3.0) * q
+                },
+            ),
+            ("(max(x, 3) - 3)·Q, |P| = 560", || {
+                let x = over("x", 1.0, 2.0);
+                let y = over("y", 3.0, 4.0);
+                let (u, v, ww) = (
+                    over("u", 0.1, 0.2),
+                    over("v", 0.1, 0.2),
+                    over("w", 0.1, 0.2),
+                );
+                let p = (lit(1.0) + u + v + ww).powi(13);
+                let s = y.sqrt();
+                let q = (s * p) * s - y * p;
+                (x.max(lit(3.0)) - lit(3.0)) * q
+            }),
+        ];
+        table(
+            &shapes,
+            &[
+                ("shipped", SymRules::shipped()),
+                ("read-shut", SymRules::without_the_reads()),
+            ],
+        );
+    }
+
     /// Claim 2 at the door: the read-on DOOR form is NON-zero (an atom over
     /// a gated argument), and the shut door walk settles it.
     #[test]
