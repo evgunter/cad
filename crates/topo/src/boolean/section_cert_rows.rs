@@ -789,8 +789,9 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
 
 /// **Only a decided `Zero` on a touching arm is a touch.** An undecided
 /// reach margin, a girdle pinch, an inner skew tangency (where the
-/// thinner wall leaves the fatter on both sides of the touch) and a
-/// coincident wall pair stay R-tan.
+/// thinner wall leaves the fatter on both sides of the touch), a
+/// coincident wall pair, a ball about a wall's axis and two nested
+/// spheres about one centre stay R-tan.
 #[test]
 fn pinches_and_undecided_tangencies_are_not_touches() {
     let ball = sphere(p(0.0, 0.0, 0.0), 1.0);
@@ -811,6 +812,19 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     assert_eq!(
         tangent(&classify(&fat, &same)),
         "section_cylinder_pair_coincident"
+    );
+    // A ball about a wall's axis touches it all round, and two spheres
+    // one inside the other about one centre stand within the band of
+    // each other everywhere: neither is the extreme of a level clear of
+    // the next.
+    let off = 0.3 * band().zero();
+    assert_eq!(
+        tangent(&classify(&sphere(p(off, 0.0, 0.0), 1.0), &fat)),
+        "section_sphere_cylinder_reach"
+    );
+    assert_eq!(
+        tangent(&classify(&ball, &sphere(p(off, 0.0, 0.0), 1.0 - off))),
+        "section_sphere_pair_nest"
     );
 }
 

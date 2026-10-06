@@ -84,10 +84,11 @@
 //!
 //! # A touch
 //!
-//! Sphere × plane, sphere × sphere (outside or inside one another),
-//! sphere × cylinder at its nearest ruling, and skew cylinders outside
-//! one another touch at one point `at` when their reach margin decides
-//! `Zero`. So does a torus whose plane, sphere or parallel-axis wall is
+//! Sphere × plane, sphere × sphere (outside one another, or inside with
+//! their centres decided apart), sphere × cylinder at its nearest ruling
+//! with the girdle decided (the ball clear of the axis), and skew
+//! cylinders outside one another touch at one point `at` when their
+//! reach margin decides `Zero`. So does a torus whose plane, sphere or parallel-axis wall is
 //! tangent to the tube at an elliptic point (the tube's outer half) that
 //! is the strict extreme, over the torus, of the partner's level
 //! function (the plane's height, the distance from the sphere's centre
@@ -1124,7 +1125,16 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
         }
         Ok(_) => none(),
         // Touching outside or inside, the circle's centre on the line of
-        // centres.
+        // centres. Inside, the touch is the extreme of the distance from
+        // one centre over the other sphere only while the centres stand
+        // apart: the next critical value is `2·dd` away.
+        Err(tan)
+            if tan.name == NEST
+                && sign("section_sphere_pair_apart", Margin::of(dd), band)
+                    != Some(Sign::Positive) =>
+        {
+            tan.into()
+        }
         Err(tan) => tan.touch(&[REACH, NEST], || {
             let k = (c2 - c1) / dd;
             c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
@@ -1157,9 +1167,21 @@ fn sphere_cylinder<T: Decide>(
         Ok(x) => x,
         // The touch is on the nearest ruling, at the foot's height: the
         // loop's centre, which the reflections through the plane of the
-        // axis and the centre and across the foot fix. A girdle pinch is
-        // not a touch.
+        // axis and the centre and across the foot fix. It is the extreme
+        // of the distance from the axis over the sphere only while the
+        // girdle margin, `2·min(e, ρc)` there, is decided: a ball about
+        // the axis touches the wall all round. A girdle pinch is not a
+        // touch.
         Err(tan) => {
+            if tan.name == REACH
+                && sign(
+                    "section_sphere_cylinder_girdle",
+                    Margin::of(e + rc - rho),
+                    band,
+                ) != Some(Sign::Positive)
+            {
+                return tan.into();
+            }
             return tan.touch(&[REACH], || foot + perp / e * rc);
         }
     };
