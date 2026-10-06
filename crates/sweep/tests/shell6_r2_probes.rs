@@ -24,6 +24,7 @@ use geom::Surface;
 use geom_brep::Nappe;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
@@ -269,7 +270,7 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
             "[r2p7] {what}: the operand itself"
         );
 
-        let hollow = match topo::shell(&body, T, tol) {
+        let hollow = match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: h, .. }) => h,
             Err(e) => panic!("[r2p7] {what}: `shell` REFUSED — a user gets nothing: {e}"),
         };

@@ -2,11 +2,14 @@
 id: shell-launders-a-stale-operand-row
 kind: issue
 title: shell's closing pcurve mint clears the map first, so a stale or missing row on the OPERAND is laundered into a valid result — the verb does not gate its operand's rows, and neither does any of the thirteen producers spelling the same mint
-status: open
+status: closed
 opened: 2026-09-08
 priority: P1
 cost: M
 rides_with: shell-answers-for-the-complement-of-an-inside-out-operand
+pr: 4112
+branch: shell/operand-at-rest
+closed: 2026-10-06
 ---
 
 Measured by the SHELL-9 R2 review lane, by execution
@@ -73,3 +76,10 @@ producers, the posture-table question) is WALKS'
 `producer-closing-mint-is-a-convention-with-thirteen-copies`.
 Re-banded P0 → P1: no UI route hands `shell` a stale-row operand,
 and a guard does not inherit the band of what it guards.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4112)
+
+Closed with its carrier: an operand with a stale or missing pcurve
+row fails `AtRestBody::validate`, which includes the pcurve pass, and
+so cannot reach shell's closing mint. The cross-producer class stays
+WALKS' `producer-closing-mint-is-a-convention-with-thirteen-copies`.
