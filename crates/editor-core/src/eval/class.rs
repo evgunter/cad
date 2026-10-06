@@ -1010,18 +1010,22 @@ mod tests {
                 })
             }
             C::PartRootFailed => part(crate::PartFault::PartRootFailed {
+                held: Default::default(),
                 node: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
             C::PartRootPoisoned => part(crate::PartFault::PartRootPoisoned {
+                held: Default::default(),
                 root: n(8),
                 through: n(7),
                 refusal: K::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             }),
-            C::PartRootFailureUnrecorded => {
-                part(crate::PartFault::RootFailureUnrecorded { node: n(7) })
-            }
+            C::PartRootFailureUnrecorded => part(crate::PartFault::RootFailureUnrecorded {
+                node: n(7),
+                held: Default::default(),
+            }),
             C::PartProduct => part(crate::PartFault::PartProduct {
+                held: Default::default(),
                 refusal: crate::ProductError::NoBodyRoots.into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {

@@ -2,10 +2,11 @@
 id: a-pierce-strut-after-half-may-be-moved-by-the-other-run
 kind: issue
 title: vtxfac's bisector-only pierce run reads its strut corner 'after' off the entry table after the other run's fan may have moved it
-status: open
+status: dispatched
 opened: 2026-10-05
 priority: P2
 cost: M
+branch: cleave/pierce-strut-after
 ---
 
 
