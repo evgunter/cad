@@ -202,18 +202,23 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
 }
 
 /// **A ruling in band of the wall but not on it is never taken as ON.**
-/// The `0.3` rad prism, both extents, moved off the wall three ways:
+/// The `0.3` rad prism, both extents, moved off the wall three ways, by
+/// multiples of the band's zero threshold `z` (the sliver band runs from
+/// `z` to `10·z`):
 ///
-/// - **shifted** `±3e-9` along the wall's normal: its ends sit in the
+/// - **shifted** `±3·z` along the wall's normal: its ends sit in the
 ///   sliver band of the wall, and the vertex placement escalates;
 /// - **leaned** about the wall's normal through its lower end, so the
-///   upper end slides `±3e-9` along the wall: both ends are on it, and
+///   upper end slides `±3·z` along the wall: both ends are on it, and
 ///   whether the edge runs along the axis escalates;
-/// - **leaned** `±2e-8`: the edge is decided off the axis, a chord whose
-///   two crossings the root door cannot separate, which keeps the door.
+/// - **leaned** `±40·z`: the edge is decided off the axis, over its
+///   whole span and over either half the rim splits it into: a chord
+///   whose two crossings the root door cannot separate, which keeps the
+///   door.
 #[test]
 fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
     let tol = Tol::witness();
+    let z = geom_core::Band::linear(tol).unwrap().zero();
     let t = rod_z(0.0, H);
     let turn: f64 = 0.3;
     let (s, c) = turn.sin_cos();
@@ -221,7 +226,7 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
     for (z0, h) in [(0.5, 1.0), (1.0, 2.0)] {
         let foot = Point3::new(c, s, z0);
         let lean = |slide: f64| Affine3::rotation_about_axis(foot, normal, slide / h);
-        for d in [3e-9, -3e-9] {
+        for d in [3.0 * z, -3.0 * z] {
             for (how, xf) in [
                 ("shifted", Affine3::translation(normal * d)),
                 ("leaned", lean(d)),
@@ -246,7 +251,7 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
                 }
             }
         }
-        for d in [2e-8, -2e-8] {
+        for d in [40.0 * z, -40.0 * z] {
             let b = finished(
                 "the leaned prism",
                 topo::transform_rigid(&square(turn, z0, h), &lean(d), tol).unwrap(),

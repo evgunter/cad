@@ -114,10 +114,10 @@ Rows (`crates/sweep/tests/a_ruling_lying_on_a_wall.rs`), all red on
   volume, tiers 3 and 3′. A ruling cannot cross a seam ruling: the two
   are parallel, so they share a stretch or nothing, and the seam rows
   are that shared stretch;
-- in band of the wall but not on it (a guard, green before too): ends
-  shifted `±3e-9` off the wall escalate at the vertex placement; a
-  `±3e-9` lean escalates on the axis-parallel rung; a `±2e-8` lean is a
-  chord and keeps the door;
+- in band of the wall but not on it (a guard, green before too), by
+  multiples of the band's zero threshold `z`: ends shifted `±3·z` off
+  the wall escalate at the vertex placement; a `±3·z` lean escalates on
+  the axis-parallel rung; a `±40·z` lean is a chord and keeps the door;
 - a ruling across an ellipse, and
   `pi_seam_and_kiss_through_the_boolean.rs`
   `a_turned_rim_on_a_wall_bounded_by_an_ellipse_passes_the_crossing_layer`
