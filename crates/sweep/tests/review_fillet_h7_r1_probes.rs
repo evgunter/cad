@@ -359,13 +359,8 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
 /// support gate (`if !fd.rings.is_empty()`) refuses it, typed, with the
 /// recourse that is true of it — a curved-support carve does not carry
 /// rings through. Before this row the gate was pinned by nothing
-/// (FILLET-SPLIT review: neutered, every H7 row stayed green). Measured
-/// at the fix pass: with the gate neutered THIS fixture is still
-/// refused, but later and for a different reason — the ring check's
-/// circle-only arm (`ring_circle`, "a ring edge's carrier is not a
-/// circle"), whose recourse talks about circle rings and blends on the
-/// face, not about the ruled carve — so what the row pins is that the
-/// support gate answers first, in its own words.
+/// (FILLET-SPLIT review: neutered, every H7 row stayed green). What the
+/// row pins is that the support gate answers, in its own words.
 #[test]
 fn a_support_carrying_a_ring_refuses_at_the_ruled_plan() {
     let rod = finished("the rod", rod_with_flat(tol()), tol());
