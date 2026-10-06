@@ -20,6 +20,7 @@ use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
     hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
 };
+use crate::common::stations::cut_stations;
 use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
@@ -2154,18 +2155,37 @@ fn the_simultaneous_door_names_its_scope() {
     );
 
     // **The third gate: a corner whose planes do not determine a
-    // point.** A footprint with a STRAIGHT vertex extrudes into two
-    // side faces that are COPLANAR and share an edge — and MEASURED
-    // here, `extrude` gives them one surface key, so the corner where
-    // that edge meets a cap has exactly TWO distinct planes. Two
-    // planes determine a line, not a point: solved on what it has, the
-    // door would place the corner anywhere along that line. Refused
-    // instead, naming the shape and the count.
+    // point.** A footprint with a STRAIGHT vertex extrudes into one
+    // wall over the run, with one rim edge on each cap; a station cut
+    // back into both rims (the shape a boolean's cut leaves) is a
+    // corner with exactly TWO distinct planes, the cap and the wall.
+    // Two planes determine a line, not a point: solved on what it has,
+    // the door would place the corner anywhere along that line.
+    // Refused instead, naming the shape and the count.
     let mut straight = prism(
         corners(&[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
         0.4,
         tol,
     );
+    for z in [0.0, 0.4] {
+        let rim = straight
+            .edges()
+            .find(|(_, e)| {
+                let p = |h| {
+                    let v = straight.get_half_edge(h).unwrap().start;
+                    *straight
+                        .get_point(straight.get_vertex(v).unwrap().point)
+                        .unwrap()
+                };
+                let (a, b) = (p(e.he_plus), p(e.he_minus));
+                [a, b]
+                    .iter()
+                    .all(|q| q.y.abs() < 1e-12 && (q.z - z).abs() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .expect("the run's rim on this cap");
+        straight = cut_stations(straight, rim, &[Point3::new(0.5, 0.0, z)], tol);
+    }
     let moves = moves_by(charts(&straight), -0.05);
     let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)
         .expect_err("a coplanar-adjacent corner determines no point");
@@ -2173,7 +2193,7 @@ fn the_simultaneous_door_names_its_scope() {
         panic!("the corner gate must name the shape, got {e}");
     };
     println!("[scope] coplanar-adjacent corner: {planes} planes — {what}");
-    assert_eq!(*planes, 2, "the two coplanar side faces share one key");
+    assert_eq!(*planes, 2, "the cap and the run's one wall");
     assert!(
         what.contains("fewer than three distinct planes"),
         "the refusal must say what is missing, got {what}"

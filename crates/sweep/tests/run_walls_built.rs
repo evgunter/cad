@@ -29,8 +29,11 @@ use sweep::test_support::{
 };
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
-    AtRestBody, Body, BooleanError, EdgeKey, subtract, union, validate_closed, validate_geometric,
+    AtRestBody, Body, BooleanError, EdgeKey, joinable_vertices, subtract, union, validate_closed,
+    validate_geometric,
 };
+
+use crate::common::stations::station_vertices;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -122,6 +125,10 @@ fn holds(
     if let Some(f) = faces {
         assert_eq!(b.faces().count(), f, "{label}: one wall per run");
     }
+    // One rim edge per run (maximal edges): a station inside a run has
+    // no entity on any cap, line run or arc run.
+    assert_eq!(joinable_vertices(b), vec![], "{label}: a joinable vertex");
+    assert_eq!(station_vertices(b), vec![], "{label}: a station vertex");
     validate_closed(b).unwrap_or_else(|e| panic!("{label}: tier 2: {e:?}"));
     validate_geometric(b, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
     assert_eq!(
@@ -638,9 +645,7 @@ fn fully_revolved_arc_runs_build_one_wall_each() {
 
 /// Where a sweep keeps cocircular arcs apart, their walls share one
 /// key: a circle cut into `k` arcs keeps its canonical cut (`k` walls,
-/// `k` same-key struts) under every verb, and a partial revolve builds
-/// a D's arc run one wall per arc (`k − 1` same-key latitudes between
-/// them; `work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
+/// `k` same-key struts) under every verb.
 #[test]
 fn arcs_kept_apart_share_one_key() {
     for k in 2..=4usize {
@@ -663,25 +668,40 @@ fn arcs_kept_apart_share_one_key() {
             holds(&label, &r.body, Some(faces), &[], &[]);
         }
     }
+}
+
+/// A partially revolved run of `k` cocircular arcs is ONE wall, and
+/// each wedge cap carries it as one meridian edge: a sphere wedge (the
+/// D on the axis) and a torus wedge (the D beside it), wherever the
+/// loop starts, either way round; volumes in closed form (the wedge's
+/// share of the full revolve's).
+#[test]
+fn partially_revolved_arc_runs_build_one_wall_each() {
+    use core::f64::consts::PI;
     for k in 1..=4usize {
         for start in starts(k) {
-            for (what, x0, quarter) in [("sphere", 0.0, k + 2), ("torus", 2.0, k + 3)] {
+            for (what, x0, faces, full) in [
+                ("sphere", 0.0, 3, 4.0 / 3.0 * PI),
+                (
+                    "torus",
+                    2.0,
+                    4,
+                    2.0 * PI * (2.0 + 4.0 / (3.0 * PI)) * (PI / 2.0),
+                ),
+            ] {
                 let v = prof(vec![d_of_arcs(x0, k, start)]);
-                for rev in [
-                    Revolution::Partial(core::f64::consts::FRAC_PI_2),
-                    Revolution::Partial(-2.0),
-                ] {
+                for theta in [core::f64::consts::FRAC_PI_2, -2.0] {
+                    let rev = Revolution::Partial(theta);
                     let label = format!("partial {what} D of {k} arcs start={start} {rev:?}");
                     let r = revolve(&v, y_axis(), rev, tol())
                         .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                    assert_eq!(r.body.faces().count(), quarter, "{label}: one wall per arc");
-                    validate_geometric(&r.body, tol())
-                        .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+                    holds(&label, &r.body, Some(faces), &[], &[]);
                     assert_eq!(
                         same_key_adjacency(&r.body, false),
-                        k - 1,
-                        "{label}: one latitude between each two arcs' walls"
+                        0,
+                        "{label}: a curved wall split"
                     );
+                    has_volume(&label, &r.body, full * theta.abs() / (2.0 * PI));
                 }
             }
         }

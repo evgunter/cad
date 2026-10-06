@@ -84,6 +84,9 @@
 //!   their one per-pose `outcome` line and the reflex-corner pose: a
 //!   truth derived without the kernel plus the check every battery
 //!   prints, so beside [`oracles`];
+//! - [`stations`] — a station cut back into a rim by hand, and the
+//!   reader that finds stations on a body: body authoring plus the one
+//!   reader its rows check with, as [`cone_nappe`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -254,6 +257,12 @@ pub mod differential;
 /// cross product of seam or `Tangent` declarations. What a suite drives
 /// a door WITH, so it routes here.
 pub mod seam_pairs;
+
+/// A station cut back into a rim by hand, and the reader that finds a
+/// body's stations, curved carriers included. Body authoring plus the
+/// one reader the run-wall and blend rows check with, so it routes
+/// here.
+pub mod stations;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
