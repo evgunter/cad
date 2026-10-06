@@ -391,6 +391,15 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Payload(
+            "the ring meter's least margin of a cycle carries the `bounded` flag of the \
+             margin it took: the margin itself is the lattice `min`, and the bracket read \
+             only chooses which flag rides into the `RingClearance` payload's prose",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
         subject: "old_misses",
         why: Payload(
             "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
