@@ -5,9 +5,7 @@
 //! (`weld_pinches`), `revert` the B side for ∖, and drive the
 //! combine door — everything keyed by the F9 records, never by index
 //! offsets into correlated arrays (the book's `sonfa[i+inda]`
-//! bookkeeping is replaced by side data). It also hosts one pass the
-//! op stage runs after the zips, `weld_pierce_copies`, which reads the
-//! pierce copies `setopfinish` collects (`FinishOut::pierce_copies`).
+//! bookkeeping is replaced by side data).
 //!
 //! # Promotion (lmfkrh both copies)
 //!
@@ -32,23 +30,28 @@
 //! witness ([`super::shell_witness`]) against the *pristine* other
 //! operand.
 
-use geom_core::{Band, Decide};
+use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::fragments::Lineage;
 use super::join::CompletedPolygonPair;
+use super::sectors;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
 use super::zip::{Fusions, Joint, SeamCorrespondence, fuse_by_joint};
-use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
+use super::{
+    BooleanError, BooleanOp, BooleanReduction, Coincide, DeclarationRead, Operand, SideCode,
+    one_vertex,
+};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::live::{BoundaryMember, proven};
 use crate::splitting::finish::{carve, single_solid};
+use crate::validate::decide;
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -78,9 +81,6 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     /// The B-side pinch welds' vertex fusions, B-clone keys: they ran
     /// before the graft, so a dead key has no result key.
     pub weld_merges_b: Fusions,
-    /// The kept copies of each pierce several runs cut, both operands',
-    /// in result keys ([`weld_pierce_copies`]).
-    pub pierce_copies: Vec<Vec<VertexKey>>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -428,36 +428,6 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         body.get_vertex(v).is_some().then_some(v)
     };
     let b_kept = |v: VertexKey| graft.vertices.get(b_welds.kept(v)).copied();
-    // The kept copies of each pierce several runs cut.
-    let mut pierces: Vec<(super::PairSite, usize, Vec<VertexKey>)> = Vec::new();
-    for pair in &red.null_pairs {
-        if !matches!(
-            pair.site,
-            super::PairSite::VertexAOnFaceB(_) | super::PairSite::VertexBOnFaceA(_)
-        ) {
-            continue;
-        }
-        let (aa, ba) = match (a_attr.get(pair.a_edge), b_attr.get(pair.b_edge)) {
-            (Some(&aa), Some(&ba)) => (aa, ba),
-            _ => return Err(desync("pair edge without attribute")),
-        };
-        let kept = [aa.below_end, aa.above_end]
-            .into_iter()
-            .filter_map(a_kept)
-            .chain([ba.below_end, ba.above_end].into_iter().filter_map(b_kept));
-        match pierces.iter_mut().find(|(site, ..)| *site == pair.site) {
-            Some((_, runs, copies)) => {
-                *runs += 1;
-                copies.extend(kept);
-            }
-            None => pierces.push((pair.site, 1, kept.collect())),
-        }
-    }
-    let pierce_copies = pierces
-        .into_iter()
-        .filter(|&(_, runs, _)| runs > 1)
-        .map(|(.., copies)| copies)
-        .collect();
     let mut discards = discarded(
         &red,
         a_solid,
@@ -485,75 +455,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         weld_fragments_b: b_welds.fragments,
         weld_merges_a: a_welds.merges,
         weld_merges_b: b_welds.merges,
-        pierce_copies,
     })
-}
-
-/// **A pierce's copies are one vertex where a face meets them.** A
-/// vertex several runs pierce mints a null edge per run on each side,
-/// and each run's zip fuses that run's two kept copies. Where both
-/// sides keep a copy per run, the runs' vertices stay apart on one
-/// point, and two of them are joined across a face whose boundary runs
-/// through both, by [`weld_pair`], the fusion [`weld_pinches`] makes.
-/// Copies no face meets stay apart, on their one point, as unwelded
-/// pierces do. Two things differ from [`weld_pinches`], which runs
-/// before the zips: it admits only the pierced face's fragments, where
-/// this pass, after them, admits any face (the section faces are gone,
-/// and both vertices are one pierce's copies); and a weld here that
-/// would divide a face is refused, as no fragment row can record it
-/// after the graft. Copies of one pierce not on one point refuse too.
-/// `fused` is the fusions `(dead, kept)` before this pass, in result
-/// keys; `groups` (from [`FinishOut::pierce_copies`]) is read through
-/// them, then through this pass's own. Returns this pass's fusions.
-/// It runs from the op stage after the zips
-/// (`ops::boolean_op_recut`), not from [`setopfinish`].
-pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
-    groups: &[Vec<VertexKey>],
-    fused: &Fusions,
-    tol: Tol,
-) -> Result<Fusions, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let band = Band::linear(tol)?;
-    let mut welds = Fusions::default();
-    for group in groups {
-        loop {
-            let mut live: Vec<VertexKey> = Vec::new();
-            for &v in group {
-                let k = welds.survivor(fused.survivor(v));
-                if body.get_vertex(k).is_some() && !live.contains(&k) {
-                    live.push(k);
-                }
-            }
-            let mut site = None;
-            'pairs: for (i, &u) in live.iter().enumerate() {
-                for &w in &live[i + 1..] {
-                    if let Some((_, joint)) = pinch_site(body, u, w, |_| true)? {
-                        site = Some((u, w, joint));
-                        break 'pairs;
-                    }
-                }
-            }
-            let Some((u, w, joint)) = site else {
-                break;
-            };
-            // Both live by the filter above, so only the point is a read.
-            let point = |v| body.resolve_vertex_point(v, crate::live::Proven);
-            let p = point(u);
-            if !one_vertex(p, point(w), band).map_err(|diag| BooleanError::Escalated {
-                decision: super::BooleanDecision::VertexOnVertex,
-                diag,
-            })? {
-                return Err(desync("a pierce's copies are not on one point"));
-            }
-            if let Joint::Chord { .. } = joint {
-                return Err(desync("a pierce's copies divide a face the zips kept"));
-            }
-            let (fusion, _) = weld_pair(body, (u, w), joint, p, tol)?;
-            welds.push(fusion)?;
-        }
-    }
-    Ok(welds)
 }
 
 /// Joins `u` and `w` at `joint` ([`fuse_by_joint`]) and checks that the
@@ -605,14 +507,17 @@ impl Welds {
 /// two holes meeting there; across two loops (holes touching at a
 /// corner) it joins them into one.
 ///
-/// After the zips, [`weld_pierce_copies`] joins one pierce's own copies
-/// by the same fusion ([`weld_pair`]).
+/// The weld repairs one operand's own fragment before the zips; the
+/// vertex it leaves is split per cone with the rest
+/// (`zip::split_cones`).
 ///
 /// The site is read from the pierced face's [`Lineage`] through the
 /// join's fragment `rows` and the welds' own, section faces
 /// (`sections`) aside. Pierces that survive on different fragments, or
 /// meet only on a section face, stay apart, as the contact's own
-/// vertices do.
+/// vertices do; so do two whose corners of the site do not nest
+/// ([`corners_nest`]), one of them a copy whose corner the other's
+/// edges do not run in.
 fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     (operand, rows, sections): (
@@ -673,6 +578,9 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 let Some((face, joint)) = pinch_site(body, u, w, in_lineage)? else {
                     continue;
                 };
+                if !corners_nest(body, operand, (u, w), face, band)? {
+                    continue;
+                }
                 let ((dead, kept), made) = weld_pair(body, (u, w), joint, pu, tol)?;
                 if let Some(made) = made {
                     welds.fragments.push((made, face));
@@ -682,6 +590,91 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(welds)
+}
+
+/// Whether `u`'s and `w`'s corners of `face` nest: every edge leaving
+/// either vertex runs inside the other's corner, a graze counting as
+/// inside.
+///
+/// Only then does a chord across `face` join the two on one fan in the
+/// order their edges leave the point. A pierce leaves a copy of its ring
+/// vertex per null edge, all on one point, each with a corner of the
+/// face; the other pierce's edges leave the point inside one of those
+/// corners. A chord to another copy splices the two fans out of order,
+/// and the vertex it leaves holds more cones than the point
+/// (`zip::split_cones`). Such a pair is left apart, and the copy whose
+/// corner holds the other pierce is welded to it instead.
+///
+/// # Errors
+///
+/// A corner read's refusal ([`sectors::orbit_corners`]), and the
+/// sectors' coincidence refusal where an edge runs along a bound within
+/// the band without lying on it, as [`sectors::within`] refuses.
+fn corners_nest<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+    (u, w): (VertexKey, VertexKey),
+    face: FaceKey,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let read = |v| sectors::orbit_corners(body, operand, v).collect::<Result<Vec<_>, _>>();
+    let (cu, cw) = (read(u)?, read(w)?);
+    for (into, from) in [(&cu, &cw), (&cw, &cu)] {
+        // Each orbit half-edge is one corner's own (`end`) bound.
+        for leaving in from {
+            let mut held = false;
+            for corner in into.iter().filter(|c| c.face == face) {
+                held |= corner_holds(corner, leaving.end, leaving.end_reach.length(), band)?;
+            }
+            if !held {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// Whether direction `dir` (its edge reaching `reach`) leaves the point
+/// inside `corner`, a graze on a bound counting as inside: CCW of
+/// `start` and CW of `end` about the outward normal. The two flanks
+/// settle it where they agree; where they part, the corner's own turn
+/// does (convex: outside; reflex: inside), and a straight corner parts
+/// them only at a graze.
+fn corner_holds<T: Decide>(
+    corner: &sectors::OrbitCorner<T>,
+    dir: geom_core::Vec3<T>,
+    reach: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let n = corner.normal.vec();
+    let (a, b, d) = (
+        corner.start.normalize(),
+        corner.end.normalize(),
+        dir.normalize(),
+    );
+    // Each sign is a unit cross product levered at the shortest reach
+    // among the edges it reads: the bound's sideways offset there.
+    let arm = corner
+        .start_reach
+        .length()
+        .min(corner.end_reach.length())
+        .min(reach);
+    let sign = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
+        let margin = Margin::levered(x.cross(y).dot(n), arm);
+        decide("pinch_corner_holds", margin, band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+        })
+    };
+    let (after_start, before_end) = (sign(a, d)?, sign(d, b)?);
+    let (s1, s2) = (after_start != Sign::Negative, before_end != Sign::Negative);
+    if s1 == s2 {
+        return Ok(s1);
+    }
+    Ok(match sign(a, b)? {
+        Sign::Positive => false,
+        Sign::Negative => true,
+        Sign::Zero => true,
+    })
 }
 
 /// The one face `allowed` admits whose boundary runs through both `u`
