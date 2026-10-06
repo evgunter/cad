@@ -250,7 +250,7 @@ fn sound(what: &str, b: &AtRestBody<f64>, volume: f64) {
     assert_eq!(corners_disjoint(b), Ok(()), "{what}: corners");
     let block = finished(
         "a block across the meeting point",
-        brick::<f64>((1.4, 1.6), (0.9, 1.1), (0.95, 1.3), t()),
+        brick::<f64>((1.21, 1.77), (0.68, 1.31), (0.86, 1.52), t()),
         t(),
     );
     body(&format!("{what}, then ∪ a block"), union(b, &block, t()));
@@ -261,11 +261,13 @@ fn sound(what: &str, b: &AtRestBody<f64>, volume: f64) {
 /// passes the meeting point once per hole:
 /// - U − P (the prisms above the top) and both intersections (inside
 ///   it) build sound;
-/// - P − U, in one boolean, would have its zips fuse the meeting point
-///   twice, and the only crossing on offer splits that ring into rings
-///   through one vertex, whose corners there overlap: it refuses
-///   `PinchCrossesRingCorners`
-///   (`work/join/a-pinch-crossed-before-the-zips-fuse-it-crosses-the-ring-at-a-twice-visited-vertex.md`);
+/// - P − U, in one boolean, has its zips fuse the meeting point twice,
+///   and the zip crosses two corners of that ring first. With two holes
+///   it builds as on main: two rings through one vertex, the zips'
+///   shape for holes meeting at a point. With three or more the ring
+///   passes the point three times or more, and it refuses
+///   `PinchOfManyHolesInOneRing`. Which shape holes meeting at a point
+///   take is open (`work/join/two-representations-of-holes-meeting-at-a-point.md`);
 /// - the plate less each prism in turn builds the same volume sound,
 ///   the meeting point a vertex per hole on one ring.
 #[test]
@@ -325,13 +327,35 @@ fn the_plate_against_the_holes_union_builds_sound_or_refuses_typed_in_every_op()
         ] {
             sound(&format!("{label}: {what}"), &body(label, r), inside);
         }
-        assert!(
-            matches!(
-                subtract(&p, &u, t()),
-                Err(topo::BooleanError::PinchCrossesRingCorners { .. })
+        match (holes.len(), subtract(&p, &u, t())) {
+            (2, r) => {
+                let b = body(&format!("{label}: P − U"), r);
+                let counts = [b.faces().count(), b.edges().count(), b.vertices().count()];
+                assert_eq!(
+                    counts,
+                    [18, 41, 25],
+                    "{label}: P − U, faces, edges, vertices"
+                );
+                assert_eq!(
+                    validate_geometric(&b, t()),
+                    Ok(()),
+                    "{label}: P − U, tier 3"
+                );
+                let v = topo::mass_properties(&b, t()).unwrap().volume;
+                assert!(
+                    (v - (6.0 - inside)).abs() < 1e-9,
+                    "{label}: P − U, volume {v}"
+                );
+            }
+            (k, r) => assert!(
+                matches!(
+                    r,
+                    Err(topo::BooleanError::PinchOfManyHolesInOneRing { holes, .. }) if holes == k
+                ),
+                "{label}: P − U refuses PinchOfManyHolesInOneRing with {k} holes, got {:?}",
+                r.map(|_| ())
             ),
-            "{label}: P − U refuses PinchCrossesRingCorners"
-        );
+        }
         let seq = prisms.iter().fold(p.clone(), |b, q| {
             body(&format!("{label}: P less each prism"), subtract(&b, q, t()))
         });

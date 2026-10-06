@@ -650,9 +650,10 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "PinchCrossesRingCorners",
-            BooleanError::PinchCrossesRingCorners {
+            "PinchOfManyHolesInOneRing",
+            BooleanError::PinchOfManyHolesInOneRing {
                 vertex: VertexKey::default(),
+                holes: 3,
             },
         ),
         (

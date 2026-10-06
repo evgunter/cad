@@ -85,6 +85,17 @@ vertex pierce the top with one Out run per prism. Two fixes:
   depends on the order, on main as well; that is filed as
   `work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`.
 
+- **Three or more holes on one ring refuse in a one-shot subtract.**
+  The plate less the wedges' union, in one boolean, has its zips fuse
+  the meeting point twice, and the zip crosses two corners of the top's
+  ring first. That is the zips' shape for two holes meeting at a point:
+  k rings through one vertex. With k ≥ 3, which this PR's pierces newly
+  reach, that crossing refuses typed (`PinchOfManyHolesInOneRing`), and
+  two holes build as on main. The union and the sequential subtract
+  build the other shape, one ring through the point k times. Which shape
+  is canonical is JOIN's design question,
+  `work/join/two-representations-of-holes-meeting-at-a-point.md`.
+
 Rows (`crates/topo/tests/holes_meeting_at_a_vertex.rs` and
 `crates/editor-core/tests/union_pinch_member_order.rs`):
 

@@ -31,13 +31,11 @@
 //! **Pinches are crossed before any zip** ([`cross_pinches`]). Where
 //! the zips' fusions would join a vertex to itself (a pinch both
 //! operands keep as one vertex), the op stage first splits that vertex
-//! across two corners of kept faces: `mev`, then `kef` (two faces'
-//! corners on one surface and sense, one face ringless). Two corners of
-//! one ring do not cross: that would leave the face crossing itself
-//! there, and refuses ([`BooleanError::PinchCrossesRingCorners`]). That
-//! rewrites kept faces' topology, not only the section faces', and the
-//! `kef` absorption is reported to the op stage for its `Descendants`
-//! and naming rows. The pre-pass and the zip read
+//! across two corners of kept faces: `mev`, then `kemr` (two corners of
+//! one ring) or `kef` (two faces' corners on one surface and sense, one
+//! face ringless). That rewrites kept faces' topology, not only the
+//! section faces', and a `kef` absorption is reported to the op stage
+//! for its `Descendants` and naming rows. The pre-pass and the zip read
 //! one alignment ([`align`]) and one fusion order ([`fusion_order`]).
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -109,8 +107,16 @@ pub(super) enum Joint {
         target: HalfEdgeKey,
         ring: HalfEdgeKey,
     },
-    /// Across the outer loop (`mef`, which divides the face).
+    /// Across one loop (`mef`, which divides the face).
     Chord { he1: HalfEdgeKey, he2: HalfEdgeKey },
+    /// Across one ring of `face`: the `mef` divides the hole, and the
+    /// face it divides off is a hole too, so `kfmrh` returns it to
+    /// `face` as a ring: two holes meeting at the vertex.
+    Hole {
+        face: FaceKey,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    },
 }
 
 /// **Fuses two coincident vertices**: a zero-length edge between them at
@@ -118,7 +124,8 @@ pub(super) enum Joint {
 /// the pair bitwise coincident), collapsed by a `kev` that keeps the
 /// merged fan's carriers, each re-certified at the kept vertex under the
 /// run's band. Returns the fusion `(dead, kept)` and, for a chord, the
-/// face it divided off; `desync` names a joint that no longer resolves.
+/// face it divided off (a hole's goes back to its face as a ring);
+/// `desync` names a joint that no longer resolves.
 pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     joint: Joint,
@@ -127,13 +134,17 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<((VertexKey, VertexKey), Option<FaceKey>), BooleanError> {
     let carrier = EdgeCurveSpec::self_loop_circle_at(p);
+    let hole_face = match joint {
+        Joint::Hole { face, .. } => Some(face),
+        _ => None,
+    };
     let (he, made) = match joint {
         Joint::Loops { target, ring } => (
             body.mekr(MekrSite::Cycles { target, ring }, carrier, tol)?
                 .he_plus,
             None,
         ),
-        Joint::Chord { he1, he2 } => {
+        Joint::Chord { he1, he2 } | Joint::Hole { he1, he2, .. } => {
             let made = body.mef(
                 MefSite::Chords { he1, he2 },
                 carrier,
@@ -143,6 +154,7 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
             (made.he_plus, Some(made.face))
         }
     };
+    let hole = hole_face.zip(made);
     let kept = body
         .get_half_edge(he)
         .ok_or_else(|| desync("a joint half-edge no longer resolves"))?
@@ -151,6 +163,10 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
         .half_edge_end(he)
         .ok_or_else(|| desync("a joint half-edge has no end"))?;
     body.kev_describing(he, &[], tol)?;
+    if let Some((face, divided)) = hole {
+        body.kfmrh_minting(face, divided, tol)?;
+        return Ok(((dead, kept), None));
+    }
     Ok(((dead, kept), made))
 }
 
@@ -253,7 +269,7 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
                 for (v, keep) in [(a, ob[j]), (b, rs[j])] {
                     let moving = fused.get(&v).unwrap_or(&empty);
                     if let Some(split) = split_across(body, v, keep, moving, &sections, tol)? {
-                        absorbed.push(split.absorbed);
+                        absorbed.extend(split.absorbed);
                         fresh = Some((v, split.vertex));
                         break;
                     }
@@ -288,8 +304,9 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
 /// Splits `v` so that the corners `moving` leave it and `keep` stays,
 /// across two corners of kept faces that part them in `v`'s orbit:
 /// `mev` between the two moves `moving`'s side to a new vertex, and
-/// killing the new edge crosses the two corners. Two faces' corners on
-/// one surface, with one sense, cross by `kef`
+/// killing the new edge crosses the two corners. Two corners of one
+/// ring cross by `kemr`, which leaves two holes meeting at the point.
+/// Two faces' corners on one surface, with one sense, cross by `kef`
 /// where one of the faces has no ring: it dies into the other, whose
 /// loop at its corner then meets itself there, the outer loop or a
 /// ring (a face standing in the other's hole). A section face cannot
@@ -297,14 +314,11 @@ pub(super) fn cross_pinches<T: Decide + crate::props::AtRestPolicy>(
 /// its halves would be a ring meeting the outer loop. `None` when no
 /// corners qualify.
 ///
-/// Two corners of one ring do not cross. A `kemr` there would split the
-/// ring into two through `v`, each with the other pairing of the ring's
-/// two corners, and since those corners are disjoint, each new one
-/// sweeps both: the face would cross itself at the point. Where only
-/// such a crossing is on offer, the split refuses
-/// [`BooleanError::PinchCrossesRingCorners`]. `finish::pinch_site`,
-/// which joins two vertices on one point across one face, refuses the
-/// same joint across one ring.
+/// This is the inverse direction of `finish::pinch_site`, which joins
+/// two vertices on one point across one face: across a ring (its
+/// `Joint::Hole`) both leave two holes meeting at the point, one shape
+/// at rest. Across an outer loop `pinch_site` divides the face, a step
+/// this split does not take, so the two agree wherever both act.
 ///
 /// `v` is a key the zip carries: its miss refuses
 /// [`BooleanError::ZipCorrespondence`].
@@ -358,9 +372,6 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
     let chart_of = |d: &Face| (d.surface, d.sense);
     let ringless = |d: &Face| d.rings.is_empty();
     let mut site = None;
-    // Whether a crossing was on offer that only one ring's two corners
-    // could take, which this split refuses rather than take.
-    let mut one_ring = false;
     'search: for i in 0..n {
         let (l, face, fd) = face_of(orbit[i]);
         if sections.contains(&face) {
@@ -371,11 +382,9 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
                 continue;
             }
             let (lj, fj, fjd) = face_of(orbit[j]);
-            if lj == l && fd.outer != l {
-                one_ring = true;
-                continue;
-            }
-            let crossing = if fj != face
+            let crossing = if lj == l && fd.outer != l {
+                Some(Crossing::OneLoop)
+            } else if fj != face
                 && !sections.contains(&fj)
                 && (ringless(fd) || ringless(fjd))
                 && chart_of(fjd) == chart_of(fd)
@@ -387,12 +396,12 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
                 // one to pass with the dying face holding a ring, `kef`
                 // would refuse typed (`FaceHasRings`).
                 Some(if ringless(fd) {
-                    Crossing {
+                    Crossing::TwoFaces {
                         dies: Half::Plus,
                         kept: fj,
                     }
                 } else {
-                    Crossing {
+                    Crossing::TwoFaces {
                         dies: Half::Minus,
                         kept: face,
                     }
@@ -407,12 +416,18 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     let Some((he1, he2, crossing)) = site else {
-        return if one_ring {
-            Err(BooleanError::PinchCrossesRingCorners { vertex: v })
-        } else {
-            Ok(None)
-        };
+        return Ok(None);
     };
+    // A ring through `v` three times or more is a pinch of three or
+    // more holes, which only a pierce of three or more Out runs hangs;
+    // its crossing is not one this split is measured to build.
+    if let Crossing::OneLoop = crossing {
+        let ring = face_of(he1).0;
+        let holes = orbit.iter().filter(|&&h| face_of(h).0 == ring).count();
+        if holes > 2 {
+            return Err(BooleanError::PinchOfManyHolesInOneRing { vertex: v, holes });
+        }
+    }
     let p = body.resolve_vertex_point(v, crate::live::Proven);
     let made = body.mev(
         MevSite::Fan { he1, he2 },
@@ -420,33 +435,43 @@ fn split_across<T: Decide + crate::props::AtRestPolicy>(
         EdgeCurveSpec::self_loop_circle_at(p),
         tol,
     )?;
-    // `he_plus` lies in `he1`'s loop and `he_minus` in `he2`'s, and
-    // `kef` kills the face of the half it is given.
-    let he = match crossing.dies {
-        Half::Plus => made.he_plus,
-        Half::Minus => made.he_minus,
+    let merged = match crossing {
+        Crossing::OneLoop => {
+            body.kemr(made.he_plus, made.he_minus)?;
+            None
+        }
+        Crossing::TwoFaces { dies, kept } => {
+            // `he_plus` lies in `he1`'s loop and `he_minus` in `he2`'s,
+            // and `kef` kills the face of the half it is given.
+            let he = match dies {
+                Half::Plus => made.he_plus,
+                Half::Minus => made.he_minus,
+            };
+            Some((body.kef_minting(he, tol)?.killed_face, kept))
+        }
     };
-    let killed = body.kef_minting(he, tol)?.killed_face;
     Ok(Some(Split {
         vertex: made.vertex,
-        absorbed: (killed, crossing.kept),
+        absorbed: merged,
     }))
 }
 
-/// A pinch split: the new vertex, and the face its `kef` crossing
+/// A pinch split: the new vertex, and the face a `kef` crossing
 /// absorbed with the one it kept.
 struct Split {
     vertex: VertexKey,
-    absorbed: (FaceKey, FaceKey),
+    absorbed: Option<(FaceKey, FaceKey)>,
 }
 
-/// How the edge a pinch split mints is killed, crossing two corners of
-/// two faces of one surface and sense: `kef` kills the ringless one,
-/// the face of the minted edge's half `dies`, into `kept`.
+/// How the edge a pinch split mints is killed, crossing two corners.
 #[derive(Clone, Copy)]
-struct Crossing {
-    dies: Half,
-    kept: FaceKey,
+enum Crossing {
+    /// Both corners are one loop's: `kemr` splits the loop in two.
+    OneLoop,
+    /// The corners are two faces' of one surface and sense: `kef` kills
+    /// the ringless one, the face of the minted edge's half `dies`, into
+    /// `kept`.
+    TwoFaces { dies: Half, kept: FaceKey },
 }
 
 /// A half of the edge a pinch split mints: `Plus` in the first
