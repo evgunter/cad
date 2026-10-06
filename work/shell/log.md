@@ -1172,3 +1172,7 @@ on the oblique-corner item that now gates it.
 - Unit 6 lane report landed on PR 4151 (head `70b1ef611`). Dual review (H, concurrent) dispatched on that frozen head: R1 `session_01WniRc3DStGGngmTdm1tfTz`, R2 `session_0154Q262rVu2oCh4QejUS4p5`, identical briefs and seven claims to falsify. Protocol `713b017b7`; blinding byte 236.
 - The demos job's four `eps_regression` reds on 4151 are a red main (klein findings pin 10 retired, certified-cells header moved), reproduced on clean main `364b8aefa`. Filed P0 for PATHS: `work/paths/demos-red-on-main-klein-pin-retired-and-certified-cells-moved.md` (suspect #3774; #4136 second).
 - Unit 5 (PR 4163): `test` red on `122ac63b`; the lane is asked to name its rows.
+
+## 2026-10-06 15:50 — incoming: BAND's unwitnessed-transport row goes to SHELF
+
+BAND filed `offset-door-declared-transport-has-no-built-witness` (P2, E) on this slate. It is a coverage row: the declared-description transport arm in `replace_face_offset` lost its only witness when the lamina full revolve stopped minting a meridian. It is not on the active cut, so it is moved to `work/shelf/` beside the other follow-on rows.
