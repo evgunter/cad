@@ -9,7 +9,7 @@ use crate::common::operands::{
 };
 use geom_core::{Point2, Tol};
 use std::collections::BTreeSet;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use topo::{Body, BooleanResult, SweepStrategy, SweepTrace, sweep_traces};
 
 /// The corpus cylinder at `(cx, 0)`, `z in [0, 1]`: this suite poses
@@ -170,6 +170,8 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
                 "{name}: an accepted pair was never examined"
             );
         }
+        let a = finished(&format!("{name}: A"), a, Tol::witness());
+        let b = finished(&format!("{name}: B"), b, Tol::witness());
         let _ = digest(&topo::boolean::subtract(&a, &b, Tol::witness()));
     }
     assert_eq!(total_prune_pairs, 154, "the corpus's candidate total moved");

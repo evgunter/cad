@@ -5,6 +5,8 @@
 
 use crate::corpus::{self, body_of, cup, eval, failures};
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     CancelToken, DocEdit, EntityKind, Entry, EvalOptions, LoopProgram, Node, NodeErrorKind,
@@ -129,7 +131,7 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     }
     // And the construction door, handed the same list, keeps the first
     // occurrence — the repair the refusal's text names.
-    let Node::Shell { open, .. }: Node<ProfileProgram> = Node::shell(
+    let Node::Shell { open, .. }: AuthoredNode = Node::shell(
         blank,
         fixture::len(cup::T),
         vec![cup::top(blank), cup::bottom(blank), cup::top(blank)],
@@ -236,7 +238,7 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
 #[test]
 fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
     use editor_core::analysis::{BoxAxis, ParamBox};
-    use editor_core::{Dimension, DocParam, Expr, ParamName, UnitSym};
+    use editor_core::{Dimension, Formula, FreeVar, UnitSym, VarName};
     use geom_core::Interval;
     use std::collections::BTreeMap;
     use std::sync::Arc;
@@ -247,14 +249,14 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
         let blank = blank_of(&d.doc);
         let doc = apply(
             &d.doc,
-            &DocEdit::SetDocParam {
-                name: ParamName::from_static("t"),
-                value: DocParam::Continuous {
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("t"),
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
                     display_unit: UnitSym::canonical_for(Dimension::Length),
                     distribution: None,
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -265,14 +267,14 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
             doc,
             Node::shell(
                 blank,
-                Expr::param(ParamName::from_static("t"), Dimension::Length),
+                Formula::named(VarName::from_static("t"), Dimension::Length),
                 vec![cup::top(blank)],
             ),
         )
     };
-    let widened = || EvalOptions {
+    let widened = |doc: &ProfileDoc| EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
-            ParamName::from_static("t"),
+            doc.var_named("t").expect("the parameter declares"),
             BoxAxis::Varying {
                 lo: -width,
                 hi: width,
@@ -281,8 +283,13 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
         ..EvalOptions::default()
     };
     let refused = |doc: &ProfileDoc, node: RecipeNodeId| -> ShellError<f64> {
-        let mut ev =
-            evaluate::<Interval>(doc, None, &CancelToken::new(), &widened(), Tol::witness());
+        let mut ev = evaluate::<Interval>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &widened(doc),
+            Tol::witness(),
+        );
         match ev.nodes.remove(&node) {
             Some(NodeResult::Failed(e)) => match e.kind {
                 NodeErrorKind::Shell(inner) => *inner,
@@ -387,6 +394,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     let blank = r.insert(Node::Extrude {
         profile,
         distance: fixture::len(1.0),
+        side: ExtrudeSide::Along,
     });
     let shell = r.insert(Node::shell(
         blank,

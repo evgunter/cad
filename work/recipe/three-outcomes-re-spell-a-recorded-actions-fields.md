@@ -14,7 +14,8 @@ Found by the fix pass of
 
 ## What
 
-`editor_core::Recording::finish` answers a `Recorded<P>` — `doc`,
+`editor_core::Recording::finish` answers a `Recorded<P>` (or the
+action's refusal) — `doc`,
 `edits`, netted `maintenance`, `minted` — and three public outcomes
 are each built by destructuring one and re-spelling its fields
 beside their own:

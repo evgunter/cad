@@ -1,7 +1,7 @@
 //! [`to_value`] — the serde-native producer boundary, serialize side
 //! (spec D7): any `T: Serialize` erases into the canonical
 //! [`MetaValue`] tree. Faithful mapping: integers stay exact `Int`
-//! (overflow refused), floats stay `Float` (non-finite refused at the
+//! (past `i64` and `u64` refused), floats stay `Float` (non-finite refused at the
 //! boundary — D2), `serialize_bytes` becomes `Bytes`, structs and maps
 //! become `Map` (string keys only), sequences become `List`.
 //! Enum representation mirrors serde's external tagging: unit variant
@@ -14,14 +14,14 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 use serde::ser::{self, Serializer};
 
-use super::{MAX_NESTING, MAX_PRODUCER_NESTING, MetaError, MetaValue};
+use super::{MAX_NESTING, MAX_PRODUCER_NESTING, MetaError, MetaInt, MetaValue};
 
 /// Erases a producer value into the canonical [`MetaValue`] tree
 /// (spec D7's `to_value` boundary).
 ///
 /// # Errors
 ///
-/// [`MetaError`] on out-of-`i64` integers, non-finite floats,
+/// [`MetaError`] on an integer outside `i64` and `u64` ([`MetaInt`]), non-finite floats,
 /// non-string map keys, a value that would nest past
 /// [`MAX_NESTING`](super::MAX_NESTING), a producer that nests past
 /// [`MAX_PRODUCER_NESTING`](super::MAX_PRODUCER_NESTING) however little
@@ -106,12 +106,10 @@ impl Serializer for ValueSer {
         Ok(MetaValue::Int(v.into()))
     }
     fn serialize_i64(self, v: i64) -> Result<MetaValue, MetaError> {
-        Ok(MetaValue::Int(v))
+        Ok(MetaValue::Int(v.into()))
     }
     fn serialize_i128(self, v: i128) -> Result<MetaValue, MetaError> {
-        i64::try_from(v)
-            .map(MetaValue::Int)
-            .map_err(|_| MetaError::IntOutOfRange)
+        MetaInt::try_from(v).map(MetaValue::Int)
     }
     fn serialize_u8(self, v: u8) -> Result<MetaValue, MetaError> {
         Ok(MetaValue::Int(v.into()))
@@ -123,14 +121,10 @@ impl Serializer for ValueSer {
         Ok(MetaValue::Int(v.into()))
     }
     fn serialize_u64(self, v: u64) -> Result<MetaValue, MetaError> {
-        i64::try_from(v)
-            .map(MetaValue::Int)
-            .map_err(|_| MetaError::IntOutOfRange)
+        Ok(MetaValue::Int(v.into()))
     }
     fn serialize_u128(self, v: u128) -> Result<MetaValue, MetaError> {
-        i64::try_from(v)
-            .map(MetaValue::Int)
-            .map_err(|_| MetaError::IntOutOfRange)
+        MetaInt::try_from(v).map(MetaValue::Int)
     }
     fn serialize_f32(self, v: f32) -> Result<MetaValue, MetaError> {
         float(v.into())

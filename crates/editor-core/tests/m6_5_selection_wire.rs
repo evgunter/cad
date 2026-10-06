@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::{PersistError, load};
@@ -39,6 +40,7 @@ fn the_selection_reaches_the_wire_canonical() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let steps: Vec<u64> = (0..4)

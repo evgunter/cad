@@ -1548,6 +1548,7 @@ mod tests {
     fn the_subject_door_carries_the_gather_refusal_it_saw() {
         let refusal = || crate::ProductError::PlacedUnderTwoRoots {
             placed: RecipeNodeId(2),
+            twice: crate::PlacedTwice::Body,
             select: None,
             first: RecipeNodeId(7),
             second: RecipeNodeId(8),

@@ -292,7 +292,7 @@ fn cut_wall(tol: Tol) {
         1,
         "the holes cut from the blank, the web read off the cut part's bore walls, \
          over 1e-9 of the study",
-        stackup(&doc, measure, &analyzed, &verdict, None, true, tol).map_err(|r| match r {
+        stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol).map_err(|r| match r {
             StackupRefusal::NothingCertified { receipt, .. } => Ok(receipt),
             other => Err(Box::new(other)),
         }),
@@ -350,12 +350,12 @@ fn real_study(tol: Tol) {
     );
 
     let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
     let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&doc, &analyzed)));
             // What the captions below claim, asserted here — the cell panics
@@ -416,7 +416,7 @@ fn real_study(tol: Tol) {
                 masses.unevaluated,
                 1.0 - masses.holds - masses.violated - masses.unevaluated
             );
-            let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
+            let slack = hull_slack(&doc, &verdict, (report.worst_case.lo, report.worst_case.hi));
             // The straddle beside its padding (R2's Q3): the hull
             // ENCLOSES the true range over the certified leaves and
             // exceeds it by a padding proportional to the leaf's width
@@ -512,7 +512,7 @@ fn real_study(tol: Tol) {
                 // it. `render_sensitivity` was made public for this.
                 println!(
                     "     ∂web/∂{}: {}",
-                    s.param.as_str(),
+                    doc.spoken_var(s.param),
                     render_sensitivity(s, &doc)
                 );
             }
@@ -520,7 +520,10 @@ fn real_study(tol: Tol) {
                 "     the drive: {} certified, {} refused",
                 receipt.certified, receipt.refused
             );
-            println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
+            println!(
+                "{}",
+                indent(&MassBudget::of(&coverage, &analyzed).render(&doc))
+            );
             println!(
                 "     This is NOT the expected answer any more: under M10-10's tier this \
                  study certifies (the module header carries the numbers). A refusal \
@@ -588,7 +591,7 @@ fn certified_study(tol: Tol) {
     } = plate(spacing_half_width, radius_sigma, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &parallel(), tol).expect("the nominal builds");
-    println!("{}", indent(&verdict.render(&analyzed)));
+    println!("{}", indent(&verdict.render(&doc, &analyzed)));
     // **The verdict the CI row gates on, read off the ASSERTION NODE**
     // — not off a comparison this cell makes for itself. That is the
     // whole correction R1 forced (see the module header's finding on
@@ -597,7 +600,7 @@ fn certified_study(tol: Tol) {
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
     let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
-    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    let report = match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(report) => report,
         Err(refusal) => panic!(
             "the certifiable box did not certify: {refusal}. That is a finding about the \
@@ -778,12 +781,12 @@ fn requirement_over_leaves(
 /// its varying axes.
 fn leaf_mass(analyzed: &AnalyzedBox, box_: &pncad::analysis::ParamBox) -> f64 {
     let mut m = 1.0;
-    for (name, axis) in box_.axes() {
-        let Some(dist) = analyzed.get(name).and_then(|p| p.distribution.as_ref()) else {
+    for (&var, axis) in box_.axes() {
+        let Some(dist) = analyzed.get(var).and_then(|p| p.distribution.as_ref()) else {
             continue;
         };
         if let BoxAxis::Varying { lo, hi } = axis {
-            m *= box_mass(name, dist, (*lo, *hi)).unwrap_or(f64::NAN);
+            m *= box_mass(&analyzed.spoken(var), dist, (*lo, *hi)).unwrap_or(f64::NAN);
         }
     }
     m
@@ -806,17 +809,14 @@ struct HullSlack {
     above: f64,
 }
 
-fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
+fn hull_slack(doc: &ProfileDoc, verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
     let (mut true_lo, mut true_hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for leaf in verdict.certified() {
-        let span = |n: &'static str| match leaf
-            .box_
-            .axes()
-            .get(&pncad::document::ParamName::from_static(n))
-        {
-            Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
-            _ => (0.0, 0.0),
-        };
+        let span =
+            |n: &'static str| match doc.var_named(n).and_then(|var| leaf.box_.axes().get(&var)) {
+                Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
+                _ => (0.0, 0.0),
+            };
         let (hs_lo, hs_hi) = span("half_spacing");
         let (a_lo, a_hi) = span("hole_a_r");
         let (b_lo, b_hi) = span("hole_b_r");

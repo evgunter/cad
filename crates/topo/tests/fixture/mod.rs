@@ -48,7 +48,7 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_brep::ssi::{self, SsiDomain, SsiError};
+use geom_brep::ssi::{self, SsiDomain};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
@@ -100,9 +100,7 @@ fn sphere<T: Real>() -> Surface<T> {
     }
 }
 
-/// One certified rung-3 branch of the planted fixture, or `None` when
-/// this ε's sample demand exceeds the SSI door's named fit budget — the
-/// typed stand-down, never an ε literal.
+/// One certified rung-3 branch of the planted fixture.
 ///
 /// **Memoized per process.** The trace is the expensive part of the
 /// fixture, and the module's own opening line already says the
@@ -123,14 +121,14 @@ fn sphere<T: Real>() -> Surface<T> {
 /// in one row, and the interval + f64 `build`s of the dominance half of
 /// the row above; the test-cost audit merged that row INTO the interval
 /// row precisely so the memo has something to share).
-fn branch_or_budget() -> Option<&'static ssi::SsiBranch> {
-    static BRANCH: std::sync::OnceLock<Option<ssi::SsiBranch>> = std::sync::OnceLock::new();
-    BRANCH.get_or_init(trace_branch).as_ref()
+fn branch() -> &'static ssi::SsiBranch {
+    static BRANCH: std::sync::OnceLock<ssi::SsiBranch> = std::sync::OnceLock::new();
+    BRANCH.get_or_init(trace_branch)
 }
 
 /// The trace itself — the full `cylinder_sphere_ssi` exhaustiveness run
 /// the memo above wraps.
-fn trace_branch() -> Option<ssi::SsiBranch> {
+fn trace_branch() -> ssi::SsiBranch {
     let slab = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,
@@ -143,8 +141,7 @@ fn trace_branch() -> Option<ssi::SsiBranch> {
         slab,
         Band::linear(Tol::witness()).unwrap(),
     ) {
-        Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
-        Err(SsiError::FitSampleBudget { .. }) => None,
+        Ok(out) => out.branches.into_iter().next().expect("two loops"),
         Err(e) => panic!("the planted fixture: {e}"),
     }
 }
@@ -172,19 +169,20 @@ struct Structure {
 /// and the planted-corruption row the third, which is a genuinely
 /// different arc of the same locus and therefore the sharpest thing to
 /// attach to the first one's edge.
-fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> Option<Structure> {
+fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> Structure {
     let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
         panic!("a rung-3 carrier is a NURBS curve")
     };
     // `fit_branch` interpolates on chord parameters, so the traced
     // carrier's domain is exactly [0, 1] — which is also what
     // `interpolate_with_params` requires of the image's parameters.
-    // Checked rather than assumed: a domain convention change should
-    // stand the fixture down, not silently skew the parameter identity.
+    // Checked rather than assumed: a domain convention change fails the
+    // fixture, not silently skews the parameter identity.
     let (d0, d1) = loop_carrier.domain();
-    if d0 != 0.0 || d1 != 1.0 {
-        return None;
-    }
+    assert!(
+        d0 == 0.0 && d1 == 1.0,
+        "a fitted carrier's domain is [0, 1]: [{d0}, {d1}]"
+    );
     // The image's interpolation nodes ARE carrier parameters, so
     // `P(tᵢ) = chart(C(tᵢ))` holds at every node by construction and
     // the shared-parameter contract survives the split below.
@@ -211,12 +209,13 @@ fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> Option<Structure> {
         }
         chart[i].x = u;
     }
-    let image = NurbsCurve2::<f64>::interpolate_with_params(&chart, DEGREE, &params).ok()?;
+    let image = NurbsCurve2::<f64>::interpolate_with_params(&chart, DEGREE, &params)
+        .expect("the chart image interpolates");
     // Knot insertion is exact in ℝ and preserves the parameter, so
     // both halves of the pair stay the same `t` after cutting.
-    let carrier = sub_arc3(loop_carrier, frac)?;
-    let image = sub_arc2(&image, frac)?;
-    Some(Structure { carrier, image })
+    let carrier = sub_arc3(loop_carrier, frac).expect("the carrier's sub-arc");
+    let image = sub_arc2(&image, frac).expect("the image's sub-arc");
+    Structure { carrier, image }
 }
 
 /// The `[a, b]` restriction of a 3-D curve, by two exact splits.
@@ -257,14 +256,12 @@ fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
-/// Build the fixture at `T`. `None` is the typed budget stand-down.
-pub fn build<T>() -> Option<Built<T>>
+/// Build the fixture at `T`.
+pub fn build<T>() -> Built<T>
 where
     T: topo::AtRestPolicy + geom_core::Bounds,
 {
-    let branch = branch_or_budget()?;
-    let s = restrict(branch, (0.0, 0.25))?;
-    Some(assemble(&s))
+    assemble(&restrict(branch(), (0.0, 0.25)))
 }
 
 /// The planted corruption for the at-rest row: a cache certified —
@@ -274,8 +271,7 @@ where
 /// stored certificate": every stored number in it is true, and true
 /// about the wrong carrier.
 pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
-    let branch = branch_or_budget().expect("the fixture already built once");
-    let s = restrict(branch, (0.5, 0.75)).expect("the third quarter restricts");
+    let s = restrict(branch(), (0.5, 0.75));
     let other = assemble::<f64>(&s);
     let _ = built;
     other
@@ -356,6 +352,9 @@ where
         )
         .expect("the fitted cache certifies through the M6-2 door");
         body.attach_pcurve(he, cache);
+        // The spur's two halves share the image, so each joint turns
+        // back on the point the other left: the identity.
+        body.attach_joint(he, topo::JointElement::IDENTITY);
     }
 
     Built {

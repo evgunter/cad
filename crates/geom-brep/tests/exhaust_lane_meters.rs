@@ -70,6 +70,7 @@ fn receipt(lane: ExhaustLane, floor: f64) -> Exhaustiveness {
         examined: 7,
         excluded: 3,
         accounted: 2,
+        contact: 0,
         refined: 2,
         max_depth: 4,
         floor,

@@ -68,3 +68,13 @@ tier 3 refuses, `RingMeetsOuter` on the bridge's bottom face (the rod's
 section circle there is a ring tangent to the outer loop at the
 contact's end point). The door ships it because it gates tiers 1–2
 only, which is what the finished-body item closes.
+
+## Step 1 refuses (2026-10-03)
+
+The declared rest now refuses `TangentSlitArmUnbuilt` (CLEAVE's
+interim, `work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`),
+so this chain no longer reaches the bridge. The reproducers in
+`wall_face_tangent_reach.rs` pin that refusal. The designer pair ruled
+that step 2 is ordinary topology once step 1 is right. One route is not
+measured: `CarriedVf { class: Tangent }` records on an operand the
+union door did not produce (a hand-built or `graft_disjoint` body).

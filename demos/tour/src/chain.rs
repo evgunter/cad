@@ -102,13 +102,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, DocumentId,
-    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
+use pncad::prelude::AuthoredNode;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
 use pncad::topo::{Body, SurfaceKey};
 
@@ -286,19 +288,19 @@ pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
 /// certified table alike.
-pub fn joint_name(k: usize) -> ParamName {
-    ParamName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
+pub fn joint_name(k: usize) -> VarName {
+    VarName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("finite length")
 }
 
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -312,18 +314,16 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(
-    doc: &mut ProfileDoc,
-    name: ParamName,
-    value: f64,
-    distribution: Distribution,
-    tol: Tol,
-) {
+fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distribution, tol: Tol) {
     let applied = apply(
         doc,
-        &DocEdit::SetDocParam {
+        &DocEdit::DeclareVar {
             name,
-            value: DocParam::continuous_with(Dimension::Angle, value, distribution),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous_with(
+                Dimension::Angle,
+                value,
+                distribution,
+            )),
         },
         tol,
         &RefusingReach,
@@ -418,6 +418,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         Node::Extrude {
             profile: bar_profile,
             distance: len(LINK_THICKNESS),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -439,6 +440,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             Node::Extrude {
                 profile,
                 distance: len(LINK_THICKNESS),
+                side: ExtrudeSide::Along,
             },
             tol,
         )
@@ -462,7 +464,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     pncad::document::Step::Rigid {
                         translation: [len(step), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: Expr::param(joint_name(j), Dimension::Angle),
+                        angle: Formula::named(joint_name(j), Dimension::Angle),
                     },
                 ),
                 tol,
@@ -501,7 +503,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
                 pncad::prelude::SurfaceKind::Cylinder,
             ))],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             tol,
         )
         .expect("the surface-kind atom is exact");

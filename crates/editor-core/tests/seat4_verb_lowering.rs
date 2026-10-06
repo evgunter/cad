@@ -45,6 +45,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
@@ -78,6 +79,7 @@ fn both_blends() -> BothBlends {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let edges: Vec<StableName> = prism_edges(&r.doc, cube, 4);
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
@@ -214,8 +216,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x6931_354f_2575_044b_u64),
-        ("die_chamfer", 0xbeda_92fb_362b_d26b),
+        ("die_fillet", 0xd3bc_cb75_265e_a675u64),
+        ("die_chamfer", 0xe497_df5e_3a54_45f1),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -316,13 +318,20 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
 /// and with the same pins holding.
+///
+/// RE-BLESSED, `heat_sink` only, when declaring a variable began
+/// minting its id on the document's chain: every node minted after a
+/// declare was renumbered, and this digest feeds ids. The id-free body
+/// rows (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`) held
+/// untouched, and every row of a document that declares nothing held
+/// its word.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x1f84_6f5b_60c4_9251_u64),
-        ("heat_sink", 0xac3a_d571_2bd4_dd22),
-        ("kiss_carry", 0xc0e6_350a_0b1f_20cf),
+        ("crossing_slots", 0x681d_d105_677a_1f01u64),
+        ("heat_sink", 0xf3d9_20e7_90d8_8c5f),
+        ("kiss_carry", 0x0bad_41ce_ff6a_c1e6),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -388,6 +397,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let a = r.insert(Node::Extrude {
         profile: pa,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
@@ -398,6 +408,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let b = r.insert(Node::Extrude {
         profile: pb,
         distance: len(L),
+        side: ExtrudeSide::Along,
     });
     let boolean = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Intersect,
@@ -418,7 +429,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x5e12_ea5b_fa85_c015,
+        got, 0xbfd9_320e_299c_1f44,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

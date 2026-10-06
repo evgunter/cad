@@ -1,5 +1,5 @@
 //! **The round-trip comparator** (A4: "inline-of-split returns the
-//! document split was given, up to node ids").
+//! document split was given, up to node ids and that one regrouping").
 //!
 //! Two documents are the same up to node ids under a node map and a
 //! step map when:
@@ -15,7 +15,12 @@
 //!   alignments and heads, and a profile's step ids are all fields;
 //! - **the root lists agree** through the map, in order — the order is
 //!   the product's solid order, semantic and in the content pin
-//!   (`roots.rs`) — and the parameters, labels and ε agree;
+//!   (`roots.rs`) — and the parameters, labels and ε agree. By A10's
+//!   replacement rule split's instance goes where the first cut root
+//!   was and inline splices the part's roots there, so a round trip
+//!   agrees in order exactly when the cut's roots are adjacent in the
+//!   list; a cut a kept root separates comes back regrouped, and this
+//!   check reports that regrouping as a `roots` line;
 //! - **each placement group keeps its document order.** Order is
 //!   semantic within a group (its root is its earliest member carrying
 //!   an offset), so the images of each group's members read in the
@@ -127,8 +132,8 @@ fn renamed(text: &str, ids: &BTreeMap<u64, u64>, steps: &BTreeMap<u64, u64>) -> 
 /// field (gauge references, offsets, placements, alignments, heads,
 /// a profile's step ids); the first disagreement is reported in context.
 fn same_payload(
-    a: &Node<editor_core::ProfileProgram>,
-    b: &Node<editor_core::ProfileProgram>,
+    a: &editor_core::Node<editor_core::ProfileProgram>,
+    b: &editor_core::Node<editor_core::ProfileProgram>,
     ids: &BTreeMap<u64, u64>,
     steps: &BTreeMap<u64, u64>,
     out: &mut Vec<String>,
@@ -240,13 +245,21 @@ pub fn same_up_to_ids(
             ));
         }
     }
-    let names = |d: &ProfileDoc| d.params().keys().cloned().collect::<Vec<_>>();
-    if names(a) != names(b)
-        || a.params()
+    // Variables are compared by name: the two documents mint their own
+    // ids, and a name is what a reader reads.
+    let vars = |d: &ProfileDoc| {
+        d.var_names()
             .iter()
-            .any(|(k, v)| !b.params().get(k).is_some_and(|w| v.bit_eq(w)))
+            .filter_map(|(id, name)| Some((name.clone(), d.var(*id)?.clone())))
+            .collect::<BTreeMap<_, _>>()
+    };
+    let (va, vb) = (vars(a), vars(b));
+    if va.keys().ne(vb.keys())
+        || va
+            .iter()
+            .any(|(k, v)| !vb.get(k).is_some_and(|w| v.bit_eq(w)))
     {
-        problems.push(format!("parameters: {:?} vs {:?}", a.params(), b.params()));
+        problems.push(format!("variables: {va:?} vs {vb:?}"));
     }
     if a.epsilon().to_bits() != b.epsilon().to_bits() {
         problems.push(format!("epsilon: {} vs {}", a.epsilon(), b.epsilon()));

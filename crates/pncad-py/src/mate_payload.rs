@@ -81,7 +81,7 @@ use crate::tags::{
 /// Every field is a plain kernel value: the Python wrappers are built
 /// at the accessor, so this record is what the no-interpreter build
 /// tests. Borrowed from the fault for the one field that is not
-/// `Copy` — the face a `FromFace` frame named.
+/// `Copy` — the face a face-based side read.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MateFaultPayload<'a> {
     /// The mate the fault is ABOUT.
@@ -103,8 +103,8 @@ pub struct MateFaultPayload<'a> {
     /// The root of a faulted checked offset's group: the member whose
     /// offset places the group the solve placed the instance in.
     pub root: Option<RecipeNodeId>,
-    /// **The face a `FromFace` frame named**, in the part's own
-    /// spelling, where the refusal is about one.
+    /// **The face a face-based side read**: its head's face in the part's own
+    /// spelling, or the head itself where it names no face of the part.
     pub face: Option<&'a StableName>,
     /// The instance an under-determined tree mate extended FROM.
     pub parent: Option<RecipeNodeId>,
@@ -442,7 +442,9 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                     },
                 ),
                 LeverRefusal::NotAnInstance { node } => (Some(*node), None),
-                LeverRefusal::OutOfRange { .. } => (None, None),
+                LeverRefusal::OutOfRange { .. } | LeverRefusal::BelowZeroBand { .. } => {
+                    (None, None)
+                }
             };
             MateFaultPayload {
                 mate: Some(*mate),
@@ -457,7 +459,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             what: Some(what),
             ..none
         },
-        // A `FromFace` frame's face answered no pose. The instance it
+        // A face base's face answered no pose. The instance it
         // is about rides beside the refusal's word, the face it named
         // where the refusal names one, and a wrong-kind row names what
         // it holds in `what` (`entity_kind_tag`'s word), as a lever's
@@ -479,11 +481,11 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                         FacePoseRefusal::PartUnresolved { .. }
                         | FacePoseRefusal::NoSuchName
                         | FacePoseRefusal::Ambiguous { .. }
-                        | FacePoseRefusal::Readback(_)
-                        | FacePoseRefusal::Unpinned => None,
+                        | FacePoseRefusal::Readback(_) => None,
                     },
                 ),
                 FaceRefusal::NotAnInstance { node } => (*node, None),
+                FaceRefusal::NoPartFace { instance, .. } => (*instance, None),
             };
             MateFaultPayload {
                 mate: Some(*mate),
@@ -501,6 +503,11 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         // set — a roll's tilt or a residual — and a length measured
         // outright, or the structural refusal, carries none of the
         // three.
+        MateFault::PoseOutOfRange { held, added } => MateFaultPayload {
+            held: Some(*held),
+            added: Some(*added),
+            ..none
+        },
         MateFault::Contradictory {
             held,
             added,
@@ -539,6 +546,18 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             mate: Some(*mate),
             side: Some(*side),
             head: Some(*head),
+            ..none
+        },
+        // The offset's own refusal crosses as its class's word, as a
+        // placer's does.
+        MateFault::FrameUnevaluated {
+            mate,
+            side,
+            refusal,
+        } => MateFaultPayload {
+            mate: Some(*mate),
+            side: Some(*side),
+            error: Some(node_error_tag(refusal.kind().class())),
             ..none
         },
         MateFault::PlacerRefused {
@@ -614,7 +633,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                     error: Some(node_error_tag(error.kind().class())),
                     ..base
                 },
-                OffsetCheck::Unleverable(_) => base,
+                OffsetCheck::Unleverable(_) | OffsetCheck::OutOfRange => base,
                 OffsetCheck::Indeterminate(diag) => with_escalation(base, diag),
                 // The refused mate that strands the member.
                 OffsetCheck::Unreached { mate } => MateFaultPayload {

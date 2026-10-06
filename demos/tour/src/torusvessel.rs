@@ -324,10 +324,7 @@ fn axial(p: Point3<f64>) -> (f64, f64) {
 /// `1e-13`, stated both ways. `torax_axial::has_corner`'s bound, on
 /// this scene's own bodies.
 fn assert_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
-    let all: Vec<(f64, f64)> = body
-        .vertices()
-        .map(|(_, v)| axial(*body.get_point(v.point).expect("a vertex carries a point")))
-        .collect();
+    let all: Vec<(f64, f64)> = body.vertex_points().map(|(_, p)| axial(p)).collect();
     assert!(
         all.iter()
             .any(|q| (q.0 - rho).abs() <= 1e-14 && (q.1 - h).abs() <= 1e-14),

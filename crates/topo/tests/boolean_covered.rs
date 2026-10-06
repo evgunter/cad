@@ -21,11 +21,12 @@ use std::collections::BTreeSet;
 
 use crate::common;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::flush::{declare_all, find_flush_candidates};
 use topo::{
-    Body, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, face_carrier, union_with,
+    AtRestBody, Body, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, face_carrier,
+    union_with,
 };
 
 /// A face's outward normal, rounded to a unit axis.
@@ -47,7 +48,7 @@ fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
 
 /// The union of `x` and `y` with every flush pair declared: its kind and
 /// the normals of each covered pair, operand A's then operand B's.
-fn covered(x: &Body<f64>, y: &Body<f64>) -> (BooleanResultKind, BTreeSet<AxisPair>) {
+fn covered(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> (BooleanResultKind, BTreeSet<AxisPair>) {
     let tol = Tol::witness();
     let decls = declare_all(&find_flush_candidates(x, y, tol).expect("the flush detector decides"));
     let BooleanResult::Body(out) = union_with(x, y, &decls, tol).expect("the union fuses") else {
@@ -76,9 +77,9 @@ fn flush_on(normals: &[Axis]) -> BTreeSet<AxisPair> {
 fn a_union_records_each_flush_pair_it_holds_through_one_face_in_either_operand_order() {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
-    let a = brick((0.0, 2.0), unit, unit, tol);
-    let inside = brick((0.5, 1.5), unit, unit, tol);
-    let poking = brick((0.5, 1.5), unit, (0.0, 2.0), tol);
+    let a = finished("a", brick((0.0, 2.0), unit, unit, tol), tol);
+    let inside = finished("inside", brick((0.5, 1.5), unit, unit, tol), tol);
+    let poking = finished("poking", brick((0.5, 1.5), unit, (0.0, 2.0), tol), tol);
     let walls_and_caps = flush_on(&[[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]]);
     let walls_and_bottom = flush_on(&[[0, -1, 0], [0, 1, 0], [0, 0, -1]]);
     for (label, x, y, kind, want) in [
@@ -127,9 +128,13 @@ fn a_union_records_each_flush_pair_it_holds_through_one_face_in_either_operand_o
 fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
-    let a: Body<f64> = brick((0.0, 1.0), unit, unit, tol);
-    let b: Body<f64> = brick((0.5, 1.5), unit, unit, tol);
-    let slab = brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol);
+    let a = finished("a", brick::<f64>((0.0, 1.0), unit, unit, tol), tol);
+    let b = finished("b", brick::<f64>((0.5, 1.5), unit, unit, tol), tol);
+    let slab = finished(
+        "slab",
+        brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol),
+        tol,
+    );
     let BooleanResult::Body(cut) =
         union_with(&b, &slab, &topo::BooleanDeclarations::default(), tol).expect("b ∪ slab")
     else {
@@ -221,13 +226,25 @@ fn a_face(out: &topo::BooleanBody<f64>, f: FaceKey) -> FaceKey {
 fn a_held_edge_goes_only_to_the_fragment_it_enters() {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
-    let a: Body<f64> = brick((0.0, 1.0), unit, unit, tol);
-    let b: Body<f64> = brick((0.5, 1.5), unit, unit, tol);
-    let slab = brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol);
-    let pillar = brick((0.1, 0.2), (0.4, 0.6), (0.5, 2.0), tol);
-    let bridge = brick((0.15, 0.55), (0.45, 0.55), (1.5, 1.8), tol);
+    let a = finished("a", brick::<f64>((0.0, 1.0), unit, unit, tol), tol);
+    let b = finished("b", brick::<f64>((0.5, 1.5), unit, unit, tol), tol);
+    let slab = finished(
+        "slab",
+        brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol),
+        tol,
+    );
+    let pillar = finished(
+        "pillar",
+        brick((0.1, 0.2), (0.4, 0.6), (0.5, 2.0), tol),
+        tol,
+    );
+    let bridge = finished(
+        "bridge",
+        brick((0.15, 0.55), (0.45, 0.55), (1.5, 1.8), tol),
+        tol,
+    );
     let none = topo::BooleanDeclarations::default();
-    let union = |x: &Body<f64>, y: &Body<f64>| -> Body<f64> {
+    let union = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| -> AtRestBody<f64> {
         let BooleanResult::Body(o) =
             union_with(x, y, &none, tol).expect("an undeclared union fuses")
         else {
@@ -268,11 +285,12 @@ fn a_held_edge_goes_only_to_the_fragment_it_enters() {
 fn coplanar_faces_that_share_no_region_are_not_covered() {
     let tol = Tol::witness();
     let unit = (0.0, 1.0);
-    let a: Body<f64> = brick(unit, unit, unit, tol);
+    let a = finished("a", brick::<f64>(unit, unit, unit, tol), tol);
     for (label, other) in [
         ("edge", brick((1.0, 2.0), (1.0, 2.0), unit, tol)),
         ("apart", brick((2.0, 3.0), unit, unit, tol)),
     ] {
+        let other = finished(label, other, tol);
         let decls = declare_all(
             &find_flush_candidates(&a, &other, tol).expect("the flush detector decides"),
         );

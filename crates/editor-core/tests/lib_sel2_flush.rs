@@ -24,6 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanCoincidence, BooleanOp, BooleanValue, CancelToken, DeclareError, EditError, EvalOptions,
@@ -65,6 +66,7 @@ fn box_at(
         Node::Extrude {
             profile: p,
             distance: len(height),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -202,9 +204,9 @@ fn detect_declare_boolean_round_trip() {
             // built from what the raise site held (no re-detection on
             // the error path).
             NodeErrorKind::UndeclaredCoincidence { finding, diag, .. } => {
-                // Exactly-on contact: the verifier's decided-zero
-                // encoding, on the verify door's own site.
-                assert!(diag.margin.is_invalid(), "{diag:?}");
+                // Exactly-on contact: the verifier's decided zero, its
+                // decided margin riding, on the verify door's own site.
+                assert_eq!(diag.margin.kind(), geom_core::MarginKind::Value, "{diag:?}");
                 assert_eq!(diag.predicate, Some("bool_plane_offset"));
                 (**finding).clone()
             }
@@ -381,6 +383,7 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
             Node::Extrude {
                 profile: p,
                 distance: len(0.5),
+                side: ExtrudeSide::Along,
             },
         );
         let ev = eval(&doc);

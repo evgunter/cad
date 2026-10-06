@@ -44,7 +44,7 @@ import unittest
 from pncad import (
     Doc,
     EntityKind,
-    Expr,
+    Formula,
     GeomPred,
     MeridianEnd,
     NamePat,
@@ -82,11 +82,11 @@ T, ROLL = 0.125, 0.125
 def axis_of(doc, frame):
     """The sketch frame's own +y through its origin."""
     return doc.insert(Node.datum_axis_in_plane(frame, (
-        Expr.length_in(0, m),
-        Expr.length_in(0, m),
+        Formula.length_in(0, m),
+        Formula.length_in(0, m),
     ), (
-        Expr.literal(0.0),
-        Expr.literal(1.0),
+        Formula.literal(0.0),
+        Formula.literal(1.0),
     )))
 
 
@@ -97,7 +97,7 @@ def ring(doc):
     chain, legs = polygon([(RI, 0), (RO, 0), (RO, H), (RI, H)])
     profile = doc.insert(Node.profile(chain, plane=frame))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -109,7 +109,7 @@ def frustum(doc):
     chain, legs = polygon([(0, 0), (R_BASE, 0), (R_TOP, H_F), (0, H_F)])
     profile = doc.insert(Node.profile(chain, plane=frame))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, axis_of(doc, frame), Expr.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -125,7 +125,7 @@ def holed_ring(doc):
         Node.revolve(
             profile,
             axis_of(doc, frame),
-            Expr.angle_in(2 * math.pi, rad),
+            Formula.angle_in(2 * math.pi, rad),
         )
     )
 
@@ -281,7 +281,7 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         scene, node = ring(doc)
         # The top annulus opened: the other three bands survive the
         # hollowing, and each wears its own name under the shell.
-        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, scene.piece(0, 2))]))
+        hollow = doc.insert(Node.shell(node, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         survivors = ev.select(
             hollow,
@@ -315,7 +315,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         scene, node = ring(doc)
         # Authored against the recipe alone — nothing is evaluated
         # until the assertion below.
-        hollow = doc.insert(Node.shell(node, Expr.length_in(T, m), [band(node, scene.piece(0, 2))]))
+        hollow = doc.insert(Node.shell(node, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         body = ev.value(hollow).body()
         body.validate()
@@ -344,7 +344,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         rolled = doc.insert(
             Node.fillet(
                 node,
-                Expr.length_in(ROLL, m),
+                Formula.length_in(ROLL, m),
                 [band_rim(node, scene.piece(0, 2)), band_rim(node, scene.piece(0, 3))],
             )
         )

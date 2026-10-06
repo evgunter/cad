@@ -12,6 +12,7 @@
 //! `review_m5_pr9_doc_probe.rs`, and validity + the seam-arc counts
 //! are pinned by the boolean's own acceptance suites.
 
+use editor_core::ExtrudeSide;
 use editor_core::{BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{frame, len, xy_frame};
@@ -35,6 +36,7 @@ pub fn document() -> CorpusDoc {
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(0.8),
+        side: ExtrudeSide::Along,
     });
 
     // v4 (LIB-SWITCH corpus ruling (a)): the three-arc boss authors as
@@ -54,6 +56,7 @@ pub fn document() -> CorpusDoc {
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
 
     let union = r.insert(Node::Boolean {

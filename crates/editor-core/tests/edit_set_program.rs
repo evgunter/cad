@@ -42,13 +42,14 @@ test_utils::gated_to![
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, CapEnd, Datum, Dimension, DocEdit, DocParam, EditError, EntityKind, EvalOptions, Expr,
-    LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, ParamName, PersistError,
-    PieceRole, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId, StepIdFault,
-    apply, load, save,
+    Attr, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKind, EvalOptions, Formula, FreeVar,
+    LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, PersistError, PieceRole,
+    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
+    ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId, StepIdFault, VarName, apply,
+    load, save,
 };
 use fixture::{ang, edge_of, ends, fname, insert, len, len2, minted, point, scl, table, tol};
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
@@ -94,6 +95,7 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
         Node::Extrude {
             profile,
             distance: len(ROD_L),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, fillet) = if creases.is_empty() {
@@ -147,7 +149,7 @@ fn keep_all(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<Opt
 fn set_program(
     doc: &ProfileDoc,
     node: RecipeNodeId,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: Vec<Vec<Option<StepId>>>,
 ) -> Result<editor_core::Applied<ProfileProgram>, EditError> {
     apply(
@@ -161,7 +163,7 @@ fn set_program(
 fn accepted(
     doc: &ProfileDoc,
     node: RecipeNodeId,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
     ids: Vec<Vec<Option<StepId>>>,
 ) -> editor_core::Applied<ProfileProgram> {
     set_program(doc, node, loops, ids).expect("the reshaping is accepted")
@@ -503,7 +505,7 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
 /// a corner fillet whose arrival `at` ends exactly at its tangent point
 /// `(2,1)`, so whatever the tail draws first is the first segment after
 /// the arc.
-fn fillet_then(tail: Vec<ProgramStep>) -> LoopProgram {
+fn fillet_then(tail: Vec<ProgramStep<Formula>>) -> LoopProgram<Formula> {
     let head = vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Toward {
@@ -822,7 +824,7 @@ fn a_node_that_holds_no_program_refuses() {
 }
 
 /// **A new program naming an undeclared parameter refuses the slot
-/// door's own arm** — the same `SlotUnknownDocParam`, at the same
+/// door's own arm** — the same `SlotUnknownVarName`, at the same
 /// address, that `SetParam` refuses for the same expression written
 /// into the same slot. One function, not a mirror.
 #[test]
@@ -831,7 +833,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::param(ParamName::from_static("nope"), Dimension::Length);
+    let nope = Formula::named(VarName::from_static("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -854,14 +856,14 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
     let through_the_program = set_program(&doc, profile, vec![LoopProgram::Chain(steps)], ids)
         .expect_err("an undeclared parameter refuses at the program door");
     assert!(
-        matches!(&through_the_slot, EditError::SlotUnknownDocParam { .. }),
+        matches!(&through_the_slot, EditError::SlotUnknownVarName { .. }),
         "{through_the_slot:?}"
     );
     assert_eq!(through_the_program, through_the_slot);
 }
 
 /// A unit square, as a chain the rows below reshape.
-fn square_steps() -> Vec<ProgramStep> {
+fn square_steps() -> Vec<ProgramStep<Formula>> {
     vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
@@ -872,7 +874,10 @@ fn square_steps() -> Vec<ProgramStep> {
 }
 
 /// A document holding `loops` extruded; `(doc, profile, extrude)`.
-fn extruded(label: &str, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn extruded(
+    label: &str,
+    loops: Vec<LoopProgram<Formula>>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(label, tol());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
@@ -888,6 +893,7 @@ fn extruded(label: &str, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId, 
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -919,6 +925,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Extrude {
                 profile: profile_node,
                 distance: len(ROD_L),
+                side: ExtrudeSide::Along,
             }),
         },
         DocEdit::InsertNode {
@@ -1240,7 +1247,7 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
 /// function of its RADIUS. Measured: at `r = 2` both runs of the
 /// fillet have a `Zero` fit and emit nothing, so the loop draws THREE
 /// segments; at `r = 0.3` they emit and it draws FIVE.
-fn filleted_square(r: f64) -> LoopProgram {
+fn filleted_square(r: f64) -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Toward {
@@ -1340,9 +1347,9 @@ fn set_value(
 ) -> editor_core::Applied<ProfileProgram> {
     apply(
         doc,
-        &DocEdit::SetDocParamValue {
-            name: ParamName::from_static(name),
-            value: editor_core::DocParamValue::Continuous(v),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static(name).into(),
+            value: editor_core::FreeValue::Continuous(v),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -1353,22 +1360,22 @@ fn set_value(
 fn declared(label: &str, name: &'static str, v: f64) -> ProfileDoc {
     let (doc, _) = fixture::step(
         ProfileDoc::empty_derived(label, tol()),
-        DocEdit::SetDocParam {
-            name: ParamName::from_static(name),
-            value: DocParam::continuous(Dimension::Length, v),
+        DocEdit::DeclareVar {
+            name: VarName::from_static(name),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, v)),
         },
     );
     doc
 }
 
-fn param_len(name: &'static str) -> Expr {
-    Expr::param(ParamName::from_static(name), Dimension::Length)
+fn param_len(name: &'static str) -> Formula {
+    Formula::named(VarName::from_static(name), Dimension::Length)
 }
 
 /// A profile of `loops` extruded, in `doc`; `(doc, profile, extrude)`.
 fn extrude_of(
     doc: ProfileDoc,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
@@ -1384,6 +1391,7 @@ fn extrude_of(
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -1604,13 +1612,13 @@ fn two_pieces_drawn_as_one_segment_answer_to_the_earlier() {
 /// sharp square authors has a step of the same verb in the filleted
 /// one, so a reshaping between them keeps all of them
 /// ([`sharp_to_filleted`]).
-fn corner(filleted: bool) -> LoopProgram {
+fn corner(filleted: bool) -> LoopProgram<Formula> {
     corner_at(filleted, (0.0, 0.0), 1.0, 0.5)
 }
 
 /// [`corner`] scaled by `s` about the origin, then moved to `o`, with
 /// the fillet at radius `s * r`.
-fn corner_at(filleted: bool, o: (f64, f64), s: f64, r: f64) -> LoopProgram {
+fn corner_at(filleted: bool, o: (f64, f64), s: f64, r: f64) -> LoopProgram<Formula> {
     let p = |x: f64, y: f64| len2([o.0 + s * x, o.1 + s * y]);
     let toward = |dx: f64, dy: f64| ProgramStep::Toward {
         dx: scl(dx),
@@ -1843,7 +1851,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
             &DocEdit::SetStructuralParam {
                 node: profile,
                 slot: SlotId::Count,
-                expr: Expr::count(3),
+                expr: Formula::count(3),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -1856,7 +1864,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
 /// The roles each authored step of `lp` can draw (`profile::RoleList`),
 /// a split's pieces up to its count: the only roles a name on that
 /// step can denote, so the only ones the sweep below hangs.
-fn drawable_roles(lp: &LoopProgram) -> Vec<Vec<PieceRole>> {
+fn drawable_roles<S: std::fmt::Debug>(lp: &LoopProgram<S>) -> Vec<Vec<PieceRole>> {
     match lp {
         LoopProgram::Chain(steps) => steps
             .iter()
@@ -1938,8 +1946,8 @@ type KeepMap = dyn Fn(&ProfileDoc, RecipeNodeId) -> Vec<Vec<Option<StepId>>>;
 /// that did not resolve before. Answers how many names it reported.
 fn report_matches_resolution(
     label: &str,
-    old: Vec<LoopProgram>,
-    new: Vec<LoopProgram>,
+    old: Vec<LoopProgram<Formula>>,
+    new: Vec<LoopProgram<Formula>>,
     keep: &KeepMap,
 ) -> usize {
     let (doc, profile, ext) = extruded(label, old);
@@ -2017,7 +2025,10 @@ fn report_matches_resolution(
 #[test]
 fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
     let mut counts = Vec::new();
-    let mut row = |label: &str, old: Vec<LoopProgram>, new: Vec<LoopProgram>, keep: &KeepMap| {
+    let mut row = |label: &str,
+                   old: Vec<LoopProgram<Formula>>,
+                   new: Vec<LoopProgram<Formula>>,
+                   keep: &KeepMap| {
         counts.push((
             label.to_owned(),
             report_matches_resolution(label, old, new, keep),
@@ -2173,7 +2184,7 @@ fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
 fn both_sweeps_of_a_profile_name_by_its_pieces() {
     let doc = declared("value-two-sweeps", "p", 0.15);
     let (doc, plane) = insert(doc, fixture::xy_frame());
-    let radius = Expr::mul(param_len("p"), scl(2.0)).unwrap();
+    let radius = Formula::mul(param_len("p"), scl(2.0)).unwrap();
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -2193,6 +2204,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, b) = insert(
@@ -2200,6 +2212,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         Node::Extrude {
             profile,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let piece = fixture::piece(&doc, profile, 0, 2);
@@ -2227,7 +2240,11 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
 }
 
 /// Two squares on parallel frames, lofted; `(doc, sec0, sec1, loft)`.
-fn lofted(label: &str, lower: LoopProgram, upper: LoopProgram) -> (ProfileDoc, [RecipeNodeId; 3]) {
+fn lofted(
+    label: &str,
+    lower: LoopProgram<Formula>,
+    upper: LoopProgram<Formula>,
+) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived(label, tol());
     let (doc, p0) = insert(doc, fixture::xy_frame());
     let (doc, sec0) = insert(
@@ -2254,13 +2271,13 @@ fn lofted(label: &str, lower: LoopProgram, upper: LoopProgram) -> (ProfileDoc, [
         doc,
         Node::Loft {
             profiles: vec![sec0, sec1],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     (doc, [sec0, sec1, loft])
 }
 
-fn square_of(s: f64) -> LoopProgram {
+fn square_of(s: f64) -> LoopProgram<Formula> {
     LoopProgram::polygon([
         (0.0, 0.0),
         (2.0 * s, 0.0),

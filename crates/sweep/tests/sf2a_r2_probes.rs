@@ -25,6 +25,7 @@ use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -36,9 +37,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a polygon extrudes")
+    .body
 }
 
 /// The convex polygon inset by `t`: each edge's line moved inward,
@@ -147,11 +155,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     // signed along the STORED normal so every plane moves INWARD.
     let centroid = {
         let (mut x, mut y, mut z, mut n) = (0.0, 0.0, 0.0, 0.0);
-        for (k, _) in chamfered.vertices() {
-            let p = chamfered
-                .get_vertex(k)
-                .and_then(|v| chamfered.get_point(v.point))
-                .unwrap();
+        for (_, p) in chamfered.vertex_points() {
             x += p.x;
             y += p.y;
             z += p.z;
@@ -361,9 +365,16 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
     let profile = Profile::new(SketchPlane::xy(), vec![outer])
         .validate(tol)
         .expect("a one-arc hexagon validates");
-    let body = extrude(&profile, Extrusion::Distance(0.25), tol)
-        .expect("a one-arc hexagon extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.25,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("a one-arc hexagon extrudes")
+    .body;
     let curved = body
         .faces()
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
@@ -437,14 +448,16 @@ fn r2a_zero_total_offset_reports_singular() {
         })
         .collect();
     let before: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     topo::offset_planes_together(&mut body, &moves, band(), tol)
         .expect("a zero offset is a no-move, not a singular corner");
     let after: Vec<(f64, f64, f64)> = body
-        .vertices()
-        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| (p.x, p.y, p.z))
         .collect();
     println!("[r2a] all-zero distances: {} points, unmoved", after.len());
     assert_eq!(

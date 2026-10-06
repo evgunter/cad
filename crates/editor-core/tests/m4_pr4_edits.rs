@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BifurcationKind, BooleanCoincidence, BranchCertification, BranchMarginEvidence, CancelToken,
@@ -43,6 +44,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, p, e)
@@ -610,4 +612,48 @@ fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
     };
     assert_eq!(*inner, bif);
     assert_eq!(inner.kind, BifurcationKind::FoldProximity);
+}
+
+// ---- SetExtrudeSide ----
+
+/// **`SetExtrudeSide` moves an extrude's side and refuses every other
+/// kind typed.** The edit is structural (the side is recipe payload no
+/// slot carries), leaves its input document untouched, and at a node
+/// that has no side refuses `SetExtrudeSideOnNonExtrude` naming it.
+#[test]
+fn set_extrude_side_flips_an_extrude_and_refuses_another_kind() {
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits", Tol::witness());
+    let (doc, profile, extrude) = block(doc, (0.0, 1.0), (0.0, 1.0));
+    let side_of = |doc: &ProfileDoc| match doc.node(extrude) {
+        Some(Node::Extrude { side, .. }) => *side,
+        other => panic!("an extrude, got {other:?}"),
+    };
+    assert_eq!(side_of(&doc), ExtrudeSide::Along);
+    let applied = doc
+        .apply(
+            &DocEdit::SetExtrudeSide {
+                node: extrude,
+                side: ExtrudeSide::Against,
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap();
+    assert!(applied.record.structural);
+    assert_eq!(side_of(&applied.doc), ExtrudeSide::Against);
+    assert_eq!(side_of(&doc), ExtrudeSide::Along, "purity: input untouched");
+    assert_eq!(
+        doc.apply(
+            &DocEdit::SetExtrudeSide {
+                node: profile,
+                side: ExtrudeSide::Against,
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        )
+        .unwrap_err(),
+        EditError::SetExtrudeSideOnNonExtrude {
+            node: doc.spoken(profile)
+        }
+    );
 }

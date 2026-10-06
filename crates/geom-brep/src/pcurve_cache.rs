@@ -629,8 +629,8 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
 ///
 /// **At every scalar.** At `f64` each end is the round-to-nearest value
 /// of a true bound, so it can miss the exact image by rounding error in
-/// the chart coordinates, which check 5 meters through the band and a
-/// rounding-scale escape does not leave. At `Interval` every operation
+/// the chart coordinates, a rounding-scale miss that check 2's
+/// headroom meters through the band. At `Interval` every operation
 /// is outward-rounded and [`Real::min`]/[`Real::max`] are the envelope
 /// extremes, so each end encloses the true bound for every `t₀`, `t₁`
 /// in their enclosures.
@@ -2285,6 +2285,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
         | P::TubeStraddles { .. }
+        | P::TubeNotOneArc { .. }
         | P::Escalated { .. }
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)) => unreachable!(
@@ -2638,6 +2639,9 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::Escalated { cause, .. } | E::CertificateEscalated { cause, .. } => {
             return PcurveCertifyError::FittedEscalated { cause };
         }
+        // Only a marching door refines; the refusal it could not answer
+        // is the certificate's, and reads as it.
+        E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
         E::CertificateLimb { limb, value } => (
             Some(limb),
             "a certificate limb exceeded ε",
@@ -2673,6 +2677,14 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::UnsupportedCertificate { what } => (None, what, None),
         E::ChartSpeed(r) => (None, r.what(), None),
         E::TubeDegenerate(d) => (Some(SsiLimb::Tube), d.what(), None),
+        // Limb 3 proves one arc spanning the carrier at this door too.
+        E::TubeNotOneArc { .. } => (
+            Some(SsiLimb::Tube),
+            "the uniqueness tube's chain was a graph but not proved to hold one arc spanning \
+             the carrier: the edge may join two arcs of the intersection, or overrun its arc's \
+             end",
+            None,
+        ),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. These are the structural
@@ -2694,7 +2706,14 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::SelfCrossingLocus { .. }
         | E::Fit(_)
         | E::TraceUnresolved { .. }
-        | E::FitSampleBudget { .. }
+        | E::BoundaryGraze { .. }
+        | E::BoundaryTangent { .. }
+        | E::EndNotOnLocus { .. }
+        | E::CrossingUnmatched { .. }
+        | E::ShortBranchUncertified { .. }
+        | E::MarchStepInBand { .. }
+        | E::MarchShortOfFit { .. }
+        | E::WindowShortOfWall { .. }
         | E::DomainUnusable { .. }
         | E::WrongLane { .. }
         | E::InvalidMarchTol { .. }
@@ -3552,9 +3571,9 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] carrying [`geom_core::MarginKind::Invalid`] when
-/// the subtended length is not definitely positive; the classifier's
-/// own escalation otherwise.
+/// [`Indeterminate`] under `pcurve_interval_meter`: carrying the
+/// decided margin when the subtended length is decided non-positive,
+/// and the classifier's own escalation when it is in band or poison.
 fn param_rate_gate<T: Decide>(
     carrier: &Curve3<T>,
     band: Band,
@@ -4356,6 +4375,22 @@ pub fn whole_periods<T: Decide>(
     period: T,
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
+) -> Result<T, BranchMiss> {
+    whole_period_count(name, gap, period, meter, band).map(|k| T::from_f64(f64::from(k)))
+}
+
+/// [`whole_periods`]' `k` as the integer it is, for a caller that
+/// stores the branch as structure (`topo`'s joint elements).
+///
+/// # Errors
+///
+/// [`whole_periods`]'.
+pub fn whole_period_count<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
 ) -> Result<i32, BranchMiss> {
     let half = T::from_f64(0.5);
     let mark = |k: i32, side: T| {
@@ -4459,7 +4494,6 @@ fn fidelity<T: Decide>(
             |gap| Margin::levered(gap, arm.get()),
             band,
         )
-        .map(|k| T::from_f64(f64::from(k)))
     };
     // The azimuth's branch, and on a sphere whether the stored image is
     // `P_d` or its involution twin `(u + π, π − v)`: both are branches
@@ -5654,6 +5688,23 @@ fn schedule_residuals<T: Decide>(
     Ok(())
 }
 
+/// **An escape's positive part**: `max(gap, 0)`, the one home of the
+/// one-sided containment gates in this file (the iso rows'
+/// `pcurve_iso_domain`).
+/// Containment is one-sided: a box or a parameter inside its bound by
+/// any amount is contained, and the clearance between two conservative
+/// boxes is nothing built, so only the escape is decided against the
+/// band. `topo::chart_bound`'s span check asks the same one-sided
+/// question in another shape, `matches!(…, Ok(Sign::Positive))` on the
+/// raw gap. NaN propagates ([`Real::max`]).
+///
+/// Metered through an infinite sup arm (an overflowing weight ratio), a
+/// contained gap is `0·∞ = NaN` and refuses, fail-loud
+/// (`escape_tests::a_contained_gap_through_an_infinite_arm_refuses`).
+fn escape<T: Real>(gap: T) -> T {
+    gap.max(T::zero())
+}
+
 /// **The fitted lane's four checks** (M6-2), in the same fixed order as
 /// the closed-form lane's — what differs is check 1's admission rule
 /// and check 4's mechanism.
@@ -6397,9 +6448,10 @@ fn run_iso_checks<T: Decide>(
                 let v_at_0 = p0.y + pl.y * t0;
                 let v_at_1 = p0.y + pl.y * t1;
                 let (d0, d1) = b.knots().domain();
-                let over = (T::from_f64(d0) - v_at_0.min(v_at_1))
-                    .max(v_at_0.max(v_at_1) - T::from_f64(d1))
-                    .max(T::zero());
+                let over = escape(
+                    (T::from_f64(d0) - v_at_0.min(v_at_1))
+                        .max(v_at_0.max(v_at_1) - T::from_f64(d1)),
+                );
                 match decide(
                     "pcurve_iso_domain",
                     Margin::metered_sup(over, stretch_v),
@@ -6474,9 +6526,8 @@ fn run_iso_checks<T: Decide>(
                     // span's polynomial EXTENSION, which the chart does
                     // not have — metered through the same stretch the
                     // boundary decide used, refused typed.
-                    let outside = (T::from_f64(cu0) - u_start)
-                        .max(u_start - T::from_f64(cu1))
-                        .max(T::zero());
+                    let outside =
+                        escape((T::from_f64(cu0) - u_start).max(u_start - T::from_f64(cu1)));
                     match decide(
                         "pcurve_iso_domain",
                         Margin::metered_sup(outside, stretch_u),
@@ -6550,9 +6601,7 @@ fn run_iso_checks<T: Decide>(
             let (d0, d1) = c.domain();
             let lo = t0.min(v_at_0).min(v_at_1);
             let hi = t1.max(v_at_0).max(v_at_1);
-            let over = (T::from_f64(d0) - lo)
-                .max(hi - T::from_f64(d1))
-                .max(T::zero());
+            let over = escape((T::from_f64(d0) - lo).max(hi - T::from_f64(d1)));
             match decide(
                 "pcurve_iso_domain",
                 Margin::metered_sup(over, stretch_v),
@@ -6636,9 +6685,9 @@ fn run_iso_checks<T: Decide>(
             let u_at_0 = p0.x + pl.x * t0;
             let u_at_1 = p0.x + pl.x * t1;
             let (d0, d1) = b.knots().domain();
-            let over = (T::from_f64(d0) - u_at_0.min(u_at_1))
-                .max(u_at_0.max(u_at_1) - T::from_f64(d1))
-                .max(T::zero());
+            let over = escape(
+                (T::from_f64(d0) - u_at_0.min(u_at_1)).max(u_at_0.max(u_at_1) - T::from_f64(d1)),
+            );
             match decide(
                 "pcurve_iso_domain",
                 Margin::metered_sup(over, stretch_u),
@@ -8985,8 +9034,9 @@ mod tests {
 
     /// A carrier whose meter collapses refuses AT THE METER — no
     /// forward verdict is fabricated from a rate that cannot convert a
-    /// span to metres, and the refusal is `Invalid`, distinct from the
-    /// backwards-span verdict the metered check below it names.
+    /// span to metres, and the refusal of a poison rate is `Invalid`,
+    /// distinct from the backwards-span verdict the metered check below
+    /// it names.
     #[test]
     fn a_collapsed_carrier_meter_refuses_rather_than_metering_a_span() {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -9503,5 +9553,52 @@ mod fitted_lane_routing_tests {
                 other => panic!("{name}: expected the routing boundary, got {other:?}"),
             }
         }
+    }
+}
+
+/// **An escape is decided on its positive part, and an infinite arm
+/// refuses a contained gap.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod escape_tests {
+    use super::escape;
+    use geom_core::k_stats::decide;
+    use geom_core::predicate::{Band, Margin, Sign, SupSpeed};
+
+    fn band() -> Band {
+        Band::new(1e-6, 1e-5).unwrap()
+    }
+
+    /// A clearance anywhere inside, the 1e-6 row's band included,
+    /// decides as contained; an escape keeps its band.
+    #[test]
+    fn only_the_positive_part_of_a_gap_is_decided() {
+        for gap in [-3.0645639348403364e-6, -1.0, 0.0] {
+            let m = Margin::metered_sup(escape(gap), SupSpeed::new(1.0));
+            assert_eq!(decide("escape", m, band()), Ok(Sign::Zero), "gap {gap}");
+        }
+        let m = Margin::metered_sup(escape(3e-6), SupSpeed::new(1.0));
+        assert!(
+            decide("escape", m, band()).is_err(),
+            "an in-band escape escalates"
+        );
+        let m = Margin::metered_sup(escape(1.0), SupSpeed::new(1.0));
+        assert_eq!(decide("escape", m, band()), Ok(Sign::Positive));
+        assert!(escape(f64::NAN).is_nan(), "poison propagates");
+    }
+
+    /// `weight_ratio_factor` answers `+inf` for an overflowing ratio.
+    /// Through that arm a contained gap meters as `0·∞ = NaN` and
+    /// refuses (fail-loud); an escape meters as `+inf` and is definite.
+    #[test]
+    fn a_contained_gap_through_an_infinite_arm_refuses() {
+        let arm = SupSpeed::new(f64::INFINITY);
+        for gap in [-1.0, 0.0] {
+            let m = Margin::metered_sup(escape(gap), arm);
+            assert!(m.value().is_nan(), "gap {gap}");
+            assert!(decide("escape", m, band()).is_err(), "gap {gap}");
+        }
+        let m = Margin::metered_sup(escape(1.0), arm);
+        assert_eq!(decide("escape", m, band()), Ok(Sign::Positive));
     }
 }

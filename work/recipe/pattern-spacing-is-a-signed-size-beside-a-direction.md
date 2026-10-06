@@ -2,11 +2,13 @@
 id: pattern-spacing-is-a-signed-size-beside-a-direction
 kind: issue
 title: A linear pattern's signed spacing and a circular pattern's signed step state the direction a second time (a named follow-on of Ev's #3551 rule)
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
-design: true
+branch: recipe/pattern-spacing
+pr: 3947
+closed: 2026-10-03
 ---
 
 
@@ -15,3 +17,27 @@ A named follow-on of Ev's ruling on #3551 (2026-10-01), which adopted the rule "
 A linear pattern's spacing is signed beside its direction vector, and a circular pattern's step is signed beside its axis. The #3551 designers rated this "unsure" (not measured). Weigh it under the rule before building: whether each becomes a positive size with the direction in its vector or axis, and what each refusal's recourse says (Ev asked that the extrude's refusal show how to write the other direction; the same applies here). Record the answer here.
 
 Filed by the AUTHOR orchestrator on Ev's ruling. Ground: `Node::Pattern` (`crates/editor-core/src/node.rs`, EDIT).
+
+## A pattern's spacing is a positive length; its step is a signed angle within a turn
+
+Measured on main: a spacing or step of zero builds every copy on the master, a negative spacing builds the mirrored pattern, a step of a full turn or more builds (7 rad does), `PlacedUnion` refuses only at the one point (through its disjointness certificate), and the range certificate certifies a driven spacing straight through zero. `Instance(i)` is "i steps from the master", so a spacing driven through zero moves every reference to instance 2 to the other side without a refusal: #3551's end-cap case. No document, demo, corpus model or test authors a negative or zero spacing or step.
+
+The tree's practice splits by what the quantity is. A **length** an operation covers is positive, with its direction stated elsewhere: a radius, a wall, an authored arc's length and sweep (`profile/src/seg.rs`, its turn a structural `side`), and since PR 3912 an extrude's depth. An **angle about a directed axis** is signed by the right-hand rule, nonzero and within a full turn: the revolve's angle (`DegenerateAngle`, `FullRangeAngle`), a stored arc's sweep (`ArcCheck::SweepRange`). Poses (a transform's rotation, a frame's spin) are not sizes and stay unbounded. The #3551 rule is about lengths.
+
+- **Linear.** `spacing` is a positive length, the distance between neighbouring copies; the direction triple the pattern owns is the one home of which way they step. A definitely negative spacing refuses: "the spacing evaluated to −4 m, below zero, and a spacing is a size: which way the copies step is the direction's to say, not a sign's. Recourse: make the spacing evaluate positive (its sign comes from whatever drives it) and point the direction the other way, (−1, 0, 0)", quoting the evaluated direction negated, which builds the same bodies bit for bit. A zero or tolerance-small spacing refuses: every copy would land on the master. What this buys is not consistency: a failure over the half-line below the floor, which a range probe finds for every seed, where a zero-only refusal is a tolerance-wide band a probe steps over; no silent mirror of instance references under a driven pitch; one spelling per placement.
+- **Circular.** `step` keeps its sign, right-handed about the datum axis, as the revolve's angle does. A zero or sliver step refuses (the copies coincide); a step at or past a full turn refuses with the recourse "write step ∓ 360°, which places every copy where this does". A positive-only step would buy one spelling per placement set and a probe-visible floor, but full rings (360°/n) only renumber under the sign, nothing drives a step through zero, and it would make the step the one angle about an axis that is not signed. The band a driven angle can cross at zero is shared with the revolve; if it is closed, it is closed for both, by the probe.
+- **Both.** The check sits in one constructor of the stepped operands, which the evaluation and the mate solve's derived offset both use (today `eval/wire.rs` `stepped_map` and `mate/member.rs` `pattern_map` each read the slots), and runs only where a step reads the value (index ≥ 1), so a one-copy pattern (`360 deg / blades` at one blade) builds. The near-zero and full-turn decisions reuse the evaluation's existing sign decision (the revolve angle's), not a new angle tolerance. No new field, no file format, python signature or edit arm change: four refusals and their tags.
+- **The extrude stays as built.** Its sign had no other home (the sketch normal is the profile's, and flipping it mirrors the sketch), it is a length with no wraparound, and reversing it reopens the measured silent flip under a driven thickness.
+- **Revolve.** `work/carve/revolve-angle-is-a-signed-size-beside-a-directed-axis` stays as the tree has it (signed, nonzero, within a turn) and can close against this; what is left there is whether its zero and full-range refusals name a recourse.
+
+Weighed by two designers in two rounds (fork-log row 56); their reports are in the PR.
+
+## Ruled (Ev, PR 3941, 2026-10-03)
+
+The circular step keeps its sign within a turn, as angles do elsewhere ("we allow angles between -2pi and 2pi like everywhere else"); the linear spacing is a positive length; the extrude stands. Ev on the revised answer: "sounds good!". Build as the section above says.
+
+## Built (2026-10-03, PR 3947)
+
+`SteppedOperands::linear` and `SteppedOperands::circular` (`eval/wire.rs`) are the one constructor of the stepped operands; `stepped_map` (pattern and placed union) and the mate solve's `pattern_map` both build through them, and placement 0 reads no operand on either road, so a one-copy rule (a placed union too) builds. Four refusals with tags: `NegativeSpacing` (`negative_spacing`, quoting the evaluated spacing and the authored direction negated, spelled in the expression grammar so it reads back: a literal negated, anything else under a unary minus — either evaluates to the exact negation, so it builds the same copies), `DegenerateSpacing` (`degenerate_spacing`), `DegenerateStep` (`degenerate_step`), `FullRangeStep` (`full_range_step`; at a turn it says the copies coincide, past one it spells the authored step a turn nearer zero, `step ∓ 360 deg`). The spacing's sign is `decide_reported("pattern_spacing", Margin::of(spacing))`, the extrude depth's decision; the step's two decisions (`pattern_step`, `pattern_step_full_turn`) are radians against the band under ledger row F14, the revolve's own comparand, so the flagged census moves 4 → 6. A spacing range certificate now stops above zero (`docm9_range::a_driven_spacing_does_not_certify_through_zero`). Nothing remains on this row.
+
+Fix pass on review (2026-10-03, same PR). The full-turn recourse is true and terminal: the step is reduced into one turn before the refusal is worded, every comparison a decision (`|step| − k·τ` under `pattern_step_full_turn`, a doubling search then a bisection over `k`). A whole number of turns (720°, −4π) refuses as the copies coinciding (`StepTurns::Whole`); any other step past a turn names one angle within it that lands every copy where the step does, up to rounding (`StepTurns::Within`: 760° → `40 deg`, a literal kept in its own unit; a driven step quotes what it evaluated to, in radians, and that it must evaluate within one turn, `th - 720 deg`). The decision `|θ| − k·τ` is one helper, `eval/wire.rs` `turns_off`, which the revolve's `revolve_full_vs_partial` reads too; the step's zero test keeps its reading through the new `geom_core::k_stats::decide_flagged_reported`, which the flagged census counts with `decide_flagged` (6 → 5 sites: F14 ×2). The operands live in `eval/wire/stepped.rs` behind a private representation, so the constructors are the only way to build them. Rows: Rust and Python follow each recourse and check every copy lands where the refused step's would; `msolve3` adds `DegenerateStep` and a mate onto copy 0 on the solve's road; `docm9_range` pins the step's range certificate inside its turn around ±1 and 3 rad. The step's zero test still compares bare radians against the length band (F14, issue #214's row), and `Pattern` still builds wrapped overlaps (count 10 at 90°) that only `PlacedUnion`'s certificate refuses; both stay as they are.

@@ -2,11 +2,12 @@
 id: two-pinches-crossing-on-one-line-refuse-their-union
 kind: issue
 title: Two pinches crossing on one line refuse their union: two crossing pairs share both their vertices
-status: dispatched
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: H
-branch: fuse/two-pinches-one-line
+closed: 2026-10-03
+pr: 3935
 ---
 
 
@@ -47,3 +48,54 @@ Decide what the result is at rest: one vertex with two coincident
 edges ending at it, or two vertices there with a v-v record between
 them. Then build the zip arm that produces it, and flip the pinned
 test to a build at volume 4 that passes 3′ with both records carried.
+
+## Finding: neither reading is representable (`fuse/two-pinches-one-line`)
+
+The union's stretch of pinch line below the overlap, z ∈ (0.5, 1),
+has the bricks' convex corners at its lower end and the empty
+corners' concave ones at (0,0,1). Along the stretch the four faces
+x = 0 and y = 0 pair into two coincident edges, and only two pairings
+orient: each brick's own two faces, or the two faces bounding one
+empty corner. Two vertices at (0,0,0.5) need the first pairing, since
+each brick's corner is bounded by its own faces. Two vertices at
+(0,0,1) need the second, since each empty corner there is bounded by
+one face of each brick. With the first pairing, the orbit at (0,0,1)
+runs from one pinch edge through the empty corner's top face to the
+other, so both edges end at one vertex whose orbit passes −z twice:
+the measured result above. A vertex on the stretch that switches
+pairings has the same orbit. That vertex passes tier 1 (its orbit is
+one cycle), but it is a shared-entity wedge fan, which D1's tier 3′
+holds unrepresentable and a typed error (`docs/DESIGN.md`,
+"Representability boundary", ~352–358). The stretch above the
+overlap is the mirror case at (0,0,1.5).
+
+So refusing is the contract's answer for the union, and no zip arm
+is owed. Its subtract (volume 2, passing 3′) and empty intersect are
+pinned beside it. The end-to-end variant (overlap a single point)
+builds in every op and passes 3′, with four vertices at (0,0,1):
+`two_pinches_meeting_end_to_end_build_in_every_op`.
+
+The refusal is now permanent and named: the both-shared arm of
+`insert::reconcile_shared` refuses `BooleanError::NonManifoldResult`
+(pncad-py tag `non_manifold_result`, no offer), naming A's vertex at
+the point and two of B's, with the recourse to keep the pinch lines
+from overlapping along a length. Every other `SharedVertexCrossings`
+arm keeps its kind.
+
+## Closed (FUSE, PR 3935, 2026-10-03): unrepresentable, refused permanently
+
+The union cannot be represented, so no zip arm is owed.
+- **Why:** the two ends of the pinch line need opposite pairings of the
+  four faces along it, so at the overlap's ends the result would be one
+  vertex whose orbit passes the line twice. That is a shared-entity
+  wedge fan, which DESIGN.md D1's representability boundary rules out.
+- **Now:** this case refuses with its own permanent kind,
+  `BooleanError::NonManifoldResult`, whose recourse is to keep the pinch
+  lines from overlapping along a length. Every other arm of
+  `SharedVertexCrossings` keeps its kind.
+- **Tests:** two pinches meeting end to end build in every op. The
+  crossing pair's subtract and intersect build too. Both are pinned in
+  `union_flush_onto_edge_contact.rs`.
+- **Review:** the orchestrator's read. The lane stopped rather than
+  build, and the orchestrator checked the edge-pairing argument.
+

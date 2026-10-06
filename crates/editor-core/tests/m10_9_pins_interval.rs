@@ -96,14 +96,21 @@ pub(crate) struct Study {
 /// walk's literal branch are the form's to decide, so the certificate
 /// runs on past where a `floor` atom used to stop it.
 ///
+/// **Check 5 decides only an escape's positive part** (PR 3981,
+/// `geom_brep::pcurve_cache::escape`): a row's chart box inside its
+/// window now reads Zero, a theorem, where its clearance used to be a
+/// numeric Negative. `symbolic_zero`: plate 947 → 955, link 681 → 689,
+/// pad +4 at every row; annulus and bracket unmoved. `registered` and
+/// the verdicts are unmoved.
+///
 /// **PCERT's chart-angle unit took the retired decisions away, every
-/// column at once**: the loop's angle equalities and check 5 no longer
-/// exist to be registered or proved. `registered`: plate 148 → 140,
-/// annulus 148 → 140, link 118 → 110, bracket 156 → 146, pad
-/// 152 → 148; `symbolic_zero`: plate 947 → 907, annulus 440 → 424,
-/// link 681 → 641, bracket 1283 → 1263, pad 1012 → 988 (1036 → 1012 at
-/// ε = 1e-9). No registrant states anything different; the decisions
-/// it used to discharge are gone.
+/// column at once**: the loop's chart-space angle comparisons and check
+/// 5 no longer exist to be registered or proved. `registered`: plate
+/// 148 → 140, annulus 148 → 140, link 118 → 110, bracket 154 → 146, pad
+/// 152 → 148; `symbolic_zero`: plate 955 → 907, annulus 440 → 424, link
+/// 689 → 641, bracket 1282 → 1262, pad 1016 → 988 (1040 → 1012 at
+/// ε = 1e-9). No registrant states anything different, and every
+/// verdict is unmoved; the decisions it used to discharge are gone.
 ///
 /// The scales are M10-9's brackets. The plate, the annulus and the link
 /// certify whole at them. The bracket and the pad refuse at the
@@ -170,7 +177,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 144 until the certification schedule assigned its last
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
             // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
-            // numeric decisions reach the door, verdicts unchanged.
+            // numeric decisions reach the door, verdicts unchanged. 156
+            // until the variable table (the `symbolic_zero` note below).
             registered: 146,
             // DECIDE-3: more theorems from A0's constant fold
             // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
@@ -187,7 +195,18 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // read settles); the other twelve exist only since the
             // extrude closes with the pcurve mint, and which predicates
             // they are is not read off a split here.
-            symbolic_zero: [1263, 1263, 1263],
+            // 1283 (and `registered` 156) at every row until a
+            // variable's symbol became its minted id (INTENT-VARS-1 PR 2)
+            // rather than a hash of its name: the bracket's variables
+            // sort differently inside the forms, and one theorem and two
+            // registrations go numeric at every row — the same reorder
+            // that leaves two of the bracket's registrations numeric in
+            // `sym_9_retry_interval`. Measured by a probe binding each
+            // variable under its old name-hash symbol, which restores
+            // 1283/156 here (and 156/162 there): the move is the order
+            // alone. How much the tier reaches depends on symbol order;
+            // the orchestrator files that.
+            symbolic_zero: [1262, 1262, 1262],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -265,7 +284,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 1002 → 1004, verdicts unchanged: six registered decisions
             // go numeric where the reversed chord's re-lowered centre
             // used to freeze to an atom the rim registration reached
-            // (`work/sym/registrations-sealed-inside-frozen-compounds`),
+            // (`work/rules/registrations-sealed-inside-frozen-compounds`),
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
@@ -273,8 +292,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them. Every row
-            // is up 32 since DECIDE-9, the 32 `dihedral_wedge` margins
-            // the note on `registered` names.
+            // is up 36: 32 since DECIDE-9, the `dihedral_wedge` margins
+            // the note on `registered` names, and 4 since check 5
+            // decides only an escape's positive part (the note above).
             symbolic_zero: [988, 1012, 988],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
@@ -613,7 +633,7 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// into the door. The axis-order basis mints no `copysign` for rule F
 /// to fold, and at the scale the pad certifies whole at, over its
 /// analyzed box, the two dials read the same receipt
-/// (`work/sym/the-negative-arm-lost-its-document-consumer`). Since the
+/// (`work/rules/the-negative-arm-lost-its-document-consumer`). Since the
 /// extrude closes with the pcurve mint, the pad refuses at
 /// `pcurve_envelope` at that scale under both dials
 /// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so the

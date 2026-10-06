@@ -20,6 +20,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use crate::corpus::{body_of, eval};
 use crate::fixture::{frame, insert, len, len2, scl, xform};
@@ -37,7 +39,7 @@ const DEPTH: f64 = 0.005;
 /// Node 15's outline: down the `x = 0` flank, along the bottom to
 /// `x = 0.008`, a tangent arc up to `(0.01, 0)`, and a `0.6` bulge back
 /// to the start.
-fn letter() -> LoopProgram {
+fn letter() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, 0.02])),
         ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, -0.02]))),
@@ -83,9 +85,9 @@ fn letter_area() -> f64 {
 /// The pose as authored: the cylinder (node 10), the tool's extrude
 /// (node 16) and the subtraction (node 19), with the tool lifted
 /// `DEPTH` along `+y` and slid `dx` along `x`.
-fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
+fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived("pierce-ring-engraving", Tol::witness());
-    // The XZ frame: its normal is −y, so a negative extrude runs +y.
+    // The XZ frame: its normal is −y, so an extrude against it runs +y.
     let (doc, xz) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = |plane, lp| {
         Node::Profile(ProfileProgram {
@@ -99,7 +101,8 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
         doc,
         Node::Extrude {
             profile: disc,
-            distance: len(-HEIGHT),
+            distance: len(HEIGHT),
+            side: ExtrudeSide::Against,
         },
     );
     let (doc, outline) = insert(doc, profile(xz, tool));
@@ -108,6 +111,7 @@ fn engrave(tool: LoopProgram, dx: f64) -> (Evaluation<f64>, [RecipeNodeId; 4]) {
         Node::Extrude {
             profile: outline,
             distance: len(2.0 * DEPTH),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, lifted) = insert(doc, xform(prism, [dx, DEPTH, 0.0], [0.0, 0.0, 1.0], 0.0));

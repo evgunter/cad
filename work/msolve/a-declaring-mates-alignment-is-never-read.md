@@ -2,11 +2,12 @@
 id: a-declaring-mates-alignment-is-never-read
 kind: issue
 title: a declaring mate's authored Alignment is stored but never read: places compares gauge references by identity, and the at-rest gate reads no alignment
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

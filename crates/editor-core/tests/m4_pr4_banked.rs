@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -58,6 +59,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -97,6 +99,7 @@ fn band_cut() -> BandCut {
         Node::Extrude {
             profile: bp,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, transform) = insert(

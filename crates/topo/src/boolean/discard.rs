@@ -116,7 +116,7 @@ pub(super) struct HeldInto<'a, T: geom_core::Real> {
     /// The discarded operand's null-edge copies of a vertex
     /// (`BooleanReduction::null_edges`), which the split may leave on
     /// a fragment in place of the vertex a held edge entered at.
-    pub copies: &'a std::collections::BTreeMap<VertexKey, std::collections::BTreeSet<VertexKey>>,
+    pub copies: &'a super::NullCopies,
 }
 
 impl<T: geom_core::Real> HeldInto<'_, T> {
@@ -140,21 +140,7 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
         };
         let own = root(face)?;
         let mut out = Vec::new();
-        let enters = |at: VertexKey| {
-            let mut seen = std::collections::BTreeSet::from([at]);
-            let mut todo = vec![at];
-            while let Some(v) = todo.pop() {
-                if boundary.contains(&v) {
-                    return true;
-                }
-                for &c in self.copies.get(&v).into_iter().flatten() {
-                    if seen.insert(c) {
-                        todo.push(c);
-                    }
-                }
-            }
-            false
-        };
+        let enters = |at: VertexKey| self.copies.of(at).iter().any(|v| boundary.contains(v));
         for h in self.entries {
             if h.holder != self.holder_op || !enters(h.at) || root(h.face)? != own {
                 continue;

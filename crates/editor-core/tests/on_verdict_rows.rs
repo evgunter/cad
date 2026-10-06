@@ -7,10 +7,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{Recorder, ang, len, scl};
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Expr, Node,
-    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    BooleanOp, BooleanValue, CancelToken, Datum, EntityKind, EvalOptions, Evaluation, Formula,
+    Node, NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
     RoleSeg, SplitHalf, StableName, ValuePayload, declared_pairs, evaluate, find_flush_candidates,
 };
 use geom_core::Tol;
@@ -45,6 +46,7 @@ fn block(
     r.insert(Node::Extrude {
         profile: p,
         distance: len(h),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -206,7 +208,7 @@ fn a_master_and_its_instance_zero_answer() {
     let cube = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let pat = r.insert(Node::Pattern {
         input: cube,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(3.0),
@@ -214,7 +216,7 @@ fn a_master_and_its_instance_zero_answer() {
     });
     let p0 = r.insert(Node::Part {
         of: pat,
-        select: PartSelect::Instance(Expr::count(0)),
+        select: PartSelect::Instance(Formula::count(0)),
     });
     let mut rows = Vec::new();
     for op in OPS {

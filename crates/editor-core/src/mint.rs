@@ -1,6 +1,7 @@
-//! **Where a node's id and a profile step's id come from**
-//! (`names/README.md`, N1 and "N1, the profile pieces", "The id."): the
-//! document's mint, one chain and one log for both.
+//! **Where a node's id, a profile step's id and a variable's id come
+//! from** (`names/README.md`, N1 and "N1, the profile pieces", "The
+//! id."; VARIABLES-DESIGN VR1): the document's mint, one chain and one
+//! log for all three.
 //!
 //! The chain is a SHA-256 digest the document carries. A minting edit
 //! extends it by that edit's canonical bytes ([`MintingEdit`]); an
@@ -10,7 +11,11 @@
 //! An edit that mints nothing leaves the chain alone. So an id is a
 //! function of the minting edits that led to it: one sequence mints one
 //! set of ids (D9), and two sequences that part from one value mint
-//! different ids from there on.
+//! different ids from there on. A `DeclareVar` extends the chain by its
+//! definition, display units erased, and then once for the variable it
+//! mints; the variable's name is not in the preimage (VR2), so two
+//! declares of one definition mint two ids only because the chain
+//! moved between them.
 //!
 //! The log holds every id the document has minted, deleted nodes' and
 //! dropped steps' included, each tagged with what it names ([`Minted`]),
@@ -32,6 +37,7 @@ use sha2::{Digest, Sha256};
 
 use crate::node::{Node, RecipeNodeId, StepId};
 use crate::program::{LoopProgram, StepIdFault};
+use crate::var::{VarId, VarKind};
 
 /// The document's mint: the chain the next minting edit extends and
 /// the log of every id minted so far.
@@ -56,6 +62,8 @@ pub enum Minted {
     Node(RecipeNodeId),
     /// A profile step's id, minted by `InsertNode` or `SetProgram`.
     Step(StepId),
+    /// A variable's id, minted by `DeclareVar`.
+    Var(VarId),
 }
 
 impl Minted {
@@ -65,16 +73,19 @@ impl Minted {
         match self {
             Self::Node(id) => id.0,
             Self::Step(step) => step.0,
+            Self::Var(var) => var.0,
         }
     }
 }
 
-/// `node <tag>` or `step <tag>`: the entry as a sentence reads it.
+/// `node <tag>`, `step <tag>` or `variable <tag>`: the entry as a
+/// sentence reads it.
 impl core::fmt::Display for Minted {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Node(id) => write!(f, "node {id}"),
             Self::Step(step) => write!(f, "step {step}"),
+            Self::Var(var) => write!(f, "variable {var}"),
         }
     }
 }
@@ -87,6 +98,14 @@ pub(crate) struct NodeIdCollides {
     pub(crate) id: RecipeNodeId,
 }
 
+/// Why the mint refused a variable id; the declare door reports it as
+/// [`crate::EditError::VarIdCollides`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct VarIdCollides {
+    /// The id the declare drew, which the log already holds.
+    pub(crate) id: VarId,
+}
+
 /// **A minting edit**, as the mint reads it: the node an `InsertNode`
 /// inserts, as authored; or what a `SetProgram` states about the steps
 /// it authors — its node, the new loops and, per step, the id it keeps
@@ -97,27 +116,41 @@ pub(crate) struct NodeIdCollides {
 /// display unit is never part of an expression's identity (DESIGN.md
 /// D6), so two edits `bit_eq` cannot tell apart mint the same ids.
 #[derive(Serialize)]
-#[serde(bound(serialize = "P: Serialize"))]
-pub(crate) enum MintingEdit<'a, P> {
+#[serde(bound(serialize = "P: Serialize, Node<P, S>: Serialize"))]
+pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::Expr> {
     /// A node inserted, as the edit states it.
     InsertNode {
         /// The node.
-        node: Box<Node<P>>,
+        node: Box<Node<P, S>>,
     },
     /// A profile's program replaced.
     SetProgram {
         /// The profile.
         node: RecipeNodeId,
         /// The new loops.
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<S>>,
         /// The kept ids.
         ids: &'a [Vec<Option<StepId>>],
     },
+    /// A variable declared: its KIND, and nothing else. Not its name
+    /// (VR2: a name is a label, in neither an id's mint nor a content
+    /// key), and not its definition: a nominal or an annotation in the
+    /// preimage would make every id minted after the declare, and every
+    /// verdict keyed by one, move with a value — and a distribution
+    /// enters no evaluation, no content key and no predicate. Two
+    /// declares of one kind still mint two ids, because the chain
+    /// extends.
+    DeclareVar {
+        /// The kind.
+        kind: VarKind,
+    },
 }
 
-impl<'a, P: Serialize + Clone + crate::ProfilePayload> MintingEdit<'a, P> {
+impl<'a, P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>
+    MintingEdit<'a, P, S>
+{
     /// The insert of `node`, display units erased.
-    fn insert(node: &Node<P>) -> Self {
+    fn insert(node: &Node<P, S>) -> Self {
         let mut node = Box::new(node.clone());
         node.erase_display_units();
         Self::InsertNode { node }
@@ -139,7 +172,10 @@ impl<'a> MintingEdit<'a, crate::program::ProfileProgram> {
     }
 }
 
-impl<P: Serialize> MintingEdit<'_, P> {
+impl<P: Serialize, S: crate::Slot> MintingEdit<'_, P, S>
+where
+    Node<P, S>: Serialize,
+{
     /// The bytes the chain is extended by: this statement's serde form.
     fn canonical_bytes(&self) -> Vec<u8> {
         // Every field is a derived-`Serialize` struct, enum, integer,
@@ -155,6 +191,7 @@ impl<P: Serialize> MintingEdit<'_, P> {
 const EDIT_TAG: &[u8] = b"mint/edit\0";
 const NODE_TAG: &[u8] = b"mint/node\0";
 const STEP_TAG: &[u8] = b"mint/step\0";
+const VAR_TAG: &[u8] = b"mint/var\0";
 
 impl Mint {
     /// A document's mint before anything is inserted: the zero chain
@@ -185,7 +222,7 @@ impl Mint {
     pub fn steps(&self) -> impl Iterator<Item = StepId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Step(step) => Some(step),
-            Minted::Node(_) => None,
+            Minted::Node(_) | Minted::Var(_) => None,
         })
     }
 
@@ -194,7 +231,7 @@ impl Mint {
     pub(crate) fn nodes(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Node(id) => Some(id),
-            Minted::Step(_) => None,
+            Minted::Step(_) | Minted::Var(_) => None,
         })
     }
 
@@ -215,6 +252,52 @@ impl Mint {
     #[must_use]
     pub fn has_step(&self, step: StepId) -> bool {
         self.holds(Minted::Step(step))
+    }
+
+    /// Whether the document minted `var` as a variable's id.
+    #[must_use]
+    pub fn has_var(&self, var: VarId) -> bool {
+        self.holds(Minted::Var(var))
+    }
+
+    /// Every variable id the document has minted, ascending.
+    pub fn vars(&self) -> impl Iterator<Item = VarId> + '_ {
+        self.log.iter().filter_map(|entry| match *entry {
+            Minted::Var(var) => Some(var),
+            Minted::Node(_) | Minted::Step(_) => None,
+        })
+    }
+
+    /// **The id a declare of a `kind` variable draws here**, and the
+    /// chain it leaves: the chain extended by the declare's canonical
+    /// bytes (its kind alone, [`MintingEdit::DeclareVar`]), then once
+    /// for the variable. Reads; mints nothing.
+    fn draw_var(&self, kind: VarKind) -> ([u8; 32], VarId) {
+        let edit = MintingEdit::<()>::DeclareVar { kind };
+        let (chain, bits) = Self::draw(VAR_TAG, self.extended(&edit));
+        (chain, VarId(bits))
+    }
+
+    /// The id a declare of a `kind` variable would mint here — what a
+    /// refused declare's refusal speaks. Reads; mints nothing.
+    #[must_use]
+    pub(crate) fn would_declare(&self, kind: VarKind) -> VarId {
+        self.draw_var(kind).1
+    }
+
+    /// **Mint the id of a declared `kind` variable** ([`Self::draw_var`]).
+    /// On a refusal `self` is untouched.
+    ///
+    /// # Errors
+    ///
+    /// [`VarIdCollides`] where the log already holds the id.
+    pub(crate) fn declare(&mut self, kind: VarKind) -> Result<VarId, VarIdCollides> {
+        let (chain, id) = self.draw_var(kind);
+        let mut log = self.log.clone();
+        Self::log_new(&mut log, Minted::Var(id)).map_err(|_| VarIdCollides { id })?;
+        self.chain = chain;
+        self.log = log;
+        Ok(id)
     }
 
     /// This mint with `entries` logged too, where a test pushes nodes
@@ -239,7 +322,10 @@ impl Mint {
     }
 
     /// The chain extended by `edit`'s canonical bytes.
-    fn extended<P: Serialize>(&self, edit: &MintingEdit<'_, P>) -> [u8; 32] {
+    fn extended<P: Serialize, S: crate::Slot>(&self, edit: &MintingEdit<'_, P, S>) -> [u8; 32]
+    where
+        Node<P, S>: Serialize,
+    {
         Sha256::new()
             .chain_update(EDIT_TAG)
             .chain_update(self.chain)
@@ -280,10 +366,13 @@ impl Mint {
     /// # Errors
     ///
     /// [`NodeIdCollides`] where the log already holds the id.
-    pub(crate) fn insert<P: Serialize + Clone + crate::ProfilePayload>(
+    pub(crate) fn insert<P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>(
         &mut self,
-        node: &Node<P>,
-    ) -> Result<RecipeNodeId, NodeIdCollides> {
+        node: &Node<P, S>,
+    ) -> Result<RecipeNodeId, NodeIdCollides>
+    where
+        Node<P, S>: Serialize,
+    {
         let (chain, bits) = Self::draw(NODE_TAG, self.extended(&MintingEdit::insert(node)));
         let id = RecipeNodeId(bits);
         let mut log = self.log.clone();
@@ -406,15 +495,17 @@ mod chain_hex {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-    use super::{Mint, Minted, NodeIdCollides};
+    use super::{Mint, Minted, NodeIdCollides, VarIdCollides};
     use crate::expr::{Dimension, Expr};
     use crate::node::{Node, RecipeNodeId, StepId};
     use crate::program::{LoopProgram, ProfileProgram, StepIdFault};
+    use crate::var::{VarId, VarKind};
 
     fn extrude(profile: u64, distance: f64) -> Node<ProfileProgram> {
         Node::Extrude {
             profile: RecipeNodeId(profile),
             distance: Expr::literal(distance, Dimension::Length).unwrap(),
+            side: crate::ExtrudeSide::Along,
         }
     }
 
@@ -449,15 +540,19 @@ mod tests {
 
     #[test]
     fn the_display_unit_is_not_part_of_what_an_insert_hashes() {
-        let written = Expr::length_in(2.0, quantity::MM).unwrap();
+        let written = crate::test_support::stored_expr(
+            &crate::Formula::length_in(2.0, quantity::MM).unwrap(),
+        );
         let canonical = Expr::literal(written.literal_value().unwrap(), Dimension::Length).unwrap();
         let mm = Node::<ProfileProgram>::Extrude {
             profile: RecipeNodeId(1),
             distance: written,
+            side: crate::ExtrudeSide::Along,
         };
         let m = Node::<ProfileProgram>::Extrude {
             profile: RecipeNodeId(1),
             distance: canonical,
+            side: crate::ExtrudeSide::Along,
         };
         assert!(mm.bit_eq(&m), "bit_eq cannot tell the two apart");
         assert_eq!(
@@ -559,6 +654,72 @@ mod tests {
     const PIN_FIRST: u64 = 14_986_585_060_459_383_076;
     const PIN_LAST: u64 = 1_356_137_351_626_931_182;
     const PIN_CHAIN: &str = "12d1f7bc765cbbee68bd2a7bb046ab2b1a0027e350a1c8d5d66eb8bf72e7d5ba";
+
+    const LEN: VarKind = VarKind::Length;
+
+    /// INTENT-VARS-1 §4 row 4 and ruling Q5: the chain extends, so two
+    /// declares of one kind mint two ids, both logged as variables' —
+    /// equal values are not one variable.
+    #[test]
+    fn two_declares_of_one_kind_mint_two_ids() {
+        let mut m = Mint::empty();
+        let a = m.declare(LEN).unwrap();
+        let b = m.declare(LEN).unwrap();
+        assert_ne!(a, b, "the second declare extends a different chain");
+        assert_eq!(m.vars().collect::<Vec<_>>(), {
+            let mut both = vec![a, b];
+            both.sort();
+            both
+        });
+        assert!(m.has_var(a) && m.has_var(b));
+        assert!(
+            !m.has_node(RecipeNodeId(a.0)) && !m.has_step(StepId(a.0)),
+            "logged under the variable tag, not another"
+        );
+    }
+
+    /// The declare's preimage is the kind (the orchestrator's ruling on
+    /// spec §1): kinds part, and `would_declare` reads the id `declare`
+    /// mints without minting it.
+    #[test]
+    fn a_declare_hashes_its_kind_and_would_declare_agrees() {
+        let id = Mint::empty().declare(LEN).unwrap();
+        for other in [VarKind::Angle, VarKind::Scalar, VarKind::Count] {
+            assert_ne!(Mint::empty().declare(other).unwrap(), id, "{other:?}");
+        }
+        let m = Mint::empty();
+        assert_eq!(m.would_declare(LEN), id);
+        assert_eq!(m, Mint::empty(), "a read mints nothing");
+    }
+
+    /// §4 row 4: a log already holding the bits a declare would draw —
+    /// as a NODE's id, so the tag does not let it through — refuses
+    /// `VarIdCollides` and moves neither chain nor log.
+    #[test]
+    fn a_var_id_the_log_holds_refuses_and_moves_nothing() {
+        let drawn = Mint::empty().declare(LEN).unwrap();
+        let taken = Mint::empty().logged([Minted::Node(RecipeNodeId(drawn.0))]);
+        let mut m = taken.clone();
+        assert_eq!(m.declare(LEN), Err(VarIdCollides { id: drawn }));
+        assert_eq!(m, taken, "a refused mint moves neither chain nor log");
+        assert_eq!(m.chain(), taken.chain());
+        let mut free = Mint::empty();
+        assert_eq!(free.declare(LEN), Ok(drawn), "and an empty log takes it");
+    }
+
+    /// **The declare's bytes are frozen**, as the insert's are: one
+    /// fixture declare — a length, into the empty document — mints this
+    /// id and leaves this chain.
+    #[test]
+    fn the_mint_of_one_fixture_declare_is_pinned() {
+        let mut m = Mint::empty();
+        let id = m.declare(LEN).unwrap();
+        let hex: String = m.chain().iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!((id, hex.as_str()), (VarId(PIN_VAR), PIN_VAR_CHAIN));
+    }
+
+    const PIN_VAR: u64 = 16_300_829_493_895_992_422;
+    const PIN_VAR_CHAIN: &str = "e2382e0f27e19466322b51bf83cd48ccace92c81be7625e6fe836050c144b25f";
 
     #[test]
     fn the_wire_round_trips_and_refuses_a_short_chain() {

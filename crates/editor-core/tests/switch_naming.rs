@@ -8,14 +8,15 @@
 //! remains the structural-edit backstop (stale refs refuse Vanished).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::fixture;
 
 use crate::fixture::len;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, VarName,
     evaluate,
 };
 use geom_core::Tol;
@@ -30,12 +31,12 @@ use geom_core::Tol;
 /// the extrude over that: `doc.order()[1]` is the profile and
 /// `doc.order()[2]` the body.
 fn param_rect_doc(x0: f64) -> ProfileDoc {
-    let x0e = || Expr::param(ParamName::from_static("x0"), Dimension::Length);
+    let x0e = || Formula::named(VarName::from_static("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::from_static("x0"),
-                value: DocParam::continuous(Dimension::Length, x0),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("x0"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, x0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -69,6 +70,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
             node: Box::new(Node::Extrude {
                 profile: crate::fixture::newest(&doc),
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             }),
         },
         Tol::witness(),
@@ -202,6 +204,7 @@ fn circle_radius_edit_keeps_names() {
                 node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc),
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),
@@ -345,6 +348,7 @@ fn hole_circle_anchor_recovers_reversal() {
                 node: Box::new(Node::Extrude {
                     profile: crate::fixture::newest(&doc),
                     distance: len(1.0),
+                    side: ExtrudeSide::Along,
                 }),
             },
             Tol::witness(),

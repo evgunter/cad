@@ -9,6 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use editor_core::{
     DocEdit, EntityKind, LoopProgram, Node, PieceRun, ProfileDoc, ProfileEdgeRef, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, StepId,
@@ -18,11 +20,14 @@ use geom_core::Tol;
 
 use crate::fixture::{frame, insert, len, len2, minted, piece, run};
 
-fn to(x: f64, y: f64) -> ProgramTarget {
+fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
 
-fn build(steps: Vec<ProgramStep>, d: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn build(
+    steps: Vec<ProgramStep<Formula>>,
+    side: ExtrudeSide,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("run_wall_offers", Tol::witness());
     let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, p) = insert(
@@ -37,7 +42,8 @@ fn build(steps: Vec<ProgramStep>, d: f64) -> (ProfileDoc, RecipeNodeId, RecipeNo
         doc,
         Node::Extrude {
             profile: p,
-            distance: len(d),
+            distance: len(1.0),
+            side,
         },
     );
     (doc, p, ex)
@@ -53,7 +59,7 @@ fn ids(doc: &ProfileDoc, p: RecipeNodeId) -> Vec<StepId> {
 fn edit(
     doc: &ProfileDoc,
     p: RecipeNodeId,
-    steps: Vec<ProgramStep>,
+    steps: Vec<ProgramStep<Formula>>,
     ids: Vec<Option<StepId>>,
 ) -> ProfileDoc {
     apply(
@@ -89,7 +95,7 @@ fn offers(doc: &ProfileDoc, name: &StableName) -> Vec<StableName> {
 
 #[test]
 fn a_station_joining_or_splitting_a_run_offers_across_it() {
-    for d in [1.0, -1.0] {
+    for side in ExtrudeSide::ALL {
         let plain = vec![
             ProgramStep::At(len2([0.0, 0.0])),
             ProgramStep::LineTo(to(2.0, 0.0)),
@@ -97,7 +103,7 @@ fn a_station_joining_or_splitting_a_run_offers_across_it() {
             ProgramStep::LineTo(to(0.0, 2.0)),
             ProgramStep::LineTo(ProgramTarget::Start),
         ];
-        let (doc, p, ex) = build(plain, d);
+        let (doc, p, ex) = build(plain, side);
         let held = lateral(ex, vec![piece(&doc, ex, 0, 0)]);
         let i = ids(&doc, p);
         // A station on the bottom side: its two pieces are one run.
@@ -125,7 +131,7 @@ fn a_station_joining_or_splitting_a_run_offers_across_it() {
         let run_wall = lateral(ex, vec![piece(&doc2, ex, 0, 0), piece(&doc2, ex, 0, 1)]);
         assert!(
             offers(&doc2, &held).contains(&run_wall),
-            "d={d}: the one-piece wall is offered the run wall that covers it"
+            "{side:?}: the one-piece wall is offered the run wall that covers it"
         );
         // Bend the station off the line: the run splits.
         let split = vec![
@@ -150,7 +156,7 @@ fn a_station_joining_or_splitting_a_run_offers_across_it() {
             let wall = lateral(ex, vec![piece(&doc3, ex, 0, k)]);
             assert!(
                 got.contains(&wall),
-                "d={d}: the broken run offers piece {k}'s wall"
+                "{side:?}: the broken run offers piece {k}'s wall"
             );
         }
     }
@@ -212,7 +218,8 @@ fn run_names_agree_across_scalar_types() {
                 doc,
                 Node::Extrude {
                     profile: p,
-                    distance: len(-1.0),
+                    distance: len(1.0),
+                    side: ExtrudeSide::Against,
                 },
             )
         };

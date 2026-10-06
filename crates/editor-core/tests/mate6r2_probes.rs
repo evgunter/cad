@@ -23,6 +23,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
@@ -52,6 +55,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -83,16 +87,12 @@ fn vanished(instance: RecipeNodeId) -> StableName {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
-fn mate_node(
-    a: StableName,
-    b: StableName,
-    class: ContactClass,
-    seat: f64,
-) -> Node<editor_core::ProfileProgram> {
+fn mate_node(a: StableName, b: StableName, class: ContactClass, seat: f64) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),

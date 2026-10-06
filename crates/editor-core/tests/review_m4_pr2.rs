@@ -5,11 +5,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::fmt::Write as _;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Expr,
+    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Formula,
     Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SitedRef, SlotId, ValuePayload,
     evaluate,
 };
@@ -85,6 +86,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: pa,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, pb) = on_frame(
@@ -99,6 +101,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: pb,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
@@ -168,6 +171,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let e0 = run(&doc, None, false);
@@ -181,6 +185,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     assert_ne!(e_old, e_new, "ids are never reused");
@@ -212,12 +217,13 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         vec![square(0.5, 0.5, 0.5)],
     );
     // Two failing extrudes: distance = 1/0 (NonFiniteResult).
-    let bad = || Expr::div(len(1.0), scl(0.0)).unwrap();
+    let bad = || Formula::div(len(1.0), scl(0.0)).unwrap();
     let (doc, fa) = insert(
         doc,
         Node::Extrude {
             profile: p,
             distance: bad(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, fb) = insert(
@@ -225,6 +231,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         Node::Extrude {
             profile: p,
             distance: bad(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, join) = insert(
@@ -362,6 +369,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     // Diamond: two transforms of base, unioned. Decoupled offsets
@@ -402,7 +410,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Pattern {
             input: base,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: editor_core::PatternKind::Circular {
                 axis: ax,
                 step: ang(std::f64::consts::FRAC_PI_2),
@@ -452,7 +460,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Extrude {
             profile: p,
-            distance: Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = insert(
@@ -692,6 +701,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             Node::Extrude {
                 profile: cp,
                 distance: len(2.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (doc, pp) = on_frame(
@@ -705,7 +715,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             doc,
             Node::Extrude {
                 profile: pp,
-                distance: len(-0.125),
+                distance: len(0.125),
+                side: ExtrudeSide::Against,
             },
         );
         let (doc, tr) = insert(
@@ -855,7 +866,7 @@ fn wire_doors_refuse_typed() {
         doc.clone(),
         Node::Pattern {
             input: base,
-            count: Expr::count(0),
+            count: Formula::count(0),
             kind: editor_core::PatternKind::Circular {
                 axis: ax,
                 step: ang(1.0),

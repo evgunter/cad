@@ -79,7 +79,7 @@ pub(crate) fn nominal_box(analyzed: &AnalyzedBox) -> ParamBox {
         ParamBox::of(analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     )
 }

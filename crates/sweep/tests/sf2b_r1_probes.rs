@@ -25,6 +25,7 @@ use crate::common::approx::band;
 use crate::common::charts::{charts, moves_by};
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -46,9 +47,16 @@ fn bulged_box() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the bulged profile validates");
-    extrude(&profile, Extrusion::Distance(0.06), Tol::witness())
-        .expect("the bulged box extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.06,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bulged box extrudes")
+    .body
 }
 
 /// A partial revolve of `angle` radians: the drum meridian, wedge cut.

@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
+use pncad::document::ExtrudeSide;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
@@ -63,7 +64,14 @@ use pncad::sweep::{
 #[path = "common/census.rs"]
 mod census;
 use census::{genus, rings};
-use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
+use pncad::topo::{AtRestBody, Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
+
+/// `body` finished for the boolean doors, the panic naming `what` and
+/// the validator's findings where the gate refuses it.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+}
 
 /// A closed polygon through `$first` and the rest, on the `path`
 /// lattice (`RawLoop::polygon` is deliberately off pncad's presented
@@ -108,7 +116,10 @@ fn revolved_partial(lp: ConstructedLoop<f64>, theta: f64, tol: Tol) -> Body<f64>
 fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("footprint validates"),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("footprint extrudes")
@@ -709,6 +720,10 @@ fn r2_the_two_union_walls_on_my_operands() {
     )
     .expect("tube builds")
     .body;
+    let (can, handle) = (
+        finished("the can", can, tol),
+        finished("the handle", handle, tol),
+    );
     println!(
         "[r2-9] can u handle: {:?}",
         pncad::topo::union(&can, &handle, tol).err()
@@ -736,6 +751,7 @@ fn r2_the_two_union_walls_on_my_operands() {
         tol,
     )
     .expect("placed");
+    let cone = finished("the cone", cone, tol);
     println!(
         "[r2-9] can u cone: {:?}",
         pncad::topo::union(&can, &cone, tol).err()
@@ -968,6 +984,10 @@ fn r2_the_scene_numbers() {
     )
     .expect("handle")
     .body;
+    let (pot, handle) = (
+        finished("the pot", pot, tol),
+        finished("the handle", handle, tol),
+    );
     println!(
         "[r2-12] pot u handle: {:?}",
         pncad::topo::union(&pot, &handle, tol).err()
@@ -995,6 +1015,7 @@ fn r2_the_scene_numbers() {
         tol,
     )
     .expect("spout placed");
+    let spout = finished("the spout", spout, tol);
     let e = pncad::topo::union(&pot, &spout, tol).err();
     println!("[r2-12] pot u spout: {e:?}");
     if let Some(pncad::topo::BooleanError::CurvedPairUnsupported { other_face, .. }) = &e {

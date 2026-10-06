@@ -65,6 +65,7 @@ use crate::common::approx::band;
 use geom::Surface;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity};
@@ -282,7 +283,16 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
         )
         .validate(tol())
         .unwrap();
-        let body = extrude(&sq, Extrusion::Distance(d), tol()).unwrap().body;
+        let body = extrude(
+            &sq,
+            Extrusion::Distance {
+                depth: d,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        )
+        .unwrap()
+        .body;
         let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
         assert_eq!(edges.len(), 12, "a prism has twelve edges");
         let req = BlendRequest {

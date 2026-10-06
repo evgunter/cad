@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, insert, len, minted, on_frame, step};
+use editor_core::ExtrudeSide;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
     ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,
@@ -76,6 +77,7 @@ impl Standings {
             Node::Extrude {
                 profile,
                 distance: len(1.0),
+                side: ExtrudeSide::Along,
             },
         );
         let (doc, poisoned) = insert(
@@ -181,9 +183,9 @@ fn every_standing_renders_one_way_through_every_door() {
                 &[GeomPred::DatumDistance {
                     datum: node,
                     cmp: Cmp::Approx,
-                    value: len(0.0),
+                    value: editor_core::test_support::stored_expr(&len(0.0)),
                 }],
-                &s.doc.param_env::<f64>(),
+                &s.doc.var_env::<f64>(),
                 Tol::witness(),
             )
             .expect_err("a datum with no value");
@@ -350,6 +352,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
         Node::Extrude {
             profile,
             distance: len(0.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(
@@ -424,9 +427,9 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
         &[GeomPred::DatumDistance {
             datum: s.poisoned,
             cmp: Cmp::Approx,
-            value: len(0.0),
+            value: editor_core::test_support::stored_expr(&len(0.0)),
         }],
-        &s.doc.param_env::<f64>(),
+        &s.doc.var_env::<f64>(),
         Tol::witness(),
     )
     .expect_err("a poisoned datum");

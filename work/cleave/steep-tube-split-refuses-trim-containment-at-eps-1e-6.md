@@ -4,9 +4,11 @@ kind: issue
 title: review_cleave_wrongarc's steep tube cut refuses its split Pcurves TrimContainment at CAD_TOLERANCE_EPS=1e-6, so the row is red on main there
 status: closed
 opened: 2026-10-02
-closed: 2026-10-03
 priority: P1
 cost: M
+pr: 3981
+branch: cleave/steep-tube-eps
+closed: 2026-10-03
 ---
 
 
@@ -49,15 +51,22 @@ margin at the first sample (`HalfEdgeKey(24v1)` at `flip false`,
 trimmed window whose size tracks ε, or a certifier margin that does not
 scale. Then fix the code, or state the row's ε premise.
 
-## Closed
+## Measured (CLEAVE `cleave/steep-tube-eps`, 2026-10-03)
 
-Closed by the retirement of check 5 (PCERT's
-`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`,
-ratified on [ev] PR 3919): trim containment against a `ChartWindow` is
-no longer part of the pcurve certificate, so the split carry has no
-window to escalate against. Re-measured on that branch,
-`CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep -E
-'test(steep_cuts_of_tubes_chord_inside_each_bore_face)'` passes:
-`TALLY p2 tube: ok 48, skipped 0, wrong 0, refused 0, volume refused 2`.
-The `−3.06e-6` margin was the window test's, so there is nothing left
-to measure about it.
+The −3.0645639e-6 does not track ε. The face window's
+`v_min = −1.0000030645639348` is bit-identical at ε = 1e-9, 1e-8, 1e-7,
+1e-6 and 1e-5. It is not an overshoot either: it is an inside
+clearance. The window is the hull of the face's stored rows, and the
+cut row's `Harmonic` box (`harmonic_span_box`) dips its conservative
+`amp·Δt²/8` past the rim (amp 1.0288606, Δt²/8 = 2.9786e-6, product
+3.0645639e-6). The rim half-edge's exact box sits that far inside it.
+Check 5 decided the escape two-sidedly, so a negative clearance in
+`(−K·ε, −ε)` escalated, although both readings it lies between (Zero,
+Negative) pass. Fixed at the certifier: `trim_containment` decides
+only an escape's positive part, as the iso rows' `pcurve_iso_domain`
+gates do. The row now passes at the default, 1e-9, 1e-6 and 1e-12.
+
+Since then check 5 itself has retired (PCERT's
+`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`, [ev]
+PR 3919): the pcurve certificate tests no row against a window, so the
+split carry has none to escalate against.

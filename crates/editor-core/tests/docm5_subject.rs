@@ -29,6 +29,7 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Advisory, Assembly, AssemblyError, BooleanOp, CheckId, ChecksConfig, ChecksError, ChecksReport,
@@ -577,6 +578,7 @@ fn twin(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
     .0
@@ -617,6 +619,7 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -640,9 +643,9 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
         .expect("the corpus carries the heat sink");
     let doc = editor_core::apply(
         &entry.doc,
-        &editor_core::DocEdit::SetDocParam {
-            name: editor_core::ParamName::from_static("fins"),
-            value: editor_core::DocParam::Count { value: 160 },
+        &editor_core::DocEdit::DefineVar {
+            var: editor_core::VarName::from_static("fins").into(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 160 }),
         },
         tol,
         &editor_core::RefusingReach,
@@ -677,6 +680,7 @@ fn one_body_under_two_roots(id: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let moved = |doc, dx: f64| {
@@ -717,6 +721,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: first,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, second) = on_frame(
@@ -731,6 +736,7 @@ fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
         Node::Extrude {
             profile: second,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
     .0

@@ -39,6 +39,7 @@
 use geom_core::{Decide, Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
+use sweep::ExtrudeSide;
 use sweep::test_support::{block, brick, extruded, prism, sketch_at};
 use topo::Body;
 
@@ -215,7 +216,14 @@ pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: 
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the framed bar's profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(t1 - t0), Tol::witness())
-        .expect("the framed bar extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: t1 - t0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the framed bar extrudes")
+    .body
 }

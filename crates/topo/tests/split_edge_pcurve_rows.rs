@@ -128,10 +128,11 @@ fn deep(body: &Body<f64>) -> Vec<String> {
     }
     for (k, c) in body.pcurves() {
         out.push(format!(
-            "R {k:?} {:?} {:?} {:?}",
+            "R {k:?} {:?} {:?} {:?} {:?}",
             c.params(),
             c.pcurve(),
-            c.certificate()
+            c.certificate(),
+            body.joint(k)
         ));
     }
     out.sort();

@@ -15,20 +15,22 @@ use crate::common::three_arc;
 use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2};
 use mate2_common::*;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::test_support::extruded;
+use sweep::test_support::{extruded, finished};
 use topo::{Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration};
 
 /// The never-silent contract, shared by every row here: refusal is
 /// fine (typed by the error enum's construction); an `Ok` body must be
 /// exactly additive (4-ULP relative, the unit's own oracle — tightened
 /// from 8 once these probes measured the real distance) AND tier-3
-/// valid AND pseudomanifold-clean.
+/// valid AND pseudomanifold-clean. Each operand is finished once.
 fn never_silent(
     label: &str,
     a: &Body<f64>,
     b: &Body<f64>,
     decls: &BooleanDeclarations,
 ) -> Option<topo::BooleanError> {
+    let a = &finished(&format!("{label}: A"), a.clone(), Tol::witness());
+    let b = &finished(&format!("{label}: B"), b.clone(), Tol::witness());
     match topo::union_with(a, b, decls, Tol::witness()) {
         Ok(BooleanResult::Empty) => panic!("{label}: a threaded mate cannot be empty"),
         Ok(BooleanResult::Body(bb)) => {
@@ -267,6 +269,22 @@ fn r2_full_period_peg_unions() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
         }
     }
+    let join = topo::test_support::boolean_join_refusal(
+        topo::BooleanOp::Union,
+        &c,
+        &p,
+        &decls,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            join,
+            Ok(Some(topo::BooleanError::Join(
+                topo::SplitJoinError::RingHomingAmbiguous { .. }
+            )))
+        ),
+        "the declared-REST zip builds the mate: the join refuses it, got {join:?}"
+    );
     let e = never_silent("3-arc collar x full-period peg", &c, &p, &decls);
     assert!(e.is_none(), "the full-period peg mate refused: {e:?}");
 }
@@ -277,8 +295,8 @@ fn r2_full_period_peg_unions() {
 /// the π terms cannot cancel.)
 #[test]
 fn r2_measure_additivity_ulp_gap() {
-    let c = collar_at(0.0);
-    let p = peg_at(0.0, 0.5, 2.0);
+    let c = finished("the collar", collar_at(0.0), Tol::witness());
+    let p = finished("the peg", peg_at(0.0, 0.5, 2.0), Tol::witness());
     let mut decls = BooleanDeclarations::none();
     for &fa in &walls_at(&c, 0.5) {
         for &fb in &walls_at(&p, 0.5) {

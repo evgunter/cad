@@ -8,15 +8,15 @@
 //! so the book's "delete the inserted vertices to restore S" step
 //! vanishes). The first real sectioning feature.
 //!
-//! # Gate asymmetry vs `split`
+//! # A multi-solid body
 //!
 //! `plane_section` stops after the join — it shares the section-loop
 //! reading (`section_loops`) with the finish, not the finish
-//! itself — so it BYPASSES the single-solid gate: a multi-solid body is sliced whole — every solid
-//! the plane crosses contributes regions, and they all land in one
+//! itself — so a multi-solid body is sliced whole: every solid the
+//! plane crosses contributes regions, and they all land in one
 //! `regions` vec (no per-solid attribution). This is deliberate for a
-//! read-only query; [`super::split`] on the same body refuses typed
-//! with `NotSingleSolid`.
+//! read-only query; [`super::split`] on the same body splits it whole
+//! too and sorts each side into solids.
 
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 
@@ -25,6 +25,7 @@ use super::{PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{LoopBoundary, LoopKey};
 use crate::loop_winding::{ConicFrame, chord_bulge};
+use crate::validate::AtRestBody;
 use geom_core::Tol;
 
 /// One section polygon: the closed boundary the plane cuts, by its
@@ -257,15 +258,19 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// stages' refusals through unchanged — in particular a zero-area
 /// section (a curved face's concave graze) REFUSES (`DegenerateSection`,
 /// exactly as [`super::split`] does) rather than reporting a
-/// degenerate trace.
+/// degenerate trace; an operand that carries no verdict and is not what
+/// a finished body promises refuses as [`super::split`]'s does
+/// ([`SplitReduceError::ScaffoldingOperand`],
+/// [`SplitReduceError::InsideOutOperand`]).
 pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
+    operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Section<T>, SectionError<T>> {
-    let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
+    super::gate_finished(operand, tol).map_err(|e| SectionError::Split(SplitError::Reduce(e)))?;
     let band = geom_core::Band::linear(tol)
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
+    let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
     let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
@@ -294,7 +299,6 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
         let corner = points[0];
         let outline = match section_loops::loop_sense(&red.body, section.below_loop, normal, band) {
             Ok(outline) => outline,
-            Err(SenseFault::Torn) => return Err(SectionError::Corrupt),
             Err(SenseFault::Undecided(diag)) => {
                 return Err(SectionError::WindingUndecided { corner, diag });
             }

@@ -13,6 +13,7 @@ use crate::docm7_union_declare::{
 };
 use crate::fixture;
 use crate::fixture::{Recorder, flush_segs, fname, insert, len, table, wall};
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanCoincidence, BooleanOp, CapEnd, Diagnosis, EntityKind, Entry, Evaluation,
@@ -230,6 +231,7 @@ fn recorded_block(rec: &mut Recorder, (x0, x1): (f64, f64)) -> RecipeNodeId {
     rec.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     })
 }
 

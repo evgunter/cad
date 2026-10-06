@@ -53,8 +53,7 @@
 //!
 //! The door sits at the crate root because its consumers are in two
 //! lanes: the boolean's planar consumers reach it through
-//! `boolean::reduce::face_plane` (which re-exports it) and the pierce
-//! lane directly, while the shared [`crate::sector_face`] walk serves
+//! `boolean::reduce::face_plane` and the pierce lane directly, while the shared [`crate::sector_face`] walk serves
 //! the splitting lane too — a module under `boolean/` could not be the
 //! one door for both without a wrong-way edge.
 //!
@@ -96,12 +95,17 @@ pub(crate) fn plane_outward_normal<T: Real>(
 /// supports); the module docs list the in-crate callers.
 ///
 /// `None` for a non-planar face (the caller falls through to its own
-/// curved arms, or has none), and for a face or surface key that no
-/// longer resolves.
+/// curved arms, or has none), and for a face key that no longer
+/// resolves.
+///
+/// # Panics
+///
+/// Where the surface a resolved face names does not resolve (D2 row 4):
+/// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.get_face(face)?;
-    match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => Some(plane_outward_normal(f, *normal)),
+    match body.face_surface_linked(face, f) {
+        geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f, *normal)),
         _ => None,
     }
 }
@@ -211,7 +215,12 @@ fn ring_half(
 /// # Errors
 ///
 /// [`NormalAtError`] — an in-band margin, a torus outside the ring
-/// convention, or a point definitely off the surface.
+/// convention, or a point definitely off the surface. A face key that
+/// no longer resolves is `Ok(None)`.
+///
+/// # Panics
+///
+/// Where the surface a resolved face names does not resolve (D2 row 4).
 pub(crate) fn face_outward_normal_at<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -221,9 +230,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     let Some(f) = body.get_face(face) else {
         return Ok(None);
     };
-    let Some(surface) = body.get_surface(f.surface) else {
-        return Ok(None);
-    };
+    let surface = body.face_surface_linked(face, f);
     match surface {
         geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f, *normal))),
         geom::Surface::Cylinder { .. }
@@ -728,5 +735,45 @@ mod tests {
             ),
             "{got:?}"
         );
+    }
+
+    /// **A stale face reads `None`; a torn surface past a face that
+    /// resolves panics**, at both doors, where it read as a face with no
+    /// planar carrier.
+    #[test]
+    fn a_stale_face_reads_none_and_a_torn_surface_panics() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let p = *body
+            .get_point(
+                body.get_vertex(body.vertices().next().unwrap().0)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap();
+        assert!(face_outward_normal(&body, face).is_some(), "a plane");
+        let mut stale = body.clone();
+        stale.faces.remove(face);
+        assert!(face_outward_normal(&stale, face).is_none(), "a stale face");
+        assert!(
+            matches!(face_outward_normal_at(&stale, face, p, band()), Ok(None)),
+            "a stale face"
+        );
+        let surface = body.get_face(face).unwrap().surface;
+        body.surfaces.remove(surface);
+        let named = format!(
+            "{}'s surface names {}",
+            crate::entity::EntityId::Face(face),
+            crate::entity::GeomRef::Surface(surface)
+        );
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("face_outward_normal", &mut body, &premise, |b| {
+            face_outward_normal(b, face).is_some()
+        });
+        assert_torn_op_panics("face_outward_normal_at", &mut body, &premise, |b| {
+            face_outward_normal_at(b, face, p, band()).map(|n| n.is_some())
+        });
     }
 }

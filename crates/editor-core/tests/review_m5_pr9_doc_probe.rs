@@ -15,6 +15,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{frame, len, len2, xy_frame};
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc,
     ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, load,
@@ -34,7 +36,7 @@ impl Rec {
             edits: Vec::new(),
         }
     }
-    fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
+    fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let edit = DocEdit::InsertNode {
             node: Box::new(node),
         };
@@ -66,6 +68,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(0.8),
+        side: ExtrudeSide::Along,
     });
     // v4: the corpus boss re-authored as circle_split (corpus ruling
     // (a)); this probe mirrors it so the closed-form volume row keeps
@@ -82,6 +85,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
@@ -210,6 +214,7 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
     let ex = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let count = |doc: &ProfileDoc| -> usize {
         let ev = evaluate::<f64>(

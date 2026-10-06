@@ -142,6 +142,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_bore_two_rims.rs"]
+mod edit_bore_two_rims;
 #[path = "edit_doc_param_distribution.rs"]
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
@@ -280,6 +282,12 @@ mod maintenance_net;
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]
 mod msolve11_mate_log;
+#[path = "msolve12_honest_translation.rs"]
+mod msolve12_honest_translation;
+#[path = "msolve13_read_at_operand.rs"]
+mod msolve13_read_at_operand;
+#[path = "msolve14_run_scalar.rs"]
+mod msolve14_run_scalar;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
@@ -288,8 +296,8 @@ mod msolve2_member_chain;
 mod msolve3_placer_refused;
 #[path = "msolve4_mate_memo.rs"]
 mod msolve4_mate_memo;
-#[path = "msolve5_read_below_a_root.rs"]
-mod msolve5_read_below_a_root;
+#[path = "msolve5_operand_refusals.rs"]
+mod msolve5_operand_refusals;
 #[path = "msolve6_part_extent.rs"]
 mod msolve6_part_extent;
 #[path = "msolve7_member_residue.rs"]
@@ -459,6 +467,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "meta_minted_ids.rs"]
+mod meta_minted_ids;
 #[path = "meta_nesting_bound.rs"]
 mod meta_nesting_bound;
 #[path = "name_depth.rs"]
@@ -471,6 +481,8 @@ mod names_verbatim_edge_evaluator;
 mod node_labels;
 #[path = "node_standing.rs"]
 mod node_standing;
+#[path = "p2_face.rs"]
+mod p2_face;
 #[path = "p2_gauge_offsets_and_spaces.rs"]
 mod p2_gauge_offsets_and_spaces;
 #[path = "p2_gauge_poses_and_doors.rs"]
@@ -487,6 +499,8 @@ mod parallel_node_map_interval;
 mod parallel_node_map_probe;
 #[path = "part_depth_bound.rs"]
 mod part_depth_bound;
+#[path = "pattern_spacing_and_step.rs"]
+mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -501,6 +515,8 @@ mod pierce_ring_engraving;
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
+#[path = "place_mate_frame_offset.rs"]
+mod place_mate_frame_offset;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
@@ -713,5 +729,13 @@ mod emit_union_borders;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "intent_literals_a_definitions.rs"]
+mod intent_literals_a_definitions;
+#[path = "intent_literals_b_door.rs"]
+mod intent_literals_b_door;
+#[path = "intent_vars_2_table.rs"]
+mod intent_vars_2_table;
+#[path = "intent_vars_3_readers.rs"]
+mod intent_vars_3_readers;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;

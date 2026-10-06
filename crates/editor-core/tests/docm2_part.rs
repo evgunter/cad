@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::corpus;
@@ -20,7 +21,7 @@ use crate::fixture::{Recorder, ang, len, scl};
 
 use editor_core::{
     BooleanOp, CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Evaluation, Expr, Node, NodeError, NodeErrorKind, NodeResult, PartSelect,
+    EvalOptions, Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, PartSelect,
     PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
     StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
@@ -52,6 +53,7 @@ fn unit_box(r: &mut Recorder, x0: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -63,23 +65,23 @@ fn plane_z(r: &mut Recorder, z: f64) -> RecipeNodeId {
     }))
 }
 
-fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect) -> RecipeNodeId {
+fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect<Formula>) -> RecipeNodeId {
     r.insert(Node::Part { of, select })
 }
 
-fn half(h: SplitHalf) -> PartSelect {
+fn half(h: SplitHalf) -> PartSelect<Formula> {
     PartSelect::SplitHalf(h)
 }
 
-fn instance(i: i64) -> PartSelect {
-    PartSelect::Instance(Expr::count(i))
+fn instance(i: i64) -> PartSelect<Formula> {
+    PartSelect::Instance(Formula::count(i))
 }
 
 /// A three-instance linear pattern of `input`, three metres apart.
 fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
     r.insert(Node::Pattern {
         input,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(3.0),
@@ -194,8 +196,10 @@ fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<String> {
 /// The kernel's pair union of two bodies, no declaration — the same
 /// door and strategy the document's `Boolean(Union)` runs.
 fn kernel_union(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    match topo::union(a, b, Tol::witness()).expect("the kernel union succeeds") {
-        BooleanResult::Body(bb) => bb.body,
+    let a = topo::test_support::finished("operand A", a.clone(), Tol::witness());
+    let b = topo::test_support::finished("operand B", b.clone(), Tol::witness());
+    match topo::union(&a, &b, Tol::witness()).expect("the kernel union succeeds") {
+        BooleanResult::Body(bb) => bb.body.into_body(),
         BooleanResult::Empty => panic!("a union of material is not empty"),
     }
 }
@@ -513,7 +517,7 @@ fn a4_every_refusal_is_typed() {
         &DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -574,7 +578,7 @@ fn a4_every_refusal_is_typed() {
         &DocEdit::SetParam {
             node: index_of_split,
             slot: SlotId::Instance,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -620,7 +624,7 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
         &DocEdit::SetStructuralParam {
             node: p1,
             slot: SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -729,6 +733,7 @@ fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> RecipeNode
     r.insert(Node::Extrude {
         profile: p,
         distance: len(dz),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -859,7 +864,7 @@ fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
     let sub = u_cutter_tie(&mut r);
     let pat = r.insert(Node::Pattern {
         input: sub,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(20.0),

@@ -1,7 +1,7 @@
 //! **A row stored as the sphere's involution twin certifies at the
 //! certifying scalar.** The pole-crossing half cap's meridian arc is
-//! stored by the loop walk as the sphere's twin `(u + π, π − v)`
-//! (`topo::pcurves::sphere_twin`), and check 4's fidelity reads it
+//! met by the loop walk through the sphere's twin `(u + π, π − v)`
+//! (`topo::pcurves::sphere_twin`, the joint's element), and check 4's fidelity reads it
 //! against the twin's branch (`geom_brep::whole_periods`, decided as
 //! `pcurve_fidelity_twin`). An exact twin's azimuth offset is π, which
 //! is the centred fold's jump: a selection read off that fold encloses
@@ -81,12 +81,13 @@ fn half_cap<T: Real + SpanLocate + AtRestPolicy>(phi: f64) -> Result<Body<T>, St
     Ok(body)
 }
 
-/// **Which representation the walk picks**: of the half cap's four
-/// rows, exactly one — the pole-crossing arc's, met across the pole —
-/// is stored as the involution twin of its derivation (azimuth `π` on,
-/// polar `π − v`), and the rest as derived, at both scalars. The joint
-/// before it lifts only through the twin: the derivation's own azimuth
-/// sits on a half-period mark of the branch decision.
+/// **Which representation the walk picks**: the half cap is two faces,
+/// each bounded by a rim and the pole-crossing arc, and of its four
+/// joints exactly two — one in each face's loop — carry the involution
+/// twin (azimuth `π` on, polar `π − v`), at both scalars, while every
+/// row is its derivation. Each loop closes through the twin, and the
+/// joint that carries it lifts only through the twin: the derivation's
+/// own azimuth sits on a half-period mark of a whole-period decision.
 fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>(body: &Body<T>) -> usize {
     use geom_brep::{Pcurve, chart_pcurve};
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -108,22 +109,22 @@ fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>(body: &Body<T>) -> usize 
         else {
             panic!("the cap's rows are harmonic")
         };
-        if near(s.x - d.x, core::f64::consts::PI) && near(s.y + d.y, core::f64::consts::PI) {
-            twins += 1;
-        } else {
-            assert!(
-                near(s.x - d.x, 0.0) && near(s.y - d.y, 0.0),
-                "{he:?}: a row is its derivation or its twin"
-            );
-        }
+        assert!(
+            near(s.x - d.x, 0.0) && near(s.y - d.y, 0.0),
+            "{he:?}: a row is its derivation"
+        );
+        let element = body
+            .joint(he)
+            .expect("every joint of the cap stores its element");
+        twins += usize::from(element.deck().twin);
     }
     twins
 }
 
 #[test]
-fn the_walk_stores_one_row_as_the_twin() {
-    assert_eq!(twins(&half_cap::<f64>(0.0).unwrap()), 1, "at f64");
-    assert_eq!(twins(&half_cap::<Interval>(0.0).unwrap()), 1, "at Interval");
+fn the_walk_stores_one_joint_as_the_twin() {
+    assert_eq!(twins(&half_cap::<f64>(0.0).unwrap()), 2, "at f64");
+    assert_eq!(twins(&half_cap::<Interval>(0.0).unwrap()), 2, "at Interval");
 }
 
 #[test]
@@ -140,16 +141,16 @@ fn the_pole_crossing_half_cap_mints_at_f64_and_at_interval() {
 /// The cap is turned so every carrier end sits `0.99ε` off its vertex,
 /// and the run's K is `1.5` (`Tolerance::init`, this process only): the
 /// joint across the pole then sits `≈ 2ε` in metres off the twin's
-/// exact azimuth, past `K·ε`. The walk still stores exactly one row as
-/// the twin, and the body reads clean. Restating that row on its OTHER
-/// sheet (the twin of the twin: the derivation a whole period over)
-/// puts an interior twin jump in the loop, which tier 3 refuses as a
+/// exact azimuth, past `K·ε`. The walk still stores the same two twin
+/// joints, and the body reads clean. Restating the row after that
+/// joint on its OTHER sheet (its own twin) leaves the stored element
+/// naming a sheet the row is no longer on, which tier 3 refuses as a
 /// discontinuity.
 fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
     use geom_brep::{Pcurve, PcurveCache};
     let r = 0.75_f64.sqrt();
     let mut body = half_cap::<T>(0.99 * eps / r).unwrap_or_else(|e| panic!("{lane}: {e}"));
-    assert_eq!(twins(&body), 1, "{lane}: the walk stores the twin");
+    assert_eq!(twins(&body), 2, "{lane}: the walk stores the twin joints");
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     assert_eq!(
         topo::pcurves::validate_pcurves(&body, band),
@@ -169,11 +170,7 @@ fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
             let Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
                 return None;
             };
-            let derived = geom_brep::chart_pcurve(curve.carrier(), &sphere, band).ok()?;
-            let Pcurve::Harmonic { p0: d, .. } = derived else {
-                return None;
-            };
-            let twin = (p0.x - d.x).hi() > 3.0;
+            let twin = body.joint(he)?.deck().twin;
             twin.then(|| {
                 let flip = |w: geom_core::Vec2<T>| geom_core::Vec2::new(w.x, T::zero() - w.y);
                 let other = Pcurve::Harmonic {
@@ -188,7 +185,7 @@ fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
                 (he, cache)
             })
         })
-        .expect("the twin row");
+        .expect("the row after the twin joint");
     body.attach_pcurve(he, other);
     let findings = topo::pcurves::validate_pcurves(&body, band);
     assert!(

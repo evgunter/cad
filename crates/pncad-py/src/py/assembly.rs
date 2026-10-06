@@ -49,7 +49,8 @@ use super::mate::MateSide;
 use super::value::{Body, Evaluation};
 
 /// **The document a row's `__str__` speaks its nodes from**: the
-/// evaluated document for this document's own rows, and none for a row
+/// evaluated document for this document's own rows and for the first
+/// instance of a carried row's route, and none for the rest of a row
 /// carried up from a document below, whose ids are that document's and
 /// are said by tag.
 #[derive(Clone, Default)]
@@ -237,9 +238,9 @@ pub(crate) fn product_named(
 /// Why a mate reference named no product face.
 ///
 /// Payload attributes present on every arm, `None` where inapplicable:
-/// `at` (the operand a reference is read at when it is spelled there
-/// but the operand is not a product root) and `width` (how many
-/// entities a tie holds). There is no `kind`: a mate head is a face
+/// `at` (the operand a moved reference is read at), `by` (the node
+/// that moves it, or that consumed it on its way to the product) and
+/// `width` (how many faces answer). There is no `kind`: a mate head is a face
 /// by its type, so no refusal here reports what a head named
 /// instead.
 ///
@@ -252,32 +253,42 @@ pub(crate) struct RefusedRef(d::RefusedRef, SpokenFrom);
 
 #[pymethods]
 impl RefusedRef {
-    /// The stable tag: `ref_vanished`, `ref_read_below_a_root`,
+    /// The stable tag: `ref_vanished`, `ref_moved_above`,
     /// `ref_ambiguous`.
     #[getter]
     fn variant(&self) -> &'static str {
         refused_ref_tag(&self.0)
     }
 
-    /// The operand the reference is read at, when its own table
-    /// spells the name but it is not a root of the product — the
-    /// product spells that entity at its roots, under a pattern as
-    /// the instance row at the pattern node.
+    /// The operand the reference is read at, when a node above it
+    /// places the face again before the product holds it.
     #[getter]
     fn at(&self) -> Option<NodeId> {
         match self.0 {
-            d::RefusedRef::ReadBelowARoot { at } => Some(NodeId(at)),
-            d::RefusedRef::Vanished | d::RefusedRef::Ambiguous { .. } => None,
+            d::RefusedRef::MovedAbove { at, .. } => Some(NodeId(at)),
+            d::RefusedRef::Vanished { by: _ } | d::RefusedRef::Ambiguous { width: _ } => None,
         }
     }
 
-    /// How many entities a tie holds. A mate declaration must name
-    /// ONE face, and a tie is never broken by picking.
+    /// The node above the operand that places the face again
+    /// (`ref_moved_above`), or that consumed it on its way to the
+    /// product (`ref_vanished`, when the operand spells the name).
+    #[getter]
+    fn by(&self) -> Option<NodeId> {
+        match self.0 {
+            d::RefusedRef::MovedAbove { by, .. } => Some(NodeId(by)),
+            d::RefusedRef::Vanished { by } => by.map(NodeId),
+            d::RefusedRef::Ambiguous { width: _ } => None,
+        }
+    }
+
+    /// How many faces answer. A mate declaration must name ONE face,
+    /// and a tie is never broken by picking.
     #[getter]
     fn width(&self) -> Option<usize> {
         match self.0 {
             d::RefusedRef::Ambiguous { width } => Some(width),
-            d::RefusedRef::Vanished | d::RefusedRef::ReadBelowARoot { .. } => None,
+            d::RefusedRef::Vanished { .. } | d::RefusedRef::MovedAbove { .. } => None,
         }
     }
 
@@ -545,7 +556,7 @@ impl MintRefusal {
 /// file to open and `via` the instances in between, nearest first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CarriedRefusal(d::CarriedRefusal);
+pub(crate) struct CarriedRefusal(d::CarriedRefusal, SpokenFrom);
 
 #[pymethods]
 impl CarriedRefusal {
@@ -574,10 +585,10 @@ impl CarriedRefusal {
         route_fields(py, &self.0.route).1
     }
 
-    /// The row in the library's own words: which document, what it
-    /// could not mint, and the repair.
+    /// The row in the library's own words: which document, and what
+    /// it could not mint.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        self.1.say(&self.0)
     }
 
     fn __repr__(&self) -> String {
@@ -711,7 +722,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
         E::CarriedMintRefusal { refusals } => (
             obj(refusals
                 .iter()
-                .map(|r| CarriedRefusal(r.clone()))
+                .map(|r| CarriedRefusal(r.clone(), from.clone()))
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
                 .map(|v| v.unbind().into_any())),

@@ -8,7 +8,7 @@
 //! Per run, the fan site is resolved **at execution time**: `he1` = the
 //! run's first real half-edge (its own move — still at the base
 //! vertex), `he2` = the orbit successor of the run's last half-edge
-//! `next(mate(last))` *in the current body* — robust against earlier
+//! ([`Body::run_site`]) *in the current body* — robust against earlier
 //! runs' splices (a previously moved run or minted null-edge half may
 //! be the successor; the exclusive bound is whatever the orbit holds
 //! now, which is exactly "everything in this run and nothing else").
@@ -17,9 +17,9 @@
 //! **dangling** null edge: the strut site `Fan { he, he }` at the
 //! sector's CW-next half-edge, splicing the strut inside that sector's
 //! corner. A run holding every real edge of the orbit is the mirror
-//! case: `next(mate(last))` comes back to `first`, `mev` builds a strut
-//! inside the one sector whose bisector crossed below, and the old
-//! vertex keeps the whole ABOVE run.
+//! case ([`crate::euler::RunSite::WholeOrbit`]): a strut inside the one
+//! sector whose bisector crossed below, and the old vertex keeps the
+//! whole ABOVE run.
 //!
 //! Orientation is **data** (F9): the end holding the ABOVE run is the
 //! above end. The minted copy takes the run, so
@@ -34,7 +34,7 @@ use slotmap::SecondaryMap;
 use super::{NullEdgeRecord, PlaneSide, SectorEntry, SectorEntryKind, SplitReduceError};
 use crate::body::Body;
 use crate::entity::VertexKey;
-use crate::euler::MevSite;
+use crate::euler::{MevSite, RunSite};
 use crate::null::{NewVertexSide, NullEdge};
 
 /// A maximal cyclic run of ABOVE entries, by entry index.
@@ -93,23 +93,24 @@ pub(super) fn insert_null_edges<T: geom_core::Decide>(
         let last = real.next_back().or(first);
         // `whole_orbit`: the copy is the strut tip in a Below sector.
         let (site, dangling, whole_orbit) = match (first, last) {
-            (Some(first), Some(last)) => {
-                // he2 at execution time: the current orbit successor of
-                // the run's last half-edge (module docs).
-                let corrupt = SplitReduceError::CorruptOperand { vertex };
-                let mate = body.mate(last.he).ok_or(corrupt)?;
-                let he2 = body
-                    .get_half_edge(mate)
-                    .ok_or(SplitReduceError::CorruptOperand { vertex })?
-                    .next;
-                // A run holding every real edge of the orbit leaves the
-                // Below side inside one physical sector: `he2` comes
-                // back to `first.he`, and the empty fan is a strut
-                // spliced in that sector's corner. The base vertex keeps
-                // the Above run, so the strut tip is the Below copy.
-                let whole = he2 == first.he;
-                (MevSite::Fan { he1: first.he, he2 }, whole, whole)
-            }
+            // he2 at execution time (module docs). A run holding every
+            // real edge of the orbit leaves the Below side inside one
+            // physical sector: the strut spliced in that sector's
+            // corner, whose tip is the Below copy while the base vertex
+            // keeps the Above run.
+            (Some(first), Some(last)) => match body.run_site(first.he, last.he).unwrap_or_else(|| {
+                unreachable!(
+                    "the run {:?} ..= {:?} at {vertex:?} has no orbit successor: its halves come \
+                     from the orbit the reduction just walked, the reduction kills nothing, and \
+                     {}",
+                    first.he,
+                    last.he,
+                    crate::live::NAMES_ONLY_LIVE
+                )
+            }) {
+                site @ RunSite::Fan { .. } => (site.mev_site(), false, false),
+                site @ RunSite::WholeOrbit { .. } => (site.mev_site(), true, true),
+            },
             // Dup-only run: the dangling strut inside the wide sector.
             // The entry after a bisector duplicate is always the next
             // real orbit edge; the strut splices immediately before it,

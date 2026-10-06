@@ -3,7 +3,7 @@
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s unit,
 //! taken at the nominal on five of the six measured documents (R2's
 //! rounded pad does not return a nominal replay on a four-core box:
-//! `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
+//! `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
 //! the leaf instrument in `m10_10_evidence_interval` takes it).
 //!
 //! The instrument is the RETRY LADDER itself (`geom_core::sym::SymRetry`)
@@ -187,7 +187,7 @@ fn document(name: &str, scale: f64, tol: Tol) -> ProfileDoc {
 /// report the unit's dispatch recorded as exhausting a four-core box's
 /// memory (this lane's own two pad runs did not return a first replay
 /// with the report on or off:
-/// `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
+/// `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
 /// The counts are the same either way: the report is a recorder, the
 /// receipt is the session's own.
 fn replay(
@@ -198,7 +198,10 @@ fn replay(
     tol: Tol,
 ) -> (Vec<DecisionShape>, SymCounts) {
     for name in box_.axes().keys() {
-        name_param(name.as_str());
+        name_param(
+            geom_core::ParamSymbol::new(name.0),
+            &doc.spoken_var(*name).to_string(),
+        );
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
@@ -452,14 +455,42 @@ fn sym_9_what_each_retry_recovers() {
 /// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
 /// `registered`, `numeric` and `retried` do not move.
 ///
-/// PCERT's chart-angle unit retired the loop's angle equalities and
-/// check 5, so every document lost those decisions outright, in every
-/// column at once: without the ladder the plate reads
-/// `[907, 0, 140, 646]`, the annulus `[424, 0, 140, 393]`, the boss
-/// `[447, 2, 96, 371]`, the bracket `[1239, 5, 146, 1013]` and the link
-/// `[641, 0, 110, 691]`. That is a baseline moving, not a retry taking
-/// a decision away: what the ladder adds over the same replay without
-/// it, and `retried`, are unmoved on every document.
+/// Check 5 deciding only an escape's positive part (PR 3981,
+/// `geom_brep::pcurve_cache::escape`) moves all five up out of
+/// `numeric`, with and without the ladder alike: theorems on the plate
+/// (+8, `[955, 0, 148, 690]`) and the link (+8, `[689, 0, 118, 735]`
+/// without the ladder), `sign_gated` on the annulus (+8, `[440, 32, …]`),
+/// the boss (+6, `[459, 26, …]`) and the bracket (+10, `[1259, 45, …]`).
+/// A row box inside its window reads Zero where its clearance read a
+/// numeric Negative. `registered` and `retried` do not move.
+///
+/// The variable table (INTENT-VARS-1 PR 2) keys a variable's symbol by
+/// its minted id where it was keyed by a hash of its name, so the
+/// bracket's variables sort differently inside every canonical form.
+/// Two of its residuals that registered under the old order are left
+/// numeric under the new one, with and without the ladder alike
+/// (`registered` 156 → 154 and 162 → 160, `numeric` up by two): the
+/// ladder's own six and every other document's row do not move.
+/// Measured by a probe binding each variable under its old name-hash
+/// symbol, which restores 156 and 162: the move is the order alone.
+///
+/// A loop walk that decides each loop's closure joint as every other
+/// joint, between two images, and reads the winding off the integer
+/// joint elements (the re-anchor ruling, PR 4024) trades the closure
+/// margins for that joint's branch, pole-lever and continuity margins:
+/// `numeric` up on all five, with and without the ladder alike (the
+/// plate +14 to 704, the annulus +14 to 451, the boss +10 to 414, the
+/// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
+/// Theorems, `sign_gated`, `registered` and `retried` do not move.
+///
+/// PCERT's chart-angle unit retired the loop's chart-space angle
+/// comparisons and check 5, so every document lost those decisions
+/// outright, in every column at once: without the ladder the plate
+/// reads `[907, 0, 140, 648]`, the annulus `[424, 0, 140, 395]`, the
+/// boss `[447, 2, 96, 372]`, the bracket `[1239, 5, 146, 1015]` and the
+/// link `[641, 0, 110, 692]`. That is a baseline moving, not a retry
+/// taking a decision away: what the ladder adds over the same replay
+/// without it, and `retried`, are unmoved on every document.
 ///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
@@ -480,16 +511,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [907, 0, 140, 646], [907, 0, 140, 646], 0),
-        ("r1_annulus", [424, 0, 140, 393], [424, 0, 140, 393], 0),
-        ("r1_segment_boss", [447, 2, 96, 371], [447, 2, 96, 371], 0),
+        ("two_hole_plate", [907, 0, 140, 648], [907, 0, 140, 648], 0),
+        ("r1_annulus", [424, 0, 140, 395], [424, 0, 140, 395], 0),
+        ("r1_segment_boss", [447, 2, 96, 372], [447, 2, 96, 372], 0),
         (
             "r2_filleted_bracket",
-            [1239, 5, 146, 1013],
-            [1239, 5, 152, 1007],
+            [1239, 5, 146, 1015],
+            [1239, 5, 152, 1009],
             6,
         ),
-        ("r2_link", [641, 0, 110, 691], [643, 0, 122, 677], 14),
+        ("r2_link", [641, 0, 110, 692], [643, 0, 122, 678], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -564,10 +595,10 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// receipt was `[1206, 51, 176, 1145, 6]` (bare `[1206, 51, 170, 1151,
 /// 0]`): the same six retried, and the restated certificate's
 /// theorems in place of the schedule's registered and numeric
-/// residuals. The retirement of the loop's angle equalities and check 5
-/// took `[1259, 35, 162, 1072, 6]` to `[1239, 5, 152, 1007, 6]` (bare
-/// `[1259, 35, 156, 1078, 0]` to `[1239, 5, 146, 1013, 0]`): the same
-/// six retried.
+/// residuals. The retirement of the loop's chart-space angle
+/// comparisons and check 5 took `[1259, 45, 160, 1081, 6]` to
+/// `[1239, 5, 152, 1009, 6]` (bare `[1259, 45, 154, 1087, 0]` to
+/// `[1239, 5, 146, 1015, 0]`): the same six retried.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -592,7 +623,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         retry: SymRetry::none(),
         ..editor_core::drive::SymbolicDials::default()
     });
-    let (line, human) = (shipped.serialize(), shipped.render(&analyzed));
+    let (line, human) = (shipped.serialize(), shipped.render(&doc, &analyzed));
     println!("{line}\n{human}");
     assert_eq!(shipped.receipt().certified, 1, "the leaf certifies whole");
     assert_eq!(
@@ -609,7 +640,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1239, 5, 152, 1007, 6],
+        [1239, 5, 152, 1009, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -629,11 +660,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1239, 5, 146, 1013, 0]
+        [1239, 5, 146, 1015, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
     );
-    assert!(!bare.render(&analyzed).contains("second attempt"));
+    assert!(!bare.render(&doc, &analyzed).contains("second attempt"));
 }

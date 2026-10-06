@@ -38,12 +38,14 @@ test_utils::gated_to![
     "crates/editor-core/src/test_support.rs",
 ];
 
+use pncad::document::AuthoredNode;
+use pncad::document::ExtrudeSide;
 use std::sync::{Arc, Mutex};
 
 use crate::common;
 use crate::common::{ang, len, scl, xy_frame};
 
-use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Formula, Node, PatternKind, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
@@ -74,14 +76,11 @@ fn delta() -> DisplayTolerance {
 
 /// `common::inserted` at this suite's tolerance: one node into `doc`
 /// through the document's door, no session.
-fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
+fn inserted(doc: &Doc<ProfileProgram>, node: AuthoredNode) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(doc, node, tol())
 }
 
-fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfileProgram> {
+fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> AuthoredNode {
     Node::transform(
         input,
         pncad::document::Step::Rigid {
@@ -104,6 +103,7 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
         Node::Extrude {
             profile,
             distance: len(t),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, extrude)
@@ -131,7 +131,7 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
         &doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(0.04),

@@ -7,16 +7,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
+use sweep::ExtrudeSide;
 
 use geom::Curve3;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{arcs_at, ball_poled_z, cube, dome, lantern, sphere_zone, waisted};
+use sweep::test_support::{
+    arcs_at, ball_poled_z, cube, dome, lantern, realized, sphere_zone, waisted,
+};
 use sweep::{Extrusion, Revolution, extrude};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::query::rim_of;
-use topo::{Body, BooleanDeclarations, EdgeKey, RimError, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, RimError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -28,16 +31,12 @@ fn is_rotation(a: &[EdgeKey], b: &[EdgeKey]) -> bool {
 
 /// A die pip's shape: a cube with a ball subtracted at one face's centre.
 fn cube_minus_ball() -> Body<f64> {
-    let out = boolean_op_with(
+    realized(
         BooleanOp::Subtract,
         &cube(1.0, tol()),
         &ball_poled_z(0.3, Vec3::new(0.5, 0.5, 1.0), tol()),
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("cube minus ball: {e}"));
-    out.body().expect("a body").body.clone()
 }
 
 /// A unit plate with a circular through-hole (two-vertex bulge loop).
@@ -55,9 +54,16 @@ fn plate_with_hole() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), tol())
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 fn is_circle(body: &Body<f64>, k: EdgeKey) -> bool {

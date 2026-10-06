@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P3
 cost: M
-refs: [3387, validate-own-close-levers-follow-the-d4-recourse-ruling, chart-region-corrupt-spells-its-kernel-defect-ending-by-hand, nappe-spanning-spells-its-kernel-defect-ending-by-hand]
+refs: [3387, validate-own-close-levers-follow-the-d4-recourse-ruling, chart-region-corrupt-spells-its-kernel-defect-ending-by-hand]
 ---
 
 **Where this comes from.** S-DUP's design fork on
@@ -63,3 +63,10 @@ enumerates every nested variant. `refusal_concision_at_rest` renders
 each one through the viewer's standard. That row checks a sentence's
 shape, not its truth, so a wrong class stays green. A plant proves only
 that the arm is reached.
+
+## A reference that outlived its program (2026-10-03)
+
+`nappe-spanning-spells-its-kernel-defect-ending-by-hand` was PROPS' and was deleted with `work/props/` when that program closed.
+It is dropped from this row's `refs:` because `refs` names live items; the
+finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
+and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.

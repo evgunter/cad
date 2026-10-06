@@ -5,7 +5,8 @@
 
 use eframe::egui;
 use pncad::document::{
-    Axis3, Dimension, Doc, Frame, ParamName, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
+    Axis3, Dimension, Doc, Frame, HeldNodes, ProfileProgram, RecipeNodeId, Said, SlotId, Speaker,
+    VarId, VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::Resolution;
@@ -81,7 +82,7 @@ impl ViewerBehavior<'_> {
                     self.feature_rows_ui(ui, feature, &groups);
                 }
             }
-            Selection::Param(name) => {
+            Selection::Param(var) => {
                 // **The previewed document here, deliberately**: this
                 // row's field IS the drag, so it must show the value
                 // the gesture is previewing. What decides whether the
@@ -92,21 +93,21 @@ impl ViewerBehavior<'_> {
                 // undeclare one.
                 if let Some(row) = crate::props::param_rows(self.session.doc())
                     .into_iter()
-                    .find(|row| row.name == name)
+                    .find(|row| row.var == var)
                 {
                     // The dimension in the common noun editor-core's
                     // `Display` spells, never the variant identifier:
                     // a label a person reads is prose.
                     crate::widgets::message(
                         ui,
-                        format!("parameter {} ({})", row.name.as_str(), row.dimension),
+                        format!("parameter {} ({})", row.label, row.dimension),
                     );
                     ui.horizontal(|ui| {
                         value_field_ops(
                             ui,
                             param_showing(&row, *self.notation),
-                            value_gesture(ValueGestureName::Param(name.clone())),
-                            param_doors(&name),
+                            value_gesture(ValueGestureName::Param(var)),
+                            param_doors(var),
                             self.ops,
                             self.notices,
                         );
@@ -114,7 +115,7 @@ impl ViewerBehavior<'_> {
                         // parameter's notation is a fact the document
                         // stores and an edit changes
                         // (`SessionOp::SetParamUnit`, over
-                        // `DocEdit::SetDocParamUnit`), so the row says
+                        // `DocEdit::SetVarUnit`), so the row says
                         // it the way a slot row does: with the control
                         // that changes it. The dimensionless row and a
                         // `Count` have no notation to offer and draw
@@ -122,6 +123,27 @@ impl ViewerBehavior<'_> {
                         self.param_unit_ui(ui, &row);
                     });
                     self.param_bounds_ui(ui, &row);
+                } else if let Some(row) = crate::props::defined_rows(self.session.doc())
+                    .into_iter()
+                    .find(|row| row.var == var)
+                {
+                    // A defined variable's field shows its formula and
+                    // takes text as a free one's does: a formula
+                    // redefines it, a value makes it free again. It
+                    // holds no value of its own, so a drag is the value
+                    // door's to refuse.
+                    crate::widgets::message(
+                        ui,
+                        format!("parameter {} ({})", row.label, row.dimension),
+                    );
+                    value_field_ops(
+                        ui,
+                        defined_showing(&row, *self.notation),
+                        value_gesture(ValueGestureName::Param(var)),
+                        param_doors(var),
+                        self.ops,
+                        self.notices,
+                    );
                 }
                 // No row is an undeclared parameter, and nothing is
                 // drawn for it here: the header above has said so
@@ -137,9 +159,15 @@ impl ViewerBehavior<'_> {
         ui.label("document parameters");
         for row in crate::props::param_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
-            if crate::widgets::message_link(ui, row.name.as_str().to_owned()).clicked() {
-                self.ops
-                    .push(SessionOp::Select(Selection::Param(row.name.clone())));
+            if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
+                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
+            }
+        }
+        for row in crate::props::defined_rows(self.session.doc()) {
+            if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
+                .clicked()
+            {
+                self.ops.push(SessionOp::Select(Selection::Param(row.var)));
             }
         }
         self.add_param_ui(ui);
@@ -183,7 +211,7 @@ impl ViewerBehavior<'_> {
 
     /// The create half of the document-parameters section: name,
     /// dimension, value, the NOTATION to write it in, one
-    /// [`SessionOp::CreateParam`] on commit.
+    /// [`SessionOp::DeclareVar`] on commit.
     ///
     /// **The unit is the working notation's, not this form's.** A
     /// length picked here is [`Notation::length`], the one every
@@ -199,9 +227,9 @@ impl ViewerBehavior<'_> {
     /// path arrives here from an expression whose context does not
     /// determine the new parameter's dimension, and a silent default
     /// would be a guess. And a name that is already declared shows the
-    /// session's own already-exists sentence with the edit door
-    /// offered, before the click ever reaches the typed refusal
-    /// backing it ([`Refusal::ParamExists`]).
+    /// already-exists sentence ([`Refusal::exists_wording`]) with the
+    /// edit door offered, before the click ever reaches the declare's
+    /// own refusal of a taken name (`EditError::VarNameTaken`).
     pub(crate) fn add_param_ui(&mut self, ui: &mut egui::Ui) {
         // The offer from an unknown-parameter parse refusal, shown
         // while the name field still says the offered name.
@@ -285,18 +313,19 @@ impl ViewerBehavior<'_> {
         // a parameter name is; a refused text leaves the control
         // disabled, and the sentence the refusal carries is not yet
         // shown beside it.
-        let name = ParamName::new(self.drafts.new_param_name.trim()).ok();
-        // `create_param` asks `committed_doc()`, so the notice ahead of
-        // the click asks it too: a notice drawn from the previewed
-        // document would be answering about a document the door will
-        // not see.
-        let existing = name
-            .as_ref()
-            .and_then(|name| self.session.committed_doc().params().get(name));
-        if let (Some(name), Some(existing)) = (&name, existing) {
-            if exists_notice(ui, &self.theme, name, existing.dim()) {
-                self.ops
-                    .push(SessionOp::Select(Selection::Param(name.clone())));
+        let name = VarName::new(self.drafts.new_param_name.trim()).ok();
+        // The declare door applies to `committed_doc()`, so the notice
+        // ahead of the click asks it too: a notice drawn from the
+        // previewed document would be answering about a document the
+        // door will not see.
+        let committed = self.session.committed_doc();
+        let existing = name.as_ref().and_then(|name| {
+            let var = committed.var_named(name.as_str())?;
+            Some((var, committed.free(var)?.dim()))
+        });
+        if let (Some(name), Some((var, dimension))) = (&name, existing) {
+            if exists_notice(ui, &self.theme, name, dimension) {
+                self.ops.push(SessionOp::Select(Selection::Param(var)));
             }
             return;
         }
@@ -317,7 +346,7 @@ impl ViewerBehavior<'_> {
             && let Some(dimension) = self.drafts.new_param_dimension
             && let Ok(value) = SlotValue::of(dimension, self.drafts.new_param_value)
         {
-            self.ops.push(SessionOp::CreateParam {
+            self.ops.push(SessionOp::DeclareVar {
                 name,
                 value: crate::props::doc_param(dimension, value, self.new_param_unit()),
             });
@@ -371,20 +400,23 @@ impl ViewerBehavior<'_> {
             _ => None,
         });
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        let said = self.session.selection_said();
         match standing {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::tree::node_label(
+                    ui.label(selected_node_heading(
                         self.session.doc(),
-                        *node,
                         self.session.part_files(),
+                        said,
+                        *node,
+                        *present,
                     ));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
                     // Beside the node's name, which is the node it is about.
-                    standing_verdict(ui, &self.theme, standing, landed);
+                    standing_verdict(ui, &self.theme, standing, landed, said);
                 });
                 if *present {
                     self.label_ui(ui, *node);
@@ -398,7 +430,7 @@ impl ViewerBehavior<'_> {
                 self.entity_header_ui(ui, "edge", edge.feature(), standing);
             }
         }
-        standing_verdict(ui, &self.theme, standing, landed);
+        standing_verdict(ui, &self.theme, standing, landed, said);
     }
 
     /// **The rename field** (DESIGN.md Band 1, "Node labels"): the
@@ -456,7 +488,8 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
-            ui.label(format!("{noun} of {}", self.session.doc().spoken(feature)));
+            let by = Speaker::of(self.session.doc()).or_held(self.session.selection_said());
+            ui.label(format!("{noun} of {}", by.node(feature)));
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -691,13 +724,16 @@ impl ViewerBehavior<'_> {
         let Some(written) = props::rendering_unit(row.dimension, row.unit, *self.notation) else {
             return;
         };
-        if let Some(unit) = pick_unit(ui, "param_unit", row.name.as_str(), row.dimension, written)
-            && unit != written
+        if let Some(unit) = pick_unit(
+            ui,
+            "param_unit",
+            &row.var.full().to_string(),
+            row.dimension,
+            written,
+        ) && unit != written
         {
-            self.ops.push(SessionOp::SetParamUnit {
-                name: row.name.clone(),
-                unit,
-            });
+            self.ops
+                .push(SessionOp::SetParamUnit { var: row.var, unit });
         }
     }
 
@@ -843,8 +879,8 @@ impl ViewerBehavior<'_> {
             slot: row.slot,
         };
         let reading = self.bounds_wording(&target);
-        if let Some(name) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
-            self.ops.push(SessionOp::Select(Selection::Param(name)));
+        if let Some(var) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
+            self.ops.push(SessionOp::Select(Selection::Param(var)));
         }
     }
 
@@ -941,13 +977,29 @@ impl ViewerBehavior<'_> {
     /// millimetres" a fact about one value rather than an agreement
     /// between two reads.
     pub(crate) fn param_bounds_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
-        let target = BoundsTarget::Param {
-            name: row.name.clone(),
-        };
+        let target = BoundsTarget::Param { var: row.var };
         let reading = self.bounds_wording(&target);
         if bounds_notes(ui, &self.theme, reading.as_deref()) {
             self.ops.push(SessionOp::ProbeBounds { target });
         }
+    }
+}
+
+/// **A selected node's heading**: as the document holds it while it is
+/// present ([`crate::tree::node_label`]), and once it is deleted as the
+/// last document that held it spoke it (`DocSession::selection_said`),
+/// since the document no longer says it.
+fn selected_node_heading(
+    doc: &Doc<ProfileProgram>,
+    files: &crate::parts::PartFiles,
+    said: &HeldNodes,
+    node: RecipeNodeId,
+    present: bool,
+) -> String {
+    if present {
+        crate::tree::node_label(doc, node, files)
+    } else {
+        said.spoken(node).to_string()
     }
 }
 
@@ -968,8 +1020,9 @@ impl ViewerBehavior<'_> {
 ///
 /// A picked entity's resolution was asked of the landed run
 /// (`DocSession::standing`), so its nodes are said from `landed`, the
-/// document whose ids it is spelled in; by their tags when nothing has
-/// landed.
+/// document whose ids it is spelled in; a node it no longer holds, as
+/// `said` keeps it, the last document that held it
+/// (`DocSession::selection_said`); by their tags when neither says it.
 ///
 /// A free function over the `Ui` so a headless drive can reach it
 /// (`crate::pane::headless`).
@@ -978,6 +1031,7 @@ pub(crate) fn standing_verdict(
     theme: &Theme,
     standing: &Standing,
     landed: Option<&Doc<ProfileProgram>>,
+    said: &HeldNodes,
 ) {
     let tone = standing.tone();
     let (noun, resolution) = match standing {
@@ -990,21 +1044,22 @@ pub(crate) fn standing_verdict(
             return;
         }
         Standing::Param {
-            name,
+            var,
             present: false,
         } => {
-            crate::widgets::message_toned(
-                ui,
-                format!("parameter {} is no longer declared", name.as_str()),
-                theme,
-                tone,
-            );
+            // A name the document no longer holds is not spoken, so a
+            // nameless variable is said by its tag alone.
+            let said = match var.name() {
+                Some(name) => format!("parameter {name} is no longer declared"),
+                None => format!("{var} is no longer declared"),
+            };
+            crate::widgets::message_toned(ui, said, theme, tone);
             return;
         }
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
     };
-    let by = landed.map_or(Speaker::TAG, Speaker::of);
+    let by = landed.map_or(Speaker::TAG, Speaker::of).or_held(said);
     let said = match resolution {
         None => Some("no evaluation yet to resolve this against".to_owned()),
         Some(Resolution::Resolved(_)) => None,
@@ -1038,9 +1093,9 @@ pub(crate) fn standing_verdict(
 /// edge and a sentence beside a sentence is drawn past the pane's.
 ///
 /// Answers whether the door was clicked.
-fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: Dimension) -> bool {
-    // The same sentence the session's refusal would show, and the edit
-    // door it offers instead — refuse-then-offer, ahead of the click.
+fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &VarName, dimension: Dimension) -> bool {
+    // The already-exists sentence, and the edit door it offers instead
+    // — refuse-then-offer, ahead of the click.
     crate::widgets::message_toned(
         ui,
         Refusal::exists_wording(name, dimension),
@@ -1097,9 +1152,9 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
     }
 }
 
-/// **A document parameter's value field**: its number, in the unit
-/// it was DECLARED in. A parameter is never driven, so there is no
-/// text to show over it and no source to seed its edit with.
+/// **A free parameter's value field**: its number, in the unit it was
+/// DECLARED in, with no text over it and no source to seed its edit
+/// with. A defined one's is [`defined_showing`].
 pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
     FieldShowing {
@@ -1111,24 +1166,33 @@ pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing 
     }
 }
 
+/// **A defined parameter's value field**: its formula over the number
+/// it evaluates to, and the formula again as the text an edit starts
+/// from, as a driven slot's field shows its expression. A definition
+/// that refuses holds a zero under its text, which no edit writes: a
+/// drag is refused by the value door.
+pub(crate) fn defined_showing(row: &props::DefinedRow, notation: Notation) -> FieldShowing {
+    let writing = FieldWriting::of(row.dimension, None, notation);
+    FieldShowing {
+        writing,
+        dimension: row.dimension,
+        number: props::shown_value(writing.unit, row.value.map_or(0.0, SlotValue::as_f64)),
+        text: Some(row.formula.clone()),
+        source: Some(row.formula.clone()),
+    }
+}
+
 /// **The two doors a parameter's field has**: a bare number is a
 /// value in the field's notation and nothing else moves; anything
 /// else is text for `SessionOp::SetParamText`, which reads a number
 /// and its notation through the one parser and refuses what is
 /// neither.
 pub(crate) fn param_doors(
-    name: &ParamName,
+    var: VarId,
 ) -> FieldVocabulary<impl Fn(SlotValue) -> SessionOp, impl Fn(String) -> SessionOp> {
-    let (by_number, by_text) = (name.clone(), name.clone());
     FieldVocabulary {
-        number: move |value| SessionOp::SetParam {
-            name: by_number.clone(),
-            value,
-        },
-        text: move |text| SessionOp::SetParamText {
-            name: by_text.clone(),
-            text,
-        },
+        number: move |value| SessionOp::SetParam { var, value },
+        text: move |text| SessionOp::SetParamText { var, text },
     }
 }
 
@@ -1173,7 +1237,7 @@ fn slot_notes(
     row: &SlotRow,
     reading: Option<&str>,
     notation: Notation,
-) -> Option<ParamName> {
+) -> Option<VarId> {
     if let Err(error) = &row.value {
         crate::widgets::message_toned(
             ui,
@@ -1204,10 +1268,9 @@ fn slot_notes(
         );
         if !params.is_empty() {
             ui.horizontal_wrapped(|ui| {
-                for name in params {
-                    if crate::widgets::message_link(ui, format!("edit {}", name.as_str())).clicked()
-                    {
-                        clicked = Some(name.clone());
+                for var in params {
+                    if crate::widgets::message_link(ui, format!("edit {var}")).clicked() {
+                        clicked = Some(var.id());
                     }
                 }
             });
@@ -1344,7 +1407,7 @@ mod layout_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Dimension, ParamName, SlotId};
+    use pncad::document::{Dimension, SlotId, SpokenVar, VarId, VarName};
 
     use super::{bounds_notes, exists_notice, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
@@ -1356,8 +1419,13 @@ mod layout_tests {
     /// so these rows read the region and not the floor.
     const REGION: f32 = 260.0;
 
-    fn param(name: &'static str) -> ParamName {
-        ParamName::from_static(name)
+    /// A named variable, its id derived from the name so two names
+    /// are two variables.
+    fn param(name: &'static str) -> SpokenVar {
+        let id = name
+            .bytes()
+            .fold(0_u64, |h, b| h.wrapping_mul(31).wrapping_add(u64::from(b)));
+        SpokenVar::new(VarId(id), Some(VarName::from_static(name)))
     }
 
     /// An extrude distance row with `driver` and `value`.
@@ -1375,7 +1443,7 @@ mod layout_tests {
 
     #[test]
     fn a_declared_names_notice_and_its_door_each_take_a_line_inside_the_pane() {
-        let name = param("outer_enclosure_wall_thickness");
+        let name = VarName::from_static("outer_enclosure_wall_thickness");
         let wording = Refusal::exists_wording(&name, Dimension::Length);
         let door = format!("edit {}", name.as_str());
         let (region, painted) = drawn_in(REGION, |ui| {
@@ -1419,8 +1487,8 @@ mod layout_tests {
             ),
         );
         assert_own_lines(region, affordance);
-        for name in &params {
-            let door = find(&painted, &format!("edit {}", name.as_str()));
+        for var in &params {
+            let door = find(&painted, &format!("edit {var}"));
             assert_inside(region, door);
             assert_under(affordance, door);
         }
@@ -1539,14 +1607,14 @@ mod tests {
     use crate::session::{Refusal, SessionOp};
     use crate::theme::Theme;
     use eframe::egui;
-    use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+    use pncad::document::{Dimension, RecipeNodeId, SlotId, SpokenVar, VarId, VarName};
 
     use crate::test_support::spoken;
 
     const NODE: RecipeNodeId = RecipeNodeId(test_utils::refusal::tagged(4));
 
-    fn thickness() -> ParamName {
-        ParamName::from_static("thickness")
+    fn thickness() -> SpokenVar {
+        SpokenVar::new(VarId(5), Some(VarName::from_static("thickness")))
     }
 
     /// One extrude distance row, driven or not, with the value the
@@ -1847,16 +1915,21 @@ mod tests {
 #[cfg(test)]
 mod verdict_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
+    #![allow(clippy::expect_used, clippy::panic)]
 
     use editor_core::RecipeEditRef;
-    use pncad::document::{Doc, NodeStanding, ParamName, ProfileProgram, RecipeNodeId};
+    use pncad::document::{
+        Doc, HeldNodes, Label, NodeStanding, ProfileProgram, RecipeNodeId, SpokenVar, VarId,
+        VarName,
+    };
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
 
     use super::standing_verdict;
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
-    use crate::session::{EdgeSelection, FaceSelection, Standing};
+    use crate::session::{
+        DocSession, EdgeSelection, FaceSelection, ProfilePlane, Selection, SessionOp, Standing,
+    };
     use crate::theme::Theme;
 
     fn name(kind: EntityKind) -> StableName {
@@ -1896,13 +1969,24 @@ mod verdict_tests {
         drawn_over(standing, None)
     }
 
-    /// What [`standing_verdict`] painted for `standing` over `landed`.
+    /// What [`standing_verdict`] painted for `standing` over `landed`,
+    /// keeping nothing of the selection's nodes.
     fn drawn_over(
         standing: &Standing,
         landed: Option<&Doc<ProfileProgram>>,
     ) -> (Vec<Landed>, Voices) {
+        drawn_keeping(standing, landed, &HeldNodes::default())
+    }
+
+    /// What [`standing_verdict`] painted for `standing` over `landed`,
+    /// with `said` kept of the selection's nodes.
+    fn drawn_keeping(
+        standing: &Standing,
+        landed: Option<&Doc<ProfileProgram>>,
+        said: &HeldNodes,
+    ) -> (Vec<Landed>, Voices) {
         landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            standing_verdict(ui, theme, standing, landed)
+            standing_verdict(ui, theme, standing, landed, said)
         })
     }
 
@@ -1910,7 +1994,8 @@ mod verdict_tests {
     /// document holds them**: the failed arm's name and the
     /// indeterminate arm's standing each say the block by its label
     /// over the document they were asked of, and by its tag with none;
-    /// a minting node that document no longer holds, by its tag.
+    /// a minting node that document no longer holds, by its tag when
+    /// the selection kept nothing.
     #[test]
     fn a_pick_verdict_says_its_nodes_from_the_landed_document() {
         let tol = pncad::tolerance::witness();
@@ -2001,6 +2086,221 @@ mod verdict_tests {
         );
     }
 
+    /// **A selection whose node is deleted says it as it was picked**:
+    /// the session keeps the selection's nodes spoken when it is made, so
+    /// once the landed document no longer holds the face's minting node
+    /// the verdict says the label it had, and a selected node deleted
+    /// since heads the pane with it. Kept nothing, both say the tag.
+    #[test]
+    fn a_selection_whose_node_is_deleted_says_the_label_it_had_when_picked() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("verdict-keeps", tol);
+        let picked_face = Selection::Face(FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        });
+        let labelled = format!(
+            "Extrude \"base block\" ({})",
+            test_utils::refusal::tag(block.0)
+        );
+        let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
+        for selection in [picked_face, Selection::Node(block)] {
+            let mut session = DocSession::inline(doc.clone(), tol);
+            let named = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: Some(Label::new("base block").expect("a label")),
+            });
+            assert!(named.refusal.is_none(), "{:?}", named.refusal);
+            session.pump();
+            session.perform(SessionOp::Select(selection.clone()));
+            let deleted = session.perform(SessionOp::DeleteNode { node: block });
+            assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+            session.pump();
+            let (landed, _) = session.landed_pair().expect("the delete landed");
+            assert!(
+                landed.node(block).is_none(),
+                "the landed document lost the block"
+            );
+            let said = session.selection_said();
+            match (&selection, session.standing()) {
+                (Selection::Face(_), standing @ Standing::Face { .. }) => {
+                    let (kept, _) = drawn_keeping(&standing, Some(landed), said);
+                    let text = &find_opening(&kept, "this face is gone: ").text;
+                    assert!(
+                        text.contains(&labelled) && !text.contains(&by_tag),
+                        "the verdict says the minting node as it was picked: {text}"
+                    );
+                    let (bare, _) = drawn_over(&standing, Some(landed));
+                    let text = &find_opening(&bare, "this face is gone: ").text;
+                    assert!(
+                        text.contains(&by_tag),
+                        "kept nothing, it is said by its tag: {text}"
+                    );
+                }
+                (
+                    Selection::Node(_),
+                    Standing::Node {
+                        node,
+                        present: false,
+                    },
+                ) => {
+                    let files = crate::parts::PartFiles::default();
+                    assert_eq!(
+                        super::selected_node_heading(session.doc(), &files, said, node, false),
+                        labelled,
+                        "a deleted node heads the pane by the label it had"
+                    );
+                    assert_eq!(
+                        super::selected_node_heading(
+                            session.doc(),
+                            &files,
+                            &HeldNodes::default(),
+                            node,
+                            false
+                        ),
+                        by_tag,
+                        "kept nothing, it is said by its tag"
+                    );
+                }
+                (_, other) => panic!("{selection:?} stands deleted as {other:?}"),
+            }
+        }
+    }
+
+    /// **A pick off the landed run is kept from it**: the viewport and
+    /// the Checks window pick from the landed run, which can still hold
+    /// a node the shown document has just deleted, so the selection
+    /// keeps the node as the landed document says it.
+    #[test]
+    fn a_selection_keeps_what_the_document_it_was_picked_in_says() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("verdict-picked-in", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let face = Selection::Face(FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: block,
+            body: 0,
+        });
+
+        let mut session = DocSession::inline(doc, tol);
+        let named = session.perform(SessionOp::SetLabel {
+            node: block,
+            label: Some(Label::new("base block").expect("a label")),
+        });
+        assert!(named.refusal.is_none(), "{:?}", named.refusal);
+        session.pump();
+        let deleted = session.perform(SessionOp::DeleteNode { node: block });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+        assert!(
+            session.doc().node(block).is_none(),
+            "the shown document lost the block before the pick"
+        );
+        session.perform(SessionOp::Select(face));
+        assert_eq!(
+            session.selection_said().spoken(block).to_string(),
+            format!("Extrude \"base block\" ({t})"),
+            "the landed run still held the block, so the pick keeps its label"
+        );
+    }
+
+    /// **A tree pick is kept from the shown document**: a node inserted
+    /// since the last landing is held by the shown document alone, and
+    /// the feature tree draws it there, so the selection keeps it as
+    /// the shown document says it.
+    #[test]
+    fn a_tree_pick_of_a_node_not_yet_landed_keeps_its_label() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _, _) = crate::test_support::boss_on_block("verdict-unlanded", tol);
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let added = session.perform(SessionOp::AddDatum {
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+        });
+        assert!(added.refusal.is_none(), "{:?}", added.refusal);
+        let datum = *session.doc().order().last().expect("the added datum");
+        let named = session.perform(SessionOp::SetLabel {
+            node: datum,
+            label: Some(Label::new("floor").expect("a label")),
+        });
+        assert!(named.refusal.is_none(), "{:?}", named.refusal);
+        assert!(
+            session
+                .landed_pair()
+                .is_some_and(|(landed, _)| landed.node(datum).is_none()),
+            "the landed run does not hold the datum yet"
+        );
+        let labelled = session.doc().spoken(datum).to_string();
+        assert!(labelled.contains("\"floor\""), "{labelled}");
+        session.perform(SessionOp::Select(Selection::Node(datum)));
+        let deleted = session.perform(SessionOp::DeleteNode { node: datum });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+        session.pump();
+        let files = crate::parts::PartFiles::default();
+        assert_eq!(
+            super::selected_node_heading(
+                session.doc(),
+                &files,
+                session.selection_said(),
+                datum,
+                false
+            ),
+            labelled,
+            "the deleted datum heads the pane as the shown document said it"
+        );
+    }
+
+    /// **The kept nodes follow the last document that held them**: a
+    /// label written or changed after the pick is the one a deleted
+    /// node is said by, not the one it had when it was picked.
+    #[test]
+    fn a_deleted_selection_says_the_last_label_its_node_had() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("verdict-last-label", tol);
+        let t = test_utils::refusal::tag(block.0);
+        let label = |name: &str| Some(Label::new(name).expect("a label"));
+        for (what, at_pick, after) in [
+            ("unlabelled, then labelled", None, "base"),
+            ("labelled, then renamed", label("a"), "b"),
+        ] {
+            let mut session = DocSession::inline(doc.clone(), tol);
+            let named = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: at_pick,
+            });
+            assert!(named.refusal.is_none(), "{what}: {:?}", named.refusal);
+            session.pump();
+            session.perform(SessionOp::Select(Selection::Node(block)));
+            let renamed = session.perform(SessionOp::SetLabel {
+                node: block,
+                label: label(after),
+            });
+            assert!(renamed.refusal.is_none(), "{what}: {:?}", renamed.refusal);
+            let deleted = session.perform(SessionOp::DeleteNode { node: block });
+            assert!(deleted.refusal.is_none(), "{what}: {:?}", deleted.refusal);
+            session.pump();
+            assert_eq!(
+                super::selected_node_heading(
+                    session.doc(),
+                    &crate::parts::PartFiles::default(),
+                    session.selection_said(),
+                    block,
+                    false
+                ),
+                format!("Extrude \"{after}\" ({t})"),
+                "{what}: the deleted node is said by its last label"
+            );
+        }
+    }
+
     /// **A name that no longer resolves is a verdict to act on**, so
     /// it is drawn in the actionable colour — and the rebind count
     /// under it is secondary text, weak.
@@ -2066,7 +2366,7 @@ mod verdict_tests {
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Param {
-            name: ParamName::from_static("width"),
+            var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
             present: false,
         });
         assert_eq!(
@@ -2086,7 +2386,7 @@ mod verdict_tests {
                 present: true,
             },
             Standing::Param {
-                name: ParamName::from_static("width"),
+                var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
                 present: true,
             },
         ] {

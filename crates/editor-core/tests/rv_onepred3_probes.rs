@@ -16,11 +16,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId,
-    SlotId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Formula, Node, PatternKind, PersistError, ProfileDoc,
+    RecipeNodeId, SlotId, SnapshotError, apply, load, save,
 };
 use fixture::{insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -44,13 +45,14 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(3.0),

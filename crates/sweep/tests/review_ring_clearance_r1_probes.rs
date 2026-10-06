@@ -22,10 +22,12 @@
 use geom::Surface;
 use geom_core::{Point2, Sign, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    ball_poled_y, ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
+    ball_poled_y, ball_poled_z, bored_cylinder, boss, finished, prism, realized, revolved_about_y,
+    rim_arcs_at, z_rim,
 };
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -44,19 +46,7 @@ fn repaired(up: bool) -> Body<f64> {
 
 /// `a ∖ b` through the public boolean door.
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// The two faces of an edge.
@@ -134,8 +124,8 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
         );
         // The dome's pole: the one vertex on the axis away from the rim's plane.
         let pole_y = body
-            .vertices()
-            .map(|(_, v)| *body.get_point(v.point).unwrap())
+            .vertex_points()
+            .map(|(_, p)| p)
             .find(|p| p.x.abs() < 1e-12 && p.z.abs() < 1e-12 && (p.y - 1.0).abs() > 0.1)
             .expect("the pole vertex")
             .y;
@@ -188,9 +178,16 @@ fn dimpled_plate(rho: f64, a: f64, cx: f64, cy: f64) -> Body<f64> {
     let pf = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .expect("the rounded rectangle validates with its joints declared");
-    let plate = extrude(&pf, Extrusion::Distance(0.4), tol())
-        .expect("the plate extrudes")
-        .body;
+    let plate = extrude(
+        &pf,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the plate extrudes")
+    .body;
     subtract(&plate, &ball_poled_z(a, Vec3::new(cx, cy, 0.4), tol()))
 }
 
@@ -323,8 +320,8 @@ fn r1_diag_cylinder_pierces() {
     let try_cut = |name: &str, a: &Body<f64>, ball: Body<f64>| {
         let r = boolean_op_with(
             BooleanOp::Subtract,
-            a,
-            &ball,
+            &finished(name, a.clone(), tol()),
+            &finished(name, ball, tol()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             tol(),

@@ -4,7 +4,7 @@
 //! drift apart.
 //!
 //! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract,
-//! declared), `SetDocParam`, `InsertNode`.
+//! declared), `DeclareVar`, `InsertNode`.
 //!
 //! Exact oracles (dyadic throughout — cube `[0,2]³`, 21 pips of
 //! 0.25 × 0.25 × 0.125):
@@ -41,7 +41,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: d.pz_extrude,
             slot: SlotId::Distance,
-            expr: len(-0.1875),
+            expr: len(0.1875),
         },
         bump_root: d.pz_extrude,
     }

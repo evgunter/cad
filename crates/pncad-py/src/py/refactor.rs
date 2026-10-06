@@ -307,8 +307,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
         E::WouldStartPlacing { mate }
         | E::PlacingMateLeft { mate }
-        | E::MateFrameCrosses { mate, .. }
-        | E::MateFaceFrameCrosses { mate, .. } => (
+        | E::MateFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),
@@ -318,8 +317,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::UncutParamReference {
-            param: p,
+        E::UncutVarReference {
+            var,
             cut_node,
             kept_node,
             ..
@@ -329,7 +328,27 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             id(kept_node),
             none(),
             none(),
-            text(p.as_str()),
+            text(&var.to_string()),
+            none(),
+            none(),
+        ),
+        E::AnonymousVarCrossesCut { var, node: n } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+        ),
+        E::UnresolvedVarCrossesCut { var, node: n } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
             none(),
             none(),
         ),
@@ -636,11 +655,31 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::ParamConflict { param: p } => (
+        E::VarNameConflict { name: p } => (
             none(),
             none(),
             none(),
             text(p.as_str()),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::AnonymousVarCrossesCut { var } => (
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::UnresolvedVarCrossesCut { var, node: n } => (
+            id(n),
+            none(),
+            none(),
+            text(&var.to_string()),
             none(),
             none(),
             none(),
@@ -685,7 +724,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::MateFrameCrosses { mate, .. } | E::MateFaceFrameCrosses { mate, .. } => (
+        E::MateFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),

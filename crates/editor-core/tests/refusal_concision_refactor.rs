@@ -10,9 +10,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, ParamName, PersistError,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
-    StableName, StepId, Unplaced,
+    CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, PersistError, RecipeNodeId,
+    ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode, StableName, StepId,
+    Unplaced, VarName,
 };
 use test_utils::refusal::Admission;
 
@@ -37,16 +37,24 @@ fn name() -> SpokenName {
     )
 }
 
-fn param() -> ParamName {
-    ParamName::from_static("width")
+fn param() -> VarName {
+    VarName::from_static("width")
+}
+
+fn var() -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId(test_utils::refusal::tagged(8)),
+        Some(param()),
+    )
 }
 
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
-        NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
-        UncutParamReference, PartNameReachesRemainder,
+        NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
+        UncutVarReference, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
     ];
@@ -55,8 +63,9 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
-        PartCarriesMetadata, ParamConflict, UnplaceableFrame, MatePlaced, Unplaced,
-        MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MateFaceFrameCrosses, MatePairSplits,
+        PartCarriesMetadata, VarNameConflict, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        UnplaceableFrame, MatePlaced, Unplaced,
+        MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
         StrandedPartName, Edit,
     ];
@@ -123,21 +132,31 @@ fn split_refusals() -> Vec<SplitError> {
             side: MateSide::B,
             promote: Some(Box::new(s(2, "InstantiatePart"))),
         },
-        SplitError::MateFaceFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::B,
-        },
-        SplitError::UncutParamReference {
-            param: param(),
+        SplitError::UncutVarReference {
+            var: var(),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
             promote: false,
         },
-        SplitError::UncutParamReference {
-            param: param(),
+        SplitError::UncutVarReference {
+            var: var(),
             cut_node: s(4, "InstantiatePart"),
             kept_node: s(6, "Gauge"),
             promote: true,
+        },
+        SplitError::AnonymousVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
+        },
+        SplitError::UnresolvedVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
         },
         SplitError::PartNameReachesRemainder {
             node: s(5, "Extrude"),
@@ -197,7 +216,20 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::PartCarriesMetadata {
             key: "author".to_owned(),
         },
-        InlineError::ParamConflict { param: param() },
+        InlineError::VarNameConflict { name: param() },
+        InlineError::AnonymousVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+        },
+        InlineError::UnresolvedVarCrossesCut {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(9)),
+                None,
+            ),
+            node: s(4, "Extrude"),
+        },
         InlineError::UnplaceableFrame {
             root: s(3, "Extrude"),
         },
@@ -233,10 +265,6 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(3, "Extrude"),
         },
         InlineError::MateFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::A,
-        },
-        InlineError::MateFaceFrameCrosses {
             mate: s(7, "Mate"),
             side: MateSide::A,
         },

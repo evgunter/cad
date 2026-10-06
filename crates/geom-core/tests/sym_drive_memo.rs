@@ -68,7 +68,7 @@ fn tight_memo() -> Arc<DriveMemo> {
 }
 
 fn p(n: &str, v: f64) -> Sym<f64> {
-    Sym::param(ParamSymbol::of(n), v)
+    Sym::param(ParamSymbol::new(test_utils::symbol_id(n)), v)
 }
 
 /// A three-term sum, which does not fit [`tight`] and therefore freezes.
@@ -284,7 +284,7 @@ fn a_hit_carries_the_atoms_the_top_residual_reduce_needs() {
     let m = memo();
     let leaf = || {
         with_session_memo(budget(), SymRules::shipped(), &m, || {
-            let x = Sym::param(ParamSymbol::of("x"), 0.37);
+            let x = Sym::param(ParamSymbol::new(test_utils::symbol_id("x")), 0.37);
             let s = x.sqrt();
             zero(s * s - x)
         })
@@ -656,7 +656,7 @@ fn an_inherited_form_does_not_move_the_leafs_need() {
 }
 
 /// **The one reading the order still moves**: a freeze the TAINT
-/// caused, under a hit — `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`.
+/// caused, under a hit — `work/rules/a-taint-induced-freeze-under-a-hit-still-reads-by-order`.
 ///
 /// `outside` is `0.0` and minted outside the session. A leaf that
 /// RECORDS it folds it away, so `0 + a + b` is two terms and fits, and

@@ -195,6 +195,9 @@ where
             T::fitted_lane().expect("a certifying scalar holds the fitted door"),
         )?;
         body.attach_pcurve(he, cache);
+        // The spur's two halves share the image, so each joint turns
+        // back on the point the other left: the identity.
+        body.attach_joint(he, topo::JointElement::IDENTITY);
     }
     Ok((body, he_plus))
 }

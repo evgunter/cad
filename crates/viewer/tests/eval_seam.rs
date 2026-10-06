@@ -116,7 +116,7 @@ fn busy_is_a_value_the_chrome_reads_and_it_clears_when_the_result_lands() {
 
     // An edit makes it busy again, and only the pump clears it.
     session.perform(SessionOp::SetParam {
-        name: common::thickness_param(),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.010),
     });
     assert!(session.busy());
@@ -137,7 +137,7 @@ fn a_stale_result_is_discarded_by_generation() {
     // ordering by itself; the rule that rejects it is a comparison of
     // two integers, and this is that rule under test.
     session.perform(SessionOp::SetParam {
-        name: common::thickness_param(),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.010),
     });
     let current = session.generation();
@@ -179,7 +179,7 @@ fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
     let good = Arc::clone(session.evaluation_arc().expect("the first result landed"));
 
     session.perform(SessionOp::SetParam {
-        name: common::thickness_param(),
+        var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.010),
     });
     assert_eq!(
