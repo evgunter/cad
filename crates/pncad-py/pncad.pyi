@@ -4357,6 +4357,8 @@ class SegTag:
     TrimEdge: Final[SegTag]
     FootVertex: Final[SegTag]
     EndArc: Final[SegTag]
+    Mitre: Final[SegTag]
+    TurnFoot: Final[SegTag]
     BandFace: Final[SegTag]
     BandTrim: Final[SegTag]
     BandFoot: Final[SegTag]

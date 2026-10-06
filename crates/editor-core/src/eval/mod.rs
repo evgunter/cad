@@ -6615,6 +6615,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::TrimEdge => 31,
         S::FootVertex => 32,
         S::EndArc => 33,
+        S::Mitre => 47,
+        S::TurnFoot => 48,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -6858,6 +6860,9 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::EndArc { vertex, edge } => {
             h.name(vertex);
             h.name(edge);
+        }
+        RoleSeg::Mitre { vertex } | RoleSeg::TurnFoot { vertex } => {
+            h.name(vertex);
         }
         RoleSeg::BandFace(names) => {
             h.write_u64(names.len() as u64);

@@ -33,33 +33,6 @@ const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
 
-/// The four edges of the cube's top face — a CLOSED chain whose
-/// square junctions are not tangent-continuous.
-fn top_loop(body: &Body<f64>) -> Vec<EdgeKey> {
-    let at_top = |e: EdgeKey| -> bool {
-        let Some(edge) = body.get_edge(e) else {
-            return false;
-        };
-        let Some(start) = body.get_half_edge(edge.he_plus).map(|h| h.start) else {
-            return false;
-        };
-        let Some(end) = body.half_edge_end(edge.he_plus) else {
-            return false;
-        };
-        [start, end].into_iter().all(|v| {
-            body.get_vertex(v)
-                .and_then(|x| body.get_point(x.point))
-                .is_some_and(|p| p.z > L - 1e-9)
-        })
-    };
-    let picked: Vec<EdgeKey> = query::all_edges(body)
-        .into_iter()
-        .filter(|e| at_top(*e))
-        .collect();
-    assert_eq!(picked.len(), 4, "a cube has four top-rim edges");
-    picked
-}
-
 /// A circular prism: two half-arc profile segments extruded, so every
 /// rim edge has a plane and a CYLINDER for supports — the homed
 /// `disc_of_arcs` at two arcs.
@@ -132,19 +105,19 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
     );
 }
 
-/// The shared BATTERY refusal under the chamfer's verb: the top rim's
-/// square corners are turns, two of each corner's three edges
-/// requested.
+/// The shared BATTERY refusal under the chamfer's verb: a turn whose
+/// faces are not symmetric about its third edge, the overrun past the
+/// mitre that no band builds.
 #[test]
 fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_turn() {
-    let body = cube(L, Tol::witness());
-    let err = chamfer_edges(&body, &top_loop(&body), D, Tol::witness())
-        .expect_err("square corners with two edges requested are turns");
+    let (body, turn) = crate::common::operands::leaning_turn(0.5);
+    let err = chamfer_edges(&body, &turn, D, Tol::witness())
+        .expect_err("a turn whose faces are not symmetric overruns its mitre");
     assert!(
         matches!(
             err.error,
-            BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::Turn,
+            BlendError::UnsupportedRunOut {
+                detail: sweep::blend::battery::TURN_OVERRUN,
                 ..
             }
         ),

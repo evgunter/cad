@@ -148,7 +148,8 @@ use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
-    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, DecidedCoincidence, Link, Turn,
+    run_battery, run_battery_for,
 };
 pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
@@ -276,12 +277,16 @@ pub enum BlendDecision {
     /// put their feet on it in order and definitely apart, so the
     /// second split lands on the piece the first leaves.
     CutOffFeet,
+    /// `fillet3_turn_isosceles`: at a turn, the two bands' trimlines on
+    /// the faces of the unrequested edge meet it at one point, so the
+    /// mitre lands on it. Passes only at zero.
+    TurnIsosceles,
 }
 
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -295,6 +300,7 @@ impl BlendDecision {
         Self::CapTransverse,
         Self::CapEllipse,
         Self::CutOffFeet,
+        Self::TurnIsosceles,
     ];
 
     /// The `k_stats` name the decision is metered under.
@@ -314,6 +320,7 @@ impl BlendDecision {
             Self::CapTransverse => "fillet3_cap_transverse",
             Self::CapEllipse => "ellipse_axes_distinct",
             Self::CutOffFeet => "fillet3_cut_off_feet",
+            Self::TurnIsosceles => "fillet3_turn_isosceles",
         }
     }
 
@@ -350,6 +357,11 @@ impl BlendDecision {
             Self::CutOffFeet => {
                 "whether two cut-offs' feet on the rim they share stand definitely apart"
             }
+            Self::TurnIsosceles => {
+                "whether two requested edges turning at a vertex meet its third edge at one \
+                 point, the faces being symmetric about it (the margin is the distance along \
+                 the third edge between the two bands' feet)"
+            }
         }
     }
 
@@ -374,6 +386,7 @@ impl BlendDecision {
             Self::CapTransverse => FILLET3_CAP_TILT_RECOURSE,
             Self::CapEllipse => FILLET3_CAP_ELLIPSE_RECOURSE,
             Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
+            Self::TurnIsosceles => FILLET3_TURN_RECOURSE,
         }
     }
 
@@ -394,7 +407,10 @@ impl BlendDecision {
             }
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
-            Self::ChainG1 | Self::SupportCoaxiality | Self::CapTransverse => None,
+            Self::ChainG1
+            | Self::SupportCoaxiality
+            | Self::CapTransverse
+            | Self::TurnIsosceles => None,
             // The second-order separation passes on any definite sign,
             // but the relay's in-band verdict may be a station's
             // first-order wedge, which a smaller tolerance decides
@@ -613,10 +629,9 @@ impl fmt::Display for BlendSite {
 
 /// The **run-out policy vocabulary** (OQ6, decided by Ev at #85; the
 /// cut-off ratified on PR 1736's thread and generalised, with the
-/// mitre, on PR 4085's). [`RunOutPolicy::RunOutFeather`] and
-/// [`RunOutPolicy::Mitre`] are refusal-payload names: no band takes
-/// either, and a refusal names them as the front door that does not
-/// exist yet.
+/// mitre, on PR 4085's). [`RunOutPolicy::RunOutFeather`] is a
+/// refusal-payload name: no band takes it, and a refusal names it as
+/// the front door that does not exist yet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
@@ -649,7 +664,9 @@ pub enum RunOutPolicy {
     /// **Each band is cut off by the other's support and the two meet
     /// along their intersection** — the policy of a
     /// [`CornerConfig::Turn`]: the end where two edges of the vertex
-    /// are requested. Named and not taken.
+    /// are requested. Built where the trihedron is isosceles about the
+    /// third edge, the mitre running down to it and the third edge
+    /// ending there; the overrun past the mitre is not built.
     Mitre,
 }
 
@@ -666,10 +683,11 @@ impl fmt::Display for RunOutPolicy {
     }
 }
 
-/// The corner-configuration tags C8's scope box enumerates. Two are
+/// The corner-configuration tags C8's scope box enumerates. Three are
 /// constructible — [`CornerConfig::ThreeConvexEdges`] with independent
-/// support normals (the corner patch) and [`CornerConfig::EndFace`]
-/// (the cut-off); the rest are the refusal taxonomy, each pinned by a
+/// support normals (the corner patch), [`CornerConfig::EndFace`] (the
+/// cut-off) and the isosceles [`CornerConfig::Turn`] (the mitre); the
+/// rest are the refusal taxonomy, each pinned by a
 /// fixture that reaches it.
 ///
 /// **This vocabulary has no name for the uniform CONCAVE trihedron**,
@@ -745,9 +763,12 @@ pub enum CornerConfig {
     /// not a seam vertex: the surface is not smooth through it.
     EndFace,
     /// **Two of a trivalent vertex's three edges are requested**, and
-    /// the chain turns a definite corner there: each band would be cut
-    /// off by the other's support and meet it along their intersection
-    /// ([`RunOutPolicy::Mitre`]). Refused: the mitre is not built.
+    /// the chain turns a definite corner there: each band is cut off by
+    /// the other's support and meets it along their intersection
+    /// ([`RunOutPolicy::Mitre`]). IN SCOPE for both verbs on either
+    /// side where `fillet3_turn_isosceles` decides the trihedron
+    /// isosceles about the third edge; the overrun refuses as a
+    /// run-out.
     Turn,
     /// A vertex reached with an in-band or poisoned configuration
     /// margin — the configuration could not be classified at all.
@@ -830,7 +851,7 @@ impl fmt::Display for CornerConfig {
             Self::Turn => write!(
                 f,
                 "a turn: two of the vertex's three edges are requested, which the mitre \
-                 would join"
+                 joins (built where the faces are symmetric about the third)"
             ),
             Self::Indeterminate => write!(f, "a vertex whose configuration did not classify"),
         }
@@ -939,11 +960,15 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected chain that is tange
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for an end no band builds — it names the ends that DO
-/// carve, and of the residue the mitre, the one end a request can name
-/// that no band takes. "Whatever is requested" covers a vertex that
-/// mixes convexity: it ends no chain whether the request names one of
-/// its edges, two, or all three, because its configuration is read
-/// before the count. The run-outs' own details name their shapes.
+/// carve: all three edges, two meeting in the mitre where the vertex is
+/// symmetric about the third, and one alone. "Whatever is requested"
+/// covers a vertex that mixes convexity: it ends no chain whether the
+/// request names one of its edges, two, or all three, because its
+/// configuration is read before the count. Its last clause answers the
+/// four-edge vertex a mitre leaves where the third edge ends: that edge
+/// blended in a later call ends at a valence-4 vertex, and requested in
+/// the mitre's own call it builds the corner patch instead. The
+/// run-outs' own details name their shapes.
 ///
 /// The ends it names are true of either verb on either material side:
 /// the uniform trivalent vertex carves wherever the material lies (the
@@ -955,8 +980,15 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end each chain at trivalent vertices of one convexity \
-     between planes, whatever is requested: all three edges, or the chain's edge alone, cut off in \
-     a plane end face; no mitre is built";
+     between planes, whatever is requested: all three edges; two, the faces symmetric about the \
+     third; or the chain's edge alone, cut off in a plane end face; request in the same call an \
+     edge a mitre ends";
+/// The lever of `fillet3_turn_isosceles`: in band, the turn is neither
+/// the mitre that lands on the third edge nor the overrun past it, so
+/// the way out is a symmetric vertex, a clearly asymmetric one, or the
+/// corner patch, which the third edge requested alongside builds.
+pub const FILLET3_TURN_RECOURSE: &str = "make the faces at the vertex symmetric about its third \
+     edge, where the two bands meet on it, or request that edge too, which builds the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.
@@ -1781,7 +1813,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 18] = [
+pub const ALL_RECOURSES: [(&str, &str); 19] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
@@ -1792,6 +1824,7 @@ pub const ALL_RECOURSES: [(&str, &str); 18] = [
     ("convexity", FILLET3_CONVEXITY_RECOURSE),
     ("corner", FILLET3_CORNER_RECOURSE),
     ("corner-independence", FILLET3_CORNER_INDEPENDENCE_RECOURSE),
+    ("turn", FILLET3_TURN_RECOURSE),
     ("cap-tilt", FILLET3_CAP_TILT_RECOURSE),
     ("cap-ellipse", FILLET3_CAP_ELLIPSE_RECOURSE),
     ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),

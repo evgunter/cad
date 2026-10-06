@@ -167,6 +167,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         BlendDecision::CutOffFeet,
         sweep::blend::FILLET3_CORNER_RECOURSE,
     ),
+    (
+        BlendDecision::TurnIsosceles,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
 ];
 
 fn census() -> PredicateCensus {
@@ -323,6 +327,7 @@ const NO_TOLERANCE: &[BlendDecision] = &[
     BlendDecision::SupportCoaxiality,
     BlendDecision::CapTransverse,
     BlendDecision::ContactSecondOrder,
+    BlendDecision::TurnIsosceles,
 ];
 
 /// The decisions that pass on a negative sign as well as a positive one.

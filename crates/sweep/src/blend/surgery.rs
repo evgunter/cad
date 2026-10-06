@@ -214,14 +214,18 @@ use topo::{
 
 use super::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
+    TurnRow,
 };
 use super::arms::EdgeBlend;
-use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link, face_clearance_margin};
+use super::battery::{
+    BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
+};
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
-use super::open::end_face::{CapSliver, shared_rims_clear};
+use super::open::end_face::{CapSliver, EndCut, foot_param, shared_rims_clear};
 use super::open::planar::{
-    BlankPlan, Corner, CutOffPlan, JointPlan, blank_phase, corner_plan, cut_off_plan, joint_plan,
+    BlankPlan, Corner, CutOffPlan, JointPlan, TurnPlan, blank_phase, corner_plan, cut_off_plan,
+    joint_plan, turn_plan,
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
@@ -580,6 +584,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // shape rather than by a check three functions deep. ----
     let mut ends: Vec<CornerLinks<'_, T>> = Vec::new();
     let mut cut_offs: Vec<CutOffPlan<'_, T>> = Vec::new();
+    let mut turning: Vec<(&Turn<T>, Vec<AdmittedOpen<'_, T>>)> = Vec::new();
     for o in &planar {
         for v in [o.link().start, o.link().end] {
             if is_joint(v) {
@@ -587,6 +592,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             }
             if let Some((_, section)) = verdict.end_faces.iter().find(|(e, _)| *e == v) {
                 cut_offs.push(cut_off_plan(source, *o, v, section.clone())?);
+                continue;
+            }
+            if let Some(turn) = verdict.turns.iter().find(|t| t.vertex == v) {
+                match turning.iter_mut().find(|(t, _)| t.vertex == v) {
+                    Some((_, links)) => links.push(*o),
+                    None => turning.push((turn, vec![*o])),
+                }
                 continue;
             }
             match ends.iter_mut().find(|c| c.vertex() == v) {
@@ -597,6 +609,19 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     ends.sort_by_key(CornerLinks::vertex);
     cut_offs.sort_by_key(|c| c.end.vertex);
+    // ---- Turns: the verdict lists each once; both of its links end
+    // here, in edge order since `planar` is. ----
+    let mut turns: Vec<TurnPlan<'_, T>> = Vec::with_capacity(turning.len());
+    for (turn, links) in turning {
+        let [a, b] = links[..] else {
+            return Err(not_intact(
+                EntityId::Vertex(turn.vertex),
+                "a turn the verdict admitted does not end exactly two admitted planar links",
+            ));
+        };
+        turns.push(turn_plan(source, turn, [a, b], kind, band)?);
+    }
+    turns.sort_by_key(|t| t.vertex);
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
@@ -668,6 +693,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             )
         })
         .collect();
+    let turn_rows: Vec<TurnRow<T>> = turns
+        .iter()
+        .map(|t| (t.vertex, t.shared, t.crossing, t.others, t.foot))
+        .collect();
     let mut supports: Vec<RequestedBoundary<T>> = Vec::with_capacity(support_keys.len());
     for f in support_keys {
         supports.push(RequestedBoundary::admit(
@@ -677,6 +706,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             &corner_rows,
             &joint_rows,
             &cut_rows,
+            &turn_rows,
         )?);
     }
 
@@ -688,14 +718,20 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         ruled_plans.push(RuledPlan::plan(source, *o, &opens, &verdict.end_faces)?);
     }
 
-    // ---- Two cut-offs on one rim: the second split must land on the
-    // piece the first leaves. ----
+    // ---- Two splits on one rim — two cut-offs', or a cut-off's and a
+    // turn's on its third edge — the second must land on the piece the
+    // first leaves; a turn's foot alone must land inside its edge. ----
+    for t in &turns {
+        foot_param(source, t.third, t.vertex, t.foot)?;
+    }
     shared_rims_clear(
         source,
         ruled_plans
             .iter()
             .flat_map(RuledPlan::ends)
-            .chain(cut_offs.iter().map(|c| &c.end)),
+            .chain(cut_offs.iter().map(|c| &c.end))
+            .flat_map(EndCut::feet)
+            .chain(turns.iter().map(|t| (t.third, t.vertex, t.foot))),
         band,
     )?;
 
@@ -728,6 +764,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         opens: &planar,
         corners: &corners,
         cut_offs: &cut_offs,
+        turns: &turns,
         joints: &joints,
         supports: &supports,
     };
@@ -901,6 +938,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             trims,
             feet,
             arcs,
+            mitres,
+            turn_feet,
             bands,
             rim_trims,
             rim_feet,
@@ -944,6 +983,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             .map(|(_, v)| v)
             .chain(feet.iter().map(|(_, v, _)| v))
             .chain(arcs.iter().map(|(_, v, _)| v))
+            .chain(mitres.iter().map(|(_, v)| v))
+            .chain(turn_feet.iter().map(|(_, v)| v))
             .chain(rim_feet.iter().map(|(_, v)| v));
         for v in vertex_sources {
             assert!(
@@ -3167,6 +3208,7 @@ fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> 
 // ------------------------------------------------------------------
 
 /// A recorded new edge awaiting its intrinsic description.
+#[derive(Clone)]
 pub(super) enum ContactCarrier<T: Real> {
     /// A straight trimline where the band meets its support
     /// TANGENTIALLY — the rolling ball's contact line (carrier rebuilt

@@ -210,6 +210,13 @@ impl<T: Decide + Bounds> EndCut<T> {
         })
     }
 
+    /// Each foot with the rim it lands on and the old vertex, as
+    /// [`shared_rims_clear`] reads them.
+    pub(in crate::blend) fn feet(&self) -> [(EdgeKey, VertexKey, Point3<T>); 2] {
+        let [a, b] = self.sliver.rims;
+        [(a, self.vertex, self.foot_a), (b, self.vertex, self.foot_b)]
+    }
+
     /// The end curve's carrier, as the description pass reads it.
     fn carrier(&self) -> ContactCarrier<T> {
         match &self.curve {
@@ -507,7 +514,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
 /// [`BlendError::UnsupportedRunOut`] for a foot off its rim's span;
 /// [`BlendError::UnsupportedGeometry`] / [`BlendError::BodyNotIntact`]
 /// from the read ([`split_param_in_span`]).
-fn foot_param<T: Decide + Bounds>(
+pub(in crate::blend) fn foot_param<T: Decide + Bounds>(
     body: &Body<T>,
     rim: EdgeKey,
     vertex: VertexKey,
@@ -522,12 +529,16 @@ fn foot_param<T: Decide + Bounds>(
 pub(in crate::blend) const FEET_CROSS_ON_A_SHARED_RIM: &str = "two cut-offs' feet cross or \
      coincide on the rim they share, so the regions they take from the end faces meet";
 
-/// **Two cut-offs on one rim, metered before any mutation.** A rim
+/// **Two splits on one rim, metered before any mutation.** A rim
 /// joins two vertices and a band may be cut off at each — two bands
 /// on one end face share its rim, and so do two bands whose end faces
-/// are each other's supports. The first carve splits the rim at its
-/// foot and the second splits the piece that is left, so the second
-/// foot must lie on that piece: the two feet in order along the rim,
+/// are each other's supports — and a turn splits its third edge at its
+/// foot, which may be a cut-off's rim at its other end or another
+/// turn's third edge. `feet` lists every such split as `(rim, the
+/// vertex the split is taken beside, the foot)`. The first carve splits
+/// the rim at its foot and the second splits the piece that is left, so
+/// the second foot must lie on that piece: the two feet in order along
+/// the rim,
 /// each nearer its own cut-off's vertex, apart by a margin
 /// (`fillet3_cut_off_feet`, the span between them metered into meters
 /// as `topo`'s edge split meters its interior test) decided definitely
@@ -541,18 +552,12 @@ pub(in crate::blend) const FEET_CROSS_ON_A_SHARED_RIM: &str = "two cut-offs' fee
 /// [`BlendError::Escalated`] for feet apart within the band;
 /// [`BlendError::UnsupportedGeometry`] / [`BlendError::BodyNotIntact`]
 /// from a rim's read.
-pub(in crate::blend) fn shared_rims_clear<'e, T: Decide + Bounds + 'e>(
+pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
     body: &Body<T>,
-    ends: impl IntoIterator<Item = &'e EndCut<T>>,
+    feet: impl IntoIterator<Item = (EdgeKey, VertexKey, Point3<T>)>,
     band: Band,
 ) -> Result<(), BlendError> {
-    let mut feet: Vec<(EdgeKey, VertexKey, Point3<T>)> = ends
-        .into_iter()
-        .flat_map(|e| {
-            let [a, b] = e.sliver.rims;
-            [(a, e.vertex, e.foot_a), (b, e.vertex, e.foot_b)]
-        })
-        .collect();
+    let mut feet: Vec<(EdgeKey, VertexKey, Point3<T>)> = feet.into_iter().collect();
     feet.sort_by_key(|&(rim, v, _)| (rim, v));
     for pair in feet.windows(2) {
         let [(rim, v0, f0), (r1, v1, f1)] = [pair[0], pair[1]];

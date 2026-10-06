@@ -169,6 +169,8 @@ seg_tags! {
     TrimEdge,
     FootVertex,
     EndArc,
+    Mitre,
+    TurnFoot,
     BandFace,
     BandTrim,
     BandFoot,
@@ -263,6 +265,8 @@ impl SegTag {
             RoleSeg::TrimEdge { .. } => Self::TrimEdge,
             RoleSeg::FootVertex { .. } => Self::FootVertex,
             RoleSeg::EndArc { .. } => Self::EndArc,
+            RoleSeg::Mitre { .. } => Self::Mitre,
+            RoleSeg::TurnFoot { .. } => Self::TurnFoot,
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
@@ -318,6 +322,8 @@ impl SegTag {
             | Self::TrimEdge
             | Self::FootVertex
             | Self::EndArc
+            | Self::Mitre
+            | Self::TurnFoot
             | Self::BandFace
             | Self::BandTrim
             | Self::BandFoot
@@ -377,6 +383,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross { .. }
@@ -417,6 +425,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
+        | RoleSeg::Mitre { vertex: n }
+        | RoleSeg::TurnFoot { vertex: n }
         | RoleSeg::BandFoot(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)

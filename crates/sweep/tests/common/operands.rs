@@ -263,3 +263,55 @@ pub fn half_round_end() -> (Body<f64>, EdgeKey) {
         .expect("the top front edge");
     (body, edge)
 }
+
+/// **A prism whose top corner turns unsymmetrically**: extruded `1.5`
+/// along `−y` over the trapezoid `(0, 0), (2, 0), (2, 1), (s, 1)` in
+/// `xz`, its left wall leaning in by `s` and every other face square;
+/// and the two top edges that turn at `(s, 0, 1)` — along `x` over the
+/// square end face `y = 0`, and along `y` over the leaning wall. The
+/// turn is isosceles only at `s = 0`, so at a definite lean both verbs
+/// refuse it as the overrun (`blend::battery::TURN_OVERRUN`).
+pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
+    let plane = sweep::test_support::sketch_from_axes(
+        Point3::new(0.0, 0.0, 0.0),
+        geom_core::Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        Tol::witness(),
+    );
+    let body = sweep::test_support::prism_on(
+        plane,
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.0),
+            (Point2::new(2.0, 1.0), 0.0),
+            (Point2::new(s, 1.0), 0.0),
+        ],
+        1.5,
+        Tol::witness(),
+    );
+    let point = |v| {
+        *body
+            .get_point(body.get_vertex(v).expect("a vertex").point)
+            .expect("a point")
+    };
+    let between = |a: Point3<f64>, b: Point3<f64>| {
+        topo::query::all_edges(&body)
+            .into_iter()
+            .find(|&e| {
+                let he = body.get_edge(e).expect("an edge").he_plus;
+                let (p, q) = (
+                    point(body.get_half_edge(he).expect("a half").start),
+                    point(body.half_edge_end(he).expect("an end")),
+                );
+                let at = |x: Point3<f64>, y: Point3<f64>| (x - y).norm() < 1e-12;
+                (at(p, a) && at(q, b)) || (at(p, b) && at(q, a))
+            })
+            .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
+    };
+    let corner = Point3::new(s, 0.0, 1.0);
+    let edges = [
+        between(corner, Point3::new(2.0, 0.0, 1.0)),
+        between(corner, Point3::new(s, -1.5, 1.0)),
+    ];
+    (body, edges)
+}

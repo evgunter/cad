@@ -4,10 +4,11 @@
 //! time — this chain's links are plane–plane and meet only at joints
 //! on one support pair; this corner is trivalent with all three edges
 //! requested; every requested edge of this support face ends at a
-//! planned corner, joint or cut-off of it. A cut-off — an end whose
-//! edge alone is requested — has no token of its own: the verdict
-//! classified it, its plan reads it off the source, and a support's
-//! admission counts it among the stations.
+//! planned corner, joint, cut-off or turn of it. A cut-off — an end
+//! whose edge alone is requested — and a turn — an end two requested
+//! edges share — have no token of their own: the verdict classified
+//! each, its plan reads it off the source, and a support's admission
+//! counts it among the stations.
 //! Each type here is one of those
 //! clauses, and **holding the value is the fact**: a helper handed one
 //! has no branch left to write about it. A refusal belongs to the door
@@ -554,16 +555,23 @@ pub(super) enum StationKind {
     Joint,
     /// A cut-off's old vertex.
     CutOff,
+    /// A turn, on the face both its bands support: the foot is where
+    /// their trimlines cross.
+    Mitre,
+    /// A turn, on one of the third edge's two faces: the foot is on
+    /// that edge, which the carve splits there.
+    TurnFoot,
 }
 
 impl StationKind {
-    /// Whether the carve spins a STRUT out to the foot — at a corner or
-    /// a joint, whose foot lies inside the face — rather than finding
-    /// it already on a split rim, at a cut-off.
+    /// Whether the carve spins a STRUT out to the foot — at a corner, a
+    /// joint or a turn's shared face, whose foot lies inside the face —
+    /// rather than finding it already on a split edge, at a cut-off or
+    /// a turn's foot.
     pub(super) fn spins_a_strut(self) -> bool {
         match self {
-            Self::Corner | Self::Joint => true,
-            Self::CutOff => false,
+            Self::Corner | Self::Joint | Self::Mitre => true,
+            Self::CutOff | Self::TurnFoot => false,
         }
     }
 }
@@ -589,10 +597,15 @@ pub(super) struct BoundaryChord<T: Real> {
 /// the band's two supports, and its foot on each in that order.
 pub(super) type CutOffRow<T> = (VertexKey, [FaceKey; 2], [Point3<T>; 2]);
 
+/// One planned turn, as support admission reads it: the vertex, the
+/// face its two bands share and the trimlines' crossing there, and the
+/// third edge's two faces and the foot on it, which both share.
+pub(super) type TurnRow<T> = (VertexKey, FaceKey, Point3<T>, [FaceKey; 2], Point3<T>);
+
 /// **A support face's requested boundary**: every requested edge in its
 /// cycles, each ending at two stations, and every station a planned
 /// corner or joint that counts this face among its supports, or a
-/// planned cut-off whose band this face supports.
+/// planned cut-off or turn whose band this face supports.
 ///
 /// The blank phase carves such a face LOCALLY — one strip per requested
 /// edge, the rest of the face shrunk and kept — and that carve is
@@ -616,9 +629,10 @@ impl<T: Decide> RequestedBoundary<T> {
     /// `corners` is `(vertex, its three faces, its three FEET in those
     /// faces' orbit order)` for every planned corner, `joints` is
     /// `(joint, its foot on each of its two faces in that order)` for
-    /// every planned joint, and `cut_offs` is `(vertex, the band's two
+    /// every planned joint, `cut_offs` is `(vertex, the band's two
     /// supports, its foot on each in that order)` for every planned
-    /// cut-off. The feet are the plan's, not this door's: where a band's
+    /// cut-off, and `turns` is [`TurnRow`] for every planned turn. The
+    /// feet are the plan's, not this door's: where a band's
     /// trimlines meet a support is what the two verbs derive differently
     /// (the ball's foot; the two trimlines' crossing), and deriving it
     /// here would put that difference in the door instead of in the plan
@@ -637,6 +651,7 @@ impl<T: Decide> RequestedBoundary<T> {
         corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
         joints: &[(&Joint, [Point3<T>; 2])],
         cut_offs: &[CutOffRow<T>],
+        turns: &[TurnRow<T>],
     ) -> Result<Self, BlendError> {
         // Read once so a face that is not a plane refuses at this door
         // rather than deeper in the carve.
@@ -664,19 +679,27 @@ impl<T: Decide> RequestedBoundary<T> {
                 .iter()
                 .find(|(c, faces, _)| *c == v && faces.contains(&face))
                 .map(|(_, faces, feet)| if faces[0] == face { feet[0] } else { feet[1] });
+            let turn = turns.iter().find(|t| t.0 == v).and_then(|t| {
+                if t.1 == face {
+                    Some((t.2, StationKind::Mitre))
+                } else {
+                    t.3.contains(&face).then_some((t.4, StationKind::TurnFoot))
+                }
+            });
             // A corner and a joint END a band and run through it, and a
-            // cut-off's vertex carries one requested edge where a corner
-            // carries three — so a vertex is at most one of the three,
-            // and a requested edge's end is at least one.
-            let (foot, kind) = match (corner, joint, cut) {
-                (Some(Some(foot)), None, None) => (foot, StationKind::Corner),
-                (None, Some(foot), None) => (foot, StationKind::Joint),
-                (None, None, Some(foot)) => (foot, StationKind::CutOff),
+            // cut-off's vertex carries one requested edge, a turn's two
+            // and a corner's three — so a vertex is at most one of the
+            // four, and a requested edge's end is at least one.
+            let (foot, kind) = match (corner, joint, cut, turn) {
+                (Some(Some(foot)), None, None, None) => (foot, StationKind::Corner),
+                (None, Some(foot), None, None) => (foot, StationKind::Joint),
+                (None, None, Some(foot), None) => (foot, StationKind::CutOff),
+                (None, None, None, Some(station)) => station,
                 _ => {
                     return Err(not_intact(
                         EntityId::Vertex(v),
                         "a requested edge of a support ends at a vertex that is not exactly one \
-                         planned corner, joint or cut-off of that support",
+                         planned corner, joint, cut-off or turn of that support",
                     ));
                 }
             };

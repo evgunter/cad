@@ -353,11 +353,14 @@ fn the_chain_recourse_is_followed_by_a_tangent_continuous_chain() {
 /// residue it names, refused.**
 ///
 /// An edge ending at a curved end face refuses as a run-out with this
-/// sentence. Its two positive clauses are then executed on a cube: the
-/// edge alone, cut off in the plane end faces at both ends, and every
-/// edge of every corner, the corner patch. Of the residue, the turn (two
-/// of a vertex's three edges) is executed too, under the corner tag
-/// whose recourse this same sentence is.
+/// sentence. Its three positive clauses are then executed on a cube: the
+/// edge alone, cut off in the plane end faces at both ends; two edges
+/// of one corner, whose faces are symmetric about the third, meeting in
+/// a mitre; and every edge of every corner, the corner patch. Of the
+/// residue, the turn whose faces are not symmetric refuses with this
+/// sentence too, and so does the third edge of a mitred corner blended
+/// in a later call — whose last clause, requesting it in the same call,
+/// builds.
 #[test]
 fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     let (round, edge) = half_round_end();
@@ -369,26 +372,40 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     carries(&err, FILLET3_CORNER_RECOURSE, "run-out");
     let body = cube(1.0, tol());
     let edges = query::all_edges(&body);
+    let corner = edges_at_first_vertex(&body);
     builds(&body, &edges[..1], 0.1, "the edge alone, cut off");
+    builds(&body, &corner[..2], 0.1, "two edges of a symmetric corner");
     builds(&body, &edges, 0.1, "every corner fully requested");
-    let turn = refusal(
-        &body,
-        &edges_at_first_vertex(&body)[..2],
-        0.1,
-        "a turn",
-        false,
+    let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
+    let overrun = refusal(&leaning, &turn, 0.1, "an asymmetric turn", false);
+    assert!(
+        matches!(overrun, BlendError::UnsupportedRunOut { .. }),
+        "an asymmetric turn is a run-out, got {overrun:?}"
     );
+    carries(&overrun, FILLET3_CORNER_RECOURSE, "overrun");
+    let mitred = fillet_edges(&body, &corner[..2], 0.1, tol()).expect("the mitre builds");
+    let third = mitred
+        .naming
+        .as_ref()
+        .expect("births")
+        .meridian_remnants
+        .iter()
+        .find(|(_, source)| *source == corner[2])
+        .map(|(e, _)| *e)
+        .expect("the third edge's surviving piece");
+    let later = refusal(&mitred.body, &[third], 0.1, "the third edge later", false);
     assert!(
         matches!(
-            turn,
+            later,
             BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::Turn,
+                corner: sweep::blend::CornerConfig::NEdgeVertex { valence: 4 },
                 ..
             }
         ),
-        "two edges of one corner are the turn, got {turn:?}"
+        "the turn foot has four edges, got {later:?}"
     );
-    carries(&turn, FILLET3_CORNER_RECOURSE, "turn");
+    carries(&later, FILLET3_CORNER_RECOURSE, "turn foot");
+    builds(&body, &corner, 0.1, "the third edge in the same call");
 }
 
 /// **`FILLET3_CORNER_INDEPENDENCE_RECOURSE` — followed by each of its
