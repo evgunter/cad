@@ -129,7 +129,7 @@ pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, NO_DECLARATION_RECOURSE, Point3, Real, Sign, Tol,
+    Margin, MarginDiag, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -3029,9 +3029,8 @@ impl core::fmt::Display for BooleanError {
                     ),
                     ContainError::RayExhausted => write!(
                         f,
-                        "{preamble}: the point is off the face's boundary, but every test \
-                         ray grazed one of its vertices or edges. Recourse: \
-                         {NO_DECLARATION_RECOURSE}"
+                        "{preamble}: the point is off the face's boundary, but {}",
+                        crate::ray_walk::RaysGrazed
                     ),
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
                     ContainError::Escalated(_)

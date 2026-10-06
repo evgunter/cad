@@ -14,12 +14,13 @@
 //! typed wherever it could matter.
 
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
+use super::sphere_region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
-use crate::ray_parity::ParityRows;
+use crate::ray_walk::ParityRows;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
@@ -107,10 +108,8 @@ impl core::fmt::Display for ContainError {
             Self::Escalated(diag) => write!(f, "contfp: {diag}"),
             Self::RayExhausted => write!(
                 f,
-                "contfp: the point is off the face's boundary, but every direction of \
-                 the parity schedule grazed one of its vertices or edges, so no ray read \
-                 a definite crossing count at this tolerance. Recourse: \
-                 {NO_DECLARATION_RECOURSE}"
+                "contfp: the point is off the face's boundary, but {}",
+                crate::ray_walk::RaysGrazed
             ),
             Self::StaleFace(face) => {
                 write!(f, "contfp: face {face:?} does not resolve in this body")
@@ -330,7 +329,7 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// hit shadow a ring vertex, fixed here with its red-then-green row
 /// below) — then edge interiors over all loops, each edge on the row
 /// its carrier has: a `Line` is the distance to its closed segment
-/// ([`crate::ray_parity::on_segment`]), a circle or an ellipse is asked its
+/// ([`crate::ray_walk::on_segment`]), a circle or an ellipse is asked its
 /// own conic and trim, and a spiric is read piece by piece on its oval —
 /// all through
 /// [`crate::splitting::containment::LoopEdge::contact`], the one
@@ -418,7 +417,7 @@ enum PrePass<T: geom_core::Real> {
 /// `bool_contact_spiric_end`).
 const END_VERTEX: &str = "bool_contact_arc_end_vertex";
 
-/// The pre-pass's rows for a straight edge: [`crate::ray_parity::on_segment`]
+/// The pre-pass's rows for a straight edge: [`crate::ray_walk::on_segment`]
 /// reads `segment` (the edge's own length, the degeneracy gate) and
 /// `boundary` (the distance from `q` to the closed segment) and nothing
 /// else, so `side` and `advance` are never minted.
@@ -707,8 +706,8 @@ pub(crate) fn curved_face_placement<T: Decide>(
 /// whole sphere.
 ///
 /// `None` is the honest remainder: a boundary edge that is not a circle
-/// arc, a point on the region's boundary that the walk above did not
-/// place, or a reading no target's walk decides at this ε.
+/// arc, or a point on the region's boundary that the walk above did not
+/// place. A region no ray settles refuses as a planar face's does.
 fn sphere_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -731,15 +730,13 @@ fn sphere_face_containment<T: Decide>(
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    match region.contains(face, q, band) {
+    match region.contains(q, band) {
         Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
         Ok(None) => Ok(CurvedPlacement::Trim(None)),
-        Err(super::solid_contain::PointInSolidError::Escalated { diag, .. }) => {
-            Err(ContainError::Escalated(diag))
-        }
-        Err(e) if e.inconclusive() => Ok(CurvedPlacement::Trim(None)),
-        Err(e) => Err(solid_err(e)),
+        Err(RegionRefusal::Escalated(diag)) => Err(ContainError::Escalated(diag)),
+        Err(RegionRefusal::RayExhausted) => Err(ContainError::RayExhausted),
+        Err(e @ RegionRefusal::WoundPastPeriod) => Err(solid_err(e.of_face(face))),
     }
 }
 

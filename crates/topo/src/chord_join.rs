@@ -420,11 +420,12 @@ impl SplitJoinError {
                      {recourse}",
                     diag.payload()
                 ),
+                // The rays are the walk's own, so the levers are its, under
+                // a split and a Boolean alike.
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
-                    "every test ray grazed the divided face's boundary, so which piece \
-                     holds a hole loop is ill-conditioned at this tolerance. Recourse: \
-                     {recourse}"
+                    "which piece holds a hole loop is undecided: {}",
+                    crate::ray_walk::RaysGrazed
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
                     write!(f, "re-homing a hole loop refused: {e}")

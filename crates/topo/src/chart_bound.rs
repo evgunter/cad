@@ -32,7 +32,7 @@
 //! in-band margin, poison and a ring copy that was never emitted all
 //! read as "not certified".
 //!
-//! The parity walk is `ray_parity`'s, under this module's own K rows
+//! The parity walk is `ray_walk`'s, under this module's own K rows
 //! and `chart_region`'s shared [`SCHEDULE_2D`] — the same sixteen
 //! directions, because the grazing configurations those obliques
 //! answer are the same ones here.
@@ -43,12 +43,12 @@ use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Vec2};
 
 use crate::chart_region::SCHEDULE_2D;
 use crate::pcurves::PcurveMintError;
-use crate::ray_parity::{self, ParityRows};
+use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
 
 /// The K rows the outside test meters through. Distinct from
 /// `chart_region.rs`'s and from `containment.rs`'s: a chart-boundary
-/// cell margin is its own population (`ray_parity`'s module docs), and
+/// cell margin is its own population (`ray_walk`'s module docs), and
 /// this value is a roster entry in `docs/K-REPORT.md`.
 const ROWS: ParityRows = ParityRows {
     segment: "chart_bound_segment",
@@ -627,8 +627,8 @@ fn normal_separates<T: Decide>(a: Point2<T>, b: Point2<T>, rect: MetredRect, ban
 }
 
 /// Stage (2) for one polygon: the ray-parity verdict at `q`, or `None`
-/// when the walk cannot answer (on the boundary, every schedule member
-/// grazing, or an escalated margin). The first definite verdict counts.
+/// when the walk cannot answer (on the boundary or in its band, or no
+/// schedule member deciding). The first definite verdict counts.
 ///
 /// The schedule is `chart_region`'s [`SCHEDULE_2D`], shared rather
 /// than re-cut: its sixteen members are two axes plus fourteen oblique
@@ -638,20 +638,23 @@ fn normal_separates<T: Decide>(a: Point2<T>, b: Point2<T>, rect: MetredRect, ban
 /// axis-only schedule is not a smaller version of that; it is the
 /// configuration the fourteen exist to answer.
 fn parity<T: Decide>(verts: &[Point2<T>], q: Point2<T>, band: Band) -> Option<bool> {
-    if !matches!(ray_parity::on_boundary(verts, q, &ROWS, band), Ok(false)) {
+    if !matches!(ray_walk::on_boundary(verts, q, &ROWS, band), Ok(false)) {
         return None;
     }
-    for m in &SCHEDULE_2D {
-        let d = m.map(T::from_f64);
-        // The in-plane perpendicular of a 2-D member, which is in-plane
-        // by construction and of fixed nonzero `f64` length — so there
-        // is no arm predicate to decide (`SCHEDULE_2D`'s own docs).
-        let side = Vec2::new(-d.y, d.x);
-        match ray_parity::ray_verdict(verts, q, d, side, &ROWS, band) {
-            Ok(Some(inside)) => return Some(inside),
-            Ok(None) => {}
-            Err(_) => return None,
-        }
-    }
-    None
+    ray_walk::walk(
+        &SCHEDULE_2D,
+        |m| {
+            let d = m.map(T::from_f64);
+            // The in-plane perpendicular of a 2-D member, which is in-plane
+            // by construction and of fixed nonzero `f64` length — so there
+            // is no arm predicate to decide (`SCHEDULE_2D`'s own docs).
+            let side = Vec2::new(-d.y, d.x);
+            RayFault::of(
+                ray_walk::ray_verdict(verts, q, d, side, &ROWS, band),
+                |_| (),
+            )
+        },
+        || (),
+    )
+    .ok()
 }

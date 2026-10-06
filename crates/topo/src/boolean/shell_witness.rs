@@ -49,9 +49,9 @@
 //!
 //! A witness is **inconclusive** when it reads `OnBoundary`, or when
 //! its refusal is about that one point ([`PointInSolidError::inconclusive`]): the point is on the other
-//! boundary or too near it to say, and the next witness is read. Any
-//! other refusal is about the other operand rather than the point, and
-//! propagates.
+//! boundary or too near it to say, or near a face of it the door cannot
+//! read, and the next witness is read. Any other refusal is about the
+//! other operand rather than the point, and propagates.
 //!
 //! The ladder consults no record of contacts, at any dimension. A
 //! vertex the reduction recorded ON the other boundary is there by
@@ -64,11 +64,13 @@
 //! The first decisive witness decides. A block inside another, flush on
 //! four walls, reaches the third tier: its vertices and edges all lie
 //! on the other boundary, and the interior of each end face does not.
-//! When no witness decides, the reading says how many witnesses read
-//! the other boundary and how many read too near it to say. An in-band
-//! reading is about one point, possibly near a face far from the
-//! complex, and rides along as evidence only: a shell with one refuses
-//! [`BooleanError::ShellWitnessExhausted`].
+//! When no witness decides, the first face a witness could not be read
+//! against is the refusal, as a ray walk ranks the limit that blocked a
+//! ray ([`crate::ray_walk::walk`]); else the reading says how many
+//! witnesses read the other boundary and how many read too near it to
+//! say. An in-band reading is about one point, possibly near a face far
+//! from the complex, and rides along as evidence only: a shell with one
+//! refuses [`BooleanError::ShellWitnessExhausted`].
 //!
 //! # `On`: the settled coincidences
 //!
@@ -121,11 +123,14 @@ pub(super) enum Reading {
 pub(super) struct Tally {
     /// Witnesses that read `OnBoundary`.
     pub(super) on_boundary: usize,
-    /// Witnesses that read in-band ([`PointInSolidError::inconclusive`]).
+    /// Witnesses that read in-band.
     pub(super) in_band: usize,
     /// The first in-band reading, as evidence: over points, what
-    /// [`crate::ray_parity::Abandoned`] keeps over one point's rays.
+    /// [`crate::ray_walk::walk`] keeps over one point's rays.
     pub(super) first_in_band: Option<PointInSolidError>,
+    /// The first witness refused near a face the door cannot read
+    /// ([`PointInSolidError::confined`]).
+    pub(super) first_blocked: Option<PointInSolidError>,
 }
 
 /// The side of `other` the cell complex `faces` of `body` lies on,
@@ -150,6 +155,10 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
             Ok(SolidContainment::Out) => Some(SideCode::Out),
             Ok(SolidContainment::OnBoundary) => {
                 tally.on_boundary += 1;
+                None
+            }
+            Err(e) if e.confined() => {
+                tally.first_blocked.get_or_insert(e);
                 None
             }
             Err(e) if e.inconclusive() => {
@@ -261,8 +270,9 @@ pub enum ShellOrientation {
 ///
 /// # Errors
 ///
-/// [`BooleanError::Containment`] when a probe refuses other than
-/// in-band; [`BooleanError::ShellWitnessExhausted`] when no witness
+/// [`BooleanError::Containment`] when a probe refuses about the other
+/// operand, or when no witness decides and one met a face the door
+/// cannot read; [`BooleanError::ShellWitnessExhausted`] when no witness
 /// decides and one read in-band; [`BooleanError::CoincidentShell`]
 /// when every witness lies on the other boundary and the settled pairs
 /// do not certify `On`; [`BooleanError::JoinDesync`] when the shell
@@ -282,6 +292,10 @@ pub(super) fn shell_verdict<T: Decide + crate::props::AtRestPolicy>(
         .faces;
     match complex_side(body, faces, other, band, tol)? {
         Reading::Side(s) => Ok(ShellVerdict::Side(s)),
+        Reading::Undecided(Tally {
+            first_blocked: Some(e),
+            ..
+        }) => Err(BooleanError::Containment(e)),
         Reading::Undecided(t) if t.in_band == 0 => {
             on_verdict((shell, operand), faces, other, coincident)
         }
@@ -548,10 +562,11 @@ fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
 }
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
-/// `false` discards the candidate unprobed: outside, on a loop, an
-/// [`PointInSolidError::inconclusive`] reading, or an edge of `face` whose carrier the
-/// walk cannot cross — that face then offers no candidate, as a curved
-/// face offers none. Any other refusal is an error.
+/// `false` discards the candidate unprobed: outside, on a loop, or an
+/// [`PointInSolidError::inconclusive`] reading — an edge of `face` whose
+/// carrier the walk cannot cross among them, and that face then offers
+/// no candidate, as a curved face offers none. Any other refusal is an
+/// error.
 pub(super) fn certified_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -562,7 +577,6 @@ pub(super) fn certified_in_face<T: Decide>(
     match point_in_face(body, face, normal, p, band) {
         Ok(verdict) => Ok(verdict == Some(true)),
         Err(e) if e.inconclusive() => Ok(false),
-        Err(PointInSolidError::EdgeCarrierUnsupported { .. }) => Ok(false),
         Err(e) => Err(BooleanError::Containment(e)),
     }
 }

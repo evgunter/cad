@@ -1,110 +1,267 @@
-//! **Ray-parity point-in-region** — the one home for the trilean
-//! containment walk, shared by the crate's three consumers:
-//! [`crate::splitting::containment::point_in_vertex_polygon`] (a planar loop in
-//! 3-space), `chart_region::point_in_polygon` (a chart-space polygon
-//! in 2-D) and [`crate::chart_bound`]'s outside test (a chart-space
-//! polygon again, under its own K rows and sharing `chart_region`'s
-//! direction schedule).
+//! **The ray walk** — the one home for how the crate's containment doors
+//! cast rays from a query point `q`: the driver that tries a fixed
+//! schedule's rays in order ([`walk`]), the vocabulary of what one ray
+//! says ([`RayFault`]), the one sentence for a schedule no ray settled
+//! ([`RaysGrazed`]), and the two readings a ray takes.
 //!
-//! The module sits beside its consumers rather than inside any one:
-//! the walk is the shared property, and a core hosted in one of its
-//! two callers is the shape that drifts back apart.
+//! # The driver
 //!
-//! # Method
+//! A walk first asks where `q` itself stands — its boundary pre-pass,
+//! whose in-band rows refuse the query. Past it, every reading is about
+//! ONE RAY, so the rays are tried in schedule order and each ends one of
+//! four ways ([`RayFault`]): a verdict, which ends the walk; a graze,
+//! which keeps nothing; a reading set aside for this ray alone, which is
+//! kept as the walk's refusal should no ray decide; or a refusal of the
+//! whole query, which ends the walk at once. No direction is ever picked
+//! by coordinate comparison — a comparison-picked basis could diverge
+//! between the f64 and interval lanes; a fixed schedule whose degenerate
+//! members are detected *by predicate* cannot.
 //!
-//! Cast a ray from `q` and count proper crossings of the closed
-//! boundary; odd ⇒ inside. Grazing configurations (a vertex on the
-//! ray line, a crossing at `q` itself) are not errors of the geometry
-//! but of the *ray choice*: the caller retries with the next member of
-//! its own fixed direction schedule. No basis is ever picked by
-//! coordinate comparison — a comparison-picked basis could diverge
-//! between the f64 and interval lanes; a fixed schedule whose
-//! degenerate members are detected *by predicate* cannot.
+//! **Why a ray-level margin only sets the ray aside.** A verdict is read
+//! only off a ray whose every decision on it is definite, so setting a
+//! ray aside on an in-band one — as a graze is — can turn a refusal into
+//! an answer, never into a wrong one. What it does NOT license is
+//! reading an in-band margin as a definite one: a ray that runs along a
+//! carrier within the band may or may not meet the face on it, and is
+//! set aside too, never skipped past the face.
 //!
-//! Two pieces are shared, in the order a caller runs them:
+//! # The two readings
 //!
-//! 1. [`on_boundary`] — the boundary pre-pass, run once: is `q`
-//!    within the band of any closed segment?
-//! 2. [`ray_verdict`] — one schedule member's parity walk, given the
-//!    in-plane orthonormal frame `(d, side_axis)` the caller derives
-//!    for that member.
+//! - **Parity** ([`on_boundary`], [`ray_crossings`], [`ray_verdict`]):
+//!   count proper crossings of a closed planar boundary; odd ⇒ inside.
+//!   Orientation-blind, which the chord join's ring re-homing and
+//!   validation's ring nesting rely on. Served to a planar loop in
+//!   3-space (`splitting::containment`), a chart-space polygon
+//!   (`chart_region`) and a chart polygon under its own rows
+//!   (`chart_bound`).
+//! - **The closest crossing** ([`Crossings`], [`advance`]): keep the
+//!   crossing nearest `q` and read the material side from the ray's
+//!   heading there — the 3-D sweep (`boolean::solid_contain`) and a
+//!   trimmed sphere face's great circles (`boolean::sphere_region`).
 //!
-//! What is **not** shared is what genuinely differs: each caller owns
-//! its own direction schedule, its own frame construction (a 3-D
-//! member must be projected into the loop's plane and gated on the
-//! in-plane displacement that projection commands at the loop's own
-//! scale — which also fires when the loop collapses onto `q`; a 2-D
-//! member is in-plane by construction and needs no such gate), and
-//! its own typed error.
-//!
-//! # The escalation seam
-//!
-//! Both entry points return the raw [`Indeterminate`] rather than a
-//! caller-supplied wrapper. A wrapper parameter would be the one
-//! joint in a module whose whole purpose is that a wrong answer
-//! cannot be silent where a caller could be wrong and the compiler
-//! would say nothing — `|_| RayExhausted` typechecks and relabels an
-//! escalation as exhaustion. Returning the diagnostic keeps the
-//! `.map_err(escalate)` idiom visible beside the call, exactly where
-//! it sat when the two walks were separate.
+//! Each reader keeps what genuinely differs: its schedule and the frame
+//! it builds from each member, its crossing arithmetic, what a ray that
+//! meets nothing says, its K rows and its typed error.
 //!
 //! # Predicate rows are the CALLER's
 //!
 //! Every decision here funnels through [`crate::validate::decide`]
-//! under a name the caller supplies in [`ParityRows`]. The K ledger
-//! meters each consumer's margins separately — a 3-D loop's metres
-//! and a chart polygon's metres are different populations — so the
-//! shared code must not pool them under one name. Sharing the walk
-//! and sharing the ledger row are independent decisions, and this
-//! module makes only the first.
+//! under a name the caller supplies ([`ParityRows`], or the row passed
+//! to [`advance`] and [`Crossings::closest`]). The K ledger meters each
+//! consumer's margins separately — a 3-D loop's metres and a chart
+//! polygon's metres are different populations — so the shared code
+//! must not pool them under one name. Sharing the walk and sharing the
+//! ledger row are independent decisions, and this module makes only
+//! the first.
 //!
-//! Note that [`ParityRows`] carries **two** names for the boundary
-//! pre-pass, because it asks two questions: `segment` decides whether
-//! a segment is degenerate (the margin is the segment's own length),
-//! `boundary` decides whether `q` lies on it (the margin is a
-//! point-to-segment distance). One name for both would meter two
-//! populations as one.
+//! [`ParityRows`] carries **two** names for the boundary pre-pass,
+//! because it asks two questions: `segment` decides whether a segment
+//! is degenerate (the margin is the segment's own length), `boundary`
+//! decides whether `q` lies on it (the margin is a point-to-segment
+//! distance). One name for both would meter two populations as one.
+//!
+//! # The escalation seam
+//!
+//! The shared readings return the raw [`Indeterminate`], never a
+//! caller-supplied wrapper: the caller's `escalate` stays visible beside
+//! the call, and a wrapper parameter here would be the one joint where
+//! `|_| RayExhausted` typechecks and relabels an escalation as
+//! exhaustion. [`walk`]'s exhaustion argument receives nothing to
+//! relabel.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3};
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point2, Point3, Sign, Vec2, Vec3,
+};
 
 use crate::validate::decide;
 
-/// **The rays a schedule abandoned on an in-band reading of their own**:
-/// the first such reading is kept, and is the walk's refusal only if no
-/// ray decides. The one home of the argument every ray walk in the crate
-/// cites — `point_in_loop`'s polygon walk and its arc walk, and
-/// `point_in_solid`'s 3-D sweep.
+/// **Why one ray of a walk gave no verdict.** A ray's reading is
+/// `Result<V, RayFault<E>>`, `E` the reader's own typed error.
 ///
-/// **Why a ray-level margin abandons the ray.** A walk's boundary pass
-/// asks where `q` itself stands, and its rows escalate. Every row past
-/// it is a fact about ONE RAY: whether its schedule member projects
-/// into the plane, where it passes a vertex, meets a conic or a face's
-/// carrier, clears an uncrossable edge's ball, how far along it a
-/// crossing falls, or which way it runs against a carrier.
-/// A verdict is read only off a ray whose every decision on it is
-/// definite, so abandoning a ray on an in-band one — as a graze is
-/// abandoned — can turn a refusal into an answer, never into a wrong
-/// one. What abandoning does NOT license is reading an in-band margin
-/// as a definite one: a ray that runs along a carrier within the band
-/// may or may not meet the face on it, and is abandoned too, never
-/// skipped past the face.
-pub(crate) struct Abandoned<E>(Option<E>);
+/// There is no `From<E>`: every `?` on a reader's error inside a ray
+/// names which of the last three it is, so a stray one cannot widen a
+/// ray's reading into a refusal of the query, nor narrow a refusal of
+/// the query into one ray's.
+#[derive(Debug)]
+pub(crate) enum RayFault<E> {
+    /// A `Zero` on one of the ray's rows — a vertex on the ray line, a
+    /// crossing at `q`, a tie, a tangency. Nothing is kept.
+    Graze,
+    /// An in-band reading about this ray alone, kept as evidence.
+    InBand(E),
+    /// A limit of the reader this ray could meet — a face or an edge it
+    /// has no crossing row for — and another ray might miss.
+    Blocked(E),
+    /// A refusal of the whole query.
+    Fatal(E),
+}
 
-impl<E> Abandoned<E> {
-    /// No ray abandoned yet.
+impl<E> RayFault<E> {
+    /// The same fault over another error type.
+    pub(crate) fn map<F>(self, f: impl FnOnce(E) -> F) -> RayFault<F> {
+        match self {
+            Self::Graze => RayFault::Graze,
+            Self::InBand(e) => RayFault::InBand(f(e)),
+            Self::Blocked(e) => RayFault::Blocked(f(e)),
+            Self::Fatal(e) => RayFault::Fatal(f(e)),
+        }
+    }
+
+    /// One shared reading on this reader's ray: `None` grazes, and an
+    /// in-band margin sets the ray aside as `escalate(diag)`.
+    pub(crate) fn of<V>(
+        reading: Result<Option<V>, Indeterminate>,
+        escalate: impl FnOnce(Indeterminate) -> E,
+    ) -> Result<V, Self> {
+        reading
+            .map_err(|diag| Self::InBand(escalate(diag)))?
+            .ok_or(Self::Graze)
+    }
+}
+
+/// **The walk**: `read` each ray of `rays` in order until one decides.
+///
+/// When none does, the refusal is, by one rule:
+///
+/// 1. the first [`RayFault::Blocked`] — a limit no tolerance moves,
+///    true of every ray it stopped whatever the band, and its own
+///    recourse is the one that frees those rays;
+/// 2. else the first [`RayFault::InBand`] reading — a margin a tighter
+///    tolerance would decide, carried with its value. It is not ranked
+///    first because the ray it stopped was read no further: a tighter
+///    tolerance may decide it and still leave it to meet the limit;
+/// 3. else `exhausted()` — every ray grazed ([`RaysGrazed`]).
+///
+/// A [`RayFault::Fatal`] ends the walk with its error at once.
+///
+/// # Errors
+///
+/// As above.
+pub(crate) fn walk<R, V, E>(
+    rays: impl IntoIterator<Item = R>,
+    mut read: impl FnMut(R) -> Result<V, RayFault<E>>,
+    exhausted: impl FnOnce() -> E,
+) -> Result<V, E> {
+    let (mut blocked, mut in_band) = (None, None);
+    for ray in rays {
+        match read(ray) {
+            Ok(verdict) => return Ok(verdict),
+            Err(RayFault::Graze) => {}
+            Err(RayFault::InBand(e)) => {
+                in_band.get_or_insert(e);
+            }
+            Err(RayFault::Blocked(e)) => {
+                blocked.get_or_insert(e);
+            }
+            Err(RayFault::Fatal(e)) => return Err(e),
+        }
+    }
+    Err(blocked.or(in_band).unwrap_or_else(exhausted))
+}
+
+/// **The one sentence for a schedule every ray of which grazed**, and
+/// its one recourse, which each reader's exhaustion variant renders
+/// after its own subject. The rays are the kernel's, so no declaration
+/// reaches them, and a graze carries no margin to size a tolerance by:
+/// the geometry is the lever.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RaysGrazed;
+
+impl core::fmt::Display for RaysGrazed {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "every test ray grazed the boundary, at a vertex, along an edge or at a \
+             tangency, so where the point lies is ill-conditioned at this tolerance. \
+             Recourse: {NO_DECLARATION_RECOURSE}"
+        )
+    }
+}
+
+/// **Where a crossing lies along the ray from `q`**, on the caller's
+/// `row`: `Positive` ahead, `Negative` behind. A `Zero` is a crossing
+/// at `q`, which the boundary pre-pass has ruled out, so it grazes; an
+/// in-band one sets the ray aside.
+///
+/// # Errors
+///
+/// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
+/// [`Indeterminate`].
+pub(crate) fn advance<T: Decide>(
+    row: &'static str,
+    at: Margin<T>,
+    band: Band,
+) -> Result<Sign, RayFault<Indeterminate>> {
+    match decide(row, at, band) {
+        Ok(Sign::Zero) => Err(RayFault::Graze),
+        Ok(sign) => Ok(sign),
+        Err(diag) => Err(RayFault::InBand(diag)),
+    }
+}
+
+/// **One ray's crossings ahead of `q`, read to the closest** — the fold
+/// the closest-crossing readers share. Each crossing is offered with its
+/// distance along the ray in metres, already decided ahead of `q`
+/// ([`advance`]), and whether it lies on a boundary of what it crosses
+/// (a trim's edge, an arc's end, a tangential incidence).
+pub(crate) struct Crossings<T, H> {
+    ahead: Vec<(T, H, bool)>,
+}
+
+impl<T: Decide, H> Crossings<T, H> {
+    /// No crossing yet.
     pub(crate) const fn new() -> Self {
-        Self(None)
+        Self { ahead: Vec::new() }
     }
 
-    /// Abandon the current ray on `reading`, keeping the first.
-    pub(crate) fn abandon(&mut self, reading: E) {
-        self.0.get_or_insert(reading);
+    /// A crossing `at` metres ahead of `q`; `edge` for one on a
+    /// boundary of what it crosses.
+    pub(crate) fn push(&mut self, at: T, hit: H, edge: bool) {
+        self.ahead.push((at, hit, edge));
     }
 
-    /// The refusal once the schedule is exhausted: the first abandoned
-    /// reading, else `otherwise`.
-    pub(crate) fn refusal(self, otherwise: impl FnOnce() -> E) -> E {
-        self.0.unwrap_or_else(otherwise)
+    /// The closest crossing's hit, `None` when the ray met nothing.
+    ///
+    /// The closest is the least by the caller's `order` row. Every other
+    /// crossing is then asked against IT, not against whichever was
+    /// least when it was offered: a tie with the closest grazes, and an
+    /// undecided one sets the ray aside as `escalate(diag, hit)`, the
+    /// hit the closest was compared with; a tie between two crossings
+    /// beyond it decides nothing the verdict reads. The same holds of an
+    /// edge: the closest on an edge grazes, one beyond it does not
+    /// matter.
+    ///
+    /// # Errors
+    ///
+    /// [`RayFault::Graze`] or [`RayFault::InBand`].
+    pub(crate) fn closest<E>(
+        self,
+        order: &'static str,
+        band: Band,
+        escalate: impl FnOnce(Indeterminate, &H) -> E,
+    ) -> Result<Option<H>, RayFault<E>> {
+        let gap =
+            |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
+        let mut best = 0;
+        for k in 1..self.ahead.len() {
+            if gap(k, best) == Ok(Sign::Negative) {
+                best = k;
+            }
+        }
+        for k in (0..self.ahead.len()).filter(|&k| k != best) {
+            match gap(k, best) {
+                Ok(Sign::Positive) => {}
+                // A tie, or a crossing the scan above left behind the
+                // one it kept: the closest is not certain.
+                Ok(Sign::Zero | Sign::Negative) => return Err(RayFault::Graze),
+                Err(diag) => return Err(RayFault::InBand(escalate(diag, &self.ahead[k].1))),
+            }
+        }
+        match self.ahead.into_iter().nth(best) {
+            Some((_, _, true)) => Err(RayFault::Graze),
+            Some((_, hit, false)) => Ok(Some(hit)),
+            None => Ok(None),
+        }
     }
 }
 
@@ -397,10 +554,10 @@ mod tests {
     use super::*;
 
     const ROWS: ParityRows = ParityRows {
-        segment: "test_ray_parity_segment",
-        boundary: "test_ray_parity_boundary",
-        side: "test_ray_parity_side",
-        advance: "test_ray_parity_advance",
+        segment: "test_ray_walk_segment",
+        boundary: "test_ray_walk_boundary",
+        side: "test_ray_walk_side",
+        advance: "test_ray_walk_advance",
     };
 
     fn band() -> Band {

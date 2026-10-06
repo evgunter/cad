@@ -148,7 +148,7 @@ use geom_core::{Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Po
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::null::CurveGeom;
-use crate::ray_parity::{self, ParityRows};
+use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
 
 /// The certified overlap answer (both outcomes are *definite*; every
@@ -416,14 +416,7 @@ impl core::fmt::Display for ChartRegionError {
                 "chart-region: a decision about how the two faces' regions overlap is too \
                  close to call: {diag}"
             ),
-            Self::RayExhausted => write!(
-                f,
-                "chart-region: every schedule ray grazed — ill-conditioned \
-                 containment query at this ε. Every direction the schedule offers \
-                 lands in the band, so move the point off the boundary it grazes, \
-                 or read the pair at a tighter ε; a longer schedule does not \
-                 decide a query whose margins are all in-band"
-            ),
+            Self::RayExhausted => write!(f, "chart-region: {}", ray_walk::RaysGrazed),
             Self::WitnessBudgetExhausted { segments, cells } => write!(
                 f,
                 "chart-region: the interior-witness schedule ran out of budget on a \
@@ -970,7 +963,7 @@ fn overlap_of_uv<T: Decide + Bounds>(
 /// # What the lemma does NOT claim (stated because it matters)
 ///
 /// The CERTIFIED answers are invariant. The REFUSAL boundary is not
-/// exactly: [`crate::ray_parity`]'s schedule is a fixed table of
+/// exactly: [`crate::ray_walk`]'s schedule is a fixed table of
 /// directions in CHART coordinates, so which ray fires — and whether a
 /// near-grazing configuration escalates or decides — rotates with the
 /// frame; and `ψ` is not exactly representable in `f64`, so a margin
@@ -2813,7 +2806,7 @@ fn bit_equal_cyclic<T: Decide + Bounds>(a: &[Point2<T>], b: &[Point2<T>]) -> boo
     (0..n).any(|shift| (0..n).all(|i| ea[i] == eb[(i + shift) % n]))
 }
 
-/// The trilean 2-D point-in-polygon verdict — [`crate::ray_parity`]'s
+/// The trilean 2-D point-in-polygon verdict — [`crate::ray_walk`]'s
 /// walk in chart space, with its own direction schedule and its own
 /// K rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2861,9 +2854,9 @@ pub(crate) const SCHEDULE_2D: [Vec2<f64>; 16] = [
     Vec2::new(1.0, -0.75),
 ];
 
-/// This consumer's K rows for the shared walk ([`crate::ray_parity`]),
+/// This consumer's K rows for the shared walk ([`crate::ray_walk`]),
 /// and the greppable roster entry for all four (see
-/// [`crate::ray_parity::ParityRows`]).
+/// [`crate::ray_walk::ParityRows`]).
 /// Chart-space margins are metered separately from the 3-D loop's —
 /// the polygon is metred by the exact arms, but it is a different
 /// population — so the names stay distinct even though the walk is one.
@@ -2876,7 +2869,7 @@ const ROWS: ParityRows = ParityRows {
 
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
 ///
-/// The walk is [`crate::ray_parity`]'s, shared with the 3-D
+/// The walk is [`crate::ray_walk`]'s, shared with the 3-D
 /// `point_in_vertex_polygon`; what this function owns is the 2-D frame, which
 /// needs no arm gate (see [`SCHEDULE_2D`]).
 ///
@@ -2896,6 +2889,9 @@ const ROWS: ParityRows = ParityRows {
 ///   `over_lever(x_i·y_j − x_j·y_i, y_j − y_i)` — a 2×2 determinant
 ///   (m²) over its straddle height (m); Zero would contradict the
 ///   boundary pre-pass ⇒ next ray.
+///
+/// The last two are facts about one ray: an in-band reading on either
+/// sets the ray aside ([`ray_walk::walk`]).
 fn point_in_polygon<T: Decide>(
     poly: &[Point2<T>],
     q: Point2<T>,
@@ -2903,25 +2899,26 @@ fn point_in_polygon<T: Decide>(
 ) -> Result<PolyContainment, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
 
-    if ray_parity::on_boundary(poly, q, &ROWS, band).map_err(escalate)? {
+    if ray_walk::on_boundary(poly, q, &ROWS, band).map_err(escalate)? {
         return Ok(PolyContainment::OnBoundary);
     }
-
-    // Ray parity with the fixed schedule.
-    for r in &SCHEDULE_2D {
-        let d = r.map(T::from_f64).normalize();
-        let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
-        if let Some(inside) =
-            ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band).map_err(escalate)?
-        {
-            return Ok(if inside {
-                PolyContainment::In
-            } else {
-                PolyContainment::Out
-            });
-        }
-    }
-    Err(ChartRegionError::RayExhausted)
+    let inside = ray_walk::walk(
+        &SCHEDULE_2D,
+        |r| {
+            let d = r.map(T::from_f64).normalize();
+            let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
+            RayFault::of(
+                ray_walk::ray_verdict(poly, q, d, side_axis, &ROWS, band),
+                escalate,
+            )
+        },
+        || ChartRegionError::RayExhausted,
+    )?;
+    Ok(if inside {
+        PolyContainment::In
+    } else {
+        PolyContainment::Out
+    })
 }
 
 /// A proper (transverse, segment-interior) boundary crossing between
@@ -3001,7 +2998,7 @@ struct Crossing<T: Decide> {
 ///   one it would protect.
 ///
 /// What is NOT claimed, and is the module's standing posture: the ray
-/// schedule in [`crate::ray_parity`] is fixed in CHART coordinates, so
+/// schedule in [`crate::ray_walk`] is fixed in CHART coordinates, so
 /// which configurations refuse rather than decide still rotates with
 /// the frame.
 fn proper_crossings<T: Decide>(

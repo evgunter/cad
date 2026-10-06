@@ -2659,7 +2659,9 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// loops' regions read the other boundary or too near it, which a
 /// crossing's two flanks cannot both do unless their faces are all
 /// curved (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
-/// No in-band reading is named as the cause: it is about one point.
+/// No in-band reading is named as the cause: it is about one point. A
+/// witness refused near a face the door cannot read is, as it is for a
+/// shell ([`super::shell_witness`]).
 fn loop_roles(
     face: FaceKey,
     (outer, o): (LoopKey, Reading),
@@ -2676,10 +2678,11 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        (Reading::Undecided(_), Reading::Undecided(_)) => {
-            Err(BooleanError::Join(SplitJoinError::SectionLoopUndecided {
-                face,
-            }))
+        (Reading::Undecided(o), Reading::Undecided(r)) => {
+            Err(match o.first_blocked.or(r.first_blocked) {
+                Some(e) => BooleanError::Containment(e),
+                None => BooleanError::Join(SplitJoinError::SectionLoopUndecided { face }),
+            })
         }
     }
 }
