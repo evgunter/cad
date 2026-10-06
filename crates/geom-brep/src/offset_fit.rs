@@ -724,7 +724,7 @@ impl core::fmt::Display for OffsetFitError {
         match self {
             Self::Meter(e) => write!(
                 f,
-                "the offset surface's meters refused: {}",
+                "the offset surface cannot be fitted: {}",
                 e.render(Reading::Build)
             ),
             Self::PatchBound(e) => write!(f, "{e}"),

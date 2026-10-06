@@ -73,20 +73,21 @@ fn two_disjoint_boxes_each_shell_and_the_gap_between_them_never_gates() {
 // Row 3 — the door is decided per solid
 // ---------------------------------------------------------------------
 
-/// **A box beside a vessel.** The body is neither all-planar nor a body
-/// of revolution, so a whole-body door reading would put both on the
-/// per-chart door and refuse the vessel's corners it solves alone.
-/// Read per solid, the box takes the planar simultaneous door and the
-/// vessel the axial one, and both closed forms come out.
+/// **A box beside a vessel.** The body is not all-planar, and since the
+/// box's faces stand normal and parallel to the vessel's axis the
+/// whole body is AXIAL in the gate's sense. Read per solid, the box
+/// still takes the planar simultaneous door and the vessel the axial
+/// one, and both closed forms come out.
 #[test]
 fn a_box_beside_a_vessel_takes_one_door_each() {
     let t = 0.05;
     let (r, h) = (1.0, 2.0);
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &vessel(r, h), 10.0);
-    // The whole-body reading, measured: not all-planar, not axial.
+    // The whole-body reading, measured: not all-planar, but axial —
+    // every box face is normal or parallel to the vessel's axis.
     assert!(
-        !topo::is_axial(&pair, band()).expect("the axis gate decides"),
-        "the pair is not one body of revolution"
+        topo::is_axial(&pair, band()).expect("the axis gate decides"),
+        "the pair is expressible in the vessel's axial frame"
     );
     let s = topo::shell(&finished("the operand", pair.clone(), tol()), t, tol())
         .expect("each solid takes its own door");
