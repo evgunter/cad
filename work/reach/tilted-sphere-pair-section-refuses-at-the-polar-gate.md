@@ -101,4 +101,4 @@ same ball charted about the cut's normal passes the join (and stops at
 `work/contact/at-infinity-probe-measures-in-closed-form-only.md`). So
 the free-ball re-chart this row names would cover this pose too: the
 ball is free, and its one escape plane fixes the alignment. Pinned by
-`a_ball_through_the_cut_face_clears_the_rim_and_stops_downstream`.
+`a_ball_through_the_cut_face_clears_the_rim_and_builds`.

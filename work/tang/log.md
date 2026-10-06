@@ -587,6 +587,6 @@ the tube's wall builds every op in both member orders, at two poses,
 on both seam rulings, inside a wall face and across the rim, at tiers
 3 and 3′. A line in band of the wall but not on it escalates or keeps
 the door. `carrier_cross::meetings` now meets a boundary ellipse at its
-plane; its two fixtures pass the crossing layer and stop at CONTACT's
-at-infinity probe (evidence added there). Filed:
+plane; its two fixtures, the turned dome and the prism on the slanted
+tube, build every op at their closed forms. Filed:
 `an-ellipse-lying-on-a-wall-keeps-the-door` (P1).

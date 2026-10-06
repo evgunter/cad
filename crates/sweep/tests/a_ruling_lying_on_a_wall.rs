@@ -15,8 +15,7 @@
 //!   axis escalates, and a lean decided off the axis keeps the crossing
 //!   layer's door. None is taken as ON.
 //! - **Across an ellipse**: on a tube whose bottom is cut obliquely, the
-//!   ruling meets the ellipse at its plane; every op passes the crossing
-//!   layer and stops at the containment probe.
+//!   ruling meets the ellipse at its plane, and every op builds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -268,17 +267,19 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
     }
 }
 
-/// **A ruling across an ellipse passes the crossing layer.** The tube
+/// **A ruling across an ellipse builds every op undeclared.** The tube
 /// from `z = −1` with its bottom cut by the plane `z = 0.5 + 0.2·x`, so
 /// each wall face is bounded below by an ellipse arc, and the prism
-/// from `z = 0` to `1`: its edge on the wall runs out through that
+/// from `z = 0` to `1`, its edge on the wall running out through that
 /// plane. The ruling meets the ellipse where it meets the ellipse's
-/// plane, and is split there. Every op then refuses
-/// `Containment(VolumeUncertified)`: the at-infinity probe measures in
-/// closed form only, which an obliquely trimmed wall has none of
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+/// plane and is split there. The tube holds `π·R²·1.5`; the prism above
+/// the plane holds `A·(0.5 − 0.2·x̄)`, `x̄ = 0.6·cos turn` its
+/// centroid's `x`. `t ∖ b` is a notch whose edge runs up the wall from
+/// the ellipse, its upper end recorded on the wall face. Volumes are
+/// read to `max(1e-8, 10·ε)`: the wall's ellipse trim is measured by
+/// quadrature, whose reach follows the band.
 #[test]
-fn a_ruling_across_an_ellipse_passes_the_crossing_layer() {
+fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
     let tol = Tol::witness();
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -(0.2_f64).atan());
     let under = topo::transform_rigid(
@@ -297,16 +298,56 @@ fn a_ruling_across_an_ellipse_passes_the_crossing_layer() {
         Ok(BooleanResult::Body(b)) => b.body,
         other => panic!("the slanted tube builds: {other:?}"),
     };
-    for turn in [0.3, 0.5] {
-        for (op, r) in six(&t, &square(turn, 0.0, 1.0)) {
+    let tube = PI * R * R * 1.5;
+    let reach = 1e-8_f64.max(10.0 * geom_core::Band::linear(tol).unwrap().zero());
+    let (whole, prism) = ((9, 19, 12, 1), (6, 12, 8, 1));
+    for turn in [0.3, 0.5_f64] {
+        let common = AREA * (0.5 - 0.2 * 0.6 * turn.cos());
+        let wants = [
+            (tube + AREA - common, whole, [0; 4]),
+            (tube + AREA - common, whole, [0; 4]),
+            (tube - common, whole, [0, 1, 0, 0]),
+            (AREA - common, prism, [0; 4]),
+            (common, prism, [0; 4]),
+            (common, prism, [0; 4]),
+        ];
+        for ((op, r), (volume, census, contacts)) in
+            six(&t, &square(turn, 0.0, 1.0)).into_iter().zip(wants)
+        {
+            let label = format!("turn {turn}: {op}");
+            let Ok(BooleanResult::Body(bb)) = r else {
+                panic!("{label}: builds: {r:?}");
+            };
+            let body = &bb.body;
+            topo::validate_geometric(body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+            topo::validate_pseudomanifold(body, &bb.contacts, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+            let v = topo::mass_properties(body, tol).unwrap().volume;
             assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::Containment(
-                        topo::PointInSolidError::VolumeUncertified
-                    ))
+                (v - volume).abs() <= reach,
+                "{label}: the closed form: {v} vs {volume}"
+            );
+            assert_eq!(
+                (
+                    body.faces().count(),
+                    body.edges().count(),
+                    body.vertices().count(),
+                    body.shells().count()
                 ),
-                "turn {turn}: {op}: the containment probe: {r:?}"
+                census,
+                "{label}: F, E, V, shells"
+            );
+            let c = &bb.contacts;
+            assert_eq!(
+                [
+                    c.vv.len(),
+                    c.a_on_b.len() + c.b_on_a.len(),
+                    c.curves.len(),
+                    c.patches.len()
+                ],
+                contacts,
+                "{label}: [v-v, v-f, curve, patch] records"
             );
         }
     }

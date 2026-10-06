@@ -2,11 +2,13 @@
 id: revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6
 kind: issue
 title: the split-across-a-revolve-seam rows miss their volume closed form at CAD_TOLERANCE_EPS=1e-6 on main
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: E
 refs: [4120, split-halves-volumes-sum-to-the-whole-only-within-their-pads]
+closed: 2026-10-06
+pr: 4083
 ---
 
 
@@ -20,3 +22,11 @@ Main is red at the 1e-6 row since PR 4120 (`cleave/tube-across-axis`) merged. Me
 Each is a half's `mass_properties` volume against its closed form. The miss is 1e-7 to 1.3e-5 absolute, which is the size of the quadrature pad at that ε (`split-halves-volumes-sum-to-the-whole-only-within-their-pads`). It is not a topology failure: tier 3′ and the one-annular-section-face checks pass first. The same rows on `band/lamina-annulus-is-one-face` (PR 4136) fail with bit-identical numbers.
 
 Recourse: compare each half against its closed form within the volume's own certified pad (`MassProperties`' bound) rather than within a fixed `by`, or tighten the quadrature these splits take at 1e-6. The first option is the row's own fix.
+
+## Closed (PR 4083, 2026-10-06)
+
+Fixed in PR 4083. Its merge with main ran these rows at the 1e-6 row, which main had never done. The
+four `split_across_a_revolve_seam` rows and
+`m5_pr6_pcurves::a_seam_closed_tube_split_mints_clean_halves` now hold each volume to 1e-8 plus its
+own certified quadrature pad, and pass at 1e-6, 1e-9 and 1e-12. The two rows filed for this red are
+closed together.

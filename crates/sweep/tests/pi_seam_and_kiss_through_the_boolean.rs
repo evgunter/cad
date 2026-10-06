@@ -2289,23 +2289,30 @@ fn slanted_tube() -> AtRestBody<f64> {
     }
 }
 
-/// **A wall bounded by an ellipse passes the crossing layer and stops
-/// at the containment probe.** The turned sunk dome on a tube whose
-/// bottom is cut by the plane `z = 0.5 + 0.2·x`: the rim arc lying on
-/// the wall, which neither certificate (a) nor (b) places, is read by
-/// the interior question, whose candidates against the ellipse are the
-/// arc's meetings with its plane. The rim sits above that plane, so it
-/// has none and the arc's ends place it. Every op, both member orders,
-/// then refuses `Containment(VolumeUncertified)`: the at-infinity probe
-/// measures the selection's volume in closed form only, which an
-/// obliquely trimmed wall has none of
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`).
+/// **A wall bounded by an ellipse, undeclared, builds every op.** The
+/// turned sunk dome on a tube whose bottom is cut by the plane
+/// `z = 0.5 + 0.2·x`: the rim arc lying on the wall, which neither
+/// certificate (a) nor (b) places, is read by the interior question,
+/// whose candidates against the ellipse are the arc's meetings with
+/// its plane. The rim sits above that plane, so it has none, and the
+/// rim splits at the seam rulings as on the plain tube. The tube holds
+/// `π·R²·(H − 0.5)` (the plane's mean height over the disc is `0.5`);
+/// the dome's split, the censuses and the records are the two-face
+/// rows of
+/// [`a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`].
+/// Volumes are read to `max(1e-8, 10·ε)`: the wall's ellipse trim is
+/// measured by quadrature, whose reach follows the band.
 #[test]
-fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_passes_the_crossing_layer() {
+fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
     let tol = Tol::witness();
     let none = BooleanDeclarations::none();
     let tube = slanted_tube();
+    let rho = 2.0_f64.sqrt() * R;
+    let t = PI * R * R * (H - 0.5);
+    let reach = 1e-8_f64.max(10.0 * Band::linear(tol).unwrap().zero());
     for dz in [-1e-3, -0.3] {
+        let above = cap_volume(rho, rho - R + dz);
+        let inside = cap_volume(rho, rho - R) - above;
         let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
         let sunk = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
         for turn in [1.0 / 12.0, 1.0 / 5.0] {
@@ -2316,23 +2323,59 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_passes_the_crossing_layer() {
                 topo::transform_rigid(&sunk, &spin, tol).unwrap(),
                 tol,
             );
-            for (op, r) in [
-                ("t ∪ d", topo::union_with(&tube, &d, &none, tol)),
-                ("d ∪ t", topo::union_with(&d, &tube, &none, tol)),
-                ("t ∖ d", topo::subtract_with(&tube, &d, &none, tol)),
-                ("d ∖ t", topo::subtract_with(&d, &tube, &none, tol)),
-                ("t ∩ d", topo::intersect_with(&tube, &d, &none, tol)),
-                ("d ∩ t", topo::intersect_with(&d, &tube, &none, tol)),
+            let (whole, common) = ((6, 12, 9, 1), (4, 8, 6, 1));
+            for (op, r, want, census, contacts) in [
+                (
+                    "t ∪ d",
+                    topo::union_with(&tube, &d, &none, tol),
+                    t + above,
+                    whole,
+                    [0; 4],
+                ),
+                (
+                    "d ∪ t",
+                    topo::union_with(&d, &tube, &none, tol),
+                    t + above,
+                    whole,
+                    [0; 4],
+                ),
+                (
+                    "t ∖ d",
+                    topo::subtract_with(&tube, &d, &none, tol),
+                    t - inside,
+                    (7, 16, 12, 1),
+                    [2, 2, 0, 0],
+                ),
+                (
+                    "d ∖ t",
+                    topo::subtract_with(&d, &tube, &none, tol),
+                    above,
+                    (3, 4, 3, 1),
+                    [0; 4],
+                ),
+                (
+                    "t ∩ d",
+                    topo::intersect_with(&tube, &d, &none, tol),
+                    inside,
+                    common,
+                    [0; 4],
+                ),
+                (
+                    "d ∩ t",
+                    topo::intersect_with(&d, &tube, &none, tol),
+                    inside,
+                    common,
+                    [0; 4],
+                ),
             ] {
+                let label = format!("dz = {dz}, turn {turn}: {op}");
+                let (v, c, k) = built(&label, r);
                 assert!(
-                    matches!(
-                        r,
-                        Err(BooleanError::Containment(
-                            topo::PointInSolidError::VolumeUncertified
-                        ))
-                    ),
-                    "dz = {dz}, turn {turn}: {op}: the containment probe: {r:?}"
+                    (v - want).abs() <= reach,
+                    "{label}: the closed form: {v} vs {want}"
                 );
+                assert_eq!(c, census, "{label}: F, E, V, shells");
+                assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
             }
         }
     }

@@ -118,13 +118,12 @@ Rows (`crates/sweep/tests/a_ruling_lying_on_a_wall.rs`), all red on
   multiples of the band's zero threshold `z`: ends shifted `±3·z` off
   the wall escalate at the vertex placement; a `±3·z` lean escalates on
   the axis-parallel rung; a `±40·z` lean is a chord and keeps the door;
-- a ruling across an ellipse, and
-  `pi_seam_and_kiss_through_the_boolean.rs`
-  `a_turned_rim_on_a_wall_bounded_by_an_ellipse_passes_the_crossing_layer`
-  (formerly `…_keeps_the_door`): both now pass the crossing layer and
-  stop at `Containment(VolumeUncertified)`, the at-infinity probe's
-  closed-form gap (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`,
-  evidence added).
+- a ruling across an ellipse, and the turned sunk dome on the slanted
+  tube (`pi_seam_and_kiss_through_the_boolean.rs`,
+  `a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared`,
+  formerly `…_keeps_the_door`): every op in both member orders builds at
+  its closed form, read to `max(1e-8, 10·ε)` because the wall's ellipse
+  trim is measured by quadrature, at tiers 3 and 3′.
 
 Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P1, this section's
 "The ellipse beside it"). Evidence added to

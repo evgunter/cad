@@ -1950,3 +1950,22 @@ Three design rows came out of the crossing-sense fork:
 
 The NURBS-crossing and edge × edge rows each get a note to re-measure
 once the sense is built.
+
+## 2026-10-06 — PR 4156 ([ev]): ids carry their mint ordinal
+
+The designer pair (fork-log row 74; byte 171, A = Fable, B = Opus) crossed
+once and converged. Only `Flush` chooses anything. Seniority belongs in the
+id, so `Doc::order` can be derived rather than stored unchecked.
+
+Ev asked first why `Flush` needed it. The answer: on its own it does not;
+the case rests on the other readers of `Doc::order`, and on the stored list
+the load door cannot check. Ev then asked how `Doc::order` is built.
+
+Ev approved removing `Doc::order` and folding seniority in next to the id,
+as a custom pair type `(u32, u64)` rather than bit packing, unless
+something needs one integer. The row stays open for the build, with a
+Ruled section.
+
+## 2026-10-06 — PR 4166: the part chooser proposes an editable label
+
+`add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.

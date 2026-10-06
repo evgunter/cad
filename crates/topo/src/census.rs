@@ -3062,8 +3062,9 @@ pub(crate) enum Undecided {
     /// Arm 2: the point-in-solid door could not place a vertex near
     /// the boundary (escalated, or its loop walk escalated).
     WitnessTooClose,
-    /// Arm 2: every ray the point-in-solid door cast grazed, for a
-    /// vertex its pre-pass placed off the boundary.
+    /// Arm 2: no ray the point-in-solid door cast settled — each grazed
+    /// or gave nothing to read — for a vertex its pre-pass placed off the
+    /// boundary.
     WitnessGrazed,
     /// Arm 2: an instance of (near-)zero signed volume. Tier 3's +V
     /// check passes a volume in band of zero, so the part is the
@@ -3204,9 +3205,9 @@ impl Undecided {
                  overlap"
             }
             Self::WitnessGrazed => {
-                "a corner of one is off the other's boundary, but every test ray from it \
-                 grazed that boundary. Recourse: move the parts until their bounding boxes \
-                 no longer overlap"
+                "a corner of one is off the other's boundary, but no test ray from it \
+                 settled where it lies: each grazed that boundary or could not be read. \
+                 Recourse: move the parts until their bounding boxes no longer overlap"
             }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \
@@ -4668,6 +4669,22 @@ fn touch_verdict<T: Decide>(
     }
 }
 
+/// The role of `shell` the cross-solid gate reads: the one shell-role
+/// reader ([`crate::props::shell_role`]) through the scalar's own lane,
+/// so the gate drops exactly the shells check 10, the result sort and
+/// the shell classification read as `Void`. `None` where it does not
+/// read.
+pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    shell: crate::entity::ShellKey,
+    band: Band,
+    tol: Tol,
+) -> Option<crate::props::ShellRole> {
+    crate::props::shell_role(body, shell, band, tol, T::quad_lane())
+        .ok()
+        .map(|(role, _)| role)
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -5192,22 +5209,16 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .or_insert(h);
     }
     // The shells the gate reads: every shell but a VOID. A solid's only
-    // shell is its outer one; among several, a shell's role is the sign
-    // of its own volume (`crate::validate::shell_role`, tier 3's check
-    // 10 read), and a shell whose role does not read is kept — the
-    // conservative direction, since keeping a shell only sends more
+    // shell is its outer one; among several, a shell's role is read
+    // ([`gate_role`]), and a shell whose role does not read is kept —
+    // the conservative direction, since keeping a shell only sends more
     // pairs to the probe. Why voids may be dropped is the loop's
     // argument below.
     let gate_shells: Vec<(SolidKey, Hull<T>)> = shell_boxes
         .iter()
         .filter(|&(&shell, &(solid, _))| {
             let lone = body.get_solid(solid).is_some_and(|d| d.shells.len() < 2);
-            lone || crate::boolean::SolidFaces::of_shell(body, shell)
-                .ok()
-                .and_then(|sel| {
-                    crate::validate::shell_role(body, shell, sel.faces(), band, tol, None).ok()
-                })
-                != Some(crate::props::ShellRole::Void)
+            lone || gate_role(body, shell, band, tol) != Some(crate::props::ShellRole::Void)
         })
         .map(|(_, &b)| b)
         .collect();

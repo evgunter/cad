@@ -419,7 +419,7 @@ fn every_structural_door_judges_orientation_at_any_scalar() {
     // f64: the composed door and its `_structural` twin, one verdict.
     let mut f = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut f.body, Tol::witness());
-    let f_inverted = f.body.revert().expect("the cube reverts");
+    let f_inverted = f.body.revert();
     let f_negative = Err(vec![topo::ValidationError::NegativeVolume {
         solid: f_inverted.solids().next().expect("one solid").0,
     }]);
@@ -440,7 +440,7 @@ fn every_structural_door_judges_orientation_at_any_scalar() {
     // sign and nothing arriving from somewhere else.
     let mut d = geometric_cube::<Dual64>(Tol::witness());
     describe_as_intersections(&mut d.body, Tol::witness());
-    let d_inverted = d.body.revert().expect("the cube reverts at a dual");
+    let d_inverted = d.body.revert();
     let d_negative = Err(vec![topo::ValidationError::NegativeVolume {
         solid: d_inverted.solids().next().expect("one solid").0,
     }]);
