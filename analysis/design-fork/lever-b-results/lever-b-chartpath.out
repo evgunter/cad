@@ -1,0 +1,272 @@
+=== eps=1e-9 lever=chart path=march
+  states_decided=896  min_chosen_arm=5037000000000000000
+  min_line: LEVERTRACE x=(-9.459346e-18,3.189721e-1,7.705963e-1,6.379442e-1) p=(-1.1276e-17,3.1897e-1,0.0000e0) sin=1.0000e-6 chart_arm=5.4119e-3 normal_arm=5.0370e18 chosen=5.0370e18
+LEVERB mu=0 eps=1e-12: Ok 2 ["(1.10e-13,7.32e-2)->(-9.62e-14,4.27e-1) off-line 1.1e-13 samples 9", "(-7.28e-14,0.00e0)->(-7.28e-14,5.00e-1) off-line 7.3e-14 samples 9"]
+  states_decided=1368  min_chosen_arm=892550000000000000
+  min_line: LEVERTRACE x=(-2.533926e-18,2.878554e-1,6.901180e-1,5.757109e-1) p=(4.3368e-19,2.8786e-1,3.7223e-24) sin=1.0000e-6 chart_arm=1.2090e-3 normal_arm=8.9255e17 chosen=8.9255e17
+LEVERB mu=0.05 eps=1e-12: Ok 2 ["(2.69e-14,6.91e-2)->(-1.94e-13,4.31e-1) off-line 1.9e-13 samples 9", "(-7.28e-14,0.00e0)->(-7.28e-14,5.00e-1) off-line 7.3e-14 samples 9"]
+  states_decided=880  min_chosen_arm=6871500000
+  min_line: LEVERTRACE x=(-7.196815e-18,1.355910e-1,6.582222e-1,2.711820e-1) p=(-5.2042e-18,1.3559e-1,-3.1019e-25) sin=1.0000e-6 chart_arm=2.9647e-9 normal_arm=6.8715e9 chosen=6.8715e9
+LEVERB mu=0.1 eps=1e-12: Err ssi: refined over 10 rounds to 1199 samples, then no refused gap halved further (7 within the tolerance, 0 not settling where the surfaces cross clearly, 0 settling outside the domain): whether the fitted carrier passes limb 2 (control-hull sup-norm bound) is too close to call: margin 3.361053305483896e-12 lies inside the ambiguity band (1e-12, 1e-11)
+  states_decided=669  min_chosen_arm=165580000000
+  min_line: LEVERTRACE x=(3.267582e-18,8.398348e-2,7.239731e-1,1.679670e-1) p=(1.6805e-18,8.3983e-2,-7.2378e-25) sin=1.0000e-6 chart_arm=2.3963e-8 normal_arm=1.6558e11 chosen=1.6558e11
+LEVERB mu=0.2 eps=1e-12: Err ssi: refined over 11 rounds to 1075 samples, then no refused gap halved further (7 within the tolerance, 0 not settling where the surfaces cross clearly, 0 settling outside the domain): whether the fitted carrier passes limb 2 (control-hull sup-norm bound) is too close to call: margin 4.2983971270090144e-12 lies inside the ambiguity band (1e-12, 1e-11)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 73.49s
+  states_decided=1  min_chosen_arm=4468700000000000
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=4.4687e15 normal_arm=3.3564e21 chosen=4.4687e15
+LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=17  min_chosen_arm=0.0093928
+  min_line: LEVERTRACE x=(-9.738583e-20,9.012192e-2,5.608533e-1,1.802438e-1) p=(-3.3956e-17,9.0122e-2,-3.3410e-23) sin=1.0000e-6 chart_arm=9.3928e-3 normal_arm=2.6837e19 chosen=9.3928e-3
+LEVERB mu=0.1 eps=1e-9: Err ssi: whether the surfaces cross at a clear angle at the state the trace reads is too close to call: margin 9.392819263818942e-9 lies inside the ambiguity band (1e-9, 1e-8)
+  states_decided=13  min_chosen_arm=0.0091485
+  min_line: LEVERTRACE x=(-9.090268e-20,8.240920e-2,6.160556e-1,1.648184e-1) p=(1.0097e-18,8.2409e-2,1.0986e-24) sin=1.0000e-6 chart_arm=9.1485e-3 normal_arm=4.8676e19 chosen=9.1485e-3
+LEVERB mu=0.2 eps=1e-9: Err ssi: whether the surfaces cross at a clear angle at the state the trace reads is too close to call: margin 9.148528705817192e-9 lies inside the ambiguity band (1e-9, 1e-8)
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(-9.090268e-20,8.240920e-2,6.160556e-1,1.648184e-1) p=(1.0097e-18,8.2409e-2,1.0986e-24) sin=1.0000e-6 chart_arm=9.1485e-3 normal_arm=4.8676e19 chosen=9.1485e-3
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 1.84s
+=== eps=1e-9 lever=chart path=hermite
+  states_decided=2  min_chosen_arm=57646000000000
+  min_line: LEVERTRACE x=(-2.980232e-10,5.000000e-1,5.000000e-1,1.000000e0) p=(-2.9802e-10,5.0000e-1,-2.9802e-16) sin=1.0000e-6 chart_arm=5.7646e13 normal_arm=5.7544e19 chosen=5.7646e13
+LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=19  min_chosen_arm=0.0093928
+  min_line: LEVERTRACE x=(-9.738583e-20,9.012192e-2,5.608533e-1,1.802438e-1) p=(-3.3956e-17,9.0122e-2,-3.3410e-23) sin=1.0000e-6 chart_arm=9.3928e-3 normal_arm=2.6837e19 chosen=9.3928e-3
+LEVERB mu=0.1 eps=1e-9: Err ssi: whether the surfaces cross at a clear angle at the state the trace reads is too close to call: margin 9.392819263818942e-9 lies inside the ambiguity band (1e-9, 1e-8)
+  states_decided=15  min_chosen_arm=0.0091485
+  min_line: LEVERTRACE x=(-9.090268e-20,8.240920e-2,6.160556e-1,1.648184e-1) p=(1.0097e-18,8.2409e-2,1.0986e-24) sin=1.0000e-6 chart_arm=9.1485e-3 normal_arm=4.8676e19 chosen=9.1485e-3
+LEVERB mu=0.2 eps=1e-9: Err ssi: whether the surfaces cross at a clear angle at the state the trace reads is too close to call: margin 9.148528705817192e-9 lies inside the ambiguity band (1e-9, 1e-8)
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(-9.090268e-20,8.240920e-2,6.160556e-1,1.648184e-1) p=(1.0097e-18,8.2409e-2,1.0986e-24) sin=1.0000e-6 chart_arm=9.1485e-3 normal_arm=4.8676e19 chosen=9.1485e-3
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 1.50s
+=== eps=1e-9 lever=normal path=march
+  states_decided=1  min_chosen_arm=3.3564e+21
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=4.4687e15 normal_arm=3.3564e21 chosen=3.3564e21
+LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=68  min_chosen_arm=6675200000000000000
+  min_line: LEVERTRACE x=(-3.439547e-19,3.493143e-1,5.896314e-1,6.986285e-1) p=(-5.9306e-17,3.4931e-1,-5.8937e-23) sin=1.0000e-6 chart_arm=5.7368e-3 normal_arm=6.6752e18 chosen=6.6752e18
+LEVERB mu=0.1 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=101  min_chosen_arm=3628400000000000000
+  min_line: LEVERTRACE x=(3.224027e-20,2.528434e-1,7.499461e-1,5.056868e-1) p=(-2.5696e-17,2.5284e-1,-2.5849e-23) sin=1.0000e-6 chart_arm=2.2513e-3 normal_arm=3.6284e18 chosen=3.6284e18
+LEVERB mu=0.2 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(0.00e0,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(3.224027e-20,2.528434e-1,7.499461e-1,5.056868e-1) p=(-2.5696e-17,2.5284e-1,-2.5849e-23) sin=1.0000e-6 chart_arm=2.2513e-3 normal_arm=3.6284e18 chosen=3.6284e18
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 7.52s
+=== eps=1e-9 lever=normal path=hermite
+  states_decided=2  min_chosen_arm=5.7544e+19
+  min_line: LEVERTRACE x=(-2.980232e-10,5.000000e-1,5.000000e-1,1.000000e0) p=(-2.9802e-10,5.0000e-1,-2.9802e-16) sin=1.0000e-6 chart_arm=5.7646e13 normal_arm=5.7544e19 chosen=5.7544e19
+LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=70  min_chosen_arm=6675200000000000000
+  min_line: LEVERTRACE x=(-3.439547e-19,3.493143e-1,5.896314e-1,6.986285e-1) p=(-5.9306e-17,3.4931e-1,-5.8937e-23) sin=1.0000e-6 chart_arm=5.7368e-3 normal_arm=6.6752e18 chosen=6.6752e18
+LEVERB mu=0.1 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=103  min_chosen_arm=3628400000000000000
+  min_line: LEVERTRACE x=(3.224027e-20,2.528434e-1,7.499461e-1,5.056868e-1) p=(-2.5696e-17,2.5284e-1,-2.5849e-23) sin=1.0000e-6 chart_arm=2.2513e-3 normal_arm=3.6284e18 chosen=3.6284e18
+LEVERB mu=0.2 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(0.00e0,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(3.224027e-20,2.528434e-1,7.499461e-1,5.056868e-1) p=(-2.5696e-17,2.5284e-1,-2.5849e-23) sin=1.0000e-6 chart_arm=2.2513e-3 normal_arm=3.6284e18 chosen=3.6284e18
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 7.96s
+=== eps=1e-9 lever=extent path=march
+  states_decided=1  min_chosen_arm=inf
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=4.4687e15 normal_arm=3.3564e21 chosen=1.7977e308
+LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=68  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=3.1252e1 normal_arm=6.3590e21 chosen=1.7977e308
+LEVERB mu=0.1 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=101  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=1.0121e21 chosen=1.7977e308
+LEVERB mu=0.2 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(0.00e0,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=1.0121e21 chosen=1.7977e308
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 7.50s
+=== eps=1e-9 lever=extent path=hermite
+  states_decided=2  min_chosen_arm=inf
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=4.4687e15 normal_arm=3.3564e21 chosen=1.7977e308
+LEVERB mu=0 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=70  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=3.1252e1 normal_arm=6.3590e21 chosen=1.7977e308
+LEVERB mu=0.1 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(-2.98e-10,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=103  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=1.0121e21 chosen=1.7977e308
+LEVERB mu=0.2 eps=1e-9: Ok 1 ["(-2.98e-10,0.00e0)->(0.00e0,5.00e-1) off-line 3.0e-10 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(-2.980232e-10,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9802e-10,0.0000e0,-2.9802e-16) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=1.0121e21 chosen=1.7977e308
+LEVERB mu=0.3 eps=1e-9: Err ssi: the plane grazes the wall's u = high side between parameters 4.9999999068677425e-1 and 5.000000093132257e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 7.70s
+=== eps=1e-12 lever=chart path=march
+  states_decided=1  min_chosen_arm=288230000000000000
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=2.8823e17 normal_arm=1.8944e22 chosen=2.8823e17
+LEVERB mu=0 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(-2.91e-13,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=370  min_chosen_arm=0.00425
+  min_line: LEVERTRACE x=(-2.496828e-19,2.504276e-1,6.096114e-1,5.008552e-1) p=(-2.7105e-19,2.5043e-1,0.0000e0) sin=1.0000e-6 chart_arm=4.2500e-3 normal_arm=2.0552e19 chosen=4.2500e-3
+LEVERB mu=0.1 eps=1e-12: Err ssi: at 19 rungs the uniqueness tube was a graph but not proved one arc; at the narrowest, the pieces stop short of an end of the carrier: no solution lies on the slice through that end or within the tolerance of it
+  states_decided=575  min_chosen_arm=0.00225
+  min_line: LEVERTRACE x=(1.115966e-19,2.497983e-1,7.499997e-1,4.995966e-1) p=(1.0842e-19,2.4980e-1,-2.0680e-25) sin=1.0000e-6 chart_arm=2.2500e-3 normal_arm=1.0880e19 chosen=2.2500e-3
+LEVERB mu=0.2 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(0.00e0,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(1.115966e-19,2.497983e-1,7.499997e-1,4.995966e-1) p=(1.0842e-19,2.4980e-1,-2.0680e-25) sin=1.0000e-6 chart_arm=2.2500e-3 normal_arm=1.0880e19 chosen=2.2500e-3
+LEVERB mu=0.3 eps=1e-12: Err ssi: the plane grazes the wall's u = high side between parameters 4.999999921219569e-1 and 5.000000078780431e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 34.36s
+=== eps=1e-12 lever=chart path=hermite
+  states_decided=2  min_chosen_arm=57646000000000
+  min_line: LEVERTRACE x=(-2.910387e-13,5.000000e-1,5.000000e-1,1.000000e0) p=(-2.9104e-13,5.0000e-1,-2.9104e-19) sin=1.0000e-6 chart_arm=5.7646e13 normal_arm=5.7629e19 chosen=5.7646e13
+LEVERB mu=0 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(-2.91e-13,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=372  min_chosen_arm=0.00425
+  min_line: LEVERTRACE x=(-2.496828e-19,2.504276e-1,6.096114e-1,5.008552e-1) p=(-2.7105e-19,2.5043e-1,0.0000e0) sin=1.0000e-6 chart_arm=4.2500e-3 normal_arm=2.0552e19 chosen=4.2500e-3
+LEVERB mu=0.1 eps=1e-12: Err ssi: at 19 rungs the uniqueness tube was a graph but not proved one arc; at the narrowest, the pieces stop short of an end of the carrier: no solution lies on the slice through that end or within the tolerance of it
+  states_decided=577  min_chosen_arm=0.00225
+  min_line: LEVERTRACE x=(1.115966e-19,2.497983e-1,7.499997e-1,4.995966e-1) p=(1.0842e-19,2.4980e-1,-2.0680e-25) sin=1.0000e-6 chart_arm=2.2500e-3 normal_arm=1.0880e19 chosen=2.2500e-3
+LEVERB mu=0.2 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(0.00e0,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(1.115966e-19,2.497983e-1,7.499997e-1,4.995966e-1) p=(1.0842e-19,2.4980e-1,-2.0680e-25) sin=1.0000e-6 chart_arm=2.2500e-3 normal_arm=1.0880e19 chosen=2.2500e-3
+LEVERB mu=0.3 eps=1e-12: Err ssi: the plane grazes the wall's u = high side between parameters 4.999999921219569e-1 and 5.000000078780431e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 34.99s
+=== eps=1e-12 lever=normal path=march
+  states_decided=1  min_chosen_arm=1.8944e+22
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=2.8823e17 normal_arm=1.8944e22 chosen=1.8944e22
+LEVERB mu=0 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(-2.91e-13,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=370  min_chosen_arm=6853000000000000000
+  min_line: LEVERTRACE x=(-5.303518e-19,2.451955e-1,6.095627e-1,4.903910e-1) p=(-3.7947e-19,2.4520e-1,5.1699e-26) sin=1.0000e-6 chart_arm=4.2530e-3 normal_arm=6.8530e18 chosen=6.8530e18
+LEVERB mu=0.1 eps=1e-12: Err ssi: at 19 rungs the uniqueness tube was a graph but not proved one arc; at the narrowest, the pieces stop short of an end of the carrier: no solution lies on the slice through that end or within the tolerance of it
+  states_decided=575  min_chosen_arm=2557600000000000000
+  min_line: LEVERTRACE x=(1.954926e-19,3.062369e-1,7.300896e-1,6.124738e-1) p=(4.3368e-19,3.0624e-1,2.0680e-25) sin=1.0000e-6 chart_arm=2.7855e-3 normal_arm=2.5576e18 chosen=2.5576e18
+LEVERB mu=0.2 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(0.00e0,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(1.954926e-19,3.062369e-1,7.300896e-1,6.124738e-1) p=(4.3368e-19,3.0624e-1,2.0680e-25) sin=1.0000e-6 chart_arm=2.7855e-3 normal_arm=2.5576e18 chosen=2.5576e18
+LEVERB mu=0.3 eps=1e-12: Err ssi: the plane grazes the wall's u = high side between parameters 4.999999921219569e-1 and 5.000000078780431e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 38.29s
+=== eps=1e-12 lever=normal path=hermite
+  states_decided=2  min_chosen_arm=5.7629e+19
+  min_line: LEVERTRACE x=(-2.910387e-13,5.000000e-1,5.000000e-1,1.000000e0) p=(-2.9104e-13,5.0000e-1,-2.9104e-19) sin=1.0000e-6 chart_arm=5.7646e13 normal_arm=5.7629e19 chosen=5.7629e19
+LEVERB mu=0 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(-2.91e-13,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=372  min_chosen_arm=6853000000000000000
+  min_line: LEVERTRACE x=(-5.303518e-19,2.451955e-1,6.095627e-1,4.903910e-1) p=(-3.7947e-19,2.4520e-1,5.1699e-26) sin=1.0000e-6 chart_arm=4.2530e-3 normal_arm=6.8530e18 chosen=6.8530e18
+LEVERB mu=0.1 eps=1e-12: Err ssi: at 19 rungs the uniqueness tube was a graph but not proved one arc; at the narrowest, the pieces stop short of an end of the carrier: no solution lies on the slice through that end or within the tolerance of it
+  states_decided=577  min_chosen_arm=2557600000000000000
+  min_line: LEVERTRACE x=(1.954926e-19,3.062369e-1,7.300896e-1,6.124738e-1) p=(4.3368e-19,3.0624e-1,2.0680e-25) sin=1.0000e-6 chart_arm=2.7855e-3 normal_arm=2.5576e18 chosen=2.5576e18
+LEVERB mu=0.2 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(0.00e0,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(1.954926e-19,3.062369e-1,7.300896e-1,6.124738e-1) p=(4.3368e-19,3.0624e-1,2.0680e-25) sin=1.0000e-6 chart_arm=2.7855e-3 normal_arm=2.5576e18 chosen=2.5576e18
+LEVERB mu=0.3 eps=1e-12: Err ssi: the plane grazes the wall's u = high side between parameters 4.999999921219569e-1 and 5.000000078780431e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 34.03s
+=== eps=1e-12 lever=extent path=march
+  states_decided=1  min_chosen_arm=inf
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=2.8823e17 normal_arm=1.8944e22 chosen=1.7977e308
+LEVERB mu=0 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(-2.91e-13,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=370  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=3.1252e1 normal_arm=3.0931e21 chosen=1.7977e308
+LEVERB mu=0.1 eps=1e-12: Err ssi: at 19 rungs the uniqueness tube was a graph but not proved one arc; at the narrowest, the pieces stop short of an end of the carrier: no solution lies on the slice through that end or within the tolerance of it
+  states_decided=575  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=4.8310e21 chosen=1.7977e308
+LEVERB mu=0.2 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(0.00e0,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=4.8310e21 chosen=1.7977e308
+LEVERB mu=0.3 eps=1e-12: Err ssi: the plane grazes the wall's u = high side between parameters 4.999999921219569e-1 and 5.000000078780431e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 34.62s
+=== eps=1e-12 lever=extent path=hermite
+  states_decided=2  min_chosen_arm=inf
+  min_line: test rev3983_probes::leverb_warp_chart_path ... LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=2.8823e17 normal_arm=1.8944e22 chosen=1.7977e308
+LEVERB mu=0 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(-2.91e-13,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=372  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=3.1252e1 normal_arm=3.0931e21 chosen=1.7977e308
+LEVERB mu=0.1 eps=1e-12: Err ssi: at 19 rungs the uniqueness tube was a graph but not proved one arc; at the narrowest, the pieces stop short of an end of the carrier: no solution lies on the slice through that end or within the tolerance of it
+  states_decided=577  min_chosen_arm=inf
+  min_line: LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=4.8310e21 chosen=1.7977e308
+LEVERB mu=0.2 eps=1e-12: Ok 1 ["(-2.91e-13,0.00e0)->(0.00e0,5.00e-1) off-line 2.9e-13 samples 9"]
+  states_decided=0  min_chosen_arm=0
+  min_line: LEVERTRACE x=(-2.910385e-13,0.000000e0,5.000000e-1,0.000000e0) p=(-2.9104e-13,0.0000e0,-2.9104e-19) sin=1.0000e-6 chart_arm=1.5629e1 normal_arm=4.8310e21 chosen=1.7977e308
+LEVERB mu=0.3 eps=1e-12: Err ssi: the plane grazes the wall's u = high side between parameters 4.999999921219569e-1 and 5.000000078780431e-1: the intersection meets it tangentially (slope margin 0e0 m)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 35.27s
+=== eps=1e-6 lever=chart path=march
+  states_decided=  min_chosen_arm=
+  min_line: 
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.1 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.2 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860378e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.3 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 0.00s
+=== eps=1e-6 lever=chart path=hermite
+  states_decided=  min_chosen_arm=
+  min_line: 
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.1 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.2 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860378e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.3 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 0.00s
+=== eps=1e-6 lever=normal path=march
+  states_decided=  min_chosen_arm=
+  min_line: 
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.1 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.2 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860378e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.3 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 0.00s
+=== eps=1e-6 lever=normal path=hermite
+  states_decided=  min_chosen_arm=
+  min_line: 
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.1 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.2 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860378e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.3 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 0.01s
+=== eps=1e-6 lever=extent path=march
+  states_decided=  min_chosen_arm=
+  min_line: 
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.1 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.2 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860378e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.3 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 0.00s
+=== eps=1e-6 lever=extent path=hermite
+  states_decided=  min_chosen_arm=
+  min_line: 
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test rev3983_probes::leverb_warp_chart_path ... LEVERB mu=0 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860374e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.1 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.2 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.603550295860378e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+  states_decided=0  min_chosen_arm=0
+  min_line: 
+LEVERB mu=0.3 eps=1e-6: Err ssi: the wall's u = low side lies within the tolerance of the plane, and the wall's certified slope across it does not clear the tolerance band (slope margin 2.6035502958603785e-7 m): the surfaces may be tangent along that edge, and no region is reported there
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 703 filtered out; finished in 0.01s
+DONE
