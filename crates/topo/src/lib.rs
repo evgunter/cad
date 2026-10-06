@@ -753,7 +753,7 @@ pub use boolean::{
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
     ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow, EdgeJoin,
-    EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, HeldEdge, LeverArm,
+    EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge, LeverArm,
     NeighbourOffset, NullEdgePairRecord, Operand, OperandKeys, PairFace, PairRefusalSite, PairSite,
     PairUnread, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
     PlaneRelation, PlaneRung, PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling,

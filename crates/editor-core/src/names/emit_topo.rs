@@ -2035,6 +2035,7 @@ fn operand_vertex_keys(
     }
     let welded: Vec<_> = naming
         .weld_merges_b
+        .rows()
         .iter()
         .filter(|(_, kept)| keys.contains(&(topo::Operand::B, *kept)))
         .map(|&(dead, _)| (topo::Operand::B, dead))
