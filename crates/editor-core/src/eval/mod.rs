@@ -2880,19 +2880,6 @@ impl<'a> CarriedIn<'a> {
             CarriedIn::Part { doc_ref, .. } => Some(doc_ref),
         }
     }
-
-    /// Who says a level's nodes in this document: `here`'s frame for the
-    /// outermost document, the part's own nodes for a part.
-    fn speaker<'s, P>(&self, here: Option<&'s Doc<P>>) -> crate::spoken::Speaker<'s>
-    where
-        'a: 's,
-    {
-        match (*self, here) {
-            (CarriedIn::ThisDocument, Some(doc)) => crate::spoken::Speaker::of(doc),
-            (CarriedIn::ThisDocument, None) => crate::spoken::Speaker::TAG,
-            (CarriedIn::Part { held, .. }, _) => crate::spoken::Speaker::held(held),
-        }
-    }
 }
 
 /// **One level of a carried chain**: the node that refused, the
@@ -2916,16 +2903,22 @@ impl CarriedLevel<'_> {
     /// may hold the same id as another node.
     #[must_use]
     pub fn line_in<P>(&self, here: &Doc<P>) -> String {
-        self.refusal
-            .line_at(self.node, self.document.speaker(Some(here)))
+        let by = match self.document {
+            CarriedIn::ThisDocument => crate::spoken::Speaker::of(here),
+            CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
+        };
+        self.refusal.line_at(self.node, by)
     }
 
     /// The level where no document is at hand: a node of the outermost
     /// document by its tag, a part's as its fault holds it.
     #[must_use]
     pub fn line(&self) -> String {
-        self.refusal
-            .line_at(self.node, self.document.speaker::<()>(None))
+        let by = match self.document {
+            CarriedIn::ThisDocument => crate::spoken::Speaker::TAG,
+            CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
+        };
+        self.refusal.line_at(self.node, by)
     }
 }
 

@@ -148,9 +148,10 @@ impl<T: Decide> Clone for PartValue<T> {
 ///
 /// An arm that names the part's nodes keeps them as the pinned part
 /// holds them (`held`), so every frame says them with the part's labels
-/// (DESIGN.md Band 1, "Node labels"). Equality compares that snapshot
-/// and is not moved by it: a part's labels are in its pin, so two faults
-/// with equal ids under equal pins hold equal labels.
+/// (DESIGN.md Band 1, "Node labels"). Equality compares those labels
+/// too, deliberately: two faults with equal ids from parts labelled apart
+/// (two pins, since a label is in the pin) are unequal, here and in the
+/// refusals that hold a `PartFault` (`ReachRefusal`, `FacePoseRefusal`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartFault {
     /// The evaluation carries no resolver, so the document seam cannot
@@ -308,20 +309,6 @@ impl PartFault {
             | Self::PartRootPoisoned { held, .. }
             | Self::RootFailureUnrecorded { held, .. }
             | Self::PartProduct { held, .. } => Some(&**held),
-            Self::NoResolver
-            | Self::Unresolved { .. }
-            | Self::ReferenceCycle { .. }
-            | Self::DepthExceeded
-            | Self::NotEntered => None,
-        }
-    }
-
-    fn held_mut(&mut self) -> Option<&mut Arc<HeldNodes>> {
-        match self {
-            Self::PartRootFailed { held, .. }
-            | Self::PartRootPoisoned { held, .. }
-            | Self::RootFailureUnrecorded { held, .. }
-            | Self::PartProduct { held, .. } => Some(held),
             Self::NoResolver
             | Self::Unresolved { .. }
             | Self::ReferenceCycle { .. }
@@ -886,40 +873,48 @@ fn product_fault<T: Decide>(
     part: &ProfileDoc,
 ) -> PartFault {
     use super::NodeStanding;
+    // Each arm is built from its held nodes: once to say its sentence
+    // over `part`, recording what it names, and once holding them.
+    type Arm = Box<dyn Fn(Arc<HeldNodes>) -> PartFault>;
+    let unrecorded = |node: RecipeNodeId| -> Arm {
+        Box::new(move |held| PartFault::RootFailureUnrecorded { node, held })
+    };
     let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
         Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
-        _ => Err(PartFault::RootFailureUnrecorded {
-            node: failed,
-            held: Arc::default(),
-        }),
+        _ => Err(failed),
     };
-    let carried = match error {
+    let arm: Arm = match error {
         crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
-            refusal_at(node).map(|refusal| PartFault::PartRootFailed {
-                node,
-                refusal,
-                held: Arc::default(),
-            })
+            match refusal_at(node) {
+                Ok(refusal) => Box::new(move |held| PartFault::PartRootFailed {
+                    node,
+                    refusal: refusal.clone(),
+                    held,
+                }),
+                Err(failed) => unrecorded(failed),
+            }
         }
         crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
-            refusal_at(through).map(|refusal| PartFault::PartRootPoisoned {
-                root: node,
-                through,
-                refusal,
-                held: Arc::default(),
+            match refusal_at(through) {
+                Ok(refusal) => Box::new(move |held| PartFault::PartRootPoisoned {
+                    root: node,
+                    through,
+                    refusal: refusal.clone(),
+                    held,
+                }),
+                Err(failed) => unrecorded(failed),
+            }
+        }
+        _ => {
+            let refusal: crate::product::ProductRefusal = error.into();
+            Box::new(move |held| PartFault::PartProduct {
+                refusal: refusal.clone(),
+                held,
             })
         }
-        _ => Ok(PartFault::PartProduct {
-            refusal: error.into(),
-            held: Arc::default(),
-        }),
     };
-    let mut fault = carried.unwrap_or_else(|unrecorded| unrecorded);
-    let held = Arc::new(crate::spoken::held_by(&InPart(&fault), part));
-    if let Some(slot) = fault.held_mut() {
-        *slot = held;
-    }
-    fault
+    let held = crate::spoken::held_by(&InPart(&arm(Arc::default())), part);
+    arm(Arc::new(held))
 }
 
 #[cfg(test)]

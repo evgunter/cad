@@ -4,6 +4,8 @@ kind: issue
 title: A carried row from a part says the part's nodes by tag: its route's deeper hops and its mate, group and cause
 status: open
 opened: 2026-10-06
+priority: P3
+parent: node-labels-are-document-data
 ---
 
 
@@ -18,4 +20,4 @@ That row made a part's FAULT carry the part's nodes (`PartFault::held`, recorded
 
 **Why the fault's snapshot does not reach them.** These rows ride `PartValue` (`carried_unminted`, `carried_unplaced`, `carried`; `eval/parts.rs` `evaluate_entered`), built from the part's product, and each instance prepends its hop in `eval/wire.rs:553` (`Route::through_instance`). Each row's ids span several documents: the row body is `route.of`'s, and each `via` hop is the document one level up from the next. A snapshot would have to be taken per row where `route.of` is in hand (the evaluation of that document), and one per hop where the hop's document is in hand (the `evaluate_entered` of each intervening part), then carried on the row. That is a change to `Route` and the three carried row types, beyond a fault.
 
-**Candidate shape.** `evaluate_entered` holds the part's `ProfileDoc` while it builds the `PartValue`. It could record, beside each row it hands up, the part's nodes that row names. That is the row body for rows the part minted itself, and the hop it is about to become (`through`) for rows from below. A frame would then say each id from the snapshot of the document it is numbered in. Equality is not moved, for the reason `PartFault`'s derive states: equal pins hold equal labels.
+**Candidate shape.** `evaluate_entered` holds the part's `ProfileDoc` while it builds the `PartValue`. It could record, beside each row it hands up, the part's nodes that row names. That is the row body for rows the part minted itself, and the hop it is about to become (`through`) for rows from below. A frame would then say each id from the snapshot of the document it is numbered in. As with `PartFault`, the rows' equality would then compare those labels too, so rows with equal ids from parts labelled apart (two pins) would compare unequal.

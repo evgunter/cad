@@ -8,15 +8,16 @@
 //!
 //! Four spellings, one home each:
 //!
-//! - [`SpokenNode`] — the node as a person reads it. It is built from
-//!   the document that holds the node when the sentence is made
-//!   ([`crate::Doc::spoken`]). A value the evaluation memo reuses holds
-//!   one only when its memo key fixes that label, so no label it says is
-//!   one a later rename left stale. A document's own labels are outside
-//!   its key, so what it memoizes keeps bare ids and the frame that owns
-//!   the document says them; a part's labels are in its pin, which is in
-//!   the instance's key, so a fault from inside a part holds the part's
-//!   nodes ([`crate::PartFault::held`]).
+//! - [`SpokenNode`] — the node as a person reads it, read off the
+//!   document that holds it ([`crate::Doc::spoken`]). No label a
+//!   sentence says is one its value can outlive: a value the evaluation
+//!   memo reuses holds a label only when its memo key fixes that label.
+//!   A document's own labels are outside its key, so what it memoizes
+//!   keeps bare ids, and the frame that owns the document says them
+//!   when the sentence is made. A part's labels are in its pin, which is
+//!   in the instance's key, so a fault from inside a part holds the
+//!   part's nodes as the pinned part says them
+//!   ([`crate::PartFault::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all
