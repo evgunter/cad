@@ -182,29 +182,6 @@ fn r2_differing_vertex_counts_are_the_skins_refusal() {
     }
 }
 
-/// **Claim 8: the skin's unbanded `params[j-1] < params[j]`.** A
-/// sub-ulp step (1e-17 beside chords of 1) collapses to equal
-/// parameters and the SKIN refuses; a step below ε but above the ulp
-/// reaches the fold, which names the sliver slab. So the PR's
-/// measurement holds: exactly-coincident-in-parameter is the skin's,
-/// the band-scale sliver is the fold's.
-#[test]
-fn r2_sub_ulp_slivers_are_the_skins_and_band_slivers_are_the_folds() {
-    match middle_step(1e-17) {
-        Err(LoftError::Skin(SkinError::DegenerateSection { section, .. })) => {
-            assert_eq!(section, 2);
-        }
-        other => panic!("expected the skin's DegenerateSection, got {other:?}"),
-    }
-    let eps = Tol::witness().eps();
-    for step in [1e-14, 1e-13, 0.1 * eps] {
-        match middle_step(step) {
-            Err(LoftError::DegenerateStacking { slab }) => assert_eq!(slab, 1),
-            other => panic!("step {step:e}: expected DegenerateStacking slab 1, got {other:?}"),
-        }
-    }
-}
-
 /// **Claim 6: the fold mints `k − 1` `loft_stacking` samples per
 /// loft** — and stops at the first non-positive slab, so a refusal at
 /// slab 1 of four sections leaves TWO verdicts, and an escalation

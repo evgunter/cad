@@ -55,7 +55,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, RANGE_RECOURSE, Vec3};
 use profile::{
     ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop, SketchPlane,
     ValidatedProfile,
@@ -120,9 +120,8 @@ pub enum SkinError {
         /// Its domain.
         domain: (f64, f64),
     },
-    /// A section, or the path, is degenerate: a zero-length chord, a
-    /// zero-radius arc, or two consecutive sections that coincide
-    /// (chord-length parameterization has no step there).
+    /// A section, or the path, is degenerate: a zero-length chord or a
+    /// zero-radius arc.
     ///
     /// **Where the in-band twin lives** (M5 PR 10 fix pass, review
     /// MIN-1): not here. This module makes no banded decisions — every
@@ -143,6 +142,18 @@ pub enum SkinError {
         section: usize,
         /// What was degenerate.
         what: &'static str,
+    },
+    /// The chord-length v-parameterization takes no `f64` step from
+    /// section `section − 1` to section `section`: the control rows it
+    /// is measured on do not move between them, or move by less than
+    /// `f64` resolves against their whole travel. A structure question
+    /// about the parameters, decided exactly (C6), and NOT a verdict
+    /// that the sections coincide — whether two sections are apart is
+    /// a banded question this module has no band for, and the loft
+    /// asks it before skinning (`LoftError::DegenerateStacking`).
+    NoParameterStep {
+        /// The second section of the stepless pair.
+        section: usize,
     },
     /// The requested v-degree is 0, or ≥ the section count.
     BadDegree {
@@ -213,6 +224,15 @@ impl core::fmt::Display for SkinError {
             Self::DegenerateSection { section, what } => write!(
                 f,
                 "section {section} is degenerate ({what}). Recourse: {COINCIDENCE_RECOURSE}"
+            ),
+            Self::NoParameterStep { section } => write!(
+                f,
+                "the skin's chord-length parameterization takes no step from section {} to \
+                 section {section}: the curves it is measured on do not move between them by \
+                 anything f64 resolves against their whole travel. Recourse: move section \
+                 {section} away from section {}, or {RANGE_RECOURSE}",
+                section.saturating_sub(1),
+                section.saturating_sub(1),
             ),
             Self::BadDegree { degree, sections } => write!(
                 f,
@@ -432,8 +452,8 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
 /// for sections that did not come out of [`make_compatible`], and
-/// [`SkinError::DegenerateSection`] when two consecutive sections
-/// coincide at every control point (no chord step exists there).
+/// [`SkinError::NoParameterStep`] where the parameters do not strictly
+/// ascend.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
@@ -483,10 +503,7 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
         }
     }
     if rows == 0 {
-        return Err(SkinError::DegenerateSection {
-            section: 0,
-            what: "every control row is pinned — the sections coincide",
-        });
+        return Err(SkinError::NoParameterStep { section: 1 });
     }
     #[allow(clippy::cast_precision_loss)]
     let denom = rows as f64;
@@ -498,10 +515,7 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
     params[k - 1] = 1.0;
     for j in 1..k {
         if !(params[j - 1] < params[j]) {
-            return Err(SkinError::DegenerateSection {
-                section: j,
-                what: "sections coincide (no chord step between them)",
-            });
+            return Err(SkinError::NoParameterStep { section: j });
         }
     }
     Ok(params)
@@ -584,7 +598,7 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::BadDegree`],
 /// [`SkinError::SectionShapeMismatch`] for sections that did not come
-/// out of [`make_compatible`], [`SkinError::DegenerateSection`],
+/// out of [`make_compatible`], [`SkinError::NoParameterStep`],
 /// [`SkinError::Fit`] for a degenerate collocation system, and
 /// [`SkinError::Structure`] — notably a non-positive interpolated
 /// weight, refused at the door because the convex-hull invariant every
@@ -865,6 +879,26 @@ pub fn loft_geometry<L: SectionLoop>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
+    skin_validated(
+        validate_loft(sections, places, v_degree, tol)?,
+        places,
+        v_degree,
+    )
+}
+
+/// [`loft_geometry`]'s first half: every refusal that reads the
+/// sections one at a time or by count — section and placement counts,
+/// the degree, each section's profile door, and the loop and segment
+/// counts every section must share. What it returns is the canonical
+/// form [`skin_validated`] skins, so a caller can decide something
+/// about the validated sections (the loft's stacking fold) before any
+/// wall is built.
+pub(crate) fn validate_loft<L: SectionLoop>(
+    sections: &[Section<L>],
+    places: &[Affine3<f64>],
+    v_degree: usize,
+    tol: Tol,
+) -> Result<Vec<ValidatedProfile<f64>>, SkinError> {
     let k = sections.len();
     if k < 2 {
         return Err(SkinError::TooFewSections { have: k, need: 2 });
@@ -905,6 +939,19 @@ pub fn loft_geometry<L: SectionLoop>(
             }
         }
     }
+    Ok(validated)
+}
+
+/// [`loft_geometry`]'s second half: the walls skinned over sections
+/// [`validate_loft`] already accepted.
+pub(crate) fn skin_validated(
+    validated: Vec<ValidatedProfile<f64>>,
+    places: &[Affine3<f64>],
+    v_degree: usize,
+) -> Result<LoftGeometry, SkinError> {
+    let Some(loops) = validated.first().map(|s| s.loops().len()) else {
+        return Err(SkinError::TooFewSections { have: 0, need: 2 });
+    };
     // The v-parameterization is the SURFACE's, not one strip's: taken
     // from the first strip and reused, so every wall of the body
     // agrees on where its sections sit. (Book §10.3 averages across

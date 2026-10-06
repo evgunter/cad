@@ -1685,6 +1685,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::DomainNotUnit { .. } => "domain_not_unit",
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",
+        SkinError::NoParameterStep { .. } => "no_parameter_step",
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
