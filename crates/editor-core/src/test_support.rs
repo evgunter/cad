@@ -98,9 +98,7 @@ pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileP
 /// that rebuilds a document by re-inserting its nodes, minting their
 /// anonymous variables afresh, as the original inserts did.
 pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::AuthoredNode {
-    node.authored_with(doc, &mut |var, dim| {
-        Formula::from(doc.written(&Expr::var(var, dim)))
-    })
+    node.written(doc)
 }
 
 /// The stored expression `formula` lowers to where no name is held.

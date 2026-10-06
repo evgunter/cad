@@ -33,13 +33,15 @@ fn net_of(
     let mut action = Recording::start(doc, Tol::witness(), &RefusingReach);
     let mut each = Vec::new();
     for edit in edits {
-        each.push(applied(action.doc(), edit.clone()).maintenance);
+        each.push(crate::fixture::without_anonymous(
+            &applied(action.doc(), edit.clone()).maintenance,
+        ));
         action.apply(edit).expect("the edit lands");
     }
     let Recorded {
         doc, maintenance, ..
     } = action.finish().expect("every edit landed");
-    (maintenance, each, doc)
+    (crate::fixture::without_anonymous(&maintenance), each, doc)
 }
 
 /// A derived frame on `at` carrying `face`.
@@ -267,7 +269,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
             .iter()
             .any(|row| matches!(row, Maintenance::Strand { .. })),
         "the premise: the delete alone strands the declared names: {:?}",
-        first.maintenance
+        crate::fixture::without_anonymous(&first.maintenance)
     );
 
     let idle = Recording::start(&doc, Tol::witness(), &RefusingReach)
@@ -275,7 +277,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         .expect("nothing was refused");
     assert!(idle.doc.bit_eq(&doc), "no edit, the start");
     assert_eq!(
-        (idle.edits, idle.maintenance, idle.minted),
+        (idle.edits, crate::fixture::without_anonymous(&idle.maintenance), idle.minted),
         (Vec::new(), Vec::new(), Vec::new())
     );
 }

@@ -196,6 +196,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -503,7 +504,7 @@ pub fn corpus_text(tol: Tol) -> String {
                 .doc
                 .node(*id)
                 .expect("an ordered node exists")
-                .authored();
+                .written(&die.doc);
             // A program enters the document without step ids: the
             // insert door mints them, in the same order it did here.
             if let Node::Profile(program) = &mut node {
@@ -511,6 +512,7 @@ pub fn corpus_text(tol: Tol) -> String {
             }
             DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             }
         })
         .collect();

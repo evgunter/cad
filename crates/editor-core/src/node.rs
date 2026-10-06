@@ -4374,6 +4374,19 @@ impl<P: crate::ProfilePayload> Node<P> {
         self.authored_with(doc, &mut crate::Formula::var)
     }
 
+    /// **This node as it was written**: each slot the formula its
+    /// variable was written as ([`crate::Doc::written`]) — an anonymous
+    /// variable's value or definition, a named one's reader. Inserting
+    /// it mints its anonymous variables afresh, as the insert that
+    /// wrote it did, so a document rebuilt by re-inserting its nodes in
+    /// order is the document, ids included.
+    #[must_use]
+    pub fn written(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
+        self.authored_with(doc, &mut |var, dim| {
+            crate::Formula::from(doc.written(&crate::Expr::var(var, dim)))
+        })
+    }
+
     /// [`Self::authored`], each slot's variable written by `reader`
     /// (handed the variable and the dimension the slot reads it at).
     /// A profile's arguments are written by the same `reader`.

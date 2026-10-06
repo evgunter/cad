@@ -468,8 +468,8 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         &editor_core::RefusingReach,
     )
     .expect("a name is not an edge, so the delete lands");
-    let [Maintenance::Strand { node, name }] = applied.maintenance.as_slice() else {
-        panic!("one strand, got {:?}", applied.maintenance);
+    let [Maintenance::Strand { node, name }] = crate::fixture::without_anonymous(&applied.maintenance).as_slice() else {
+        panic!("one strand, got {:?}", crate::fixture::without_anonymous(&applied.maintenance));
     };
     assert_eq!((node.id(), name.name()), (carrier, &named));
     assert_eq!(
@@ -478,7 +478,7 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
         "the minting node is spoken from the document that still held it"
     );
     assert_eq!(
-        applied.maintenance[0].to_string().split(';').next(),
+        crate::fixture::without_anonymous(&applied.maintenance)[0].to_string().split(';').next(),
         Some(
             format!(
                 "Datum frame (on face) \"mount\" ({}) carries a face name minted by Extrude \
