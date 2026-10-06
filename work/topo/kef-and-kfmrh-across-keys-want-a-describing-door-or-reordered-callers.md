@@ -2,11 +2,11 @@
 id: kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers
 kind: issue
 title: kef and kfmrh move loops onto faces on other keys, ten production call sites rely on the move, and their keys-only refusal waits on a design answer
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P3
 cost: M
-design: true
+design: false
 refs: [mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move, boundary-on-the-new-chart-has-two-homes-in-the-attach-doors, kevs-fan-merge-needs-a-re-describing-kill-door]
 ---
 

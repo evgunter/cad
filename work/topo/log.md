@@ -7566,3 +7566,16 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
   - the `debug_assert!` in `site_rows`' kept-image arm;
   - `staleness_posture::Completes` and the `DECLARED` notes (`set_edge_curve`, `set_face_surfaces_describing`, `describe_at_rest`).
   - Nothing in `joint.rs` or `pcurve_cache.rs`. `topo/tests/loop_reparenting_pcurve_rows.rs` will conflict with PCERT's re-pin of `a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides`.
+
+## 20:12 (2026-10-06)
+
+- **PR 4165 merged** at `e96be3c0` (head `09dfd0f6`, CI green). Unsubscribed. Fix lane archived.
+- **Dispatched the PR 3970 build unit** → `session_01KvmfitreFfbxkDUEQMZ5Aw`, branch `topo/kef-kfmrh-…`. It covers:
+  - privacy for `Loop.face`, `HalfEdge.parent_loop`, `Face.surface` and `Edge.curve` behind the vouch module (about 330 `parent_loop` reads alone);
+  - keys-only `kef`/`kfmrh` with describing twins;
+  - the tier-1 naming check, with the D1 edit Ev ruled;
+  - chartless transients;
+  - the scope-close assertion, or why tier 1 makes it moot.
+  - Choice 3's kind derivation stays held on D10.
+  - The lane may split the work into an ordered PR series and must stop on any design fork.
+- The row is marked `dispatched`.
