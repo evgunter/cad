@@ -5857,7 +5857,10 @@ fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool
             return Err(cause);
         }
     }
-    Ok(answer.expect("a census question answers `None` only where it pushed an escalation"))
+    match answer {
+        Some(answer) => Ok(answer),
+        None => unreachable!("a census question answers `None` only where it pushed an escalation"),
+    }
 }
 
 /// The at-rest confirmation of the two CURVED granularities (C3), the

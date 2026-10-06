@@ -641,7 +641,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 red,
                 connected,
                 interior_loops,
-            } => (*red, connected, interior_loops),
+            } => (*red, *connected, interior_loops),
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
@@ -765,7 +765,7 @@ pub(super) enum Joined<T: Real> {
         /// The reduction, its operands joined.
         red: Box<BooleanReduction<T>>,
         /// The completed polygons and the fragments the join made.
-        connected: super::join::Connected,
+        connected: Box<super::join::Connected>,
         /// [`interior_loop_verdict`]'s answer, not yet raised.
         interior_loops: Result<(), BooleanError>,
     },
@@ -898,7 +898,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     Ok(Joined::Connected {
         red: Box::new(red),
-        connected,
+        connected: Box::new(connected),
         interior_loops,
     })
 }

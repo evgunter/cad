@@ -508,15 +508,17 @@ fn the_rest_lane_joins_every_joinable_vertex_it_leaves() {
     ]);
     let (a, b) = (plate(&lower, 0.0), plate(&upper, 1.0));
     for (order, x, y) in [("ab", &a, &b), ("ba", &b, &a)] {
-        let d = declared(x, y).unwrap_or_else(|e| panic!("{order}: declarations: {e:?}"));
+        let d = declared(x, y);
+        assert!(d.is_ok(), "{order}: declarations: {d:?}");
+        let d = d.unwrap_or_default();
         let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
         assert!(
             matches!(join, Ok(Some(_))),
             "{order}: the normal join refuses, so the REST lane answers: {join:?}"
         );
-        let Ok(topo::BooleanResult::Body(out)) = topo::union_with(&fin(x), &fin(y), &d, tol())
-        else {
-            panic!("{order}: the REST lane builds the union");
+        let got = topo::union_with(&fin(x), &fin(y), &d, tol());
+        let Ok(topo::BooleanResult::Body(out)) = got else {
+            unreachable!("{order}: the REST lane builds the union: {got:?}");
         };
         assert!(
             !out.naming.edge_joins.is_empty(),
