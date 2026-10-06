@@ -28,10 +28,9 @@ Tier 3 reads it (`RowInterval`/`Certify`), but a later site mint on that
 face keeps the image, and `pcurves::site_rows`' kept-image `debug_assert!`
 fires.
 
-`Body::set_edge_curve` now re-mints in this case: where
-`Body::description_moves` reads a move, it plans through
-`Body::description_rows` under `Remints::Every`. This door cannot reuse
-that plan as is. Its faces move charts in the same write, so a kept
+`Body::set_edge_curve` now re-mints in this case: every certified
+description plans through `Body::description_rows`. This door cannot
+reuse that plan as is. Its faces move charts in the same write, so a kept
 face's plan would have to read the far side's chart as the door leaves
 it. The closing options:
 
@@ -41,4 +40,8 @@ it. The closing options:
   `set_face_surface` drops a moved face's (C4).
 
 The second is what `replace_faces_offset` now does mid-op for every edge
-that ends at a vertex it moved.
+that ends at a vertex it moved. That drop is written at the one call
+site, after `move_points_then_rechart`; the second option's natural home
+is inside `move_points_then_rechart`, the helper all three offset doors
+call, so `offset_together` and `offset_axial` get the same rule and
+`replace_faces_offset`'s hand-written drop goes away.

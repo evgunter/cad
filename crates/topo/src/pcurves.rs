@@ -281,11 +281,10 @@
 //! description moves and keep the rows they find everywhere else, as a
 //! `Neither` door does. A null edge's first description is the first
 //! door that can derive the rows of its halves; a certified edge's
-//! rows move with its carrier or its interval, which `set_edge_curve`
-//! measures (a description that restates both keeps every row), and a
-//! kill that lists a member moves its end with its carrier, null or
-//! certified, so the rows its halves store would span the interval the
-//! end moved from. On each face such a half is on, as the door leaves
+//! rows are stated over the carrier and interval `set_edge_curve`
+//! replaces; and a kill that lists a member moves its end with its
+//! carrier, null or certified, so the rows its halves store would span
+//! the interval the end moved from. On each face such a half is on, as the door leaves
 //! it, and that the site mint selects ([`StoredRows::remints`]), the
 //! door re-mints every loop no other null edge holds open
 //! ([`site_rows`]) — the whole face, once no null edge is left on it. A
@@ -4732,9 +4731,8 @@ pub(crate) mod staleness_posture {
         /// faces are the ones a null edge's halves are on where the door
         /// installs its first carrier, which no door before it could
         /// give a row; the ones a certified edge's halves are on where
-        /// the door moves its carrier or its interval, measured, since
-        /// the rows kept there would state the carrier or span the
-        /// interval the edge left; and, for a kill that re-describes the
+        /// the door replaces its carrier, since the rows kept there
+        /// state the carrier and interval the edge leaves; and, for a kill that re-describes the
         /// members it merges, every face a listed member's halves are
         /// on, null or certified, since the kill moves a certified
         /// member's end with its carrier. On such a face the site mint
@@ -5103,10 +5101,9 @@ pub(crate) mod staleness_posture {
                 Completes,
                 "a carrier swap is NOT the surface setter's case: neither the row's key nor \
              its chart moves, and pass 2 re-derives each row's agreement from the edge's \
-             current carrier. A description that moves a CERTIFIED edge's carrier or \
-             interval (measured: the new carrier against the old over the old interval) \
-             re-mints the faces its halves are on, and one that restates both keeps every \
-             row. A NULL edge's first description is where its halves' rows can first be \
+             current carrier. Every description of a CERTIFIED edge re-mints the faces its \
+             halves are on, since its rows are stated over the carrier and interval it \
+             replaces; one that restates both re-derives the rows it found. A NULL edge's first description is where its halves' rows can first be \
              derived. On a face the halves are on whose only gaps a null edge holds open, \
              every loop no other null edge holds open is re-minted before the door mutates, \
              and on one no null edge is left on, every loop is. A HALF-MINTED face, and a \
@@ -5115,10 +5112,10 @@ pub(crate) mod staleness_posture {
             ),
             (
                 "describe_at_rest",
-                Neither,
+                Completes,
                 "`set_edge_curve` with the edge's own carrier and interval put back \
-                 verbatim — only the description moves, so not even content staleness \
-                 reaches a pcurve",
+                 verbatim, which re-mints the faces the edge's halves are on as any \
+                 certified description does",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
             ("set_surface_source", Neither, "GeomSource metadata"),

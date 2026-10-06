@@ -70,29 +70,37 @@ which case the assertion cannot.
 
 ## Closed
 
-Closed by the first option, read as a measurement. `Body::set_edge_curve`
-(`crates/topo/src/attach.rs`) asks `Body::description_moves` whether the
-new curve moves the carrier or the interval. The question is measured at
-the band: the new carrier at the old interval's ends against the edge's
-vertices, and against the old carrier at three interior parameters. A
-move plans through `Body::description_rows` under `Remints::Every`, the
-plan `kev_describing` uses, through the one predicate
-`Body::description_remints`. A certified edge's face on a spline chart is
-left as found. A description that restates both keeps every row
-(`Remints::FirstDescription`), so `Remints` keeps its two cases.
+Closed by the first option, applied to every certified description.
+`Body::set_edge_curve` (`crates/topo/src/attach.rs`) plans every
+description through `Body::description_rows`, the plan `kev_describing`
+uses, through the one predicate `Body::description_remints`. A certified
+edge's face on a spline chart is left as found. With both doors
+re-minting every described edge's faces, `Remints` had one case left and
+is retired.
 
-Re-minting on every certified description refused a sound boolean
-(`sweep/tests/carved_sphere_operand.rs`, both rows). The re-mint cleared
-fitted sphere rows that the closing mint would have carried, which is why
-the rule is measured.
+A measured rule (re-mint only where sampled points moved) was tried
+first and dropped. It sampled five points, and a spline carrier on the
+same locus and interval can move between them: the rim witness below
+moves 2 mm between its quarters and kept its stale rows. The measured
+rule was adopted because re-minting every description refused a sound
+boolean (`sweep/tests/carved_sphere_operand.rs`, both rows,
+`Pcurve { Unminted }`). That refusal did not come from the closing mint
+being unable to re-image the sphere's general circle; it can. It came
+from the boolean's two containment-fallback finishes
+(`boolean/ops.rs` `fallback`'s assembly/voided arm and `finish_fallback`),
+which re-describe and go to the gate with no closing mint. Both now
+close with `mint_pcurves`, as the boolean's main output stage does.
 
 `replace_faces_offset` (`crates/topo/src/replace_face.rs`) now drops the
 rows of every edge that ends at a vertex it moves, before its re-anchors'
-site mints. The closing `mint_pcurves` re-derives them.
+site mints. The closing `mint_pcurves` re-derives them. The doubt about a
+vertex the move leaves in place is filed as
+`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`.
 
-The `debug_assert!` above is in `pcurves::site_rows`' kept-image arm. The
-witness is `euler_site_pcurve_rows::a_re_parameterized_certified_edge_re_mints_its_faces`,
-which is this row's recipe. The sibling door
-`set_face_surfaces_describing` is filed as
+The `debug_assert!` above is in `pcurves::site_rows`' kept-image arm.
+The witnesses are
+`euler_site_pcurve_rows::a_re_parameterized_certified_edge_re_mints_its_faces`,
+which is this row's recipe, and
+`reach_split_gate_per_face::a_spline_rim_moved_between_its_quarters_keeps_no_row`.
+The sibling door `set_face_surfaces_describing` is filed as
 `set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`.
-

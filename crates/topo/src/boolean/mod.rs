@@ -311,9 +311,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spiric_side"
         | "point_in_arc_loop_spiric_turn"
         | "point_in_arc_loop_spiric_advance" => BooleanDecision::Containment.subject(),
-        crate::attach::DESCRIPTION_MOVES => {
-            "whether an edge's new carrier runs where its old one did over the old interval"
-        }
         _ => return None,
     })
 }

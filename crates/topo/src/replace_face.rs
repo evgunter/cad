@@ -1457,7 +1457,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     // A row is stated over its edge's interval, which ends at the
     // edge's vertices, so the move stales every row of an edge that
     // ends at a moved vertex. They go before the re-anchors' site mints
-    // could keep them; the closing mint re-derives every face.
+    // could keep them; the closing mint re-derives every face. That
+    // includes a fitted row on a neighbour that keeps its chart, which
+    // the closing mint would otherwise carry (`pcurves::carry_rows`):
+    // its image ends on the chart point of the vertex where it was
+    // stated, so once that vertex is displaced past the band the carry
+    // re-certifies it against an edge that ends elsewhere and refuses.
+    // A vertex in `moved` that lands within the band of where it was
+    // keeps a carryable row that this drop loses
+    // (`work/topo/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
     let staled: Vec<_> = work
         .half_edges
         .values()

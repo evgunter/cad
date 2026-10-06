@@ -31,7 +31,9 @@
 //!   necessarily minted **before** the side faces it will bound
 //!   (struts precede `mef`): the sweep mints with a conventional
 //!   description and upgrades to the intrinsic one here, once both
-//!   surfaces exist (the prefer-intrinsic rule lands at rest, D2).
+//!   surfaces exist (the prefer-intrinsic rule lands at rest, D2). A
+//!   certified edge's description re-mints the faces its halves are on,
+//!   since its rows are stated over the carrier and interval it replaces.
 //!
 //! The setters are **certified mutations**: the same D4 ¶2/¶3 gates as
 //! the operators (`EdgeCurve::certify`; typed errors, body untouched on
@@ -72,24 +74,6 @@ use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Arg, dangling_link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
-
-/// The predicate [`Body::description_moves`] decides under.
-pub(crate) const DESCRIPTION_MOVES: &str = "description_moves_carrier";
-
-/// Which described edges' faces [`Body::description_rows`] re-mints.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Remints {
-    /// A null edge's alone: its description is its first, and the first
-    /// door that can derive its halves' rows. A certified edge's rows
-    /// stand where its carrier and interval do
-    /// ([`Body::set_edge_curve`] on a description that moves neither).
-    FirstDescription,
-    /// Every described edge's: the door moves a certified edge's carrier
-    /// or interval, and the rows it keeps would span what the edge left
-    /// ([`Body::set_edge_curve`] on a description that moves one;
-    /// [`Body::kev_describing`], which moves a member's end).
-    Every,
-}
 
 impl<T: Decide> Body<T> {
     /// Replaces `face`'s surface per the [`FaceSurface`] spec,
@@ -961,17 +945,12 @@ impl<T: Decide> Body<T> {
     /// be **adjacency-coherent** (module docs). The old curve is
     /// removed iff no other edge references it.
     ///
-    /// **A description that moves the carrier or the interval re-mints
-    /// the faces its halves are on.** A row is stated in a face's chart
-    /// over its edge's carrier and interval, so a new carrier moves every
-    /// row the edge's halves store — even one through the same points,
-    /// parameterized otherwise, whose rows would span the interval it
-    /// left — and a null edge's first carrier is the first from which its
+    /// **Every description re-mints the faces its halves are on.** A row
+    /// is stated in a face's chart over its edge's carrier and interval,
+    /// and this door installs a new carrier, so it keeps no row of the
+    /// old one; a null edge's first carrier is the first from which its
     /// halves' rows can be derived ([`Body::mev_null`] returns a minted
-    /// face missing them). Whether the carrier or interval moves is
-    /// measured ([`Body::description_moves`]); where neither does, as for
-    /// [`Body::describe_at_rest`], only the description moves and every
-    /// row stands. Otherwise, before the door mutates, each face the
+    /// face missing them). Before the door mutates, each face the
     /// halves are on that the site mint selects — a minted face whose
     /// every loop walks, and whose only gaps are on loops a null edge
     /// holds open or which no null edge is left on once this one is
@@ -1014,13 +993,7 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
-        let remints = if self.description_moves(edge, &certified, (p_start, p_end), tol)? {
-            Remints::Every
-        } else {
-            Remints::FirstDescription
-        };
-        let rows =
-            self.description_rows(&[(edge, &certified)], remints, |_| Ok(Vec::new()), tol)?;
+        let rows = self.description_rows(&[(edge, &certified)], |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.replace_edge_curve(edge, certified);
@@ -1089,51 +1062,10 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// **Whether installing `new` on certified `edge` moves its carrier
-    /// or its interval**, measured: the rows its halves store are images
-    /// of the old carrier over the old interval, so they stand exactly
-    /// where the new carrier, over that interval, starts and ends on the
-    /// edge's vertices (`p_start`, `p_end`; the reading tier 3's
-    /// `RowInterval` takes) and traces the old one between, read at three
-    /// interior parameters. Each pair of points is read in metres at the
-    /// band, and a reading the band cannot settle counts as a move. A
-    /// null edge has no carrier to keep, and moves. `edge` is one the
-    /// caller resolved.
-    ///
-    /// # Errors
-    ///
-    /// [`EulerOpError::Certification`] where `tol` builds no band.
-    fn description_moves(
-        &self,
-        edge: EdgeKey,
-        new: &EdgeCurve<T>,
-        (p_start, p_end): (Point3<T>, Point3<T>),
-        tol: Tol,
-    ) -> Result<bool, EulerOpError> {
-        let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        let Some(old) = self.edge_curve_linked(edge, edge_data).certified() else {
-            return Ok(true);
-        };
-        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
-            error: CertifyError::Band(e),
-        })?;
-        let (t0, t1) = old.params();
-        let ends = [(t0, p_start), (t1, p_end)].map(|(t, p)| (new.carrier().eval(t), p));
-        let between = [0.25, 0.5, 0.75].map(|k| {
-            let t = t0 + (t1 - t0) * T::from_f64(k);
-            (new.carrier().eval(t), old.carrier().eval(t))
-        });
-        Ok(ends.into_iter().chain(between).any(|(a, b)| {
-            !matches!(
-                decide(DESCRIPTION_MOVES, Margin::of(a.distance(b)), band),
-                Ok(Sign::Zero)
-            )
-        }))
-    }
-
     /// **The rows a description writes**, decided before its door
     /// mutates: one plan per face the halves of an edge in `described`
-    /// whose faces it re-mints ([`Remints`]) are on, for
+    /// are on that the description re-mints
+    /// ([`Body::description_remints`]), for
     /// [`crate::pcurves::apply_site_rows`]. `described` is every edge the
     /// door describes, with the curve it installs; `rewired` reads every
     /// loop the door's own surgery rewires, as the door leaves it (none
@@ -1142,11 +1074,11 @@ impl<T: Decide> Body<T> {
     /// only where a face is re-minted. Every other loop is read as found.
     /// Every edge in `described` is one the caller resolved.
     ///
-    /// Empty unless an edge in `described` re-mints: a null edge
-    /// ([`crate::CurveGeom::NullScaffold`]) always, whose description is
-    /// the first door that can derive its halves' rows, and under
-    /// [`Remints::Every`] a certified one too, whose carrier, interval or
-    /// end the door moves.
+    /// Empty unless a face is re-minted: every face of a null edge
+    /// ([`crate::CurveGeom::NullScaffold`]), whose description is the
+    /// first door that can derive its halves' rows, and every face of a
+    /// certified one off a spline chart, whose rows are stated over the
+    /// carrier and interval the description replaces.
     /// On each face their halves are on that the site mint selects it
     /// walks every loop, through the Euler operators' site mint
     /// ([`Body::plan_site_mint`]), each half of a described edge under
@@ -1164,7 +1096,6 @@ impl<T: Decide> Body<T> {
     pub(crate) fn description_rows(
         &self,
         described: &[(EdgeKey, &EdgeCurve<T>)],
-        remints: Remints,
         rewired: impl FnOnce(&Self) -> Result<Vec<(LoopKey, Vec<HalfEdgeKey>)>, EulerOpError>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
@@ -1186,7 +1117,7 @@ impl<T: Decide> Body<T> {
                     field,
                 );
                 let face = crate::pcurves::half_edge_face(self, he).0;
-                if self.description_remints(edge, remints, face) {
+                if self.description_remints(edge, face) {
                     touched.push(he_data.parent_loop);
                 }
             }
@@ -1229,31 +1160,25 @@ impl<T: Decide> Body<T> {
         )
     }
 
-    /// Whether [`Body::description_rows`], under `remints`, plans
-    /// `face` for `edge`: one of `edge`'s halves is on it, and the
-    /// description re-mints it. The one home of that decision: the
+    /// Whether [`Body::description_rows`] plans `face` for `edge`: one
+    /// of `edge`'s halves is on it, and it is off a spline chart unless
+    /// `edge` is null. The one home of that decision: the
     /// description plans a half's face by it, and
     /// [`Body::kev_describing`]'s released-loop plan leaves such a face
     /// to the description's. `edge` and `face` are ones the caller
     /// resolved.
-    pub(crate) fn description_remints(
-        &self,
-        edge: EdgeKey,
-        remints: Remints,
-        face: FaceKey,
-    ) -> bool {
+    pub(crate) fn description_remints(&self, edge: EdgeKey, face: FaceKey) -> bool {
         let edge_data = proven(&self.edges, edge, EntityId::Edge);
         let null = self
             .edge_curve_linked(edge, edge_data)
             .null_scaffold()
             .is_some();
-        (null || remints == Remints::Every)
-            && [edge_data.he_plus, edge_data.he_minus]
-                .into_iter()
-                .any(|h| {
-                    crate::pcurves::half_edge_face(self, h).0 == face
-                        && (null || !self.face_on_spline_chart(face))
-                })
+        [edge_data.he_plus, edge_data.he_minus]
+            .into_iter()
+            .any(|h| {
+                crate::pcurves::half_edge_face(self, h).0 == face
+                    && (null || !self.face_on_spline_chart(face))
+            })
     }
 
     /// Whether `face`'s chart is a spline one, where the site mint's
