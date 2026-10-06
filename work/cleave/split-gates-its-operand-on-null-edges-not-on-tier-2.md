@@ -2,12 +2,14 @@
 id: split-gates-its-operand-on-null-edges-not-on-tier-2
 kind: issue
 title: The split's operand gate checks null edges by hand, not tier 2, so a strut-bearing operand is not refused at its gate
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: E
 rides_with: split-answers-an-inside-out-operand-with-two-inside-out-halves
 branch: cleave/split-operand-gate
+closed: 2026-10-06
+pr: 4084
 ---
 
 
@@ -70,3 +72,16 @@ blended body (filed: `work/band/blend-doors-answer-an-inside-out-operand-with-an
 `work/shell/shell-answers-for-the-complement-of-an-inside-out-operand.md`);
 the STEP writer refuses a null edge by hand and reads nothing else
 (filed: `work/exch/exchange-writers-take-a-body-no-at-rest-gate-read.md`).
+
+## Closed (PR 4084, 2026-10-06)
+
+The split's doors take `AtRestBody`. The no-verdict operand gate (tier 2, then check 7 per solid,
+then check 10's winding per shell) has one home, `AtRestBody::gate_unverdicted`, shared with the
+Boolean. Review tier: single FULL. Verdict APPROVE-WITH-FIXES, no MAJOR. The fix pass:
+- extended the gate to an inside-out shell under one solid;
+- restated the `Pieces` witnesses at Dual64;
+- pinned the lune stand-down to its refusal by type;
+- took the style items.
+
+The residue is its own row:
+`a-stray-inside-out-shell-beside-two-outer-shells-passes-the-no-verdict-gate`.

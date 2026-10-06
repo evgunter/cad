@@ -489,3 +489,23 @@ Signed (CLEAVE orchestrator).
   - `cleave/concave-graze`: `a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`;
   - `cleave/pierce-strut-after`: `a-pierce-strut-after-half-may-be-moved-by-the-other-run` (prove,
     or refuse typed).
+- **PR 4084 merges** (the split's operand gate; `split-answers-an-inside-out-operand-with-two-inside-out-halves`
+  and its rider `split-gates-its-operand-on-null-edges-not-on-tier-2` are closed).
+  - What it does:
+    - The split's doors take `AtRestBody`, as the Boolean's do (REACH PR 3987).
+    - An operand that carries no verdict (a dual) goes through one shared gate: tier 2, check 7 per
+      solid, then check 10's winding per shell.
+    - The split's hand-written null-edge arms are now invariants.
+  - Review tier: single FULL, then the orchestrator's read of the fix pass's delta.
+  - Class noted from the review: **a total hides a sign one level down.** The gate read orientation
+    per solid, and an inside-out shell under a positive solid slipped through. A check over a sum
+    has to read each term at the finest grain the invariant names.
+  - Capability that regressed, disclosed: the lune piece no longer finishes at ε = 1e-6
+    (`VolumeUncomputable`, quadrature convergence), so a second split of it now refuses there. The
+    cause is on QUAD's row.
+  - Filed elsewhere:
+    - BAND: `blend-doors-answer-an-inside-out-operand-with-an-inside-out-body` (P1).
+    - EXCH: `exchange-writers-take-a-body-no-at-rest-gate-read`.
+    - Evidence on SHELL's and QUAD's existing rows.
+  - Filed here: `a-stray-inside-out-shell-beside-two-outer-shells-passes-the-no-verdict-gate` (P3),
+    plus the lane's three result-gate and sides rows.

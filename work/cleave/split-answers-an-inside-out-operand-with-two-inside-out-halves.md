@@ -2,11 +2,13 @@
 id: split-answers-an-inside-out-operand-with-two-inside-out-halves
 kind: issue
 title: topo::split answers an inside-out operand with two inside-out halves: its operand gate reads no orientation
-status: dispatched
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 branch: cleave/split-operand-gate
+closed: 2026-10-06
+pr: 4084
 ---
 
 
@@ -83,3 +85,16 @@ carrier gate or the reduction past the door through
 `topo::test_support::{split_carrier_gate, split_reduce_unfinished}`.
 Filed: `split-result-gates-have-no-row-past-the-finished-operand`,
 `split-carrier-gate-rows-read-the-gate-past-the-door`.
+
+## Closed (PR 4084, 2026-10-06)
+
+The split's doors take `AtRestBody`. The no-verdict operand gate (tier 2, then check 7 per solid,
+then check 10's winding per shell) has one home, `AtRestBody::gate_unverdicted`, shared with the
+Boolean. Review tier: single FULL. Verdict APPROVE-WITH-FIXES, no MAJOR. The fix pass:
+- extended the gate to an inside-out shell under one solid;
+- restated the `Pieces` witnesses at Dual64;
+- pinned the lune stand-down to its refusal by type;
+- took the style items.
+
+The residue is its own row:
+`a-stray-inside-out-shell-beside-two-outer-shells-passes-the-no-verdict-gate`.
