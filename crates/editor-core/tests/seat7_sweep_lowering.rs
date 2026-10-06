@@ -296,6 +296,13 @@ fn both_sweeps_evaluate_in_one_document() {
 /// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
 /// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
 /// declares nothing held its word.
+///
+/// RE-BLESSED (`boss_union` alone) when `circle_split` began storing
+/// its authored carrier (centre and `|r|`) instead of re-deriving each
+/// arc's carrier from its chord: the boss's split rims moved in the
+/// last bits. `cut_cylinder`'s `circle` did not move — its chord
+/// lowering returned the authored centre and radius bit for bit.
+///
 /// Re-blessed when contact records gained the `(vertex, edge)` and
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
@@ -306,7 +313,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("die", 0xfa04_f1a7_d1c4_847d),
         ("corner_table", 0xc035_7765_7d3d_dcdc),
         ("cut_cylinder", 0xcea6_3bbf_f0ce_47ad),
-        ("boss_union", 0x7e16_42ec_86fe_1645),
+        ("boss_union", 0xeb25_210f_2b67_d89b),
         ("kitchen_sink", 0xecfa_9ee8_aeda_a48d),
     ];
     let mut moved: Vec<String> = Vec::new();

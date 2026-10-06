@@ -890,6 +890,12 @@ pub enum SphereQuestion {
     /// axes' cross levered at the radius): a definite lean passes, and a
     /// decided zero refuses with its decided margin.
     RecutAlign,
+    /// Where the meridian cut through a trimmed sphere face's section
+    /// circle meets the face's boundary (`bool_sphere_cut_*`): the
+    /// meridian's placement, its roots on each boundary arc, and their
+    /// order along it. Its arms pass on different sets (a root at an
+    /// arc's end is a vertex of the cut, one inside it splits the arc).
+    CutIn,
 }
 
 impl SphereQuestion {
@@ -907,6 +913,10 @@ impl SphereQuestion {
             Self::RecutAlign => {
                 "whether a sphere's polar axis leans away from the face it pokes through"
             }
+            Self::CutIn => {
+                "where a cut through the circle a plane cuts on a sphere face meets that face's \
+                 boundary"
+            }
         }
     }
 
@@ -922,6 +932,7 @@ impl SphereQuestion {
                 passes: SizedPass::Positive,
                 ..SPHERE_AGAINST_PLANE
             }),
+            Self::CutIn => Ending::Lever(CUT_LEVER, LeverPass::ByArm),
         }
     }
 }
@@ -950,6 +961,12 @@ pub(crate) const SPHERES: SizedDecision = SizedDecision {
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
+
+/// The lever of [`SphereQuestion::CutIn`]: the circle's place on the
+/// face, and the plane's lean off the face's meridian through it.
+const CUT_LEVER: &str = "move the parts so the plane's circle on the sphere lies well away from \
+                         that face's edges and poles, or turn the plane off the face's meridian \
+                         through the circle";
 
 /// The curved-extent scan's lever where its enclosures cannot certify
 /// the operands (`BooleanError::FallbackExtentUnsupported`, and the
@@ -990,6 +1007,13 @@ pub enum SelfCheck {
     /// The carrier ladder's contradiction arm, which its detector
     /// posture (nothing declared) cannot reach.
     CarrierLadder,
+    /// Where a carried contact record lands on the pieces of an edge the
+    /// op split (`ops::split_lineage`): whether a point lies on a piece's
+    /// interior, or two pieces' interiors meet, asked as the census
+    /// confirms the record. The record certified at rest, so an
+    /// undecided answer is a contact the census could not confirm
+    /// either.
+    CarriedLineage,
 }
 
 impl SelfCheck {
@@ -1003,6 +1027,7 @@ impl SelfCheck {
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
             Self::CarrierLadder => "whether a face of each solid lies on one surface",
+            Self::CarriedLineage => "where a carried contact lands on the pieces of a split edge",
         }
     }
 }
@@ -2308,6 +2333,16 @@ pub(in crate::boolean) mod tests {
                 "whether a sphere's polar axis leans away from the face it pokes through",
                 Ending::Sized(AGAINST, SizedPass::Positive),
             ),
+            BooleanDecision::Sphere(SphereQuestion::CutIn) => (
+                "where a cut through the circle a plane cuts on a sphere face meets that face's \
+                 boundary",
+                Ending::Lever(
+                    "Recourse: move the parts so the plane's circle on the sphere lies well away \
+                     from that face's edges and poles, or turn the plane off the face's meridian \
+                     through the circle",
+                    LeverPass::ByArm,
+                ),
+            ),
             BooleanDecision::SelfCheck(SelfCheck::GermLine) => (
                 "whether two faces meeting at a corner cross along a line",
                 Ending::Defect,
@@ -2325,6 +2360,10 @@ pub(in crate::boolean) mod tests {
             }
             BooleanDecision::SelfCheck(SelfCheck::CarrierLadder) => (
                 "whether a face of each solid lies on one surface",
+                Ending::Defect,
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::CarriedLineage) => (
+                "where a carried contact lands on the pieces of a split edge",
                 Ending::Defect,
             ),
             BooleanDecision::PierceCurvature => (

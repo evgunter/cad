@@ -174,8 +174,10 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
 
 /// Each stretch's live edge, by its two ends in thousandths, sorted:
 /// the edge between its ends read through the zip's fusions, or the
-/// edge a join made of it. A stretch no live edge holds merged away
-/// with the faces beside it, and is left out.
+/// edge a join made of it. A stretch no live edge holds is left out
+/// only where the declared merge glued the faces beside it and the
+/// output stage joined one of its ends away (`naming.edge_joins`);
+/// any other is a stretch the rows lost, and panics.
 fn stretches(
     out: &topo::BooleanBody<f64>,
     rows: &[(topo::VertexKey, topo::VertexKey)],
@@ -202,7 +204,18 @@ fn stretches(
                     let [s, t] = ends(k);
                     (s, t) == (u, w) || (s, t) == (w, u)
                 })
-                .or_else(|| out.naming.stretch_through_joins(body, (u, w)))?;
+                .or_else(|| out.naming.stretch_through_joins(body, (u, w)));
+            let Some(edge) = edge else {
+                assert!(
+                    out.naming
+                        .edge_joins
+                        .iter()
+                        .any(|j| j.vertex == u || j.vertex == w),
+                    "a held stretch {u:?}..{w:?} that no live edge holds has no end the \
+                     output stage joined away"
+                );
+                return None;
+            };
             let mut e = ends(edge).map(at);
             e.sort();
             Some(e)

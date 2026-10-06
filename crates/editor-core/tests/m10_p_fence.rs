@@ -54,6 +54,18 @@
 //! off the hosted `interval` lane, which is the only place this
 //! workspace builds that backend.
 //!
+//! **EVERY NUMBER MOVED WHEN EACH CONSTRUCTION BEGAN STORING THE ARC
+//! IT BUILDS** (`store-constructed-carriers`), the id-free one too, and
+//! only through point and fixture bits: every node's outcome in the
+//! stream, at `f64` and at `Interval`, is the one main produced, diffed
+//! line for line (on the tree before the id-free row existed). The circles store their authored centre and radius, the
+//! fillet arcs their own centre, and the fixture's `Center` arcs the
+//! authored centre, so the carriers the bodies' points are computed on
+//! moved in the last bits. The `Interval` number moved once more, alone,
+//! when the arc-carrier fillet's sweep took the one quarter-tangent
+//! spelling (`sugar::quarter_tan_about`): the fixture's fillet sweeps
+//! enclose differently, and the `f64` bits do not move.
+//!
 //! **The stream hashes each node's id and walks the nodes in id
 //! order**, so a change to how the mint draws ids moves all three
 //! numbers with no point moving.
@@ -748,7 +760,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x9a5b_7d0b_6d1e_6787, 0xfaca_8a66_37e2_755b),
+        (0x9d1a_7bc4_d2f2_0175, 0x442b_a3a2_ca4c_5f29),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -774,7 +786,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x59db_ea57_c3c2_0326, 0xa69f_2da6_4917_0692),
+        (0xd83b_8dec_6970_df1e, 0x18fa_5f4c_4eeb_0322),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -798,7 +810,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x9a5b_7d0b_6d1e_6787, 0xfaca_8a66_37e2_755b),
+        (0x9d1a_7bc4_d2f2_0175, 0x442b_a3a2_ca4c_5f29),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -876,7 +888,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xb87b_df59_9fc8_5103, 0x8eb3_d27a_ca7e_7127),
+        (0x556a_eaf5_b2dc_3e4a, 0x3361_8bf1_bd5d_d21e),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

@@ -92,6 +92,7 @@ mod ellipse_torus;
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
 mod finish;
+mod fragments;
 pub(crate) mod insert;
 mod join;
 mod ops;
@@ -5198,11 +5199,19 @@ fn validate_declarations<T: Decide>(
             }
         }
         for touch in &c.ee {
-            if body.get_edge(touch.a).is_none() || body.get_edge(touch.b).is_none() {
-                return Err(bad(operand, "carried e-e edge key does not resolve"));
-            }
             if touch.a == touch.b {
                 return Err(bad(operand, "carried e-e pair names one edge twice"));
+            }
+            for e in [touch.a, touch.b] {
+                let Some(d) = body.get_edge(e) else {
+                    return Err(bad(operand, "carried e-e edge key does not resolve"));
+                };
+                // Edge-split lineage reads each edge as the segment
+                // between its ends (`ops::ee_lineage`), which only a
+                // line edge is.
+                if edge_join::certified_line(body, e, d).is_none() {
+                    return Err(bad(operand, "carried e-e edge is not a certified line"));
+                }
             }
         }
         Ok(())

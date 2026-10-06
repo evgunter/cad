@@ -1289,6 +1289,11 @@ impl<T: Decide> EdgeCurve<T> {
 /// NURBS wall with [`CertifyError::NurbsLaneNotSupplied`]: no door
 /// accepts the description without the certificate.
 ///
+/// The same bracket read is what a NURBS carrier's foot point needs, so
+/// the lane also carries [`NurbsLane::carrier_foot`]: a door that moves
+/// an endpoint along a spline carrier reads its new parameter here, and
+/// a scalar that holds no lane cannot read it at all.
+///
 /// Its one constructor is [`NurbsLane::certified`], bounded on
 /// [`geom_core::CertifiedBounds`], so holding a value of this type IS
 /// the statement that the scalar it is parameterised by may certify,
@@ -1376,16 +1381,35 @@ pub struct NurbsLane<T: Real> {
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
+    /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
+    foot: fn(
+        &geom::NurbsCurve3<T>,
+        Point3<T>,
+        T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     /// The certified plane × NURBS lane, and the only constructor
-    /// there is: [`crate::plane_nurbs_limbs`] instantiated at `T`.
+    /// there is: [`crate::plane_nurbs_limbs`] and [`Self::seeded_foot`]
+    /// instantiated at `T`.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
+            foot: Self::seeded_foot,
         }
+    }
+
+    /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
+    /// midpoint of `seed`.
+    fn seeded_foot(
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        let (lo, hi) = (seed.lo(), seed.hi());
+        carrier.project_from_seed(point, lo + 0.5 * (hi - lo))
     }
 }
 
@@ -1400,6 +1424,25 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, plane, wall, extent, band)
+    }
+
+    /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
+    /// the parameter of a point moved along the carrier, read on the
+    /// branch it was moved from. The foot carries its own residuals and
+    /// certifies nothing; the caller gates the distance. A foot the
+    /// domain clamp stopped at an end is the carrier's nearest END, not
+    /// a point of it the move reached.
+    ///
+    /// # Errors
+    ///
+    /// [`geom::ProjectionInconclusive`] when Newton's budget expires.
+    pub fn carrier_foot(
+        self,
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        (self.foot)(carrier, point, seed)
     }
 }
 
@@ -2912,18 +2955,66 @@ fn plane_nurbs_pair<T: Real>(
 /// The helper is instantiated once per certifying scalar, and that
 /// census counts the instantiations against the tree's
 /// `CertifiedEnclosure` impls.
+/// [`NurbsLane::carrier_foot`]'s seed is what picks the foot: a point
+/// moved along a carrier is read on the branch it was moved from, not
+/// wherever a fixed start converges.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod foot_rows {
+    use geom::NurbsCurve3;
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+
+    use super::NurbsLane;
+
+    /// A U-shaped cubic, `x = 6t(1 − t)`, `y = 3t² − 2t³`. The distance
+    /// from its point at `t = 0.9`, `(0.54, 0.972)`, has a second local
+    /// minimum near `t = 0.1` on the lower leg, about 0.94 m away, which
+    /// is where Newton seeded at the domain start converges.
+    #[test]
+    fn the_seed_decides_which_stationary_point_is_the_foot() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let carrier = NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap();
+        let target = carrier.eval(0.9);
+        let lane = NurbsLane::<f64>::certified();
+        let moved_from = lane.carrier_foot(&carrier, target, 0.85).unwrap();
+        assert!(
+            (moved_from.t - 0.9).abs() < 1e-9 && moved_from.distance < 1e-9,
+            "seeded at the old parameter 0.85 the foot is the point itself, got t = {} at {} m",
+            moved_from.t,
+            moved_from.distance
+        );
+        let from_the_start = lane.carrier_foot(&carrier, target, 0.0).unwrap();
+        assert!(
+            from_the_start.t < 0.3 && from_the_start.distance > 0.5,
+            "seeded at the domain start the foot is the lower leg's minimum, got t = {} at {} m",
+            from_the_start.t,
+            from_the_start.distance
+        );
+    }
+}
+
 #[cfg(test)]
 mod wiring_rows {
     use super::NurbsLane;
     use crate::edge_nurbs::plane_nurbs_limbs;
 
-    /// `Ok(())` when the field holds `plane_nurbs_limbs`; otherwise the
-    /// field's name.
+    /// `Ok(())` when the fields hold `plane_nurbs_limbs` and
+    /// `seeded_foot`; otherwise the first wrong field's name.
     fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
         if !std::ptr::fn_addr_eq(lane.limbs, plane_nurbs_limbs::<T> as fn(_, _, _, _, _) -> _) {
             return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
+        }
+        if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
+            return Err("foot is not `NurbsLane::seeded_foot`");
         }
         Ok(())
     }
@@ -2933,7 +3024,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 
@@ -2944,7 +3035,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`NurbsLane::<Sym<f64>>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<Sym<f64>>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 
@@ -2954,7 +3045,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Probe>(),
             Ok(()),
-            "`NurbsLane::<Probe>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<Probe>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 
@@ -2963,7 +3054,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`NurbsLane::<Interval>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<Interval>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 }

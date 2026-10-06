@@ -188,6 +188,119 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
     assert!((volume(body, t) - 8.5).abs() < 1e-12, "{}", volume(body, t));
 }
 
+/// **A single-operand result has maximal edges.** The subdivided prism
+/// unioned with a cube strictly inside it: no boundary crosses, so the
+/// union is the prism's own material, answered by the single-operand
+/// fallback. The prism carries its station vertex on both cap rims, and
+/// the fallback's output stage joins both: the result is a 2 × 2 × 2
+/// box with 8 vertices and 12 edges. Red when the fallback skips the
+/// join.
+#[test]
+fn a_union_answered_by_one_operand_joins_its_station_vertices() {
+    let t = Tol::witness();
+    let prism = finished("the subdivided prism", subdivided_prism(t).body, t);
+    assert_eq!(
+        topo::joinable_vertices(&prism).len(),
+        2,
+        "the station on each cap rim"
+    );
+    let cube = cube_at(0.5, 0.5, 0.5, 1.0);
+    let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
+    let out = r.body().expect("non-empty");
+    assert_eq!(out.kind, topo::BooleanResultKind::OperandA);
+    assert_eq!(out.naming.edge_joins.len(), 2, "both stations joined");
+    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(out.body.vertices().count(), 8);
+    assert_eq!(out.body.edges().count(), 12);
+    assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
+    assert!((volume(&out.body, t) - 8.0).abs() < 1e-12);
+}
+
+/// `[0,3] × [0,2]` whose bottom side is authored as `line(1)` and two
+/// straight continuations, to `(2, 0)` and `(3, 0)`, extruded by 2:
+/// each cap rim along the bottom side is three collinear edges.
+fn twice_subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
+    let lp: ProfileLoop<f64> = Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .continue_to(Point2::new(2.0, 0.0), t)
+        .unwrap()
+        .continue_to(Point2::new(3.0, 0.0), t)
+        .unwrap()
+        .turn(FRAC_PI_2, t)
+        .unwrap()
+        .line(2.0, t)
+        .unwrap()
+        .turn(FRAC_PI_2, t)
+        .unwrap()
+        .line(3.0, t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap()
+        .into();
+    assert_eq!(lp.vertices().len(), 6, "two continuations, two stations");
+    let v = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(t)
+        .unwrap();
+    extrude(
+        &v,
+        Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .unwrap()
+}
+
+/// **A seam joined twice reads through both joins.** The twice
+/// subdivided prism unioned with a cube strictly inside it: the
+/// fallback's output stage joins each cap rim's three collinear edges
+/// into one, two joins per rim, the second's `gone` the first's `kept`.
+/// `BooleanNaming::joined_edge` takes every edge any join killed to the
+/// live edge holding it, through both joins. Red when `joined_edge`
+/// stops after one hop.
+#[test]
+fn a_rim_joined_twice_reads_through_both_joins() {
+    let t = Tol::witness();
+    let prism = finished(
+        "the twice subdivided prism",
+        twice_subdivided_prism(t).body,
+        t,
+    );
+    assert_eq!(
+        topo::joinable_vertices(&prism).len(),
+        4,
+        "two stations per cap rim"
+    );
+    let cube = cube_at(0.5, 0.5, 0.5, 1.0);
+    let r = union(&prism, &cube, t).expect("the cube lies inside the prism");
+    let out = r.body().expect("non-empty");
+    let joins = &out.naming.edge_joins;
+    assert_eq!(joins.len(), 4, "every station joined");
+    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(out.body.edges().count(), 12, "a box");
+    assert!(
+        joins
+            .iter()
+            .enumerate()
+            .any(|(i, j)| joins[..i].iter().any(|earlier| earlier.kept == j.gone)),
+        "some rim is joined twice through one edge: {joins:?}"
+    );
+    for j in joins {
+        for e in [j.gone, j.kept] {
+            let live = out.naming.joined_edge(e);
+            assert!(
+                out.body.get_edge(live).is_some(),
+                "{e:?} reads to a dead edge {live:?} through {joins:?}"
+            );
+        }
+    }
+}
+
 /// **Revolve, full and partial: the same branch.** The subdivided
 /// square at `x ∈ [1, 3]` revolved about the sketch's y axis: its
 /// subdivided bottom side sweeps to ONE annulus wall, its subdivided

@@ -2,7 +2,8 @@
 //! [`intersect`], [`subtract`] — functional (operands untouched),
 //! composing reduce → classify (PR 4) → join → `setopfinish` → the
 //! combine door → seam zip → the `merge_coplanar_faces` output stage
-//! (F7) → tier gates. Every stage's refusal passes through typed as a
+//! (F7) → the edge join (maximal edges) → the records' carriage → tier
+//! gates. Every stage's refusal passes through typed as a
 //! [`BooleanError`] variant.
 //!
 //! # Results (F8)
@@ -57,15 +58,26 @@
 //! cross-operand *numeric* coplanarity is honestly left unmerged (the
 //! coincidence ladder has no numeric rung).
 //!
+//! After the merge and its re-description, every output stage (the
+//! seamed path, the graft and single-operand fallbacks, the declared
+//! REST lane) runs the edge join ([`super::edge_join::join_stage`]): a
+//! vertex of valence 2 between the same two planar faces on one line is
+//! joined away, so every result has maximal edges (`docs/DESIGN.md`,
+//! the merge stage). Each join writes its substitution rows into the
+//! op's descendant map before the records are carried.
+//!
 //! # Carried contacts
 //!
 //! Result bodies carry the contact records, discovered and carried, in
 //! result keys, through one substitution door ([`carry`]): B-side keys
 //! cross by the combine door's graft map, and a record whose cell an op
-//! replaced names the replacement. A record leaves only where its cell
-//! left the result (a contact between A and B is only meaningful in a
-//! result holding both sides), or where its two cells became one or
-//! incident, which is structure.
+//! replaced names the replacement: a zip's survivor, the merge's kept
+//! face, the edge a join made, or the chord the join minted along an
+//! edge it then dropped. A record leaves only where its cell left the
+//! result with no such row (a contact between A and B is only
+//! meaningful in a result holding both sides), or where its two cells
+//! became one, incident, or a pair no record kind stores, which is
+//! structure ([`record`]'s arms say which and why).
 //!
 //! # Known limitations (PR 5.5 — the honest envelope)
 //!
@@ -125,13 +137,13 @@ use super::voids;
 use super::zip::{SeamCorrespondence, survivor, survivor_checked, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell,
-    ContactRecords, CurveContact, EeContact, FacePairDeclaration, Operand, PatchContact,
+    ContactRecords, CurveContact, EeContact, FacePairDeclaration, Operand, PatchContact, SelfCheck,
     SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
@@ -629,12 +641,13 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 red,
                 connected,
                 interior_loops,
-            } => (*red, connected, interior_loops),
+            } => (*red, *connected, interior_loops),
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
     let copies = Descendants::null_copies(&red.null_edges);
+    let along = connected.along.clone();
     let carried = split_lineage(&red, decls, band)?;
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
@@ -647,7 +660,9 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = fin.weld_merges_a.clone();
-    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b).with_copies(copies);
+    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b)
+        .with_copies(copies)
+        .with_along(along);
     // A pinch is one vertex on two seams: the first zip fuses it, so
     // each later zip reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -655,7 +670,6 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     desc.absorb_faces(&crossed);
     for &(a_face, b_face) in &fin.seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
-
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
@@ -670,7 +684,6 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .merge_coplanar_faces_declared(&declared_pairs, tol)
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
-
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
     let contacts = carry(
@@ -752,7 +765,7 @@ pub(super) enum Joined<T: Real> {
         /// The reduction, its operands joined.
         red: Box<BooleanReduction<T>>,
         /// The completed polygons and the fragments the join made.
-        connected: super::join::Connected,
+        connected: Box<super::join::Connected>,
         /// [`interior_loop_verdict`]'s answer, not yet raised.
         interior_loops: Result<(), BooleanError>,
     },
@@ -801,25 +814,33 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // - **escape** (a sphere definitely leaves the other solid
         //   through a plane face — the S12 finding's
         //   poking-but-not-crossing shape): the operand is RE-CUT —
-        //   the closed group is rigidly re-charted about the escape
+        //   a closed group is rigidly re-charted about the escape
         //   normal (a rotation about its own center: the same point
-        //   set, seams now transverse to the escape planes) and the
-        //   pipeline re-enters once; the ordinary crossing layer then
-        //   finds the section circles and the (Plane, Sphere) germ arm
-        //   joins them exactly.
-        // - **uncertifiable** (NURBS re-gate, trimmed sphere groups,
+        //   set, seams now transverse to the escape planes), a
+        //   trimmed group's face is cut along its chart's meridian
+        //   through the circle ([`SphereCutIn`]), and the pipeline
+        //   re-enters once; the ordinary crossing layer then finds the
+        //   section circles and the (Plane, Sphere) germ arm joins
+        //   them exactly.
+        // - **uncertifiable** (NURBS re-gate, a trimmed group's circle
+        //   the section certificate does not place inside one face,
         //   sphere faces meeting other than across a verified `Rest`,
         //   tangency, boundary-grazing circles,
         //   one group escaping through NON-PARALLEL faces): typed
         //   refusal — the S12 silence never re-opens.
         let recuts = sphere_extent_scan(a, b, &red.rest_contacts, band)?;
-        if !recuts.is_empty() {
+        if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
             if !recut {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "re-cut sphere operands still produced no crossings",
                 });
             }
-            let (a2, b2) = apply_recuts(a, b, &recuts, tol)?;
+            let (mut a2, mut b2) = apply_recuts(a, b, &recuts.rechart, tol)?;
+            // The cut-ins name faces of `a` and `b`; the re-charts carve
+            // and graft other shells, and `carve` keeps every kept
+            // entity's key (`splitting::finish`'s `carve`), so those
+            // names still hold on `a2` and `b2`.
+            apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
             return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
         }
@@ -885,7 +906,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     Ok(Joined::Connected {
         red: Box::new(red),
-        connected,
+        connected: Box::new(connected),
         interior_loops,
     })
 }
@@ -1117,14 +1138,8 @@ impl PairVerdict {
 #[track_caller]
 fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    core::iter::once(fd.outer)
-        .chain(fd.rings.iter().copied())
-        .any(|l| {
-            matches!(
-                linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary,
-                LoopBoundary::Empty { .. }
-            )
-        })
+    body.face_loops_linked(face, fd)
+        .any(|(_, l)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
 /// Places a witness point in one face: `contfp` on a plane, the chart
@@ -1263,6 +1278,13 @@ fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
 /// **Whether a boundary edge of `face` may meet `region`**: some edge of
 /// one of its loops has a certified box, padded by `pad`, overlapping it.
 /// `face` is one the caller read out of `body`.
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 #[track_caller]
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
@@ -1271,15 +1293,12 @@ fn face_boundary_meets<T: Decide + Bounds>(
     pad: f64,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
-    for (_, l) in body.face_loops_linked(face, fd) {
-        let LoopBoundary::Cycle { first } = l.boundary else {
+    for member in body.face_boundary_linked(face, fd) {
+        let BoundaryMember::Edge { ek, .. } = member else {
             continue;
         };
-        for he in body.loop_walk(first).closed("loop", first) {
-            let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            if boxes::edge_box(body, ek, pad).overlaps(region) {
-                return true;
-            }
+        if boxes::edge_box(body, ek, pad).overlaps(region) {
+            return true;
         }
     }
     false
@@ -1486,10 +1505,11 @@ pub(crate) fn no_crossings_certificates(
     let band = Band::linear(tol)?;
     let no_rest: &[(FaceKey, FaceKey)] = &[];
     let recuts = sphere_extent_scan(a, b, no_rest, band)?;
-    if recuts.is_empty() {
+    let asked = recuts.rechart.len() + recuts.cut_in.len();
+    if asked == 0 {
         section_extent_pass(a, b, no_rest, band)?;
     }
-    Ok(recuts.len())
+    Ok(asked)
 }
 
 /// **A ball against a plane's CARRIER: the one home of that gap.**
@@ -1569,28 +1589,26 @@ fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey
 }
 
 /// Every face each vertex bounds, from the faces' own loops.
+///
+/// # Panics
+///
+/// Where a face's boundary hop (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn faces_by_vertex<T: Real>(body: &Body<T>) -> BTreeMap<VertexKey, Vec<FaceKey>> {
     let mut out: BTreeMap<VertexKey, Vec<FaceKey>> = BTreeMap::new();
     for (face, fd) in body.faces() {
-        for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        for member in body.face_boundary_linked(face, fd) {
             // A lone-vertex loop's vertex bounds the face as much as a
             // cycle's do.
-            let vertices =
-                match linked(&body.loops, l, EntityId::Loop, EntityId::Face(face), "loop").boundary
-                {
-                    LoopBoundary::Empty { vertex } => vec![vertex],
-                    LoopBoundary::Cycle { first } => body
-                        .loop_walk(first)
-                        .closed("loop", first)
-                        .into_iter()
-                        .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
-                        .collect(),
-                };
-            for v in vertices {
-                let faces = out.entry(v).or_default();
-                if !faces.contains(&face) {
-                    faces.push(face);
-                }
+            let v = match member {
+                BoundaryMember::Isolated { vertex, .. } => vertex,
+                BoundaryMember::Edge { half, .. } => half.start,
+            };
+            let faces = out.entry(v).or_default();
+            if !faces.contains(&face) {
+                faces.push(face);
             }
         }
     }
@@ -2553,6 +2571,12 @@ pub(super) struct Descendants {
     /// Each operand's null-edge copies, in its clone keys: the vertices
     /// one null edge joins, on one point by construction.
     copies: [Vec<(VertexKey, VertexKey)>; 2],
+    /// Each operand's chords along its own edges, `(edge, chord)` in
+    /// its clone keys, read before its key view: the join minted
+    /// `chord` on a segment that IS `edge` (`join::Connected::along`),
+    /// so where the op drops `edge`, the chord holds its interior.
+    /// Read only where `edge` left the result.
+    along: [Vec<(EdgeKey, EdgeKey)>; 2],
     /// Every other substitution, dead cell → the cell that holds its
     /// interior now, result keys: a zipped ring edge → its seam edge, a
     /// cell the merge swallowed → the kept face, a joined vertex or
@@ -2585,6 +2609,12 @@ impl Descendants {
     /// ([`carry`]).
     pub(super) fn with_copies(self, copies: [Vec<(VertexKey, VertexKey)>; 2]) -> Self {
         Self { copies, ..self }
+    }
+
+    /// The map that also reaches the chords the join minted along each
+    /// operand's own edges ([`Self::along`]).
+    pub(super) fn with_along(self, along: [Vec<(EdgeKey, EdgeKey)>; 2]) -> Self {
+        Self { along, ..self }
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
@@ -2658,15 +2688,52 @@ impl Descendants {
     /// its key `view`, the zips' fusions (a vertex), then the face
     /// absorptions and the substitution rows until live: `None` where
     /// the chain ends at a dead cell with no row (the cell left the
-    /// result).
+    /// result). An edge whose chain ends so is read on through the
+    /// chords the join minted along it ([`Self::along`]), each by the
+    /// same chain: the one that is live holds it.
     ///
     /// # Errors
     ///
     /// [`BooleanError::JoinDesync`] on a corrupt fusion list
     /// ([`survivor_checked`]), or rows that cycle: a walk that outlasts
     /// the row count has revisited a cell, a corrupt record, and
-    /// reading it as gone would drop a recorded contact.
+    /// reading it as gone would drop a recorded contact. So too where
+    /// two chords along one edge both reach a live cell, and they are
+    /// not one: two edges cannot both hold one edge's interior.
     pub(super) fn live<T: Real>(
+        &self,
+        body: &Body<T>,
+        side: Operand,
+        view: &KeyView<'_>,
+        cell: Cell,
+    ) -> Result<Option<Cell>, BooleanError> {
+        if let Some(c) = self.chained(body, side, view, cell)? {
+            return Ok(Some(c));
+        }
+        let Cell::Edge(edge) = cell else {
+            return Ok(None);
+        };
+        let mut held = None;
+        let rows = &self.along[usize::from(side == Operand::B)];
+        for &(_, chord) in rows.iter().filter(|&&(e, _)| e == edge) {
+            // A chord is minted, never an `along` row's edge, so one
+            // hop ends the read.
+            match (held, self.chained(body, side, view, Cell::Edge(chord))?) {
+                (_, None) => {}
+                (None, Some(c)) => held = Some(c),
+                (Some(h), Some(c)) if h == c => {}
+                (Some(_), Some(_)) => {
+                    return Err(BooleanError::JoinDesync {
+                        what: "two live edges hold one edge's interior through the join's chords",
+                    });
+                }
+            }
+        }
+        Ok(held)
+    }
+
+    /// [`Self::live`] without the chord rows.
+    fn chained<T: Real>(
         &self,
         body: &Body<T>,
         side: Operand,
@@ -2718,17 +2785,21 @@ impl Descendants {
 /// rests on. The reduction's split log ([`super::EdgeSplit`]) says
 /// which pieces an edge became, in split order; at each split of the
 /// piece the row names, the split's own vertex decides the side: the
-/// parent keeps the span from its start to that vertex, so the row's
-/// vertex stays on the parent when it lies before the split vertex
-/// along the parent, moves to the child when after, and is a
-/// vertex-vertex row with the split vertex when at it. Nothing searches
-/// the result for an edge the vertex lies on.
+/// parent keeps the span from its start to that vertex, so the row is a
+/// vertex-vertex row with the split vertex when its vertex is at it,
+/// stays on the parent when its vertex lies on the parent's span, and
+/// moves to the child otherwise. Each is asked as the census asks it
+/// ([`crate::census::on_segment_interior`]), as [`ee_lineage`] asks
+/// its own, so what lands is what the census confirms. Every edge-edge
+/// row is placed by [`ee_lineage`]. Nothing searches the result for an
+/// edge the vertex lies on.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] (`VertexOnVertex`) where the side is
-/// in band of the split vertex; [`BooleanError::JoinDesync`] where a
-/// logged key does not resolve in its clone.
+/// [`BooleanError::Escalated`]: `VertexOnVertex` where a vertex is in
+/// band of a split vertex, `SelfCheck(CarriedLineage)` where a span
+/// question is; [`BooleanError::JoinDesync`] where a logged key does
+/// not resolve in its clone.
 pub(super) fn split_lineage<T: Decide>(
     red: &BooleanReduction<T>,
     decls: &BooleanDeclarations,
@@ -2763,21 +2834,27 @@ pub(super) fn split_lineage<T: Decide>(
                     .ok_or_else(|| desync("a split parent does not resolve in its clone"))?;
                 let (p_start, p_split, p_vertex) =
                     (point(start)?, point(split.vertex)?, point(vertex)?);
-                let along = p_split - p_start;
-                let past = (p_vertex - p_split).dot(along / along.norm());
-                match decide("bool_carried_ve_split_side", Margin::of(past), band) {
-                    Ok(Sign::Negative) => {}
-                    Ok(Sign::Positive) => edge = split.child,
-                    Ok(Sign::Zero) => {
-                        at = Some(split.vertex);
-                        break;
-                    }
-                    Err(diag) => {
-                        return Err(BooleanError::Escalated {
+                // The census's own questions ([`ee_lineage`]'s): at the
+                // split vertex, else on the parent's span from its start
+                // to the split, else past it, on the child.
+                let gap = Margin::norm3(p_vertex - p_split);
+                let apart =
+                    geom_core::k_stats::decide_magnitude("bool_carried_ve_split_vertex", gap, band)
+                        .map_err(|diag| BooleanError::Escalated {
                             decision: BooleanDecision::VertexOnVertex,
                             diag,
-                        });
-                    }
+                        })?;
+                if apart == geom_core::k_stats::Magnitude::Zero {
+                    at = Some(split.vertex);
+                    break;
+                }
+                let stays = crate::census::on_segment_interior(p_vertex, (p_start, p_split), band)
+                    .map_err(|diag| BooleanError::Escalated {
+                        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+                        diag,
+                    })?;
+                if !stays {
+                    edge = split.child;
                 }
             }
             match at {
@@ -2788,7 +2865,6 @@ pub(super) fn split_lineage<T: Decide>(
         for row in core::mem::take(&mut carried.ee) {
             ee_lineage(clone, side, &red.edge_splits, row, carried, band)?;
         }
-        carried.read_ends(clone);
     }
     Ok(out)
 }
@@ -2863,7 +2939,11 @@ fn ee_lineage<T: Decide>(
         carried.ee.push(row);
         return Ok(());
     }
-    let escalated = |diag| BooleanError::Escalated {
+    let lineage = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+        diag,
+    };
+    let coincide = |diag| BooleanError::Escalated {
         decision: BooleanDecision::VertexOnVertex,
         diag,
     };
@@ -2880,7 +2960,7 @@ fn ee_lineage<T: Decide>(
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if crate::census::segment_interiors_meet(sa, sb, band).map_err(escalated)?
+            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)?
                 && !carried.ee.iter().any(|r| (r.a, r.b) == (pa.0, pb.0))
             {
                 carried.ee.push(EeContact { a: pa.0, b: pb.0 });
@@ -2891,7 +2971,7 @@ fn ee_lineage<T: Decide>(
             {
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
-                    if crate::census::on_segment_interior(q, their_seg, band).map_err(escalated)? {
+                    if crate::census::on_segment_interior(q, their_seg, band).map_err(lineage)? {
                         if !carried.ve.contains(&VeContact {
                             vertex: v,
                             edge: theirs.0,
@@ -2911,7 +2991,7 @@ fn ee_lineage<T: Decide>(
                                 gap,
                                 band,
                             )
-                            .map_err(escalated)?
+                            .map_err(coincide)?
                                 == geom_core::k_stats::Magnitude::Zero
                             && !carried
                                 .vv
@@ -2937,10 +3017,6 @@ pub(super) struct Rows {
     vf: Vec<VfContact>,
     ve: Vec<VeContact>,
     ee: Vec<EeContact>,
-    /// The two end vertices of each line edge a `ve` or `ee` row names,
-    /// read from the operand's clone once split lineage has placed the
-    /// rows ([`held_by_ends`]).
-    ends: BTreeMap<EdgeKey, (VertexKey, VertexKey)>,
 }
 
 impl Rows {
@@ -2951,30 +3027,6 @@ impl Rows {
             vf: vf.iter().map(|c| c.rest).collect(),
             ve: ve.clone(),
             ee: ee.clone(),
-            ends: BTreeMap::new(),
-        }
-    }
-
-    /// Records the ends of every line edge the rows name, from `clone`.
-    fn read_ends<T: Real>(&mut self, clone: &Body<T>) {
-        let edges: Vec<EdgeKey> = self
-            .ve
-            .iter()
-            .map(|r| r.edge)
-            .chain(self.ee.iter().flat_map(|r| [r.a, r.b]))
-            .collect();
-        for e in edges {
-            let Some(d) = clone.get_edge(e) else {
-                continue;
-            };
-            let line = clone
-                .edge_curve_linked(e, d)
-                .certified()
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
-            let start = |h| clone.get_half_edge(h).map(|h| h.start);
-            if let (true, Some(u), Some(w)) = (line, start(d.he_plus), start(d.he_minus)) {
-                self.ends.insert(e, (u, w));
-            }
         }
     }
 }
@@ -2989,10 +3041,12 @@ type End = (Operand, Cell);
 /// cell an op replaced now names the replacement: a fused vertex its
 /// survivor, an absorbed face its kept face, a zipped ring edge its
 /// seam edge, a cell the merge swallowed the face it lies in, a joined
-/// vertex or edge the edge the join made. A record is never re-derived
-/// from geometry, and leaves only where its cell left the result (a
-/// discarded fragment) or where its two cells became one or incident,
-/// which is structure.
+/// vertex or edge the edge the join made, an edge the op dropped the
+/// chord the join minted along it ([`Descendants::live`]). A record is
+/// never re-derived from geometry, and leaves only where its cell left
+/// the result with no such row (a discarded fragment), or where its two
+/// cells became one, incident, or a pair no record kind stores, which
+/// is structure ([`record`]).
 ///
 /// **Vertex records are carried as groups.** Records that share a
 /// vertex end, discovered and carried alike, are one group, closed
@@ -3152,45 +3206,8 @@ fn carry_rows<T: Real>(
             );
         }
     }
-    // An edge a row names that left the result with no substitution row
-    // is held by the live line edge between its two ends' coincidence
-    // groups, where there is one ([`held_by_ends`]).
-    let images = |side: Operand, v: VertexKey, live: &[(usize, End)]| {
-        let mut out: Vec<VertexKey> = desc
-            .copies_of(side, v)
-            .into_iter()
-            .filter_map(
-                |k| match desc.live(body, side, view(side), Cell::Vertex(k)) {
-                    Ok(Some(Cell::Vertex(x))) => Some(x),
-                    _ => None,
-                },
-            )
-            .collect();
-        if let Some(i) = ends
-            .iter()
-            .position(|&e| e == arena((side, Cell::Vertex(v))))
-        {
-            out.extend(live.iter().filter_map(|&(g, (_, c))| match c {
-                Cell::Vertex(x) if g == group[i] => Some(x),
-                _ => None,
-            }));
-        }
-        out
-    };
-    let edge_cell = |side: Operand, e: Cell, live: &[(usize, End)]| {
-        if let Some(c) = desc.live(body, side, view(side), e)? {
-            return Ok(Some(c));
-        }
-        let Cell::Edge(e) = e else {
-            return Ok(None);
-        };
-        let rows = carried[usize::from(side == Operand::B)];
-        Ok::<_, BooleanError>(rows.ends.get(&e).and_then(|&(u, w)| {
-            held_by_ends(body, &images(side, u, live), &images(side, w, live)).map(Cell::Edge)
-        }))
-    };
     for (&i, [_, (side, e)]) in attached.iter().zip(&ve_rows) {
-        let c = edge_cell(*side, *e, &live)?;
+        let c = desc.live(body, *side, view(*side), *e)?;
         push(&mut live, group[i], *side, c);
     }
     for (i, &(g, x)) in live.iter().enumerate() {
@@ -3236,7 +3253,7 @@ fn carry_rows<T: Real>(
             .flat_map(|(side, rows)| rows.ee.iter().map(move |c| (side, *c))),
     );
     for (side, c) in ee_rows {
-        let edge = |e| edge_cell(side, Cell::Edge(e), &live);
+        let edge = |e| desc.live(body, side, view(side), Cell::Edge(e));
         if let (Some(x), Some(y)) = (edge(c.a)?, edge(c.b)?) {
             record(body, &mut out, (side, x), (side, y));
         }
@@ -3268,28 +3285,6 @@ fn carry_rows<T: Real>(
         }
     }
     Ok(out)
-}
-
-/// The live line edge from one of `us` to one of `ws`: what holds the
-/// interior of a line edge that left the result with no substitution
-/// row, whose two ends are `us` and `ws` now. Two lines through two
-/// points are one line, so the edge is decided by keys and carriers
-/// alone, never by a position: the bound rule the census certifies a
-/// coincident-edge segment by. `None` where no one live edge joins
-/// them.
-fn held_by_ends<T: Real>(body: &Body<T>, us: &[VertexKey], ws: &[VertexKey]) -> Option<EdgeKey> {
-    let mut held = body.edges().filter_map(|(k, d)| {
-        let start = |h| body.get_half_edge(h).map(|h| h.start);
-        let (s, t) = (start(d.he_plus)?, start(d.he_minus)?);
-        let line = body
-            .edge_curve_linked(k, d)
-            .certified()
-            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
-        (line && ((us.contains(&s) && ws.contains(&t)) || (us.contains(&t) && ws.contains(&s))))
-            .then_some(k)
-    });
-    let first = held.next()?;
-    held.next().is_none().then_some(first)
 }
 
 /// Records the cell pair `x`, `y` (result keys) under its kind, once:
@@ -3363,7 +3358,23 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
                 list.push(VfContact { vertex, face });
             }
         }
-        _ => {}
+        // One cell (the arms above take two distinct ones): structure.
+        (Cell::Vertex(_), Cell::Vertex(_)) | (Cell::Edge(_), Cell::Edge(_)) => {}
+        // A point record whose vertex was joined away (PR 3881's
+        // ruling): a vertex-on-face record's vertex had valence 2
+        // between two planar faces, so both its edges lay in the face it
+        // rested on (else it was a pierce the boolean had already cut),
+        // and the joined edge's rest in that face is backed at its own
+        // bounds. Consumed into structure, with no stored kind: a wrong
+        // drop is the census's `EdgeFaceOverlap` unbacked, or its
+        // `EdgeFacePierce`, both loud.
+        (Cell::Edge(_), Cell::Face(_)) | (Cell::Face(_), Cell::Edge(_)) => {}
+        // A point record both of whose cells a merge absorbed: one face
+        // (structure), or a point on both faces' interiors, a face-face
+        // rest (two shells touching across coincident faces) that the
+        // census checks at face granularity against its patch record or
+        // declared pair. Consumed; no point record has that kind.
+        (Cell::Face(_), Cell::Face(_)) => {}
     }
 }
 
@@ -3481,6 +3492,47 @@ pub(super) fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanErro
     }
 }
 
+/// What the extent scan asks of the operands before the pipeline
+/// re-enters: closed groups to re-chart, trimmed faces to cut.
+struct Recuts<T: Real> {
+    /// Closed groups, rotated about their centres ([`apply_recuts`]).
+    rechart: Vec<SphereRecut<T>>,
+    /// Trimmed faces, cut across their section circles
+    /// ([`apply_cut_ins`]).
+    cut_in: Vec<SphereCutIn<T>>,
+}
+
+/// A sphere face of a TRIMMED group that a plane face's carrier cuts in
+/// a circle certified inside both faces with no event (the section
+/// certificate's R-loop). The face is cut along the meridian of its own
+/// sphere's chart through the circle's centre (through a point of the
+/// circle, `u_ref`'s, where the centre's direction is a pole of the
+/// chart), from its boundary below the circle to its boundary above: a
+/// new seam of the face, which the circle crosses twice inside the plane
+/// face. Both pieces keep the
+/// surface key (the maximal form a curved operand takes), a meridian
+/// and the face's own edges bound each, and the re-entered crossing
+/// layer meets the circle at the two crossings, as it meets a closed
+/// group's re-charted seams.
+struct SphereCutIn<T: Real> {
+    /// The operand holding the face.
+    operand: Operand,
+    /// The sphere face the section circle lies inside.
+    face: FaceKey,
+    /// The sphere's center.
+    center: Point3<T>,
+    /// Its radius.
+    radius: T,
+    /// The section circle's center, on the plane.
+    foot: Point3<T>,
+    /// The section circle's radius.
+    rho: T,
+    /// The plane's normal (the section circle's axis).
+    normal: Vec3<T>,
+    /// The plane's reference direction, which places `q`.
+    u_ref: Vec3<T>,
+}
+
 /// One sphere group the extent scan wants re-cut: rigidly re-charted
 /// about `align` (the first escape plane's normal) so its seam
 /// meridians run pole-to-pole TRANSVERSE to the escape planes and the
@@ -3553,7 +3605,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     b: &Body<T>,
     rest: &[(FaceKey, FaceKey)],
     band: Band,
-) -> Result<Vec<SphereRecut<T>>, BooleanError> {
+) -> Result<Recuts<T>, BooleanError> {
     let esc = |question| {
         move |diag| BooleanError::Escalated {
             decision: BooleanDecision::Sphere(question),
@@ -3574,6 +3626,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
+    let mut cut_ins: Vec<SphereCutIn<T>> = Vec::new();
     for (x_is, x, x_rows, y, y_rows) in [
         (Operand::A, a, &rows[0], b, &rows[1]),
         (Operand::B, b, &rows[1], a, &rows[0]),
@@ -3606,9 +3659,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // ESCAPE conclusion: it reasons about the whole section
             // circle of the sphere CARRIER, and it hands the result to
             // a re-chart that rotates the group about its own centre —
-            // neither statement survives trimming. So the refusal lives
-            // at that conclusion, and a trimmed group whose extent
-            // clears everything gets its answer like any other.
+            // neither statement survives trimming. A trimmed group's
+            // escape is read off its faces instead, and cut in.
             let group = closed_sphere_group(x, face, &charts);
             let ball_box = centred_box(center, radius, pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
@@ -3620,7 +3672,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 }
                 // Whether the section certificate clears every face on
                 // this sphere against `yf` (`None`), else the first
-                // pair's refusal. A carrier margin decided zero is a
+                // refusing pair's face on this sphere and its refusal. A carrier margin decided zero is a
                 // touch, no event where this returns `None`; one in the
                 // band asks too, and the certificate, reading it
                 // undecided, refuses.
@@ -3652,12 +3704,20 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         match side {
                             // Clear of the whole carrier plane.
                             NonzeroSign::Negative => {}
-                            // A TRIMMED group's faces may never reach
-                            // the circle the carrier cuts: certified
-                            // apart from this face, they pose no escape
-                            // through it.
-                            NonzeroSign::Positive if group.is_none() && faces().is_none() => {}
                             NonzeroSign::Positive => {
+                                // A TRIMMED group's faces may never reach
+                                // the circle the carrier cuts: certified
+                                // apart from this face, they pose no
+                                // escape through it. Otherwise `held` is
+                                // the face of the group the certificate
+                                // refused, with its reason.
+                                let held = match group {
+                                    Some(_) => None,
+                                    None => match faces() {
+                                        None => continue,
+                                        held => held,
+                                    },
+                                };
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
                                 // circle against the FACE. Certified
@@ -3687,28 +3747,38 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     // (it crosses the carrier plane
                                     // elsewhere).
                                     FaceContainment::Out => {}
-                                    FaceContainment::In => {
-                                        // The escape is the one
-                                        // conclusion the closed group
-                                        // is load-bearing for: the
-                                        // whole-circle membership just
-                                        // decided is the CARRIER's, and
-                                        // the re-chart it feeds rotates
-                                        // the group about its centre.
-                                        if group.is_none() {
+                                    // The whole-circle membership just
+                                    // decided is the CARRIER's. A closed
+                                    // group wears all of the carrier, so
+                                    // the circle is its escape, and the
+                                    // re-chart rotates it about its
+                                    // centre. A trimmed group escapes
+                                    // only where the certificate placed
+                                    // the circle inside one of its faces
+                                    // (R-loop), and that face takes the
+                                    // cut instead ([`SphereCutIn`]).
+                                    FaceContainment::In => match cut_holder(held) {
+                                        Ok(None) => escape_normals.push(normal),
+                                        Ok(Some(holder)) => {
+                                            cut_ins.push(SphereCutIn {
+                                                operand: x_is,
+                                                face: holder,
+                                                center,
+                                                radius,
+                                                foot,
+                                                rho,
+                                                normal,
+                                                u_ref,
+                                            });
+                                        }
+                                        Err(what) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
                                                 operand: x_is,
                                                 face,
-                                                what: "a TRIMMED sphere face group escapes \
-                                                           through a plane face — the whole \
-                                                           section circle is the carrier's, not \
-                                                           the trimmed face's, and the re-chart \
-                                                           that would follow rotates a closed \
-                                                           group about its own centre",
+                                                what,
                                             });
                                         }
-                                        escape_normals.push(normal);
-                                    }
+                                    },
                                     // Boxes cleared yet the witness is
                                     // ON the boundary: contradictory
                                     // enclosures, loudly.
@@ -3806,14 +3876,14 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     }
                                     Some(verdict @ Refused::Negative { .. }) => match faces() {
                                         None => {}
-                                        Some(SectionRefusal::Loop) => {
+                                        Some((_, SectionRefusal::Loop)) => {
                                             return Err(BooleanError::SpheresMeet {
                                                 operand: x_is,
                                                 face,
                                                 verdict,
                                             });
                                         }
-                                        Some(refusal) => {
+                                        Some((_, refusal)) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
                                                 operand: x_is,
                                                 face,
@@ -3866,8 +3936,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                 }
             }
-            // An escape was recorded, so the group is closed (the arm
-            // above refuses otherwise) and has a representative.
+            // An escape was recorded only on a closed group (a trimmed
+            // one records cut-ins), which has a representative.
             if let (Some((&align, rest)), Some(representative)) =
                 (escape_normals.split_first(), group)
             {
@@ -3917,21 +3987,39 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
         }
     }
-    Ok(out)
+    Ok(Recuts {
+        rechart: out,
+        cut_in: cut_ins,
+    })
+}
+
+/// **What a section circle wholly inside a plane face asks of the sphere
+/// group it lies on**, from the section certificate's reading of the
+/// group's faces against that face (`None` for a closed group, which the
+/// certificate is not asked of): `Ok(None)` re-charts the closed group,
+/// `Ok(Some(face))` cuts the trimmed face the certificate placed the
+/// circle inside (R-loop), and any other verdict refuses with its own
+/// reason.
+fn cut_holder(held: Option<(FaceKey, SectionRefusal)>) -> Result<Option<FaceKey>, &'static str> {
+    match held {
+        None => Ok(None),
+        Some((holder, SectionRefusal::Loop)) => Ok(Some(holder)),
+        Some((_, refusal)) => Err(refusal.what()),
+    }
 }
 
 /// **Whether every face on `x`'s sphere `surface` is certified apart
 /// from `y`'s face `y_row`**, whose carrier the sphere crosses or
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
-/// pairs on the no-event path. `None` when every pair clears, else the first
-/// pair's refusal, which is the cause.
+/// pairs on the no-event path. `None` when every pair clears, else the
+/// first refusing pair's face of `x` and its refusal, which is the cause.
 fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
     surface: SurfaceKey,
     (y, y_row): (&Body<T>, &FaceRow<T>),
     band: Band,
     charts: &mut ChartCache,
-) -> Option<SectionRefusal> {
+) -> Option<(FaceKey, SectionRefusal)> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
         Operand::A => walk_pairs(
@@ -3955,7 +4043,13 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             true,
         ),
     };
-    pairs.into_iter().find_map(|p| p.verdict.err())
+    pairs.into_iter().find_map(|p| {
+        let held = match x_is {
+            Operand::A => p.a_face,
+            Operand::B => p.b_face,
+        };
+        p.verdict.err().map(|refusal| (held, refusal))
+    })
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
@@ -4078,6 +4172,438 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
     }
     Ok((out_a, out_b))
+}
+
+/// Applies the scan's cut-ins ([`SphereCutIn`]): each face is cut along
+/// the meridian half-plane of its sphere's chart that holds the section
+/// circle's centre direction.
+///
+/// The circle meets that half-plane in two points (latitudes `s₁ < s₂`,
+/// as sines). Every boundary arc of the face meets the meridian's plane
+/// at the first-harmonic door's certified roots; those inside the arc's
+/// span and on the half-plane (or at a pole) are the face's boundary
+/// hits. The cut runs from the highest hit below `s₁` to the lowest
+/// above `s₂`, so nothing of the boundary lies between and the arc is
+/// inside the face. A hit at an arc's end is that vertex; one inside an
+/// arc splits it there. A hit between `s₁` and `s₂` (a hole inside the
+/// circle), no hit on a side, a carrier the door cannot read, or ends on
+/// different loops of the face refuses typed.
+///
+/// A face an earlier cut split is read piece by piece: the later cut
+/// runs on the piece holding both its circle's crossings
+/// ([`super::sphere_region`]), and a circle whose crossings lie on an
+/// earlier cut's meridian takes no cut of its own, the crossing layer
+/// meeting it there as it meets a seam.
+fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
+    a: &mut Body<T>,
+    b: &mut Body<T>,
+    cut_ins: &[SphereCutIn<T>],
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
+        noise: "bool_sphere_cut_roots_noise",
+        coaxial: "bool_sphere_cut_roots_coaxial",
+        extreme: "bool_sphere_cut_roots_extreme",
+        root_slack: "bool_sphere_cut_roots_slack",
+        decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
+    };
+    let corrupt = |what| BooleanError::ClassificationInvariant { what };
+    // The faces each scanned face has been cut into so far, beside its
+    // own key: `(operand, scanned face, piece)`.
+    let mut pieces: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
+    for cut in cut_ins {
+        let body = match cut.operand {
+            Operand::A => &mut *a,
+            Operand::B => &mut *b,
+        };
+        let refuse_at = |face, what| BooleanError::FallbackExtentUnsupported {
+            operand: cut.operand,
+            face,
+            what,
+        };
+        let esc = |diag| BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
+            diag,
+        };
+        let r = cut.radius;
+        let sign = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
+        let sphere = proven(&body.faces, cut.face, EntityId::Face).surface;
+        let Some(&geom::Surface::Sphere { axis, .. }) = body.get_surface(sphere) else {
+            return Err(corrupt("cut-in: the face is not on a sphere"));
+        };
+        let axis = axis / axis.norm();
+        // The meridian plane through the circle's centre direction, or
+        // through a point of it where the circle is a rim of the chart.
+        let toward = |d: Vec3<T>| axis.cross(d);
+        let mut k = toward(cut.foot - cut.center);
+        if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+            k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
+            if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+                return Err(refuse_at(
+                    cut.face,
+                    "the section circle has no meridian of the face's chart",
+                ));
+            }
+        }
+        let k = k / k.norm();
+        let h = k.cross(axis);
+        let latitude = |p: Point3<T>| axis.dot(p - cut.center) / r;
+        // The circle's two crossings, both on the half-plane `h`.
+        let across = cut.normal.cross(k);
+        if sign(
+            "bool_sphere_cut_section_meridian",
+            Margin::of(across.norm()),
+        )? == Sign::Zero
+        {
+            return Err(refuse_at(
+                cut.face,
+                "the section circle lies in its own meridian plane",
+            ));
+        }
+        let e = across / across.norm();
+        let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
+        for p in crossings {
+            if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {
+                return Err(refuse_at(
+                    cut.face,
+                    "the section circle holds a pole of the face's chart",
+                ));
+            }
+        }
+        // The piece of the scanned face that holds the circle: the face
+        // itself until a cut splits it, then the piece both crossings
+        // lie inside. Both on one piece's boundary is the circle across
+        // an earlier cut's meridian, which the re-entered crossing layer
+        // meets as it meets a seam: no cut of its own.
+        let face = {
+            let candidates: Vec<FaceKey> = core::iter::once(cut.face)
+                .chain(
+                    pieces
+                        .iter()
+                        .filter(|&&(o, f, _)| o == cut.operand && f == cut.face)
+                        .map(|&(_, _, piece)| piece),
+                )
+                .collect();
+            if let [only] = candidates[..] {
+                only
+            } else {
+                let mut holder = None;
+                let mut across_a_cut = false;
+                for &piece in &candidates {
+                    let unread = || {
+                        refuse_at(
+                            piece,
+                            "a piece of the cut sphere face cannot be read against the section \
+                             circle's crossings",
+                        )
+                    };
+                    let read = |e: super::solid_contain::PointInSolidError| match e {
+                        super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
+                            esc(diag)
+                        }
+                        _ => unread(),
+                    };
+                    let region =
+                        super::sphere_region::sphere_face_region(body, piece, cut.center, r)
+                            .map_err(read)?
+                            .ok_or_else(unread)?;
+                    let [lo, hi] = crossings;
+                    match (
+                        region.contains(piece, lo, band).map_err(read)?,
+                        region.contains(piece, hi, band).map_err(read)?,
+                    ) {
+                        (Some(true), Some(true)) if holder.is_none() => holder = Some(piece),
+                        (Some(false), Some(false)) => {}
+                        (None, None) => across_a_cut = true,
+                        _ => return Err(unread()),
+                    }
+                }
+                match holder {
+                    Some(piece) if !across_a_cut => piece,
+                    None if across_a_cut => continue,
+                    _ => {
+                        return Err(corrupt(
+                            "cut-in: the section circle lies in no one piece of its face",
+                        ));
+                    }
+                }
+            }
+        };
+        let refuse = |what| refuse_at(face, what);
+        let fd = proven(&body.faces, face, EntityId::Face);
+        let mut circle = crossings.map(latitude);
+        let above = |x: T, y: T| sign("bool_sphere_cut_order", Margin::levered(x - y, r));
+        if above(circle[0], circle[1])? == Sign::Positive {
+            circle.swap(0, 1);
+        }
+        let [s1, s2] = circle;
+        // The face's boundary hits on the half-meridian.
+        struct Hit<T> {
+            s: T,
+            vertex: Option<VertexKey>,
+            /// The arc, the root's parameter, whether the parameter
+            /// rises along the arc's edge, and the arc's radius.
+            split: Option<(EdgeKey, T, bool, T)>,
+        }
+        let mut hits: Vec<Hit<T>> = Vec::new();
+        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+            let l = linked(
+                &body.loops,
+                lk,
+                EntityId::Loop,
+                EntityId::Face(face),
+                "loop",
+            );
+            let LoopBoundary::Cycle { first } = l.boundary else {
+                return Err(refuse("the sphere face carries a lone-vertex loop"));
+            };
+            for he in body.loop_walk(first).closed("loop", first) {
+                let hd = proven(&body.half_edges, he, EntityId::HalfEdge);
+                let edge = hd.edge;
+                let ed = proven(&body.edges, edge, EntityId::Edge);
+                let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
+                    return Err(corrupt("cut-in: a boundary edge has no carrier"));
+                };
+                let (t0, t1) = curve.params();
+                let geom::Curve3::Circle {
+                    center: cc,
+                    axis: ca,
+                    radius: cr,
+                    u_ref: cu,
+                } = *curve.carrier()
+                else {
+                    return Err(refuse("a boundary edge of the sphere face is not a circle"));
+                };
+                let offset = cc - cut.center;
+                let d = k.dot(offset);
+                let (cos_part, sin_part) = (cr * k.dot(cu), cr * k.dot(ca.cross(cu)));
+                let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
+                let noise = super::circle_roots::rounding_charge(offset.norm() + cr);
+                let roots = super::circle_roots::first_harmonic_roots(
+                    &super::circle_roots::FirstHarmonic {
+                        lo: d - amplitude,
+                        hi: d + amplitude,
+                        cos_part,
+                        sin_part,
+                        lo_noise: noise,
+                        hi_noise: noise,
+                        phase_noise: T::zero(),
+                    },
+                    cr,
+                    t0,
+                    t1,
+                    &ROWS,
+                    band,
+                )?;
+                let thetas = match roots {
+                    super::circle_roots::CircleRoots::Miss => continue,
+                    super::circle_roots::CircleRoots::Certified { count, thetas } => {
+                        thetas[..count].to_vec()
+                    }
+                    _ => {
+                        return Err(refuse(
+                            "a boundary arc of the sphere face meets the cut's meridian plane \
+                             where its roots are not certified",
+                        ));
+                    }
+                };
+                let rising =
+                    sign("bool_sphere_cut_span", Margin::levered(t1 - t0, cr))? == Sign::Positive;
+                let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
+                for theta in thetas {
+                    let into = |end: T| Margin::levered(theta - end, cr);
+                    let (from_lo, to_hi) = (
+                        sign("bool_sphere_cut_span", into(lo_t))?,
+                        sign("bool_sphere_cut_span", Margin::levered(hi_t - theta, cr))?,
+                    );
+                    if from_lo == Sign::Negative || to_hi == Sign::Negative {
+                        continue;
+                    }
+                    let p = curve.carrier().eval(theta);
+                    let at_pole = sign(
+                        "bool_sphere_cut_pole",
+                        Margin::of(axis.cross(p - cut.center).norm()),
+                    )? == Sign::Zero;
+                    if !at_pole
+                        && sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))?
+                            != Sign::Positive
+                    {
+                        continue;
+                    }
+                    let vertex = if from_lo == Sign::Zero || to_hi == Sign::Zero {
+                        let start = hd.start;
+                        let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
+                        let at = |v| {
+                            let q = body.resolve_vertex_point(v, crate::live::Proven);
+                            sign("bool_sphere_cut_vertex", Margin::of((q - p).norm()))
+                        };
+                        match (at(start)?, at(end)?) {
+                            (Sign::Zero, _) => Some(start),
+                            (_, Sign::Zero) => Some(end),
+                            _ => {
+                                return Err(refuse(
+                                    "the cut's meridian meets a boundary arc at its end, off \
+                                     its vertices",
+                                ));
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    hits.push(Hit {
+                        s: latitude(p),
+                        vertex,
+                        split: vertex.is_none().then_some((edge, theta, rising, cr)),
+                    });
+                }
+            }
+        }
+        let mut below: Option<&Hit<T>> = None;
+        let mut over: Option<&Hit<T>> = None;
+        for hit in &hits {
+            match (above(hit.s, s1)?, above(hit.s, s2)?) {
+                (Sign::Negative, _) => {
+                    let nearer = match below {
+                        None => true,
+                        Some(b) => above(hit.s, b.s)? == Sign::Positive,
+                    };
+                    if nearer {
+                        below = Some(hit);
+                    }
+                }
+                (_, Sign::Positive) => {
+                    let nearer = match over {
+                        None => true,
+                        Some(o) => above(o.s, hit.s)? == Sign::Positive,
+                    };
+                    if nearer {
+                        over = Some(hit);
+                    }
+                }
+                _ => {
+                    return Err(refuse(
+                        "the sphere face's boundary meets the cut's meridian inside the section \
+                         circle",
+                    ));
+                }
+            }
+        }
+        let (Some(below), Some(over)) = (below, over) else {
+            return Err(refuse(
+                "the cut's meridian leaves the sphere face through no boundary",
+            ));
+        };
+        let (below_split, below_vertex) = (below.split, below.vertex);
+        let (over_split, over_vertex) = (over.split, over.vertex);
+        let mut end =
+            |split: Option<(EdgeKey, T, bool, T)>, vertex: Option<VertexKey>| match (split, vertex)
+            {
+                (_, Some(v)) => Ok(v),
+                (Some((edge, theta, _, _)), None) => Ok(body.split_edge(edge, theta, tol)?.vertex),
+                (None, None) => Err(corrupt(
+                    "cut-in: a boundary hit with neither vertex nor arc",
+                )),
+            };
+        // Two ends on one arc: the split keeps the arc's key on its
+        // first child, so the end farther along the arc's parameter is
+        // split first and the nearer one still lies on the key.
+        let below_first = match (below_split, over_split) {
+            (Some((e1, lo, rising, arm)), Some((e2, hi, _, _))) if e1 == e2 => {
+                let along = if rising { lo - hi } else { hi - lo };
+                sign("bool_sphere_cut_span", Margin::levered(along, arm))? == Sign::Positive
+            }
+            _ => true,
+        };
+        let (v_lo, v_hi) = if below_first {
+            let v_lo = end(below_split, below_vertex)?;
+            (v_lo, end(over_split, over_vertex)?)
+        } else {
+            let v_hi = end(over_split, over_vertex)?;
+            (end(below_split, below_vertex)?, v_hi)
+        };
+        // The two ends' half-edges in the face's one loop.
+        let fd = proven(&body.faces, face, EntityId::Face);
+        let mut ends = [None, None];
+        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+            let l = linked(
+                &body.loops,
+                lk,
+                EntityId::Loop,
+                EntityId::Face(face),
+                "loop",
+            );
+            let LoopBoundary::Cycle { first } = l.boundary else {
+                continue;
+            };
+            for he in body.loop_walk(first).closed("loop", first) {
+                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
+                    if start == v {
+                        if slot.is_some() {
+                            return Err(refuse(
+                                "the cut's end vertex recurs on the sphere face's loops",
+                            ));
+                        }
+                        *slot = Some((lk, he));
+                    }
+                }
+            }
+        }
+        let [Some((l_lo, he_lo)), Some((l_hi, he_hi))] = ends else {
+            return Err(corrupt("cut-in: a cut end is not on the face's loops"));
+        };
+        if l_lo != l_hi {
+            return Err(refuse(
+                "the cut's meridian joins two loops of the sphere face",
+            ));
+        }
+        let p_lo = body.resolve_vertex_point(v_lo, crate::live::Proven);
+        let p_hi = body.resolve_vertex_point(v_hi, crate::live::Proven);
+        let u_arc = (p_lo - cut.center) / r;
+        let w = -k;
+        let to_hi = (p_hi - cut.center) / r;
+        // Both ends lie on the closed half-meridian `h`, the low one
+        // below, so the turn about `w` from one to the other is in
+        // `(0, π]`: the cross term's sign is known, and where both ends
+        // are poles it is a rounded zero of either sign.
+        let span = w.dot(u_arc.cross(to_hi)).abs().atan2(u_arc.dot(to_hi));
+        let carrier = geom::Curve3::Circle {
+            center: cut.center,
+            axis: w,
+            radius: r,
+            u_ref: u_arc,
+        };
+        let plane = body.add_surface(geom::Surface::Plane {
+            origin: cut.center,
+            normal: k,
+            u_ref: h,
+        });
+        let created = body.mef(
+            crate::euler::MefSite::Chords {
+                he1: he_lo,
+                he2: he_hi,
+            },
+            geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: sphere,
+                    s2: plane,
+                    witness: carrier.mid_point(T::zero(), span),
+                },
+                carrier,
+                param_start: T::zero(),
+                param_end: span,
+            },
+            crate::euler::FaceSurface::Inherit,
+            tol,
+        )?;
+        pieces.push((cut.operand, cut.face, created.face));
+    }
+    for body in [a, b] {
+        crate::pcurves::mint_pcurves(body, tol)
+            .map_err(|source| BooleanError::Pcurves { source })?;
+    }
+    Ok(())
 }
 
 /// Per-shell classification of one operand's clone against the other
@@ -4216,7 +4742,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
             describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-            let edge_joins = joined_pcurves(&mut body, &mut desc, band, tol)?;
+            let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
             let carried = split_lineage(red, decls, band)?;
             let contacts = carry(
                 &body,
@@ -4251,22 +4777,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 }
 
-/// [`join_stage`] for an output stage that mints no pcurves of its
-/// own: the joined body's are re-minted where any join was made.
-pub(super) fn joined_pcurves<T: Decide + AtRestPolicy>(
-    body: &mut Body<T>,
-    desc: &mut Descendants,
-    band: Band,
-    tol: Tol,
-) -> Result<Vec<super::EdgeJoin>, BooleanError> {
-    let joins = join_stage(body, desc, band, tol)?;
-    if !joins.is_empty() {
-        crate::pcurves::mint_pcurves(body, tol)
-            .map_err(|source| BooleanError::Pcurves { source })?;
-    }
-    Ok(joins)
-}
-
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
@@ -4293,7 +4803,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-    let edge_joins = joined_pcurves(&mut body, &mut desc, band, tol)?;
+    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
@@ -6013,7 +6523,9 @@ mod tests {
 }
 
 /// **`sphere_extent_scan`: a torn surface panics**, where it read as a
-/// face that is neither NURBS nor a sphere.
+/// face that is neither NURBS nor a sphere; **the face boundary walks
+/// panic on a ring link that does not resolve**, where they stepped
+/// over it.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -6028,7 +6540,10 @@ mod torn_hop_rows {
         let cube = || crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let (mut a, b) = (cube(), cube());
         assert!(
-            sphere_extent_scan(&a, &b, &[], band).unwrap().is_empty(),
+            {
+                let r = sphere_extent_scan(&a, &b, &[], band).unwrap();
+                r.rechart.is_empty() && r.cut_in.is_empty()
+            },
             "two cubes carry no sphere"
         );
         let (face, fd) = a.faces().next().map(|(k, d)| (k, d.clone())).unwrap();
@@ -6042,7 +6557,67 @@ mod torn_hop_rows {
             "sphere_extent_scan",
             &mut a,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |a| sphere_extent_scan(a, &b, &[], band).map(|r| r.len()),
+            |a| sphere_extent_scan(a, &b, &[], band).map(|r| r.rechart.len() + r.cut_in.len()),
         );
+    }
+
+    #[test]
+    fn the_face_boundary_walks_panic_on_a_torn_ring_link() {
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let far = bvh::Aabb {
+            min_x: 10.0,
+            min_y: 10.0,
+            min_z: 10.0,
+            max_x: 11.0,
+            max_y: 11.0,
+            max_z: 11.0,
+        };
+        assert!(!face_boundary_meets(&body, face, &far, 0.0), "a far box");
+        assert!(!has_lone_vertex(&body, face), "a cube face has none");
+        assert_eq!(faces_by_vertex(&body).len(), 8, "eight corners");
+        let named = crate::review_d18::tear_ring(&mut body, face);
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("face_boundary_meets", &mut body, &premise, |b| {
+            face_boundary_meets(b, face, &far, 0.0)
+        });
+        assert_torn_op_panics("has_lone_vertex", &mut body, &premise, |b| {
+            has_lone_vertex(b, face)
+        });
+        assert_torn_op_panics("faces_by_vertex", &mut body, &premise, |b| {
+            faces_by_vertex(b).len()
+        });
+    }
+}
+
+/// **Only an R-loop verdict cuts a trimmed sphere face** ([`cut_holder`]):
+/// a closed group re-charts, the face the certificate placed the circle
+/// inside takes the cut, and every other verdict refuses with its own
+/// reason rather than cutting the face it names.
+#[cfg(test)]
+mod cut_holder_rows {
+    use super::*;
+
+    #[test]
+    fn only_the_loop_verdict_cuts_its_face() {
+        let face = FaceKey::default();
+        assert_eq!(cut_holder(None), Ok(None), "a closed group re-charts");
+        assert_eq!(
+            cut_holder(Some((face, SectionRefusal::Loop))),
+            Ok(Some(face)),
+            "R-loop cuts the face it names"
+        );
+        for refusal in [
+            SectionRefusal::Reach,
+            SectionRefusal::Tangent("section_sphere_plane_reach"),
+            SectionRefusal::Undecided,
+            SectionRefusal::LoneVertex,
+        ] {
+            assert_eq!(
+                cut_holder(Some((face, refusal))),
+                Err(refusal.what()),
+                "{refusal:?} refuses with its own reason"
+            );
+        }
     }
 }

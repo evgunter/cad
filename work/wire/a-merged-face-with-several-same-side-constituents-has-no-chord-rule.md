@@ -128,6 +128,15 @@ declares the whole inventory and glues; only the naming layer stops.
 Pinned in `crates/pncad-py/tests/test_north_star.py`
 (`TestCrosslapAtTheNamingWall`).
 
+## More orders once declarations stop refusing by order (EMIT, 2026-10-06)
+
+Once `DeclareResolve` stops refusing by order (INTENT's stage 4, or a
+fan-out), `NamingError::SeamVertexParentage` gains `near` (the ZIP
+document, `emit_union_flush_names.rs`) `[0,2,1]` and `[2,0,1]`, which
+refuse `DeclareResolve` today. Measured in
+`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
+"Re-measured on main (2026-10-06)".
+
 ## The arm loses its witnesses again (FUSE, 2026-10-06, `fuse/set-names`)
 
 With maximal edges at every boolean output stage (PR 4140) and joined

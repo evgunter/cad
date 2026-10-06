@@ -2,10 +2,11 @@
 id: set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization
 kind: issue
 title: set_edge_curve keeps a certified edge's rows across a re-parameterization, so a later site mint keeps an image over an interval its edge does not span
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P3
 refs: [kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale]
+cost: E
 ---
 
 
