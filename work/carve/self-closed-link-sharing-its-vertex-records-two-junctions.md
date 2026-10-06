@@ -43,3 +43,15 @@ rule — or make the closing branch refuse a junction whose two links
 are the run's own two end links when the run has a free end. Row it
 through `test_support::walked_chains` on hand-built links if no door
 reaches it.
+
+## Built (2026-10-06)
+
+`walk_chains` counts every link at both its ends, so a self-closed
+link's vertex holds two of its ends. Beside one other requested link
+that vertex is a corner: the self-closed link walks alone into a
+closed chain with no junction, and the other link's chain is open and
+ends there. `closed_chain_junctions::a_self_closed_link_counts_its_vertex_twice`
+pins it on the dome's equator rim and a second link rewired onto its
+vertex, walked through `test_support::walked_links`; no door builds the
+shape on a body. The corner predicates downstream still count a
+self-closed edge once: `corner-valence-reads-a-self-closed-edge-once`.

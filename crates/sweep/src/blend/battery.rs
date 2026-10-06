@@ -1268,11 +1268,12 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         Some((_, xs)) => xs.push(i),
         None => inc.push((v, vec![i])),
     };
+    // Every link counts at BOTH its ends, a self-closed link's one
+    // vertex included: it arrives there and leaves, so that vertex
+    // beside one other requested link holds three ends — a corner.
     for (i, l) in links.iter().enumerate() {
         bump(l.start, i, &mut inc);
-        if l.end != l.start {
-            bump(l.end, i, &mut inc);
-        }
+        bump(l.end, i, &mut inc);
     }
     let junction = |v: VertexKey, inc: &[(VertexKey, Vec<usize>)]| -> Option<Vec<usize>> {
         inc.iter()

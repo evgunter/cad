@@ -44,6 +44,9 @@
 //!   row, one junction at each inner vertex between exactly the two
 //!   links that meet there, and the 90° refusal at the FIRST junction is
 //!   the verdict that pairing owes.
+//! - `a_self_closed_link_counts_its_vertex_twice` — the walk's
+//!   incidence: a self-closed link beside one other link at its vertex
+//!   is a corner, not a junction.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -53,8 +56,8 @@ use sweep::blend::BlendError;
 use sweep::blend::battery::{BlendRequest, Chain, ChainClosure, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube, disc_of_arcs, pocket_of_arcs,
-    walked_chains, wedge_fill,
+    bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube, disc_of_arcs, dome, one_edge_rim_at,
+    pocket_of_arcs, resolved_links, walked_chains, walked_links, wedge_fill,
 };
 use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
 
@@ -351,5 +354,110 @@ fn an_open_three_link_chain_refuses_a_turn_at_its_first_junction() {
             );
         }
         other => panic!("box edges meet at 90°, got {other:?}"),
+    }
+}
+
+/// **A self-closed link arrives at its one vertex and leaves it, so it
+/// counts there twice.** The dome's equator rim `s` is one edge whose
+/// two ends are one vertex `v`. Beside it the walk is handed a second
+/// link `o` whose start is rewired to `v` — the incidence a non-seam
+/// edge ending at a closed rim's vertex would have, which no body the
+/// tree builds carries (a rim's vertex there meets only its walls'
+/// co-surface seams, which refuse before the walk). `v` then holds
+/// three link-ends, a corner: `s` walks alone into a closed chain with
+/// no junction and `o` into an open one ending at `v`. A walk counting
+/// `s` once reads `v` as a two-link junction and returns ONE closed
+/// chain with two junctions at `v` and a free far end — red here on
+/// the chain count. Two self-closed links on one vertex are four ends,
+/// a corner too: red on the same count under the single count, which
+/// joins them into a closed figure-eight. One self-closed link alone
+/// is the control: a closed chain with no junction either way.
+#[test]
+fn a_self_closed_link_counts_its_vertex_twice() {
+    let body = dome(1.0, tol());
+    let rims = [
+        one_edge_rim_at(&body, 1.0, 0.0),
+        one_edge_rim_at(&body, 0.5, 0.0),
+    ];
+    let [s, other] = <[_; 2]>::try_from(resolved_links(&body, &rims, RHO, band())).unwrap();
+    let v = s.start;
+    assert_eq!(s.end, v, "the equator rim is self-closed");
+    assert_ne!(other.start, v, "the second rim has a vertex of its own");
+
+    let alone = walked_links(vec![s.clone()]);
+    assert_eq!(alone.len(), 1, "a lone self-closed link: one chain");
+    assert_eq!(
+        alone[0].closure,
+        ChainClosure::Closed,
+        "a lone self-closed link closes"
+    );
+    assert!(
+        alone[0].junctions.is_empty(),
+        "a lone self-closed link has no junction"
+    );
+
+    let mut o = other.clone();
+    o.start = v;
+    o.end = other.start;
+    let far = o.end;
+    let chains = walked_links(vec![s.clone(), o.clone()]);
+    assert_eq!(
+        chains.len(),
+        2,
+        "a self-closed link and one other at its vertex: a corner, two chains"
+    );
+    for chain in &chains {
+        assert!(
+            chain.junctions.is_empty(),
+            "no junction at a corner: {:?}",
+            chain.junctions
+        );
+    }
+    let closure_of = |e: EdgeKey| {
+        chains
+            .iter()
+            .find(|c| c.links().any(|l| l.edge == e))
+            .map(|c| c.closure)
+            .unwrap()
+    };
+    assert_eq!(
+        closure_of(s.edge),
+        ChainClosure::Closed,
+        "the self-closed link closes alone"
+    );
+    match closure_of(o.edge) {
+        ChainClosure::Open { head, tail } => {
+            let mut ends = [head, tail];
+            ends.sort();
+            let mut want = [v, far];
+            want.sort();
+            assert_eq!(
+                ends, want,
+                "the other link's chain ends at the corner and its free end"
+            );
+        }
+        ChainClosure::Closed => panic!("the other link's chain has a free end, so it is open"),
+    }
+
+    let mut t = other;
+    t.end = v;
+    t.start = v;
+    let pair = walked_links(vec![s, t]);
+    assert_eq!(
+        pair.len(),
+        2,
+        "two self-closed links on one vertex: a corner, two chains"
+    );
+    for chain in &pair {
+        assert_eq!(
+            chain.closure,
+            ChainClosure::Closed,
+            "each self-closed link closes alone"
+        );
+        assert!(
+            chain.junctions.is_empty(),
+            "no junction at a corner: {:?}",
+            chain.junctions
+        );
     }
 }
