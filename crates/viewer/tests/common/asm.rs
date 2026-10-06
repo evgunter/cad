@@ -17,6 +17,7 @@
 #![allow(clippy::expect_used)]
 
 use pncad::document::ExtrudeSide;
+use pncad::document::Formula;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -194,7 +195,7 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
 /// against, by the PART-LOCAL name.
 pub fn face_side(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    frame: &pncad::document::MateFrame,
+    frame: &pncad::document::MateFrame<Formula>,
     head: &pncad::document::SitedFace,
 ) -> Option<StableName> {
     if *frame != pncad::document::MateFrame::from_face() {
@@ -213,7 +214,7 @@ pub fn authored_from_world(
     placement: &pncad::geom_core::Affine3<f64>,
     pose: &pncad::topo::readback::Pose<f64>,
     reference: Vec3<f64>,
-) -> pncad::document::MateFrame {
+) -> pncad::document::MateFrame<Formula> {
     let [origin, axis, reference] = vectors_from_world(placement, pose, reference);
     pncad::document::MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
         .expect("a definite frame")
@@ -258,7 +259,7 @@ pub fn seat_choice() -> viewer::matetool::MateChoice {
 /// from — a verdict about the PAIR, which the edit door admits and the
 /// solve decides (a mate the table refuses on its own datum is
 /// refused at the insert).
-pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
+pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment<Formula> {
     use pncad::document::{Alignment, MatePrimitive};
     Alignment {
         primitive: MatePrimitive::PlanarRest { offset: 0.0 },
@@ -277,7 +278,7 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 /// copy of the ladder could only drift from the bench it addresses.
 /// (`seat` above is the mate TOOL's choice for the same seat; this is
 /// the frame pair `SessionOp::AddMate` takes.)
-pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
+pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment<Formula> {
     use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
     Alignment {
         a: MateFrame::authored(
@@ -301,7 +302,7 @@ pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Align
 }
 
 /// [`seat_alignment`] under the shelf's middle, with no rider.
-pub fn middle_seat_alignment() -> pncad::document::Alignment {
+pub fn middle_seat_alignment() -> pncad::document::Alignment<Formula> {
     seat_alignment(SHELF_LENGTH / 2.0, None)
 }
 
@@ -309,7 +310,7 @@ pub fn middle_seat_alignment() -> pncad::document::Alignment {
 /// centimetre further along the shelf. Authored on the same pair as a
 /// [`middle_seat_alignment`] mate, the two frame coincidences cannot
 /// both hold, and the solve names the pair `Contradictory`.
-pub fn contradicting_seat_alignment() -> pncad::document::Alignment {
+pub fn contradicting_seat_alignment() -> pncad::document::Alignment<Formula> {
     seat_alignment(SHELF_LENGTH / 2.0 + 0.01, None)
 }
 
@@ -325,7 +326,7 @@ pub fn seat_op(
     bench: &Bench,
     post: RecipeNodeId,
     class: pncad::select::ContactClass,
-    alignment: pncad::document::Alignment,
+    alignment: pncad::document::Alignment<Formula>,
 ) -> SessionOp {
     seat_op_under(bench, post, bench.shelf_i, class, alignment)
 }
@@ -337,7 +338,7 @@ pub fn seat_op_under(
     post: RecipeNodeId,
     shelf: RecipeNodeId,
     class: pncad::select::ContactClass,
-    alignment: pncad::document::Alignment,
+    alignment: pncad::document::Alignment<Formula>,
 ) -> SessionOp {
     let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {
@@ -360,7 +361,7 @@ pub fn shelf_on_post_op(
     shelf: RecipeNodeId,
     post: RecipeNodeId,
     class: pncad::select::ContactClass,
-    alignment: pncad::document::Alignment,
+    alignment: pncad::document::Alignment<Formula>,
 ) -> SessionOp {
     let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {

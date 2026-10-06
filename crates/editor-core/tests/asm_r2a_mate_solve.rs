@@ -13,7 +13,9 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{
@@ -88,7 +90,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
     (doc, ids, store, body)
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -102,10 +104,10 @@ fn mate(
     b: RecipeNodeId,
     primitive: MatePrimitive,
     sense: AxisSense,
-    fa: MateFrame,
-    fb: MateFrame,
+    fa: MateFrame<Formula>,
+    fb: MateFrame<Formula>,
     clocking: Option<f64>,
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
@@ -132,7 +134,7 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
         .all(|(x, y)| (x - y).abs() <= tol)
 }
 
-fn z_up() -> MateFrame {
+fn z_up() -> MateFrame<Formula> {
     frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
@@ -446,7 +448,7 @@ fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
         applied.maintenance,
         vec![Maintenance::OffsetCleared {
             instance: doc.spoken(ids[0]),
-            offset: a_offset,
+            offset: editor_core::test_support::stored_placement(&a_offset),
         }],
         "the door clears the moved group's root offset and says so"
     );
@@ -874,7 +876,7 @@ fn pin(
     b: RecipeNodeId,
     a_at: [f64; 3],
     b_at: [f64; 3],
-) -> Node<editor_core::ProfileProgram> {
+) -> AuthoredNode {
     mate(
         body,
         a,
@@ -1794,7 +1796,7 @@ fn row7e_a_self_mate_refuses_naming_the_instance_it_names_twice() {
 #[test]
 fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
     assert!(matches!(
-        MateFrame::authored(
+        MateFrame::<Formula>::authored(
             [f64::NAN, 0.0, 0.0],
             [0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0],
@@ -1803,7 +1805,7 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
         Err(geom_core::FrameError::NonFiniteLength { .. })
     ));
     let (doc, ids, _, body) = assembly("asm-r2a-row7f", 2);
-    let insert = |a: MateFrame, clocking| {
+    let insert = |a: MateFrame<Formula>, clocking| {
         apply(
             &doc,
             &DocEdit::InsertNode {

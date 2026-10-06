@@ -16,7 +16,7 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocumentId, Expr, Frame, FreeVar, Label, LoopProgram,
+    Alignment, BooleanOp, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram,
     Maintenance, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
@@ -119,7 +119,7 @@ pub enum SessionOp {
         unit: UnitDef,
     },
     /// Replace a slot's expression from source text, through the
-    /// shipped `parse_expr` door. This is the affordance's editing
+    /// shipped `parse_formula` door. This is the affordance's editing
     /// half: a driven slot refuses a NUMBER, never an expression.
     SetSlotExpression {
         /// The node.
@@ -164,7 +164,7 @@ pub enum SessionOp {
     /// [`SessionOp::SetParam`] instead, the way a slot's bare number
     /// takes [`SessionOp::SetSlot`].
     ///
-    /// The text is read by `editor_core::parse::parse_expr`, the one
+    /// The text is read by `editor_core::parse::parse_formula`, the one
     /// parser of a unit-bearing number this workspace has, and the
     /// value and its notation are committed as ONE action — one user
     /// action is one undo, and a document that took the value without
@@ -174,7 +174,7 @@ pub enum SessionOp {
     /// parameter** (`DocEdit::DefineVar`): `base_r * 2` makes it a
     /// defined variable, keeping its identity, and a number typed over
     /// a defined one makes it free again. Text that does not parse
-    /// carries `parse_expr`'s own refusal, which names the token and
+    /// carries `parse_formula`'s own refusal, which names the token and
     /// its offset; a definition the door refuses (a cycle, a read the
     /// document does not answer) carries the door's.
     SetParamText {
@@ -433,7 +433,7 @@ pub enum SessionOp {
         class: ContactClass,
         /// The alignment datum (frames in each member's own part
         /// coordinates).
-        alignment: Alignment,
+        alignment: Alignment<Formula>,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a
@@ -501,7 +501,7 @@ pub enum SessionOp {
         /// author a sketch without a trip to another form.
         plane: ProfilePlane,
         /// The loop programs, in description order.
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
     },
     /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
@@ -545,7 +545,7 @@ pub enum SessionOp {
         /// from.
         base: ProfileProgram,
         /// The loop programs the editor holds, in description order.
-        loops: Vec<LoopProgram>,
+        loops: Vec<LoopProgram<Formula>>,
         /// Per loop, per step: the committed step it keeps, or `None`
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
@@ -562,7 +562,7 @@ pub enum SessionOp {
         /// The profile node extruded.
         profile: RecipeNodeId,
         /// The extrusion depth (`Length`).
-        distance: Expr,
+        distance: Formula,
     },
     /// Insert one revolve of an existing profile node about an
     /// existing axis datum — the revolve tool's one committed edit.
@@ -576,7 +576,7 @@ pub enum SessionOp {
         axis: RecipeNodeId,
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
-        angle: Expr,
+        angle: Formula,
     },
     /// Insert one regularized boolean of two existing bodies — the
     /// boolean tool's one committed action (GAUTH-4).
@@ -632,11 +632,11 @@ pub enum SessionOp {
         /// The body placed.
         input: RecipeNodeId,
         /// Translation components (`Length`).
-        translation: [Expr; 3],
+        translation: [Formula; 3],
         /// Rotation-axis components (`Scalar`).
-        rotation_axis: [Expr; 3],
+        rotation_axis: [Formula; 3],
         /// Rotation angle (`Angle`).
-        rotation_angle: Expr,
+        rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit.
@@ -717,7 +717,7 @@ pub enum SessionOp {
         /// The body whose edges are blended.
         target: RecipeNodeId,
         /// The blend radius (`Length`).
-        radius: Expr,
+        radius: Formula,
         /// The edges to blend, by stable name.
         selection: Vec<StableName>,
     },
@@ -736,7 +736,7 @@ pub enum SessionOp {
         /// The body whose edges are chamfered.
         target: RecipeNodeId,
         /// The setback along both supports (`Length`).
-        distance: Expr,
+        distance: Formula,
         /// The edges to chamfer, by stable name.
         selection: Vec<StableName>,
     },

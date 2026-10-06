@@ -48,7 +48,7 @@ use editor_core::stackup::{
     Unavailable, sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamValue,
     ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
     SitedRef, ValuePayload, VarName, evaluate, seed_env,
@@ -66,8 +66,8 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::named(name(n), dim)
+fn param(n: &'static str, dim: Dimension) -> Formula {
+    Formula::named(name(n), dim)
 }
 
 fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) -> FreeVar {
@@ -457,7 +457,7 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     }));
     let loft = r.insert(Node::Loft {
         profiles: vec![p0, p1],
-        v_degree: Expr::count(1),
+        v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);
     if let Some(e) = ev.node_error(loft) {

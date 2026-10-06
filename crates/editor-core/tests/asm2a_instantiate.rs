@@ -1110,7 +1110,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
         p3,
         Node::Extrude {
             profile,
-            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },
     );
@@ -1239,7 +1239,7 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         part,
         Node::Extrude {
             profile,
-            distance: editor_core::Expr::div(len(1.0), scl(0.0)).unwrap(),
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },
     );

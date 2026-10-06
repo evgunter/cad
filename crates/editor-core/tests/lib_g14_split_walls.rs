@@ -387,7 +387,7 @@ fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
         &[GeomPred::DatumDistance {
             datum,
             cmp: Cmp::Greater,
-            value: len(0.1),
+            value: editor_core::test_support::stored_expr(&len(0.1)),
         }],
         &params,
         Tol::witness(),

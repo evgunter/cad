@@ -96,9 +96,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, HeldNodes, MateFrame,
-    MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, Said, SitedFace, Speaker,
-    SpokenNode, class_admission, held_by, member_reading, table_gap,
+    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Formula, HeldNodes,
+    MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, Said, SitedFace,
+    Speaker, SpokenNode, class_admission, held_by, member_reading, table_gap,
 };
 use pncad::prelude::StableName;
 use pncad::select::{ContactClass, InterrogateError, Resolution, RunCtx, face_frame, resolve};
@@ -474,7 +474,7 @@ pub struct MateProposal {
     /// The declared class.
     pub class: ContactClass,
     /// The derived alignment.
-    pub alignment: Alignment,
+    pub alignment: Alignment<Formula>,
     /// The kernel's admission verdict for `class` (never
     /// `NotAdmitted` — that refuses at [`MateTool::proposal`]).
     pub admission: ClassAdmission,
@@ -654,7 +654,7 @@ impl MateTool {
         let frame_of = |side: MateSide,
                         member: &Member,
                         placed: &StableName|
-         -> Result<MateFrame, MateToolError> {
+         -> Result<MateFrame<Formula>, MateToolError> {
             face_frame(eval, member.instance, placed).map_err(|error| {
                 let error = crate::tree::interrogation_as_drawn(error, eval);
                 let held = held_by(&error, doc);
