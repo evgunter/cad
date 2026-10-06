@@ -110,7 +110,12 @@ fn sections(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<(bool, usize)> {
 /// string naming what refused or failed.
 type Half = (Vec<(bool, usize)>, Result<f64, String>);
 fn read_split(body: &Body<f64>, plane: &SplitPlane<f64>) -> Result<[Half; 2], String> {
-    let r = split(body, plane, tol()).map_err(|e| format!("split refused: {e:?}"))?;
+    let r = split(
+        &sweep::test_support::finished("the operand", body.clone(), tol()),
+        plane,
+        tol(),
+    )
+    .map_err(|e| format!("split refused: {e:?}"))?;
     let mut out = Vec::new();
     for (side, part) in [("below", r.below), ("above", r.above)] {
         let SplitPart::Body(half) = part else {

@@ -11,11 +11,11 @@ use slotmap::SecondaryMap;
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::boolean::boxes::{BoxFrame, Span};
-use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 
-/// **The operand gate, scoped to what the plane can reach** (C12.1:
+/// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
 ///
 /// A face passes if the split pipeline executes its `(kind × plane)`
@@ -40,8 +40,10 @@ use crate::validate::decide;
 /// `Nurbs` carrier refuses typed only when the plane may meet it
 /// ([`edge_clears`]). A face whose surface key, or an edge whose curve
 /// key, does not resolve is a torn body and panics (the operand is a
-/// public body, at rest); null scaffolding refuses as ever.
-pub(super) fn gate_operand<T: Decide>(
+/// public body, at rest), and so does a null edge: every door that
+/// reaches here holds its body tier-2 clean first (a finished operand,
+/// or a test-support door's own read), and tier 2 refuses one.
+pub(super) fn carrier_gate<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
@@ -78,7 +80,10 @@ pub(super) fn gate_operand<T: Decide>(
                     }
                 }
             },
-            _ => return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key }),
+            CurveGeom::NullScaffold(_) => unreachable!(
+                "{edge_key:?} is a null edge, and every door reaching here holds its body tier-2 \
+                 clean, which refuses a null edge at rest"
+            ),
         }
     }
     Ok(())
@@ -175,9 +180,16 @@ fn gate_face_reach<T: Decide>(
 /// (`boundary_material_sign`, the iso-rectangle reading tier 3's curved
 /// sense check runs) agrees with the face's `sense`, which places the
 /// face on the rectangle's side of its rims. A face whose side is
-/// unencoded, refused, or in disagreement, one outside the trim's
+/// unencoded, refused, or in disagreement, one whose outer loop is a
+/// lone vertex or carries null scaffolding, one outside the trim's
 /// class, and one whose trim escalates all answer `None`, and keep the
 /// ball.
+///
+/// `face` is [`gate_face_reach`]'s, proven, so its outer loop is a link,
+/// and a record the flattening of that loop names is one too: a
+/// flattening that refuses past a cycle loop is a torn body and panics
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
+/// a record miss past `face` too, and panics the same way.
 fn sphere_zone_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -186,6 +198,8 @@ fn sphere_zone_reach<T: Decide>(
     band: Band,
     frame: &BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
+    use crate::boolean::solid_contain::PointInSolidError;
+    use crate::props::LoopEdgesError;
     let geom::Surface::Sphere {
         center,
         radius,
@@ -195,9 +209,23 @@ fn sphere_zone_reach<T: Decide>(
     else {
         return None;
     };
-    let side_certified = crate::props::loop_edges(body, f.outer)
+    let outer = crate::live::linked(
+        &body.loops,
+        f.outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    );
+    if matches!(outer.boundary, LoopBoundary::Empty { .. }) {
+        return None;
+    }
+    let outer = match crate::props::loop_edges(body, f.outer) {
+        Ok((outer, _)) => outer,
+        Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
+        Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
+    };
+    let side_certified = geom_brep::props::boundary_material_sign(surface, &outer, band)
         .ok()
-        .and_then(|(outer, _)| geom_brep::props::boundary_material_sign(surface, &outer, band).ok())
         .is_some_and(|side| {
             side == geom_brep::props::MaterialSign::Encoded(if f.sense {
                 Sign::Positive
@@ -208,9 +236,13 @@ fn sphere_zone_reach<T: Decide>(
     if !side_certified {
         return None;
     }
-    let trim =
-        crate::boolean::solid_contain::sphere_chart_trim(body, face, *center, *radius, *axis, band)
-            .ok()??;
+    let trim = match crate::boolean::solid_contain::sphere_chart_trim(
+        body, face, *center, *radius, *axis, band,
+    ) {
+        Ok(trim) => trim?,
+        Err(PointInSolidError::Escalated { .. }) => return None,
+        Err(refusal) => torn_outer_loop(body, face, f, refusal),
+    };
     let unit = UnitVec3::new(*axis, SPLIT_GATE_SPHERE_AXIS, band).ok()?;
     let window = (
         trim.south.unwrap_or((T::zero() - *radius, T::zero())),
@@ -223,6 +255,49 @@ fn sphere_zone_reach<T: Decide>(
         zone_extent(c.z, a.z, window, *radius),
     );
     Some((Point3::new(xl, yl, zl), Point3::new(xh, yh, zh)))
+}
+
+/// The torn hop under `refusal`, a record-miss refusal of a reading of
+/// `face`'s outer loop ([`crate::props::loop_edges`],
+/// `sphere_chart_trim`) past `face`, which resolved to `f`. Each hop
+/// those readings take is re-read as a link, so the one that does not
+/// resolve panics naming its holder, its field and both premises
+/// ([`crate::live::dangling_link`]).
+#[track_caller]
+fn torn_outer_loop<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    f: &crate::entity::Face,
+    refusal: impl core::fmt::Debug,
+) -> ! {
+    use crate::live::{linked, proven};
+    body.face_surface_linked(face, f);
+    let outer = linked(
+        &body.loops,
+        f.outer,
+        EntityId::Loop,
+        EntityId::Face(face),
+        "outer",
+    );
+    if let LoopBoundary::Cycle { first } = outer.boundary {
+        for he in body.loop_walk(first).closed("loop", first) {
+            let data = proven(&body.half_edges, he, EntityId::HalfEdge);
+            let edge = linked(
+                &body.edges,
+                data.edge,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            body.edge_curve_linked(data.edge, edge);
+            body.linked_vertex_point(data.start, EntityId::HalfEdge(he), "start");
+            body.proven_half_edge_end(he);
+        }
+    }
+    unreachable!(
+        "the outer loop of {} refused {refusal:?} with every record on it resolved",
+        EntityId::Face(face)
+    )
 }
 
 /// **One coordinate of a sphere's latitude zone, exactly**: the least
@@ -791,7 +866,7 @@ fn conic_plane_meet<T: Decide>(
 ///   span).
 /// - **Spiric and spline carriers** have no crossing lane. One passes
 ///   uncut only where [`edge_clears`] certifies its whole locus on one
-///   side of the plane, the operand gate's own test; any other refuses
+///   side of the plane, the carrier gate's own test; any other refuses
 ///   [`SplitReduceError::CurvedEdgeUnsupported`]. Same-side endpoints
 ///   are not enough: a spline's belly can cross between them.
 ///
@@ -830,9 +905,10 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         // miss panics (`live::OPERATORS_KEEP_LINKS`).
         let curve = match body.edge_curve_linked(edge_key, &edge) {
             CurveGeom::Certified(c) => c.clone(),
-            CurveGeom::NullScaffold(_) => {
-                return Err(SplitReduceError::ScaffoldingOperand { edge: edge_key });
-            }
+            CurveGeom::NullScaffold(_) => unreachable!(
+                "{edge_key:?} is a null edge, and every door reaching here holds its body tier-2 \
+                 clean, which refuses a null edge at rest"
+            ),
         };
         let (t0, t1) = curve.params();
         let roots: Vec<T> = match plane_crossing_lane(
@@ -1317,8 +1393,7 @@ mod tests {
 
 /// **A torn curve panics at the split gate and at the crossing
 /// insertion**, where a read that took the miss for scaffolding refused
-/// it as `ScaffoldingOperand` (real scaffolding keeps that refusal:
-/// `review_m3_pr2`'s gate row).
+/// it as `ScaffoldingOperand`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_rows {
@@ -1341,8 +1416,8 @@ mod torn_rows {
         let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
         body.curves.remove(curve);
         let named = format!("{}'s curve names", EntityId::Edge(edge));
-        assert_torn_op_panics("gate_operand", &mut body, &[&named, ROW_FOUR], |b| {
-            super::gate_operand(b, &plane, band)
+        assert_torn_op_panics("carrier_gate", &mut body, &[&named, ROW_FOUR], |b| {
+            super::carrier_gate(b, &plane, band)
         });
         assert_torn_op_panics("insert_crossings", &mut body, &[&named, ROW_FOUR], |b| {
             super::insert_crossings(b, &plane, &mut sides, &mut on, tol)
@@ -1412,6 +1487,245 @@ mod torn_rows {
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| super::gate_face_reach(b, face, band, &frame),
+        );
+    }
+}
+
+/// **The gate's sphere zone reads a torn record as a torn body**, on a
+/// sphere zone sheet whose boundary certifies a side: a torn curve, which
+/// the side's flattening reads, and a torn point, which only the trim
+/// reads, each panic, where a swallowed refusal kept the whole ball.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod zone_rows {
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::body::Body;
+    use crate::boolean::boxes::BoxFrame;
+    use crate::entity::{EntityId, FaceKey, GeomRef, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use crate::{FaceSurface, MefSite, MevSite};
+
+    /// The unit sphere's zone over azimuths `[u0, u1]` and heights
+    /// `[h0, h1]`: two latitude rims and two meridian arcs, each on its
+    /// exact circle, described as the sphere cut by the circle's plane.
+    pub(crate) fn sphere_zone_sheet(
+        (u0, u1): (f64, f64),
+        (h0, h1): (f64, f64),
+        tol: Tol,
+    ) -> (Body<f64>, FaceKey) {
+        let radial = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
+        let at = |u: f64, h: f64| {
+            let rho = (1.0 - h * h).sqrt();
+            Point3::origin() + radial(u) * rho + Vec3::unit_z() * h
+        };
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(u0, h0), true).unwrap();
+        let sphere = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: Point3::origin(),
+                        radius: 1.0,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
+            let Curve3::Circle { center, axis, .. } = carrier else {
+                unreachable!("a sheet edge is a circle");
+            };
+            let plane = body.add_surface(Surface::Plane {
+                origin: center,
+                normal: axis,
+                // A rim's plane is horizontal and a meridian's vertical.
+                u_ref: if axis.z.abs() > 0.5 {
+                    Vec3::unit_x()
+                } else {
+                    Vec3::unit_z()
+                },
+            });
+            let witness = carrier.mid_point(t0, t1);
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: sphere,
+                    s2: plane,
+                    witness,
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let rim = |h: f64, ascending: bool| {
+            let rho = (1.0 - h * h).sqrt();
+            let centre = Point3::new(0.0, 0.0, h);
+            if ascending {
+                let c = Curve3::Circle {
+                    center: centre,
+                    axis: Vec3::unit_z(),
+                    radius: rho,
+                    u_ref: Vec3::unit_x(),
+                };
+                (c, (u0, u1))
+            } else {
+                let c = Curve3::Circle {
+                    center: centre,
+                    axis: -Vec3::unit_z(),
+                    radius: rho,
+                    u_ref: radial(u1),
+                };
+                (c, (0.0, u1 - u0))
+            }
+        };
+        // A meridian at azimuth `u`, rising (its parameter is the
+        // latitude) or falling (the negated latitude).
+        let meridian = |u: f64, rising: bool| {
+            let up = radial(u).cross(Vec3::unit_z());
+            if rising {
+                let c = Curve3::Circle {
+                    center: Point3::origin(),
+                    axis: up,
+                    radius: 1.0,
+                    u_ref: radial(u),
+                };
+                (c, (h0.asin(), h1.asin()))
+            } else {
+                let c = Curve3::Circle {
+                    center: Point3::origin(),
+                    axis: -up,
+                    radius: 1.0,
+                    u_ref: radial(u),
+                };
+                (c, (-h1.asin(), -h0.asin()))
+            }
+        };
+        let (c, t) = rim(h0, true);
+        let bottom = arc(&mut body, c, t);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(u1, h0),
+                bottom,
+                tol,
+            )
+            .unwrap();
+        let (c, t) = meridian(u1, true);
+        let right = arc(&mut body, c, t);
+        let e_r = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                at(u1, h1),
+                right,
+                tol,
+            )
+            .unwrap();
+        let (c, t) = rim(h1, false);
+        let top = arc(&mut body, c, t);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                at(u0, h1),
+                top,
+                tol,
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let (c, t) = meridian(u0, false);
+        let left = arc(&mut body, c, t);
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                left,
+                FaceSurface::Shared {
+                    key: sphere,
+                    sense: true,
+                },
+                tol,
+            )
+            .unwrap()
+            .face;
+        // The boundary runs clockwise about the outward normal, so the
+        // face's side of it is the sense-false one.
+        body.set_face_sense(face, false).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        (body, face)
+    }
+
+    #[test]
+    fn a_torn_record_under_the_sphere_zone_panics() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let frame =
+            BoxFrame::aimed(geom_core::UnitVec3::new(Vec3::unit_z(), "zone_rows", band).unwrap());
+        let (body, face) = sphere_zone_sheet((0.2, 1.4), (-0.3, 0.4), tol);
+        let reach = |b: &Body<f64>| super::gate_face_reach(b, face, band, &frame);
+        let (lo, hi) = reach(&body).expect("the sound zone has a reach");
+        // The frame's first coordinate is its aim, the zone's axis.
+        assert!(
+            (lo.x + 0.3).abs() < 1e-9 && (hi.x - 0.4).abs() < 1e-9,
+            "the sound zone's reach along its axis is its latitude window, not the ball: \
+             [{}, {}]",
+            lo.x,
+            hi.x
+        );
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the zone's outer loop is a cycle");
+        };
+
+        // The flattening's read: a member's curve.
+        let mut torn = body.clone();
+        let edge = torn.get_half_edge(first).unwrap().edge;
+        let curve = torn.get_edge(edge).unwrap().curve;
+        torn.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "sphere_zone_reach (flattening)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b),
+        );
+
+        // The trim's read alone: a boundary vertex's point.
+        let mut torn = body.clone();
+        let v = torn.get_half_edge(first).unwrap().start;
+        let point = torn.get_vertex(v).unwrap().point;
+        torn.points.remove(point);
+        let named = format!(
+            "{}'s point names {}",
+            EntityId::Vertex(v),
+            GeomRef::Point(point)
+        );
+        assert_torn_op_panics(
+            "sphere_zone_reach (trim)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| reach(b),
         );
     }
 }
