@@ -1176,6 +1176,7 @@ impl ViewerApp {
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
             self.drafts.respeak(self.session.doc());
+            self.tools.respeak(self.session.doc());
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
             // state, and what its committed edits did that nobody

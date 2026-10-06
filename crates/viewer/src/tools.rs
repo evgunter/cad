@@ -261,9 +261,9 @@ pub enum ToolNotice {
     },
 }
 
-/// The mate and seated arms say the node their event snapshotted when
-/// the pick was held (`SpokenNode`), so the speaker reaches the blend
-/// arm alone, whose event holds bare ids.
+/// The mate and seated arms say the node their event carries
+/// (`SpokenNode`, kept by [`Tools::respeak`]), so the speaker reaches
+/// the blend arm alone, whose event holds bare ids.
 impl Say for ToolNotice {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
@@ -574,6 +574,26 @@ impl Tools {
             }
         }
         notices
+    }
+
+    /// **The open tool's held nodes, spoken again from `doc`**, the
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a held node `doc` holds takes its label now, and one it
+    /// no longer holds keeps the last it had, so a drop or a refusal
+    /// about it says that label.
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        match &mut self.open {
+            None => {}
+            Some(OpenTool::Mate(tool)) => tool.respeak(doc),
+            Some(OpenTool::Blend(tool)) => tool.respeak(doc),
+            Some(OpenTool::Revolve(tool)) => tool.respeak(doc),
+            Some(OpenTool::Boolean(tool)) => tool.respeak(doc),
+            Some(OpenTool::Split(tool)) => tool.respeak(doc),
+            Some(OpenTool::Transform(tool)) => tool.respeak(doc),
+            Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
+            Some(OpenTool::Part(tool)) => tool.respeak(doc),
+            Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
+        }
     }
 
     /// **The survival step, once per frame** — the consumer obligation
