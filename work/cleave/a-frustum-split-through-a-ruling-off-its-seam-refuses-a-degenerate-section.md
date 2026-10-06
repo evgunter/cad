@@ -2,10 +2,12 @@
 id: a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section
 kind: issue
 title: a frustum split through a ruling off its seam, 0.05 or 3 rad off tangency, refuses Join(DegenerateSection) at every eps; through the seam ruling the same pose answers
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+closed: 2026-10-06
+pr: 4181
 ---
 
 
@@ -139,3 +141,12 @@ All ten refused `DegenerateSection` on main. The record is in
 **Not done here (S1):** `SectionCase::Straight` still carries `Curve3`, because the tables in
 `geom-brep` build it so, and typing it only in `topo` would move the non-line arm rather than
 remove it. Filed as `work/reach/the-ruled-section-tables-carry-their-rulings-as-any-curve.md`.
+
+## Closed (PR 4181, 2026-10-06)
+
+A section of two rulings pairs each ruling's crossings along that ruling (`ruling_pairs`, through the
+same `pair_along_line` the parallel-lines case uses); a crossing left over refuses
+`SectionCrossings { NotAlternating }`. The near-tangent gate covers both frusta over every measured
+azimuth: a wrong volume is red, and a typed tier-3 refusal is `split-sides-are-not-finished-bodies`'
+debt. Line-typed ruling tables are filed on REACH
+(`the-ruled-section-tables-carry-their-rulings-as-any-curve`).
