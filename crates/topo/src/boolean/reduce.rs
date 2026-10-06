@@ -5006,7 +5006,7 @@ mod wall_root_tests {
         let got = line_wall_roots_of(
             Point3::new(d, -2.0, 0.5),
             Vec3::new(0.0, 1.0, 0.0),
-            4.0,
+            (0.0, 4.0),
             &wall,
             b,
         );
