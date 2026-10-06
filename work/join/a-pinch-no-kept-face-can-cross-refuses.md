@@ -135,3 +135,27 @@ Pinned by
 and, for the twice-pinched island and the face `kef` kills there,
 `join_pierce_runs_sweep::an_island_pinched_twice_to_its_holes_ring_dies_at_each_crossing`
 (`u2tip mid side=12 psi=0 th54`).
+
+## Measured (step 0, branch `join/pinch-one-vertex-per-cone`)
+
+The mesher refuses the ratified shape. On main `f1a4a317`,
+`mesh::tessellate` panics on every body whose one face passes two
+vertices at one point. That is the shape the ruling makes every pinch
+build. Thirteen such `SOUND` bodies on review r2's cube poses panic,
+`notch307 fib117 edge psi=0.3 pc S` among them. Each passes tier 2,
+tier 3′, the certificate and mass properties at the oracle volume
+(3.766827644). No other body on those poses panics. The cause is the
+planar lane's same-position dedup, filed with the lines as
+`work/tess/a-planar-face-through-two-vertices-on-one-point-meshes-under-one-id.md`.
+
+What the zips meet at the pinned pinches (instrumented `cross_pinches`):
+- `vee300 fib62 face` and `u2 S_tt b594`: each operand's pinch vertex
+  has two section corners on two section faces (two seams). The cones,
+  the cycles of the seam pairs' fusions, put one run of each operand
+  into each cone. So both operand vertices split, and each split's
+  transient edge lies between the two section faces.
+- The island poses (`holed c00 side=4 g6.0`,
+  `u2tip mid side=12 psi=0 th54`): both section corners lie on one loop
+  of one section face (one seam meets the point twice).
+
+Nothing was built past step 0.

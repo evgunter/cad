@@ -1820,3 +1820,17 @@ body records the reachability evidence and the fix for when the case
 becomes reachable: widen `Derived::said` to the nodes a verdict can
 name, merged after each op. A snapshot taken at standing time would be
 too late.
+
+## 2026-10-06 — PR 4107: cluster-act gauges row closed as overtaken
+
+`a-cluster-act-speaks-its-gauges-by-tag` named `ClusterMaintenance`,
+`Maintenance::Cluster` and `mate::solve::gauge_spoken`. #3676
+(`1441b5154d`) deleted all of them with the placement registry, hours
+before the row was filed from a branch that predated it. The one
+placement row an edit reports today, `Maintenance::OffsetCleared`,
+already speaks its instance. A sweep of every `Maintenance` arm and of
+`node {` format strings in `editor-core/src` found nothing new (the
+carried rows are already filed). The PR only removes comments left stale
+by the deletion, and re-points two citations of a renamed test. That
+re-pointing was checked by mutating `Carrier::ALL`: exactly the three
+cited rows fail.

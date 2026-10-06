@@ -1014,3 +1014,36 @@ before acting on it.
 SHELL now carries 28 points, as the seven units in `plan.md`.
 Pole-touching ball: the premise drifted with f28c201d, so its lane
 measures before it fixes.
+
+## Dispatch (2026-10-06, ~05:57 UTC)
+
+The cut merged as PR 4109. Four implementer lanes run as their own
+cloud sessions (this container holds one heavy build at a time), each
+on its own `shell/` branch, each a **single full review** at review
+time — every one of them carries a meaningful chance of a correctness
+bug (a P0 measurement, a door type change, a gate's soundness, a
+certified projection):
+
+- unit 1 `shell/pole-ball` — the pole-touching ball, measure first;
+- unit 2 `shell/operand-at-rest` — `AtRestBody` operand (two rows);
+- unit 3 `shell/planar-gate-misses` — footprint arcs + antiparallel lever;
+- unit 4 `shell/lofted-wall-seam` — certified NURBS/ellipse re-anchor.
+
+Unit 7's designer pair (`shell-open-refuses-a-curved-designated-face`)
+runs locally; blinding byte on `analysis/design-fork/shell-curved-designation`.
+Units 5 and 6 wait for a lane: 5 follows 4 in `replace_face.rs`.
+
+## Unit 7 weighed (2026-10-06)
+
+The designer pair on `shell-open-refuses-a-curved-designated-face`
+converged in round 1 on the main question: no kind gate, and the rim
+takes its chart's form (a seamed band on a wrapping periodic chart, a
+ring on a window). The decision and the spec basis are in the item. A
+reporting sub-question crossed twice and then converged on its root
+(the tier-3 verdict carries the violates/undecided class), which is
+RESTFRONT's ground; the evidence went onto that program's row. No
+ratified text moves and no `[ev]` PR: the recommendation is clear and
+is an elaboration of D1's seam convention. Design-fork log: no row,
+because nothing went to Ev. The blinding byte stays on its analysis
+branch. Unit 7 dispatches after units 2 and 3 land, since all three
+edit `shell.rs`.
