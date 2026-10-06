@@ -283,7 +283,8 @@ may be long and the step is the short quantity, and the refusal is the
 step's (`SsiError::MarchStepInBand`), carrying the Hermite's, its
 levers the bend and the tolerance below which the step clears the
 band. The extent sizes no realized
-step; it is the lever arm's clamp, the seeding floor and the tube
+step; it is the point decisions' clamp, the region decisions' lever,
+the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
@@ -310,14 +311,19 @@ The op does not return until every branch is found or it refuses; the
 subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
-configurations refuse toward C7, each candidate by what it reads: a
-marched branch by the transversality decision at every state, `sin θ`
-levered by the smaller of the operands' lever arm (on a wall, its
-chart's) and the extent; a Hermite branch by that decision at its two
-ends, and between them by limb 3's tube, whose clearance is levered by
-the extent alone. The levers differ where a wall's chart bends and its
-surface does not
-(`work/ssi/ssi-transversality-at-a-point-is-spelled-three-ways.md`).
+configurations refuse toward C7, each decision by what it reads. A
+decision at a point (each marched state, a Hermite candidate's two
+ends, refinement's unsettled chord midpoint, and the at-rest
+certifier's per-sample check in `plane_nurbs_limbs`) reads
+`sin θ · min(ρ, E)`: `ρ` the surfaces' curvature radius there, the
+reciprocal of the larger principal curvature of either operand, read
+from its shape operator (a plane's is infinite) and never from a
+chart's parameter lines, and `E` the extent. A decision over a region
+(the boundary strip, and limb 3's tube on both lanes) reads the
+certified least `sin θ` over it, levered by `E` alone: its enclosure
+has already turned the normals across the region, so no curvature
+radius levers it. A refusal at a point names which of the two lengths
+its arm was (`PointLever`).
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.

@@ -59,3 +59,14 @@ Either each ungated caller answers the kind question before asking (as
 tier 3 and `rim_wedge` do), with its own typed refusal for the kind, or
 the premise moves into the predicate as a typed refusal — which is the
 flux row above, and the choice there is a design one.
+
+## Note (2026-10-06, `ssi/transversality-lever`)
+
+A spline's curvature lever now exists at a point:
+`geom_brep::dihedral::max_principal_curvature` (crate-private) reads
+the largest principal curvature from a chart jet's shape operator, and
+the SSI point decisions and `plane_nurbs_limbs` lever by its
+reciprocal. It is a point reading, not a certified bound over a
+region, so it answers `curvature_lever_arm`'s spline gap only for a
+caller that reads at a point; whether `classify_dihedral` should take
+it for a spline face is this row's design choice.
