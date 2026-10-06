@@ -618,3 +618,5 @@ and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
   `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
   (P0): the pin's own text says the entry has retired. Every PR that
   merges main is red on the `demos` job until it is resolved.
+
+- 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.

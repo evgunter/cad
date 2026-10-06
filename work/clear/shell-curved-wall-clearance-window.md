@@ -30,3 +30,18 @@ Until then the window is stated plainly in the verb's module docs and in #1048's
 ## Home
 
 `crates/topo/src/shell.rs` is in VERBS' `paths:` territory; parked on M10-5, the E7 clearance unit that names this issue as its first consumer.
+
+## Measured instance: a dilated void crossing a planar cavity wall (2026-10-06)
+
+Found by SHELL's PR 4151 review (R2), pre-existing and bit-identical
+on `f71c22688` through the per-chart door:
+
+- **Operand.** A 4×4×4 box with a cylindrical void: axis at
+  `(x, z) = (3.2, 2)` along `y`, `r = 0.65`. Shelled at `t = 0.1`.
+- **The crossing.** The dilated void reaches `x = 3.95`, past the
+  cavity's planar wall at `x = 3.9`.
+- **What `shell` returns.** Two interpenetrating solids that pass
+  tier 3, with their naive summed volume.
+
+The pair is curved×planar, so the planar gate never reads it. This
+is the curved residue this item names.

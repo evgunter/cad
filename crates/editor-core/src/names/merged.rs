@@ -17,7 +17,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{EntityKind, MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
+use super::role::{MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -26,9 +26,9 @@ use super::role::{EntityKind, MeridianEnd, NameRef, PieceRun, RoleSeg, StableNam
 pub(crate) const NESTED_MERGED: &str =
     "a boolean table carries a merged face whose constituent is itself a merged face";
 
-/// The constituents of a merged face read through its descent
-/// wrappers, each re-wrapped by that same chain — or `None` when the
-/// name, peeled to its foot, is not a merged face.
+/// The constituents of a merged face, or of an edge set, read through
+/// its descent wrappers, each re-wrapped by that same chain — or `None`
+/// when the name, peeled to its foot, is not a `Merged` set.
 ///
 /// Only a bare `FromA`/`FromB` chain is peeled: a foot that carries a
 /// tail (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face,
@@ -56,13 +56,39 @@ pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<Sta
                     .iter()
                     .rev()
                     .fold(c.clone(), |inner, &(side, node)| StableName {
-                        kind: EntityKind::Face,
+                        kind: name.kind,
                         node,
                         path: vec![side(NameRef::new(inner))],
                     })
             })
             .collect(),
     )
+}
+
+/// **The name of an edge minted by `node` that lies along the edges
+/// `along`**: `Merged` of them, flat and in name order. An edge that is
+/// itself a set, read through its descent wrappers, stands for its
+/// constituents ([`constituents_through_wrappers`]), so a set of sets
+/// lists edges, never sets (N3's flatness). The one builder both the
+/// pair boolean and the union mint an edge set through.
+pub(crate) fn edge_set(
+    node: crate::node::RecipeNodeId,
+    along: impl IntoIterator<Item = StableName>,
+) -> StableName {
+    let mut names = std::collections::BTreeSet::new();
+    for n in along {
+        match constituents_through_wrappers(&n) {
+            Some(cs) => names.extend(cs),
+            None => {
+                names.insert(n);
+            }
+        }
+    }
+    super::canonical::minted(StableName {
+        kind: super::role::EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::Merged(names.into_iter().collect())],
+    })
 }
 
 /// The run-holding role of a name's foot: which sweep role holds the
@@ -282,7 +308,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::names::role::{CapEnd, ProfileEdgeRef};
+    use crate::names::role::{CapEnd, EntityKind, ProfileEdgeRef};
     use crate::node::RecipeNodeId;
 
     fn face(node: u64, path: Vec<RoleSeg>) -> StableName {

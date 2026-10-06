@@ -1273,11 +1273,16 @@ fn curved_arm<T: Decide + Bounds>(
 /// Walk the requested links into maximal chains.
 ///
 /// The rule is structural and it is the one that makes predicates 4
-/// and 6 disjoint: at a vertex where **exactly two** requested links
-/// meet, the chain CONTINUES and the vertex is a junction, judged by
-/// predicate 4 (G1). At a vertex where any other number meet — one
-/// (a free end) or three or more (a corner) — the chain TERMINATES
-/// and the vertex is judged by predicate 6 (corner configuration).
+/// and 6 disjoint. It counts link ENDS — a self-closed link has two,
+/// both at its one vertex. At a vertex holding **exactly two**
+/// requested link ends of two distinct links, the chain CONTINUES and
+/// the vertex is a junction, judged by predicate 4 (G1). At a vertex
+/// holding any other number — one (a free end) or three or more (a
+/// corner) — the chain TERMINATES and the vertex is judged by
+/// predicate 6 (corner configuration). A self-closed link's vertex
+/// holds its own two ends, so the link walks alone: with nothing else
+/// there its chain closes on itself, and beside anything else the
+/// vertex is a corner.
 ///
 /// That is why filleting all twelve edges of a box yields twelve
 /// one-link OPEN chains terminating in eight trihedral corners
@@ -1293,11 +1298,11 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         Some((_, xs)) => xs.push(i),
         None => inc.push((v, vec![i])),
     };
+    // Every link counts at both its ends, a self-closed link's one
+    // vertex included (the header's rule).
     for (i, l) in links.iter().enumerate() {
         bump(l.start, i, &mut inc);
-        if l.end != l.start {
-            bump(l.end, i, &mut inc);
-        }
+        bump(l.end, i, &mut inc);
     }
     let junction = |v: VertexKey, inc: &[(VertexKey, Vec<usize>)]| -> Option<Vec<usize>> {
         inc.iter()
@@ -1522,9 +1527,10 @@ fn chain_turns<T: Decide + Bounds>(
             Err(e) => return Err(e),
         }
     }
-    // A SELF-CLOSED single link registers no junction: `walk_chains`
-    // counts its one vertex once, so the loop above has nothing to
-    // walk and the chain's own closure would go unmetered. The
+    // A SELF-CLOSED single link registers no junction: its vertex
+    // holds only its own two ends, so the walk finds no unused link
+    // there and the loop above has nothing to walk, and the chain's
+    // own closure would go unmetered. The
     // wrap-around is still a junction of the spine — the link's
     // carrier arrives at its start vertex and leaves it again — so
     // it is metered here, on the one link's own carrier endpoints:
@@ -1997,16 +2003,19 @@ pub fn cap_transverse<T: Decide + Bounds>(
 /// a third face, and that third face — one face, shared by both — is
 /// the cap. Returned as `(rim on face_a, rim on face_b, cap)`.
 ///
-/// `None` where the incidence does not have that shape. **On a
-/// manifold body that is unreachable at valence three**: the three
-/// face-corners around a trivalent vertex are its three faces, so its
+/// `None` where the incidence does not have that shape. At a vertex
+/// of degree three the three face-corners are its three faces, so its
 /// edges separate `A|B`, `B|C`, `C|A` — one crease and two rims each
 /// joining one support to the same third face, by construction. The
-/// `None` arms (an edge on both supports, on neither, or two distinct
-/// third faces) can be reached only by a non-manifold vertex or a
-/// stale key, which is why the battery reports them as an
+/// three DISTINCT edges `Body::edges_of_vertex` lists are not that
+/// degree where one of them is self-closed: a manifold vertex carrying
+/// a self-closed rim `s` and two other edges has degree four (edges
+/// `{s, o, x}`, faces `{F1, P, Q}`), and there a `None` arm (an edge on
+/// both supports, on neither, or two distinct third faces) is
+/// reachable on an intact body. Otherwise only a non-manifold vertex
+/// or a stale key reaches one; the battery reports it as an
 /// unclassifiable end and the surgery as a body that does not hold
-/// together — neither is a shape a fixture can build.
+/// together (`corner-valence-reads-a-self-closed-edge-once`).
 pub(super) fn cap_incidence<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
