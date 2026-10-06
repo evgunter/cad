@@ -1501,3 +1501,88 @@ mod r1_mesh2_review_probes {
         }
     }
 }
+
+#[cfg(test)]
+mod review_4092_probes {
+    //! PR #4092 review: the full revolve's roll, validated independently.
+    use super::*;
+
+    fn tori<S: Scalar>(b: &Body<S>) -> Vec<(f64, f64)> {
+        let mut v: Vec<(f64, f64)> = b
+            .faces()
+            .filter_map(|(_, f)| match b.get_surface(f.surface) {
+                Some(pncad::geom::Surface::Torus { major_radius, minor_radius, .. }) => {
+                    Some((major_radius.f(), minor_radius.f()))
+                }
+                _ => None,
+            })
+            .collect();
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v
+    }
+
+    #[test]
+    fn review_4092_roll_is_the_authored_bulb() {
+        let tol = Tol::witness();
+        let m = meridian();
+        let Bottle { bulb: bulb_body, .. } = bottle::<f64>(tol);
+        let sharp = bulb::<f64>(sharp_band::<f64>(&m, tol), Revolution::Full, tol);
+        let edges = corner_edges(&sharp, SurfaceKind::Cone, SurfaceKind::Cylinder);
+        let (inner, outer) = corners_by_wall(&sharp, &edges);
+        let half = WALL / 2.0;
+        // Order 1: inner then outer (the scene's); order 2: outer then inner.
+        let a = roll_the_meridian_blends(&sharp, &edges, &m, tol);
+        let once = fillet_edges(&sharp, &[outer], m.rf - half, tol).expect("outer first").body;
+        let b = fillet_edges(&once, &[inner], m.rf + half, tol).expect("inner second").body;
+        let want = volume(&bulb_body, tol);
+        for (what, body) in [("inner-first", &a), ("outer-first", &b)] {
+            assert_eq!(pncad::topo::validate(body), Ok(()), "{what} tier 1");
+            assert_eq!(pncad::topo::validate_closed(body), Ok(()), "{what} tier 2");
+            assert_eq!(pncad::topo::validate_geometric(body, tol), Ok(()), "{what} tier 3");
+            let got = volume(body, tol);
+            println!("REVIEW {what}: V {got:.12} authored {want:.12} rel {:.3e}", (got - want).abs() / want);
+            println!("REVIEW {what}: tori {:?}", tori(body));
+            assert!((got - want).abs() <= 1e-9 * want);
+            let mesh = pncad::mesh::tessellate(body, 1e-3, tol).expect("meshes");
+            println!(
+                "REVIEW {what}: mesh triangles {}",
+                pncad::mesh::validate::triangle_count(&mesh)
+            );
+        }
+        println!("REVIEW authored tori {:?}", tori(&bulb_body));
+        println!("REVIEW sharp V {:.12}", volume(&sharp, tol));
+        // A radius above the authored one on the inner corner, and the
+        // outer corner at the inner radius: what refuses?
+        for (what, e, r) in [
+            ("inner 0.5", inner, 0.5),
+            ("inner 1.0", inner, 1.0),
+            ("inner 1.4", inner, 1.4),
+            ("inner 1.5", inner, 1.5),
+            ("inner 1.6", inner, 1.6),
+            ("inner 2.0", inner, 2.0),
+            ("inner 3.0", inner, 3.0),
+            ("outer 0.325", outer, m.rf + half),
+            ("outer 0.6", outer, 0.6),
+            ("outer 1.5", outer, 1.5),
+            ("outer 3.0", outer, 3.0),
+        ] {
+            match fillet_edges(&sharp, &[e], r, tol) {
+                Ok(f) => {
+                    let v = pncad::topo::validate_geometric(&f.body, tol);
+                    println!("REVIEW {what}: BUILT tier3 {v:?} V {:.9}", volume(&f.body, tol));
+                }
+                Err(e) => println!("REVIEW {what}: refused {:?}", e.error),
+            }
+        }
+        // Wall 2 at a radius the unsided read already admitted.
+        let part = bulb::<f64>(sharp_band::<f64>(&m, tol), Revolution::Partial(5.0), tol);
+        let pe = corner_edges(&part, SurfaceKind::Cone, SurfaceKind::Cylinder);
+        let (pi, po) = corners_by_wall(&part, &pe);
+        for (what, e, r) in [("part inner 0.1", pi, 0.1), ("part outer 0.1", po, 0.1), ("part inner 0.325", pi, 0.325)] {
+            match fillet_edges(&part, &[e], r, tol) {
+                Ok(_) => println!("REVIEW {what}: BUILT"),
+                Err(e) => println!("REVIEW {what}: refused {:?}", e.error),
+            }
+        }
+    }
+}
