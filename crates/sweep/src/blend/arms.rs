@@ -107,6 +107,26 @@ pub struct EdgeBlend<T: Real> {
     pub trim_b: (Curve3<T>, T),
 }
 
+/// One support's trimline and the setback to it, as [`EdgeBlend`]
+/// stores them.
+pub(crate) type Trim<T> = (Curve3<T>, T);
+
+impl<T: Real> EdgeBlend<T> {
+    /// **The trim on one support, then the other's**: the FIRST
+    /// support's (`trim_a`) first when `first_is_a`, else the second's.
+    /// Callers name the support by FACE (`first_is_a = link.face_a ==
+    /// face`), never by slot: `face_a` is whichever support carries
+    /// `he_plus`, which the request does not choose. The one home of
+    /// that selection.
+    pub(crate) fn trims(&self, first_is_a: bool) -> (&Trim<T>, &Trim<T>) {
+        if first_is_a {
+            (&self.trim_a, &self.trim_b)
+        } else {
+            (&self.trim_b, &self.trim_a)
+        }
+    }
+}
+
 /// The corner ball of a uniform trihedral vertex: a sphere patch (the
 /// spherical triangle bounded by the three contact circles with the
 /// three incident edge cylinders), resting inside the material at a

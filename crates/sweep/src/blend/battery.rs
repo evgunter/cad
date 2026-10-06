@@ -281,6 +281,14 @@ pub struct Link<T: Real> {
     pub arm_len: T,
 }
 
+impl<T: Real> Link<T> {
+    /// **This link's trim on its support `face`** — the trimline there
+    /// and the setback to it; `None` when `face` is neither support.
+    pub(crate) fn trim_on(&self, face: FaceKey) -> Option<&super::arms::Trim<T>> {
+        (self.face_a == face || self.face_b == face).then(|| self.blend.trims(self.face_a == face).0)
+    }
+}
+
 /// How a chain terminates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChainClosure {
@@ -2192,11 +2200,7 @@ fn consumption_sweep<T: Decide + Bounds>(
         // Each joint on this face: its foot against the trimline of
         // every boundary edge that meets its run at an end.
         for (v, link) in &joints {
-            let trim = if link.face_a == face {
-                &link.blend.trim_a.0
-            } else if link.face_b == face {
-                &link.blend.trim_b.0
-            } else {
+            let Some((trim, _)) = link.trim_on(face) else {
                 continue;
             };
             // A joint is plane–plane by its verdict, and

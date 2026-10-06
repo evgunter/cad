@@ -202,13 +202,7 @@ fn chamfer_feet<T: Decide + Bounds>(
             .chain(others.iter())
             .filter_map(|o| {
                 let l = o.link();
-                let trim = if l.face_a == face {
-                    &l.blend.trim_a.0
-                } else if l.face_b == face {
-                    &l.blend.trim_b.0
-                } else {
-                    return None;
-                };
+                let (trim, _) = l.trim_on(face)?;
                 match *trim {
                     Curve3::Line { origin, dir } => Some(Ok((origin, dir))),
                     _ => Some(Err(unbuilt_geometry(
@@ -276,10 +270,11 @@ pub(in crate::blend) fn joint_plan<'a, T: Decide>(
         .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a joint's stored point"))?;
     let mut feet = [p; 2];
     for (foot, face) in feet.iter_mut().zip(joint.faces()) {
-        let trim = if link.face_a == face {
-            &link.blend.trim_a.0
-        } else {
-            &link.blend.trim_b.0
+        let Some((trim, _)) = link.trim_on(face) else {
+            return Err(not_intact(
+                EntityId::Vertex(vertex),
+                "a joint's face is not a support of its arriving link",
+            ));
         };
         let Curve3::Line { origin, dir } = *trim else {
             return Err(unbuilt_geometry(
