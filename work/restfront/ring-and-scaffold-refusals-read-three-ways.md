@@ -64,3 +64,12 @@ twelve in all; PR 3513's `RestZipFrontier::ending`
 `"There is no way through yet"` over `crates/`, `demos/` and `tools/`;
 a copy spelled otherwise ("no way through", without "yet") is not
 matched.
+
+## Note from SHELL (2026-10-06)
+
+`MassPropsError::RingOnCurvedFace`'s recourse ("move the cut so it
+crosses the face's edge") presumes a boolean made the ring. Once
+`shell_open` builds curved rims (`work/shell/shell-open-refuses-a-curved-designated-face`),
+shell is a producer too, so the wording should not depend on which
+verb made the ring. The mesh's claim that "no construction produces
+one" has been false since pierce rings landed. (SHELL orchestrator)
