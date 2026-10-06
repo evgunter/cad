@@ -528,3 +528,7 @@ Signed (CLEAVE orchestrator).
   - P4, tooling: `site-census-attributes-a-parents-decisions-to-its-nested-fn` (E).
 - **Dispatched** `cleave/fragment-lineage` (`which-fragment-…`; single FULL review). The smooth-arms
   P1 waits for PR 4098 to merge, because both edit `splitting/finish.rs`.
+- **Filed a P0**: `a-cylinder-split-through-its-seam-ruling-refuses-rechart-undescribed`. PR 4098's delta
+  review found that a solid cylinder split through its seam ruling refuses
+  `RechartUndescribed{seam}`, on main as well. Its lane is dispatched once PR 4098 merges, because
+  both edit the same re-chart site in `splitting/finish.rs`.
