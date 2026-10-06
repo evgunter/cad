@@ -2,7 +2,7 @@
 id: a-planar-face-through-two-vertices-on-one-point-meshes-under-one-id
 kind: issue
 title: A planar face whose loop passes two vertices on one point meshes both under one id and panics the chord census (main ships 13+ such SOUND bodies)
-status: review
+status: closed
 opened: 2026-10-05
 priority: P0
 cost: M
@@ -10,6 +10,7 @@ refs: [a-pinch-no-kept-face-can-cross-refuses, a-boolean-ships-a-face-whose-loop
 parent: a-pinch-no-kept-face-can-cross-refuses
 branch: join/pinch-one-vertex-per-cone
 pr: 4074
+closed: 2026-10-06
 ---
 
 
