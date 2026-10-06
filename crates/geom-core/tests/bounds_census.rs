@@ -391,6 +391,17 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Payload(
+            "a cycle's least margin with whether it is a bound. The margin is `min`, \
+             which reads no bracket; the `lo()` reads only choose which of the two \
+             `bounded` flags rides with it, and that flag reaches nothing but \
+             `BlendError::RingClearance`'s payload, beside the margin `ring_clearance` \
+             decides",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
         subject: "old_misses",
         why: Payload(
             "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
