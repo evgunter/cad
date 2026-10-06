@@ -501,6 +501,61 @@ fn subdivided_rim_blends_as_one_band_as_built() {
     );
 }
 
+/// **A joint and two cut-offs on one band**: only the split rim's two
+/// halves on the top cap. They join through the continuation vertex as
+/// one band, and each end, where the rim meets an unrequested side
+/// edge, is cut off at the side wall, at the prism closed form over the
+/// rim's whole length `2`.
+#[test]
+fn a_joined_band_is_cut_off_at_both_ends() {
+    let t = Tol::witness();
+    let body = subdivided_prism(t).body;
+    let half = |a: f64, b: f64| {
+        body.edges()
+            .map(|(k, _)| k)
+            .find(|&e| {
+                let he = body.get_edge(e).unwrap().he_plus;
+                let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                let (s, f) = (
+                    p(body.get_half_edge(he).unwrap().start),
+                    p(body.half_edge_end(he).unwrap()),
+                );
+                let on = |q: Point3<f64>, x: f64| (q - Point3::new(x, 0.0, 2.0)).norm() < 1e-12;
+                (on(s, a) && on(f, b)) || (on(s, b) && on(f, a))
+            })
+            .expect("a half of the split top rim")
+    };
+    let req = [half(0.0, 1.0), half(1.0, 2.0)];
+    for (verb, section) in [
+        ("fillet", (1.0 - core::f64::consts::FRAC_PI_4) * R * R),
+        ("chamfer", R * R / 2.0),
+    ] {
+        let out = match verb {
+            "fillet" => sweep::fillet::fillet_edges(&body, &req, R, t),
+            _ => sweep::chamfer::chamfer_edges(&body, &req, R, t),
+        }
+        .unwrap_or_else(|e| panic!("{verb}: the joined band builds, got {}", e.error));
+        assert_eq!(
+            topo::validate_geometric(&out.body, t),
+            Ok(()),
+            "{verb}: tier 3"
+        );
+        let rec = out.naming.as_ref().expect("birth records");
+        assert_eq!(
+            rec.joined_blends.len(),
+            1,
+            "{verb}: one band over both halves"
+        );
+        sweep::test_support::assert_naming_totality(&body, &out, &req, verb);
+        let removed = volume(&body, t) - volume(&out.body, t);
+        assert!(
+            (removed - 2.0 * section).abs() < 1e-12,
+            "{verb}: ΔV {removed} vs {}",
+            2.0 * section
+        );
+    }
+}
+
 /// **A boolean's merged faces leave no joint.** Two flush unit cubes
 /// unioned into a `2 × 1 × 1` box, their touching faces and coplanar
 /// sides declared: each long side is one face, and the output stage

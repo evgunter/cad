@@ -146,10 +146,9 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 ///
 /// - requesting the four floor edges alone leaves each floor corner
 ///   with exactly two requested edges, so the battery walks them into
-///   ONE CLOSED chain and refuses it at the G1 door (the corners are
-///   sharp) — a subtly different mechanism from the PR's "chain ends
-///   must be trivalent-and-fully-requested" framing, which speaks only
-///   once a chain HAS ends, but the same conclusion;
+///   ONE CLOSED chain, chain G1 breaks it at each sharp corner into four
+///   open chains, and each corner — two of its three edges requested —
+///   refuses as the turn;
 /// - completing the request — here the WHOLE pocket component, floor,
 ///   struts and even the convex rim — reaches the struts' top ends,
 ///   which are the rim's mixed corners: the corner door refuses
@@ -181,9 +180,15 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
     let err = chamfer_edges(&body, &floor, D, Tol::witness())
         .expect_err("the floor alone is an incomplete request");
     assert!(
-        matches!(err.error, BlendError::ChainNotG1 { .. }),
-        "the floor-only request walks into a closed sharp-cornered chain \
-         and refuses at the G1 door, got {:?}",
+        matches!(
+            err.error,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::Turn,
+                ..
+            }
+        ),
+        "the floor-only request breaks at its sharp corners and refuses at \
+         the turns, got {:?}",
         err.error
     );
 

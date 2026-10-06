@@ -4333,10 +4333,18 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         super::sphere_region::sphere_face_region(body, piece, cut.center, r)
                             .map_err(read)?
                             .ok_or_else(unread)?;
+                    // The region's own refusal: in band of an arc, or no
+                    // ray of its walk settled, or an arc that bounds
+                    // nothing — each a piece not read against the circle.
+                    let read_region = |e: super::sphere_region::RegionRefusal| match e {
+                        super::sphere_region::RegionRefusal::Escalated(diag) => esc(diag),
+                        super::sphere_region::RegionRefusal::RayExhausted { .. }
+                        | super::sphere_region::RegionRefusal::WoundPastPeriod => unread(),
+                    };
                     let [lo, hi] = crossings;
                     match (
-                        region.contains(piece, lo, band).map_err(read)?,
-                        region.contains(piece, hi, band).map_err(read)?,
+                        region.contains(lo, band).map_err(read_region)?,
+                        region.contains(hi, band).map_err(read_region)?,
                     ) {
                         (Some(true), Some(true)) if holder.is_none() => holder = Some(piece),
                         (Some(false), Some(false)) => {}

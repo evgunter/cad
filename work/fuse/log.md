@@ -481,7 +481,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates`.
   The orchestrator reproduced it on main alone. It is JOIN's
   (`bool_join_nearest` in `join::nearer`), filed by the 3953 lane as
-  `work/join/a-pinch-face-tessellation-witness-refuses-bool-join-nearest-at-eps-1e-6.md`.
+  `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` (the 3953 lane's duplicate file was folded into it).
   PR 3953 is held on it rather than merged on red. PR 3955 landed
   first.
 
@@ -505,3 +505,33 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   fallback; lane 2 covers correctness, readers, mutants and timing.
 - PR 3953 and PR 4108 are still held on JOIN's eps-1e-6 red on main
   (`work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md`, open P0).
+
+- 2026-10-06 — The 4140 dual review is in, with no BLOCKER.
+  - **Lane 1:** three MAJORs. `held_by_ends` was a door-time search,
+    contrary to the merge-stage clause. The REST-lane join had no
+    witness. The curved arm was filed as a fork, but it is not one:
+    PR 3881's ratified body decides it.
+  - **Lane 2:** MINORs only. Its census golden accounting showed no
+    contact lost.
+  - **Fix pass (2809d22f9):** the join writes the chord rows itself
+    from `Locus::OnEdge`, so `held_by_ends` is gone and no Ev
+    question was needed. It adds witnesses for every stage path and
+    lineage arm, makes `record()` exhaustive, re-blesses perf12 and
+    merges main. A focused re-check of the new carriage is running.
+- 2026-10-06 — PR 4161 (step 4, merged-set edge names) is open on
+  `fuse/set-names`, based on 4140's branch. The FULL review found
+  no BLOCKER, and every order-freedom probe held.
+  - **README:** its N3-parity claim overreached. Ruled as wording, not
+    a fork: the readings of the 3881 naming bullet are listed in the
+    PR body.
+  - **Fix pass (660c1c9b):** accepted. It merges 4140's head next.
+- 2026-10-06 — Main has a second PR-CI red: demo-tour's Klein pin
+  (`klein.rs:876`). The 3953 lane bisected it to PR 3774 (PATHS 5b),
+  and it is filed on PATHS as
+  `a-klein-wall-radius-pin-fires-on-main-since-paths-5b` (P0). PR 3953
+  and PR 4108 stay held on both main reds.
+- 2026-10-06 — Both main reds are fixed on main. JOIN's 1e-6 row was
+  folded and closed in PR 4083 (cleave/ray-walk), and the Klein
+  tripwire was retired in 65b1b0a8 (SHELL, PR 4168). The PATHS row the
+  orchestrator filed is closed against that commit. PR 3953 and
+  PR 4108 are told to merge main and land when green.
