@@ -48,13 +48,9 @@ a same-key adjacency for a merge to undo. The one exception is a run that
 is the whole closed loop of k ≥ 2 pieces (a circle split at authored
 stations): it keeps its authored cuts (C12.5). A one-piece closed loop is
 one wall whose strut is its wrap edge (D1).
-A partial revolve builds a run of cocircular arcs one wall per arc, on
-the run's one surface key: one wall would carry each wedge cap's meridian
-in pieces, and the mass-properties meridian fold groups pieces by split
-lineage, which a station's pieces do not have
-(`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`).
 A station inside a run has no entity in the body: a cap carries the run as
-one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges). It
+one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges),
+and a partial revolve's run of on-axis segments is one axis edge. It
 stays in the profile, where `ProfileVertexRef` names it.
 Loft builds one wall per corresponding segment pair: across sections
 nothing declares two walls one surface, and the station pins the ruling.

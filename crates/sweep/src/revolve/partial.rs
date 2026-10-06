@@ -8,11 +8,11 @@
 //! Phase order (fixed, D9): start lamina (outer chain + closing `mef`
 //! carrying the start cap's Newell plane), holes (bridge `mev` +
 //! `kemr` + chain + closing `mef` + same-shell `kfmrh` — extrude's
-//! shape), per-loop sweep (struts at off-axis vertices leading a run,
-//! one wall per run of off-axis segments — a station inside a run is a
-//! vertex of both wedge caps' meridian chains and of nothing else —
-//! latitude-join classification), end cap plane, then the upgrade pass
-//! (cap–wall meridians, cap–cap axis edges).
+//! shape), per-loop sweep (struts at off-axis vertices, one wall per
+//! off-axis segment, latitude-join classification), end cap plane, then
+//! the upgrade pass (cap–wall meridians, cap–cap axis edges). Every
+//! phase builds the loops with their runs collapsed ([`Collapsed`]), so
+//! a station inside a run has no entity.
 
 use geom_brep::newell_plane;
 use geom_core::{Affine3, Band, Decide, Point3, Real, Sign};
