@@ -95,3 +95,16 @@ are 0.2 apart. The 16-gon twin passes 3′. In ZIP's sweep this held for
 all 144 rim and bore splits and phases tried
 (`a-round-tube-standing-on-a-plate-refuses-seam-orientation`,
 `## Closed`).
+
+## 2026-10-06 — two stubs of a tilted prism through a slab (TANG)
+
+`sweep::planar_ring_arc_closure::a_prism_with_arc_walls_through_a_slab_builds_every_op`:
+a prism with an arc wall tilted through the slab `[−4, 4]² × [−0.5,
+0.5]`, `prism ∖ slab`. The result is the two stubs either side of the
+slab, two solids a unit apart along the slab's normal, whose tilted
+walls overhang each other. Tier 3 passes and the volume matches its
+closed form; empty tier 3′ answers 2 to 9 `CensusUndecidable` pairs
+on 11 of the row's 18 tilted shape-poses: all nine shapes tilted
+about two axes, and the 1.4π D and the lens tilted about one. The row
+accepts that refusal, and only it, on those results; the upright ones
+must pass.

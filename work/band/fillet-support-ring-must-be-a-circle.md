@@ -2,10 +2,12 @@
 id: fillet-support-ring-must-be-a-circle
 kind: issue
 title: A fillet whose planar support carries a polygonal ring refuses: the ring carry-through check reads only circles
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+pr: 4119
+closed: 2026-10-06
 ---
 
 ## What

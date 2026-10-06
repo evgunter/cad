@@ -1012,11 +1012,6 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both
      CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its \
      rings clear of the band's setback; junction carry-through and run-outs are not \
      implemented";
-/// The recourse for a BODY the surgery has not been built for. The
-/// surgery operates in place on one solid; multi-solid and shell-less
-/// bodies are a separate door.
-pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid with a single shell; blending across \
-     several solids at once is not implemented";
 /// The recourse for a stored geometry the surgery's closed forms do
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
@@ -1131,7 +1126,6 @@ pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are bot
 ///
 /// | The branch reads | Variant |
 /// |---|---|
-/// | the body's solid/shell inventory | [`BlendError::UnsupportedBody`] |
 /// | a stored `Surface`, carrier or trimline | [`BlendError::UnsupportedGeometry`] |
 /// | a corner's own valence or convexity mix | [`BlendError::UnsupportedCorner`] |
 /// | which edges the REQUEST covers at a termination | [`BlendError::UnsupportedRunOut`] |
@@ -1368,15 +1362,6 @@ pub enum BlendError {
         /// straddling or poisoned enclosure reports the end that fails.
         size: f64,
     },
-    /// **Frontier** (D2 addendum row 2): the body is a shape the
-    /// in-place surgery has not been built for. Valid input, unbuilt
-    /// door.
-    UnsupportedBody {
-        /// How many solids the body holds.
-        solids: usize,
-        /// How many shells the body holds.
-        shells: usize,
-    },
     /// **Frontier** (D2 addendum row 2): a property of the requested
     /// CHAIN puts it outside the built door.
     ///
@@ -1433,9 +1418,12 @@ pub enum BlendError {
     /// **The body handed to the surgery does not hold together where
     /// the plan read it** (D2 addendum row 1): a stored reference that
     /// did not resolve, a cycle that did not close, or a verdict whose
-    /// keys disagree with the body's own structure. This is not a
-    /// blend frontier and carries no recourse — the input is
-    /// invalid, and the surgery refuses rather than building on it.
+    /// keys disagree with the body's own structure — among them a
+    /// requested chain or corner bounded by faces of two shells, which
+    /// tier 1 rules out (`EdgeAcrossShells`, one orbit per vertex).
+    /// This is not a blend frontier and carries no recourse — the
+    /// input is invalid, and the surgery refuses rather than building
+    /// on it.
     BodyNotIntact {
         /// The entity the plan was reading.
         at: EntityId,
@@ -1667,11 +1655,6 @@ impl fmt::Display for BlendError {
                 "the band size {size} m is not definitely positive. Recourse: supply a \
                  positive radius or setback"
             ),
-            Self::UnsupportedBody { solids, shells } => write!(
-                f,
-                "the body is {solids} solid(s) and {shells} shell(s), not one solid \
-                 with one shell. Recourse: {FILLET3_BODY_RECOURSE}"
-            ),
             Self::UnsupportedChain { detail, .. } => {
                 write!(f, "{detail}. Recourse: {FILLET3_ASSEMBLY_RECOURSE}")
             }
@@ -1736,7 +1719,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 17] = [
+pub const ALL_RECOURSES: [(&str, &str); 16] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
@@ -1749,7 +1732,6 @@ pub const ALL_RECOURSES: [(&str, &str); 17] = [
     ("corner-independence", FILLET3_CORNER_INDEPENDENCE_RECOURSE),
     ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
     ("assembly", FILLET3_ASSEMBLY_RECOURSE),
-    ("body", FILLET3_BODY_RECOURSE),
     ("geometry", FILLET3_GEOMETRY_RECOURSE),
     ("ring", FILLET3_RING_RECOURSE),
     ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
@@ -1765,7 +1747,7 @@ mod recourse_tests {
 
     use super::{
         BlendDecision, BlendError, BlendSite, CHAMFER_ARM_RECOURSE, ClassifiedMargin, Convexity,
-        CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+        CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
         FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
@@ -1841,7 +1823,6 @@ mod recourse_tests {
             BlendError::ChamferArmUnsupported { .. } => Recourse::Exactly(CHAMFER_ARM_RECOURSE),
             BlendError::Escalated { decision, .. } => Recourse::Exactly(decision.lever()),
             // The surgery's own frontiers (D2 addendum row 2).
-            BlendError::UnsupportedBody { .. } => Recourse::Exactly(FILLET3_BODY_RECOURSE),
             BlendError::UnsupportedChain { .. } => Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE),
             BlendError::UnsupportedRunOut { .. } => Recourse::Exactly(FILLET3_CORNER_RECOURSE),
             BlendError::UnsupportedGeometry { .. } => Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE),
@@ -1951,10 +1932,6 @@ mod recourse_tests {
                 edge: EdgeKey::default(),
             },
             BlendError::NonpositiveSize { size: 0.0 },
-            BlendError::UnsupportedBody {
-                solids: 2,
-                shells: 2,
-            },
             BlendError::UnsupportedChain {
                 edge: EdgeKey::default(),
                 detail: "a chain shape that is not built",

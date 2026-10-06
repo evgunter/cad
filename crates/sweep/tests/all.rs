@@ -125,6 +125,8 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "planar_ring_arc_closure.rs"]
+mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
 mod pocket_ring_steep_ellipse;
 #[path = "pocket_wall_crossing_a_side_face.rs"]
@@ -740,6 +742,10 @@ mod fillet_h5_r2_probes;
 #[path = "review_fillet_h5_r1_probes.rs"]
 mod review_fillet_h5_r1_probes;
 
+#[path = "blend_per_shell.rs"]
+mod blend_per_shell;
+#[path = "blend_per_shell_carry.rs"]
+mod blend_per_shell_carry;
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
 #[path = "review_blend3_r3_probes.rs"]
@@ -926,3 +932,6 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+
+#[path = "pole_ball_shells.rs"]
+mod pole_ball_shells;

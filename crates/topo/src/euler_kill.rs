@@ -307,7 +307,7 @@
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::{Decide, Point3, Real, Tol};
 
-use crate::attach::Slot;
+use crate::attach::{Remints, Slot};
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -913,13 +913,14 @@ impl<T: Decide> Body<T> {
     ///   through the attachment gate [`Body::set_edge_curve`] certifies
     ///   through, adjacency coherence included, and its curve is
     ///   replaced by fresh insertion (the old one reaped iff orphaned).
-    ///   Pcurve rows stand, as they do under `set_edge_curve` (its docs
-    ///   say why, and what tier 3 does with them) — except that a listed
-    ///   null edge's description is its first, and re-mints the faces
-    ///   its halves are on as `set_edge_curve`'s does, through the one
-    ///   planner both doors run, over each face as the kill leaves it:
-    ///   the killed halves gone, and every listed member's halves under
-    ///   the curve this door installs.
+    ///   The kill moves its end and this door its carrier, so the rows
+    ///   its halves store would span the interval the end moved from:
+    ///   each face its halves are on is re-minted, through the planner
+    ///   `set_edge_curve` runs for a null edge's first description, over
+    ///   the face as the kill leaves it — the killed halves gone, and
+    ///   every listed member's halves under the curve this door
+    ///   installs. A face on a spline chart is left as found, its rows
+    ///   tier 3's to report.
     /// - **An unlisted member** keeps its carrier and passes the
     ///   re-basing gate [`Body::mev`]'s fan site passes, under this
     ///   band: its stored description re-certified against the merged
@@ -977,8 +978,8 @@ impl<T: Decide> Body<T> {
     /// [`geom_brep::CertifyError::Band`]) and each killed half's turn is
     /// decided at it ([`EulerOpError::KillTurnEscalated`] naming the
     /// first half, `he` before its mate, whose turn escalates). Then,
-    /// where a listed member is a null edge, its first description's
-    /// site mint is planned ([`EulerOpError::PcurveMint`], as
+    /// where a member is listed, the site mint over the faces its halves
+    /// are on is planned ([`EulerOpError::PcurveMint`], as
     /// [`Body::set_edge_curve`]'s). Last, where the killed edge is a
     /// null edge, the site mint over every other face its halves are on
     /// that a loop it releases leaves with a gap
@@ -1028,8 +1029,12 @@ impl<T: Decide> Body<T> {
             .iter()
             .map(|(edge, curve)| (*edge, curve))
             .collect();
-        let mut rows =
-            self.null_description_rows(&curves, |body| Ok(body.kev_loops_after(&plan)), tol)?;
+        let mut rows = self.description_rows(
+            &curves,
+            Remints::Every,
+            |body| Ok(body.kev_loops_after(&plan)),
+            tol,
+        )?;
         rows.extend(self.kev_released_rows(&plan, &curves, Some(tol))?);
         let result = self.kev_execute(plan);
         // Every listed edge is a merged member, and no merged member is
@@ -1353,9 +1358,9 @@ impl<T: Decide> Body<T> {
 
     /// The rows the kill owes the loops it releases
     /// ([`Body::plan_released_rows`]), over the faces its halves are on
-    /// as [`Body::kev_loops_after`] leaves them, but a face a listed null
-    /// member's half is on: [`Body::null_description_rows`] plans that
-    /// one whole. `described` is [`Body::kev_describing`]'s listed
+    /// as [`Body::kev_loops_after`] leaves them, but a face a listed
+    /// member's half is on: [`Body::description_rows`] plans that one
+    /// whole. `described` is [`Body::kev_describing`]'s listed
     /// members, empty for [`Body::kev`].
     ///
     /// # Errors
@@ -1370,15 +1375,9 @@ impl<T: Decide> Body<T> {
         let mut read: Vec<FaceKey> = Vec::with_capacity(2);
         for lk in plan.loops {
             let face = proven(&self.loops, lk, EntityId::Loop).face;
-            let planned = described.iter().any(|&(edge, _)| {
-                let edge_data = proven(&self.edges, edge, EntityId::Edge);
-                self.edge_curve_linked(edge, edge_data)
-                    .null_scaffold()
-                    .is_some()
-                    && [edge_data.he_plus, edge_data.he_minus]
-                        .into_iter()
-                        .any(|h| crate::pcurves::half_edge_face(self, h).0 == face)
-            });
+            let planned = described
+                .iter()
+                .any(|&(edge, _)| self.description_remints(edge, Remints::Every, face));
             if !planned && !read.contains(&face) {
                 read.push(face);
             }

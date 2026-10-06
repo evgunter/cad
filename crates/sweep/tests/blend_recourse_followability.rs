@@ -63,11 +63,10 @@ use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
-    FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
-    FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE,
-    FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
-    FILLET3_TANGENTIAL_RECOURSE,
+    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
+    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -585,34 +584,6 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         &neck,
         0.05,
         "a closed rim whose ONE host face carries every arc",
-    );
-}
-
-/// **`FILLET3_BODY_RECOURSE` — "a body that is a single solid with a
-/// single shell".**
-///
-/// Two cubes grafted into one body are valid input the in-place
-/// surgery is not built for. The single-solid body the sentence names
-/// is the same cube, and it builds.
-#[test]
-fn the_body_recourse_names_a_single_solid_that_builds() {
-    let mut two = cube(1.0, tol());
-    let other = cube(1.0, tol());
-    topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
-    let e = query::all_edges(&two);
-    let err = refusal(&two, &e[..1], 0.1, "a two-solid body", false);
-    assert!(
-        matches!(err, BlendError::UnsupportedBody { solids: 2, .. }),
-        "the body inventory is what refuses, got {err:?}"
-    );
-    carries(&err, FILLET3_BODY_RECOURSE, "two-solid body");
-
-    let one = cube(1.0, tol());
-    builds(
-        &one,
-        &query::all_edges(&one),
-        0.1,
-        "the single-solid single-shell body",
     );
 }
 
