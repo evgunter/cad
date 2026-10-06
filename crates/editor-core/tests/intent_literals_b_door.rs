@@ -182,9 +182,60 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
     assert_eq!(by_name.to_string(), by_id.to_string());
 }
 
-/// The formula a walk visits `at`th replaced by an unheld name read at
-/// its dimension, every other kept: one walk, the door's own.
-fn named_at<T>(
+/// **The slot forms a door lowers that can name nothing the document
+/// holds** (INTENT-LITERALS spec §4): a name, a variable's id, and an
+/// entry of the edit's fresh table, each unheld.
+#[derive(Clone, Copy, Debug)]
+enum Unheld {
+    /// A name no variable holds.
+    Name,
+    /// An id the document never minted.
+    Id,
+    /// An entry the edit's (empty) fresh table does not hold.
+    Fresh,
+}
+
+impl Unheld {
+    const ALL: [Self; 3] = [Self::Name, Self::Id, Self::Fresh];
+
+    /// This form, read at `dim`.
+    fn formula(self, dim: Dimension) -> Formula {
+        match self {
+            Self::Name => Formula::named(name("nope"), dim),
+            Self::Id => Formula::var(editor_core::VarId(test_utils::refusal::tagged(9)), dim),
+            Self::Fresh => Formula::fresh(0, dim),
+        }
+    }
+
+    /// Whether `refused` is this form's refusal at a slot or the
+    /// payload, or — for a node's count no slot addresses — the
+    /// placement rule's own (p1's edge).
+    fn refuses(self, refused: &EditError) -> bool {
+        matches!(refused, EditError::PlacementRuleMismatch { .. })
+            || self.refuses_at_a_slot(refused)
+    }
+
+    /// Whether `refused` is this form's refusal where every formula has
+    /// an address (a program's argument, an offset's).
+    fn refuses_at_a_slot(self, refused: &EditError) -> bool {
+        match self {
+            Self::Name => matches!(
+                refused,
+                EditError::SlotUnknownVarName { .. } | EditError::PayloadUnknownVarName { .. }
+            ),
+            Self::Id => matches!(
+                refused,
+                EditError::SlotUnresolvedVar { .. } | EditError::PayloadUnresolvedVar { .. }
+            ),
+            Self::Fresh => matches!(refused, EditError::FreshUnheld { index: 0, .. }),
+        }
+    }
+}
+
+/// The formula a walk visits `at`th replaced by `form` read at its
+/// dimension, every other kept: one walk, the door's own.
+fn unheld_at<T>(
+    form: Unheld,
     at: usize,
     map: impl FnOnce(&mut dyn FnMut(&Formula) -> Result<Formula, ()>) -> Result<T, ()>,
 ) -> (T, usize) {
@@ -193,24 +244,13 @@ fn named_at<T>(
         let here = seen;
         seen += 1;
         Ok(if here == at {
-            Formula::named(name("nope"), formula.dim())
+            form.formula(formula.dim())
         } else {
             formula.clone()
         })
     })
     .expect("the walk refuses nothing");
     (mapped, seen)
-}
-
-/// Whether `refused` is a name refusal, at a slot or the payload, or
-/// the placement rule's own (p1's edge).
-fn names_the_name(refused: &EditError) -> bool {
-    matches!(
-        refused,
-        EditError::SlotUnknownVarName { .. }
-            | EditError::PayloadUnknownVarName { .. }
-            | EditError::PlacementRuleMismatch { .. }
-    )
 }
 
 /// The variant a node is, for the coverage count.
@@ -223,12 +263,13 @@ fn kind_of(node: &AuthoredNode) -> String {
         .to_owned()
 }
 
-/// **Every formula field the door's walk reaches, written as an unheld
-/// name, refuses typed.** Over every node of every corpus document plus
+/// **Every formula field the door's walk reaches, written in each slot
+/// form as something the document does not hold — a name, an id, a
+/// fresh entry — refuses typed.** Over every node of every corpus document plus
 /// p1/p2's listed-rule nodes: each node re-authored, and for each
 /// formula `try_map_slots` visits — slots, payload leaves, a profile's
 /// program, a placement's steps, a mate's frame offsets, the count no
-/// slot addresses — that one formula an unheld name, inserted. Then the
+/// slot addresses — that one formula unheld, inserted. Then the
 /// same over every profile's program at `SetProgram`. A slot type the
 /// walk reaches and the refusal does not is a red row, not a panic in
 /// a caller.
@@ -308,22 +349,24 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     let mut programs = 0usize;
     for (doc_name, doc, node) in &cases {
         kinds.insert(kind_of(node));
-        let mut at = 0;
-        loop {
-            let (mutated, seen) = named_at(at, |f| {
-                node.try_map_slots(|p, g| p.try_map_slots(&mut |e| g(e)), &mut |e| f(e))
-            });
-            if at >= seen {
-                break;
+        for form in Unheld::ALL {
+            let mut at = 0;
+            loop {
+                let (mutated, seen) = unheld_at(form, at, |f| {
+                    node.try_map_slots(|p, g| p.try_map_slots(&mut |e| g(e)), &mut |e| f(e))
+                });
+                if at >= seen {
+                    break;
+                }
+                formulas += 1;
+                let refused = edit(doc, &insert(mutated)).expect_err("an unheld read refuses");
+                assert!(
+                    form.refuses(&refused),
+                    "{doc_name}: {} formula {at} as {form:?}: {refused:?}",
+                    kind_of(node)
+                );
+                at += 1;
             }
-            formulas += 1;
-            let refused = edit(doc, &insert(mutated)).expect_err("an unheld name refuses");
-            assert!(
-                names_the_name(&refused),
-                "{doc_name}: {} formula {at}: {refused:?}",
-                kind_of(node)
-            );
-            at += 1;
         }
         // The same formulas reached through `SetProgram`, where the node
         // is a standing profile.
@@ -339,37 +382,39 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             continue;
         };
         let loops: &[LoopProgram<Formula>] = &program.loops;
-        let mut at = 0;
-        loop {
-            let (mutated, seen) = named_at(at, |f| {
-                loops
-                    .iter()
-                    .map(|lp| lp.try_map_slots(&mut |e| f(e)))
-                    .collect::<Result<Vec<_>, _>>()
-            });
-            if at >= seen {
-                break;
-            }
-            programs += 1;
-            let refused = edit(
-                doc,
-                &DocEdit::SetProgram {
-                    node: target,
-                    loops: mutated,
-                    ids: program
-                        .ids
+        for form in Unheld::ALL {
+            let mut at = 0;
+            loop {
+                let (mutated, seen) = unheld_at(form, at, |f| {
+                    loops
                         .iter()
-                        .map(|steps| steps.iter().copied().map(Some).collect())
-                        .collect(),
-                    fresh: Vec::new(),
-                },
-            )
-            .expect_err("an unheld name refuses");
-            assert!(
-                matches!(refused, EditError::SlotUnknownVarName { .. }),
-                "{doc_name}: program argument {at}: {refused:?}"
-            );
-            at += 1;
+                        .map(|lp| lp.try_map_slots(&mut |e| f(e)))
+                        .collect::<Result<Vec<_>, _>>()
+                });
+                if at >= seen {
+                    break;
+                }
+                programs += 1;
+                let refused = edit(
+                    doc,
+                    &DocEdit::SetProgram {
+                        node: target,
+                        loops: mutated,
+                        ids: program
+                            .ids
+                            .iter()
+                            .map(|steps| steps.iter().copied().map(Some).collect())
+                            .collect(),
+                        fresh: Vec::new(),
+                    },
+                )
+                .expect_err("an unheld read refuses");
+                assert!(
+                    form.refuses_at_a_slot(&refused),
+                    "{doc_name}: program argument {at} as {form:?}: {refused:?}"
+                );
+                at += 1;
+            }
         }
     }
     // The same over an instance's offset, at `SetOffset`.
@@ -383,34 +428,36 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     let target = instance.record.minted.expect("an insert mints");
     let offset = rigid();
     let mut offsets = 0usize;
-    let mut at = 0;
-    loop {
-        let (mutated, seen) = named_at(at, |f| offset.try_map_slots(&mut |e| f(e)));
-        if at >= seen {
-            break;
+    for form in Unheld::ALL {
+        let mut at = 0;
+        loop {
+            let (mutated, seen) = unheld_at(form, at, |f| offset.try_map_slots(&mut |e| f(e)));
+            if at >= seen {
+                break;
+            }
+            offsets += 1;
+            let refused = edit(
+                &instance.doc,
+                &DocEdit::SetOffset {
+                    instance: target,
+                    offset: Some(mutated),
+                    fresh: Vec::new(),
+                },
+            )
+            .expect_err("an unheld read refuses");
+            assert!(
+                form.refuses_at_a_slot(&refused),
+                "offset step argument {at} as {form:?}: {refused:?}"
+            );
+            at += 1;
         }
-        offsets += 1;
-        let refused = edit(
-            &instance.doc,
-            &DocEdit::SetOffset {
-                instance: target,
-                offset: Some(mutated),
-                fresh: Vec::new(),
-            },
-        )
-        .expect_err("an unheld name refuses");
-        assert!(
-            matches!(refused, EditError::SlotUnknownVarName { .. }),
-            "offset step argument {at}: {refused:?}"
-        );
-        at += 1;
     }
     println!(
         "{} nodes, {formulas} node formulas, {programs} program arguments, {offsets} offset \
          arguments; kinds {kinds:?}",
         cases.len()
     );
-    assert!(formulas > 0 && programs > 0 && offsets == 7);
+    assert!(formulas > 0 && programs > 0 && offsets == 3 * 7);
     // Every node kind is in the sweep: a kind added to the vocabulary
     // that no corpus document holds owes an edge above.
     assert_eq!(
