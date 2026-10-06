@@ -916,26 +916,24 @@ fn planar_caps(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey, f64, f64)> {
         .collect()
 }
 
-/// **MEASURED PRODUCER DEFECT: `extrude` and `loft_body` mint the
-/// C-shape's caps inside out, and check 6 refuses them at rest.** Both
-/// verbs orient a cap's plane by Newell over the profile's vertices
-/// plus one apex per arc (`sweep`'s `cap_points`), which on the C-shape
-/// winds against the region. The minted body's bottom cap (z = 0)
-/// carries a `+z` plane normal and its top cap (z = 1) a `−z` one, both
-/// with `sense: true` — each cap's outward normal points INTO the
-/// material. Before check 6 reached arc-bearing loops tier 3 certified
-/// this body; now it refuses exactly the two caps.
+/// **The C-shape's caps point out of the material, and tier 3
+/// certifies them.** Its inscribed polygon winds against the region,
+/// so a cap oriented by Newell over the profile's vertices and arc
+/// apexes comes out inside out; `extrude` and `loft_body` orient their
+/// caps by the region's winding instead (`sweep`'s `cap_plane`). The
+/// bottom cap (z = 0) has outward normal `−z`, the top (z = 1) `+z`,
+/// and check 6's planar arm, which reaches arc-bearing loops, accepts
+/// both bodies.
 ///
-/// Filed as
-/// `work/carve/sweep-cap-plane-winds-against-a-convex-arc-region.md`.
-///
-/// **How it goes red.** The day the verbs orient the cap by the
-/// region's arc-exact winding, the normal assertions fail and the row
-/// is re-cut to "the C-shape certifies". An arm that stopped reaching
-/// arc-bearing loops leaves the body `Ok` and `expect_err` fails. The
-/// runtime values are the stored plane normals and the error vectors.
+/// **How it goes red.** A cap oriented by its inscribed polygon flips
+/// `outward_z`'s sign at both caps, and the body refuses with
+/// `LoopRoleInverted` at them. An arm that stopped reaching arc-bearing
+/// loops would leave the inverted body certified, which the companion
+/// `an_inverted_arc_bounded_planar_cap_refuses_naming_its_face_and_loop`
+/// row catches. The runtime values are the stored plane normals and
+/// the validation result.
 #[test]
-fn a_convex_arc_c_shape_cap_is_minted_inside_out_and_check_6_refuses_it() {
+fn a_convex_arc_c_shape_extrude_and_loft_caps_point_out_and_certify() {
     let tol = Tol::witness();
     let prof = Profile::new(SketchPlane::xy(), c_shape(0.0))
         .validate(tol)
@@ -964,38 +962,31 @@ fn a_convex_arc_c_shape_cap_is_minted_inside_out_and_check_6_refuses_it() {
         for &(face, _, z, nz) in &caps {
             let sense = body.get_face(face).expect("live").sense;
             let outward_z = if sense { nz } else { -nz };
+            let want = if z < 0.5 { -1.0 } else { 1.0 };
             assert!(
-                (z < 0.5 && outward_z > 0.0) || (z > 0.5 && outward_z < 0.0),
-                "MEASURED PRODUCER DEFECT: {verb}'s cap at z = {z} has outward normal \
-                 z-component {outward_z}, into the material; if this now points out, the \
-                 verb is fixed — re-cut this row to the body certifying"
+                (outward_z - want).abs() < 1e-12,
+                "{verb}: the cap at z = {z} has outward normal z-component {outward_z}, \
+                 want {want} (out of the material)"
             );
         }
-        let errs =
-            topo::validate_geometric(&body, tol).expect_err("check 6 refuses the inside-out caps");
-        let mut want: Vec<(FaceKey, topo::LoopKey)> =
-            caps.iter().map(|&(f, l, _, _)| (f, l)).collect();
-        want.sort();
-        assert_eq!(
-            role_inversions(&errs),
-            want,
-            "{verb}: exactly the two caps refuse"
-        );
+        if let Err(errs) = topo::validate_geometric(&body, tol) {
+            panic!("{verb}: the C-shape body certifies at rest, refused with {errs:?}");
+        }
     }
 }
 
-/// **The same defect through a partial revolve.** The C-shape moved
-/// three units off the axis and revolved a quarter turn: both wedge
-/// caps take their plane from the same `cap_points` Newell, both come
-/// out inside out, and check 6 refuses exactly those two caps. Filed
-/// with the extrude and loft cases
-/// (`work/carve/sweep-cap-plane-winds-against-a-convex-arc-region.md`).
+/// **The same through a partial revolve.** The C-shape moved three
+/// units off the axis (the sketch y axis) and revolved a quarter turn:
+/// the rotation carries it toward `−z`, so the start cap (on the sketch
+/// plane) faces `+z` and the end cap (in the plane x = 0) faces `−x`,
+/// both out of the wedge, and the body certifies.
 ///
-/// **How it goes red.** When the revolve orients its caps by the
-/// region's winding the body certifies and `expect_err` fails — re-cut
-/// the row then. The runtime value is the error vector.
+/// **How it goes red.** A wedge cap oriented by its inscribed polygon
+/// flips the outward normal's sign at both caps, and tier 3 refuses
+/// them with `LoopRoleInverted`. The runtime values are the two stored
+/// cap normals and the validation result.
 #[test]
-fn a_convex_arc_c_shape_partial_revolve_mints_both_caps_inside_out() {
+fn a_convex_arc_c_shape_partial_revolve_caps_point_out_and_certify() {
     let tol = Tol::witness();
     let body = revolve(
         &validated(c_shape(3.0)),
@@ -1005,15 +996,31 @@ fn a_convex_arc_c_shape_partial_revolve_mints_both_caps_inside_out() {
     )
     .expect("the partial revolve builds the C-shape")
     .body;
-    let caps: Vec<(FaceKey, topo::LoopKey)> = body
+    let mut outward: Vec<[f64; 3]> = body
         .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
-        .map(|(k, f)| (k, f.outer))
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { normal, .. }) => {
+                let n = if f.sense { *normal } else { -*normal };
+                Some([n.x, n.y, n.z])
+            }
+            _ => None,
+        })
         .collect();
-    assert_eq!(caps.len(), 2, "a partial revolve has two planar wedge caps");
-    let errs = topo::validate_geometric(&body, tol)
-        .expect_err("MEASURED PRODUCER DEFECT: both wedge caps are minted inside out and refuse");
-    let mut want = caps;
-    want.sort();
-    assert_eq!(role_inversions(&errs), want);
+    outward.sort_by(|a, b| a.partial_cmp(b).expect("finite normals"));
+    let want = [[-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]];
+    assert_eq!(
+        outward.len(),
+        2,
+        "a partial revolve has two planar wedge caps"
+    );
+    for (got, want) in outward.iter().zip(&want) {
+        assert!(
+            got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12),
+            "a wedge cap's outward normal is {got:?}, want {want:?} (out of the wedge); \
+             all: {outward:?}"
+        );
+    }
+    if let Err(errs) = topo::validate_geometric(&body, tol) {
+        panic!("the C-shape wedge certifies at rest, refused with {errs:?}");
+    }
 }

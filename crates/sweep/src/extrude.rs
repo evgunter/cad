@@ -12,7 +12,7 @@
 //!    two faces: the seed face (which will be swept and survive as the
 //!    **top cap**) keeps the swept-traversal winding; the `mef`-minted
 //!    face is the **bottom cap** (reversed winding, outward normal
-//!    opposite the extrusion), and receives its Newell plane at the
+//!    opposite the extrusion), and receives its cap plane at the
 //!    `mef` itself.
 //! 2. **Holes.** Each hole is planted in the seed face as a ring
 //!    (bridge `mev` + `kemr` — the empty-ring hole-planting state),
@@ -48,7 +48,7 @@
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
-//!    Newell plane.
+//!    cap plane.
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
@@ -99,8 +99,8 @@ use topo::{
 
 use crate::swept;
 use crate::swept::{
-    CosurfaceNames, SweptChord, cap_points, decide, face_surface_key, placed_segment_spec,
-    turn_axis,
+    CapEnd, CosurfaceNames, SweptChord, cap_plane, cap_points, decide, face_surface_key,
+    placed_segment_spec, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -810,28 +810,20 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         hes.push(m.he_plus);
         prev = m;
     }
-    // Bottom cap plane: the mef-minted face's loop runs the chain
-    // reversed — first cap point kept, the rest reversed (outward
-    // normal opposite the extrusion). Cap points are the loop vertices
-    // plus arc apexes (see `cap_points`).
-    let forward = cap_points(outer, qs, place);
-    let mut bottom_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
-    if let Some(&p0) = forward.first() {
-        bottom_order.push(p0);
-    }
-    for &p in forward.iter().skip(1).rev() {
-        bottom_order.push(p);
-    }
-    let bottom_plane =
-        newell_plane(&bottom_order, band).map_err(|source| ExtrudeError::CapPlane { source })?;
+    let bottom_plane = cap_plane(
+        &cap_points(outer, qs, place),
+        place,
+        reverse,
+        CapEnd::Start,
+        band,
+    )
+    .map_err(|source| ExtrudeError::CapPlane { source })?;
     let close = body.mef(
         MefSite::Chords {
             he1: prev.he_minus,
             he2: first.he_plus,
         },
         placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
-        // Newell over the loop the cap runs: its normal is the cap's
-        // outward normal, so the material agrees with the chart.
         FaceSurface::New {
             surface: bottom_plane,
             sense: true,
@@ -942,8 +934,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|&q| q + w)
         .collect();
-    let top_plane =
-        newell_plane(&far_loop, band).map_err(|source| ExtrudeError::CapPlane { source })?;
+    let top_plane = cap_plane(&far_loop, place, reverse, CapEnd::End, band)
+        .map_err(|source| ExtrudeError::CapPlane { source })?;
     let top_surface = body.set_face_surface(
         top_face,
         FaceSurface::New {

@@ -127,8 +127,11 @@
 //!   it). Smooth joins across genuinely distinct surfaces (line–arc
 //!   tangency: plane–cylinder) keep distinct surfaces and a
 //!   conventional join edge.
-//! - **Caps** via `geom_brep::newell_plane` over the loop vertices in
-//!   `next` order (outer loop in next order ⇒ outward normal).
+//! - **Caps** via `swept::cap_plane`: positioned by
+//!   `geom_brep::newell_plane` over the loop vertices and arc apexes,
+//!   oriented by the profile's validated winding (an outer loop runs
+//!   counterclockwise about the sketch normal), never by the inscribed
+//!   polygon's own winding, which a large convex arc can reverse.
 //!
 //! # Holes
 //!

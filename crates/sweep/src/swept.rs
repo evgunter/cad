@@ -44,8 +44,10 @@
 //! **says so at its own site**; that marker is the only thing tying
 //! the two together, and it is deliberately not deleted.
 
-use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
+use geom::{Curve3, Surface};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, newell_plane,
+};
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
@@ -583,9 +585,9 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 /// The world points determining a cap plane, in forward swept order:
 /// every loop vertex, plus every arc segment's apex. The apexes keep
 /// 2-vertex loops (the minimal circle) plane-determining — Newell needs
-/// three points and a 2-vertex cap has only two vertices — and they
-/// carry the traversal's winding faithfully (each sits between its
-/// segment's endpoints in loop order).
+/// three points and a 2-vertex cap has only two vertices. The polygon
+/// is inscribed in the region, so its winding is not the region's:
+/// [`cap_plane`] reads only its position.
 ///
 /// `qs` are the world vertices and `place` the matching placement, so
 /// a rotated or translated cap passes the rotated or translated pair.
@@ -603,6 +605,71 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
         }
     }
     pts
+}
+
+/// Which end of a sweep a cap closes. The start cap's loop runs the
+/// swept chain reversed (the closing `mef` of the start lamina), the end
+/// cap's runs it forward (the swept face that survives).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CapEnd {
+    /// The cap at the sketch's own station: outward normal opposite the
+    /// sweep.
+    Start,
+    /// The cap the sweep carries to its far station: outward normal
+    /// along the sweep.
+    End,
+}
+
+/// The certified plane of a sweep's cap over the outer loop `segs`.
+///
+/// **Position** is Newell over [`cap_points`] (its centroid, and its
+/// residual certification). **Orientation** is the region's: a
+/// validated outer loop winds counterclockwise about its sketch normal,
+/// a fact `profile` decides arc-exactly at validation, so the swept
+/// chain's region normal is `place`'s sketch normal, negated when the
+/// traversal `reversed` the canonical chain. The start cap's outward
+/// normal is that negated, the end cap's is that. Newell's own normal is
+/// not read: over an inscribed polygon a large convex arc can make it
+/// wind against the region.
+///
+/// `forward` is `cap_points` of the swept chain at this cap's station
+/// (`qs` and `place` matched, or the translated set). `place` must be
+/// right-handed (`c2 = c0 × c1`), which every sweep frame is by
+/// construction.
+pub(crate) fn cap_plane<T: Decide>(
+    forward: &[Point3<T>],
+    place: Affine3<T>,
+    reversed: bool,
+    end: CapEnd,
+    band: Band,
+) -> Result<Surface<T>, NewellError> {
+    // The start cap's loop order: first point kept, the rest reversed —
+    // the order the minted face runs, so a residual refusal names its
+    // vertex in the face's own order.
+    let ordered: Vec<Point3<T>> = match end {
+        CapEnd::End => forward.to_vec(),
+        CapEnd::Start => forward
+            .first()
+            .into_iter()
+            .chain(forward.iter().skip(1).rev())
+            .copied()
+            .collect(),
+    };
+    let Surface::Plane { origin, .. } = newell_plane(&ordered, band)? else {
+        unreachable!("newell_plane mints a plane")
+    };
+    let sketch_normal = place.linear.c2.normalize();
+    let normal = if reversed == (end == CapEnd::Start) {
+        sketch_normal
+    } else {
+        -sketch_normal
+    };
+    let (u_ref, _) = normal.orthonormal_basis();
+    Ok(Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    })
 }
 
 /// The predicate names one verb's cosurface decision reports under —
