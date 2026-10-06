@@ -8,6 +8,7 @@ priority: P1
 cost: M
 closed: 2026-10-06
 branch: tang/holes-meeting-at-a-vertex
+pr: 4129
 ---
 
 
@@ -43,7 +44,7 @@ every member order through `fixture::union_over`.
 SINGLE, FULL: a vertex shared by several holes is new topology for the
 join; one full review.
 
-## Closed (2026-10-06, TANG)
+## Closed (2026-10-06, TANG, PR 4129)
 
 Measured on 443f33b7. Under the D10 hold, the item's own fixture is
 two problems, neither of them the face:

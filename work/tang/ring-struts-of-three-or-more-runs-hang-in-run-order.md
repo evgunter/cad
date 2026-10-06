@@ -9,6 +9,7 @@ cost: M
 closed: 2026-10-06
 parent: three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order
 branch: tang/holes-meeting-at-a-vertex
+pr: 4129
 ---
 
 
@@ -63,7 +64,7 @@ Still unreached: 6 048 face-placement runs of the 343° notch, the L
 prism and a 203° shallow reflex, every op and both orders over the
 pierce sweep's grid, are all SOUND, and none mints a third run.
 
-## Closed (2026-10-06, TANG)
+## Closed (2026-10-06, TANG, PR 4129)
 
 Claimed by `three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`,
 whose leaning wedges reach three and four Out runs. A prism's vertex
