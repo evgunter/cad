@@ -270,8 +270,12 @@ fn eps_row(eps: f64) -> usize {
 /// `Early/Decision`, which reads no variable, holds its digest.
 ///
 /// Re-captured when an intrinsic edge description's surfaces became a
-/// set (`geom_brep::SurfacePair`): the certificate checks the pair in
-/// key order rather than the builder's, so the `*/Assertion` walks
+/// set (`geom_brep::SurfacePair`): the certificate reads the
+/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
+/// `n1.cross(n2)`) in key order where the extrude reads it in builder
+/// order, and the cross product is symmetric in value up to sign but not
+/// in form, so mixed orientations build distinct hash-consed forms: the
+/// `*/Assertion` walks
 /// build 188 more forms (918 → 1106, 1958 → 2146) and the
 /// `Plain/*` and `Early/Assertion` digests move at every row; calls,
 /// frozen counts and `Early/Decision` hold.
@@ -485,8 +489,9 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   −31. Every digest moves; the freezes hold.
 ///
 /// Re-captured when an intrinsic edge description's surfaces became a
-/// set (`geom_brep::SurfacePair`) and the certificate began checking
-/// them in key order: `Plain/Assertion` +176 forms and +29 frozen
+/// set (`geom_brep::SurfacePair`) and the certificate began reading the
+/// transversality wedge's `n1.cross(n2)` in key order, a form distinct
+/// from the extrude's builder-order one: `Plain/Assertion` +176 forms and +29 frozen
 /// (3915/360 → 4091/389), `Early/Assertion` +176 forms, `Door/Decision`
 /// +82 forms; calls and every decision tally hold
 /// (`m10_10_pins_interval` reads the pair's sum unchanged).

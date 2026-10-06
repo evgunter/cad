@@ -44,11 +44,14 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 ///
 /// Only the `frozen` column moved when an intrinsic edge description's
-/// surfaces became a set (`geom_brep::SurfacePair`) and the certificate
-/// began checking them in key order rather than the builder's: +29,
-/// +24, +12, +24, +12 in this order. No decision moved: `symbolic_zero`,
-/// `registered` and `numeric` are what they were
-/// (`work/carve/certify-residual-predicates-still-name-a-slot`).
+/// surfaces became a set (`geom_brep::SurfacePair`): +29, +24, +12, +24,
+/// +12 in this order, and no decision column. The cause is the
+/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
+/// `n1.cross(n2)`), which the certificate now takes in key order where
+/// the extrude took it in builder order: the cross product is symmetric
+/// in value up to sign but not in form, so a document that reads one
+/// edge's wedge in both orientations builds two hash-consed forms where
+/// it built one. The residual checks' order contributes nothing.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("two_hole_plate", [1103, 0, 704, 641]),
     ("r1_annulus", [588, 0, 451, 828]),

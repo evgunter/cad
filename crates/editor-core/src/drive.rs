@@ -344,7 +344,8 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// shut (`SymRules::without_the_reads`) the same columns move by less
 /// than the takes' spread, so the read is not what it costs. What it
 /// buys is the link's twelve theorems, ten of them exactly the ten
-/// rule G costs `carrier_on_surface_2` at one attempt per rung
+/// rule G costs the `carrier_on_surface_1`/`_2` pair at one attempt per
+/// rung
 /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
 /// — so the rule-G attempt pays back what the default rule G takes.
 ///

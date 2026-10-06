@@ -799,16 +799,18 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     );
                     // What the join stores is the must-carry rule's
                     // over the edge, and each refusal is this op's own.
+                    let (pair, [sa, sb]) =
+                        geom_brep::SurfacePair::sorted(s_self, surf_self, s_other, surf_other);
                     let demanded = geom_brep::must_carry_over_edge(
-                        surf_self,
-                        surf_other,
+                        sa,
+                        sb,
                         &spec.carrier,
                         spec.param_start,
                         spec.param_end,
                         arm,
                         band,
                     )
-                    .description(geom_brep::SurfacePair::new(s_self, s_other), witness)
+                    .description(pair, witness)
                     .map_err(|refusal| match refusal {
                         geom_brep::MustCarryRefusal::InBand(
                             geom_brep::MustCarryEscalation::FirstOrder(escalation),

@@ -54,6 +54,15 @@ impl SurfacePair {
         Self { lo, hi }
     }
 
+    /// The pair `{ka, kb}` with `a` and `b`, the values for `ka` and
+    /// `kb`, in the pair's key order: the order every reading that is
+    /// not symmetric in its two surfaces takes them in, so a
+    /// constructor and the certificate read one order.
+    pub fn sorted<V>(ka: SurfaceKey, a: V, kb: SurfaceKey, b: V) -> (Self, [V; 2]) {
+        let pair = Self::new(ka, kb);
+        (pair, if ka <= kb { [a, b] } else { [b, a] })
+    }
+
     /// Both keys, in key order.
     pub fn keys(self) -> [SurfaceKey; 2] {
         [self.lo, self.hi]
@@ -131,6 +140,11 @@ mod tests {
             SurfacePair::new(b, a).keys(),
             [a, b],
             "keys come back in key order"
+        );
+        assert_eq!(
+            SurfacePair::sorted(b, "b", a, "a"),
+            (SurfacePair::new(a, b), ["a", "b"]),
+            "values follow their keys into key order"
         );
     }
 

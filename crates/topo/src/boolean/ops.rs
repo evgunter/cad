@@ -2330,7 +2330,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                 let mint_intrinsic = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
-                    must_carry_reading(surf1, surf2, c.carrier(), t0, t1, extent, band).map_err(
+                    let (_, [sa, sb]) = geom_brep::SurfacePair::sorted(s1, surf1, s2, surf2);
+                    must_carry_reading(sa, sb, c.carrier(), t0, t1, extent, band).map_err(
                         |(reading, diag)| DescribeRefusal::undecided(edge, reading, diag),
                     )?
                 };

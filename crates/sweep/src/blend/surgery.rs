@@ -5091,7 +5091,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 ));
             };
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
-            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
+            let (_, [sa, sb]) = SurfacePair::sorted(s1, surf1, s2, surf2);
+            must_carry_over_edge(sa, sb, &curve, t0, t1, extent, band)
         };
         // In-band: a separation certifiable as neither positive nor
         // zero — a band a few K·ε in radius, or a corner arc whose

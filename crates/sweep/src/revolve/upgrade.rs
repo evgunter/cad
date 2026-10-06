@@ -150,17 +150,10 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                 MustCarryRefusal::InBand(source) => sliver(source.diag()),
                 MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
             };
-            match must_carry_over_edge(
-                &surf1,
-                &surf2,
-                &data.carrier,
-                data.t0,
-                data.t1,
-                data.extent,
-                band,
-            )
-            .description(SurfacePair::new(s1, s2), data.witness)
-            .map_err(refused)?
+            let (pair, [sa, sb]) = SurfacePair::sorted(s1, &surf1, s2, &surf2);
+            match must_carry_over_edge(sa, sb, &data.carrier, data.t0, data.t1, data.extent, band)
+                .description(pair, data.witness)
+                .map_err(refused)?
             {
                 MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {

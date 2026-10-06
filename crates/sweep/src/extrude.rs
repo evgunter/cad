@@ -1285,16 +1285,17 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
                     }
                 };
+                let (pair, [sa, sb]) = SurfacePair::sorted(k_prev, &s_prev, k_next, &s_next);
                 match geom_brep::must_carry_over_edge(
-                    &s_prev,
-                    &s_next,
+                    sa,
+                    sb,
                     &carrier,
                     T::zero(),
                     w_norm,
                     w_norm,
                     band,
                 )
-                .description(SurfacePair::new(k_prev, k_next), mid)
+                .description(pair, mid)
                 .map_err(refused)?
                 {
                     geom_brep::MustCarryDescription::Intrinsic(description) => {
@@ -1676,8 +1677,9 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                 },
                 geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
             };
-            match geom_brep::must_carry_over_edge(&s_cap, &s_wall, &carrier, t0, t1, extent, band)
-                .description(SurfacePair::new(cap, wall), witness)
+            let (pair, [sa, sb]) = SurfacePair::sorted(cap, &s_cap, wall, &s_wall);
+            match geom_brep::must_carry_over_edge(sa, sb, &carrier, t0, t1, extent, band)
+                .description(pair, witness)
                 .map_err(refused)?
             {
                 geom_brep::MustCarryDescription::Intrinsic(description) => {

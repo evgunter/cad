@@ -506,8 +506,11 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// (`work/rules/the-negative-arm-lost-its-document-consumer`).
 ///
 /// The frozen count moved 3138 → 3220 when an intrinsic edge
-/// description's surfaces became a set (`geom_brep::SurfacePair`) and
-/// the certificate began checking them in key order; no decision moved.
+/// description's surfaces became a set (`geom_brep::SurfacePair`); no
+/// decision moved. The cause is the transversality wedge
+/// (`geom_brep::dihedral::wedge_decided`'s `n1.cross(n2)`), now read
+/// in key order: symmetric in value up to sign, not in form, so mixed
+/// orientations build distinct hash-consed forms.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
