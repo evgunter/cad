@@ -785,6 +785,9 @@ impl ViewerBehavior<'_> {
         let mut chosen: Option<DocumentId> = None;
         let mut rescan = false;
         let mut close = false;
+        // Taken out only so the label row can borrow `self` while the
+        // window draws: the chooser stays open, and no early return may
+        // sit between this take and the put-back below.
         if let Some(chooser) = self.part_chooser.take() {
             part_window(ui).show(ui.ctx(), |ui| {
                 self.creation_label_row(ui, INSTANCE_NOUN);
@@ -802,6 +805,7 @@ impl ViewerBehavior<'_> {
                     }
                 });
             });
+            // The put-back the take above owes.
             *self.part_chooser = Some(chooser);
         }
         if let Some(id) = chosen {
