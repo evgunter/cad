@@ -184,3 +184,31 @@ opens `ready`.
 Dispatch order and review posture: `work/carve/plan.md`.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — first dispatches
+
+**Built now**, each as its own cloud session (this box has four cores),
+each with a single FULL review to follow (`plan.md`, Review posture):
+
+- `sweep-cap-plane-winds-against-a-convex-arc-region` →
+  `carve/cap-winds-with-the-region`. One home for the cap's
+  orientation, read from the profile's arc-exact winding. Seam:
+  PATHS' open PR 4169 touches the same verbs.
+- `skin-coincident-section-check-is-an-unbanded-f64-compare` →
+  `carve/one-door-for-coincident-sections`. One banded decision about
+  section distinctness, and one refusal that is true in every regime.
+- `self-closed-link-sharing-its-vertex-records-two-junctions` →
+  `carve/self-closed-link-counts-its-vertex-twice`. Reproduce first.
+  Seam: `blend/` is shared with BAND (active) and STRUT.
+
+**Weighed first** by an Opus and a Fable designer each, concurrently,
+on the same problem statement and no candidate solutions. The labels
+were blinded at dispatch on `analysis/design-fork/carve-2026-10-06`:
+
+- the placement of a loft's sections
+  (`self-overlapping-spines-build-and-validate` with
+  `two-section-loft-with-an-inverted-top-normal-builds`);
+- `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body`;
+- `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself`.
+
+Signed: (CARVE orchestrator)
