@@ -417,8 +417,11 @@ pub fn held_program(
         .slots()
         .into_iter()
         .filter_map(|slot| match held.expr(slot) {
-            Some(expr) if expr.literal_value().is_some() => None,
-            Some(expr) => Some((slot, doc.unparse(expr))),
+            Some(&var) if doc.var_name(var).is_none() && doc.free(var).is_some() => None,
+            Some(&var) => Some((
+                slot,
+                doc.unparse(&doc.written(&Expr::var(var, slot.dimension()))),
+            )),
             None => Some((slot, String::new())),
         })
         .collect();

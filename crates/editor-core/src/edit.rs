@@ -4044,6 +4044,7 @@ fn settle_step_ids(
 /// no name spells a kept step's piece.
 fn undrawn_kept_pieces<P: crate::ProfilePayload>(
     doc: &Doc<P>,
+    written: &Doc<P>,
     node: RecipeNodeId,
     old: &P,
     new: &P,
@@ -4077,7 +4078,11 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
         Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
         Err(_) => None,
     };
-    let after = new.drawn_pieces(&env, tol).map_err(refused)?;
+    // The new program reads the variables its lowering minted, which
+    // the document it is written into holds.
+    let after = new
+        .drawn_pieces(&written.var_env::<f64>(), tol)
+        .map_err(refused)?;
     Ok(named
         .into_iter()
         .filter(|p| before.as_ref().is_none_or(|b| b.contains(p)) && !after.contains(p))
@@ -5641,7 +5646,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
-            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped, tol)?;
+            let undrawn = undrawn_kept_pieces(doc, new, *node, payload, rewritten, &dropped, tol)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
             let fresh = lowering.finish(new)?;

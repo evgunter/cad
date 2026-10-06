@@ -182,9 +182,13 @@ impl GestureTarget {
     /// A parameter's edit is the VALUE door, so the parameter's
     /// declaration — its dimension and any distribution — is read off
     /// the document by the edit itself rather than reassembled here.
-    fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
+    fn edit(
+        &self,
+        doc: &Doc<ProfileProgram>,
+        value: SlotValue,
+    ) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
-            Self::Slot { node, slot, unit } => props::slot_edit(*node, *slot, value, *unit),
+            Self::Slot { node, slot, unit } => props::slot_edit(doc, *node, *slot, value, *unit),
             Self::Param { var, .. } => Ok(props::param_edit(*var, value)),
         }
     }
@@ -337,7 +341,7 @@ fn carry_unmoved(
         let Some(&(new_loop, new_step)) = now.get(&(loop_, step)) else {
             continue;
         };
-        let Some(committed) = old.expr(slot) else {
+        let Some(&committed) = old.expr(slot) else {
             unreachable!(
                 "`Node::slots` is the domain of `Node::expr`, and {} was listed by it",
                 slot.label()
@@ -348,11 +352,17 @@ fn carry_unmoved(
             step: new_step,
             arg,
         };
+        // An argument written as it was keeps the variable it read, so
+        // its identity and its distribution survive the reshaping
+        // (`Node::authored`'s rule).
+        let reader = Formula::var(committed, arg.dimension());
+        let written = Formula::from(doc.written(&pncad::document::Expr::var(
+            committed,
+            arg.dimension(),
+        )));
         match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(&Formula::from(committed)) => {
-                *held = Formula::from(committed)
-            }
-            _ if committed.literal_value().is_some() => {}
+            Some(held) if held.bit_eq(&reader) || held.bit_eq(&written) => *held = reader,
+            _ if doc.var_name(committed).is_none() && doc.free(committed).is_some() => {}
             _ => guard_driven(doc, node, slot, notation)?,
         }
     }
@@ -1777,7 +1787,7 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
-        match props::slot_edit(node, slot, value, unit) {
+        match props::slot_edit(self.committed_doc(), node, slot, value, unit) {
             Ok(edit) => self.commit_written(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
         }
@@ -2120,7 +2130,7 @@ impl DocSession {
                 let slot_value = gesture.target.value_of(value).map_err(Refusal::Dimension)?;
                 let edit = gesture
                     .target
-                    .edit(slot_value)
+                    .edit(&gesture.base, slot_value)
                     .map_err(Refusal::Dimension)?;
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
@@ -2205,7 +2215,7 @@ impl DocSession {
             }
             return OpOutcome::default();
         };
-        match gesture.target.edit(value) {
+        match gesture.target.edit(self.committed_doc(), value) {
             Ok(edit) => self.commit(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
         }
@@ -2847,12 +2857,14 @@ impl DocSession {
             // compared as the door would store it: its name leaves
             // lowered to the variables they name, since a stored
             // expression reads ids.
-            DocEdit::SetParam { node, slot, expr }
-            | DocEdit::SetStructuralParam { node, slot, expr } => {
-                doc.lowered(expr).is_ok_and(|offered| {
-                    doc.node(*node).and_then(|node| node.expr(*slot)) == Some(&offered)
-                })
+            DocEdit::SetParam {
+                node, slot, expr, ..
             }
+            | DocEdit::SetStructuralParam {
+                node, slot, expr, ..
+            } => doc
+                .lowered(expr)
+                .is_ok_and(|offered| doc.slot_expansion(*node, *slot) == Some(offered)),
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:
             // the edit is a redeclaration and the door refuses it.

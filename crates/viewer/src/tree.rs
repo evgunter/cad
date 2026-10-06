@@ -607,7 +607,13 @@ pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
 pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Datum(Datum::Frame { origin, u, v }) => {
-            Some(match (plane_name(u, v), written_point(origin)) {
+            let written = |xs: &[VarId; 3], dim| xs.map(|var| doc.written(&Expr::var(var, dim)));
+            let (origin, u, v) = (
+                written(origin, Dimension::Length),
+                written(u, Dimension::Scalar),
+                written(v, Dimension::Scalar),
+            );
+            Some(match (plane_name(&u, &v), written_point(&origin)) {
                 (Some(plane), Some(at)) => format!("{plane} at {at}"),
                 (Some(plane), None) => format!("{plane}, origin driven"),
                 (None, Some(at)) => format!("at {at}"),

@@ -802,7 +802,10 @@ fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, var: VarId) -> bool {
     recipe_node
         .slots()
         .into_iter()
-        .any(|slot| recipe_node.expr(slot).is_some_and(|expr| expr.reads(var)))
+        .any(|slot| {
+            doc.slot_expansion(node, slot)
+                .is_some_and(|expr| expr.reads(var))
+        })
 }
 
 /// **What the display seam does to a drawn mark**, through the doors a

@@ -602,7 +602,7 @@ pub fn slot_rows(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<SlotRow> {
     };
     node.slots()
         .into_iter()
-        .map(|slot| slot_row(doc, node, slot))
+        .map(|slot| slot_row(doc, id, node, slot))
         .collect()
 }
 
@@ -618,8 +618,13 @@ pub fn slot_rows(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<SlotRow> {
 /// The row is still a value, not a panic: the panel says the slot is
 /// there and that its value could not be read, which is the same shape
 /// every other unreadable value takes here.
-fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId) -> SlotRow {
-    let Some(expr) = node.expr(slot) else {
+fn slot_row(
+    doc: &Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    node: &Node<ProfileProgram>,
+    slot: SlotId,
+) -> SlotRow {
+    let Some(expr) = node.expr(slot).and(doc.slot_expansion(id, slot)) else {
         return SlotRow {
             slot,
             dimension: slot.dimension(),
@@ -636,11 +641,11 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
     };
     let env = doc.var_env::<f64>();
     let value = if slot.dimension() == Dimension::Count {
-        eval_count(expr, &env)
+        eval_count(&expr, &env)
             .map(SlotValue::Count)
             .map_err(SlotFault::Eval)
     } else {
-        eval::<f64>(expr, &env)
+        eval::<f64>(&expr, &env)
             .map(SlotValue::Continuous)
             .map_err(SlotFault::Eval)
     };
@@ -648,10 +653,10 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
         slot,
         dimension: slot.dimension(),
         structural: slot.is_structural(),
-        driver: SlotDriver::of(doc, expr),
+        driver: SlotDriver::of(doc, &expr),
         value,
         unit: expr.display_unit(),
-        source: Some(doc.unparse(expr)),
+        source: Some(doc.unparse(&expr)),
     }
 }
 
@@ -894,7 +899,7 @@ pub fn echoed(typed: &str, rendered: &str) -> bool {
 /// expression's display unit, or None if the node or the expression is
 /// gone" for itself.
 pub fn slot_unit(doc: &Doc<ProfileProgram>, node: RecipeNodeId, slot: SlotId) -> Option<UnitDef> {
-    doc.node(node)?.expr(slot)?.display_unit()
+    doc.slot_expansion(node, slot)?.display_unit()
 }
 
 /// One document-level parameter, as the panel shows it.
@@ -923,10 +928,12 @@ pub struct ParamRow {
     pub unit: Option<UnitDef>,
 }
 
-/// Every free variable, declaration order — the order a rename
-/// leaves alone, so a row keeps its place when its label changes.
+/// Every NAMED free variable, declaration order — the order a rename
+/// leaves alone, so a row keeps its place when its label changes. An
+/// anonymous one shows at the slot that reads it.
 pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
     doc.free_vars()
+        .filter(|(var, _)| doc.var_name(*var).is_some())
         .map(|(var, param)| ParamRow {
             var,
             label: doc.spoken_var(var),
@@ -960,12 +967,14 @@ pub struct DefinedRow {
     pub value: Option<SlotValue>,
 }
 
-/// Every defined variable, declaration order.
+/// Every NAMED defined variable, declaration order: an anonymous one
+/// shows at the slot that reads it.
 pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
     let env = doc.var_env::<f64>();
     doc.var_order()
         .iter()
         .filter_map(|&var| {
+            doc.var_name(var)?;
             let expr = doc.var(var)?.def().defined()?;
             Some(DefinedRow {
                 var,
@@ -1007,11 +1016,21 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
 /// mismatched unit means the caller's idea of the slot disagrees with
 /// the slot's own.
 pub fn slot_edit(
+    doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
     value: SlotValue,
     unit: Option<UnitDef>,
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
+    // A value gesture on a slot reading its own written value moves that
+    // value (VARIABLES-DESIGN, INTENT-LITERALS Q6): the variable keeps
+    // its identity, its notation and its distribution.
+    if let Some(var) = doc.slot(node, slot)
+        && doc.var_name(var).is_none()
+        && doc.free(var).is_some()
+    {
+        return Ok(param_edit(var, value));
+    }
     let expr = match (value, unit) {
         (SlotValue::Count(count), _) => Formula::count(count),
         (SlotValue::Continuous(v), None) => Formula::literal(v, slot.dimension())?,
@@ -1020,9 +1039,19 @@ pub fn slot_edit(
         }
     };
     Ok(if slot.is_structural() {
-        DocEdit::SetStructuralParam { node, slot, expr }
+        DocEdit::SetStructuralParam {
+            node,
+            slot,
+            expr,
+            fresh: Vec::new(),
+        }
     } else {
-        DocEdit::SetParam { node, slot, expr }
+        DocEdit::SetParam {
+            node,
+            slot,
+            expr,
+            fresh: Vec::new(),
+        }
     })
 }
 
@@ -1304,7 +1333,20 @@ pub fn slot_unit_edit(
     let value = slot_literal(doc, node, slot)?;
     let expr = Formula::literal_with_unit(value, slot.dimension(), unit)
         .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
-    Ok(DocEdit::SetParam { node, slot, expr })
+    // The slot's own written value is re-noted in place, keeping the
+    // variable (Q6); the check above has refused anything else.
+    if let Some(var) = doc.slot(node, slot)
+        && doc.var_name(var).is_none()
+        && doc.free(var).is_some()
+    {
+        return Ok(param_unit_edit(var, unit));
+    }
+    Ok(DocEdit::SetParam {
+        node,
+        slot,
+        expr,
+        fresh: Vec::new(),
+    })
 }
 
 /// **The half of [`slot_unit_edit`] that does not read the unit**: the
@@ -1323,10 +1365,9 @@ pub fn slot_literal(
     node: RecipeNodeId,
     slot: SlotId,
 ) -> Result<f64, SlotUnitFault> {
-    let expr =
-        doc.node(node)
-            .and_then(|n| n.expr(slot))
-            .ok_or_else(|| SlotUnitFault::NoExpression {
+    let expr = doc
+        .slot_expansion(node, slot)
+        .ok_or_else(|| SlotUnitFault::NoExpression {
                 node: doc.spoken(node),
                 slot,
             })?;
