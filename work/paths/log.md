@@ -579,3 +579,7 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — seam note from SHELL: demos red on main
+
+SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0, E) on this slate. `demo-tour`'s klein findings pin 10 says it retired, and the certified-cells header moved. #3774 is the likely cause. Every PR that runs the demos job inherits the red.
