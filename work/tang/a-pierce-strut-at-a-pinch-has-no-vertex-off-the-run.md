@@ -2,8 +2,11 @@
 id: a-pierce-strut-at-a-pinch-has-no-vertex-off-the-run
 kind: issue
 title: Holes touching at a corner refuse RingHomingAmbiguous when the blocks fold first: the pinch's strut ring has no vertex off the run
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-03
+branch: tang/pierce-strut-at-a-pinch
+pr: 3954
 priority: P1
 cost: M
 ---
@@ -98,36 +101,54 @@ carrying its two v-v rows. The results are the same on main.
   This is a v-on-f contact, not a pierce: the two vertices land on the
   face at one point, and each mints its own ring.
 
-## A fifth witness: a pinch line's two far ends in a face (FUSE, 2026-10-03)
+## Review tier
 
-**This one depends on construction order, not on geometry.** Two
-bodies that are the same up to key order give opposite outcomes, and
-that dependence lives in the join.
+SINGLE, FULL: a new pending-ring lifecycle in the shared joiner;
+contained (unreachable from the split) and fail-loud at quiescence, so
+one full review.
 
-`two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face`
-(`crates/topo/tests/union_flush_onto_edge_contact.rs`):
-- `y` is a block less a lens, with a smaller lens put back along both
-  of its rays. Its two pinch lines end at (0.5, 0.15, 0) and
-  (0.15, 0.5, 0), inside the unit cube's bottom face.
-- With `y = lens ∪ cut`, all six ops against the cube refuse
-  `Join(RingHomingAmbiguous)`.
-- With `y = cut ∪ lens`, all six build. The two `y`s are the same body
-  up to key order.
-- The same lenses with the pinch lines leaving the face
-  (`two_dangling_null_edges_with_one_segment_build_in_every_op`) build
-  in both orders.
+## Closed
 
-Measured on `fuse/one-arc-struts`:
-- In `cube ∪ y`, the lens's section triangle (0,0) → (0.15, 0.5) →
-  (0.5, 0.15) closes first and divides the cube's bottom face.
-- The cut's ring at the far end is still loose: one null edge, both
-  vertices at (0.4999999999999999, 0.14999999999999997). So both land
-  `OnBoundary`.
-- In the order that builds, the join consumes that ring before the
-  triangle closes, so homing never meets it.
-- **What decides it is the join's scan order, which follows the
-  operands' keys.** Reversing the reduction's vertex pairs and each
-  pair's records (`with_vertex_pairs_reversed`) does not change either
-  outcome.
-- This row's title names the ring-homing mechanism; the defect this
-  witness shows is the order dependence.
+The second mechanism, the deferral. `ChordJoiner::rehome_rings` leaves a ring
+pending when it lies on a plane, every vertex is decided ON the run
+(`RingSide::OnRun`), and every edge is a null edge. Only an unjoined
+pierce ring is like that, and only the boolean's vertex-on-face
+insertion mints one. The ring stays in its face; a later division of
+that face reads it on the run again or out, never in. The next `join`
+that reaches it moves it into the face of the ring it meets
+(`place_pending`), whose own off-run vertices placed it. No geometry
+is read, so a reflex corner at the pinch needs no arm.
+
+On a wall's chart nothing is deferred. There a strut's point is a run
+vertex, so its azimuth ray is degenerate and decides nothing
+(`RingSide::Undecided`). That refuses as on cf867b38. The declared
+curved unions it reaches go back to the REST door. Main's
+`full_turn_bore_mate::a_shaft_off_the_bores_seam_is_built_by_the_zip`
+pins that route, and it goes red when the chart defers.
+
+Four cases still refuse `RingHomingAmbiguous`:
+
+- two pending rings in different faces joined;
+- a join inside one pending loop;
+- a ring still pending when either sweep ends (`ChordJoiner::finish`);
+- a ring with a real edge on the run, or a chart ring no vertex of
+  which is decided.
+
+Measured on cf867b38, then built on the branch:
+
+- the corner holes and the notch-and-hole union, every member order
+  (`union_pinch_member_order`);
+- the staircase, the bare pinch through a face, and a wedge in an
+  L's reflex corner, every op both ways round
+  (`topo/tests/pierce_strut_at_a_pinch.rs`). The reflex pose refuses
+  in all six ops on main;
+- the pinch standing on a face, the v-on-f witness above. With
+  flush declarations, both unions refused on main, and it builds now.
+
+The split sweep threads null edges through a vertex on its plane,
+so a ring touching the run is chorded in and never a bystander.
+`a_plane_touching_a_pockets_tip_splits_exactly` pins that, and it is
+green before and after.
+
+Residue filed:
+`a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading`.
