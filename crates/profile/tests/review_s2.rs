@@ -989,13 +989,11 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
          enclosing tangency; the boundary this suite pins says it builds none — {}",
         fuzz::replay()
     );
-    // `n_major` stays a REPORT. It comes out 0, which is the fuzz
-    // corroborating the bound `fillet_bulge`'s docs argue for — the corner-side extent gates keep
-    // every fillet arc below half a turn, so the negative-apothem branch
-    // is unreachable through this door and is unit-tested directly
-    // instead. Deliberately not asserted either way: a future change that
-    // legitimately admits major arcs should not fail here, it should make
-    // the branch live.
+    // `n_major` stays a REPORT, not asserted either way. The corner-side
+    // extent gates keep a fillet arc short of half a turn wherever their
+    // decisions are exact, but a lens fillet sweeps π to within the band
+    // (a decided offset tangency, `fillet_decided_tangency.rs`), and the
+    // one quarter-tangent spelling reads either side of π.
     eprintln!(
         "fuzz: ok {n_ok}, arc legs {n_arc_leg}, arc-by-arc {n_arc_arc}, enclosing {n_enclosing}, major {n_major}"
     );

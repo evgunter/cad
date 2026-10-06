@@ -646,12 +646,17 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// chord: every arc's fields moved in the last bits. No loop's verdict
 /// moved at this row or at 1e-6; at 1e-12 two loops that escalated a
 /// near-coincidence between the fillet arc and its arc neighbour now
-/// validate (`line x arc c=32 r=0.5`, `c=128 r=0.2`).
-const GOLDEN_DEFAULT: u64 = 0xfd99_ce70_c283_5eae;
+/// validate (`line x arc c=32 r=0.5`, `c=128 r=0.2`). Then the
+/// arc-carrier fillet's sweep took the one quarter-tangent spelling
+/// (`sugar::quarter_tan_about`), moving its last bits on every
+/// arc-carrier fillet in the corpus, and an arc side's run with an
+/// authored radius stores it as `|r|` (`shared coverage corpus 13`'s
+/// 1.9999999999999998 is 2.0); no verdict or joint moved.
+const GOLDEN_DEFAULT: u64 = 0x76d3_b8c8_3dc5_745c;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0xadb5_ba93_ac49_aeb5;
+const GOLDEN_1E6: u64 = 0x9b07_a34e_72f9_1772;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x54ef_a93e_908d_c9c9;
+const GOLDEN_1E12: u64 = 0x7625_7377_b8a5_c0f4;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the
