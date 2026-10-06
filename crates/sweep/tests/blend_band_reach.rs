@@ -101,10 +101,11 @@ fn an_island_clear_of_the_band_builds() {
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
 }
 
-/// The two-solid witness, pinned at the reach meter: the SEALED cavity
-/// with the island as a second solid. The blend's per-shell door is what
-/// carries this body through `fillet_edges` to the meter; the meter reads
-/// every face of the body, in any shell, whichever door brings it there.
+/// The two-solid witness: the SEALED cavity with the island as a second
+/// solid, the void's twelve edges filleted. The per-shell door carves
+/// the void's shell alone, and the reach reads every face of the body,
+/// in any shell, so the island refuses it — through `fillet_edges` and
+/// at the meter itself alike.
 #[test]
 fn the_reach_meters_an_island_that_is_a_second_solid() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
@@ -115,6 +116,19 @@ fn the_reach_meters_an_island_that_is_a_second_solid() {
     assert_eq!(body.solids().count(), 2, "the island is a second solid");
     let edges = cavity_edges(&body);
     assert_eq!(edges.len(), 12, "the void shell's twelve edges");
+    let err = fillet_edges(&body, &edges, 0.25, tol())
+        .map(|f| {
+            format!(
+                "built: V {:?}",
+                mass_properties(&f.body, tol()).map(|m| m.volume)
+            )
+        })
+        .expect_err("the band reaches the island");
+    assert!(
+        matches!(err.error, BlendError::FaceClearance { bounded: false, .. }),
+        "the island's own edge lies in the material the void's band adds: {:?}",
+        err.error
+    );
     let req = BlendRequest {
         body: &body,
         edges: edges.clone(),

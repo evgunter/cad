@@ -69,13 +69,20 @@ bound over its cells. It skips the
 chain's own supports, every face at a chain vertex (the faces the band
 runs into, which predicate 6 and the surgery judge), and any face on a
 support's own stored surface (which can touch the reach only on its
-boundary).
+boundary). Two bands of one request are read together: a support of
+the other chain is metered by what survives that chain's band, the other
+band's new surface is metered as a face (but a concave band's surface
+against a convex band's reach, whose removed material the concave region
+overlapped), and two chains that meet at a vertex are left to the corner
+predicate.
 
 Consumers: an island standing in a filleted cavity, on one shell and as
 a second solid, and a thin revolved wall whose convex inner fillet
 leaves through the far wall, all refused; the teapot lid's dome, a
 sphere zone beside the flange's band, clear
-(`crates/sweep/tests/blend_band_reach.rs`).
+(`crates/sweep/tests/blend_band_reach.rs`); an island filleted in the
+same request as its cavity, its convex round receding from the void's
+concave one, clear (`blend_per_shell_carry`).
 
 ## Walls: one per run
 

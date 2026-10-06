@@ -337,6 +337,56 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "canonical_axis",
+        why: Selection(
+            "picks the sign of a band's axis (its largest component positive) and the \
+             axis point nearest the origin, so coaxial bands share one sheet frame. \
+             Either sign is a valid frame, the construction is the same on both, and \
+             nothing decided reads which was taken",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "same_frame",
+        why: Selection(
+            "bit-equality of two sheet frames, which selects whether one band's sheet \
+             bounds may be read on the other's sheet rectangles. Unequal bits only drop \
+             a clearing term — the cell is then read in space — so the selection moves \
+             cost, never what a margin encloses",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "same_sheet",
+        why: Selection(
+            "`same_frame` over two reaches' frames; the same disposition",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "impl<T: Bounds> Least<T>",
+        why: Selection(
+            "the blend reach meter's cell driver. The read decides whether a cell is \
+             clear, which selects whether it is halved and which of two lower bounds it \
+             gives the face: the larger, when the face's own surface or a bound of the \
+             reach clears the cell, and the reach's bound alone otherwise, which is the \
+             smaller. Every contribution is a lower bound of the face's clearance over \
+             the face points the cell can hold, so the selection moves tightness and \
+             cost, never what the least bound encloses, and the funnel decides that \
+             least bound",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Payload(
+            "the ring meter's least margin of a cycle carries the `bounded` flag of the \
+             margin it took: the margin itself is the lattice `min`, and the bracket read \
+             only chooses which flag rides into the `RingClearance` payload's prose",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/surgery.rs",
         subject: "impl<T: Bounds> CircleFrame<T>",
         why: Selection(
