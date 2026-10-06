@@ -113,7 +113,7 @@ fn cos_tilt() -> f64 {
 /// The split + explode, generic (the Probe sweep runs the same ops):
 /// returns the two moved halves and the [`SectionNumbers`].
 pub(crate) fn build<S: Scalar>(
-    boxbody: &pncad::topo::Body<S>,
+    boxbody: &pncad::topo::AtRestBody<S>,
     tol: Tol,
 ) -> ((pncad::topo::Body<S>, pncad::topo::Body<S>), SectionNumbers) {
     let plane = section_plane::<S>(tol);
@@ -226,7 +226,7 @@ struct SectionReading {
 /// arcs, and its area is checked against the closed form
 /// `π (R² − r²) / cos φ`.
 fn read_section(
-    boxbody: &pncad::topo::Body<f64>,
+    boxbody: &pncad::topo::AtRestBody<f64>,
     (split_area, split_pad): (f64, f64),
     tol: Tol,
 ) -> SectionReading {
@@ -301,8 +301,8 @@ pub(crate) const SECTION_GAP: f64 = 5.0;
 /// the same plane, which passes over it, so it is all on the below
 /// side and travels with the below half.
 pub(crate) fn sectioned_beside(
-    boxbody: &pncad::topo::Body<f64>,
-    spring: &pncad::topo::Body<f64>,
+    boxbody: &pncad::topo::AtRestBody<f64>,
+    spring: &pncad::topo::AtRestBody<f64>,
     tol: Tol,
 ) -> (Vec<SceneBody>, String) {
     let ((moved_above, moved_below), n) = build(boxbody, tol);

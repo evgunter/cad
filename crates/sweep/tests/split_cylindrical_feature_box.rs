@@ -133,8 +133,12 @@ fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
     let v = topo::mass_properties(body, tol())
         .expect("the body's volume")
         .volume;
-    let cut = split(body, &cutaway_plane(), tol())
-        .unwrap_or_else(|e| panic!("{what}: the cutaway plane splits it: {e:?}"));
+    let cut = split(
+        &sweep::test_support::finished("the operand", body.clone(), tol()),
+        &cutaway_plane(),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: the cutaway plane splits it: {e:?}"));
     let mut sum = 0.0;
     let out = [("above", cut.above), ("below", cut.below)].map(|(side, part)| {
         let SplitPart::Body(half) = part else {

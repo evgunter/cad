@@ -349,7 +349,15 @@ fn a_cut_into_the_faces_window_refuses_at_the_gate() {
                 for depth in [1e-4 * s, 1e-7 * s] {
                     for d in [lo + depth, hi - depth] {
                         let what = format!("{}, {pose}, n = {n:?}, {depth:e} in", f.name);
-                        match split(&posed, &posed_plane(map, n, d), Tol::witness()) {
+                        match split(
+                            &sweep::test_support::finished(
+                                "the operand",
+                                posed.clone(),
+                                Tol::witness(),
+                            ),
+                            &posed_plane(map, n, d),
+                            Tol::witness(),
+                        ) {
                             Err(SplitError::Reduce(
                                 SplitReduceError::CurvedBooleanUnsupported { face, kind },
                             )) => {
@@ -413,8 +421,16 @@ fn a_cut_clear_of_the_faces_window_splits() {
                 let clear = 1e-4 * s + 20.0 * eps;
                 for d in [lo - clear, hi + clear] {
                     let what = format!("{}, {pose}, n = {n:?}, d = {d}", f.name);
-                    let result = split(&posed, &posed_plane(map, n, d), Tol::witness())
-                        .unwrap_or_else(|e| panic!("{what}: a cut clear of the face splits: {e}"));
+                    let result = split(
+                        &sweep::test_support::finished(
+                            "the operand",
+                            posed.clone(),
+                            Tol::witness(),
+                        ),
+                        &posed_plane(map, n, d),
+                        Tol::witness(),
+                    )
+                    .unwrap_or_else(|e| panic!("{what}: a cut clear of the face splits: {e}"));
                     for (part, sign, side) in [
                         (&result.above, 1.0, "above"),
                         (&result.below, -1.0, "below"),

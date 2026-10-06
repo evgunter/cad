@@ -185,7 +185,7 @@ pub enum SplitFinishError {
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
     /// (`diag`), or (`None`) zero, or unread because the loop carries a
-    /// spiric or NURBS edge. The split's operand gate admits only line,
+    /// spiric or NURBS edge. The split's carrier gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {
@@ -817,10 +817,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         let mut spec = match &existing {
                             Some(c) => c.restated_spec(),
                             // Unreachable, not a licence to rebuild:
-                            // the operand gate refuses uncertified
-                            // edges (`ScaffoldingOperand`) and every
-                            // split-minted edge certifies at its mint,
-                            // so a section-boundary edge always has a
+                            // a finished operand has no uncertified
+                            // edge and every split-minted edge
+                            // certifies at its mint, so a
+                            // section-boundary edge always has a
                             // carrier to restate.
                             None => geom_brep::EdgeCurveSpec::line_between(p0, p1),
                         };
@@ -1179,6 +1179,9 @@ mod torn_hop_rows {
             Vec3::unit_z(),
             tol,
         );
+        let mut cube = cube;
+        crate::test_support_fixtures::describe_as_intersections(&mut cube, tol);
+        let cube = crate::test_support::finished("the cube", cube, tol);
         let split = crate::splitting::split(&cube, &plane, tol).unwrap();
         let mut body = split.below.body().unwrap().clone();
         let face = body

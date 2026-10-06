@@ -2,11 +2,13 @@
 id: the-planar-offset-door-keeps-a-held-neighbours-chart-image-the-moved-edge-has-left
 kind: issue
 title: offset_planes_together keeps an edge's image in a held neighbour's chart, and certification refuses the sound move because the edge has left that image
-status: open
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: E
 refs: [an-offset-door-restates-a-neighbour-chart-rim-the-describing-door-cannot-vouch-for]
+closed: 2026-10-06
+branch: topo/planar-offset-neighbour-chart
 ---
 
 ## What
@@ -46,3 +48,24 @@ and the edge's other face moves, state the edge as
 as an image in the moving face's own chart with the declaration
 translated. The door has each plane's distance in hand
 (`MovedPlane`), so the held side is known where it restates.
+
+## Closed 2026-10-06
+
+`offset_planes_together` restates through the one restate core the
+three offset doors share, `crate::offset_restate`
+(`restate`, `held_neighbour_image`, `beside_moving`, and
+`chart_moves`, the one decision of whether a chart moves), called by
+`replace_face::plan_edge` (its held-neighbour arm), `offset_axial` and
+`offset_together`. An image in a chart that holds while the edge's
+other side moves becomes the section of the two (or, declared, an
+image in the moving side's chart). Any other image is derived afresh
+from the moved carrier exactly where the edge slides within its chart
+(two distinct planes, one of them moving: an image whose own chart
+moves beside a moving side refused the same `ChartResidual`), and kept
+where it does not slide (a seam, which translates rigidly with its
+re-minted plane, and an edge whose planes both hold).
+
+Witnesses in `crates/sweep/tests/offset_restates_a_neighbour_chart_rim.rs`:
+`the_planar_door_restates_an_edge_in_a_held_sides_chart_as_the_section`,
+`the_planar_door_moves_a_declared_edge_into_the_moved_faces_chart`,
+`the_planar_door_derives_the_image_afresh_when_both_charts_move`.

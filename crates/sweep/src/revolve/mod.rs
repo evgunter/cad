@@ -101,10 +101,12 @@
 //! conventional description at rest is a chart image, which owes the
 //! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface verdicts are decided for
 //! the whole loop — including the wrap pair — before any wall is minted
-//! (the PR 4 SHOULD-1 lesson): a run of collinear segments is ONE wall
-//! (crate README, "Walls: one per run"; a full revolve collapses the run
-//! to one segment before it builds, a partial one keeps each station on
-//! its wedge caps), and same-carrier tangent arcs share one surface key.
+//! (the PR 4 SHOULD-1 lesson): a run of segments on one carrier is ONE
+//! wall (crate README, "Walls: one per run"; a full revolve collapses
+//! the run to one segment before it builds, a partial one keeps each
+//! station on its wedge caps). A partial revolve keeps each arc of a
+//! cocircular run its own wall (`swept::CurvedRuns::Split`), and those
+//! walls share one surface key, as a circle's cut walls do.
 //!
 //! # K-telemetry
 //!

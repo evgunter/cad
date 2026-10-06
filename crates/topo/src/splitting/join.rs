@@ -991,7 +991,10 @@ mod torn_hop_rows {
     fn reduced(body: &Body<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> SplitReduction<f64> {
         let tol = Tol::witness();
         let plane = crate::test_support_fixtures::split_plane(origin, normal, tol);
-        crate::splitting::split_reduce(body, &plane, tol).unwrap()
+        let mut described = body.clone();
+        crate::test_support_fixtures::describe_as_intersections(&mut described, tol);
+        let operand = crate::test_support::finished("the operand", described, tol);
+        crate::splitting::split_reduce(&operand, &plane, tol).unwrap()
     }
 
     fn above_set(red: &SplitReduction<f64>) -> SecondaryMap<VertexKey, ()> {
