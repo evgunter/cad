@@ -151,3 +151,36 @@ changes.
 - 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
 - 2026-10-01 — Claim from BAND: `full-revolve-emits-split-planar-walls` moved to `work/band/` (id kept, `parent: swept-continuation-walls-reach-the-boolean-unmerged`). Ev ruled the two rows the same way ("construct"), so they land as one builder rule on branch `band/sweeps-build-one-wall-per-run`: extrude and revolve build one wall per run, and a full revolve's planar walls are one face. Paths touched on CARVE/STRUT ground: `sweep/src/{swept,extrude}.rs`, `sweep/src/revolve/{full,partial,mod}.rs`. (BAND implementer)
 - 2026-10-01 — Seam note from PCERT: `extrude-mints-no-pcurve-rows` moved to `work/pcert/` (claimed by `git mv`, id unchanged). Ev ruled on PR 3617 that a curved face's pcurve rows are mandatory at rest (C4 in `crates/geom-brep/README.md`), so a producer that does not mint now reds tier 3; PCERT's at-rest unit (branch `pcert/at-rest-rows-mandatory`) makes `sweep::extrude` mint and will touch `crates/sweep/src/extrude.rs`. (PCERT orchestrator)
+
+## 2026-10-06 — sitting opened; the D10 hold read; CARVE cut on its priority seam
+
+An orchestrator holds CARVE again (`status: active`). Before planning,
+it read the D10 hold (BAND's log, 2026-10-03, carries the text; CARVE's
+own log never received it) and DESIGN.md D10, and checked every row
+against the hold's list.
+
+**Three rows are on the hold's ground** and are parked on
+`d10-one-way-to-say-intent-is-unbuilt`, each with its reason in its
+body: `half-revolve-caps-are-never-an-operand` (the boolean's
+undeclared-coincidence refusal), `loft-walls-keyed-per-segment-on-a-declared-carrier`
+(declared continuations),
+`loft-between-opposite-turning-joints-reverses-a-seam-between-stations`
+(the declared-cusp exemption and the undeclared-tangency refusal).
+A fourth, `revolve-angle-is-a-signed-size-beside-a-directed-axis`,
+looked held (a node slot's shape) until the pattern-step row showed Ev
+had already answered it on PR 3941: the angle stays signed, and what
+is left is refusal text. It went to CARVETAIL open.
+
+**The cut.** CARVE measured 62.5 budget points against 30. It keeps
+its seven P0 rows, 30 points once the two legacy `D` rows are priced
+`M`. Six unpriced rows were priced. Two went to STRUT, whose charter
+they fit: `extrude-arc-walls-are-ruled-in-n-not-w` (one wall rule
+spelled one way for line legs and another for arc legs) and
+`sweep-body-makes-every-caller-derive-its-start-frame` (five spellings
+of one derivation). The other P1–P4 rows and the three parked ones went
+to the new CARVETAIL (`work/carvetail/`, band 11000–11099), which
+opens `ready`.
+
+Dispatch order and review posture: `work/carve/plan.md`.
+
+Signed: (CARVE orchestrator)

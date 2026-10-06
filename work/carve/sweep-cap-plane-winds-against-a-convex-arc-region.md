@@ -5,7 +5,7 @@ title: extrude and loft mint a cap plane inside out when a big convex arc makes 
 status: open
 opened: 2026-09-24
 priority: P0
-cost: D
+cost: M
 refs: [3190]
 ---
 

@@ -2,12 +2,13 @@
 id: loft-between-opposite-turning-joints-reverses-a-seam-between-stations
 kind: issue
 title: A loft whose sections turn one joint opposite ways folds that seam through wedge 0 between stations (a self-overlap), and tier 3 says Ok
-status: open
+status: parked
 opened: 2026-09-28
 priority: P2
 cost: H
 design: true
 refs: [3373, self-overlapping-spines-build-and-validate]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -83,3 +84,7 @@ the loop on opposite sides of the joint in the two sections. The
 interpolated loop then crosses itself somewhere between them. So a
 jet-determinate cusp minted by the loft, with every station simple,
 is unwitnessed. Only the self-overlapping fold is witnessed.
+
+## Parked on the D10 hold (CARVE, 2026-10-06)
+
+Its door design turns on the declared-cusp exemption ("unless every section declares it a cusp") and on the undeclared-tangency refusal, both of which D10 retires (the profiles' stored tangent-joint flags; tangency by construction, INTENT stage 6). The self-overlap half is the same family as `self-overlapping-spines-build-and-validate`, which stays on CARVE's slate; what that row's designers settle is evidence for this one when it fires.
