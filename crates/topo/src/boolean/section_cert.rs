@@ -846,7 +846,7 @@ fn torus_sphere<T: Decide>(
     let [near, far] = match signs([(NEAR, cuts(d_near)), (FAR, cuts(d_far))], band) {
         Ok(x) => x,
         Err(tan) => {
-            return torus_sphere_touch(tan, big_r, r, s, ca, rho, [d_near, d_far], band)
+            return torus_sphere_touch(tan, [big_r, r], (s, ca), rho, [d_near, d_far], band)
                 .map_or_else(
                     || tan.into(),
                     |(x, y)| tan.touch(&[NEAR, FAR], || in_pi(x, y)),
@@ -883,7 +883,9 @@ fn torus_sphere<T: Decide>(
 }
 
 /// **Where a sphere tangent to the tube circle `T_σ` the pinch names
-/// touches the torus, if at one point**: `(x, y)` in `Π`.
+/// touches the torus, if at one point**: `(x, y)` in `Π`. The torus is
+/// `[R, r]`, the sphere's centre `(s, ca)` in `Π`, and `d_near`, `d_far`
+/// its distances from the tube centres `(±R, 0)`.
 ///
 /// The section is the level `ρ` of `f = |x − cs|` on the torus. With
 /// `cs` off the axis (`s > 0`), `f`'s critical points are the four
@@ -901,13 +903,10 @@ fn torus_sphere<T: Decide>(
 /// band of one of them and they are `2·min(d_σ, r)` apart, so wherever
 /// the choice is in doubt the other stands within the band too and the
 /// extreme margin refuses.
-#[allow(clippy::too_many_arguments)]
 fn torus_sphere_touch<T: Decide>(
     tan: Pinch,
-    big_r: T,
-    r: T,
-    s: T,
-    ca: T,
+    [big_r, r]: [T; 2],
+    (s, ca): (T, T),
     rho: T,
     [d_near, d_far]: [T; 2],
     band: Band,
