@@ -1083,6 +1083,42 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
+    /// Every edge described as a wrap edge whose two halves an operation
+    /// has left on two faces, re-described where it rests: the same
+    /// image in the chart it names, without the wrap flag. A wrap
+    /// edge is a fact about ONE face (D1), so once a cut parts its
+    /// halves it is a boundary between two faces of one surface, and
+    /// tier 3 holds it to that (`DescriptionNotAdjacent`).
+    pub(crate) fn rest_parted_wrap_edges(&mut self, tol: Tol) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let parted: Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> = self
+            .edges
+            .iter()
+            .filter_map(|(edge, e)| {
+                let c = self.edge_curve_linked(edge, e).certified()?;
+                let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
+                    return None;
+                };
+                let sides = crate::readback::edge_sides_of(self, edge, e);
+                if !ch.seam || sides.plus.face == sides.minus.face {
+                    return None;
+                }
+                let mut spec = c.restated_spec();
+                if let geom_brep::EdgeDescriptionSpec::Chart { ref mut seam, .. } = spec.description
+                {
+                    *seam = false;
+                }
+                Some((edge, spec))
+            })
+            .collect();
+        for (edge, spec) in parted {
+            self.set_edge_curve(edge, spec, tol)?;
+        }
+        Ok(())
+    }
+
     /// **The rows a description writes**, decided before its door
     /// mutates: one plan per face the halves of an edge in `described`
     /// are on that the description re-mints

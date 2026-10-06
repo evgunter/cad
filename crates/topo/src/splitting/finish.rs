@@ -483,6 +483,10 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     for face in section_faces {
         describe_section_boundary(&mut body, face, band, tol)?;
     }
+    // A section loop that meets a wall's wrap edge at one vertex can
+    // leave that edge between two faces of the wall; it comes to rest
+    // as an ordinary image there.
+    body.rest_parted_wrap_edges(tol)?;
 
     // ---- Distribution: movefac every shell of the solid. ----
     let shells: Vec<ShellKey> = body
