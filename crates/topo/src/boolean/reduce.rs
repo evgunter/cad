@@ -561,27 +561,26 @@ pub(super) fn face_source<T: Decide>(
 /// crossing parity is blind to frame handedness). The consumers that
 /// read a MATERIAL side off the sign — `side_code`, the containment
 /// ray's `d·n̂` — are exactly the ones this fixes.
+///
+/// `None` for a face that is not a plane, and for a `face` that does
+/// not resolve: the key is the caller's ([`super::rest::flush_pair_relation`]
+/// passes a public door's).
+///
+/// # Panics
+///
+/// Where `face` resolves and its surface does not (D2 row 4): a torn
+/// surface is not a non-planar one. On the reduction's working copies
+/// the link holds by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
-    let origin = match body.get_surface(body.get_face(face)?.surface) {
-        Some(geom::Surface::Plane { origin, .. }) => *origin,
-        _ => return None,
-    };
-    Some(PlaneDesc {
-        origin,
-        normal: face_outward_normal(body, face)?.vec(),
-    })
+    let f = body.get_face(face)?;
+    match body.face_surface_linked(face, f) {
+        geom::Surface::Plane { origin, normal, .. } => Some(PlaneDesc {
+            origin: *origin,
+            normal: crate::face_normal::plane_outward_normal(f, *normal).vec(),
+        }),
+        _ => None,
+    }
 }
-
-// The same door, typed: a planar face's outward normal as an
-// [`OutwardNormal`], which is what the material-side consumers want.
-//
-// INVARIANT: there is ONE flip, and since the sector walk became
-// shared it lives at the crate root — [`crate::face_normal`], whose
-// docs carry the argument and the consumer list. This module's four
-// remaining consumers reach it through this re-export, and
-// `face_plane` above is still defined in terms of it, so the invariant
-// is unchanged in substance: one flip, not two that could drift.
-pub(super) use crate::face_normal::face_outward_normal;
 
 /// **The face's recipe source with its `sense` composed into
 /// `orient`** ([`crate::GeomSource::reverted`] when `sense` is false) —
@@ -656,9 +655,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = body
-                .get_surface(k1)
-                .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }));
+            let planar = matches!(
+                body.face_surface_linked(f1, crate::live::proven(&body.faces, f1, EntityId::Face)),
+                geom::Surface::Plane { .. }
+            );
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
@@ -2868,7 +2868,17 @@ enum PlaneSide {
 ///
 /// Everything else answers `false`: an undecided point, a conic lying
 /// in the plane, and any boundary edge the certificate cannot place (a
-/// NURBS or spiric carrier, or no certified curve).
+/// NURBS or spiric carrier, or a curve that is not certified).
+///
+/// `face` is a key the caller carries: its miss refuses
+/// [`BooleanError::ClassificationInvariant`].
+///
+/// # Panics
+///
+/// Where a record past `face` does not resolve or a loop walk does not
+/// close (D2 row 4): a torn curve is not an uncertified one. `y` is a
+/// working copy an end placement may just have split an edge of, whose
+/// links hold by [`crate::live::OPERATORS_KEEP_LINKS`].
 fn boundary_meets_circle_only_at<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
@@ -2893,46 +2903,51 @@ fn boundary_meets_circle_only_at<T: Decide>(
             Ok(Sign::Positive)
         )
     };
-    let point = |v: VertexKey| {
-        y.get_vertex(v)
-            .and_then(|vd| y.get_point(vd.point))
-            .copied()
-            .ok_or_else(lost)
-    };
-    let place = |v: VertexKey| -> Result<Option<PlaneSide>, BooleanError> {
+    // Every vertex placed is a link of a record the walk resolved.
+    let point = |v: VertexKey| y.resolve_vertex_point(v, crate::live::Proven);
+    let place = |v: VertexKey| -> Option<PlaneSide> {
         if at.contains(&v) {
-            return Ok(Some(PlaneSide::At));
+            return Some(PlaneSide::At);
         }
-        let p = point(v)?;
-        Ok(
-            match decide("bool_arc_plane_side", Margin::of(height(p)), band) {
-                Ok(s @ (Sign::Positive | Sign::Negative)) => Some(PlaneSide::Off(s)),
-                Ok(Sign::Zero) => off_circle(p).then_some(PlaneSide::InPlaneOffCircle),
-                Err(_) => None,
-            },
-        )
+        let p = point(v);
+        match decide("bool_arc_plane_side", Margin::of(height(p)), band) {
+            Ok(s @ (Sign::Positive | Sign::Negative)) => Some(PlaneSide::Off(s)),
+            Ok(Sign::Zero) => off_circle(p).then_some(PlaneSide::InPlaneOffCircle),
+            Err(_) => None,
+        }
     };
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        match y.get_loop(lk).ok_or_else(lost)?.boundary {
+    for (_, l) in y.face_loops_linked(face, f) {
+        match l.boundary {
             crate::entity::LoopBoundary::Empty { vertex } => {
-                if place(vertex)?.is_none() {
+                if place(vertex).is_none() {
                     return Ok(false);
                 }
             }
             crate::entity::LoopBoundary::Cycle { first } => {
-                for he in y.loop_cycle(first).ok_or_else(lost)? {
-                    let h = y.get_half_edge(he).ok_or_else(lost)?;
-                    let e = y.get_edge(h.edge).ok_or_else(lost)?;
-                    let (Some(a), Some(b)) = (
-                        y.get_half_edge(e.he_plus).map(|h| h.start),
-                        y.get_half_edge(e.he_minus).map(|h| h.start),
-                    ) else {
-                        return Err(lost());
+                for he in y.loop_walk(first).closed("loop", first) {
+                    let ek = crate::live::proven(&y.half_edges, he, EntityId::HalfEdge).edge;
+                    let e = crate::live::linked(
+                        &y.edges,
+                        ek,
+                        EntityId::Edge,
+                        EntityId::HalfEdge(he),
+                        "edge",
+                    );
+                    let end = |h, field| {
+                        crate::live::linked(
+                            &y.half_edges,
+                            h,
+                            EntityId::HalfEdge,
+                            EntityId::Edge(ek),
+                            field,
+                        )
+                        .start
                     };
-                    let (Some(sa), Some(sb)) = (place(a)?, place(b)?) else {
+                    let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
+                    let (Some(sa), Some(sb)) = (place(a), place(b)) else {
                         return Ok(false);
                     };
-                    let Some(c) = y.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
+                    let Some(c) = y.edge_curve_linked(ek, e).certified() else {
                         return Ok(false);
                     };
                     let (t0, t1) = c.params();
@@ -2945,7 +2960,7 @@ fn boundary_meets_circle_only_at<T: Decide>(
                         band,
                     ) {
                         PlaneCrossingLane::Line => {
-                            let (pa, pb) = (point(a)?, point(b)?);
+                            let (pa, pb) = (point(a), point(b));
                             match (sa, sb) {
                                 (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
                                     let (ha, hb) = (height(pa), height(pb));
@@ -5757,5 +5772,59 @@ mod esc_tests {
                 "a vertex of {x_is:?} answered {got:?}"
             );
         }
+    }
+}
+
+/// **`boundary_meets_circle_only_at`: a stale face refuses typed; a torn
+/// curve past one that resolves panics**, where it read as a curve the
+/// certificate cannot place and answered `Ok(false)`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::entity::GeomRef;
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom_core::{Tol, Vec3};
+
+    #[test]
+    fn a_stale_face_refuses_and_a_torn_curve_panics() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        // A circle in a plane every vertex of the cube is decided off.
+        let circle = (Point3::new(0.5, 0.5, 10.0), Vec3::unit_z(), 0.25);
+        assert!(
+            boundary_meets_circle_only_at(&body, face, circle, &[], band).unwrap(),
+            "the sound boundary meets the far circle nowhere"
+        );
+        let mut stale = body.clone();
+        stale.faces.remove(face);
+        assert!(
+            matches!(
+                boundary_meets_circle_only_at(&stale, face, circle, &[], band),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "a face the caller carries that does not resolve refuses typed"
+        );
+        let outer = body.get_face(face).unwrap().outer;
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
+            panic!("a cube face's loop is a cycle");
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "boundary_meets_circle_only_at",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| boundary_meets_circle_only_at(b, face, circle, &[], band),
+        );
     }
 }

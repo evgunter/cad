@@ -281,7 +281,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         },
     );
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".into(), MetaValue::Int(1));
+    m.insert("v".into(), MetaValue::Int(1.into()));
     m.insert("neg_zero".into(), MetaValue::Float(-0.0));
     m.insert("blob".into(), MetaValue::Bytes(vec![0xde, 0xad]));
     m.insert(

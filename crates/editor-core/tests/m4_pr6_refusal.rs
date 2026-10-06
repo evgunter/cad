@@ -500,7 +500,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     );
     // A NaN inside a metadata tree carried by an unapplied edit.
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("x".to_owned(), MetaValue::Float(f64::NAN));
     let meta_edit = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
@@ -598,7 +598,7 @@ fn metadata_convention_doors_refuse_typed() {
     };
     // No "v" field → refused at the edit door (D7 convention).
     let mut m = std::collections::BTreeMap::new();
-    m.insert("x".to_owned(), MetaValue::Int(3));
+    m.insert("x".to_owned(), MetaValue::Int(3.into()));
     let no_v = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {
@@ -619,7 +619,7 @@ fn metadata_convention_doors_refuse_typed() {
         &DocEdit::SetAppearanceMeta {
             name,
             key: "k".into(),
-            value: MetaValue::Int(1),
+            value: MetaValue::Int(1.into()),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -780,7 +780,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     // D7 metadata value without its "v" field.
     let (doc, _) = small();
     let mut m = std::collections::BTreeMap::new();
-    m.insert("x".to_owned(), MetaValue::Int(3));
+    m.insert("x".to_owned(), MetaValue::Int(3.into()));
     let bad = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,

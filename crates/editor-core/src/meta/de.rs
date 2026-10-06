@@ -7,7 +7,7 @@
 
 use serde::de::{self, Deserializer, IntoDeserializer, Visitor};
 
-use super::{MAX_PRODUCER_NESTING, MetaError, MetaValue};
+use super::{MAX_PRODUCER_NESTING, MetaError, MetaValue, Spelled};
 
 /// Rebuilds a typed producer view from a [`MetaValue`] tree (spec
 /// D7's `from_value` boundary).
@@ -73,7 +73,10 @@ impl<'de> Deserializer<'de> for ValueDe<'de> {
         match this.value {
             MetaValue::Null => visitor.visit_unit(),
             MetaValue::Bool(b) => visitor.visit_bool(*b),
-            MetaValue::Int(i) => visitor.visit_i64(*i),
+            MetaValue::Int(i) => match i.spelled() {
+                Spelled::Negative(v) => visitor.visit_i64(v),
+                Spelled::NonNegative(v) => visitor.visit_u64(v),
+            },
             MetaValue::Float(f) => visitor.visit_f64(*f),
             MetaValue::Str(s) => visitor.visit_borrowed_str(s),
             MetaValue::Bytes(b) => visitor.visit_borrowed_bytes(b),

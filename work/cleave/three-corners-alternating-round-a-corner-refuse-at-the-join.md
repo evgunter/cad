@@ -1,11 +1,12 @@
 ---
 id: three-corners-alternating-round-a-corner-refuse-at-the-join
 kind: issue
-title: "Three corners touching at a point whose cuts alternate round another solid's corner refuse JoinDesync or PinchUncrossed in three ops"
-status: open
+title: Three corners touching at a point whose cuts alternate round another solid's corner refuse JoinDesync or PinchUncrossed in three ops
+status: parked
 opened: 2026-10-03
 priority: P1
 cost: M
+blocked_on: [a-pinch-no-kept-face-can-cross-refuses]
 ---
 
 ## What

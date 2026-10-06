@@ -34,7 +34,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
 use geom_core::spline::algebra::refine_plan_homogeneous;
-use geom_core::{Band, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
 use super::exhaust::{ParamSpan, SweepFloor, isolate_section};
@@ -110,6 +110,20 @@ impl BandVerdict {
     }
 }
 
+/// The verdict of the decision `predicate` on `margin` where it does
+/// not pass: refused in the band or definitely, or undecided. `None`
+/// where it passes positive.
+pub(crate) fn band_verdict<T: Decide>(
+    predicate: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Option<BandVerdict> {
+    match decide_reported(predicate, margin, band) {
+        Ok(decided) => Refused::of(decided, band).map(BandVerdict::Refused),
+        Err(cause) => Some(BandVerdict::Undecided(cause)),
+    }
+}
+
 /// One Bézier piece: its parameter interval, and the Bernstein
 /// coefficients of `h` and of `W` over it.
 type Piece = ((f64, f64), Vec<Interval>, Vec<Interval>);
@@ -126,14 +140,30 @@ impl Pieces {
     /// `p` (exact in ℝ, applied in interval arithmetic), so the control
     /// net is the pieces' Bernstein coefficients end to end.
     fn of(curve: &NurbsCurve3<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> Option<Self> {
-        let kv = curve.knots();
-        let p = kv.degree();
         let n = [normal.x, normal.y, normal.z].map(Interval::point);
         let o = [origin.x, origin.y, origin.z].map(Interval::point);
+        let control: Vec<[Interval; 3]> = curve
+            .control()
+            .iter()
+            .map(|c| [c.x, c.y, c.z].map(Interval::point))
+            .collect();
+        Self::enclosed(curve.knots(), &control, curve.weights(), (o, n))
+    }
+
+    /// [`Pieces::of`] from a curve's parts, its control points enclosed:
+    /// the one arithmetic both the boundary pass and limb 3's side arm
+    /// read ([`SectionReader`]).
+    fn enclosed(
+        kv: &geom_core::spline::KnotVector,
+        control: &[[Interval; 3]],
+        weights: &[f64],
+        (o, n): ([Interval; 3], [Interval; 3]),
+    ) -> Option<Self> {
+        let p = kv.degree();
         // The weights scaled by a power of two near their largest, which
         // is exact and moves neither the curve, `φ = h/W` nor `h`'s sign,
         // so a net of tiny weights does not underflow `h`.
-        let top = curve.weights().iter().copied().fold(0.0, f64::max);
+        let top = weights.iter().copied().fold(0.0, f64::max);
         #[allow(clippy::cast_possible_truncation)]
         let k = if top > 0.0 && top.is_finite() {
             -(top.log2().floor() as i32)
@@ -143,21 +173,19 @@ impl Pieces {
         // Two halves, so a subnormal's exponent does not overflow the
         // power it is scaled by.
         let (k1, k2) = (k / 2, k - k / 2);
-        let weights: Vec<f64> = curve
-            .weights()
+        let weights: Vec<f64> = weights
             .iter()
             .map(|w| w * 2.0f64.powi(k1) * 2.0f64.powi(k2))
             .collect();
-        let h: Vec<Interval> = curve
-            .control()
+        let h: Vec<Interval> = control
             .iter()
             .zip(&weights)
             .map(|(c, &w)| {
-                let d = [c.x, c.y, c.z]
-                    .into_iter()
+                let d = c
+                    .iter()
                     .zip(n.iter().zip(o.iter()))
                     .fold(Interval::point(0.0), |acc, (x, (nk, ok))| {
-                        acc + *nk * (Interval::point(x) - *ok)
+                        acc + *nk * (*x - *ok)
                     });
                 Interval::point(w) * d
             })
@@ -188,6 +216,18 @@ impl Pieces {
         Some(Self { pieces })
     }
 
+    /// The plane distance `φ = h/W` over the whole curve, enclosed
+    /// ([`ratio_hull`]).
+    fn distance(&self) -> Interval {
+        ratio_hull(self.pieces.iter().map(|(_, hc, wc)| (hc, wc)))
+    }
+
+    /// The plane distance over `[a, b]`, enclosed as [`Pieces::distance`]
+    /// encloses the whole curve's, from the pieces cut to it.
+    fn distance_over(&self, a: f64, b: f64) -> Interval {
+        ratio_hull(self.over(a, b).iter().map(|(hc, wc, _)| (hc, wc)))
+    }
+
     /// For each piece overlapping `[a, b]`: the Bernstein coefficients
     /// of `h` and `W` over the overlap, and of `dh/dt` there.
     fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>, Vec<Interval>)> {
@@ -211,6 +251,46 @@ impl Pieces {
             ));
         }
         out
+    }
+}
+
+/// The hull of the Bernstein ratios `h_i/W_i` of pieces (every weight
+/// positive): an enclosure of `φ = h/W` over them.
+fn ratio_hull<'a>(
+    pieces: impl Iterator<Item = (&'a Vec<Interval>, &'a Vec<Interval>)>,
+) -> Interval {
+    pieces
+        .flat_map(|(hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
+        .reduce(Interval::hull)
+        .unwrap_or_else(Interval::refused)
+}
+
+/// **A side's plane distance, read as [`boundary_section`] reads it**,
+/// over any stretch of the side: the side's Bernstein pieces
+/// ([`Pieces::enclosed`], the arithmetic [`boundary_section`] reads a
+/// whole side by), cut to the stretch. Limb 3's side arm reads a side
+/// through it, so the two doors read one input.
+pub(crate) struct SectionReader {
+    pieces: Pieces,
+}
+
+impl SectionReader {
+    /// The reader of a curve given by its parts, its control points
+    /// enclosed; `None` where the knot algebra refuses its Bernstein
+    /// form.
+    pub(crate) fn of(
+        knots: &geom_core::spline::KnotVector,
+        control: &[[Interval; 3]],
+        weights: &[f64],
+        (origin, normal): ([Interval; 3], [Interval; 3]),
+    ) -> Option<Self> {
+        Pieces::enclosed(knots, control, weights, (origin, normal)).map(|pieces| Self { pieces })
+    }
+
+    /// The plane distance `φ` over the stretch `[a, b]` of the curve,
+    /// enclosed.
+    pub(crate) fn over(&self, (a, b): (f64, f64)) -> Interval {
+        self.pieces.distance_over(a, b)
     }
 }
 
@@ -296,12 +376,7 @@ pub fn boundary_section(
     };
     let pieces = Pieces::of(curve, origin, normal).ok_or(unsupported)?;
     // ---- On: the curve's sup distance from the plane ----
-    let d = pieces
-        .pieces
-        .iter()
-        .flat_map(|(_, hc, wc)| hc.iter().zip(wc).map(|(h, w)| *h / *w))
-        .reduce(Interval::hull)
-        .unwrap_or_else(Interval::refused);
+    let d = pieces.distance();
     let sup = magnitude(d);
     let on = BoundarySection::On {
         sup,
@@ -435,12 +510,8 @@ fn roots(
 /// [`SsiError::BoundaryGraze`] with no side named.
 pub(crate) fn decide_crossing(root: SectionRoot, arm: f64, band: Band) -> Result<(), SsiError> {
     let margin = Margin::levered(root.slope, arm);
-    let verdict = match decide_reported("ssi_boundary_crossing", margin, band) {
-        Ok(decided) => match Refused::of(decided, band) {
-            None => return Ok(()),
-            Some(r) => BandVerdict::Refused(r),
-        },
-        Err(cause) => BandVerdict::Undecided(cause),
+    let Some(verdict) = band_verdict("ssi_boundary_crossing", margin, band) else {
+        return Ok(());
     };
     Err(SsiError::BoundaryGraze {
         side: None,

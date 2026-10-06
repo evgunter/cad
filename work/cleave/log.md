@@ -429,3 +429,28 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 - Steep tube (PR 3981, DR-65, renumbered from 64 at merge) merged after its fix pass, with main merged in after PR 3979. Split's pcurve check 5 decides only an escape's positive part, through one `escape` helper. The tour's tip ratio is now pinned per link count. Row closed. M-tier units toward the readout: 4. Mints step 2's withdrawn lane is told to push its uncommitted edits to `cleave/mints-coincidence` as held, unreviewed WIP, with no PR.
+
+## 2026-10-06 — a new CLEAVE orchestrator picks the track up
+
+The previous orchestrator has exited; this session holds the track (`status: active` stands).
+- **The P0 on two vertices at one point moves to JOIN.** Ev's PR 4057 ruling says that row is
+  settled by JOIN's `a-pinch-no-kept-face-can-cross-refuses` (its bodies are right; its check
+  becomes "every corner is a slice of its own face"). It is moved by `git mv`, keeping its id,
+  parked on and riding with that unit. A note is on JOIN's log.
+- **`three-corners-alternating-round-a-corner-refuse-at-the-join` is parked** on the same JOIN
+  unit. On main its three ops refuse `SharedVertexCrossings` at the shared corner (FUSE's
+  interleave arm) or `PinchUncrossed`, and JOIN's draft PR 4074 rebuilds exactly that ground: a
+  pinch becomes one vertex per cone and `PinchUncrossed`, the crossing pre-pass and the pinch welds
+  retire. Working the join under it now would be built twice. Alternative not taken: dispatch it
+  against today's zips and accept the rework.
+- **Dispatched** (review tier for each: single FULL — both change what a door accepts or how a
+  section arc is decided, so believing them takes more than reading them):
+  - `cleave/split-operand-gate`: `split-answers-an-inside-out-operand-with-two-inside-out-halves`,
+    with `split-gates-its-operand-on-null-edges-not-on-tier-2` riding along (priced P1/E). The
+    split door takes the Boolean's finished-operand shape (REACH PR 3987).
+  - `cleave/split-segment-curve`: `split-lane-second-chord-recomputes-the-first-chords-arc`.
+- **Design weighing**: `closest-crossing-and-graze-abandon-have-three-homes` (`design: true`) went
+  to the designer pair, blinding record on `analysis/design-fork/cleave-ray-walk-protocol`. It goes
+  to Ev only if the reports leave a fork that is Ev's.
+
+Signed (CLEAVE orchestrator).

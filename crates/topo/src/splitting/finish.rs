@@ -64,7 +64,7 @@ use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
 use super::{PlaneSide, SplitReduction, section_loops};
-use crate::attach::Rechart;
+use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
@@ -362,13 +362,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             .null_edges
             .iter()
             .map(|r| {
-                if r.attr.below_end == r.at_vertex {
-                    Ok((r.attr.above_end, r.at_vertex))
-                } else if r.attr.above_end == r.at_vertex {
-                    Ok((r.attr.below_end, r.at_vertex))
-                } else {
-                    Err(SplitFinishError::Corrupt)
-                }
+                let copy = r.attr.copy_at(r.at_vertex);
+                copy.map(|c| (c, r.at_vertex))
+                    .ok_or(SplitFinishError::Corrupt)
             })
             .collect::<Result<_, _>>()?,
     };
@@ -645,7 +641,7 @@ fn section_plane_restatements<T: Decide>(
             let Some(curve) = geom.certified() else {
                 continue;
             };
-            if !Body::description_surfaces(geom).contains(&chart) {
+            if !Named::of(geom).keys().any(|k| k == chart) {
                 continue;
             }
             let image = geom_brep::EdgeDescriptionSpec::chart(chart);
@@ -985,6 +981,14 @@ fn classify_shell<T: Decide>(
 /// with every other shell's entities removed and orphaned geometry
 /// swept. Kept entities keep their keys (lineage-scoped identity —
 /// deterministic, replay-stable).
+///
+/// **Every surviving link resolves.** The removal is arena surgery, not
+/// an Euler operator, so it keeps the links by removing only records
+/// no kept record names: no kept half-edge starts at a dropped vertex
+/// or shares an edge with a dropped half-edge, and no kept lone-vertex
+/// loop holds a dropped vertex. That is tier-1 pass 6's "no split
+/// orbits" on a body at rest; `src` may be mid-operation, so the carve
+/// checks it and answers [`SplitFinishError::Corrupt`] where it fails.
 pub(crate) fn carve<T: Decide>(
     src: &Body<T>,
     solid: SolidKey,
@@ -1028,6 +1032,31 @@ pub(crate) fn carve<T: Decide>(
                     }
                 }
             }
+        }
+    }
+
+    let dropped_hes: SecondaryMap<crate::entity::HalfEdgeKey, ()> =
+        hes.iter().map(|&he| (he, ())).collect();
+    let dropped_loops: SecondaryMap<crate::entity::LoopKey, ()> =
+        loops.iter().map(|&l| (l, ())).collect();
+    for (he, he_data) in &body.half_edges {
+        if dropped_hes.contains_key(he) {
+            continue;
+        }
+        let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
+        if vertices.contains_key(he_data.start)
+            || dropped_hes.contains_key(edge.he_plus)
+            || dropped_hes.contains_key(edge.he_minus)
+        {
+            return Err(corrupt());
+        }
+    }
+    for (l, loop_data) in &body.loops {
+        if let LoopBoundary::Empty { vertex } = loop_data.boundary
+            && !dropped_loops.contains_key(l)
+            && vertices.contains_key(vertex)
+        {
+            return Err(corrupt());
         }
     }
 
@@ -1100,7 +1129,7 @@ pub(crate) fn carve<T: Decide>(
     // description on a surviving edge must never dangle (extrude-built
     // operands carry them — M3 PR 5).
     for (_, curve) in body.curves() {
-        for s in Body::description_surfaces(curve) {
+        for s in Named::of(curve).keys() {
             live_surfaces.insert(s, ());
         }
     }

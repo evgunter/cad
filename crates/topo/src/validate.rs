@@ -393,6 +393,7 @@ use geom_brep::{
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
+use crate::attach::Named;
 use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
@@ -2566,6 +2567,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
             "its faces are not certainly crossing along it, so they do not fix where it runs"
         }
+        CertifyError::PlaneNurbs(P::TubeNotOneArc { .. }) => {
+            "its curve is not proved to span one arc of its faces' crossing"
+        }
         CertifyError::NurbsLaneNotSupplied => {
             "it lies between a plane and a spline face, and the check that ran was given no \
              plane x NURBS lane, so nothing about it was checked"
@@ -2614,6 +2618,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TransversalityEscalated { .. }
                 | P::Limb { .. }
                 | P::TubeStraddles { .. }
+                | P::TubeNotOneArc { .. }
                 | P::Escalated { .. }
                 | P::ReportedTransversalityPoisoned(_)
                 | P::ChartSpeed(_),
@@ -8393,7 +8398,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // pass-8 orphan count exactly like a face's reference does (the
     // removal guard `remove_surface_if_orphaned` honors the same rule).
     for (curve_key, curve) in body.curves.iter() {
-        for surface in Body::description_surfaces(curve) {
+        for surface in Named::of(curve).keys() {
             if body.surfaces.contains_key(surface) {
                 count_ref(&mut surface_refs, surface);
             } else {
