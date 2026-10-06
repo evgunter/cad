@@ -93,4 +93,10 @@ circle is now the residual one (9.69e-9 at the default row, was
 walls answer far more probes (the lens 62 → 514 of 720, each against its
 truth, wrong 0 at every ε row), where a ray meeting nothing refused the
 whole query on the props lane's uncertified volume.
-
+The same set-aside opened more where a probe ray meets the boundary,
+each held to its closed form: `conic_edge_curved_face`'s ball through
+the cut face and two of its rim rods, the boss under a slab in every
+member order (`reach_slab_cut_sector_side`), and the tour's two
+tilted-cut walls, now held checks. The rows that pinned their refusals
+were rewritten; CONTACT's two frontier rows and VACUITY's torus-shell
+row are annotated.
