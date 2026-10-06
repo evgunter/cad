@@ -2,10 +2,11 @@
 id: survivor-folds-a-corrupt-fusion-list-onto-a-dead-key-outside-the-contact-remap
 kind: issue
 title: zip::survivor guards a corrupt fusion list with debug_assert! only, so fused_into, fused_through and Welds::kept fold onto a dead key where it compiles out
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 cost: E
+branch: zip/survivor-and-recourse
 ---
 
 
