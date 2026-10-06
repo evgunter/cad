@@ -50,3 +50,35 @@ joiner's plans (`first_chord`, `second_chord`) say is minted, so no aux
 surface is minted for a join whose chords are both skipped — the split's
 skip test is `between_edge_is_section`'s in-plane question rather than
 the boolean's locus edge.
+
+## Built (branch cleave/split-segment-curve)
+
+The split's `join` now computes the segment's curve once, through the
+same `ChordJoiner::segment_curve` the boolean calls, and both chords
+read it (`SegmentCurve::running_from`). `Chords` is gone: `join` takes
+the curve and a `SegmentEdge`, the adjacency skip's one question —
+`Locus` (the boolean's edge) or `InPlane` (the split's
+`between_edge_is_section`). `segment_curve` plans its chord with that
+skip, so no aux plane is minted for a join whose chords are both
+skipped; it answers `None` there, which the split takes as "mint
+nothing" (as before) and the boolean refuses as before. `chord_spec`'s
+one non-test caller is `segment_curve`.
+
+The window premise above had already gone by the time this landed
+(`5ec92edc58`, the chord takes the pairing's arc): the second chord no
+longer read a run, and so no longer refused `NoChartedRun`. What it
+still did was decide the arc again, from the other end's departure.
+Measured on a split that reaches a ring on a curved face — the drum
+pocketed through its wall by a square bar (the mouth is a ring of the
+wall band), cut by a tilted plane, so the join `mekr`s the wall's outer
+loop to the ring: main builds it, but two of the section's three wall
+arcs on the below half are not the above half's arc run back — one off
+by an ulp at each end, one a whole period away (`[2.678, 5.820]`
+against `[0.464, 3.605]` on the reversed carrier) — and the halves'
+total misses the closed form by `2.8e-11`. The branch mints every pair
+as the one curve run back, bit for bit, and the total meets the closed
+form to `1e-14`. Pinned by
+`split_section_rings::a_split_across_a_ringed_wall_mints_each_segment_on_one_curve`
+(red on main). Probed alongside, all building on both: the pocket and a
+through-bar, under ∖ and ∪, cut at `y = 0.1`, `y = 0`, `x = 0.1`
+(rulings), the tilt and `z = 0.95`.

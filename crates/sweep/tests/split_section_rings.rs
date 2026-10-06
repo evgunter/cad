@@ -1067,3 +1067,100 @@ fn plane_section_area_of_an_uncancelled_arc_at_f64_and_interval() {
         got.hi()
     );
 }
+
+/// Each ellipse edge of `half` as its carrier and parameter window,
+/// written out bit for bit.
+fn ellipse_arcs(half: &Body<f64>) -> Vec<(String, (f64, f64), Option<String>)> {
+    half.edges()
+        .filter_map(|(_, e)| half.get_curve_geom(e.curve)?.certified())
+        .filter(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))
+        .map(|c| {
+            let back = c.carrier().reversed().map(|r| format!("{r:?}"));
+            (format!("{:?}", c.carrier()), c.params(), back)
+        })
+        .collect()
+}
+
+/// **A section segment across a ringed wall is one curve on both
+/// sides.** The drum of radius 1 about the y axis, pocketed by the bar
+/// `[−0.3, 0.3]² × [0.5, 2]` through its wall at `+z`: the wall's band
+/// there carries the pocket's mouth as a ring. A tilted plane crosses
+/// that band from seam to mouth and from mouth to seam, so the join
+/// reaches the ring across loops (`mekr`) on a cylinder face. Each of
+/// the section's wall arcs the below half keeps is, bit for bit, the
+/// arc the above half keeps run back: the two chords of one segment
+/// are minted on the one curve its join computed. The halves hold the
+/// drum less the pocket, `∫√(1 − x²) − ½` over the bar's section.
+#[test]
+fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
+    use core::f64::consts::PI;
+    let drum = finished(
+        "the drum",
+        sweep::test_support::revolved_about_y(
+            vec![
+                (Point2::new(0.0, -1.0), 0.0),
+                (Point2::new(1.0, -1.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ],
+            sweep::Revolution::Full,
+            tol(),
+        ),
+        tol(),
+    );
+    let half = 0.3;
+    let bar = finished(
+        "the bar",
+        topo::test_support::brick::<f64>((-half, half), (-half, half), (0.5, 2.0), tol()),
+        tol(),
+    );
+    let body = topo::boolean::subtract(&drum, &bar, tol())
+        .unwrap()
+        .body()
+        .expect("the pocketed drum holds material")
+        .body
+        .clone();
+    let ringed_walls = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .filter(|(_, f)| !f.rings.is_empty())
+        .count();
+    assert_eq!(
+        ringed_walls, 1,
+        "the pocket's mouth is a ring of one wall band"
+    );
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.1, 0.0),
+        Vec3::new(0.2, 1.0, 0.1),
+        tol(),
+    );
+    let [below, above] = halves_at_rest("the pocketed drum", &body, &plane);
+    let pocket =
+        2.0 * half * ((half * (1.0 - half * half).sqrt() + half.asin()) - 2.0 * half * 0.5);
+    let total = volume(&below) + volume(&above);
+    assert!(
+        (total - (2.0 * PI - pocket)).abs() < 1e-9,
+        "the halves hold {total}, the drum less the pocket {}",
+        2.0 * PI - pocket
+    );
+    let (lower, upper) = (ellipse_arcs(&below), ellipse_arcs(&above));
+    assert_eq!(
+        (lower.len(), upper.len()),
+        (3, 3),
+        "the section crosses the wall in three arcs: seam to seam, seam to mouth, mouth to seam"
+    );
+    for (carrier, (t0, t1), back) in &lower {
+        let back = back.as_ref().expect("an ellipse runs back");
+        assert!(
+            upper.iter().any(|(c, (s0, s1), _)| c == back
+                && s0.to_bits() == (-t1).to_bits()
+                && s1.to_bits() == (-t0).to_bits()),
+            "the below arc {carrier} on [{t0}, {t1}] has no above arc that is it run back: {upper:?}"
+        );
+    }
+}

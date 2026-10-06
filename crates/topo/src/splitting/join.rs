@@ -64,9 +64,9 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, Leave, SectionCase,
-    SectionCtx, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
-    vertex_point, wall_section,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
+    SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he,
+    corrupt_loop, vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -172,16 +172,16 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
-                joiner.join(
-                    &mut red.body,
-                    end,
-                    half,
-                    crate::chord_join::Chords::Split {
-                        ctx: section,
-                        leave,
-                    },
-                    tol,
-                )?;
+                let segment = SegmentEdge::InPlane {
+                    origin: section.origin,
+                    normal: section.normal,
+                };
+                let lane = JoinLane::Split(section);
+                if let Some(curve) =
+                    joiner.segment_curve(&mut red.body, (end, half), lane, segment, leave)?
+                {
+                    joiner.join(&mut red.body, end, half, &curve, segment, tol)?;
+                }
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.

@@ -29,7 +29,7 @@
 //!
 //! A segment whose locus on a solid is an edge is that edge: the
 //! solid's adjacency skip reads the locus, not the geometry
-//! ([`Chords::Segment`]).
+//! ([`SegmentEdge::Locus`]).
 //!
 //! A matched segment's chord curve is computed once per solid, before
 //! any chord is minted ([`SegmentCurve`]): the joiner mints both chords
@@ -145,7 +145,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, Chords, CutOutcome, Datum, JoinLane, Leave, SegmentCurve, SplitJoinError,
+    ChordJoiner, CutOutcome, Datum, JoinLane, Leave, SegmentCurve, SegmentEdge, SplitJoinError,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::face_outward_normal;
@@ -282,7 +282,9 @@ enum AuxDatum {
 
 impl SolidJoin {
     /// The segment's curve in `lane`, from the site of `halves.0`
-    /// ([`ChordJoiner::segment_curve`]).
+    /// ([`ChordJoiner::segment_curve`]). A match whose two chords are
+    /// both skipped — a loop holding both halves of the segment's edge —
+    /// is refused.
     fn curve<T: Decide>(
         &self,
         body: &mut Body<T>,
@@ -291,9 +293,20 @@ impl SolidJoin {
         segment: Option<EdgeKey>,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
-        self.joiner
-            .segment_curve(body, halves, lane, segment, leave)
-            .map_err(BooleanError::Join)
+        let curve = self
+            .joiner
+            .segment_curve(body, halves, lane, SegmentEdge::Locus(segment), leave)
+            .map_err(BooleanError::Join)?;
+        curve.ok_or_else(|| {
+            BooleanError::Join(match body.face_of_half_edge(halves.0) {
+                Some(face) => SplitJoinError::SectionInvariant {
+                    face,
+                    what: "both chords of a matched segment are its own edge (a loop holding \
+                           both halves of that edge)",
+                },
+                None => crate::chord_join::corrupt_he(halves.0),
+            })
+        })
     }
 
     /// The wall-side curve against the germ plane through `origin` with
@@ -354,12 +367,8 @@ impl SolidJoin {
         segment: Option<EdgeKey>,
         tol: Tol,
     ) -> Result<(), BooleanError> {
-        let chords = Chords::Segment {
-            curve,
-            edge: segment,
-        };
         self.joiner
-            .join(body, h1, h2, chords, tol)
+            .join(body, h1, h2, curve, SegmentEdge::Locus(segment), tol)
             .map_err(BooleanError::Join)?;
         Ok(())
     }
@@ -2880,7 +2889,7 @@ mod self_check_rows {
                 &mut body.clone(),
                 (h1, h2),
                 JoinLane::Planar,
-                None,
+                crate::chord_join::SegmentEdge::Locus(None),
                 crate::chord_join::Leave {
                     at: [
                         (h1, Vec3::new(1.0, 0.0, 0.0)),
@@ -2889,7 +2898,8 @@ mod self_check_rows {
                     datum: crate::chord_join::Datum::Germ,
                 },
             )
-            .expect("a planar face's chord is straight");
+            .expect("a planar face's chord is straight")
+            .expect("the adjacent chords' between edges are no segment locus");
         let up = super::IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), &chord);
         let err = super::ring_run_ccw(body, prism.top_face, (h1, h2), up, b)
             .expect_err("an in-band winding escalates");
