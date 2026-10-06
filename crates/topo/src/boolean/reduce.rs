@@ -496,7 +496,7 @@ fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(),
 /// tier 1 an unresolvable curve key at the operand gate, and the
 /// sweep's only surgery (`split_edge`) mints certified pieces, so a
 /// miss past the gate is a kernel invariant, not the operand's fault.
-fn certified<T: geom_core::Real>(
+pub(super) fn certified<T: geom_core::Real>(
     geom: Option<&CurveGeom<T>>,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
     geom.and_then(CurveGeom::certified)
@@ -1591,7 +1591,7 @@ pub(super) struct DeferredTouch {
 /// crossing, answers the pair's typed frontier. So does a pair nothing
 /// split, read again exactly as it was deferred.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn settle_deferred<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
     deferred: Vec<DeferredTouch>,
@@ -1834,7 +1834,7 @@ fn edge_covers<T: Decide>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     x: &Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
@@ -2297,10 +2297,26 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 | SpanVerdict::LiesOn
                 | SpanVerdict::Miss
                 | SpanVerdict::Unsettled => Err(frontier()),
-                SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     // UNDECLARED: the undeclared `NoInterior` rule
                     // ([`Placement::undeclared_no_interior`]), over this
                     // span's one ON end.
+                    //
+                    // Under `OffFace` the ON end cannot place In, OnEdge
+                    // or OnVertex on THIS face, so the two reads cannot
+                    // disagree. The end is a meeting of the span with the
+                    // carrier, so its piece never clears and it lies in a
+                    // cluster, within `ℓ + |d(m)|` of the ball's foot:
+                    // `escalate` inside the ball. Every vertex and edge
+                    // of the face was decided farther from the foot than
+                    // the ball's radius, so each is more than `escalate`
+                    // from the end, beyond the band an On answer needs.
+                    // In would contradict the same door's
+                    // (`curved_face_placement`) `Out` at the foot across a
+                    // disc of the carrier no boundary enters. The one
+                    // `Recorded` left is the face-free vertex hit, a
+                    // sibling face's incidence, which records here as it
+                    // would there.
                     let mut ends = [None, None];
                     for (i, (on, w, pw)) in [(s1 == Sign::Zero, u, pu), (s2 == Sign::Zero, v, pv)]
                         .into_iter()
@@ -2335,6 +2351,11 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         //   the trim, and each root at an end is that end's own
         //   incidence. So the ends decide, under the same rule as the
         //   mixed-sign arm ([`Placement::undeclared_no_interior`]).
+        // - **`OffFace`**: every meeting of the span with the carrier, the
+        //   ends' among them, lies off this face whether or not the edge
+        //   lies on the carrier, so the ends decide under the same rule.
+        //   Neither end can place on this face against the verdict (the
+        //   mixed-sign arm above says why).
         // - **`LiesOn`: an arc lying on the carrier**, exactly on by the
         //   circle root door. It is an ON event (C4's one-sided cover,
         //   narrowed to touches) when every surface of a face it bounds is
@@ -2351,7 +2372,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
-                SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
@@ -2418,9 +2439,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
-                SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
-                    Ok(CurvedEvent::None)
-                }
+                SpanVerdict::NoInterior
+                | SpanVerdict::Elsewhere
+                | SpanVerdict::Miss
+                | SpanVerdict::OffFace => Ok(CurvedEvent::None),
                 SpanVerdict::Constant | SpanVerdict::LiesOn | SpanVerdict::Unsettled => {
                     Err(frontier())
                 }
@@ -2515,9 +2537,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                         // definitely clear, and exactly so — the bound
                         // that sent us here could only ever have said
                         // "maybe".
-                        SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
-                            Ok(CurvedEvent::None)
-                        }
+                        SpanVerdict::NoInterior
+                        | SpanVerdict::Elsewhere
+                        | SpanVerdict::Miss
+                        | SpanVerdict::OffFace => Ok(CurvedEvent::None),
                         // **`Constant` is NOT a clearance here.** It
                         // says the edge drifts off its distance from the
                         // axis by less than the band over its span, so
@@ -3086,6 +3109,13 @@ enum SpanVerdict<T: geom_core::Real> {
     LiesOn,
     /// The line definitely misses the wall entirely.
     Miss,
+    /// The roots did not settle, and every touch of the span with the
+    /// carrier is certified off this face
+    /// ([`super::carrier_touch::off_face`]): the span meets the carrier,
+    /// if at all, outside the trim. Like [`Self::Miss`] it accounts for no
+    /// crossing of THIS face; unlike it, an endpoint the band puts ON the
+    /// carrier is no contradiction.
+    OffFace,
     /// The roots did not settle the span and the caller keeps its own
     /// typed frontier door.
     Unsettled,
@@ -3114,7 +3144,7 @@ enum SpanVerdict<T: geom_core::Real> {
 /// the SAME face, so the rest are found on later passes — the shape the
 /// conic × plane lane already uses, and the reason this function does
 /// not return a set.
-fn wall_crossing<T: Decide>(
+fn wall_crossing<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
     surface: &geom::Surface<T>,
@@ -3176,7 +3206,18 @@ fn wall_crossing<T: Decide>(
         // circle or ellipse that lies on a sphere, wall or torus. (A
         // ruling on a wall is the line door's `Constant`, above.)
         CircleRoots::OnSurface => return Ok(SpanVerdict::LiesOn),
-        CircleRoots::Uncertain => return Ok(SpanVerdict::Unsettled),
+        // A tangency, or a count the door could not certify: where the
+        // span may meet the carrier is localized and read against the
+        // face, which settles it off the face or keeps the door.
+        CircleRoots::Uncertain => {
+            return Ok(
+                if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? {
+                    SpanVerdict::OffFace
+                } else {
+                    SpanVerdict::Unsettled
+                },
+            );
+        }
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
         CircleRoots::CountDisagrees => {
             return Err(BooleanError::ClassificationInvariant {

@@ -66,7 +66,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// kind, which the quantiles of a long tail need not.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 73, 111, 252_376]),
+    ("full", [19, 69, 111, 247_696]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -74,7 +74,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// evaluation, in the corpus's order: a wrong word of the same length
 /// moves it where [`NAME_WORDS`] cannot see. Re-pinned with the words
 /// that moved, said in the PR that moves them.
-const SAID_DIGEST: u64 = 0x93e9_5f79_ef76_6443;
+const SAID_DIGEST: u64 = 0xbeab_ae86_738d_1ba6;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
