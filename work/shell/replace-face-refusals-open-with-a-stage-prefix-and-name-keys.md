@@ -2,10 +2,12 @@
 id: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
 kind: issue
 title: topo: every ReplaceFaceError arm opens with replace_face_offset: and names its face by arena key, and the shell op shows it whole
-status: open
+status: review
 opened: 2026-09-23
 priority: P1
 cost: M
+pr: 4163
+branch: shell/refusal-text
 ---
 
 
