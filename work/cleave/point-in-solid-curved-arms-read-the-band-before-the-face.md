@@ -71,3 +71,21 @@ The curved arms keep the old order on both counts.
    - Each arm needs its predicates split that way before the ray-level
      ones can abandon the ray.
    - `PartialCone`'s set-aside is already the abandon shape.
+
+## Part 2 landed on branch `cleave/ray-walk`
+
+The ray-walk driver unit made every in-band reading inside `cast_ray`
+a reading of that ray (`ray_walk::RayFault::InBand`): the wall roots'
+rungs, `bool_ray_sphere_disc`, `bool_ray_cone_{lead,disc,incidence}`,
+the torus root count (including `bool_ray_torus_count`'s
+contradiction) and `bool_ray_torus_incidence`, and every trim reading
+at a hit point (`at_hit`, which also sets aside a ray on
+`WallOutlineUnsupported`, `EdgeCarrierUnsupported` or
+`PartialConeFace`). The body-level rows the list above names
+(`bool_wall_trim_period`, the outline class rows, `require_ring_torus`,
+the cone premises) are reached inside those trim readings and set the
+ray aside with them; setting a ray aside cannot make an answer wrong,
+and where every ray meets that face the refusal is the same
+`Escalated` it was. Part 1, the pre-pass reading the band before the
+face, is still open.
+
