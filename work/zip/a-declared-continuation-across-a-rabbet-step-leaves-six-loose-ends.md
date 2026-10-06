@@ -67,3 +67,16 @@ The rabbet itself builds on JOIN-1, as above. The fold-order shape above
 while JOIN-1 was in flight and has not been measured on JOIN-1. The row
 stays open for it: if it builds now, pin it and close the row; if not, the
 row carries it.
+
+## Measured on main (zip-reflex, 2026-10-06)
+
+Main at `3f1e3b0d03`. `zip_rest_admission_probes` `zip_rabbet_fold_orders`
+uses `a` = (0,1)³, `c` = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5),
+y∈(0,1), all z∈(0,1). `a`'s y range is not in the text above; it is taken
+from the FUSE document this shape came from. Each order is folded by
+`union_with` with `flush_declarations` at every step. All six orders,
+`acb cab abc bac bca cba`, build `SOUND` at both steps: tiers 2 and 3′,
+the certificate, and a legal operand. Step 1 gives 2, 2, 1.5, 1.5, 2, 2;
+step 2 gives the L at 2.5. No step enters the REST zip: the join builds
+each one. The rabbet's own row, `a_declared_continuation_across_a_rabbet_step_builds_every_op`,
+passes on main.

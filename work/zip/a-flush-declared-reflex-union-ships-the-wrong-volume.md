@@ -91,3 +91,47 @@ nothing else moves. `join_rc_probes`
 them as refusing or sound (red on main). The second cause, the zip
 admitting a union that is not a pure REST contact, is unchanged: it is
 no longer reached at these poses because the matching refuses first.
+
+## Measured on main (zip-reflex, 2026-10-06)
+
+Main at `3f1e3b0d03`, release, with an env-gated trace of the REST zip's
+entry and exits (`zip/rest-admission`, the instrumentation commit).
+
+- **The row's own bar is met.** `join1_r1_reflex_battery`: every ∪, ∩
+  and `a ∖ b` is `SOUND` or `EMPTY ok` (`b ∖ a` is a harness gap,
+  `work/join/the-reflex-probes-run-b-minus-a-under-declarations-keyed-for-a-b`).
+  `rc_wide_battery`: 10 080 unions, 9 911 `SOUND`, 169 `Escalated` (all at
+  the 0.003° turn), no `BAD`. `flush_declared_reflex_unions_never_ship_the_overlap_twice`
+  passes, its four poses `SOUND` at the closed form. No union of either
+  battery enters the REST zip: the join builds them all.
+- **The second cause is live on main.** `try_rest_union` admits once
+  the join's matching is complete, a `Rest` pair exists, and some
+  seam-bounded region on each solid lies wholly on `Rest` surfaces with
+  congruent cycles. It never checks that the seam is exactly that
+  region's boundary, so a transverse segment beside the patch is minted
+  and ignored and B is grafted whole. `zip_rest_admission_probes`
+  `zip_rest_admission_reflex_lever` reaches it: the reflex pose's `b`,
+  bridged high over `a` to a post resting on `a`'s top whose rounded
+  footprint's west wall is flush with `a`'s at `x = −2`. The join refuses
+  the post's tangent site (`Join(SectionInvariant { what: "tangent
+  plane×cylinder germ pair …" })` in `a ∪ b′`, `"tangent section chord
+  endpoints coincide along the ruling"` in `b′ ∪ a`), and the zip ships
+  `vol a + vol b′` at all 16 lever runs (8 poses × 2 orders; the excess
+  is `v∩` to 1e-9 in each). `sqQ1` at `(−0.5, 0.25)` and `(−0.3, 0.25)`
+  pass tiers 2 and 3′, the certificate and the operand check; the other
+  12 fail tier 3′, which the boolean's gate does not run. Each admitted
+  run has 4 to 6 segments whose seam edge has a patch face on neither
+  side (the cap across `a`'s top and its 45° wall). The controls build
+  `SOUND`: the same `b′` with the post at `x = −1.9`, through the join;
+  and the lever with `sqQ1 (0.25, 0.25)`, where `v∩ = 0`, through the
+  zip.
+- Across the sweep suite the zip is entered 95 times, from four join
+  refusals (`RingHomingAmbiguous`, `NotSameFace`, the two tangent
+  `SectionInvariant`s). It builds 91, and every one of them has no
+  segment off the patch.
+- The criterion "every segment bounds a patch on both solids" has a
+  blind spot: `zip_rest_admission_tangent_lever` "inside-top" (a box
+  dipping into the plate's top, inside the contact) has no segment at
+  the dip at all. The zip identifies it and the result gate refuses
+  `ResultInvalid { RingOutsideOuter }`. That run is caught, but by the
+  gate, not by the admission.
