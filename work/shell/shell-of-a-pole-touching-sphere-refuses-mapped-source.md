@@ -1,13 +1,14 @@
 ---
 id: shell-of-a-pole-touching-sphere-refuses-mapped-source
 kind: issue
-title: shell of a POLE-TOUCHING sphere refuses Certification(ResidualExceeded MappedSource) where the two-arc sphere shells
-status: review
+title: a pole-touching ball hollows through topo::shell to its closed form - the MappedSource refusal no longer occurs
+status: closed
 opened: 2026-09-09
 priority: P0
 cost: H
 pr: 4111
 branch: shell/pole-ball
+closed: 2026-10-06
 ---
 
 
@@ -84,3 +85,15 @@ body, so it is not a separate row. The `Shell` recipe node over
 `die_pips`' revolved ball does too. The rows:
 `crates/sweep/tests/pole_ball_shells.rs` (on `test_support::ball_poled_y`) and
 `lib_g17_shell_node::a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls`.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4111)
+
+The premise had drifted (f28c201d). A ball touching the axis at both
+poles hollows through `topo::shell` and through the editor-core `Shell`
+node to 4/3·π(r³−(r−t)³), tier-3 valid, at default ε, 1e-6 and 1e-12.
+That is pinned by `pole_ball_shells` and by
+`lib_g17_shell_node::a_sealed_shell_over_a_revolved_ball…`. The review
+planted a 1e-9 relative thickness error, and both rows went red. Its
+probes found no pole-touching shape that refuses: hemispheres, a
+one-pole cut ball, a tilted off-origin axis, t up to 0.999·r, and the
+hand-cut latitude-seam sphere. The title is rewritten to what holds.
