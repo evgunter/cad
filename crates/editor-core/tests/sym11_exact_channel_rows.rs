@@ -13,8 +13,9 @@
 //! The nominal half is pinned by the gating row
 //! `m10_9_no_registrant_lies_on_any_measured_document`, which replays
 //! the same five documents and now reads the dispute column too. This
-//! file is the ceiling-plus-δ half, which is a second whole-box replay
-//! of each — too heavy for the gate and cheap to re-take by hand.
+//! file is the ceiling-plus-δ half, a second whole-box replay of each,
+//! and it runs where the gating row does: in `.config/nextest.toml`'s
+//! slow set.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -32,18 +33,47 @@ use crate::m10_9_pins_interval::measured_studies;
 /// ε = 1e-6, 1e-9 and 1e-12: the atoms a residual carries do not
 /// depend on the band, and neither does what the tier proves about
 /// them.
+///
+/// Each value is SYM-11's measurement moved by the merges named beside
+/// it (`sz`, `reg`, `num`: the first three columns), each bisected on
+/// `main` and re-run at its parent:
+/// - #3257, `path_junction_side` asked of every declared tangent joint;
+/// - #3270, `tangent_jet`'s curvatures over their own gradient norms;
+/// - #3313, the must-carry rule's per-station `dihedral_wedge`;
+/// - #3254, the arc carrier's span from the stored sweep;
+/// - #3266, the run outs read against their arrival carriers;
+/// - #3455 and #3594, the id mints
+///   (`work/sym/the-pads-frozen-set-moves-with-the-documents-id-mint`);
+/// - #3612 and #3697, the schedule assigning its ends and its middle;
+/// - #3645, one `mid_point`;
+/// - #2468, DECIDE-3's fold, rule G and the decision read;
+/// - #3527, copied arc carriers;
+/// - #3807, DECIDE-9;
+/// - #3759, the pcurve mint's checks;
+/// - #3981, check 5's escape;
+/// - #4037, the closing joint decided as every joint.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [803, 140, 470, 1044]),
-    ("r1_annulus", [328, 140, 209, 1056]),
-    ("r2_link", [214, 76, 175, 556]),
-    // +1 `symbolic_zero` and +1 `numeric` from the fillet run out's
-    // carrier decision (`path_run_out_carrier`).
-    ("r2_filleted_bracket", [429, 141, 342, 1096]),
-    // +28 `symbolic_zero` and +84 `numeric` from the must-carry rule's
-    // per-station dihedral gate (16 edges x 7 stations of
-    // `dihedral_wedge`), and +3 of each from the run outs' carrier
-    // decision.
-    ("r2_rounded_pad", [885, 128, 1058, 2750]),
+    // sz +8 #2468, +136 #3759, +8 #3981; reg +8 #3759; num −8 #2468,
+    // +236 #3759, −8 #3981, +14 #4037; frozen +96 #3645, −96 #3697,
+    // +24 #3759.
+    ("two_hole_plate", [955, 148, 704, 1068]),
+    // sz +112 #3759; reg +8 #3759; num +236 #3759, −8 #3981, +14 #4037;
+    // frozen +96 #3645, −96 #3697, +24 #3759.
+    ("r1_annulus", [440, 148, 451, 1080]),
+    // sz +68 #3759, +4 #3981; reg +9 #3254, −5 #2468, +4 #3759; num +4
+    // #3257, −9 #3254, +5 #2468, +118 #3759, −4 #3981, +7 #4037; frozen
+    // +48 #3645, −48 #3697, +12 #3759.
+    ("r2_link", [286, 84, 296, 568]),
+    // sz +1 #3266, +7 #2468, +112 #3759; reg +8 #3759; num +2 #3257, +1
+    // #3266, −12 #2468, +236 #3759, −8 #3981, +14 #4037; frozen −3
+    // #3612, +96 #3645, −96 #3697, −4 #3527, +24 #3759.
+    ("r2_filleted_bracket", [548, 149, 574, 1113]),
+    // sz +28 #3313, +3 #3266, +8 #2468, +32 #3807, +87 #3759, +4 #3981;
+    // reg +22 #2468, −2 #3527, +4 #3759; num +8 #3257, +84 #3313, +3
+    // #3266, −64 #2468, +2 #3527, +176 #3759, −4 #3981, +10 #4037;
+    // frozen −28 #3270, −130 #3254, −15 #3455, −48 #3612, +168 #3645,
+    // −168 #3697, +15 #3594, −34 #3527, +77 #3759.
+    ("r2_rounded_pad", [1016, 152, 1186, 2587]),
 ];
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the
@@ -91,15 +121,11 @@ fn replay_on_a_thread(
 /// [`PAST_THE_CEILING`] is the measurement, identical at ε = 1e-6,
 /// 1e-9 and 1e-12.
 ///
-/// **WHEN IT IS RE-TAKEN: by hand, at each SYM unit's close**, because
-/// nothing schedules it — it is `#[ignore]`d (five whole-box replays
-/// of the corpus on top of the ones the gating rows already pay, about
-/// two minutes) and no sweep names it. The register of that obligation
-/// is the unit item, not this comment:
-/// `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`
-/// while it is open, and the SYM log after it closes.
+/// **WHAT RUNS IT: the slow set** (`.config/nextest.toml`): every
+/// night at every ε row, and on every PR whose diff seeds `editor-core`.
+/// It is five whole-box replays on top of the gating row's, so it stays
+/// off the per-PR fast set.
 #[test]
-#[ignore = "evidence-only: five whole-box replays past the measured ceilings; re-taken by hand at each SYM unit's close"]
 fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
     let tol = Tol::witness();
     let eps = tol.eps();

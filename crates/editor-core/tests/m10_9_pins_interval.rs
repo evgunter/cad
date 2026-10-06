@@ -503,6 +503,15 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
     assert_ne!(open, shut, "and the receipt line itself DID move");
 }
 
+/// The index of `eps` among the suite's ε rows, `[1e-6, 1e-9, 1e-12]`,
+/// for a pin measured per row.
+fn eps_row(eps: f64) -> usize {
+    [1.0e-6, 1.0e-9, 1.0e-12]
+        .iter()
+        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
+        .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"))
+}
+
 /// **NO REGISTRANT LIES ON A REAL DOCUMENT** — the loud channel the
 /// door was missing, at fixture scale, and the three assertions that
 /// make it one.
@@ -559,10 +568,7 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 fn m10_9_no_registrant_lies_on_any_measured_document() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let row = [1.0e-6, 1.0e-9, 1.0e-12]
-        .iter()
-        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
-        .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"));
+    let row = eps_row(eps);
     for study in measured_studies(tol) {
         let name = study.name;
         let doc = (study.at)(study.certifies_at * eps);
@@ -621,25 +627,20 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// side; this one is the DIFFERENTIAL for rule F alone
 /// (`SymRules::without_rule_f`: both arms shut, every other rule as
 /// shipped). On Duff's basis rule F moved four of the pad's theorems
-/// into the door. The axis-order basis mints no `copysign` for rule F
-/// to fold, and at the scale the pad certifies whole at, over its
-/// analyzed box, the two dials read the same receipt
-/// (`work/sym/the-negative-arm-lost-its-document-consumer`). Since the
-/// extrude closes with the pcurve mint, the pad refuses at
-/// `pcurve_envelope` at that scale under both dials
-/// (`work/pcert/fillet-meridian-radius-term-is-registered-only`), so the
-/// receipt below is over the decisions taken before that refusal; the
-/// claim is that the two dials still read the same one. Measured at the
-/// default ε: since DECIDE-9 it is `symbolic_zero` 1036, `sign_gated`
-/// 2, `registered` 152, `numeric` 1188, `frozen` 2587 under both
-/// dials.
+/// into the door. The arc carrier's span is now the stored sweep signed
+/// by the decided turn rather than `4·atan|b|`, the axis-order basis
+/// mints no `copysign`, and the two dials read the same receipt
+/// (`work/sym/the-negative-arm-lost-its-document-consumer`).
+/// At this scale the pad refuses at `pcurve_envelope` under both dials
+/// (`Study::refused_by`), so the receipt is over the decisions taken
+/// before that refusal; the claim is that the two dials still read the
+/// same one.
 ///
-/// `#[ignore]`d: it is two whole-box replays of the heaviest of the
-/// five documents, on top of the one the gating row above already
-/// pays, and the shipped side of it is pinned there by
-/// `Study::symbolic_zero`. Re-take it by running this row.
+/// **What runs it: the slow set** (`.config/nextest.toml`): every night
+/// at every ε row, and on every PR whose diff seeds `editor-core`. Two
+/// whole-box pad replays, on top of the gating row's, keep it off the
+/// per-PR fast set.
 #[test]
-#[ignore = "evidence-only: two whole-box pad replays; the shipped side is pinned by the row above"]
 fn m10_9_the_pad_at_both_rule_f_dials() {
     let tol = Tol::witness();
     let eps = tol.eps();
@@ -676,13 +677,21 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
             c.frozen,
         ));
     }
+    // Per ε row, as `(symbolic_zero, sign_gated, registered, numeric,
+    // frozen)`: the replay stops at its refusal after a longer prefix at
+    // 1e-9 (`Study::symbolic_zero`). At 1e-9, 1036 / 1188 until check 5
+    // decided only an escape's positive part (#3981: four theorems out
+    // of `numeric`) and the closing joint was decided as every joint
+    // (#4037: ten more numeric decisions).
+    let want: [(u64, u64, u64, u64, u64); 3] = [
+        (1016, 2, 152, 1186, 2587),
+        (1040, 2, 152, 1194, 2587),
+        (1016, 2, 152, 1186, 2587),
+    ];
     assert_eq!(
         got[0],
-        (1036, 2, 152, 1188, 2587),
-        "rule F shut: the pad's receipt"
+        want[eps_row(eps)],
+        "rule F shut at eps={eps:e}: the pad's receipt"
     );
-    assert_eq!(
-        got[1], got[0],
-        "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
-    );
+    assert_eq!(got[1], got[0], "rule F moves nothing on the pad");
 }
