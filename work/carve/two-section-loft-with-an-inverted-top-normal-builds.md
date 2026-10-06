@@ -27,3 +27,15 @@ difficulty S.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to BLEND (the sweep crate and the profile fillet door are BLEND's charter; crates/sweep/src/loft.rs passes to BLEND at this exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Built (2026-10-06)
+
+`carve/fold-reads-the-far-normal`: the stacking fold decides each
+slab's displacement against both its sections' normals under
+`loft_stacking`, refusing a far normal that is against or edge-on to
+the slab as the new `LoftError::FarSectionFacesBack { slab }`. The
+issue's witness (top section facing down) and the interior case
+(`z = 0, 1, 0.5`, normals `+z, −z, −z`) refuse at slab 0; rows in
+`crates/sweep/tests/bool6_per_slab_stacking.rs`. Interim: it retires
+with the fold when the loft door's embedding certificate lands
+(`self-overlapping-spines-build-and-validate`, "Weighed (2026-10-06)").

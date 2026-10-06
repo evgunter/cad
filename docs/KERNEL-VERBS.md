@@ -201,8 +201,8 @@ the table.
   mean displacement against the FIRST section's plane normal, so any
   path that ended behind where it started refused `ReversedStacking`
   wholesale, no matter how well every consecutive pair stacked. It is
-  now a FOLD over the consecutive pairs, each decided against its own
-  base section's plane normal, and the Klein bottle's top loop is one
+  now a FOLD over the consecutive pairs, each decided against both
+  its sections' plane normals, and the Klein bottle's top loop is one
   such sweep (the `klein` scene builds it — off the exact half turn
   only by its interpolated spine's end-tangent tilt, klein's wall 9).
   The wall that remains is PER-SLAB, at per-slab turn π — total turn

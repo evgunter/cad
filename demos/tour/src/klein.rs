@@ -119,8 +119,8 @@
 //! 5. **The loop is ONE swept body, and its section is not spelled
 //!    the natural way** (walls 5 and 8). `sweep_body` carries the
 //!    annulus around the U-turn — the loft's stacking statement is a
-//!    fold over adjacent section pairs, each decided against its own
-//!    base section's normal (issue 368). Two findings shape it:
+//!    fold over adjacent section pairs, each decided against both its
+//!    sections' normals (issue 368). Two findings shape it:
 //!    - the walls are `circle_split(.., 4, ..)`, not `circle` ([`annulus`]
 //!      carries the gap comment). The `circle` loop is wall 5 (tier 3
 //!      refuses `QuadratureBudget` at the default ε and finer,

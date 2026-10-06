@@ -205,12 +205,12 @@ fn r2_sub_ulp_slivers_are_the_skins_and_band_slivers_are_the_folds() {
     }
 }
 
-/// **Claim 6: the fold mints `k − 1` `loft_stacking` samples per
-/// loft** — and stops at the first non-positive slab, so a refusal at
-/// slab 1 of four sections leaves TWO verdicts, and an escalation
-/// leaves one verdict plus one escalation.
+/// **Claim 6: the fold mints `2(k − 1)` `loft_stacking` samples per
+/// loft**, two per slab — and stops at the first non-positive verdict,
+/// so a refusal at slab 1's base decide of four sections leaves THREE
+/// verdicts, and an escalation there leaves two plus one escalation.
 #[test]
-fn r2_the_fold_mints_k_minus_one_samples_and_stops_at_the_first_refusal() {
+fn r2_the_fold_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
     let count = |run: &dyn Fn()| {
         let b = Bracket::open();
         run();
@@ -233,26 +233,26 @@ fn r2_the_fold_mints_k_minus_one_samples_and_stops_at_the_first_refusal() {
         count(&|| {
             loft_body::<f64>(&five, &stacked_at(&[0.0, 1.0, 2.0, 3.0, 4.0]), 2, tol).unwrap();
         }),
-        (4, 0)
+        (8, 0)
     );
     assert_eq!(
         count(&|| {
             loft_body::<f64>(&five[..2], &stacked_at(&[0.0, 1.0]), 1, tol).unwrap();
         }),
-        (1, 0)
+        (2, 0)
     );
     assert_eq!(
         count(&|| {
             let _ = loft_body::<f64>(&five[..4], &stacked_at(&[0.0, 1.0, 0.5, 2.0]), 2, tol);
         }),
-        (2, 0)
+        (3, 0)
     );
     let mid = 0.5 * (1.0 + tol.k()) * tol.eps();
     assert_eq!(
         count(&|| {
             let _ = loft_body::<f64>(&five[..4], &stacked_at(&[-1.0, 0.0, mid, 1.0]), 2, tol);
         }),
-        (1, 1)
+        (2, 1)
     );
 }
 

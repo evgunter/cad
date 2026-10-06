@@ -1,9 +1,9 @@
 //! **The per-slab stacking fold** (issue 368, ruled 2026-09-01).
 //!
 //! The loft's stacking statement is a fold over adjacent section
-//! pairs, each pair decided against its own base section's plane
-//! normal (`sweep::loft`'s `stacking_fold`, where the statement is
-//! made and stated). These rows pin what that admits, what it refuses,
+//! pairs, each pair's displacement decided against both its sections'
+//! plane normals (`sweep::loft`'s `stacking_fold`, where the statement
+//! is made and stated). These rows pin what that admits, what it refuses,
 //! and what it names when it refuses.
 //!
 //! The admitted family reaches past a half turn, and the ORACLE that
@@ -399,7 +399,11 @@ fn a_top_section_facing_down_refuses_naming_the_far_section() {
 /// normal against slab 0's `+z` step, sees the turn.
 #[test]
 fn an_interior_section_facing_back_refuses_at_slab_0s_far_check() {
-    let places = [stacked_at(&[0.0])[0], facing_down_at(1.0), facing_down_at(0.5)];
+    let places = [
+        stacked_at(&[0.0])[0],
+        facing_down_at(1.0),
+        facing_down_at(0.5),
+    ];
     match loft_body::<f64>(&loft_prism_sections(), &places, 2, Tol::witness()) {
         Err(LoftError::FarSectionFacesBack { slab }) => assert_eq!(
             slab, 0,
