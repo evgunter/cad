@@ -180,10 +180,11 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
     );
 }
 
-/// **Step two: an UNVENTED cavity is two shells and the body door
-/// says so.** This is the step that forces a vent to exist at all.
+/// **Step two: an UNVENTED cavity is two shells, and its twelve edges
+/// chamfer inside the void's own.** The vent is a fixture choice, not
+/// a door's demand: the blend carves the shell its chains lie in.
 #[test]
-fn r1_an_unvented_cavity_refuses_at_the_body_door() {
+fn r1_an_unvented_cavity_chamfers_inside_its_own_shell() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
     let body = cut("cavity", &block, &cavity);
@@ -201,8 +202,14 @@ fn r1_an_unvented_cavity_refuses_at_the_body_door() {
     ];
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the sealed cavity still has twelve edges");
-    chamfer_edges(&body, &edges, D, Tol::witness())
-        .expect_err("the surgery's body door admits one shell");
+    let out = chamfer_edges(&body, &edges, D, Tol::witness())
+        .unwrap_or_else(|e| panic!("the sealed cavity chamfers: {e}"));
+    assert_eq!(out.shells.len(), 1, "only the void's shell is carved");
+    assert_eq!(
+        out.body.shells().count(),
+        2,
+        "and the outer one rides through"
+    );
 }
 
 /// **The minimality claim is FALSE as written.** BLEND-3's fixture doc

@@ -524,3 +524,15 @@ Signed (CLEAVE orchestrator).
     `SectionInvariant` hid 34 deliberate tangent-frontier texts and misnamed the face in 14 cases, so
     it was dropped and today's refusals stand.
   - Filed on JOIN: the half-selection defect.
+- **PR 4098 merges** (`a-concave-graze-of-a-curved-wall-refuses-for-reasons-other-than-its-knife-edge`, closed).
+  Of 90 concave-graze poses measured on main, only 10 named the knife edge. Now each refuses
+  `Reduce(KnifeEdge)` at rule (a), naming the wall and the contact site.
+  - Review: single FULL, then a DELTA review of a fix pass that widened rule (a). It ran about 1,330
+    poses × 3 ε plus the topo, sweep, editor-core and verbs suites; no split main built refuses.
+  - Ruled and built: one decision, one payload. The knife edge was spelled
+    `ConcaveGraze`/`SectionCusp` at two phases; the two phase variants now carry one `KnifeEdge` type.
+  - `SectionSpur` is retired to a panic (`assert_no_spur`) whose invariant names its three fences.
+  - Filed: `an-in-band-concave-graze-refuses-at-certification-on-one-side-of-tangency` (P2) and
+    `certified-line-carrier-is-read-in-five-places` (P4).
+  - Class noted: **a fix pass that widens a rule earns a delta review.** Rule (a) now reads every
+    tangent wall; the first review never saw that code.
