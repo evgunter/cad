@@ -7434,3 +7434,24 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - This looks like the PR's own new `description_moves_carrier` decisions, each settling symbolically at zero. Re-baselining is due, and it must say what moved and why (implementer discipline: a moved golden is re-baselined, not weighed).
   - Check that `registered`/`numeric` did not trade against it. The pin's message warns that a theorem weakened to an axiom would look like this.
   - The impl lane is still polling CI on this PR, so it should see the failure. If it does not fix it, the fix goes into the review fix lane.
+
+## 15:50 (2026-10-06)
+
+- **PR 4154 review** (`session_01NumM4b6icuXu24j6znB6r6`, about $5.3, archived). Verdict merge, nothing BLOCKING.
+  - Every former raise site is a record hop.
+  - Tier 1 covers every link `revert` follows.
+  - The void-insert cavity can be built only through public doors. Probed: no torn body is reachable.
+  - Every mutation goes red; batteries are identical.
+  - **Adjudication: merge as is.** The MINORs and NITs are cosmetic or test-only:
+    - the vacuous "unchanged" assert beside a `&self` door;
+    - the counter names `refused`;
+    - the `require_halves` row through `revert`;
+    - the PR body's premise overclaim;
+    - the caller-table omission;
+    - the branch name in the family row's cell;
+    - the hone row's stale `RevertError` bullet.
+  - They are filed as one follow-up below rather than another lane cycle, given the usage warning.
+  - **Semantic collision:** PR 4108 (fuse) calls `.revert().expect(..)`. Whichever lands second must drop the `.expect`.
+- PR 4154's CI was red at `db438f67`: five split and tessellate tests. They pass locally on head merged with current main (6 of 6). The red was main's state at 12:28.
+  - I pushed a real main merge to the branch at `bb5ae216` to re-run CI.
+- PR 4165: the impl lane re-baselined the m10_9 pin at `b71c2459`; CI is re-running. The reviewer is still running.
