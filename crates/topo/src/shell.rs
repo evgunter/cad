@@ -311,7 +311,7 @@
 //! check 9 does its work.
 
 use geom_core::k_stats::{decide, gate_measured};
-use geom_core::{Band, BandError, Bounds, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -2360,7 +2360,7 @@ fn loop_rekeyed<T: Decide>(
 /// each other, or a convex-edged pair whose offsets would have
 /// cleared; it cannot miss a planar pair within that tilt that
 /// crosses. A pair tilted further is not read (module docs).
-fn wall_clearance<T: Decide + Bounds>(
+fn wall_clearance<T: Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
     thickness: T,
@@ -2458,7 +2458,7 @@ struct PlanarFace<T: Real> {
 /// footprint. Every face is read off the arena, so its records are
 /// links and a miss panics naming one.
 #[track_caller]
-fn planar_faces<T: Decide + Bounds>(
+fn planar_faces<T: Decide>(
     body: &Body<T>,
     partition: &crate::offset_together::Scope,
 ) -> Vec<PlanarFace<T>> {
@@ -2531,7 +2531,7 @@ impl<T: Real> InPlane<T> {
 /// poisons all four ends. `None` for a face with no boundary member to
 /// fold.
 #[track_caller]
-fn footprint<T: Decide + Bounds>(
+fn footprint<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     frame: &InPlane<T>,
@@ -2571,16 +2571,16 @@ fn footprint<T: Decide + Bounds>(
 
 /// `(u, v)` points of `frame` whose box holds `curve`'s arc: none for a
 /// line, whose two vertices hold it; the corners of the arc's own box
-/// for a conic or spiric carrier, read through `geom`'s certified arc
-/// door on the carrier re-expressed in `frame` (so the box's `x` and `y`
-/// are the plane's `u` and `v`, and a quarter round is boxed as the
-/// quarter, not its circle); the control points for a NURBS carrier,
-/// whose positive weights hold the curve in their hull.
-fn arc_extent<T: Decide + Bounds>(
-    curve: &geom_brep::EdgeCurve<T>,
-    frame: &InPlane<T>,
-) -> Vec<(T, T)> {
-    let carrier = match *curve.carrier() {
+/// for a circle or ellipse, by certified subdivision
+/// ([`crate::boolean::boxes::arc_extent`]) on the carrier read in
+/// `frame`, so a quarter round is boxed as the quarter, not its circle;
+/// the corners of the torus's bounding ball for a spiric, which lies on
+/// it; the control points for a NURBS carrier, whose positive weights
+/// hold the curve in their hull.
+fn arc_extent<T: Decide>(curve: &geom_brep::EdgeCurve<T>, frame: &InPlane<T>) -> Vec<(T, T)> {
+    use crate::boolean::boxes::{Span, SpanBox};
+    let corners = |b: SpanBox<T>| vec![(b.x.lo, b.y.lo), (b.x.hi, b.y.hi)];
+    let (center, axis, u_ref, semi_u, semi_v) = match *curve.carrier() {
         geom::Curve3::Line { .. } => return Vec::new(),
         geom::Curve3::Nurbs(ref n) => {
             return n
@@ -2592,56 +2592,40 @@ fn arc_extent<T: Decide + Bounds>(
                 })
                 .collect();
         }
+        geom::Curve3::Spiric {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let c = frame.point(center);
+            let reach = major_radius + minor_radius;
+            return vec![(c.x - reach, c.y - reach), (c.x + reach, c.y + reach)];
+        }
         geom::Curve3::Circle {
             center,
             axis,
             radius,
             u_ref,
-        } => geom::Curve3::Circle {
-            center: frame.point(center),
-            axis: frame.vec(axis),
-            radius,
-            u_ref: frame.vec(u_ref),
-        },
+        } => (center, axis, u_ref, radius, radius),
         geom::Curve3::Ellipse {
             center,
             axis,
             major,
             minor,
             u_ref,
-        } => geom::Curve3::Ellipse {
-            center: frame.point(center),
-            axis: frame.vec(axis),
-            major,
-            minor,
-            u_ref: frame.vec(u_ref),
-        },
-        geom::Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-        } => geom::Curve3::Spiric {
-            center: frame.point(center),
-            axis: frame.vec(axis),
-            u_ref: frame.vec(u_ref),
-            major_radius,
-            minor_radius,
-            offset,
-        },
+        } => (center, axis, u_ref, major, minor),
     };
     let (t0, t1) = curve.params();
-    let b =
-        geom::curves::boxes::conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1))
-            .unwrap_or_else(|| {
-                unreachable!("the arc door answers for every circle, ellipse and spiric carrier")
-            });
-    vec![
-        (T::from_f64(b.min_x), T::from_f64(b.min_y)),
-        (T::from_f64(b.max_x), T::from_f64(b.max_y)),
-    ]
+    corners(crate::boolean::boxes::arc_extent(
+        &SpanBox::point(frame.point(center)),
+        &SpanBox::vector(frame.vec(u_ref)),
+        &SpanBox::vector(frame.vec(axis.cross(u_ref))),
+        Span::exact(semi_u),
+        Span::exact(semi_v),
+        t0,
+        t1,
+    ))
 }
 
 /// Do the two footprints overlap when both are projected into `a`'s
