@@ -142,6 +142,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_blend_one_box_of_two.rs"]
+mod edit_blend_one_box_of_two;
 #[path = "edit_bore_two_rims.rs"]
 mod edit_bore_two_rims;
 #[path = "edit_doc_param_distribution.rs"]

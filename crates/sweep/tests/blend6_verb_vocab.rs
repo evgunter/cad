@@ -298,24 +298,6 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
     assert_speaks_as_the_chamfer(&err, "tangential");
 }
 
-/// **The shared BODY frontier under the chamfer's verb**: two disjoint
-/// cubes in one body are valid input the in-place surgery has not been
-/// built for, whichever verb asks.
-#[test]
-fn a_chamfer_on_a_two_solid_body_refuses_the_body_frontier_as_the_chamfer() {
-    let mut body = cube(L, Tol::witness());
-    let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut body, &other).expect("a disjoint graft");
-    let edges = query::all_edges(&body);
-    let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
-        .expect_err("the in-place surgery is built for one solid");
-    assert!(
-        matches!(err.error, BlendError::UnsupportedBody { solids, .. } if solids == 2),
-        "the body frontier carries the solid count: {err:?}"
-    );
-    assert_speaks_as_the_chamfer(&err, "two-solid-body");
-}
-
 /// **An ESCALATED margin under the chamfer's verb**: a setback whose
 /// clearance margin lands inside the band escalates through the
 /// funnel, and the message — which names the `fillet3_*` predicate,
