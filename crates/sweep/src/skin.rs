@@ -55,7 +55,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, RANGE_RECOURSE, Vec3};
+use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
 use profile::{
     ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop, SketchPlane,
     ValidatedProfile,
@@ -230,7 +230,7 @@ impl core::fmt::Display for SkinError {
                 "the skin's chord-length parameterization takes no step from section {} to \
                  section {section}: the curves it is measured on do not move between them by \
                  anything f64 resolves against their whole travel. Recourse: move section \
-                 {section} away from section {}, or {RANGE_RECOURSE}",
+                 {section} away from section {}",
                 section.saturating_sub(1),
                 section.saturating_sub(1),
             ),
@@ -1012,16 +1012,20 @@ pub(crate) fn skin_validated(
 /// asking: the answer is NOT the z-spacing, and hand-deriving it is
 /// how demos and fixtures drifted.
 ///
-/// `v_degree` is not used to place the sections — it is validated, so
-/// this door refuses exactly where [`loft_body`](crate::loft_body)
-/// would rather than answering for a loft that cannot be built.
+/// `v_degree` is not used to place the sections; it is validated with
+/// everything else [`loft_geometry`] checks before skinning, so this
+/// door refuses every section, count and degree fault
+/// [`loft_geometry`] would. It does NOT run the loft's stacking fold:
+/// it answers for a reversed stack or a sliver slab that
+/// [`loft_body`](crate::loft_body) refuses, and two sections the body
+/// refuses as not apart reach it as [`SkinError::NoParameterStep`].
 ///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
-/// (placement count), [`SkinError::BadDegree`], and every refusal
-/// [`segment_curve`], [`make_compatible`] and [`skin_parameters`]
-/// carry.
+/// (placement, loop and segment counts), [`SkinError::SectionProfile`],
+/// [`SkinError::BadDegree`], and every refusal [`segment_curve`],
+/// [`make_compatible`] and [`skin_parameters`] carry.
 ///
 /// ```
 /// use geom_core::{Affine3, Point2, Tol, Vec3};
@@ -1069,25 +1073,7 @@ pub fn loft_parameters<L: SectionLoop>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Vec<f64>, SkinError> {
-    let k = sections.len();
-    if k < 2 {
-        return Err(SkinError::TooFewSections { have: k, need: 2 });
-    }
-    if places.len() != k {
-        return Err(SkinError::SectionShapeMismatch {
-            section: places.len().min(k),
-            expected: k,
-            found: places.len(),
-            what: "placements",
-        });
-    }
-    if v_degree == 0 || v_degree >= k {
-        return Err(SkinError::BadDegree {
-            degree: v_degree,
-            sections: k,
-        });
-    }
-    first_strip_parameters(&validate_sections(sections, places, tol)?, places)
+    first_strip_parameters(&validate_loft(sections, places, v_degree, tol)?, places)
 }
 
 /// The first strip's v-parameters — the whole loft's, by the

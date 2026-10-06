@@ -6,9 +6,8 @@
 //! POPULATION and the EDGES: how many `loft_stacking` samples one loft
 //! now mints, whether the slab margin is the step itself at the band's
 //! two edges, whether the fold's vertex PAIRING carries any
-//! information, what a pair of sections with different vertex counts
-//! reaches, and where the sliver hands off between the skin's unbanded
-//! coincidence check and the loft's banded degenerate arm.
+//! information, and what a pair of sections with different vertex
+//! counts reaches.
 //!
 //! Two of these rows are not here: `a_spine_curled_past_pi_still_faces_out_everywhere`
 //! and `a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself`

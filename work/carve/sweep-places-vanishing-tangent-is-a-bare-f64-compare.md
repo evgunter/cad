@@ -5,7 +5,8 @@ title: sweep_places refuses a vanishing path tangent by a bare n > 0.0 in unit_t
 status: open
 opened: 2026-10-06
 priority: P3
-cost: E
+cost: M
+design: true
 ---
 
 

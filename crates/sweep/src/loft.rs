@@ -166,10 +166,13 @@ pub enum LoftError {
         /// in section order that is not definitely forward.
         slab: usize,
     },
-    /// One SLAB's stacking displacement is coincident with zero at
-    /// tolerance: a coincident, sliver-thin or in-plane pair of
-    /// sections. The loft's one refusal for two adjacent sections that
-    /// are not apart, at every scale down to exact coincidence.
+    /// One SLAB's stacking displacement — the step of the outer loop's
+    /// vertex centroid along the slab's base normal — is coincident
+    /// with zero at tolerance. Coincident, sliver-thin and in-plane
+    /// pairs land here, and so does a section tilted about an in-plane
+    /// axis through its centroid so that it crosses its neighbour; at
+    /// every scale down to exact coincidence this is the loft's one
+    /// refusal for two adjacent sections that are not apart.
     DegenerateStacking {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
@@ -223,8 +226,8 @@ impl fmt::Display for LoftError {
             ),
             Self::DegenerateStacking { slab } => write!(
                 f,
-                "loft {} are not apart at tolerance (coincident, sliver-thin or in-plane), \
-                 so the loft has no direction. Recourse: move the sections apart",
+                "loft {} are not apart along section {slab}'s normal at tolerance, so the \
+                 loft has no direction. Recourse: move them apart",
                 SlabPair(*slab)
             ),
             Self::StackingEscalated { slab, source } => write!(

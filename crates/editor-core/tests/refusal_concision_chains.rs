@@ -2131,6 +2131,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
             "Fit",
             E::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 }),
