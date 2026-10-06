@@ -78,3 +78,16 @@ Q1 trilean with its own margin), the refusal split into "straddles the
 arc" (a frontier: the band would have to be trimmed by the bore) and
 "wholly inside" (built: the feature dies with the sliver), and the two
 rows above flipped to carves at the closed form `ΔV = −2·A·L + V_bore`.
+
+## Witness 2 resolved (PR 4173's fix pass, 2026-10-06)
+
+`CapSliver` now encloses the sliver by the disc to its reach less the
+inside of the band's section, within the half-plane towards the old
+vertex and the box the sliver spans in the section's own axes
+(`crates/sweep/src/blend/open/end_face.rs`). The keyhole's slot end
+edge is clear of that box, so the rocker's creases carve at their
+closed forms past `r* = 0.3097` (asserted at 0.31 and 0.49 in
+`demos/tour/src/rocker.rs`), up to the headroom wall at `R_BLEND`;
+wall 2 is retired. `R_CREASE` stays at `R_EYE` until a `[render]`
+pass re-baselines the scene at a larger radius. Finding 1, the bore
+wholly inside the sliver, stands.
