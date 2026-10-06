@@ -1485,3 +1485,31 @@ could not take them. Citations of the moved rows' paths in code
 comments and live items were updated in the same commit; logs keep
 their history. `plan.md`'s slate and order are re-written from the
 2026-10-02 triage.
+
+## 2026-10-06 — SYM-16 merged (#4155): the receipt rows' drift attributed, and the rows on the gate
+
+Every move of the two receipt rows since SYM-11 is bisected along
+`main`'s first parent and judged; all are right except the pad's
+`frozen` set moving with the document's id mint (#3455, #3594), filed
+on RULES. #3774 (PATHS 5b) re-took both rows on `main` mid-review; the
+fix pass attributed it (registrations became theorems; the earlier
+refusal is the replay scale's move) and took its values. Both rows are
+off `#[ignore]`: the rule-F row on the slow set, the past-the-ceiling
+row on the per-PR fast set (0.86 s). The review found the stop rule
+did not apply. The first implementer was lost to a container restart
+after opening the PR; a second ran the fix pass. Spec deleted
+(`docs/doc-ledger/sym-16-spec.md`).
+
+## 2026-10-06 — SYM-17 spec'd: the widened rotation angle on the plain lane; single FULL review
+
+First in the remaining 2026-10-02 order after SYM-15 and SYM-16. On
+the chain, the plain `Interval` lane refuses at the first transform
+(`transform_rigid_col0_unit`) while the symbolic tier certifies; the
+item's mechanism is a reading of the refusal, not a measurement.
+
+**Review tier: single FULL review.** Phase 1 is a readout and a priced
+choice between three answers; two of them land in PROPS' or SHELL's
+checks or state a scope of the plain lane, and those stop after
+Phase 1 for the owner or Ev.
+
+Spec `docs/SYM-17-SPEC.md`. Branch `sym/17-rotation-readout` from `main`.

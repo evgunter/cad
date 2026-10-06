@@ -41,7 +41,7 @@ use super::sectors;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
-use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
+use super::zip::{Fusions, Joint, SeamCorrespondence, fuse_by_joint};
 use super::{
     BooleanError, BooleanOp, BooleanReduction, Coincide, DeclarationRead, Operand, SideCode,
     one_vertex,
@@ -77,10 +77,10 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub weld_fragments_b: Vec<(FaceKey, FaceKey)>,
     /// The A-side pinch welds' vertex fusions `(dead, kept)`, result
     /// keys.
-    pub weld_merges_a: Vec<(VertexKey, VertexKey)>,
+    pub weld_merges_a: Fusions,
     /// The B-side pinch welds' vertex fusions, B-clone keys: they ran
     /// before the graft, so a dead key has no result key.
-    pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
+    pub weld_merges_b: Fusions,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -415,7 +415,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         if bs.len() > 1
             && !shared_cut
             && !one_pierce
-            && !a_welds.merges.iter().any(|&(_, k)| k == a_survivor)
+            && !a_welds.merges.rows().iter().any(|&(_, k)| k == a_survivor)
         {
             return Err(desync("conflicting seam vertex correspondence"));
         }
@@ -483,14 +483,14 @@ fn weld_pair<T: Decide + crate::props::AtRestPolicy>(
 /// face each one divided.
 #[derive(Default)]
 struct Welds {
-    merges: Vec<(VertexKey, VertexKey)>,
+    merges: Fusions,
     fragments: Vec<(FaceKey, FaceKey)>,
 }
 
 impl Welds {
     /// The vertex `v` survives as.
     fn kept(&self, v: VertexKey) -> VertexKey {
-        survivor(&self.merges, v)
+        self.merges.survivor(v)
     }
 }
 
@@ -585,7 +585,7 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 if let Some(made) = made {
                     welds.fragments.push((made, face));
                 }
-                welds.merges.push((dead, kept));
+                welds.merges.push((dead, kept))?;
             }
         }
     }
