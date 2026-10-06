@@ -2,9 +2,10 @@
 //! only.
 //!
 //! Attacks, per the claims-to-falsify:
-//! - the axis gate on a body that is curved but NOT axial (a bulged
-//!   box: one cylinder whose side planes neither contain the axis nor
-//!   sit normal to it) — must refuse typed, never build;
+//! - the axis gate on a curved body that is not a body of revolution
+//!   (a bulged box: one cylinder, side planes parallel to its axis and
+//!   beside it, end planes normal to it) — axial in the gate's sense,
+//!   and it hollows to its closed form;
 //! - the thin partial-revolve wedge whose inward offset has NO cavity
 //!   (the two moved meridian planes cross outside the shrunk wall):
 //!   every corner solves locally, so the question is what global net
@@ -23,6 +24,7 @@
 
 use crate::common::approx::band;
 use crate::common::charts::{charts, moves_by};
+use crate::common::oracles::{bulge_loop_area, eroded_bulge_loop};
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -32,26 +34,36 @@ use topo::Body;
 
 const T: f64 = 1.0 / 128.0;
 
+/// The bulged box's profile: a box with ONE bulged side, CCW, each
+/// vertex carrying the bulge of the edge leaving it.
+const BULGED: [(f64, f64, f64); 4] = [
+    (0.0, 0.0, 0.0),
+    // The bulge on the (w,0)->(w,d) edge: sweep < pi, transversal at
+    // both junctions.
+    (0.05, 0.0, 0.5),
+    (0.05, 0.04, 0.0),
+    (0.0, 0.04, 0.0),
+];
+const DEPTH: f64 = 0.06;
+
 /// A box with ONE bulged side: an extruded profile whose arc mints a
-/// cylinder, while the straight sides mint planes that neither contain
-/// that cylinder's axis nor sit normal to it. `is_axial` must say no,
-/// and the body must keep the per-chart door's own typed refusal.
+/// cylinder, while the straight sides mint planes parallel to that
+/// cylinder's axis and its ends planes normal to it — every chart
+/// expressible in the cylinder's axial frame.
 fn bulged_box() -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        // The bulge on the (w,0)->(w,d) edge: sweep < pi, transversal
-        // at both junctions.
-        (Point2::new(0.05, 0.0), 0.5),
-        (Point2::new(0.05, 0.04), 0.0),
-        (Point2::new(0.0, 0.04), 0.0),
-    ]);
+    let lp = bulge_loop(
+        BULGED
+            .iter()
+            .map(|&(x, y, b)| (Point2::new(x, y), b))
+            .collect(),
+    );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the bulged profile validates");
     extrude(
         &profile,
         Extrusion::Distance {
-            depth: 0.06,
+            depth: DEPTH,
             side: ExtrudeSide::Along,
         },
         Tol::witness(),
@@ -86,33 +98,56 @@ fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
     .body
 }
 
-/// **P1 — the axis gate, attacked with a curved body that is not a
-/// body of revolution.** The bulged box's cylinder is real and its
-/// side planes are neither normal to that axis nor through it, so the
-/// axial door must never take it; the outcome must be the per-chart
-/// door's own typed refusal (its cylinder∩side-plane junctions are the
-/// oblique class), never a built body with axial-door corners.
+/// **P1 — the axis gate on a curved body that is not a body of
+/// revolution but IS axial.** The bulged box's cylinder fixes an axis,
+/// and its side planes are parallel to it (beside it, not through it)
+/// and its ends normal to it, so the gate admits it: every corner is a
+/// cylinder line, an end's station and a side's azimuth. The hollow is
+/// the prism less its eroded profile's prism, in closed form
+/// ([`eroded_bulge_loop`]), through `shell` and through the door
+/// called directly alike.
 #[test]
-fn r1p1_a_bulged_box_is_not_axial_and_refuses_typed() {
+fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
     let tol = Tol::witness();
     let body = bulged_box();
-    match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
-        Ok(_) => panic!("a non-axial curved body must not hollow through the axial door"),
-        Err(e) => println!("[r1p1] bulged box refuses: {e:?}"),
-    }
-    // And the door itself, asked directly, must name the shape.
+    assert!(
+        topo::is_axial(&body, band()).expect("the axis gate decides"),
+        "planes parallel and normal to the cylinder's axis are axial"
+    );
+    let outer = bulge_loop_area(&BULGED);
+    let inner = bulge_loop_area(&eroded_bulge_loop(&BULGED, T));
+    let operand = topo::mass_properties(&body, tol)
+        .expect("the operand's props")
+        .volume;
+    assert!(
+        (operand - outer * DEPTH).abs() <= 1e-15,
+        "the oracle's own profile area: {operand} against {}",
+        outer * DEPTH
+    );
+    let want = outer * DEPTH - inner * (DEPTH - 2.0 * T);
+    let hollow = topo::shell(&finished("the operand", body.clone(), tol), T, tol)
+        .unwrap_or_else(|e| panic!("the bulged box hollows: {e:?}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    let got = topo::mass_properties(&hollow, tol).expect("props").volume;
+    println!("[r1p1] bulged box hollow: {got}, closed form {want}");
+    assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
+
+    // The door called directly: the cavity's charts, every one moved.
     let moves = moves_by(charts(&body), -T);
     let mut work = body.clone();
-    let e = topo::offset_charts_together(&mut work, &moves, band(), tol)
-        .expect_err("the axial door must refuse a non-axial body");
-    println!("[r1p1] offset_charts_together: {e:?}");
+    topo::offset_charts_together(&mut work, &moves, band(), tol)
+        .unwrap_or_else(|e| panic!("the axial door takes the bulged box: {e:?}"));
+    assert_eq!(
+        topo::validate_geometric(&work, tol),
+        Ok(()),
+        "the door's tier 3"
+    );
+    let cavity = topo::mass_properties(&work, tol).expect("props").volume;
+    let shrunk = inner * (DEPTH - 2.0 * T);
     assert!(
-        matches!(
-            e,
-            topo::ReplaceFaceError::TogetherNotAxial { .. }
-                | topo::ReplaceFaceError::TogetherAxialUnsupported { .. }
-        ),
-        "the refusal must be the axis gate's own: {e:?}"
+        (cavity - shrunk).abs() <= 1e-15,
+        "the moved charts bound the eroded prism: {cavity} against {shrunk}"
     );
 }
 

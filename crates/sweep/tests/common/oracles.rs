@@ -129,3 +129,105 @@ pub fn box_volume(w: f64, d: f64, h: f64) -> f64 {
 pub fn sigma(side: bool) -> f64 {
     if side { 1.0 } else { -1.0 }
 }
+
+/// The area of a closed CCW loop of `(x, y, bulge)` vertices, each
+/// bulge the edge leaving its vertex (`tan(θ/4)`, positive bowing out
+/// of a CCW loop): the chord polygon's shoelace plus each arc's
+/// circular segment `R²(θ − sin θ)/2`.
+pub fn bulge_loop_area(verts: &[(f64, f64, f64)]) -> f64 {
+    let n = verts.len();
+    (0..n)
+        .map(|i| {
+            let ((x0, y0, b), (x1, y1, _)) = (verts[i], verts[(i + 1) % n]);
+            let shoelace = (x0 * y1 - x1 * y0) / 2.0;
+            if b == 0.0 {
+                return shoelace;
+            }
+            let theta = 4.0 * b.atan();
+            let chord = (x1 - x0).hypot(y1 - y0);
+            let r = chord / (2.0 * (theta / 2.0).sin());
+            shoelace + r * r * (theta - theta.sin()) / 2.0
+        })
+        .sum()
+}
+
+/// A CONVEX CCW loop of lines and outward arcs (each under a half
+/// turn), eroded inward by `t`: every line moves `t` along its inward
+/// normal, every arc keeps its centre and loses `t` of radius, and
+/// each vertex is the meeting of its two moved edges nearest the old
+/// vertex. The erosion of an extruded convex profile is the cavity a
+/// hollow cuts in it, so with [`bulge_loop_area`] it gives a shelled
+/// prism's closed form.
+pub fn eroded_bulge_loop(verts: &[(f64, f64, f64)], t: f64) -> Vec<(f64, f64, f64)> {
+    #[derive(Clone, Copy)]
+    enum Moved {
+        Line { p: (f64, f64), d: (f64, f64) },
+        Arc { c: (f64, f64), r: f64 },
+    }
+    let n = verts.len();
+    let moved: Vec<Moved> = (0..n)
+        .map(|i| {
+            let ((x0, y0, b), (x1, y1, _)) = (verts[i], verts[(i + 1) % n]);
+            let len = (x1 - x0).hypot(y1 - y0);
+            let (dx, dy) = ((x1 - x0) / len, (y1 - y0) / len);
+            let inward = (-dy, dx);
+            if b == 0.0 {
+                Moved::Line {
+                    p: (x0 + inward.0 * t, y0 + inward.1 * t),
+                    d: (dx, dy),
+                }
+            } else {
+                let theta = 4.0 * b.atan();
+                let r = len / (2.0 * (theta / 2.0).sin());
+                let back = r * (theta / 2.0).cos();
+                let mid = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
+                Moved::Arc {
+                    c: (mid.0 + inward.0 * back, mid.1 + inward.1 * back),
+                    r: r - t,
+                }
+            }
+        })
+        .collect();
+    let meet = |a: Moved, b: Moved, near: (f64, f64)| -> (f64, f64) {
+        let line_circle = |p: (f64, f64), d: (f64, f64), c: (f64, f64), r: f64| {
+            let w = (p.0 - c.0, p.1 - c.1);
+            let bq = w.0 * d.0 + w.1 * d.1;
+            let disc = (bq * bq - (w.0 * w.0 + w.1 * w.1 - r * r)).sqrt();
+            let pts = [-bq + disc, -bq - disc].map(|s| (p.0 + d.0 * s, p.1 + d.1 * s));
+            let far = |q: (f64, f64)| (q.0 - near.0).hypot(q.1 - near.1);
+            if far(pts[0]) <= far(pts[1]) {
+                pts[0]
+            } else {
+                pts[1]
+            }
+        };
+        match (a, b) {
+            (Moved::Line { p: p0, d: d0 }, Moved::Line { p: p1, d: d1 }) => {
+                let det = d0.0 * d1.1 - d0.1 * d1.0;
+                let s = ((p1.0 - p0.0) * d1.1 - (p1.1 - p0.1) * d1.0) / det;
+                (p0.0 + d0.0 * s, p0.1 + d0.1 * s)
+            }
+            (Moved::Line { p, d }, Moved::Arc { c, r })
+            | (Moved::Arc { c, r }, Moved::Line { p, d }) => line_circle(p, d, c, r),
+            (Moved::Arc { .. }, Moved::Arc { .. }) => {
+                panic!("two adjacent arcs are not in this oracle")
+            }
+        }
+    };
+    let pts: Vec<(f64, f64)> = (0..n)
+        .map(|i| meet(moved[(i + n - 1) % n], moved[i], (verts[i].0, verts[i].1)))
+        .collect();
+    (0..n)
+        .map(|i| {
+            let (a, b) = (pts[i], pts[(i + 1) % n]);
+            let bulge = match moved[i] {
+                Moved::Line { .. } => 0.0,
+                Moved::Arc { r, .. } => {
+                    let theta = 2.0 * ((a.0 - b.0).hypot(a.1 - b.1) / (2.0 * r)).asin();
+                    (theta / 4.0).tan()
+                }
+            };
+            (a.0, a.1, bulge)
+        })
+        .collect()
+}
