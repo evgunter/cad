@@ -317,7 +317,11 @@ fn p4_annular_split_holds_on_fresh_radii() {
     let (ri, ro, h, t) = (0.7, 1.1, 0.6, 0.08);
     let body = revolved_full(&[(ri, 0.0), (ro, 0.0), (ro, h), (ri, h)]);
     let chart = plane_chart_at_y(&body, h);
-    assert_eq!(chart.len(), 1, "a closed off-axis meridian closes its seam");
+    assert_eq!(
+        chart.len(),
+        1,
+        "a full revolve builds its annular cap whole"
+    );
     let cup = topo::shell_open(
         &finished("the operand", body.clone(), Tol::witness()),
         t,
@@ -329,8 +333,8 @@ fn p4_annular_split_holds_on_fresh_radii() {
     assert_eq!(cup.shells().count(), 1);
     assert_eq!(
         (rings_of(&cup), genus_of(&cup)),
-        (2, 1),
-        "two rim annuli; the bore keeps genus 1"
+        (4, 1),
+        "two rim annuli and two floor annuli; the bore keeps genus 1"
     );
     assert_eq!(plane_chart_at_y(&cup, h).len(), 2);
     let pi = core::f64::consts::PI;

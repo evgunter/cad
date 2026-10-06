@@ -16,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::half_round_end;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -108,18 +109,17 @@ fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
     );
 }
 
-/// **THE HEADLINE ROW, flipped.** One edge of a cube through
-/// `chamfer_edges` refuses over the SHARED run-out arm; the caller
-/// who asked for a chamfer now reads `"chamfer: …"` with a recourse
-/// that speaks of the blend rather than telling them to fillet. The
-/// suite's first commit measured the same row reading
+/// **THE HEADLINE ROW, flipped.** An edge ending at a curved end face,
+/// through `chamfer_edges`, refuses over the SHARED run-out arm; the
+/// caller who asked for a chamfer reads `"chamfer: …"` with a recourse
+/// that speaks of the band rather than telling them to fillet. The
+/// suite's first commit measured the run-out reading
 /// `"fillet assembly: …"`.
 #[test]
 fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
-    let body = cube(L, Tol::witness());
-    let edges = query::all_edges(&body);
-    let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
-        .expect_err("a partially-requested corner is a run-out");
+    let (body, edge) = half_round_end();
+    let err = chamfer_edges(&body, &[edge], D, Tol::witness())
+        .expect_err("a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "the shared run-out arm is what refused: {err:?}"
@@ -127,23 +127,30 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
     assert_speaks_as_the_chamfer(&err, "run-out");
     let text = format!("{err}");
     assert!(
-        text.contains("blend a chain that terminates"),
-        "the recourse speaks of the blend, not the other verb: {text}"
+        text.contains("end each chain at trivalent vertices"),
+        "the recourse speaks of the band, not the other verb: {text}"
     );
 }
 
 /// The shared BATTERY refusal under the chamfer's verb: the top rim's
-/// square corners are not tangent-continuous.
+/// square corners are turns, two of each corner's three edges
+/// requested.
 #[test]
-fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_chain_break() {
+fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_turn() {
     let body = cube(L, Tol::witness());
     let err = chamfer_edges(&body, &top_loop(&body), D, Tol::witness())
-        .expect_err("square junctions are not tangent-continuous");
+        .expect_err("square corners with two edges requested are turns");
     assert!(
-        matches!(err.error, BlendError::ChainNotG1 { .. }),
-        "the shared G1 predicate is what refused: {err:?}"
+        matches!(
+            err.error,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::Turn,
+                ..
+            }
+        ),
+        "the shared turn is what refused: {err:?}"
     );
-    assert_speaks_as_the_chamfer(&err, "chain-break");
+    assert_speaks_as_the_chamfer(&err, "turn");
 }
 
 /// The fillet caller's verb stays right, and renders ONCE: the same
@@ -151,10 +158,9 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_chain_break() {
 /// no second verb prefix anywhere in the composition.
 #[test]
 fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
-    let body = cube(L, Tol::witness());
-    let edges = query::all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], D, Tol::witness())
-        .expect_err("a partially-requested corner is a run-out");
+    let (body, edge) = half_round_end();
+    let err = fillet_edges(&body, &[edge], D, Tol::witness())
+        .expect_err("a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "the shared run-out arm is what refused: {err:?}"
@@ -230,9 +236,9 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
 ///
 /// - clearance: "reduce the blend size" — the chamfer that refused at
 ///   0.55 m builds at 0.1 m;
-/// - corner/run-out: "blend a chain that terminates in a trivalent
-///   vertex whose three edges are all convex" — on a cube that is the
-///   request whose every corner is fully requested, and it builds;
+/// - corner/run-out: "the chain's edge alone, which is cut off in the
+///   plane end face" — an edge ending at a curved end face refuses, and
+///   one ending at plane end faces (a cube's) builds;
 /// - tangential: "blend an edge whose supports meet at a definite
 ///   angle" — the cube's edges are such edges, and they build.
 #[test]
@@ -252,15 +258,15 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
         "the reduced blend size the recourse names must build"
     );
 
-    let run_out = chamfer_edges(&body, &edges[..1], D, t)
-        .expect_err("a partially-requested corner is a run-out");
+    let (round, edge) = half_round_end();
+    let run_out = chamfer_edges(&round, &[edge], D, t).expect_err("a curved end face is a run-out");
     assert!(matches!(
         run_out.error,
         BlendError::UnsupportedRunOut { .. }
     ));
     assert!(
-        chamfer_edges(&body, &edges, D, t).is_ok(),
-        "the fully-requested-corner request the recourse names must build"
+        chamfer_edges(&body, &edges[..1], D, t).is_ok(),
+        "one edge ending at plane end faces, which the recourse names, must build"
     );
 }
 
