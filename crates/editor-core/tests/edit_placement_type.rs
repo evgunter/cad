@@ -7,10 +7,11 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Expr, Frame, FrameSite,
+    Axis3, CancelToken, Dimension, DocEdit, EditError, EvalOptions, Formula, Frame, FrameSite,
     FreeValue, FreeVar, Node, PersistError, Placement, ProfileDoc, ProfileProgram,
     REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step, ValuePayload, VarEnv,
     VarName, VectorSlot, evaluate, load, save,
@@ -44,7 +45,7 @@ fn cube(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// A rigid step about +z by `angle`, then by `t`.
-fn about_z(t: [f64; 3], angle: f64) -> Step {
+fn about_z(t: [f64; 3], angle: f64) -> Step<Formula> {
     Step::Rigid {
         translation: t.map(len),
         axis: [scl(0.0), scl(0.0), scl(1.0)],
@@ -88,12 +89,13 @@ fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
     a.components().map(f64::to_bits)
 }
 
-fn motion(p: &Placement) -> Affine3<f64> {
-    p.eval::<f64>(&VarEnv::default(), band())
+fn motion(p: &Placement<Formula>) -> Affine3<f64> {
+    editor_core::test_support::stored_placement(p)
+        .eval::<f64>(&VarEnv::default(), band())
         .expect("the placement evaluates")
 }
 
-fn lands(p: &Placement, at: [f64; 3]) -> Point3<f64> {
+fn lands(p: &Placement<Formula>, at: [f64; 3]) -> Point3<f64> {
     motion(p).transform_point(Point3::from_array(at))
 }
 
@@ -376,7 +378,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         &Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::named(turn.clone(), Dimension::Angle),
+            angle: Formula::named(turn.clone(), Dimension::Angle),
         }
         .into(),
     );
@@ -459,7 +461,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
         },
     );
-    let chain = |late: Step| {
+    let chain = |late: Step<Formula>| {
         Node::transform(
             body,
             Placement {
@@ -491,7 +493,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let unknown = Step::Rigid {
         translation: [len(0.0), len(0.0), len(0.0)],
         axis: [scl(0.0), scl(0.0), scl(1.0)],
-        angle: Expr::named(VarName::from_static("nope"), Dimension::Angle),
+        angle: Formula::named(VarName::from_static("nope"), Dimension::Angle),
     };
     assert!(
         door(
@@ -509,7 +511,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         node: Box::new(chain(Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: Expr::named(turn, Dimension::Angle),
+            angle: Formula::named(turn, Dimension::Angle),
         })),
     };
     let (doc, t) = step(doc, insert_edit.clone());
@@ -618,7 +620,8 @@ fn a_mixed_chain_evaluates_in_the_interval_lane() {
 fn the_content_key_tells_every_chain_apart() {
     let literal = Step::Literal(Frame::translation([0.0, 3.0, 0.0]));
     let turn = about_z([1.0, 0.0, 0.0], core::f64::consts::FRAC_PI_2);
-    let cases: [(&str, Vec<Step>, Vec<Step>); 4] = [
+    type Chain = Vec<Step<Formula>>;
+    let cases: [(&str, Chain, Chain); 4] = [
         (
             "[rigid, literal] against [literal, rigid]",
             vec![turn.clone(), literal.clone()],
@@ -732,14 +735,13 @@ fn a_literal_frame_compares_by_bits() {
     let signed = Frame::translation([-0.0, 0.0, 0.25]);
     let plain = Frame::translation([0.0, 0.0, 0.25]);
     let body = RecipeNodeId(3);
-    let transform =
-        |f: &Frame| -> Node<ProfileProgram> { Node::transform(body, Placement::literal(f)) };
+    let transform = |f: &Frame| -> AuthoredNode { Node::transform(body, Placement::literal(f)) };
     assert!(transform(&signed).bit_eq(&transform(&signed)));
     assert!(
         !transform(&signed).bit_eq(&transform(&plain)),
         "a transform's -0.0 is not its 0.0"
     );
-    let group = |f: &Frame| -> Node<ProfileProgram> { Node::placed_union_at(body, vec![*f]) };
+    let group = |f: &Frame| -> AuthoredNode { Node::placed_union_at(body, vec![*f]) };
     assert!(
         !group(&signed).bit_eq(&group(&plain)),
         "an explicit rule's -0.0 is not its 0.0"

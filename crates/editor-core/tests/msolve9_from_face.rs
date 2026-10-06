@@ -29,6 +29,7 @@
 
 use crate::fixture;
 use crate::wire;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
@@ -37,7 +38,7 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, EvalOptions, Evaluation, Expr, FaceName, FacePoseRefusal, FaceRefusal, Frame,
+    EntityKind, EvalOptions, Evaluation, FaceName, FacePoseRefusal, FaceRefusal, Formula, Frame,
     LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind, PartFault,
     PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RefusingReach,
     RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
@@ -84,7 +85,7 @@ fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
 }
 
 /// The identity frame, authored: origin at the part's origin, +z, +x.
-fn identity() -> MateFrame {
+fn identity() -> MateFrame<Formula> {
     MateFrame::authored(
         [0.0; 3],
         [0.0, 0.0, 1.0],
@@ -95,7 +96,7 @@ fn identity() -> MateFrame {
 }
 
 /// A frame coincidence of `a` and `b`, axes aligned, no rider.
-fn coincide(a: MateFrame, b: MateFrame) -> Alignment {
+fn coincide(a: MateFrame<Formula>, b: MateFrame<Formula>) -> Alignment<Formula> {
     Alignment {
         a,
         b,
@@ -110,8 +111,8 @@ fn coincide(a: MateFrame, b: MateFrame) -> Alignment {
 fn mate(
     (a, a_body): (RecipeNodeId, RecipeNodeId),
     b: (RecipeNodeId, RecipeNodeId),
-    alignment: Alignment,
-) -> Node<ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     mate_on(a, &cap(a_body, CapEnd::End), b, alignment)
 }
 
@@ -121,8 +122,8 @@ fn mate_on(
     a: RecipeNodeId,
     a_face: &StableName,
     (b, b_body): (RecipeNodeId, RecipeNodeId),
-    alignment: Alignment,
-) -> Node<ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(
             FaceName::new(a_face.clone())
@@ -416,7 +417,7 @@ fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
 
 /// A loop PROGRAM on the xz plane revolved a full turn about its y
 /// axis.
-fn revolved_program(doc: ProfileDoc, program: LoopProgram) -> ProfileDoc {
+fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDoc {
     let (doc, plane) = insert(
         doc,
         fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
@@ -443,8 +444,8 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram) -> ProfileDoc {
 
 /// A full circle of radius `r` centred `big` off the revolve axis: the
 /// seamless closed carrier.
-fn circle_program(big: f64, r: f64) -> LoopProgram {
-    let length = |v: f64| Expr::literal(v, editor_core::Dimension::Length).unwrap();
+fn circle_program(big: f64, r: f64) -> LoopProgram<Formula> {
+    let length = |v: f64| Formula::literal(v, editor_core::Dimension::Length).unwrap();
     LoopProgram::Circle {
         centre: [length(big), length(0.0)],
         radius: length(r),
@@ -459,7 +460,7 @@ fn resolve_through_the_solve(
     label: &str,
     part: ProfileDoc,
     face: &StableName,
-    frame: MateFrame,
+    frame: MateFrame<Formula>,
     sense: AxisSense,
 ) -> Result<Frame, MateFault> {
     let mut store = PartStore::new();
@@ -641,7 +642,7 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
         doc,
         Node::Loft {
             profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     let ev = run(&part, &EvalOptions::default());
@@ -871,7 +872,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     // post's: the entry carries the rows that door minted, which is
     // what replay re-applies.
     let logged = DocEdit::InsertNode {
-        node: Box::new(s.doc.node(s.mate).expect("the mate").clone()),
+        node: Box::new(s.doc.node(s.mate).expect("the mate").authored()),
     };
     let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
     unmated

@@ -62,8 +62,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 
 // The frame the square is drawn on. A profile names a frame
 // NODE, so the plane is an authoring step of its own.
@@ -126,7 +126,13 @@ assert!(select_where(
 // POSITION — and it is the same face the role path names.
 let top = select_where(
     &ev, cube, &faces,
-    &[GeomPred::DatumDistance { datum: ground, cmp: Cmp::Approx, value: len(1.0) }],
+    // The comparand is a query's, not a slot's: stored, so a written
+    // formula lowers to it with no document in scope.
+    &[GeomPred::DatumDistance {
+        datum: ground,
+        cmp: Cmp::Approx,
+        value: Expr::try_from(len(1.0)).expect("a literal reads no name"),
+    }],
     &params,
     tol,
 ).expect("no candidate is in-band here");
@@ -145,7 +151,8 @@ assert!(matches!(
         &[GeomPred::DatumDistance {
             datum: ground,
             cmp: Cmp::Approx,
-            value: Expr::literal(1.0, Dimension::Angle).expect("an angle"),
+            value: Expr::try_from(Formula::literal(1.0, Dimension::Angle).expect("an angle"))
+                .expect("a literal reads no name"),
         }],
         &params,
         tol,
@@ -164,7 +171,7 @@ use pncad::prelude::*;
 
 let tol = Tol::witness();
 // A unit box, authored through the document layer (v4: the
-// profile payload is its PROGRAM — a chain of Expr-bearing steps).
+// profile payload is its PROGRAM — a chain of Formula-bearing steps).
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
@@ -173,8 +180,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 // The frame the square is drawn on. A profile names a frame
 // NODE, so the plane is an authoring step of its own.
 let (next, frame) = insert(
@@ -195,7 +202,7 @@ let (next, cube) = insert(
     &doc,
     Node::Extrude {
         profile,
-        distance: Expr::literal(1.0, Dimension::Length).expect("a length"),
+        distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
 );
@@ -334,7 +341,7 @@ use pncad::prelude::*;
 
 let tol = Tol::witness();
 // v4: the profile payload is its PROGRAM — a chain
-// of Expr-bearing steps.
+// of Formula-bearing steps.
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
@@ -343,8 +350,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 // The frame the square is drawn on. A profile names a frame
 // NODE, so the plane is an authoring step of its own.
 let (next, frame) = insert(
@@ -365,7 +372,7 @@ let (next, cube) = insert(
     &doc,
     Node::Extrude {
         profile,
-        distance: Expr::literal(1.0, Dimension::Length).expect("a length"),
+        distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
 );
@@ -435,8 +442,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node) }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
-let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 // The frame a footprint is drawn on: the xy directions, at height z.
 let frame_at = |z: f64| {
     Node::Datum(Datum::Frame {

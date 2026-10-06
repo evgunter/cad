@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanCoincidence, BooleanOp, CancelToken, CapEnd, DocEdit, EvalOptions, Node, NodeResult,
@@ -119,7 +120,7 @@ fn declared_pairs_preserves_the_findings_class() {
 #[test]
 fn an_authored_class_is_what_the_node_holds() {
     let (doc, a, b) = stacked();
-    let node: Node<editor_core::ProfileProgram> = Node::Boolean {
+    let node: AuthoredNode = Node::Boolean {
         op: BooleanOp::Union,
         a,
         b,

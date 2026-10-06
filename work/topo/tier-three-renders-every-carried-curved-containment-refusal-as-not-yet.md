@@ -2,11 +2,14 @@
 id: tier-three-renders-every-carried-curved-containment-refusal-as-not-yet
 kind: issue
 title: Tier 3's classify_contain renders every carried Curved refusal as NOT_YET, a CorruptFace included
-status: open
+status: closed
+pr: 4076
+branch: topo/tier3-curved-contain-arms
 priority: P3
 cost: E
 refs: [torn-body-refusal-families-beyond-the-six-doors, contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant]
 opened: 2026-10-05
+closed: 2026-10-06
 ---
 
 ## What
@@ -27,3 +30,13 @@ Match the carried arms by name in `classify_contain`, rendering each
 with the cause and recourse its own kind has elsewhere in tier 3 (no
 wildcard, so a new `PointInSolidError` arm has to be placed), and add a
 `refusal_concision_at_rest` sample per arm that renders differently.
+
+## Closed
+
+`classify_contain` hands `Curved(e)` to `classify_point_in_solid`,
+which matches every `PointInSolidError` arm (and `Loop`'s every
+`PointInLoopError` arm) by name: an arm the face door also raises at
+its top level reads as that arm does, an arena claim is `DEFECT`, and
+only a read the door has no arm for is `NOT_YET`. The same sweep fixed
+`census.rs` `Undecided::of_point_in_solid`'s `Loop(_)` fold, and filed
+`point-in-solid-summary-has-no-caller`.

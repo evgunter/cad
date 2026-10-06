@@ -156,6 +156,30 @@ retires `Refusal::ParamNotANumber`.
 
 Filed: `viewer-value-doors-read-a-defined-variable-as-absent`.
 
+## 2026-10-05 — INTENT-LITERALS PR B, authored Formula and stored Expr (`intent/literals-b`, PR 4072)
+
+One tree, `ExprTree<L>`, serves two forms: the stored `Expr` reads
+every variable by id, and the authored `Formula` may also write a name.
+Nodes, programs, placements and measures are generic over the slot
+form; a `DocEdit` carries the authored form, and every door lowers it
+before anything else reads it, refusing an unlowerable name in the
+existing vocabulary. The type now carries what `NameLeafWritten` and
+load walk 4 (`NamedReaderInSnapshot`, with its definition twin)
+checked, so all three are deleted. `parse_expr` is `parse_formula`.
+Python's `Expr` class is `Formula`, a stored definition reads back as a
+read-only `Expr`, and `ParamName`, `DocParam` and `DocParamValue` are
+`VarName`, `FreeVar` and `FreeValue`. Goldens, corpus files and digests
+are byte-identical.
+
+Ruled by the lane: an edit refused for two faults at once may now name
+its unlowerable name first (InsertNode, SetProgram, SetOffset; SetParam
+and SetExpression keep their order); a name read at another kind is
+`var_kind_mismatch` in Python rather than `unlowered_name`;
+`GeomPred.datum_distance`'s comparand stays a stored `Expr`, so a
+written name refuses where the predicate is built; the error tag words
+(`unknown_param`, …) keep their spelling.
+
+Closed: `python-param-classes-name-a-variable`.
 ### PR A review pass (both reviewers APPROVE-WITH-FIXES, no MAJOR)
 
 - The viewer's text door folds constant text, continuous or count, to a

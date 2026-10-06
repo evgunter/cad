@@ -204,3 +204,22 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Measured so far.** A corrector acceptance test (k·δ·ε) turns the review's failures into `TubeStraddles` or `Escalated(StepProgress)`, not Ok, at k = 1, 10 or 100.
   - **Filed on the branch:** `ssi-match-exit-picks-the-crossing-nearest-a-chord` and `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short` (both P3).
 - 2026-10-04 — **Process fix: blinding.** Reviewers in a pair could see each other's lane names through the shared scratchpad, and one fork's mapping file sat there. Mapping files now live outside the scratchpad, where no lane reads them. (SSI orchestrator)
+
+- 2026-10-05 — **`[ev]` PR 4034 merged by Ev** ("sounds good!"; neighbour-cap fork, fork-log row 67).
+  - **The crossing cap is retired.** The march keeps a step whose predicted state's residual is within ε plus the settling tolerance; a leaving step must also have its midpoint and last state inside. Otherwise the step halves to the band's edge. Each step starts at no more than twice the last kept, and every try counts against `SSI_MAX_STEPS`.
+  - **Refinement** keeps a settled midpoint as a sample. A midpoint that does not settle is read by the transversality decision there; in band it refuses near-tangent. Limb 3 is asked once where the refused margin stops falling. A long branch whose march cannot step refuses `MarchStepInBand`, and only a branch whose |AB| is in band is sized short.
+  - **History.**
+    - The first build's review was NOT-MERGEABLE: no far-field bound remained once the cap went.
+    - The design reopened for rounds 3–6. The designers measured a reach rung, a corrector acceptance test and a residual test, withdrew the per-step proofs as duplicating limb 3, and converged.
+    - The rebuild's review was MERGEABLE-WITH-FIXES. Its two MAJORs were a false half-chord lemma refusing ε-slivers with a kernel-limit ending, and long branches called short.
+    - A delta review followed, then a verifier: MERGEABLE, with 0 wrong pairings in about 1 900 probe runs.
+  - **Filed:**
+    - `ssi-the-residual-test-samples-a-bent-chart-at-eps-to-the-quarter-along-its-whole-bend` (P3): 3.5–5.3× main's samples at 1e-12;
+    - `ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end` (P2): 225 against main's 153 of 423 at 1e-6.
+  - **Closed:** `ssi-a-polyline-whose-midpoints-will-not-settle-reaches-the-fit-short`.
+  - **Correction posted on the PR:** my status comment had cited the refuted half-chord lemma. (SSI orchestrator)
+- 2026-10-06 — **`[ev]` PR 4012 merged** (d021859a59) on Ev's OK of the final C2 text ("this is good!"). Limb 3 proves one arc spanning the carrier at every door, at rest included. This closes the P1 `limb3-at-rest-proves-the-graph-not-the-arc`.
+  - **Renumbering.** Main merged in three times before the merge. The dual-review row was renumbered DR-77 → DR-86 (tally 22; pairs with a MAJOR, 40). The fork-log row went 66 → 70 as main took rows 66–69.
+  - **The merge with 4034** joined `Limbs` and `band_verdict` with the at-rest limb 3.
+  - **A merge mistake caught locally.** One merge put the at-rest rows inside the last slow-set entry's parentheses in `nextest.toml`; the local run caught it before the push.
+  - **Checks on the final merge:** 3 257 geom-brep and topo rows passed, plus the census, the gates and lint. (SSI orchestrator)

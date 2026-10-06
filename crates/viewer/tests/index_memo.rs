@@ -25,8 +25,8 @@ use std::sync::Arc;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
-    StableName, UnnamedEntity,
+    Dimension, DocEdit, Evaluation, Formula, HitTestError, NodePick, ProfileDoc, RecipeNodeId,
+    SlotId, StableName, UnnamedEntity,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -95,7 +95,7 @@ fn digest(m: &Mesh) -> u64 {
 struct Edit {
     node: RecipeNodeId,
     slot: SlotId,
-    expr: Expr,
+    expr: Formula,
 }
 
 impl Edit {
@@ -117,7 +117,7 @@ fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
         Edit {
             node,
             slot,
-            expr: original.clone(),
+            expr: Formula::from(original),
         },
     ))
 }
@@ -142,7 +142,7 @@ fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
             if value == 0.0 {
                 continue;
             }
-            let scaled = Expr::literal(value * 1.015_625, Dimension::Length).ok()?;
+            let scaled = Formula::literal(value * 1.015_625, Dimension::Length).ok()?;
             return Some(Edit {
                 node,
                 slot,
@@ -870,7 +870,7 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let revert = Edit {
         node,
         slot,
-        expr: original.clone(),
+        expr: Formula::from(original),
     };
     let edits = sequence(&doc, bump, revert);
     drive("gallery_ring", doc, &edits, tol);
