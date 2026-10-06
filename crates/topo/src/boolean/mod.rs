@@ -131,7 +131,7 @@ pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, NO_DECLARATION_RECOURSE, Point3, Real, Sign, Tol,
+    Margin, MarginDiag, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -269,6 +269,11 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_roots_coaxial"
         | "bool_sphere_region_roots_extreme"
         | "bool_sphere_region_roots_slack"
+        | "bool_sphere_region_arc_span"
+        | "bool_sphere_region_arc_on"
+        | "bool_sphere_region_arc_end"
+        | "bool_sphere_region_arc_trim"
+        | "bool_sphere_region_arc_straddle"
         | "bool_torus_chart_affine"
         | "bool_torus_chart_box"
         | "bool_torus_chart_closure"
@@ -3240,12 +3245,9 @@ impl core::fmt::Display for BooleanError {
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    ContainError::RayExhausted => write!(
-                        f,
-                        "{preamble}: the point is off the face's boundary, but every test \
-                         ray grazed one of its vertices or edges. Recourse: \
-                         {NO_DECLARATION_RECOURSE}"
-                    ),
+                    ContainError::RayExhausted => {
+                        write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
+                    }
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
                     ContainError::Escalated(_)
                     | ContainError::StaleFace(_)
