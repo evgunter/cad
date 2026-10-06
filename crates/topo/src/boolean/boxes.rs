@@ -1562,9 +1562,10 @@ const SPHERE_REACH_ULPS: f64 = 16.0;
 /// or whose seam direction is not decided a unit normal of the axis,
 /// keeps its latitude [`Zone`](SphereWindow::Zone).
 ///
-/// `face` resolved to `f` in the caller, so its outer loop is a link,
-/// and a record the flattening of that loop names is one too: a
-/// flattening that refuses past a cycle loop is a torn body and panics
+/// `face` resolved to `f` in the caller, so its outer loop and that
+/// loop's members are links ([`Body::loop_members_linked`]), and a
+/// record the flattening of that loop names is one too: a flattening
+/// that refuses past a cycle loop is a torn body and panics
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
 /// a record miss past `face` too, and panics the same way.
 fn sphere_window<T: Decide>(
@@ -1593,7 +1594,10 @@ fn sphere_window<T: Decide>(
         EntityId::Face(face),
         "outer",
     );
-    if matches!(outer.boundary, LoopBoundary::Empty { .. }) {
+    if matches!(
+        body.loop_members_linked(f.outer, outer).as_slice(),
+        [BoundaryMember::Isolated { .. }]
+    ) {
         return SphereWindow::Ball;
     }
     let outer = match crate::props::loop_edges(body, f.outer) {
@@ -1672,18 +1676,10 @@ fn torn_outer_loop<T: Decide>(
         EntityId::Face(face),
         "outer",
     );
-    if let LoopBoundary::Cycle { first } = outer.boundary {
-        for he in body.loop_walk(first).closed("loop", first) {
-            let data = proven(&body.half_edges, he, EntityId::HalfEdge);
-            let edge = linked(
-                &body.edges,
-                data.edge,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            body.edge_curve_linked(data.edge, edge);
-            body.linked_vertex_point(data.start, EntityId::HalfEdge(he), "start");
+    for member in body.loop_members_linked(f.outer, outer) {
+        if let BoundaryMember::Edge { he, half, ek, edge } = member {
+            body.edge_curve_linked(ek, edge);
+            body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
             body.proven_half_edge_end(he);
         }
     }

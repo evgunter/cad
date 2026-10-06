@@ -177,8 +177,9 @@ premise panics, and kept each one over a key the caller carries:
   join's halves (`corrupt_he`, `corrupt_loop`, `corrupt_face`) are typed
   `SplitJoinError::Corrupt` raises of this row's, so the chord end
   stays typed with them and moves when they do.
-- `boolean/boxes.rs` `sphere_window` checks for a
-  `LoopBoundary::Empty` outer loop before it calls `props::loop_edges`,
+- `boolean/boxes.rs` `sphere_window` checks for a lone-vertex outer
+  loop (`loop_members_linked` yields one `BoundaryMember::Isolated`)
+  before it calls `props::loop_edges`,
   because `LoopEdgesError::Corrupt` answers an empty loop and a torn hop
   alike. That pre-check is this row's `LoopEdgesError::Corrupt` split
   done locally at one caller; once the split lands, the empty loop is
