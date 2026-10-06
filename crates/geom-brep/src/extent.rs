@@ -366,8 +366,8 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<
         for &(sj, qj) in &sq[i + 1..] {
             let d = (si - sj).abs();
             let delta = (qi - qj).abs();
-            let crossing = qi.min(qj) + ((d * d + delta) / (two * d)).powi(2);
-            r_star = r_star.max((d * d - delta).select_le_zero(qi.max(qj), crossing));
+            let crossing = qi.min(qj) + ((d.powi(2) + delta) / (two * d)).powi(2);
+            r_star = r_star.max((d.powi(2) - delta).select_le_zero(qi.max(qj), crossing));
         }
     }
     let lower = |&(s, q): &(T, T)| s - (r_star - q).max(T::zero()).sqrt();
