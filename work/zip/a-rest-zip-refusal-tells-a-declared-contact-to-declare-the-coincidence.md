@@ -64,6 +64,8 @@ the absence of "declare the", so a regained declare arm goes red.
 join's germ tie, `sectors::runs_in`, under `DeclarationRead::Moot`;
 `reach_slab_cut_sector_side` pins it on an undeclared `Subtract`), and
 its declare arm appears only on an in-band escalation, where declaring
-is a lever; it stays. The "the solids do not cross" refusal the
-finding quoted is `ShellWitnessExhausted`, whose recourse is to move
-the solids.
+is a lever; it stays. The "the solids do not cross, and the Boolean
+…" text the finding quoted was `Containment`'s own `Display`, which
+now renders "the Boolean {e}" alone (commit eb05494098, 2026-10-05):
+the lead that read as an outcome is gone, and the recourse is the
+`PointInSolidError`'s own.

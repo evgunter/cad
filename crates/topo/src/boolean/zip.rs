@@ -57,10 +57,11 @@ use geom_core::Tol;
 pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 
 /// **A vertex fusion list**: the fusions `(dead, kept)` in the order
-/// their `kev`s ran. Every row's keys are live when it is made: no row
-/// keeps or kills a key an earlier row killed, and none fuses a key
-/// into itself. [`Self::push`] refuses a row that breaks this, so every
-/// list that exists folds each key onto the vertex it survives as.
+/// their `kev`s ran. [`Self::push`] refuses a row that fuses a key into
+/// itself or names a key an earlier row of this list killed, so within
+/// one list each key folds onto one survivor ([`Self::survivor`]). The
+/// list sees only its own rows: a key killed outside it, or not live in
+/// the body at all, is not checked here.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Fusions {
     rows: Vec<(VertexKey, VertexKey)>,

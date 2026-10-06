@@ -503,9 +503,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 /// and both vertices are one pierce's copies); and a weld here that
 /// would divide a face is refused, as no fragment row can record it
 /// after the graft. Copies of one pierce not on one point refuse too.
-/// `fused` is the zips' fusions `(dead, kept)` in result keys, which
-/// `groups` (from [`FinishOut::pierce_copies`]) is read through;
-/// returns this pass's fusions. It runs from the op stage after the
+/// `fused` is the fusions `(dead, kept)` before this pass, in result
+/// keys; `groups` (from [`FinishOut::pierce_copies`]) is read through
+/// them, then through this pass's own. Returns this pass's fusions. It runs from the op stage after the
 /// zips (`ops::boolean_op_recut`), not from [`setopfinish`].
 pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -515,13 +515,12 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Fusions, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let band = Band::linear(tol)?;
-    let mut merges = fused.clone();
     let mut welds = Fusions::default();
     for group in groups {
         loop {
             let mut live: Vec<VertexKey> = Vec::new();
             for &v in group {
-                let k = merges.survivor(v);
+                let k = welds.survivor(fused.survivor(v));
                 if body.get_vertex(k).is_some() && !live.contains(&k) {
                     live.push(k);
                 }
@@ -551,7 +550,6 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
                 return Err(desync("a pierce's copies divide a face the zips kept"));
             }
             let (fusion, _) = weld_pair(body, (u, w), joint, p, tol)?;
-            merges.push(fusion)?;
             welds.push(fusion)?;
         }
     }

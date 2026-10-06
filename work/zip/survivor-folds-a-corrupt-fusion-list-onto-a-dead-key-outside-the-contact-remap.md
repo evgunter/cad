@@ -56,6 +56,11 @@ fold. Every list is one — `ZipReport`, `FinishOut`'s and `Welds`' weld
 merges, the REST strut undo's `Fused`, `Descendants`, and
 `BooleanNaming::vertex_merges` / `weld_merges_b` — and each append site
 propagates the refusal. `BooleanNaming::fused_into` keeps its
-infallible signature over the checked list. Pinned by
-`zip::tests::a_fusion_list_refuses_a_row_naming_a_killed_key` and
-`ops::tests::a_dead_end_drops_where_a_corrupt_fusion_list_cannot_be_built`.
+infallible signature over the checked list. `BooleanNaming::vertex_merges`
+is derived from `Descendants` (`Descendants::vertex_merges`), not kept
+beside it. Pinned by
+`zip::tests::a_fusion_list_refuses_a_row_naming_a_killed_key`,
+`zip::tests::an_extend_that_refuses_partway_leaves_the_list_as_it_was`
+and `ops::tests::a_dead_end_drops_and_a_refused_fusion_fails_its_absorb`.
+A list checks only its own rows: a key killed outside it, or not live
+in the body, is not its to see.

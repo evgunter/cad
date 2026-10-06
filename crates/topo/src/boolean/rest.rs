@@ -383,7 +383,6 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .ok_or_else(|| desync("REST lane: patch face missing from the graft"))
     };
 
-    let mut vertex_merges = Fusions::default();
     let mut seam_edges: Vec<EdgeKey> = a_seam.per_segment.clone();
     let mut desc = Descendants::default();
     for &fa in &glue_order {
@@ -391,8 +390,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let rep = glue_pair(&mut body, fa, fb, &vmap, tol)?;
         settle_glue(&body, &mut seam_edges, &rep.interior_edges)?;
         desc.absorb_zip(&rep)?;
-        vertex_merges.extend(&rep.vertex_merges)?;
     }
+    let vertex_merges = desc.vertex_merges()?;
 
     // ---- Output stages (shared with every seamed boolean). ----
     let contacts = red.contacts.clone();
