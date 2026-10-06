@@ -290,6 +290,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             lever,
         },
         &CIRCLE_TORUS_ROWS,
+        None,
         band,
     )
 }

@@ -1640,6 +1640,23 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
+    /// An edge of `operand` meets a cone face of the other operand within
+    /// the band of the cone's APEX, where the surface has no tangent
+    /// plane and its quadric form's gradient vanishes: a root there has
+    /// no material side to read and no slope to place it by, so the
+    /// crossing layer refuses rather than answer. The definite half: an
+    /// in-band apex distance refuses the same way, with no tolerance
+    /// named.
+    CrossingAtConeApex {
+        /// The operand whose edge met the cone face.
+        operand: Operand,
+        /// The cone face (in the other operand).
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The band the apex distance was classified against.
+        band: Band,
+    },
     /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
     /// carrier in an INPUT operand: no crossing lane reads either kind,
     /// and the join and section lanes behind the sweep have no row for
@@ -2569,6 +2586,8 @@ pub enum BooleanErrorKind {
     CurvedSectorSideUnsupported,
     /// [`BooleanError::CurvedPierceUnsupported`].
     CurvedPierceUnsupported,
+    /// [`BooleanError::CrossingAtConeApex`].
+    CrossingAtConeApex,
     /// [`BooleanError::CurvedEdgeUnsupported`].
     CurvedEdgeUnsupported,
     /// [`BooleanError::CrossingCarrierUnsupported`].
@@ -2797,6 +2816,7 @@ impl BooleanError {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
+            Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
             Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -2962,6 +2982,13 @@ impl core::fmt::Display for BooleanError {
                  {}",
                 operand_word(*operand),
                 geom_core::COINCIDENCE_RECOURSE,
+            ),
+            Self::CrossingAtConeApex { operand, .. } => write!(
+                f,
+                "an edge of the {} operand meets a cone face of the other operand at \
+                 the cone's tip, where the face has no direction to cross it by. \
+                 Recourse: move the parts so the edge clearly passes the tip",
+                operand_word(*operand),
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -5664,6 +5691,12 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::CrossingAtConeApex {
+                operand: Operand::B,
+                face,
+                edge,
+                band,
+            },
             BooleanError::CurvedEdgeUnsupported {
                 operand: Operand::B,
                 edge,
@@ -5919,6 +5952,7 @@ mod tests {
                 BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
+                BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
                 BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",

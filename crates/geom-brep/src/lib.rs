@@ -112,7 +112,7 @@ pub use implicit::{
     ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
     HARMONIC_NOISE_ULPS, circle_arc_residual_range, circle_residual_curvature_bound,
     circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
-    conic_cylinder_harmonics, conic_residual_extremes, conic_sphere_harmonics,
+    conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_residual_extremes, conic_sphere_harmonics,
     conic_torus_harmonics, conic_torus_residual, curvature_lever_arm, implicit_gradient,
     implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
     implicit_residual, min_radius_of_curvature, rounding_charge,

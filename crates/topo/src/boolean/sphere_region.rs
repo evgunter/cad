@@ -306,7 +306,10 @@ impl<T: Decide> SphereFaceRegion<T> {
             let thetas = match self.ray_roots(arc, g, band)? {
                 CircleRoots::Miss => continue,
                 CircleRoots::Certified { count, thetas } => thetas[..count].to_vec(),
-                CircleRoots::OnSurface | CircleRoots::Uncertain | CircleRoots::CountDisagrees => {
+                CircleRoots::OnSurface
+                | CircleRoots::Uncertain
+                | CircleRoots::CountDisagrees
+                | CircleRoots::AtApex => {
                     return Ok(Ray::Abandoned);
                 }
             };

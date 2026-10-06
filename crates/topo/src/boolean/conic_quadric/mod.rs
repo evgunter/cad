@@ -74,8 +74,9 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, SubdivisionFrame,
-    SubdivisionRows, TrigPoly, first_harmonic_roots, half_angle_roots, rounding_charge,
+    CircleRoots, FirstHarmonic, FirstHarmonicRows, HalfAngleFrame, HalfAngleRows, RootSlack,
+    SubdivisionFrame, SubdivisionRows, TrigPoly, first_harmonic_roots, half_angle_roots,
+    rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -151,7 +152,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                ellipse or a surface that is not a sphere or a cylinder",
     };
     let conic = geom_brep::Conic::of(carrier).ok_or_else(desync)?;
-    let (h, r, decision) = match (carrier, surface) {
+    let (h, decision) = match (carrier, surface) {
         (
             &geom::Curve3::Circle {
                 center,
@@ -187,7 +188,6 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         }
         (_, &geom::Surface::Sphere { center, radius, .. }) => (
             geom_brep::conic_sphere_harmonics(&conic, center, radius),
-            radius,
             BooleanDecision::ArcSphereRoots,
         ),
         (
@@ -200,30 +200,33 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             },
         ) => (
             geom_brep::conic_cylinder_harmonics(&conic, origin, axis, radius),
-            radius,
             BooleanDecision::ArcCylinderRoots,
         ),
+        (
+            _,
+            &geom::Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+        ) => {
+            return cone_roots(
+                &conic,
+                (apex, axis, half_angle),
+                (t0, t1),
+                surface,
+                band,
+            );
+        }
         _ => return Err(desync()),
     };
-    let two = T::from_f64(2.0);
     // The harmonics' rounding, in residual metres: the term bound is in
     // m², before the `2r` division. It is a charge on the residual's
     // evaluation (`geom_brep::HARMONIC_NOISE_ULPS`), so it covers the
     // arm's readings together — `c₀ ∓ A₁` and the `A₂` it charges.
-    let noise = rounding_charge(h.terms) / (two * r);
-    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
-    let second = hypot(h.c2, h.s2);
-    if let Ok(Sign::Zero) = decide(SECOND_HARMONIC, Margin::of(second), band) {
-        let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
-        let first = FirstHarmonic {
-            lo: h.c0 - a1,
-            hi: h.c0 + a1,
-            cos_part: h.c1,
-            sin_part: h.s1,
-            lo_noise: noise,
-            hi_noise: noise,
-            phase_noise: T::zero(),
-        };
+    let noise = rounding_charge(h.terms) / h.per;
+    if let Some(first) = first_harmonic_arm(&h, noise, band) {
         return first_harmonic_roots(
             &first,
             conic.speed_hi(),
@@ -236,23 +239,126 @@ pub(super) fn conic_quadric_roots<T: Decide>(
     half_angle_roots(
         &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
-        HalfAngleFrame {
-            walk: SubdivisionFrame {
-                t0,
-                t1,
-                speed_hi: conic.speed_hi(),
-                noise,
-                // `h` is the residual itself, already divided by `2r`.
-                f_per_metre: T::one(),
-                f_per_metre_hi: T::one(),
-                residual_reach: None,
-            },
-            speed_lo: conic.speed_lo(),
-            lever: two * conic.speed_lo(),
-        },
+        ladder_frame(&conic, (t0, t1), noise, h.floor),
         &ladder_rows(decision),
+        None,
         band,
     )
+}
+
+/// The first-harmonic arm's reading of `h` (module docs, "Two arms"),
+/// or `None` where the second harmonic takes the ladder.
+fn first_harmonic_arm<T: Decide>(
+    h: &geom_brep::ConicHarmonics<T>,
+    noise: T,
+    band: Band,
+) -> Option<FirstHarmonic<T>> {
+    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+    let second = hypot(h.c2, h.s2);
+    let Ok(Sign::Zero) = decide(SECOND_HARMONIC, Margin::of(second), band) else {
+        return None;
+    };
+    let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
+    Some(FirstHarmonic {
+        lo: h.c0 - a1,
+        hi: h.c0 + a1,
+        cos_part: h.c1,
+        sin_part: h.s1,
+        lo_noise: noise,
+        hi_noise: noise,
+        phase_noise: T::zero(),
+    })
+}
+
+/// The ladder's frame for a conic: `F`'s ceiling on `|F|` per metre of
+/// residual is `1` on every kind ([`geom_brep::ConicHarmonics::floor`]),
+/// its floor the door's `floor`.
+fn ladder_frame<T: Decide>(
+    conic: &geom_brep::Conic<T>,
+    (t0, t1): (T, T),
+    noise: T,
+    floor: T,
+) -> HalfAngleFrame<T> {
+    HalfAngleFrame {
+        walk: SubdivisionFrame {
+            t0,
+            t1,
+            speed_hi: conic.speed_hi(),
+            noise,
+            f_per_metre: floor,
+            f_per_metre_hi: T::one(),
+            residual_reach: None,
+        },
+        speed_lo: conic.speed_lo(),
+        lever: T::from_f64(2.0) * conic.speed_lo(),
+    }
+}
+
+/// The cone arm's rows: the root slack, the apex, and the on-surface
+/// reading of a constant `F` (module docs, "Against a cone").
+const CONE_ROOT_SLACK: &str = "bool_conic_cone_root_slack";
+const CONE_APEX: &str = "bool_conic_cone_apex";
+const CONE_ON_SURFACE: &str = "bool_conic_cone_on_surface";
+
+/// The conic × quadric door against a CONE (module docs, "Against a
+/// cone"): the wall's two arms on `F = Q/R`, every root's slack metered
+/// and its distance from the apex decided, and an on-surface answer read
+/// again through the floor.
+fn cone_roots<T: Decide>(
+    conic: &geom_brep::Conic<T>,
+    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<CircleRoots<T>, BooleanError> {
+    let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
+    let noise = rounding_charge(h.terms) / h.per;
+    let roots = if let Some(first) = first_harmonic_arm(&h, noise, band) {
+        let roots = first_harmonic_roots(
+            &first,
+            conic.speed_hi(),
+            t0,
+            t1,
+            &first_rows(BooleanDecision::ArcConeRoots),
+            band,
+        )?;
+        if let CircleRoots::OnSurface = roots {
+            // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
+            // the carrier on the cone only once its whole reach, read
+            // through the floor, is in the band too.
+            let reach = (first.lo.abs().max(first.hi.abs()) + first.lo_noise) / h.floor;
+            return Ok(match decide(CONE_ON_SURFACE, Margin::of(reach), band) {
+                Ok(Sign::Zero) => CircleRoots::OnSurface,
+                Ok(Sign::Positive | Sign::Negative) | Err(_) => CircleRoots::Uncertain,
+            });
+        }
+        roots
+    } else {
+        let placed = |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
+        let meter = RootSlack {
+            row: CONE_ROOT_SLACK,
+            residual: &placed,
+            f_per_metre_hi: T::one(),
+        };
+        half_angle_roots(
+            &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
+            |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
+            ladder_frame(conic, (t0, t1), noise, h.floor),
+            &ladder_rows(BooleanDecision::ArcConeRoots),
+            Some(&meter),
+            band,
+        )?
+    };
+    let CircleRoots::Certified { count, thetas } = roots else {
+        return Ok(roots);
+    };
+    for &theta in &thetas[..count] {
+        match decide(CONE_APEX, Margin::norm3(conic.point(theta) - apex), band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) | Err(_) => return Ok(CircleRoots::AtApex),
+        }
+    }
+    Ok(roots)
 }
 
 #[cfg(test)]

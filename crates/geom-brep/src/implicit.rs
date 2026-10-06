@@ -1040,12 +1040,22 @@ pub struct ConicHarmonics<T> {
     /// The second harmonic's sine coefficient.
     pub s2: T,
     /// A bound on every magnitude the coefficients are built from (m²,
-    /// before the `2r` division), the rounding of the projection
-    /// included: `(|C₀ − o| + max(|a|, |b|))² + r²` — the scale their
-    /// rounding is charged against, read at the semi-axes' MAGNITUDES
-    /// (a signed or ordered read under-charges a negative `major`, or a
-    /// `minor` stored larger).
+    /// before the division by [`Self::per`]), the rounding of the
+    /// projection included: `(|C₀ − o| + max(|a|, |b|))² + r²` — the
+    /// scale their rounding is charged against, read at the semi-axes'
+    /// MAGNITUDES (a signed or ordered read under-charges a negative
+    /// `major`, or a `minor` stored larger).
     pub terms: T,
+    /// The length the m² form is divided by to give the polynomial:
+    /// `2r` on a sphere or a wall, the carrier's reach from the apex on
+    /// a cone ([`conic_cone_harmonics`]).
+    pub per: T,
+    /// A floor on `|F| / |res|` along the carrier, `res` the surface's
+    /// [`implicit_residual`]: `1` on a sphere or a wall, where the
+    /// polynomial IS the residual. Its ceiling is `1` on every kind, so
+    /// `|F| ≤ |res|` everywhere and a definite sign of `F` is the
+    /// residual's.
+    pub floor: T,
 }
 
 /// The quadric arm of [`ConicHarmonics`]: `perp` is the surface's `⊥`.
@@ -1070,6 +1080,8 @@ fn quadric_harmonics<T: Real>(
         c2: (aa - bb) * half / per,
         s2: a * b * up.dot(vp) / per,
         terms: (d.norm() + conic.speed_hi()).powi(2) + r.powi(2),
+        per,
+        floor: T::one(),
     }
 }
 
@@ -1102,6 +1114,128 @@ pub fn conic_sphere_harmonics<T: Real>(
     s_radius: T,
 ) -> ConicHarmonics<T> {
     quadric_harmonics(conic, s_center, s_radius, |x| x)
+}
+
+/// [`ConicHarmonics`] of `conic` against the cone `(apex, c_axis,
+/// half_angle)`: its quadric form `Q = cos²α·|⊥q|² − sin²α·(q·â)²`,
+/// `q = C(θ) − apex`, over the carrier's reach from the apex
+/// `R ≥ max |q|`. Frame precondition [`Conic`]'s, and `c_axis` unit,
+/// unchecked. Total arithmetic.
+///
+/// `⊥q` and `q·â` are first harmonics along the carrier, so `Q` is of
+/// degree two, exactly as a wall's form is. Its zero set is the DOUBLE
+/// cone, the carrier [`implicit_residual`] states. It is not that
+/// residual: on the near nappe `Q = res·g` with
+/// `g = ρ cos α + |h| sin α` (`ρ = |⊥q|`, `h = q·â`), and
+/// `min(sin α, cos α)·|q| ≤ g ≤ |q|`, so `|F| = |Q|/R` is at most
+/// `|res|` everywhere and at least `min(sin α, cos α)·|q|/R` of it.
+/// [`ConicHarmonics::floor`] reads that ratio at the carrier's least
+/// distance from the apex, bounded below by the range of `|q|²`'s own
+/// harmonics less their rounding. It vanishes where the carrier may
+/// reach the apex, where the cone's gradient does.
+#[must_use]
+pub fn conic_cone_harmonics<T: Real>(
+    conic: &Conic<T>,
+    apex: Point3<T>,
+    c_axis: Vec3<T>,
+    half_angle: T,
+) -> ConicHarmonics<T> {
+    let two = T::from_f64(2.0);
+    let half = T::from_f64(0.5);
+    let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let (cc, ss) = (cos_a.powi(2), sin_a.powi(2));
+    let (a, b) = (conic.major, conic.minor);
+    let (u, v) = (conic.u_ref, conic.v_ref());
+    let d = conic.center - apex;
+    let perp = |x: Vec3<T>| {
+        let along = c_axis.dot(x);
+        x - c_axis * along
+    };
+    let (e, up, vp) = (perp(d), perp(u), perp(v));
+    // `|⊥q|²`, the wall's form before its `r²` and its division.
+    let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
+    let wall = [
+        e.norm_squared() + (aa + bb) * half,
+        two * a * e.dot(up),
+        two * b * e.dot(vp),
+        (aa - bb) * half,
+        a * b * up.dot(vp),
+    ];
+    // `h² = (h₀ + h_u cos θ + h_v sin θ)²`.
+    let (h0, hu, hv) = (d.dot(c_axis), a * u.dot(c_axis), b * v.dot(c_axis));
+    let height = [
+        h0.powi(2) + (hu.powi(2) + hv.powi(2)) * half,
+        two * h0 * hu,
+        two * h0 * hv,
+        (hu.powi(2) - hv.powi(2)) * half,
+        hu * hv,
+    ];
+    let reach_m = d.norm() + conic.speed_hi();
+    let pad = T::from_f64(1.0 + 64.0 * geom_core::UNIT_ROUNDOFF);
+    let per = reach_m * pad;
+    let terms = reach_m.powi(2);
+    let form = |k: usize| (cc * wall[k] - ss * height[k]) / per;
+    // `|q|²`'s least value, from its own harmonics, less their rounding.
+    let (uu, vv) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
+    let near_sq = d.norm_squared() + (uu + vv) * half
+        - hypot(two * a * d.dot(u), two * b * d.dot(v))
+        - hypot((uu - vv) * half, a * b * u.dot(v))
+        - rounding_charge(terms);
+    let near = near_sq.max(T::zero()).sqrt();
+    ConicHarmonics {
+        c0: form(0),
+        c1: form(1),
+        s1: form(2),
+        c2: form(3),
+        s2: form(4),
+        terms,
+        per,
+        floor: sin_a.min(cos_a) * near / per,
+    }
+}
+
+/// The cone's [`implicit_residual`] at the [`Conic`] point of parameter
+/// `theta`, `ρ cos α − |h| sin α` ([`cone_elevation`] with no nappe),
+/// carried with a first-order running bound on its rounding
+/// ([`Rounded`]): the point's own evaluation ([`Conic::point`]'s order,
+/// `sin` and `cos` charged an ulp each), the axial split, the distance
+/// from the axis and the elevation, `sin α` and `cos α` charged an ulp
+/// each. `theta`, the frames and the half-angle are taken as exact.
+#[must_use]
+pub fn conic_cone_residual<T: Real>(
+    conic: &Conic<T>,
+    apex: Point3<T>,
+    c_axis: Vec3<T>,
+    half_angle: T,
+    theta: T,
+) -> Rounded<T> {
+    use geom_core::running::{cross, dot, exact_vec};
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (sin, cos) = theta.sin_cos();
+    let (sin, cos) = (transcendental(sin), transcendental(cos));
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let (sin_a, cos_a) = (transcendental(sin_a), transcendental(cos_a));
+    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
+    let v = cross(n, u);
+    let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
+    let tip = exact_vec(Vec3::new(apex.x, apex.y, apex.z));
+    let (ac, bs) = (a * cos, b * sin);
+    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + u[i] * ac + v[i] * bs - tip[i]);
+    let axis = exact_vec(c_axis);
+    let h = dot(q, axis);
+    let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
+    let rho = (w[0].square() + w[1].square() + w[2].square()).sqrt();
+    let h_abs = Rounded {
+        value: h.value.abs(),
+        error: h.error,
+    };
+    rho * cos_a - h_abs * sin_a
 }
 
 /// The torus's implicit `F = (|q|² + R² − r²)² − 4R²(|q|² − (q·â)²)`,

@@ -1853,6 +1853,12 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         edge: edge_key,
         band,
     };
+    let at_apex = || BooleanError::CrossingAtConeApex {
+        operand: x_is,
+        face,
+        edge: edge_key,
+        band,
+    };
     // The one-sided cover (docs above): one of the edge's parent faces
     // has its carrier certified to lie in one closed side of `face`'s
     // carrier, so the edge's residual against it is one-signed and an
@@ -1965,6 +1971,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             geom::Surface::Torus { .. }
                 | geom::Surface::Sphere { .. }
                 | geom::Surface::Cylinder { .. }
+                | geom::Surface::Cone { .. }
         ))
     .then(|| (side(pu), side(pv)));
     let end_on_carrier = matches!(early_ends, Some((Ok(Sign::Zero), _) | (_, Ok(Sign::Zero))));
@@ -2018,6 +2025,14 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
             };
             match clearance {
                 Ok(Sign::Positive) => return Ok(CurvedEvent::None),
+                // The cone's clearance bounds the residual's magnitude from
+                // BELOW only (`conic_clearance`), so a reading short of
+                // clear is not the touch the covered arm reads it as.
+                Ok(Sign::Zero | Sign::Negative) | Err(_)
+                    if covered && !on_carrier && matches!(surface, geom::Surface::Cone { .. }) =>
+                {
+                    return Err(frontier());
+                }
                 // The one-sided cover rung: a covered zero-clearance
                 // circle takes the planar sweep's endpoint posture —
                 // each endpoint's own side decides its treatment
@@ -2139,6 +2154,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                             geom::Surface::Torus { .. }
                                 | geom::Surface::Sphere { .. }
                                 | geom::Surface::Cylinder { .. }
+                                | geom::Surface::Cone { .. }
                         ) => {}
                 // Uncovered, an arc reaching here with a decided
                 // clearance is against a kind with no root lane; covered,
@@ -2146,10 +2162,10 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
                 // An uncovered ESCALATED clearance cannot reach here: a
                 // plane face never reaches this arm (`face_plane` routes it
-                // to the planar lane first), and cone, NURBS and `Approx`
-                // have no clearance enclosure, so they returned the
-                // frontier before deciding one. The three kinds left are
-                // the arm above's. Reaching here is a dispatch desync.
+                // to the planar lane first), and NURBS and `Approx` have no
+                // clearance enclosure, so they returned the frontier before
+                // deciding one. The four kinds left are the arm above's.
+                // Reaching here is a dispatch desync.
                 Err(_) if !covered => {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "an uncovered arc's escalated clearance reached the covered \
@@ -2287,6 +2303,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 | SpanVerdict::LiesOn
                 | SpanVerdict::Miss
                 | SpanVerdict::Unsettled => Err(frontier()),
+                SpanVerdict::AtApex => Err(at_apex()),
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     // UNDECLARED: the undeclared `NoInterior` rule
                     // ([`Placement::undeclared_no_interior`]), over this
@@ -2358,6 +2375,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                     };
                     lying_on(&arc, y, contacts)?.ok_or_else(frontier)
                 }
+                SpanVerdict::AtApex => Err(at_apex()),
                 _ => Err(frontier()),
             }
         }
@@ -2384,18 +2402,22 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 // carrier, or no face of this operand — is that face's
                 // pair, not this one.
                 SpanVerdict::Elsewhere => Ok(CurvedEvent::None),
+                SpanVerdict::AtApex => Err(at_apex()),
                 _ => Err(frontier()),
             }
         }
-        // **Both endpoints on one side of a TORUS, or of anything along
-        // a CIRCLE: the roots decide, with no endpoint bound in front of
-        // them.** The two arms below lean on the residual being CONVEX
-        // along a line, which holds for a cylinder and a sphere and fails
-        // for a torus: its residual `((ρ − R)² + h² − r²)/2r` carries
-        // `−2Rρ`, concave in the line parameter. So a segment with both
-        // ends inside the tube can leave it and come back (a chord across
-        // the hole), and one with both ends outside can dip through it
-        // anywhere — no endpoint datum bounds either. Along a circle no
+        // **Both endpoints on one side of a TORUS or a CONE, or of
+        // anything along a CIRCLE: the roots decide, with no endpoint
+        // bound in front of them.** The two arms below lean on the
+        // residual being CONVEX along a line, which holds for a cylinder
+        // and a sphere and fails for a torus: its residual
+        // `((ρ − R)² + h² − r²)/2r` carries `−2Rρ`, concave in the line
+        // parameter. So a segment with both ends inside the tube can leave
+        // it and come back (a chord across the hole), and one with both
+        // ends outside can dip through it anywhere — no endpoint datum
+        // bounds either. A cone's `ρ cos α − |h| sin α` carries `−|h|`,
+        // concave too: a segment from inside one nappe to inside the other
+        // crosses both. Along a circle no
         // kind's residual is convex (against a sphere it is
         // `c₀ + A₁cos(θ − φ)`), so an arc takes this arm whatever the
         // face. The certified roots do:
@@ -2403,7 +2425,11 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
         // absence of one is no event HERE, and an uncertain count keeps
         // the door.
         (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative)
-            if !on_line || matches!(surface, geom::Surface::Torus { .. }) =>
+            if !on_line
+                || matches!(
+                    surface,
+                    geom::Surface::Torus { .. } | geom::Surface::Cone { .. }
+                ) =>
         {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
@@ -2414,6 +2440,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                 SpanVerdict::Constant | SpanVerdict::LiesOn | SpanVerdict::Unsettled => {
                     Err(frontier())
                 }
+                SpanVerdict::AtApex => Err(at_apex()),
             }
         }
         // Both inside: the residual along a line is convex (cylinder,
@@ -2521,6 +2548,7 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
                         // because its pre-pass has put `q` definitely off
                         // the wall.)
                         SpanVerdict::Constant | SpanVerdict::LiesOn => Err(frontier()),
+                        SpanVerdict::AtApex => Err(at_apex()),
                         // Covered, the edge lies in one closed side of
                         // the carrier, so a root set the lane cannot
                         // certify (a tangency) is a touch inside the
@@ -2558,8 +2586,12 @@ pub(super) fn curved_face_arm<T: Decide + crate::props::AtRestPolicy>(
 /// one, levered by a curvature bound that is loose in the direction that
 /// refuses: on grazes within 40 bands it certified none at ε 1e-12 and
 /// 1e-9 and a handful at 1e-6, each clear under the oracle
-/// (`clearance_rows`). Against a cone there is no enclosure (`None`, the
-/// frontier).
+/// (`clearance_rows`). Against a cone the residual has no harmonic form
+/// either, and the margin is read off its quadric form `F`
+/// ([`geom_brep::conic_cone_harmonics`]) instead: `|F| ≤ |res|` with the
+/// same sign, so `F`'s whole-turn range, its rounding charged, is a
+/// LOWER bound on the residual's one-sidedness — sound for a clearance,
+/// and no bound on a touch.
 ///
 /// The line row's vertex CLAMP does not port here, and the reason is
 /// the curve: along a line the residual is exactly quadratic, so "the
@@ -2574,6 +2606,24 @@ fn conic_clearance<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Result<Sign, geom_core::Indeterminate>> {
+    if let geom::Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = *surface
+    {
+        let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
+        let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+        let swing = hypot(h.c1, h.s1)
+            + hypot(h.c2, h.s2)
+            + super::circle_roots::rounding_charge(h.terms) / h.per;
+        return Some(decide(
+            "bool_conic_curved_clearance",
+            Margin::of((h.c0 - swing).max(T::zero() - (h.c0 + swing))),
+            band,
+        ));
+    }
     let (lo, hi) = geom_brep::conic_residual_extremes(surface, conic)?;
     let carrier_margin = lo.max(-hi);
     let arc_margin = geom_brep::conic_arc_residual_range(surface, conic, t0, t1)
@@ -3050,6 +3100,10 @@ enum SpanVerdict<T: geom_core::Real> {
     /// The roots did not settle the span and the caller keeps its own
     /// typed frontier door.
     Unsettled,
+    /// A root within the band of a cone's apex
+    /// ([`super::circle_roots::CircleRoots::AtApex`]): the caller refuses
+    /// [`BooleanError::CrossingAtConeApex`].
+    AtApex,
 }
 
 /// The curved-wall crossing route: solve the certified roots — a
@@ -3094,20 +3148,23 @@ fn wall_crossing<T: Decide>(
     // the `Line` carrier's convention, which nothing checks.
     let found = match *carrier {
         geom::Curve3::Line { origin, dir } => {
-            match line_wall_roots_of(origin, dir, (t1 - t0).abs(), surface, band)? {
+            match line_wall_roots_of(origin, dir, (t0, t1), surface, band)? {
                 Ok(found) => found,
                 Err(verdict) => return Ok(verdict),
             }
         }
         // The conic root doors ([`super::circle_roots`]), one answer
-        // shape: one door for a circle or an ellipse against a sphere or a
-        // wall, whose residual is of degree two
+        // shape: one door for a circle or an ellipse against a sphere, a
+        // wall or a cone, whose quadric form is of degree two along it
         // ([`super::conic_quadric`]), and one per conic against a torus.
         // A conic against any other kind has no root lane here.
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => match (carrier, surface) {
-            (_, geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. }) => {
-                super::conic_quadric::conic_quadric_roots(carrier, t0, t1, surface, band)?
-            }
+            (
+                _,
+                geom::Surface::Sphere { .. }
+                | geom::Surface::Cylinder { .. }
+                | geom::Surface::Cone { .. },
+            ) => super::conic_quadric::conic_quadric_roots(carrier, t0, t1, surface, band)?,
             (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => {
                 super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band)?
             }
@@ -3139,6 +3196,7 @@ fn wall_crossing<T: Decide>(
         CircleRoots::OnSurface => return Ok(SpanVerdict::LiesOn),
         CircleRoots::Uncertain => return Ok(SpanVerdict::Unsettled),
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
+        CircleRoots::AtApex => return Ok(SpanVerdict::AtApex),
         CircleRoots::CountDisagrees => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "the constructed roots of a quartic disagree in number with its \
@@ -3147,6 +3205,24 @@ fn wall_crossing<T: Decide>(
         }
     };
     let ts = &roots[..count];
+    // **A root on the far nappe is not this face's.** The roots are the
+    // DOUBLE cone's, the carrier [`geom_brep::implicit_residual`]
+    // states; a cone face lies on one nappe, and a root definitely off
+    // THAT nappe ([`geom_brep::cone_elevation`] asked about it) lies on
+    // the other: the carrier is crossed, not here. A face whose corners
+    // do not decide its nappe (one reaching its apex) leaves the
+    // question to its trim.
+    let nappe = match *surface {
+        geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => crate::offset_nappe::face_nappe(y, face, band)
+            .ok()
+            .map(|nappe| (apex, axis, half_angle, nappe)),
+        _ => None,
+    };
     // Whether some root sits at an end of the span, and whether some
     // root strictly inside it was placed outside this face's trim: the
     // two facts that tell [`SpanVerdict::Elsewhere`] from
@@ -3179,6 +3255,19 @@ fn wall_crossing<T: Decide>(
             continue;
         }
         let p = carrier.eval(t);
+        if let Some((apex, axis, half_angle, nappe)) = nappe {
+            let off = geom_brep::cone_elevation(apex, axis, half_angle, Some(nappe), p);
+            match decide("bool_cone_root_nappe", Margin::of(off), band) {
+                Ok(Sign::Positive) => {
+                    crossed_elsewhere = true;
+                    continue;
+                }
+                Ok(Sign::Zero) => {}
+                // Below the face's own nappe is off the double cone the
+                // root was certified on: the certificate contradicted.
+                Ok(Sign::Negative) | Err(_) => return Ok(SpanVerdict::Unsettled),
+            }
+        }
         // The face's own trim decides whether a crossing of the CARRIER
         // is a crossing of this FACE. `None` is the chart door's honest
         // remainder (a ringed face, a boundary outside its outline
@@ -3242,17 +3331,19 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
 /// The certified LINE × wall roots, per kind, in the root doors' answer
 /// shape — or, for the one answer that shape has no word for, the
 /// verdict itself: an axis-parallel line's residual is constant along it
-/// without being zero ([`SpanVerdict::Constant`]). `span` is the run of
-/// the line's parameter the edge covers, the lever the wall's
-/// axis-parallel rung is metered over.
+/// without being zero ([`SpanVerdict::Constant`]). `(t0, t1)` is the run
+/// of the line's parameter the edge covers: its length is the lever the
+/// wall's axis-parallel rung is metered over, and the cone's apex rung
+/// reads the segment it spans.
 fn line_wall_roots_of<T: Decide>(
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
-    span: T,
+    (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
     use super::solid_contain::WallRoots;
+    let span = (t1 - t0).abs();
     let two = |ts: [T; 2]| {
         let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
         thetas[..2].copy_from_slice(&ts);
@@ -3322,8 +3413,101 @@ fn line_wall_roots_of<T: Decide>(
                 WallRoots::AxisParallel | WallRoots::Miss => CircleRoots::Miss,
             }
         }
+        geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
         _ => CircleRoots::Uncertain,
     }))
+}
+
+/// **The certified roots of the LINE `origin + dir·t` against a CONE**:
+/// the cone's quadric form along it, the quadratic
+/// [`super::solid_contain::line_cone_quadratic`] `G = A t² + 2B t + C`
+/// (`G = −Q`, `Q = cos²α·ρ² − sin²α·h²`), whose zero set is the double
+/// cone. Its rungs, each a length:
+///
+/// - **`bool_line_cone_apex`** — the segment `[t0, t1]`'s distance from
+///   the apex. Not definitely positive: the edge reaches the apex, where
+///   the cone's gradient vanishes, and the lane answers
+///   [`CircleRoots::AtApex`] rather than read a root there.
+/// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
+///   length: how far the line turns off a generator over the edge. Zero:
+///   the quadratic degenerates (a ruling, or a line parallel to one) and
+///   the lane does not answer ([`CircleRoots::Uncertain`]).
+/// - **`bool_line_cone_depth`** — the depth the line's vertex `t*`
+///   reaches: `G(t*) = −disc/A`, and on the near nappe
+///   `Q = res·(ρ cos α + |h| sin α)` with that factor at most `|q|`, so
+///   `disc/(|A|·R)`, `R ≥ |q(t*)|`, is a lower bound on the residual's
+///   magnitude there, signed as the crossing count. Positive: two roots;
+///   Zero: a tangency, [`CircleRoots::Uncertain`]; Negative: a miss.
+/// - **`bool_line_cone_root_slack`** — each root's arc-length slack: the
+///   rounding of `G`'s evaluation (charged against its term bound,
+///   `(|w₀| + |dir||t|)²`) over `|G′(t)| = 2√disc`, at the line's speed.
+///   Not definitely inside the band: [`CircleRoots::Uncertain`].
+fn line_cone_roots<T: Decide>(
+    origin: Point3<T>,
+    dir: geom_core::Vec3<T>,
+    (apex, axis, half_angle): (Point3<T>, geom_core::Vec3<T>, T),
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<CircleRoots<T>, BooleanError> {
+    let escalate = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::ConeRoots,
+        diag,
+    };
+    let w0 = origin - apex;
+    let dd = dir.norm_squared();
+    let at = |t: T| w0 + dir * t;
+    let foot = ((T::zero() - w0.dot(dir)) / dd)
+        .max(t0.min(t1))
+        .min(t0.max(t1));
+    match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Ok(CircleRoots::AtApex),
+    }
+    let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(origin, dir, apex, axis, half_angle);
+    let length = dir.norm() * (t1 - t0).abs();
+    match decide(
+        "bool_line_cone_lead",
+        Margin::levered(a2 / dd, length),
+        band,
+    )
+    .map_err(escalate)?
+    {
+        Sign::Positive | Sign::Negative => {}
+        Sign::Zero => return Ok(CircleRoots::Uncertain),
+    }
+    let disc = b2.powi(2) - a2 * c2;
+    let vertex = (T::zero() - b2) / a2;
+    let reach = at(t0).norm().max(at(t1).norm()).max(at(vertex).norm());
+    match decide(
+        "bool_line_cone_depth",
+        Margin::of(disc / (a2.abs() * reach)),
+        band,
+    )
+    .map_err(escalate)?
+    {
+        Sign::Positive => {}
+        Sign::Zero => return Ok(CircleRoots::Uncertain),
+        Sign::Negative => return Ok(CircleRoots::Miss),
+    }
+    let roots = super::solid_contain::quadratic_roots(a2, b2, c2, disc);
+    let two = T::from_f64(2.0);
+    let speed = dir.norm();
+    for t in roots {
+        let terms = (w0.norm() + speed * t.abs()).powi(2);
+        let slack = speed * super::circle_roots::rounding_charge(terms) / (two * disc.sqrt());
+        match decide("bool_line_cone_root_slack", Margin::of(slack), band) {
+            Ok(Sign::Zero | Sign::Negative) => {}
+            Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
+        }
+    }
+    let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
+    thetas[..2].copy_from_slice(&roots);
+    Ok(CircleRoots::Certified { count: 2, thetas })
 }
 
 /// What one edge×curved-face pair asks of the sweep.
