@@ -115,6 +115,14 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// decision moved. On the merged tree (PCERT's restated certificate) the
 /// same fold takes four of `pcurve_loop_continuity`'s door decisions to
 /// theorems as well, on both tables.
+///
+/// **The `*_on_surface_1`/`_2` slots are the pair's key order**
+/// (`geom_brep::SurfacePair`), not the order a builder named the
+/// surfaces in, so their decisions split evenly: `carrier_on_surface_*`
+/// read `[126, 0, 0, 18]` each (they were `[135, 0, 0, 9]` and
+/// `[117, 0, 0, 27]`, the same sum) and `witness_on_surface_*`
+/// `[14, 0, 0, 2]` each (they were `[15, 0, 0, 1]` and `[13, 0, 0, 3]`).
+/// No other row moved.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
@@ -125,8 +133,8 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("carrier_endpoint_end", [32, 0, 4, 0]),
     ("carrier_endpoint_start", [32, 0, 4, 0]),
     ("carrier_line_circle", [0, 0, 0, 5]),
-    ("carrier_on_surface_1", [135, 0, 0, 9]),
-    ("carrier_on_surface_2", [117, 0, 0, 27]),
+    ("carrier_on_surface_1", [126, 0, 0, 18]),
+    ("carrier_on_surface_2", [126, 0, 0, 18]),
     ("chord_side", [4, 0, 0, 10]),
     ("contact_at_shared_vertex", [8, 0, 0, 4]),
     ("datum_unit_norm", [0, 0, 0, 2]),
@@ -159,8 +167,8 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("side_planes_cosurface", [0, 0, 0, 2]),
     ("vertex_separation", [0, 0, 0, 12]),
     ("witness_at_mid_parameter", [16, 0, 0, 0]),
-    ("witness_on_surface_1", [15, 0, 0, 1]),
-    ("witness_on_surface_2", [13, 0, 0, 3]),
+    ("witness_on_surface_1", [14, 0, 0, 2]),
+    ("witness_on_surface_2", [14, 0, 0, 2]),
 ];
 
 /// **The boss at `bulge = 2`, whole.** `carrier_matches_mapped_source`

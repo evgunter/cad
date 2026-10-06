@@ -269,6 +269,13 @@ fn eps_row(eps: f64) -> usize {
 /// at every row while every count — calls, forms, frozen — holds, and
 /// `Early/Decision`, which reads no variable, holds its digest.
 ///
+/// Re-captured when an intrinsic edge description's surfaces became a
+/// set (`geom_brep::SurfacePair`): the certificate checks the pair in
+/// key order rather than the builder's, so the `*/Assertion` walks
+/// build 188 more forms (918 → 1106, 1958 → 2146) and the
+/// `Plain/*` and `Early/Assertion` digests move at every row; calls,
+/// frozen counts and `Early/Decision` hold.
+///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
 /// minted with, the certificate's midpoint check and its schedule's
@@ -277,20 +284,20 @@ fn eps_row(eps: f64) -> usize {
 /// here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest ebd5dc4da3bdeaa10c0afd94b42b2d87\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest 94e74ce235f1ad337f14d70fee78dfaa\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest f453938c3049c0c4f2216c8726d2d139\n\
+     Plain/Assertion calls 510 forms 1106 frozen 0 digest a207af454b281bd5ccb26d3c5228b97e\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest e5cb8ee95d081c9f651fd197dd80e7e9",
+     Early/Assertion calls 510 forms 2146 frozen 0 digest f2557981f6130da73916dc67906099e1",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 8494d680ab698df2f3469e823fc87b98\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest c4e86cf612989dd24ae45b72f30fd596\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 2019bf563b9e25ce5e73c2683c3d06cb\n\
+     Plain/Assertion calls 510 forms 1106 frozen 0 digest ed7718916a15c8ec5e0df8fc439be275\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 6fd6d5b744c7357422ed4a8d661ba4d6",
+     Early/Assertion calls 510 forms 2146 frozen 0 digest 219ab8d2b177a81f9d82cf41b3c88724",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 22f0ef9b79cc104cbde46fca27614b59\n\
-     Plain/Assertion calls 510 forms 918 frozen 0 digest a8c20d17a2cffae31de30c639ce090f4\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest e14807ef580704d932f297bb166d80ae\n\
+     Plain/Assertion calls 510 forms 1106 frozen 0 digest 03587d17710d499a1b8142485605cb03\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 37994725fc1705f26abe6dff8c3ececf",
+     Early/Assertion calls 510 forms 2146 frozen 0 digest 6e7780cf1f71c61d6bf593341cbb61fc",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -476,14 +483,21 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   continuity margins come: `Assertion` calls +14 on every walk and
 ///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
 ///   −31. Every digest moves; the freezes hold.
+///
+/// Re-captured when an intrinsic edge description's surfaces became a
+/// set (`geom_brep::SurfacePair`) and the certificate began checking
+/// them in key order: `Plain/Assertion` +176 forms and +29 frozen
+/// (3915/360 → 4091/389), `Early/Assertion` +176 forms, `Door/Decision`
+/// +82 forms; calls and every decision tally hold
+/// (`m10_10_pins_interval` reads the pair's sum unchanged).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16228 frozen 252 digest ec7f0e1f5408b1a10acfda342f5c2ec4\n\
-     Plain/Assertion calls 664 forms 3915 frozen 360 digest fad58c6c6cf5c21324e21b64ab8b051b\n\
+     Plain/Decision calls 1143 forms 16228 frozen 252 digest 11b75d97472285bd38ed97b13d58c6f8\n\
+     Plain/Assertion calls 664 forms 4091 frozen 389 digest b4e12eeaa1c7ed79cbcf5f9c16500b70\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 432 forms 9117 frozen 0 digest 118d6298ed4bc7280acf1d0749f45f88\n\
-     Early/Assertion calls 664 forms 4831 frozen 0 digest 617250390b9c9641d9be0c89ae3c8e57\n\
+     Early/Decision calls 432 forms 9117 frozen 0 digest 84844d34fed01841331e528b1fbacc61\n\
+     Early/Assertion calls 664 forms 5007 frozen 0 digest 5bbcef3abf080757c1c3fb7ba0742832\n\
      Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 448 forms 6768 frozen 0 digest 5fc0f6b71848d4b2d9b698bbcde6851d\n\
+     Door/Decision calls 448 forms 6850 frozen 0 digest 5377e110634342bbe62308f48ba4ea5f\n\
      Door/Assertion calls 408 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

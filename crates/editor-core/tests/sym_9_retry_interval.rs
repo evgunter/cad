@@ -551,8 +551,12 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         let (shapes, on) = replay(&doc, &box_, ladder, link, tol);
         if link {
             let t = split(&shapes);
+            // `_2` is the higher key of the surface pair
+            // (`geom_brep::SurfacePair`), not the surface the extrude
+            // named second, so rule G's trade lands half on each slot:
+            // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
-                ("carrier_on_surface_2", [76, 0, 16, 16]),
+                ("carrier_on_surface_2", [92, 0, 8, 8]),
                 ("witness_on_surface_2", [16, 0, 0, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 4]);

@@ -307,14 +307,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds each edge's
+/// description `Debug`, which now spells `pair: {a, b}` in key order
+/// where it spelled `s1`, `s2` in the builder's order. No body moved:
+/// `m4_pr8_corpus`'s exact mass pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xfa04_f1a7_d1c4_847d),
-        ("corner_table", 0x5831_a08f_3fa5_04e4),
-        ("cut_cylinder", 0xcea6_3bbf_f0ce_47ad),
-        ("boss_union", 0xeb25_210f_2b67_d89b),
-        ("kitchen_sink", 0xadb2_1e39_d9af_1747),
+        ("die", 0x2d87_8790_8548_4def),
+        ("corner_table", 0x4791_a599_ff9f_cf84),
+        ("cut_cylinder", 0xc8a1_e4fc_36fe_0b23),
+        ("boss_union", 0xe909_3a21_4a63_74df),
+        ("kitchen_sink", 0x78c9_6341_f9a5_87e3),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

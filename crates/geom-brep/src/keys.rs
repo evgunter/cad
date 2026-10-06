@@ -94,7 +94,8 @@ impl SurfacePair {
 
 impl core::fmt::Debug for SurfacePair {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_set().entry(&self.lo).entry(&self.hi).finish()
+        let Self { lo, hi } = self;
+        f.debug_set().entry(lo).entry(hi).finish()
     }
 }
 

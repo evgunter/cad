@@ -252,13 +252,12 @@ pub enum CertCheck {
 /// cannot get right for every check that reaches it.
 impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let surface = |f: &mut core::fmt::Formatter<'_>, what: &str, k: &SurfaceKey| {
-            write!(f, "{what} against surface {k:?}")
-        };
+        // The surface rides the typed field, not the words: a refusal
+        // names what it is about without an arena key.
         f.write_str(match self {
-            Self::SurfaceResidual { surface: k } => return surface(f, "the residual", k),
-            Self::WitnessSurfaceResidual { surface: k } => {
-                return surface(f, "the witness point's residual", k);
+            Self::SurfaceResidual { .. } => "the residual against one of the edge's surfaces",
+            Self::WitnessSurfaceResidual { .. } => {
+                "the witness point's residual against one of the edge's surfaces"
             }
             Self::ParamSpan => "the stored interval's span",
             Self::ParamWinding => "the stored interval's headroom to one full period",
