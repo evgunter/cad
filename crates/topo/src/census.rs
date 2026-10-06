@@ -2489,6 +2489,10 @@ fn sweep_conformal_patches<T: Decide>(
 /// Here it answers `None`: this door keeps the postcondition
 /// [`geom_core::CertifiedEnclosure`] states for a certified bracket —
 /// a `Some` never carries a NaN end.
+///
+/// # Panics
+///
+/// As [`face_reach_in`], to which it forwards.
 pub(crate) fn face_reach<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
@@ -9241,8 +9245,8 @@ mod torn_reach_rows {
     }
 
     /// The face's surface, `boundary_reach` and the edge rule, on a cube
-    /// face (the boundary hull arm): a torn surface, outer loop and
-    /// curve.
+    /// face (the boundary hull arm): a torn surface, outer loop, curve
+    /// and edge-end point.
     #[test]
     fn the_boundary_hull_panics_on_a_torn_surface_loop_and_curve() {
         let body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;

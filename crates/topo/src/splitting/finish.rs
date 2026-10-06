@@ -682,8 +682,8 @@ fn section_plane_restatements<T: Decide>(
 /// The body is mid-operation, past the carve; each edge is read after
 /// the writes to the edges before it. Its curve is a link
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]; a rewritten edge's old curve
-/// goes only once orphaned, [`Body::remove_curve_if_orphaned`]), so a
-/// torn one panics where it used to read as no description.
+/// goes only once orphaned, [`Body::remove_curve_if_orphaned`]): a torn
+/// one panics, and is not an edge with no description.
 fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -1153,10 +1153,13 @@ pub(crate) fn carve<T: Decide>(
     Ok(body)
 }
 
-/// **The section boundary's description reads a torn curve as a torn
-/// body**: on a split cube's lower half, a torn curve on the section
-/// face's first boundary edge panics before any write, where it read
-/// as an edge with no description and was described afresh.
+/// **A torn section curve panics before the description writes**: on a
+/// split cube's lower half, a torn curve on the section face's first
+/// boundary edge panics naming the link, with the body unchanged. Two
+/// reads name that link: the description's own, and
+/// [`crate::Body::set_edge_curve`]'s plan, which every arm that
+/// describes the edge reaches before its write. The row holds whichever
+/// panics first, so it cannot tell the two apart.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -1167,7 +1170,7 @@ mod torn_hop_rows {
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
 
     #[test]
-    fn the_section_boundary_description_panics_on_a_torn_curve() {
+    fn a_torn_section_curve_panics_before_any_write() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;

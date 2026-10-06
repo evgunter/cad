@@ -168,6 +168,22 @@ premise panics, and kept each one over a key the caller carries:
 - `chord_join.rs` `along_edge_spec`: the circle arm's `Corrupt` for the
   segment edge's `he_plus` and its end; the segment edge itself keeps
   a typed `SectionInvariant` ("the segment's edge no longer resolves").
+  A chord end's point is now a link too (`Body::point_of`), where a torn
+  point and a stale chord end shared one `SectionInvariant`. The chord
+  end itself keeps a typed `SectionInvariant` ("a chord end along the
+  segment's edge no longer resolves"), though `segment_curve` read it
+  off a half-edge's `start` in `first_chord` / `second_chord` a line
+  before, on the same `&Body`. Those functions' own hops past the
+  join's halves (`corrupt_he`, `corrupt_loop`, `corrupt_face`) are typed
+  `SplitJoinError::Corrupt` raises of this row's, so the chord end
+  stays typed with them and moves when they do.
+- `splitting/classify.rs` `sphere_zone_reach` checks for a
+  `LoopBoundary::Empty` outer loop before it calls `props::loop_edges`,
+  because `LoopEdgesError::Corrupt` answers an empty loop and a torn hop
+  alike. That pre-check is this row's `LoopEdgesError::Corrupt` split
+  done locally at one caller; once the split lands, the empty loop is
+  its own variant and the pre-check (and the second read of the outer
+  loop) goes.
 - `chord_join.rs` `face_azimuth_window_traces` (`sweep-testing`): the
   surface's `Corrupt`.
 - `splitting/join.rs` `split_leave`: the face's surface (`Corrupt`).

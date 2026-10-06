@@ -379,10 +379,12 @@ fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) ->
         || positive("split_nest_conic_conic", outside, band)
 }
 
-/// **The outline reading reads a torn curve as a torn body**: on a
+/// **A torn ring curve panics before the outlines are answered**: on a
 /// holed block's top face, whose ring lies clear inside its outer loop,
-/// a torn curve on the ring panics, where it read as an edge nothing
-/// decides and the pair as not disjoint.
+/// a torn curve on the ring panics naming the link. Check 9
+/// (`ring_outer_contact_about`), which [`outlines_disjoint`] asks first,
+/// reads every curve of both loops as a link and panics there, so the
+/// outline reading's own read of the same link is never reached.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -393,7 +395,7 @@ mod torn_hop_rows {
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
 
     #[test]
-    fn the_outline_reading_panics_on_a_torn_curve() {
+    fn the_ring_contact_check_panics_on_a_torn_curve() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let mut body = crate::test_support_fixtures::holed_block::<f64>(2.0, &[1.0], tol);

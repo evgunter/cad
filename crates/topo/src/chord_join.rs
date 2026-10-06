@@ -3737,9 +3737,9 @@ mod torn_hop_rows {
     }
 
     /// `face_azimuth_images` (`outer_cycle`, `run_azimuth_images`): a
-    /// torn outer loop and a torn curve panic, where the loop answered
-    /// `Corrupt` and the curve was stepped over as null scaffolding; a
-    /// stale face keeps `Corrupt`.
+    /// torn outer loop, loop walk, member edge and curve panic, where the
+    /// loop and walk answered `Corrupt` and the edge and curve were
+    /// stepped over; a stale face keeps `Corrupt`.
     #[test]
     fn the_azimuth_walk_panics_on_a_torn_loop_and_a_torn_curve() {
         let (body, face) = cyl_sheet();
@@ -3826,9 +3826,10 @@ mod torn_hop_rows {
         );
     }
 
-    /// `between_edge_is_section`: a torn curve panics, where it read as
-    /// null scaffolding, which lies in the plane (`Some(true)`). The
-    /// sound rim lies off the plane.
+    /// `between_edge_is_section`: a torn edge panics, where it refused
+    /// `Corrupt`, and a torn curve panics, where it read as null
+    /// scaffolding, which lies in the plane (`Some(true)`). The sound rim
+    /// lies off the plane.
     #[test]
     fn the_adjacency_skip_panics_on_a_torn_curve() {
         let (mut body, face) = cyl_sheet();
@@ -3912,9 +3913,9 @@ mod torn_hop_rows {
         );
     }
 
-    /// `along_edge_spec`: a torn curve on the segment's edge panics,
-    /// where it read as an edge with no certified curve; a stale segment
-    /// edge, a key the boolean carries, refuses typed.
+    /// `along_edge_spec`: a torn curve on the segment's edge, and a torn
+    /// point under a chord end, panic, where they refused typed; a stale
+    /// segment edge or chord end, keys the join carries, refuses typed.
     #[test]
     fn the_along_edge_spec_panics_on_a_torn_curve_and_refuses_a_stale_edge() {
         let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
