@@ -1380,6 +1380,20 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
         .map(|plan| (plan.edge, plan.spec))
         .collect();
     move_points_then_rechart(&mut work, &groups, vec![chart], &specs, tol)?;
+    // A row is stated over its edge's interval, which ends at the
+    // edge's vertices, so the move stales every row of an edge that
+    // ends at a moved vertex. They go before the re-anchors' site mints
+    // could keep them; the closing mint re-derives every face.
+    let staled: Vec<_> = work
+        .half_edges
+        .values()
+        .filter(|h| moved.iter().any(|&(v, _)| v == h.start))
+        .flat_map(|h| {
+            let edge = proven(&work.edges, h.edge, EntityId::Edge);
+            [edge.he_plus, edge.he_minus]
+        })
+        .collect();
+    work.drop_rows(staled);
     for (edge, spec) in anchored {
         work.set_edge_curve(edge, spec, tol)
             .map_err(|error| ReplaceFaceError::Op {

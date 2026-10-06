@@ -377,9 +377,12 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// reads it: no crossing lane serves a spline, so passing it would
 /// leave the edge uncut while the plane crosses the faces beside it.
 ///
-/// The re-described edge's pcurves do not certify, so the body is not
-/// a finished body and no split door takes it; the row reads the
-/// carrier gate past the door.
+/// The re-description moves the rim's carrier, so it re-mints the
+/// faces the rim bounds; the closed-form lane has no image of the
+/// spline, so the curved one stores no row, and the at-rest gate cannot
+/// compute the body's volume across it. The body is not a finished
+/// body and no split door takes it; the row reads the carrier gate past
+/// the door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
@@ -387,12 +390,18 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
         assert_eq!(part, Ok(()), "the re-described body is well formed");
     }
     let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness())
-        .expect_err("the spline's pcurves do not certify");
+        .expect_err("the face the spline bounds stores no row");
+    let rim_faces = topo::readback::edge_sides(&body, edge).unwrap().faces();
     assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, topo::ValidationError::Pcurve { .. })),
-        "the at-rest gate refuses the spline's pcurves alone: {errors:?}"
+        !errors.is_empty()
+            && errors.iter().all(|e| matches!(
+                e,
+                topo::ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face { face, .. },
+                    ..
+                } if face == &rim_faces.0 || face == &rim_faces.1
+            )),
+        "the at-rest gate refuses the volume across a face the spline bounds alone: {errors:?}"
     );
     match topo::test_support::split_carrier_gate(&body, &plane(0.0, 0.4), Tol::witness()) {
         Err(SplitReduceError::CurvedEdgeUnsupported { edge: e }) => {

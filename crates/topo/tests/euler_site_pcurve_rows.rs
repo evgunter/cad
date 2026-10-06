@@ -879,11 +879,11 @@ fn a_null_edge_described_off_the_chart_leaves_the_wall_rowless() {
     loud_at_rest(&mut body);
 }
 
-/// **Only a null edge's description re-mints.** Re-describing the edge
-/// once it is certified moves no key and leaves every row where it is,
-/// as for any certified edge: a wall missing the edge's own row stays
-/// missing it, though the face is one a null edge's description would
-/// re-mint.
+/// **A description that keeps the carrier keeps the rows.** Re-describing
+/// the edge once it is certified, by the carrier and interval it has,
+/// moves none of its rows and leaves every row where it is: a wall
+/// missing the edge's own row stays missing it, though the face is one
+/// a null edge's description would re-mint.
 #[test]
 fn a_second_description_leaves_the_rows_as_found() {
     let (mut body, face, m) = wall();
@@ -898,6 +898,53 @@ fn a_second_description_leaves_the_rows_as_found() {
     assert_eq!(missing_rows(&body), vec![null.he_plus]);
 }
 
+/// The bottom rim's piece `(0.2, UM)` after [`wall`]'s split.
+fn rim_piece(body: &Body<f64>) -> topo::EdgeKey {
+    body.edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            let c = body
+                .get_curve_geom(body.get_edge(e).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap();
+            matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (0.2, UM)
+        })
+        .unwrap()
+}
+
+/// **A certified edge's re-parameterization re-mints its faces, and a
+/// later operator walks the re-minted rows.** The wall's rim piece
+/// `(0.2, UM)` is re-described by the same circle under a reference
+/// direction turned `+0.1` rad, so its interval is `(0.1, UM - 0.1)`:
+/// the same points, other parameters. Every face its halves are on
+/// leaves with the pass's rows, and so does the wall after a strut at
+/// the split vertex, whose site mint keeps the rim's images. Where the
+/// description kept the rim's old rows, tier 3 read `RowInterval` and a
+/// failed certificate on both halves, and the strut kept them.
+#[test]
+fn a_re_parameterized_certified_edge_re_mints_its_faces() {
+    let (mut body, face, m) = wall();
+    let rim = rim_piece(&body);
+    let frame = CylFrame::canonical(1.0);
+    let carrier = geom::Curve3::Circle {
+        center: frame.origin,
+        axis: frame.axis,
+        radius: frame.radius,
+        u_ref: frame.radial(0.1),
+    };
+    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.1, UM - 0.1).unwrap();
+    body.set_edge_curve(rim, spec, tol()).unwrap();
+    let is_the_pass_s = |body: &Body<f64>, door: &str| {
+        assert_eq!(validate_pcurves(body, band()), vec![], "{door}: tier 3");
+        let kept = rows_deep(body);
+        let mut minted = body.clone();
+        topo::mint_pcurves(&mut minted, tol()).unwrap();
+        assert_eq!(rows_deep(&minted), kept, "{door}: the rows are the pass's");
+    };
+    is_the_pass_s(&body, "re-description");
+    strut(&mut body, face, m);
+    is_the_pass_s(&body, "re-description, then a strut");
+}
 /// The cylinder's own circle at height `v`, once round from the ruling
 /// `UM`: a closed carrier on the chart, for a null edge at `(UM, v)`.
 fn circle_at(v: f64) -> geom_brep::EdgeCurveSpec<f64> {

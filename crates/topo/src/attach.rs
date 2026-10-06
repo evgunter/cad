@@ -77,13 +77,14 @@ use geom_core::Tol;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Remints {
     /// A null edge's alone: its description is its first, and the first
-    /// door that can derive its halves' rows. A certified edge's
-    /// description moves no key and keeps its rows
-    /// ([`Body::set_edge_curve`]).
+    /// door that can derive its halves' rows. A certified edge's rows
+    /// stand where its carrier and interval do
+    /// ([`Body::set_edge_curve`] on a description that moves neither).
     FirstDescription,
-    /// Every described edge's: the door moves a certified edge's end
-    /// as well as its carrier, and the rows it keeps would span the
-    /// interval the end moved from ([`Body::kev_describing`]).
+    /// Every described edge's: the door moves a certified edge's carrier
+    /// or interval, and the rows it keeps would span what the edge left
+    /// ([`Body::set_edge_curve`] on a description that moves one;
+    /// [`Body::kev_describing`], which moves a member's end).
     Every,
 }
 
@@ -290,8 +291,12 @@ impl<T: Decide> Body<T> {
     ///
     /// Each face's sense is [`FaceSurface`]'s rule, per face; its
     /// pcurve rows are [`Body::set_face_surface`]'s (kept on the same
-    /// chart, dropped on another); a re-described edge's rows are
-    /// [`Body::set_edge_curve`]'s.
+    /// chart, dropped on another); a re-described edge's rows on a face
+    /// that keeps its chart are kept as found, for the tier-3 pcurve
+    /// pass to re-certify against the new carrier, where
+    /// [`Body::set_edge_curve`] re-mints that face when the carrier or
+    /// interval moves
+    /// (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`).
     ///
     /// Minting order (D9): the new charts' surfaces in `charts` order,
     /// then the listed edges' curves in list order.
@@ -953,33 +958,32 @@ impl<T: Decide> Body<T> {
     /// be **adjacency-coherent** (module docs). The old curve is
     /// removed iff no other edge references it.
     ///
-    /// **A carrier swap leaves the pcurve rows where they are, and
-    /// that is not [`Body::set_face_surface`]'s case.** A row is stated
-    /// in a FACE's chart and keyed on a half-edge; this door moves
-    /// neither, so no row changes what it is ABOUT. What it does change
-    /// is what the row must agree WITH, and the tier-3 pcurve pass
-    /// re-derives that agreement from the edge's CURRENT curve on every
-    /// run — so a row left saying the old carrier's image is refused
-    /// per half-edge, loud, on a complete face and on the rows a
-    /// half-minted one stores alike, which is where the surface setter
-    /// was silent. A face whose chart mints nothing holds no minted row
-    /// for a carrier swap to stale at all.
-    ///
-    /// **A null edge's first description re-mints its loops.**
-    /// [`Body::mev_null`] adds two halves with no carrier to derive a
-    /// row from, and returns a minted face missing their rows. The
-    /// carrier arrives here, so before the door mutates, each face the
+    /// **A description that moves the carrier or the interval re-mints
+    /// the faces its halves are on.** A row is stated in a face's chart
+    /// over its edge's carrier and interval, so a new carrier moves every
+    /// row the edge's halves store — even one through the same points,
+    /// parameterized otherwise, whose rows would span the interval it
+    /// left — and a null edge's first carrier is the first from which its
+    /// halves' rows can be derived ([`Body::mev_null`] returns a minted
+    /// face missing them). Whether the carrier or interval moves is
+    /// measured ([`Body::description_moves`]); where neither does, as for
+    /// [`Body::describe_at_rest`], only the description moves and every
+    /// row stands. Otherwise, before the door mutates, each face the
     /// halves are on that the site mint selects — a minted face whose
     /// every loop walks, and whose only gaps are on loops a null edge
     /// holds open or which no null edge is left on once this one is
-    /// described — has every loop that no null edge holds open then
-    /// walked and completed, through the site mint the Euler operators run
-    /// ([`crate::pcurves`]' `site_rows`): the loop leaves complete — the
-    /// rows of halves an operator added while it was held open included,
-    /// and on a face no null edge is left on every row it missed — or
-    /// the face rowless where the closed-form lane cannot mint it. A
-    /// loop another null edge still runs through is left as found, for
-    /// that edge to release. A face on a spline chart is left as found.
+    /// described — has every loop that no null edge holds open walked and
+    /// completed, through the site mint the Euler operators run
+    /// ([`crate::pcurves`]' `site_rows`), the edge's halves under the
+    /// curve the door installs: the loop leaves complete — the rows of
+    /// halves an operator added while it was held open included, and on
+    /// a face no null edge is left on every row it missed — or the face
+    /// rowless where the closed-form lane cannot mint it. A loop another
+    /// null edge still runs through is left as found, for that edge to
+    /// release. A face it finds half-minted is left as found, and so is a
+    /// certified edge's face on a spline chart; a row kept there is the
+    /// tier-3 pcurve pass's, which re-derives each stored row's agreement
+    /// from the edge's current carrier.
     ///
     /// # Errors
     ///
@@ -990,8 +994,8 @@ impl<T: Decide> Body<T> {
     /// failed gate, whose plane × NURBS lane is the scalar's policy
     /// ([`crate::AtRestPolicy::nurbs_lane`]), and
     /// [`EulerOpError::NurbsLaneUnsupported`] where that class meets a
-    /// scalar holding none; [`EulerOpError::PcurveMint`] where a null
-    /// edge's face is re-minted and a half-edge of it does not resolve.
+    /// scalar holding none; [`EulerOpError::PcurveMint`] where a face is
+    /// re-minted and a half-edge of it does not resolve.
     /// The body is untouched on `Err`.
     pub fn set_edge_curve(
         &mut self,
@@ -1007,12 +1011,13 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
-        let rows = self.description_rows(
-            &[(edge, &certified)],
-            Remints::FirstDescription,
-            |_| Ok(Vec::new()),
-            tol,
-        )?;
+        let remints = if self.description_moves(edge, &certified, tol)? {
+            Remints::Every
+        } else {
+            Remints::FirstDescription
+        };
+        let rows =
+            self.description_rows(&[(edge, &certified)], remints, |_| Ok(Vec::new()), tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.replace_edge_curve(edge, certified);
@@ -1081,6 +1086,42 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
+    /// **Whether installing `new` on certified `edge` moves its carrier
+    /// or its interval**, measured: the rows its halves store are images
+    /// of the carrier over the interval, so they stand exactly where the
+    /// new carrier traces the old one over the old interval. Read at the
+    /// interval's ends and three interior parameters, each pair of points
+    /// in metres at the band; a reading the band cannot settle counts as
+    /// a move. A null edge has no carrier to keep, and moves. `edge` is
+    /// one the caller resolved.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::Certification`] where `tol` builds no band.
+    fn description_moves(
+        &self,
+        edge: EdgeKey,
+        new: &EdgeCurve<T>,
+        tol: Tol,
+    ) -> Result<bool, EulerOpError> {
+        let edge_data = proven(&self.edges, edge, EntityId::Edge);
+        let Some(old) = self.edge_curve_linked(edge, edge_data).certified() else {
+            return Ok(true);
+        };
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
+            error: CertifyError::Band(e),
+        })?;
+        let (t0, t1) = old.params();
+        Ok([0.0, 0.25, 0.5, 0.75, 1.0].into_iter().any(|k| {
+            let t = t0 + (t1 - t0) * T::from_f64(k);
+            let gap = old.carrier().eval(t).distance(new.carrier().eval(t));
+            !matches!(
+                decide("description_moves_carrier", Margin::of(gap), band),
+                Ok(Sign::Zero)
+            )
+        }))
+    }
+
     /// **The rows a description writes**, decided before its door
     /// mutates: one plan per face the halves of an edge in `described`
     /// whose faces it re-mints ([`Remints`]) are on, for
@@ -1095,7 +1136,8 @@ impl<T: Decide> Body<T> {
     /// Empty unless an edge in `described` re-mints: a null edge
     /// ([`crate::CurveGeom::NullScaffold`]) always, whose description is
     /// the first door that can derive its halves' rows, and under
-    /// [`Remints::Every`] a certified one too, whose rows the door moves.
+    /// [`Remints::Every`] a certified one too, whose carrier, interval or
+    /// end the door moves.
     /// On each face their halves are on that the site mint selects it
     /// walks every loop, through the Euler operators' site mint
     /// ([`Body::plan_site_mint`]), each half of a described edge under
