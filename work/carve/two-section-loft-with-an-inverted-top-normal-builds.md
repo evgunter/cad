@@ -2,12 +2,14 @@
 id: two-section-loft-with-an-inverted-top-normal-builds
 kind: issue
 title: A two-section loft whose top section's plane normal points DOWN (against the stacking) builds and tier 3 says Ok — nothing checks the last section's normal against the stacking direction
-status: dispatched
+status: closed
 opened: 2026-09-16
 refs: [2752]
 priority: P0
 cost: M
 branch: carve/fold-reads-the-far-normal
+pr: 4188
+closed: 2026-10-06
 ---
 
 Found by BOOL-6's R2 review (PR 2752), pre-existing at the merge base,
