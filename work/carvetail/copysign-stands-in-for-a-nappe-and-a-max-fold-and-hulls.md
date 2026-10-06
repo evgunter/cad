@@ -4,6 +4,8 @@ kind: issue
 title: sweep's nappe selector and revolve max-fold spell a two-way choice with copysign, which hulls at a decidable tie
 status: open
 opened: 2026-09-12
+priority: P2
+cost: E
 ---
 
 
