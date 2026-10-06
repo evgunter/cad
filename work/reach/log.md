@@ -838,3 +838,12 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **The last pass.** It went to a replacement session, because the first lane blocked three times asking to confirm mid-task instructions. The pass merged main with 4046 and 4042 and fixed each finding with a row its mutant turns red. It flipped the pole-strut row from refusal to build at the closed forms, and filed three items.
 - **Verification.** An independent verifier session found the pass VERIFIED: every mutant red as claimed, and 0 wrong bodies in about 7,800 random-pose op runs per ε. Multi-cap poses refuse 61–80%, almost all at the plane arm's pre-existing near-boundary pre-check, upstream of the cut.
 — (REACH orchestrator)
+
+## 2026-10-06 — the operand gate separates along turning directions (PR 4122)
+
+- **The change.** A pair of faces or edges is declared apart along the anchor axis or any planar face normal of either operand, not just the world axes, so a verdict no longer depends on the pose. `boxes::circle_box` gives a tilted section circle its true extent. Four doors read the one test after the box test passes.
+- **Tier.** Single FULL review (M). It was not a dual pair, so there is no DR row.
+- **Review.** APPROVE-WITH-FIXES, with 0 MAJOR. The rows could not catch a reach that under-covers: a 0.1% shrink survived every row, while the reviewer's exact-support plate probe went red. The axis set was recomputed in hot loops. NOTE-4: the Approx arm asked about the sphere *face*, which was sound only while that face's reach was the whole ball. PR 4123 tightens that reach.
+- **The last pass.** It promoted the plate probe to a row; the shrink mutant turns it red at ε 1e-9 and 1e-12, while at 1e-6 the pad covers the shrink. The Approx arm now asks about the whole ball, with a row that goes red if a sphere face's reach narrows. The axis set is computed once per operation and deduped. The test oracle no longer cancels near ẑ. Three items were filed.
+- **Verification.** An independent verifier session found the pass VERIFIED: over 24,282 oracle runs it diffed every verdict against an `apart`-never-clears mutant, and no touching pair was cleared. A conflict with main in `ops.rs` was then merged and resolved.
+— (REACH orchestrator)
