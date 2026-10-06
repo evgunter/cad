@@ -2,8 +2,9 @@
 id: the-part-chooser-creates-an-instance-with-no-label-field
 kind: issue
 title: An instance created from the part chooser gets no proposed, editable label
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-06
 priority: P3
 cost: E
 refs: [node-labels-are-document-data]
