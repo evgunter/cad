@@ -6013,8 +6013,10 @@ mod fillet_stored_form {
                     radius,
                     sweep,
                 },
-                apex,
-                span_chord: arc.a.distance(apex),
+                span: seg::ArcSpan::Chord {
+                    apex,
+                    span_chord: arc.a.distance(apex),
+                },
                 turn,
             }),
             ..*arc

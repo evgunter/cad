@@ -6431,6 +6431,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge", 2),
     ("empty", 2),
     ("empty_boolean", 2),
+    // Coincidence, not one fact: a profile loop authored with no vertex,
+    // refused at validation, and a body face's empty (scaffolding) loop,
+    // refused by the tessellator.
+    ("empty_loop", 2),
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),

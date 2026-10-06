@@ -764,6 +764,14 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "a contact point told apart from a loop vertex by their separation",
     ),
     (
+        "full_turn_reach",
+        "how far a full turn reaches from its vertex, levered by its diameter",
+    ),
+    (
+        "full_turn_sense",
+        "a full turn's signed reach from its vertex, whose sign is its turn",
+    ),
+    (
         "line_span",
         "how far inside a segment a point falls, from whichever end is nearer",
     ),
