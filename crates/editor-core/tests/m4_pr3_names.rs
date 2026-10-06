@@ -264,14 +264,7 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
         );
     }
     for s in 0..4 {
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Face,
-                rev,
-                RoleSeg::Band(pe(&doc, rev, 0, s).into())
-            ))
-            .is_some()
-        );
+        assert!(t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some());
         assert!(
             t.lookup(&minted(
                 EntityKind::Edge,
@@ -356,14 +349,7 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
     // 4 meridian vertices.
     assert_eq!(t.len(), 17);
     for s in 0..4 {
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Face,
-                rev,
-                RoleSeg::Band(pe(&doc, rev, 0, s).into())
-            ))
-            .is_some()
-        );
+        assert!(t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some());
         assert!(
             t.lookup(&minted(
                 EntityKind::Edge,
