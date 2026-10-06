@@ -280,13 +280,6 @@ impl<T: Real> Span<T> {
     fn abs_max(self) -> T {
         self.hi.max(-self.lo)
     }
-
-    /// A LOWER bound on `|x|` over the span — zero as soon as the
-    /// span straddles zero, branch-free (`max(0, max(lo, −hi))`), so
-    /// no scalar is asked to decide a sign it may not know.
-    fn abs_min(self) -> T {
-        T::zero().max(self.lo.max(-self.hi))
-    }
 }
 
 /// Three coordinate spans: a box, a point, or a direction, depending
@@ -343,7 +336,10 @@ impl<T: Real> UnitSpanBox<T> {
 /// them whose first axis is a decided unit direction.
 ///
 /// Every per-kind extent in this module computes coordinate `i` of its
-/// box from coordinate `i` of its inputs alone
+/// box from coordinate `i` of its inputs alone, save one reading: a
+/// unit axis's room perpendicular to row `i` ([`perp_room`]), which is
+/// the norm of the axis's part off that row, `√(a_j² + a_k²)`, and
+/// which every orthonormal frame keeps as it keeps `a_i`
 /// (`every_extent_reads_each_coordinate_from_that_coordinate_alone`
 /// holds each of them to it, bit for bit), and its soundness argument
 /// reads coordinate `i` as the component along a UNIT direction —
@@ -582,8 +578,9 @@ pub(crate) fn edge_axial_span<T: Real>(
 /// the arm: the boundary already bounds the axial extent, and adding
 /// `radius` there claimed a slab longer than the face.
 ///
-/// `axis_i²` is bounded BELOW ([`Span::abs_min`]) so the perpendicular
-/// factor is bounded above, which is the sound direction; an axis
+/// The room is read off the axis's other two components, each bounded
+/// ABOVE ([`Span::abs_max`]), so the perpendicular factor is bounded
+/// above, which is the sound direction ([`perp_room`]); an axis
 /// bracket that does not pin the direction reads as more
 /// perpendicular room, never less, and a poisoned one poisons the box.
 ///
@@ -596,27 +593,42 @@ pub(crate) fn slab_extent<T: Real>(
     radius: T,
 ) -> SpanBox<T> {
     let axis = axis.get();
+    let room = |i| perp_room(others([axis.x, axis.y, axis.z], i));
     SpanBox {
-        x: origin
-            .x
-            .add(h.mul(axis.x))
-            .widen(radius * perp_room(axis.x)),
-        y: origin
-            .y
-            .add(h.mul(axis.y))
-            .widen(radius * perp_room(axis.y)),
-        z: origin
-            .z
-            .add(h.mul(axis.z))
-            .widen(radius * perp_room(axis.z)),
+        x: origin.x.add(h.mul(axis.x)).widen(radius * room(0)),
+        y: origin.y.add(h.mul(axis.y)).widen(radius * room(1)),
+        z: origin.z.add(h.mul(axis.z)).widen(radius * room(2)),
     }
 }
 
 /// The most one coordinate of a UNIT vector perpendicular to a unit
-/// `axis` can be: `√(1 − axis_i²)`, with `axis_i²` bounded BELOW so
-/// the room is bounded above — the sound direction ([`slab_extent`]).
-fn perp_room<T: Real>(a: Span<T>) -> T {
-    (T::one() - a.abs_min().powi(2)).max(T::zero()).sqrt()
+/// `axis` can be: `√(1 − axis_i²)`, spelled `√(axis_j² + axis_k²)`
+/// over the OTHER two coordinates `(j, k)` of the axis, each bounded
+/// ABOVE so the room is bounded above — the sound direction
+/// ([`slab_extent`]).
+///
+/// The two spellings agree for a unit axis, but `1 − axis_i²` cancels
+/// as the axis nears row `i`: `axis_i²` rounds by `u` absolute, so the
+/// room it leaves is off by about `u/(2·room)` and is exactly zero
+/// below `room ≈ 1e-8`, dropping the widening `radius·room` the axis's
+/// tilt owes. The other two components carry the room to a few ulps of
+/// itself.
+fn perp_room<T: Real>((j, k): (Span<T>, Span<T>)) -> T {
+    (j.abs_max().powi(2) + k.abs_max().powi(2)).sqrt()
+}
+
+/// The coordinates of `v` other than `i`, in cyclic order — the pair
+/// [`perp_room`] reads for coordinate `i`.
+fn others<T: Copy>(v: [T; 3], i: usize) -> (T, T) {
+    (v[(i + 1) % 3], v[(i + 2) % 3])
+}
+
+/// The norm of `v`'s components other than `k`: a unit `v`'s share of
+/// a direction perpendicular to it along row `k`, without the
+/// cancellation of `√(1 − v_k²)` ([`perp_room`]).
+fn pick_other<T: Real>(v: Vec3<T>, k: usize) -> T {
+    let (j, l) = others([v.x, v.y, v.z], k);
+    (j.powi(2) + l.powi(2)).sqrt()
 }
 
 /// The CONE FRUSTUM over the axial window `h` — the slab whose radius
@@ -654,15 +666,17 @@ pub(crate) fn cone_frustum_extent<T: Real>(
     tan_half_angle: T,
 ) -> SpanBox<T> {
     let h0 = h.lo.max(T::zero()).min(h.hi);
-    let coord = |o: Span<T>, a: Span<T>| {
-        let k = tan_half_angle * perp_room(a);
+    let rows = [axis.x, axis.y, axis.z];
+    let coord = |o: Span<T>, i: usize| {
+        let a = rows[i];
+        let k = tan_half_angle * perp_room(others(rows, i));
         let at = |t: T| Span::exact(t).mul(a).widen(t.abs() * k);
         o.add(at(h.lo).hull(at(h.hi)).hull(at(h0)))
     };
     SpanBox {
-        x: coord(apex.x, axis.x),
-        y: coord(apex.y, axis.y),
-        z: coord(apex.z, axis.z),
+        x: coord(apex.x, 0),
+        y: coord(apex.y, 1),
+        z: coord(apex.z, 2),
     }
 }
 
@@ -692,11 +706,12 @@ pub(crate) fn torus_extent<T: Real>(
     major: T,
     minor: T,
 ) -> SpanBox<T> {
-    let reach = |a: Span<T>| (major + minor) * perp_room(a) + minor * a.abs_max();
+    let rows = [axis.x, axis.y, axis.z];
+    let reach = |i: usize| (major + minor) * perp_room(others(rows, i)) + minor * rows[i].abs_max();
     SpanBox {
-        x: center.x.widen(reach(axis.x)),
-        y: center.y.widen(reach(axis.y)),
-        z: center.z.widen(reach(axis.z)),
+        x: center.x.widen(reach(0)),
+        y: center.y.widen(reach(1)),
+        z: center.z.widen(reach(2)),
     }
 }
 
@@ -732,8 +747,8 @@ pub(crate) fn torus_extent<T: Real>(
 /// Per coordinate `i`, from the chart's own second derivatives
 /// (`geom::Surface::ders`): `S_uu = −(R + r cos v)·ê(u)`, so
 /// `|S_uu,i| ≤ (R + r)·√(1 − axisᵢ²)` — the [`perp_room`] of
-/// [`slab_extent`], with `axisᵢ²` bounded BELOW so the charge is
-/// bounded above; and `S_vv = −r(cos v·ê + sin v·n)`, so
+/// [`slab_extent`], read off the other two components bounded ABOVE so
+/// the charge is bounded above; and `S_vv = −r(cos v·ê + sin v·n)`, so
 /// `|S_vv,i| ≤ r·√(êᵢ² + nᵢ²) ≤ r`.
 ///
 /// # Rounding, per step
@@ -804,13 +819,15 @@ pub(crate) fn torus_window_extent<T: Real>(
     // The two channels' charges, each in [`subdivision_charge`]'s one
     // spelling: `‖f_uu‖·h_u²/8` and `‖f_vv‖·h_v²/8`.
     let outer = major.hi + minor.hi;
-    let charge = |a: Span<T>| {
-        subdivision_charge(outer * perp_room(a), hu) + subdivision_charge(minor.hi, hv)
+    let rows = [axis.x, axis.y, axis.z];
+    let charge = |i: usize| {
+        subdivision_charge(outer * perp_room(others(rows, i)), hu)
+            + subdivision_charge(minor.hi, hv)
     };
     SpanBox {
-        x: hulled.x.widen(charge(axis.x)),
-        y: hulled.y.widen(charge(axis.y)),
-        z: hulled.z.widen(charge(axis.z)),
+        x: hulled.x.widen(charge(0)),
+        y: hulled.y.widen(charge(1)),
+        z: hulled.z.widen(charge(2)),
     }
 }
 
@@ -1483,7 +1500,9 @@ pub(crate) const BOX_SPHERE_SEAM_UNIT: &str = "bool_box_sphere_seam_unit";
 /// scalar without outward rounding (`f64`, whose `lo()`/`hi()` are
 /// identities) leaves a few ulps of `|c| + r` either side of the exact
 /// support. Each end is therefore charged [`SPHERE_REACH_ULPS`] ulps of
-/// `|c| + r` outward. The ball is not: it is the one-rounding `c ± r`
+/// `|c| + r` outward, which bounds every step's rounding only because
+/// no step cancels: the zone's share of the axis's normal plane is the
+/// norm of the axis's other two components, not `√(1 − a²)`. The ball is not: it is the one-rounding `c ± r`
 /// every kind's whole-carrier arm reads.
 ///
 /// # Panics
@@ -1519,9 +1538,13 @@ pub(crate) fn sphere_reach<T: Decide>(
         let (p, q, u) = match az {
             Some((u, u_ref, v_ref)) => (pick(frame.vector(u_ref)), pick(frame.vector(v_ref)), u),
             // The whole turn: any frame of the axis's normal plane, of
-            // which the coordinate's share is `√(1 − a²)`.
+            // which the coordinate's share is `√(1 − a²)`, read as the
+            // axis's other two components' norm. `1 − a²` cancels as
+            // the row nears the axis and loses the share outright below
+            // `p ≈ 1e-8`, so the radial term `r·p·cos v` went missing
+            // from the box: the term this reach exists to keep.
             None => (
-                (T::one() - ax.powi(2)).max(T::zero()).sqrt(),
+                pick_other(a, k),
                 T::zero(),
                 Span {
                     lo: T::zero(),
@@ -1538,9 +1561,21 @@ pub(crate) fn sphere_reach<T: Decide>(
 }
 
 /// The ulps of `|c| + r` [`sphere_reach`] charges each end of a window's
-/// support: `atan2`, `cos`, `sin` and `sqrt` are each within a few ulps,
-/// and the support composes a handful of them with the products and the
-/// sum that carry `c`.
+/// support.
+///
+/// The steps, to first order, in ulps of `|c| + r` (an angle's error
+/// moves `r·cos(…)` by at most `r` times it): the axis and seam
+/// components mapped into the frame, about 1.5 each; the normal-plane
+/// share and `B = √(M² + a²)`, 1.5 each (both are norms of components,
+/// so neither cancels); the crest's `atan2` and each latitude end's
+/// (`atan2` of a dot-product pair), up to 3.5 between them; the angle
+/// difference and its `cos`, 1.5; the products by `r`, 1; the sum with
+/// `c`, 0.5. That is under 12, and the charge is 16. The zone arm once
+/// read its share as `√(1 − a²)`, which no ulp count bounds: it lost the
+/// share outright with the axis `1e-8` off a row.
+/// `sphere_rect_rows::a_zone_reach_charge_covers_random_poses_near_a_box_row`
+/// measures the worst at under 2.5 over 12 000 random caps with axes
+/// near a row, at ε 1e-9, 1e-6 and 1e-12.
 const SPHERE_REACH_ULPS: f64 = 16.0;
 
 /// **A sphere face's chart window**, from the window
@@ -5390,7 +5425,10 @@ pub(crate) mod tests {
     /// coordinate into the first would be exact in the world frame and
     /// unsound in an aimed one, which no world row could see. Each
     /// extent is run twice on inputs that agree in `x` and disagree in
-    /// `y` and `z`, and its `x` span must not move by a bit.
+    /// `y` and `z`, and its `x` span must not move by a bit. The axis's
+    /// `y` and `z` are the one exception the premise names: they are
+    /// turned and swapped, which keeps the norm of the axis off `x`
+    /// ([`perp_room`]) to the bit.
     #[test]
     fn every_extent_reads_each_coordinate_from_that_coordinate_alone() {
         let v = |x: f64, y: f64, z: f64| SpanBox::vector(Vec3::new(x, y, z));
@@ -5405,7 +5443,7 @@ pub(crate) mod tests {
         };
         let h = Span { lo: -0.4, hi: 0.9 };
         // Two readings of the same x components: (0.3, …) etc.
-        for (oy, oz, ay, az) in [(5.0, -2.0, 0.6, 0.1), (-7.0, 3.5, 0.0, 0.95)] {
+        for (oy, oz, ay, az) in [(5.0, -2.0, 0.82, -0.5), (-7.0, 3.5, -0.5, -0.82)] {
             let (o0, o1) = (pt(0.3, 0.2, -0.1), pt(0.3, oy, oz));
             let (a0, a1) = (v(0.28, 0.5, 0.82), v(0.28, ay, az));
             let (u0, u1) = (v(0.6, -0.7, 0.2), v(0.6, az, oy));
@@ -5458,6 +5496,53 @@ pub(crate) mod tests {
                 arc_extent(&o0, &u0, &w0, Span::exact(0.9), Span::exact(0.4), 0.2, 2.6),
                 arc_extent(&o1, &u1, &w1, Span::exact(0.9), Span::exact(0.4), 0.2, 2.6),
             );
+        }
+    }
+
+    /// **An axis near a row keeps its perpendicular room.** A
+    /// cylinder, cone or torus whose axis is `t` off `ẑ` reaches
+    /// `radius·sin t` along `z` from its axis point: the room a unit
+    /// direction perpendicular to the axis has along `ẑ`. Spelled
+    /// `√(1 − a_z²)`, the room cancelled and was exactly zero below
+    /// `t ≈ 1e-8`, so a slab of radius `1e3` at `t = 1e-8` sat `1e-5`
+    /// inside its circle along `z`, past any pad its readers take.
+    #[test]
+    fn an_axis_near_a_row_keeps_its_perpendicular_room() {
+        let r = 1e3;
+        let origin = SpanBox::point(Point3::origin());
+        for t in [1e-12f64, 1e-9, 1e-8, 1e-7, 1e-4, 1e-2] {
+            let axis = SpanBox::vector(Vec3::new(t.sin(), 0.0, t.cos()));
+            let room = r * t.sin();
+            // The cone's axis point at `h = r` is `r·cos t` up, read to
+            // an ulp of `r`.
+            let cone = cone_frustum_extent(&origin, &axis, Span::exact(r), 1.0)
+                .z
+                .hi;
+            for (what, reach, slack) in [
+                (
+                    "slab_extent",
+                    slab_extent(&origin, &UnitSpanBox(axis), Span::exact(0.0), r)
+                        .z
+                        .hi,
+                    0.0,
+                ),
+                (
+                    "cone_frustum_extent",
+                    cone - r * t.cos(),
+                    2.0 * r * f64::EPSILON,
+                ),
+                (
+                    "torus_extent",
+                    torus_extent(&origin, &axis, r, 0.0).z.hi,
+                    0.0,
+                ),
+            ] {
+                assert!(
+                    reach >= room * (1.0 - 4.0 * f64::EPSILON) - slack,
+                    "{what}, tilt {t:e}: reaches {reach:e} along z from its axis point, short \
+                     of the room {room:e}"
+                );
+            }
         }
     }
 
@@ -5953,8 +6038,31 @@ mod sphere_rect_rows {
     /// azimuth 0 from the rim up to `z = hc`, each face on `senses`'
     /// side. `(body, north, south)`.
     fn strut_cap_ball(h0: f64, hc: f64, senses: (bool, bool)) -> (Body<f64>, FaceKey, FaceKey) {
-        let tol = Tol::witness();
-        let at = |h: f64| Point3::new((1.0 - h * h).sqrt(), 0.0, h);
+        let world = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+        strut_cap(
+            Point3::origin(),
+            1.0,
+            world,
+            (h0, hc),
+            senses,
+            Tol::witness(),
+        )
+    }
+
+    /// [`strut_cap_ball`] on the sphere of radius `r` about `c`, in the
+    /// right-handed orthonormal `frame` `(x̂, ŷ, ẑ)`: the polar axis is
+    /// `ẑ`, the seam `x̂`, and the heights `(h0, hc)` are latitude
+    /// sines. The seed face carries the strut; which side of the rim it
+    /// is, is `senses`' and the boundary's to say.
+    fn strut_cap(
+        c: Point3<f64>,
+        r: f64,
+        (x, y, z): (Vec3<f64>, Vec3<f64>, Vec3<f64>),
+        (h0, hc): (f64, f64),
+        senses: (bool, bool),
+        tol: Tol,
+    ) -> (Body<f64>, FaceKey, FaceKey) {
+        let at = |h: f64| c + x * (r * (1.0 - h * h).sqrt()) + z * (r * h);
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(at(h0), true).unwrap();
         let sphere = body
@@ -5962,47 +6070,55 @@ mod sphere_rect_rows {
                 seed.face,
                 FaceSurface::New {
                     surface: Surface::Sphere {
-                        center: Point3::origin(),
-                        radius: 1.0,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
+                        center: c,
+                        radius: r,
+                        axis: z,
+                        u_ref: x,
                     },
                     sense: true,
                 },
             )
             .unwrap();
-        let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
-            let Curve3::Circle { center, axis, .. } = carrier else {
-                unreachable!("a cap edge is a circle");
+        // A rim's plane is normal to the axis and takes the seam as its
+        // reference; the strut's contains the axis and takes it.
+        let arc =
+            |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
+                let Curve3::Circle { center, axis, .. } = carrier else {
+                    unreachable!("a cap edge is a circle");
+                };
+                let plane = body.add_surface(Surface::Plane {
+                    origin: center,
+                    normal: axis,
+                    u_ref,
+                });
+                let witness = carrier.mid_point(t0, t1);
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: sphere,
+                        s2: plane,
+                        witness,
+                    },
+                    carrier,
+                    param_start: t0,
+                    param_end: t1,
+                }
             };
-            let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis,
-                u_ref: if axis.z.abs() > 0.5 {
-                    Vec3::unit_x()
-                } else {
-                    Vec3::unit_z()
-                },
-            });
-            let witness = carrier.mid_point(t0, t1);
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: sphere,
-                    s2: plane,
-                    witness,
-                },
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            }
+        // The strut runs from the rim to `hc`: about `−ŷ` its parameter
+        // is the latitude, about `ŷ` the negated one, so either way the
+        // span ascends from the rim's end.
+        let (s0, s1) = (h0.asin(), hc.asin());
+        let (axis, span) = if hc >= h0 {
+            (-y, (s0, s1))
+        } else {
+            (y, (-s0, -s1))
         };
         let meridian = Curve3::Circle {
-            center: Point3::origin(),
-            axis: -Vec3::unit_y(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
+            center: c,
+            axis,
+            radius: r,
+            u_ref: x,
         };
-        let strut = arc(&mut body, meridian, (h0.asin(), hc.asin()));
+        let strut = arc(&mut body, meridian, z, span);
         let e_s = body
             .mev(
                 MevSite::Lone {
@@ -6014,12 +6130,12 @@ mod sphere_rect_rows {
             )
             .unwrap();
         let rim = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, h0),
-            axis: Vec3::unit_z(),
-            radius: (1.0 - h0 * h0).sqrt(),
-            u_ref: Vec3::unit_x(),
+            center: c + z * (r * h0),
+            axis: z,
+            radius: r * (1.0 - h0 * h0).sqrt(),
+            u_ref: x,
         };
-        let rim = arc(&mut body, rim, (0.0, core::f64::consts::TAU));
+        let rim = arc(&mut body, rim, x, (0.0, core::f64::consts::TAU));
         let made = body
             .mef(
                 MefSite::Chords {
@@ -6080,6 +6196,184 @@ mod sphere_rect_rows {
             floors.iter().any(|&z| (z + 0.5).abs() < 1e-9),
             "a cap whose strut reaches the pole reads its window [rim, pole] under its own \
              sense; the floors were {floors:?}"
+        );
+    }
+
+    /// The right-handed orthonormal frame whose `ẑ` is `axis`: `x̂` is
+    /// the world row least along `axis`, made square to it.
+    fn frame_about(axis: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
+        let z = axis * (1.0 / axis.norm());
+        let rows = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
+        let least = rows
+            .into_iter()
+            .min_by(|a, b| a.dot(z).abs().total_cmp(&b.dot(z).abs()))
+            .unwrap();
+        let x = least - z * least.dot(z);
+        let x = x * (1.0 / x.norm());
+        (x, z.cross(x), z)
+    }
+
+    /// **The exact support of a latitude zone** `[s_lo, s_hi]` (latitude
+    /// sines) of the sphere `(c, r)` with polar axis `z`, along world
+    /// row `k`: `c_k ± r·max cos(v − β)` over the zone, `β` the row's
+    /// latitude (`±β` for the two ends). Its cosine is the norm of the
+    /// axis's other two components, which carries it without
+    /// cancellation, as the reach under test must.
+    fn zone_support(
+        c: Point3<f64>,
+        r: f64,
+        z: Vec3<f64>,
+        (s_lo, s_hi): (f64, f64),
+        k: usize,
+    ) -> (f64, f64) {
+        let z = z * (1.0 / z.norm());
+        let comps = [z.x, z.y, z.z];
+        let sin_b = comps[k];
+        let cos_b = super::pick_other(z, k);
+        let best = |sin_b: f64| {
+            let (lo, hi) = (s_lo.asin(), s_hi.asin());
+            let b = sin_b.atan2(cos_b);
+            if (lo..=hi).contains(&b) {
+                1.0
+            } else {
+                let s = if b < lo { s_lo } else { s_hi };
+                (1.0 - s * s).sqrt() * cos_b + s * sin_b
+            }
+        };
+        let ck = [c.x, c.y, c.z][k];
+        (ck - r * best(-sin_b), ck + r * best(sin_b))
+    }
+
+    /// **A zone whose axis nears a box row keeps its radial share**
+    /// (the verifier's repro). The cap below the rim `h0 = −0.3` of a
+    /// sphere of radius `1e3`, strutted to its south pole, wraps the
+    /// azimuth alone, so the reach reads its latitude zone. Its axis is
+    /// `t` off `ẑ`, and its top along `z` is on the rim,
+    /// `c_z + r·(sin v₀·cos t + cos v₀·sin t)`. The share `√(1 − a_z²)`
+    /// of the axis's normal plane cancelled to exactly zero below
+    /// `t ≈ 1e-8`, so the box dropped `r·t·cos v₀`: at `ε = 1e-9` it
+    /// sat ~1e-5 m inside the face, about 800 times the pad its readers
+    /// take. The box, padded as its readers pad it, must reach the rim
+    /// at every tilt and every ε.
+    #[test]
+    fn a_zone_axis_near_a_box_row_keeps_its_radial_share() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (r, h0) = (1e3, -0.3);
+        let c = Point3::new(120.0, -40.0, 75.0);
+        for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
+            let axis = Vec3::new(t.sin(), 0.0, t.cos());
+            let (body, cap, _) = strut_cap(c, r, frame_about(axis), (h0, -1.0), (false, true), tol);
+            let boxed = face_box(&body, cap, super::sweep_pad(band), band).unwrap();
+            let top = c.z + r * (h0 * t.cos() + (1.0 - h0 * h0).sqrt() * t.sin());
+            assert!(
+                boxed.max_z >= top,
+                "tilt {t:e}: the padded box's top {} is {:e} m inside the cap's rim {top}",
+                boxed.max_z,
+                top - boxed.max_z
+            );
+            // The window was read: the box is the zone, not the ball.
+            assert!(
+                boxed.max_z < c.z,
+                "tilt {t:e}: the cap's box {} reads the ball, not its zone",
+                boxed.max_z
+            );
+        }
+    }
+
+    /// **The reach's outward charge covers its rounding, measured.**
+    /// Random caps strutted onto a pole (the zone arm), with axes within
+    /// `10⁻¹⁰` to `10⁻¹` of a random box row, at scales `1e-3`, `1` and
+    /// `1e3` (those the run's ε resolves), read at pad 0 by all three lanes along every row against
+    /// the exact support ([`zone_support`]). Each lane must enclose the
+    /// face, and `sphere_reach`'s uncharged support must fall short of
+    /// the exact one by no more than the 4 ulps of `|c_k| + r` measured,
+    /// a quarter of the [`super::SPHERE_REACH_ULPS`] it is charged.
+    #[test]
+    fn a_zone_reach_charge_covers_random_poses_near_a_box_row() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut rng =
+            test_utils::fuzz::start("a_zone_reach_charge_covers_random_poses_near_a_box_row");
+        let rows = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
+        let (mut faces, mut worst) = (0usize, 0.0f64);
+        let wanted = test_utils::fuzz::scaled(600).max(500);
+        while faces < wanted {
+            let s = [1e-3, 1.0, 1e3][rng.below(3)];
+            let r = s * rng.range(0.5, 2.0);
+            // A body the run's ε cannot resolve is not built: one under
+            // `10⁴ ε`, or one whose coordinates' rounding (64 ulps of the
+            // farthest point) reaches ε, which the pcurve envelopes then
+            // refuse to certify.
+            if r < 1e4 * tol.eps() || (4.0 * s + r) * 64.0 * f64::EPSILON > tol.eps() {
+                continue;
+            }
+            let c = Point3::new(
+                s * rng.range(-2.0, 2.0),
+                s * rng.range(-2.0, 2.0),
+                s * rng.range(-2.0, 2.0),
+            );
+            let row = rows[rng.below(3)];
+            let (side, _, _) = frame_about(row);
+            let side = {
+                let phi = rng.range(0.0, core::f64::consts::TAU);
+                side * phi.cos() + row.cross(side) * phi.sin()
+            };
+            let t = 10f64.powf(rng.range(-10.0, -1.0));
+            let sign = if rng.below(2) == 0 { 1.0 } else { -1.0 };
+            let axis = row * (sign * t.cos()) + side * t.sin();
+            let h0 = rng.range(-0.9, 0.9);
+            let pole = if rng.below(2) == 0 { -1.0 } else { 1.0 };
+            let window = if pole < 0.0 { (-1.0, h0) } else { (h0, 1.0) };
+            let frame = frame_about(axis);
+            // The seed face is the cap the strut stands in under the
+            // sense that puts it on the strut's side of the rim.
+            let (body, cap, _) = strut_cap(c, r, frame, (h0, pole), (pole > 0.0, true), tol);
+            let (lo, hi) = sphere_reach(&body, cap, band, &BoxFrame::World);
+            let boxed = face_box(&body, cap, 0.0, band).unwrap();
+            let (clo, chi) = crate::census::face_reach(&body, cap, band).unwrap();
+            assert!(
+                hi.x - lo.x < 2.0 * r || hi.y - lo.y < 2.0 * r || hi.z - lo.z < 2.0 * r,
+                "a cap strutted onto its pole reads its zone, not the ball"
+            );
+            for k in 0..3 {
+                let (slo, shi) = zone_support(c, r, frame.2, window, k);
+                let pick = |p: Point3<f64>| [p.x, p.y, p.z][k];
+                let b = [
+                    (boxed.min_x, boxed.max_x),
+                    (boxed.min_y, boxed.max_y),
+                    (boxed.min_z, boxed.max_z),
+                ][k];
+                for (lane, (l, h)) in [
+                    ("sphere_reach", (pick(lo), pick(hi))),
+                    ("face_box", b),
+                    ("census::face_reach", (pick(clo), pick(chi))),
+                ] {
+                    assert!(
+                        l <= slo && h >= shi,
+                        "{lane}, row {k}, axis {axis:?}, c {c:?}, r {r}, window {window:?}: \
+                         [{l}, {h}] does not enclose the face's [{slo}, {shi}]"
+                    );
+                }
+                let ulp = (pick(c).abs() + r) * f64::EPSILON;
+                let slack = ulp * super::SPHERE_REACH_ULPS;
+                let short = ((pick(lo) + slack) - slo).max(shi - (pick(hi) - slack)) / ulp;
+                worst = worst.max(short);
+            }
+            faces += 1;
+        }
+        eprintln!(
+            "{faces} faces: the uncharged reach falls short by at most {worst:.2} ulps of |c| + r"
+        );
+        // Measured under 2.5 at every ε (12 000 faces at effort 20); a
+        // step that starts to cancel again shows here long before it
+        // eats the charge.
+        const MEASURED_WORST_ULPS: f64 = 4.0;
+        assert!(
+            worst <= MEASURED_WORST_ULPS && MEASURED_WORST_ULPS <= super::SPHERE_REACH_ULPS,
+            "the uncharged reach falls short by {worst} ulps, past the {MEASURED_WORST_ULPS} \
+             measured (the charge is {})",
+            super::SPHERE_REACH_ULPS
         );
     }
 
