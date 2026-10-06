@@ -7248,3 +7248,24 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Probes: 651 cases, 0 diffs.
   - Reviewer `session_0141b8jK7BaH43achrrorLfJ` dispatched (FULL): no regression from deriving every image; the 4060 doors are behaviour-identical; the `moves` threshold. Implementer archived (about $3.9).
 - Nothing new on PR 3970.
+
+## 03:05 check-in (2026-10-06)
+
+- **PR 4076 merged** at `02a193af` (head `0b6c3952`). The fixes:
+  - `RayExhausted` reads `GRAZED` / `MOVE_GEOMETRY` at all three tier-3 arms;
+  - the class is swept: census `WitnessGrazed`; `PointInSolidError`'s `Display` (the `COINCIDENCE_RECOURSE` dropped); `classify_chart_region`'s reason; `chart_region.rs`'s `Display` filed on CHART;
+  - `OffPlane` is per cause (tier 3, with a census `OffPlane` variant);
+  - `ZeroVolumeBody` is the user's to fix in both. The +V gate exempts in-band zero, so the census was right;
+  - a poisoned-margin witness;
+  - "of it" phrasing fixed.
+  - The before/after renderings are tabled in the PR. Fix lane archived (about $4.4).
+- **PR 4078:** the fix pass (`7f0de1a`) answered everything:
+  - A1–A7 witnesses red, one per site;
+  - C15/C16 renamed and their docs corrected (no load-bearing fixture exists);
+  - the `along_edge_spec` point hop is a link;
+  - `sphere_zone_reach`'s `unreachable!`s became `torn_outer_loop`, naming the link;
+  - `Body::face_boundary_linked`, used at 4 sites, with `face-boundary-walks-spell-the-linked-prelude-by-hand` filed;
+  - batteries: 15 shards + 55 tests, 0 diffs.
+  - I merged main (with PR 4076; both touch `census.rs` and `solid_contain.rs`; clean, `cargo check` ok) at `537d5fe4`. CI running. Fix lane archived.
+  - #4081 (cleave) still open; it collides in `chord_join.rs` with whichever lands second.
+- PR 4080: no review yet. Nothing new on PR 3970.
