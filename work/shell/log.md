@@ -1207,3 +1207,9 @@ Fix list of ten items sent to the lane. Both pre-existing wrong bodies are to be
   `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
   (P0): the pin's own text says the entry has retired. Every PR that
   merges main is red on the `demos` job until it is resolved.
+
+## 2026-10-06 18:27 — unit 6 MERGED; unit 7 dispatched
+
+- **Unit 6 merged.** PR 4151 merged at `75e040f1`. CI on its fix-pass head `393dbb29` was fully green, including the demos job and the 1e-6 pass, since main had fixed both by then. The DUAL-REVIEW-LOG row DR-91 rode it as the last commit (`fb69ee74`), with tally 0, fair. The klein-lift item is closed. The implementer session is archived.
+- **Unit 7 dispatched.** Item `shell-open-refuses-a-curved-designated-face`, branch `shell/curved-mouth`, session `session_01AYdrwh3ShH3k149P2Kq1ju`, DUAL tier. The spec basis is the item's `## Decided` section.
+- **Unit 5.** The lane on PR 4163 was told to merge main, take 4151's `offset_axial.rs` as the base, and finish the S4 sweep.
