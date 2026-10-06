@@ -447,20 +447,18 @@ pub fn offset_surface<T: geom_core::Decide>(
 ///
 /// # Errors
 ///
-/// [`offset_surface`]'s own refusal of `from`'s kind, where it has one
-/// independent of `d`: [`OffsetError::NotClosedUnderOffset`] for a
-/// NURBS, [`OffsetError::ApproxNesting`] for an approximating surface.
-/// No `d` mints anything from either, so there is none to answer.
-///
-/// # Panics
-///
-/// When `onto` is an analytic kind other than `from`'s: the mint never
-/// changes kind, so two such surfaces are not an offset pair and the
-/// caller holds the wrong one.
+/// [`OffsetDistanceError::Offset`] carrying [`offset_surface`]'s own
+/// refusal of `from`'s kind, where it has one independent of `d`:
+/// [`OffsetError::NotClosedUnderOffset`] for a NURBS,
+/// [`OffsetError::ApproxNesting`] for an approximating surface. No `d`
+/// mints anything from either, so there is none to answer.
+/// [`OffsetDistanceError::KindsDiffer`] when `onto` is an analytic kind
+/// other than `from`'s: the mint never changes kind, so the two are not
+/// an offset pair.
 pub fn offset_distance<T: geom_core::Real>(
     from: &Surface<T>,
     onto: &Surface<T>,
-) -> Result<T, OffsetError<T>> {
+) -> Result<T, OffsetDistanceError<T>> {
     match (from, onto) {
         (
             Surface::Plane { origin, normal, .. },
@@ -501,12 +499,44 @@ pub fn offset_distance<T: geom_core::Real>(
                 apex: onto_apex, ..
             },
         ) => Ok((*apex - *onto_apex).dot(*axis) * half_angle.sin()),
-        (Surface::Nurbs(_), _) => Err(OffsetError::NotClosedUnderOffset),
-        (Surface::Approx(_), _) => Err(OffsetError::ApproxNesting),
-        (from, onto) => panic!(
-            "offset_distance: a {:?} is never the offset of a {:?}; the mint keeps its kind",
-            onto.kind(),
-            from.kind()
-        ),
+        (Surface::Nurbs(_), _) => Err(OffsetDistanceError::Offset(
+            OffsetError::NotClosedUnderOffset,
+        )),
+        (Surface::Approx(_), _) => Err(OffsetDistanceError::Offset(OffsetError::ApproxNesting)),
+        (from, onto) => Err(OffsetDistanceError::KindsDiffer {
+            from: from.kind(),
+            onto: onto.kind(),
+        }),
     }
 }
+
+/// Typed refusal of [`offset_distance`] (D4 ¶3).
+#[derive(Clone, Debug)]
+pub enum OffsetDistanceError<T: geom_core::Real> {
+    /// `from` is a kind [`offset_surface`] refuses at every distance.
+    Offset(OffsetError<T>),
+    /// `onto` is not the kind `from` offsets to.
+    KindsDiffer {
+        /// `from`'s kind.
+        from: SurfaceKind,
+        /// `onto`'s kind.
+        onto: SurfaceKind,
+    },
+}
+
+impl<T: geom_core::Real> core::fmt::Display for OffsetDistanceError<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Offset(error) => write!(f, "{error}"),
+            Self::KindsDiffer { from, onto } => write!(
+                f,
+                "offset_distance: a {} is never the offset of a {}, since an offset keeps its \
+                 kind",
+                onto.name(),
+                from.name()
+            ),
+        }
+    }
+}
+
+impl<T: geom_core::Real> std::error::Error for OffsetDistanceError<T> {}

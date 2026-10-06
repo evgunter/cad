@@ -131,7 +131,9 @@ pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
 };
-pub use offset::{ConeOffset, Nappe, OffsetError, offset_distance, offset_surface};
+pub use offset::{
+    ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,
+};
 pub use offset_fit::{
     BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,

@@ -2,11 +2,13 @@
 id: shell-open-refuses-a-curved-designated-face
 kind: issue
 title: shell_open refuses every non-plane designated face at construction, where only the props reading of a curved ringed rim is missing
-status: open
+status: review
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [shell-offset-three-followups]
+pr: 4191
+branch: shell/curved-mouth
 ---
 
 

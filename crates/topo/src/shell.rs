@@ -245,7 +245,9 @@
 //!    re-describes a moved face's boundary against its untouched
 //!    neighbours — extends the cavity's side walls up to meet it;
 //! 3. both charts reduced to ONE face carrying disjoint cycles
-//!    ([`canonicalize_chart`]);
+//!    ([`canonicalize_chart`]) — except the surviving side of a
+//!    periodic chart, which keeps its faces (below, "A curved
+//!    designated face");
 //! 4. `kfmrh` on the pair: the cavity counterpart dies, its outer loop
 //!    becomes a RING of the designated face, and the cavity shell fuses
 //!    into the outer one. A counterpart HOLE is promoted to its own rim
@@ -283,6 +285,35 @@
 //! band precedent verbatim; no new machinery, and in particular no
 //! ladder of quads (which would chamfer the opening rather than rim
 //! it — the geometry that made step 2 necessary).
+//!
+//! # A curved designated face
+//!
+//! No surface kind is refused: the rim takes its chart's own form.
+//! The lift distance is the inverse of the offset mint
+//! ([`geom_brep::offset_distance`]), read along the doors' convention,
+//! so a cylinder, sphere or torus comes back by its change of radius
+//! and a cone by its apex slide. Then, on a PERIODIC chart:
+//!
+//! - **A chart that wraps its period** — its surviving side carries an
+//!   interior edge, a seam between two branches or one a face walks
+//!   twice — becomes a SEAMED BAND, the shape the full revolve mints.
+//!   The surviving side is not reduced: the glue makes the dying side's
+//!   boundary a ring of its first face, and each seam's pole end is then
+//!   re-anchored on the ring corner that stands for its boundary end
+//!   ([`seamed_band`]), so every face and seam of the operand's chart
+//!   survives under its key and no face carries a ring. Built through a
+//!   POLE today (a cap, two branches or one); a band that wraps between
+//!   two boundaries refuses [`ShellError::OpenFaceRimNotExpressible`].
+//! - **A window that does not wrap** is a ring, exactly as on a plane.
+//!   What its readers cannot yet read is theirs and refuses where they
+//!   read it: a ringed sphere or cone face at tier 3's check 7
+//!   ([`ValidationError::VolumeUncomputable`]), through
+//!   [`ShellError::NotValid`] as the boolean's does, and a ringed
+//!   cylinder wall — which props reads — at the mesh.
+//!
+//! Every nesting question the rim stage asks is read in the chart
+//! ([`encloses`]); check 9's contact arm reads only planes, so a curved
+//! ring's contact with its outer loop is not decided here.
 //!
 //! # Why step 3 exists, and what the arm is expressible over
 //!
@@ -796,9 +827,11 @@ pub struct RimNaming {
     /// reading `rim`, `ring`, the ring rows and `dead` take.
     pub side: RimShell,
     /// The rim face (result), now annular. With `side` `Outer` it is
-    /// **`sources[0]`** — the chart's faces merge onto the first one
+    /// **`sources[0]`** — a plane chart's faces merge onto the first one
     /// designated, so a caller that wants a particular face to carry
-    /// the rim's identity names it first. With `side` `Void` it is the
+    /// the rim's identity names it first; a chart that wraps its period
+    /// keeps every face as a branch of the seamed band, and `sources[0]`
+    /// is the first of them. With `side` `Void` it is the
     /// cavity counterpart's twin (`inner_of(sources[0])`), the face
     /// that survives the glue there (module docs); `sources[0]` is
     /// then in `dead.faces`.
@@ -860,7 +893,9 @@ pub struct HoleRim {
 }
 
 /// The result keys the construction retired, in every arena the
-/// record names.
+/// record names. Scaffolding a rim's surgery mints and kills within
+/// itself (a seamed band's struts and its pole's copy) was never in a
+/// row and is not listed.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ShellRetired {
     /// Faces that no longer resolve: a designated chart's merged-away
@@ -1310,7 +1345,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // ---- The rim surgery, per designated CHART. ----
     //
     // Per chart, ONCE — not once per designated face. The rim a
-    // designation asks for is one region of the mouth plane, and how
+    // designation asks for is one region of the mouth chart, and how
     // many faces the operand spent on that region is a fact about the
     // operand's construction rather than about
     // the rim. Both sides of the glue are reduced to one face carrying
@@ -1377,11 +1412,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             .unwrap_or_else(|| undesignated(designated));
 
         // Lift the cavity's counterpart chart back onto the designated
-        // face's own surface. The distance is read from the two PLANES
-        // rather than negated from the way in: the graft's reversal
-        // negates a stored plane normal (`revert`'s own contract), so
-        // "the way back" is not the arithmetic negation of "the way
-        // in", and deriving it from geometry is shorter and sign-safe.
+        // face's own surface. The distance is read from the two
+        // SURFACES (`lift_to`) rather than negated from the way in: the
+        // graft's reversal negates a stored plane normal (`revert`'s own
+        // contract), so "the way back" is not the arithmetic negation of
+        // "the way in", and deriving it from geometry is sign-safe.
         let counterpart_chart = proven(&out.faces, sources[0], EntityId::Face).surface;
         // **The lift is the same corner problem as the cavity**, with
         // one chart moving instead of all of them: the counterpart's
@@ -1609,8 +1644,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             // onto the host's with them: the lift re-charted the
             // counterpart onto a surface of its own, so the host's key
             // is never the guest's chart, and the move writes the
-            // host's bit as stated. The ring lies on the host's plane
-            // too — the lift put the two planes on top of each other —
+            // host's bit as stated. The ring lies on the host's surface
+            // too — the lift put the two charts on top of each other —
             // so each re-description is a key swap with the carrier
             // untouched, certified against the geometry.
             // Tier 3's check 6 reads `sense` against the stored loop
@@ -1703,7 +1738,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         naming.dead.surfaces.extend(fused.killed_surface);
         naming.dead.shells.extend(fused.killed_shell);
         // The ring's edges still NAME the surface that just died. They
-        // lie on the host's surface now — the lift put the two planes
+        // lie on the host's surface now — the lift put the two charts
         // on top of each other — so the re-description is a key swap
         // with the carrier untouched, and the attach layer certifies it
         // against the geometry rather than taking the swap on trust.
@@ -1766,12 +1801,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // ---- The closing mint (module docs, "The closing mint"). ----
     //
     // Placed where the boolean places its own, after the last write.
-    // The position is NOT pinned by any row: moved to just before the
-    // partition the whole suite stays green (every step after the door
-    // is `Neither` for rows and the lift doors mint their clone
-    // whole-body). What would pin it is a designated CURVED chart,
-    // whose rim surgery would write rows after the door; that
-    // designation refuses `OpenFaceRingUnsupported` today.
+    // The rim stage clears the map before each chart's surgery, so on
+    // an opened body with a curved face every such face reaches this
+    // line row-free: moved ahead of the rim stage, the pass would leave
+    // them `Unminted` at the validation below (`shell_curved_mouth`'s
+    // cap row and `verbs_shell`'s revolved cups).
     mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
     // ---- One validation. ----
@@ -2006,9 +2040,12 @@ fn canonicalize_chart<T: Decide>(
             half_edge_points(body, &side1),
             half_edge_points(body, &side2),
         );
-        let ring_first = if encloses(&p1, &p2, band) {
+        let chart = body
+            .face_surface_linked(anchor, proven(&body.faces, anchor, EntityId::Face))
+            .clone();
+        let ring_first = if encloses(&chart, &p1, &p2, band) {
             true
-        } else if encloses(&p2, &p1, band) {
+        } else if encloses(&chart, &p2, &p1, band) {
             false
         } else {
             return Err(not_expressible(
@@ -2028,7 +2065,7 @@ fn canonicalize_chart<T: Decide>(
             let outer = proven(&body.faces, anchor, EntityId::Face).outer;
             (loop_points(body, made.ring), loop_points(body, outer))
         };
-        if !encloses(&ring_pts, &outer_pts, band) {
+        if !encloses(&chart, &ring_pts, &outer_pts, band) {
             return Err(not_expressible(
                 "the chart's slit loop split with the enclosing side as the ring",
             ));
@@ -2165,7 +2202,15 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     // of its surface past the boundary (a junction the cavity's wall
     // meets below the designated face's own).
     for (seam, boundary, corner) in [(ea, ba, p_ga), (eb, bb, p_gb)] {
-        let reach = along(body, seam, point(body, boundary), p_pole, host_surface, band, designated)?;
+        let reach = along(
+            body,
+            seam,
+            point(body, boundary),
+            p_pole,
+            host_surface,
+            band,
+            designated,
+        )?;
         let (s0, s1) = (reach.param_start, reach.param_end);
         let scale = (p_pole - point(body, boundary)).norm() / (s1 - s0);
         let inside = reach
@@ -2445,10 +2490,14 @@ fn pair_rings<T: Decide>(
     let source_rings = rings_of(source);
     let not_expressible =
         |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: rim, what };
+    let chart = body
+        .face_surface_linked(rim, proven(&body.faces, rim, EntityId::Face))
+        .clone();
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
         ([rim_ring], [source_ring]) => {
             if encloses(
+                &chart,
                 &loop_points(body, *source_ring),
                 &loop_points(body, *rim_ring),
                 band,
@@ -2457,6 +2506,7 @@ fn pair_rings<T: Decide>(
                     "the designated face's hole does not sit inside the cavity counterpart's",
                 ))
             } else if encloses(
+                &chart,
                 &loop_points(body, *rim_ring),
                 &loop_points(body, *source_ring),
                 band,
@@ -2591,8 +2641,9 @@ fn loop_points<T: Decide>(
     half_edge_points(body, &body.loop_walk(first).closed("loop", first))
 }
 
-/// Whether `inner` is the ENCLOSED one of two nested coplanar loops,
-/// by mean radius about the pair's common centroid.
+/// Whether `inner` is the ENCLOSED one of two nested loops on the
+/// chart `surface`, by mean radius about the pair's common centroid,
+/// read in that chart ([`chart_read`]).
 ///
 /// The comparison is a mean radius and not a containment proof, and
 /// that is exactly the claim the callers need: the loops compared here
@@ -2603,6 +2654,7 @@ fn loop_points<T: Decide>(
 /// being read off this. One margin, one decide, metered as the length
 /// it is.
 fn encloses<T: Decide>(
+    surface: &geom::Surface<T>,
     inner: &[geom_core::Point3<T>],
     outer: &[geom_core::Point3<T>],
     band: Band,
@@ -2610,12 +2662,98 @@ fn encloses<T: Decide>(
     if inner.is_empty() || outer.is_empty() {
         return false;
     }
+    let Some(read) = chart_read(surface, &[inner, outer], band) else {
+        return false;
+    };
+    let (inner, outer) = read.split_at(inner.len());
     let centre = centroid_of(&[inner, outer]);
     let gap = mean_radius(outer, centre) - mean_radius(inner, centre);
     matches!(
         decide("shell_rim_nesting", Margin::of(gap), band),
         Ok(Sign::Positive)
     )
+}
+
+/// Point runs read into `surface`'s chart, laid flat in metres: a
+/// plane's points as they are (its chart is the plane), a surface of
+/// revolution's as `(u·ρ, v·λ, 0)` — `u` unwrapped about the first
+/// point's, `ρ` that point's distance from the axis and `λ` the length
+/// one unit of `v` spans (`Chart::v_lever`'s). One scale for every
+/// point, so the two runs are compared in one flat picture. `None` on a
+/// chart with no closed-form read (a spline), or a first point on the
+/// axis, where `u` is not defined.
+fn chart_read<T: Decide>(
+    surface: &geom::Surface<T>,
+    runs: &[&[geom_core::Point3<T>]],
+    band: Band,
+) -> Option<Vec<geom_core::Point3<T>>> {
+    use geom::Surface as S;
+    let points = runs.iter().flat_map(|run| run.iter().copied());
+    let (anchor, axis, u_ref) = match surface {
+        S::Plane { .. } => return Some(points.collect()),
+        S::Cylinder {
+            origin,
+            axis,
+            u_ref,
+            ..
+        } => (*origin, *axis, *u_ref),
+        S::Cone {
+            apex, axis, u_ref, ..
+        } => (*apex, *axis, *u_ref),
+        S::Sphere {
+            center,
+            axis,
+            u_ref,
+            ..
+        }
+        | S::Torus {
+            center,
+            axis,
+            u_ref,
+            ..
+        } => (*center, *axis, *u_ref),
+        S::Nurbs(_) | S::Approx(_) => return None,
+    };
+    let v_ref = axis.cross(u_ref);
+    let pi = T::from_f64(core::f64::consts::PI);
+    let sign = |name: &'static str, x: T| decide(name, Margin::of(x), band).ok();
+    let u_v = |p: geom_core::Point3<T>| -> Option<(T, T, T)> {
+        let w = p - anchor;
+        let h = w.dot(axis);
+        let (x, y) = (w.dot(u_ref), w.dot(v_ref));
+        let radial = (x * x + y * y).sqrt();
+        let mut u = y.atan2(x);
+        let v = match surface {
+            S::Cone { half_angle, .. } => {
+                // The mirror nappe's chart u sits half a turn round.
+                if sign("shell_chart_nappe", h)? == Sign::Negative {
+                    u = u + pi;
+                }
+                h / half_angle.cos()
+            }
+            S::Sphere { radius, .. } => *radius * (h / *radius).asin(),
+            S::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            } => *minor_radius * h.atan2(radial - *major_radius),
+            _ => h,
+        };
+        Some((u, v, radial))
+    };
+    let mut points = points.peekable();
+    let (u0, _, lever) = u_v(*points.peek()?)?;
+    if sign("shell_chart_lever", lever)? != Sign::Positive {
+        return None;
+    }
+    points
+        .map(|p| {
+            let (u, v, _) = u_v(p)?;
+            // `u − u0` brought into (−π, π].
+            let (sin, cos) = (u - u0).sin_cos();
+            Some(geom_core::Point3::new(sin.atan2(cos) * lever, v, T::zero()))
+        })
+        .collect()
 }
 
 /// The centroid of several point runs, accumulated from the first
@@ -2745,12 +2883,25 @@ fn lift_to<T: Decide>(
         let data = proven(&body.faces, face, EntityId::Face);
         body.face_surface_linked(face, data)
     };
-    let d = geom_brep::offset_distance(surface(from[0]), surface(onto)).map_err(|error| {
-        ReplaceFaceError::Offset {
-            face: from[0],
-            error,
+    let d = match geom_brep::offset_distance(surface(from[0]), surface(onto)) {
+        Ok(d) => d,
+        Err(geom_brep::OffsetDistanceError::Offset(error)) => {
+            return Err(ReplaceFaceError::Offset {
+                face: from[0],
+                error,
+            });
         }
-    })?;
+        Err(geom_brep::OffsetDistanceError::KindsDiffer {
+            from: kind,
+            onto: other,
+        }) => {
+            unreachable!(
+                "{:?}'s chart, a {kind:?}, is the cavity door's offset of {onto:?}'s {other:?}, \
+                 and an offset keeps its kind",
+                from[0]
+            )
+        }
+    };
     if !matches!(surface(from[0]), geom::Surface::Cone { .. }) {
         return Ok(d);
     }
@@ -3285,6 +3436,41 @@ mod tests {
 
     #[allow(clippy::panic)]
     mod footprint_fuzz;
+
+    /// **Nesting on a curved chart is read in the chart.** Two windows
+    /// on a unit cylinder about `z`, both straddling `u = π`, where
+    /// the raw azimuth jumps a turn, so the read has to unwrap it: the
+    /// inner spans `π ± 0.2` rad and `z ∈ [0.2, 0.8]`, the outer `π ± 0.4` rad and `z ∈ [0, 1]`.
+    /// The inner is inside and the reverse question answers no. A run
+    /// whose first point is on the axis has no `u`, and the read refuses
+    /// rather than guessing.
+    #[test]
+    fn nesting_on_a_cylinder_is_read_in_its_chart() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cylinder = geom::Surface::Cylinder {
+            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        };
+        let window = |du: f64, z0: f64, z1: f64| -> Vec<geom_core::Point3<f64>> {
+            let mut out = Vec::new();
+            for i in 0..=8 {
+                let u = core::f64::consts::PI - du + 2.0 * du * f64::from(i) / 8.0;
+                out.push(geom_core::Point3::new(u.cos(), u.sin(), z0));
+                out.push(geom_core::Point3::new(u.cos(), u.sin(), z1));
+            }
+            out
+        };
+        let (inner, outer) = (window(0.2, 0.2, 0.8), window(0.4, 0.0, 1.0));
+        assert!(encloses(&cylinder, &inner, &outer, band), "inner in outer");
+        assert!(
+            !encloses(&cylinder, &outer, &inner, band),
+            "not the reverse"
+        );
+        let on_axis = vec![geom_core::Point3::new(0.0, 0.0, 0.5)];
+        assert!(chart_read(&cylinder, &[&on_axis, &inner], band).is_none());
+    }
 
     /// **The duplicate scan panics on a ring link that does not
     /// resolve**, where it stepped over it.
