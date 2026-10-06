@@ -156,7 +156,8 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         | T::RingOnCurvedFace { .. }
         | T::EmptyLoop { .. }
         | T::Triangulation { .. }
-        | T::SelfTouchingTrimLoop { .. } => Ok(()),
+        | T::SelfTouchingTrimLoop { .. }
+        | T::PinchWedge { .. } => Ok(()),
     };
     if let Err(failed) = projected {
         return failed;

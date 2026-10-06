@@ -1233,10 +1233,11 @@ enum WallEdge<T: geom_core::Real> {
 ///
 /// # Panics
 ///
-/// Where a boundary half-edge's edge or that edge's curve does not
-/// resolve (D2 row 4): a torn curve is not a carrier the outline has no
-/// piece for. The bodies are at rest (the solid door) or the
-/// reduction's working copies, whose links hold by
+/// Where the outer loop, its walk, a boundary half-edge's edge or that
+/// edge's curve does not resolve (D2 row 4), in the image walk
+/// ([`crate::chord_join::face_azimuth_images`]): a torn curve is not a
+/// carrier the outline has no piece for. The bodies are at rest (the
+/// solid door) or the reduction's working copies, whose links hold by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 #[allow(clippy::too_many_arguments)] // one chart datum, each argument named
 pub(super) fn wall_outline<T: Decide>(
@@ -1297,27 +1298,14 @@ pub(super) fn wall_outline<T: Decide>(
             .copied()
             .ok_or_else(corrupt)
     };
-    // A record miss past `face` answers `CorruptFace` and a torn edge
-    // or curve panics: the walk's `CorruptFace` raises are
+    // A record miss past `face` answers `CorruptFace`, and a torn edge
+    // or curve panicked in the image walk, which read each carrier: the
+    // walk's `CorruptFace` raises are
     // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut edges = Vec::with_capacity(images.len());
     for (i, image) in images.iter().enumerate() {
-        let edge = body.get_half_edge(image.he).ok_or_else(corrupt)?.edge;
-        let carrier = body
-            .edge_curve_linked(
-                edge,
-                linked(
-                    &body.edges,
-                    edge,
-                    EntityId::Edge,
-                    EntityId::HalfEdge(image.he),
-                    "edge",
-                ),
-            )
-            .certified()
-            .map(|c| c.carrier().clone());
-        let (point, normal, rim) = match carrier {
-            Some(geom::Curve3::Line { dir, .. }) => {
+        let (point, normal, rim) = match image.carrier {
+            geom::Curve3::Line { dir, .. } => {
                 if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
                     return unsupported();
                 }
@@ -1328,12 +1316,12 @@ pub(super) fn wall_outline<T: Decide>(
                 });
                 continue;
             }
-            Some(geom::Curve3::Circle {
+            geom::Curve3::Circle {
                 center,
                 axis: c_axis,
                 radius: c_radius,
                 u_ref: c_ref,
-            }) => {
+            } => {
                 let rim = Rim {
                     center,
                     axis: c_axis,
@@ -1345,13 +1333,13 @@ pub(super) fn wall_outline<T: Decide>(
                 }
                 (center, c_axis, true)
             }
-            Some(geom::Curve3::Ellipse {
+            geom::Curve3::Ellipse {
                 center,
                 axis: n,
                 major,
                 minor,
                 u_ref: major_dir,
-            }) => {
+            } => {
                 let cos = n.dot(axis);
                 if zero("bool_wall_section_tilt", sine(cos))?
                     || !zero(

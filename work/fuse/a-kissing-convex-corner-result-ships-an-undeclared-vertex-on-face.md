@@ -2,11 +2,12 @@
 id: a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face
 kind: issue
 title: A convex corner kissing a cube's face ships results with an undeclared vertex-on-face (8 runs, identical on main)
-status: open
+status: parked
 opened: 2026-10-04
 priority: P1
 cost: M
 refs: [a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms]
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

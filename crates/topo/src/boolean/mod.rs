@@ -135,7 +135,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::contact::{BooleanCoincidence, ContactClass};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
@@ -1742,11 +1742,13 @@ pub enum BooleanError {
         /// The validator's tier-2 findings, each naming its entity.
         errors: Vec<ValidationError>,
     },
-    /// An operand holds an inside-out solid: tier 3's check 7 decides
-    /// its signed volume definitely negative
-    /// ([`ValidationError::NegativeVolume`]), so its faces bound the
+    /// An operand holds material wound negative: a solid whose signed
+    /// volume tier 3's check 7 decides definitely negative
+    /// ([`ValidationError::NegativeVolume`]), or a shell check 10 finds
+    /// bounding a region of winding −1 inside a solid whose total is
+    /// positive ([`ValidationError::ShellWinding`]). Its faces bound the
     /// complement of the region they enclose. A finished body never
-    /// holds one; the door reads check 7 itself on an operand whose
+    /// holds one; the door reads both checks itself on an operand whose
     /// scalar runs no at-rest gate (a dual,
     /// [`crate::AtRestOutcome::NotRunAtThisScalar`]), and refuses it
     /// before any classification reads it, rather than answering for
@@ -1754,8 +1756,9 @@ pub enum BooleanError {
     InsideOutOperand {
         /// The offending operand.
         operand: Operand,
-        /// Its first inside-out solid, in arena order.
-        solid: SolidKey,
+        /// The validator's findings, each naming its solid (and, for a
+        /// shell, the shell).
+        errors: Vec<ValidationError>,
     },
     /// F7: two adjacent faces of one operand are structurally or
     /// declaredly coplanar — the operand is not maximal-faced; run
@@ -2697,6 +2700,19 @@ fn backstop_subject(operand: Option<Operand>) -> &'static str {
 }
 
 impl BooleanError {
+    /// The operand gate's refusal on `operand`
+    /// ([`crate::AtRestBody::gate_unverdicted`]), typed for the Boolean.
+    pub(crate) fn unfinished(operand: Operand, unfinished: crate::validate::Unfinished) -> Self {
+        match unfinished {
+            crate::validate::Unfinished::Scaffolding(errors) => {
+                Self::ScaffoldingOperand { operand, errors }
+            }
+            crate::validate::Unfinished::InsideOut(errors) => {
+                Self::InsideOutOperand { operand, errors }
+            }
+        }
+    }
+
     /// An escalation of the coincidence `which` between parts of the two
     /// solids, at a site whose door read the pair's declaration as
     /// `read` ahead of it ([`BooleanDecision::Coincidence`]): the refusal
@@ -5688,7 +5704,9 @@ mod tests {
             },
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
-                solid: SolidKey::default(),
+                errors: vec![ValidationError::NegativeVolume {
+                    solid: crate::entity::SolidKey::default(),
+                }],
             },
             BooleanError::NonMaximalFaces {
                 operand: Operand::A,

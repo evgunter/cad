@@ -51,8 +51,8 @@
 //! [`Body::resolve_half_edge_live`] are it for their callers' shapes.
 use crate::body::Body;
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey,
-    VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
+    LoopKey, VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
 use crate::geometry::PointKey;
@@ -300,6 +300,14 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
     S::map(lookup(arena, key, id, from), |_| ())
 }
 
+/// One member of a face's boundary ([`Body::face_boundary_linked`]).
+pub(crate) enum BoundaryMember<'a, T: Real> {
+    /// An isolated-vertex loop's point.
+    Isolated(Point3<T>),
+    /// A loop cycle member's edge `ek`, whose record is `edge`.
+    Edge { ek: EdgeKey, edge: &'a Edge },
+}
+
 impl<T: Real> Body<T> {
     /// Resolves a vertex's point coordinates (the certification gate's
     /// endpoints): the vertex's miss answered as `from` says
@@ -353,6 +361,43 @@ impl<T: Real> Body<T> {
             .map(move |(lk, field)| {
                 let l = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(face), field);
                 (lk, l)
+            })
+    }
+
+    /// `face`'s boundary, member by member, in [`Body::face_loops_linked`]'s
+    /// order: each isolated-vertex loop's point, and each closed loop
+    /// cycle member's edge. Every hop is a link, and a loop
+    /// walk that does not close panics ([`crate::body::Walk::closed`]).
+    pub(crate) fn face_boundary_linked<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = BoundaryMember<'a, T>> + 'a {
+        self.face_loops_linked(face, data)
+            .flat_map(move |(lk, l)| match l.boundary {
+                LoopBoundary::Empty { vertex } => {
+                    vec![BoundaryMember::Isolated(self.linked_vertex_point(
+                        vertex,
+                        EntityId::Loop(lk),
+                        "vertex",
+                    ))]
+                }
+                LoopBoundary::Cycle { first } => self
+                    .loop_walk(first)
+                    .closed("loop", first)
+                    .into_iter()
+                    .map(|he| {
+                        let ek = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+                        let edge = linked(
+                            &self.edges,
+                            ek,
+                            EntityId::Edge,
+                            EntityId::HalfEdge(he),
+                            "edge",
+                        );
+                        BoundaryMember::Edge { ek, edge }
+                    })
+                    .collect(),
             })
     }
 

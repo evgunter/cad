@@ -358,6 +358,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
                 route,
                 declaration,
                 relation: editor_core::Relation::Refuted,
+                ..
             } if route.through == instances[0]
                 && route.of == inner_id
                 && route.via.is_empty()

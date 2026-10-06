@@ -4,6 +4,8 @@ kind: issue
 title: clearance's Violated witness is verified for distance but not for membership, so it can sit off the trimmed face
 status: open
 opened: 2026-09-14
+priority: P3
+cost: E
 ---
 
 

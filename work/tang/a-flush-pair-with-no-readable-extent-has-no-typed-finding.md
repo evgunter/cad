@@ -2,8 +2,11 @@
 id: a-flush-pair-with-no-readable-extent-has-no-typed-finding
 kind: issue
 title: A flush pair with no readable extent refuses through a labelled Indeterminate, not a typed finding
-status: open
+status: parked
 opened: 2026-10-02
+priority: P2
+cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What

@@ -386,10 +386,11 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
 
     /// **Run this parting verb against its operand body.**
     ///
-    /// The operand comes in borrowed, never in the payload, exactly as
-    /// at [`Verb::run`]; what differs is what comes back. A split hands
-    /// back TWO sides, each a body or the typed empty, and the one-body
-    /// out-type cannot carry them — so this is the split's own door
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]), as at [`Verb::run_pair`]; what differs is what
+    /// comes back. A split hands back TWO sides, each a body or the typed
+    /// empty, and the one-body out-type cannot carry them — so this is
+    /// the split's own door
     /// with its own out-type ([`SplitOut`]), and the D7 pinch lane
     /// inside the kernel door (`topo::split` reruns a one-sided pinch
     /// mirrored and swaps the sides back) is the door's, reached here
@@ -402,7 +403,11 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// verbatim (`topo::split` enumerates the cases — every stage's
     /// typed refusal passed through whole); [`VerbError::Arity`] if
     /// this verb answers another door.
-    pub fn run_split(&self, operand: &Body<T>, tol: Tol) -> Result<SplitOut<T>, VerbError<T>> {
+    pub fn run_split(
+        &self,
+        operand: &AtRestBody<T>,
+        tol: Tol,
+    ) -> Result<SplitOut<T>, VerbError<T>> {
         match self {
             Self::Split { plane } => {
                 // Exhaustive destructure, deliberately: a field grown
