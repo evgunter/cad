@@ -222,6 +222,8 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "blend_band_reach.rs"]
+mod blend_band_reach;
 #[path = "blend_bore_two_rims.rs"]
 mod blend_bore_two_rims;
 #[path = "blend_dual_tangent.rs"]

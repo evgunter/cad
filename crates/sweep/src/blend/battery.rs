@@ -448,14 +448,14 @@ pub struct BatteryVerdict<T: Real> {
 /// [`geom_brep::implicit_outward_normal`] — never a sampled or
 /// re-derived orientation (S10 category A). Unwrapped here because
 /// both consumers read it as geometry (a dot, a mean).
-fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
+pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
     let s = body.get_surface(f.surface)?;
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
 /// The sample parameters of a link, and its carrier.
-fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
+pub(super) fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T, T)> {
     let e = body.get_edge(edge)?;
     let c = body.get_curve_geom(e.curve)?.certified()?;
     let (t0, t1) = c.params();

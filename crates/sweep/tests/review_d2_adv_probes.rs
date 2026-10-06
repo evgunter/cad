@@ -376,6 +376,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::ChainNotConnected { .. } => "ChainNotConnected",
         BlendError::RadiusHeadroom { .. } => "RadiusHeadroom",
         BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
+        BlendError::FaceClearance { .. } => "FaceClearance",
         BlendError::TangentialEdge { .. } => "TangentialEdge",
         BlendError::SpineIrregular { .. } => "SpineIrregular",
         BlendError::ChainNotG1 { .. } => "ChainNotG1",

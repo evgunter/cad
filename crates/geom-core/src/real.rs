@@ -1248,6 +1248,14 @@ pub mod bounds_allowlist {
     //! door, said plainly so the next ride is argued rather than
     //! inherited.
     //!
+    //! `topo::face_boxes` — `FaceBoxes::of`, the blend's candidate prune
+    //! for predicate 2's reach meter — falls under this entry on the
+    //! census's terms: it boxes every face through `face_box` and builds
+    //! the C10 tree, deciding nothing. Sole `Bounds` fails (`face_box`'s
+    //! cylinder rule decides the axis length through the funnel) and sole
+    //! `Decide` fails (the boxes are `f64` brackets, read through
+    //! `Bounds::lo`/`hi`).
+    //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
     //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and

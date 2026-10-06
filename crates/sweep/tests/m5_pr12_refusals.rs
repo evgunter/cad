@@ -435,7 +435,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
     assert_same_recourse(
         &definite,
         &escalated,
-        "enlarge the support face whose clearance is uncertified",
+        "enlarge the support face it sets back on",
     );
 }
 
