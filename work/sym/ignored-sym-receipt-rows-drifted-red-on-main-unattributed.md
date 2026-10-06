@@ -339,3 +339,71 @@ from the credited ones only because the scale differs:
 
 **No move since the window is a defect in code SYM does not own**, so
 the stop rule does not apply. The one finding is on RULES' slate, inside SYM's tier.
+
+## #3774 and the re-take at the merge (SYM-16 fix pass)
+
+#3774 (PATHS 5b, "constructions store the carriers they build",
+`33e5000fb8`) landed after SYM-16's first re-take and re-pinned both
+rows by hand, moving the replay scales with them: the plate and the
+annulus refuse nowhere the bisection reaches and replay at
+`PAST_NO_CEILING` (1e5·ε), the link's ceiling falls to 3.030e2·ε, the
+bracket's rises to 7.624e2·ε and the pad's to 2.7783e3·ε.
+
+**Attributed at its first parent (`c28379f400`) and at itself**, ε =
+1e-9, release, with `bisect-step.sh`. Each tree was also run at the
+other's scales (`fix-probe.sh`, which moves only `Study::refuses_at`),
+so the code's move and the scale's move read apart. Receipts are
+`[symbolic_zero, sign_gated, registered, numeric, frozen]`, past the
+ceiling:
+
+| document | parent, its scales | parent, #3774's scales | #3774, the parent's scales | #3774, its scales |
+| --- | --- | --- | --- | --- |
+| two_hole_plate | `[955,0,148,704,1068]` | (scale unchanged) | `[1103,0,0,704,612]` | `[1103,0,0,704,612]` |
+| r1_annulus | `[440,32,148,451,1080]` | (scale unchanged) | `[588,32,0,451,804]` | `[588,32,0,451,804]` |
+| r2_link | `[286,0,84,296,568]`, attachment gate | `[689,0,118,748,1062]`, whole | `[373,0,9,280,464]`, attachment gate | `[373,0,9,284,484]`, attachment gate |
+| r2_filleted_bracket | `[548,37,149,574,1113]`, attachment gate | `[496,35,148,515,1083]`, validation (`arc_span`) | `[1401,45,49,1050,1803]`, whole | `[644,35,0,516,806]`, validation (`arc_span`) |
+| r2_rounded_pad | `[1016,2,152,1186,2587]`, `pcurve_envelope` | `[294,0,74,302,538]`, validation (`line_span`) | `[1340,2,54,1272,3138]`, whole | `[368,0,0,302,302]`, validation (`line_span`) |
+
+The pad's rule-F row, at `certifies_at` and the same at both dials:
+`(1040,2,152,1194,2587)` refusing at `pcurve_envelope` at the parent,
+`(1340,2,54,1272,3138)` whole at #3774.
+
+**Right.** What moved, read at a fixed scale:
+- **Registered decisions became theorems.** On the plate and the
+  annulus all 148 go from `registered` to `symbolic_zero`, with
+  `numeric` unmoved, at either scale. In the bracket's and the pad's
+  validation prefix, 148 and 74 do the same (#3774's scales, both
+  trees). The circles and arcs now store the authored carrier with the
+  radius as `|r|`, so a rim decision folds in the tier's own algebra.
+  An axiom a constructor stated becomes a theorem the tier proves.
+  That strengthens the claim, and it is what #3774 set out to do.
+- **The bracket's and the pad's refusal "moved earlier" only because
+  the scale moved.** At #3774's scales the parent refuses at the same
+  validation predicates, `arc_span` and `line_span`. #3774 removed
+  the earlier stop, `pcurve_envelope` and the attachment gate, and at
+  the parent's scales both documents now certify whole. That closed
+  `work/pcert/fillet-meridian-radius-term-is-registered-only`. The
+  ceiling each one replays past is now validation's, and validation
+  runs before the extrude. Nothing in that prefix reaches the door at
+  #3774.
+- **The link's ceiling fell**, from 4.934e2·ε to 3.030e2·ε: at 3.030e2
+  the parent certifies whole, and #3774 refuses at the attachment gate.
+  This cost was ruled, not missed. The PATHS orchestrator ruled to keep
+  the algebraic tangent-arc X, and `work/paths/store-constructed-carriers`
+  ("5b on #3774", 2026-10-02) records the fall and why: the half-turn's
+  `2w / |2w|` is a sign the tier does not hold.
+
+None of this is a defect in PATHS' code, so the stop rule does not
+apply. The narrowing it leaves in the past-the-ceiling row is filed on
+SYM's slate: on the bracket and the pad, the row now replays only the
+validation prefix. See
+`work/sym/the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`.
+
+**The re-take at the merged head** (`5493ddfd96`, main `8b3c364fef`),
+release, ε = 1e-6, 1e-9 and 1e-12, read the same at every ε and equal
+to #3774's own pins. `PAST_THE_CEILING` is plate `[1103,0,704,612]`,
+annulus `[588,0,451,804]`, link `[373,9,284,484]`, bracket
+`[644,0,516,806]`, pad `[368,0,302,302]` (`sign_gated` 0 / 32 / 0 /
+35 / 0). The pad's rule-F row is `(1340,2,54,1272,3138)` at both
+dials, so it is pinned as one tuple again. `Study::symbolic_zero` is
+`[x,x,x]` for all five.

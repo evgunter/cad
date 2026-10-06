@@ -37,9 +37,9 @@ use crate::m10_9_pins_interval::measured_studies;
 /// replay whole at [`PAST_NO_CEILING`]. The link stops at the
 /// extrude's attachment gate (`carrier_matches_mapped_source`). The
 /// bracket and the pad stop at the replayed profile's validation
-/// (`arc_span`, `line_span`), before any registrant runs, so theirs is
-/// the validation prefix's receipt. How each value came to be, merge
-/// by merge, is the attribution table in
+/// (`arc_span`, `line_span`), so theirs is the validation prefix's
+/// receipt, and nothing in that prefix reaches the door. How each value
+/// came to be, merge by merge, is the attribution table in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("two_hole_plate", [1103, 0, 704, 612]),
