@@ -85,22 +85,15 @@ vertex pierce the top with one Out run per prism. Two fixes:
   depends on the order, on main as well; that is filed as
   `work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`.
 
-- **Three or more holes on one ring refuse in a one-shot subtract.**
-  The plate less the wedges' union, in one boolean, has its zips fuse
-  the meeting point twice, and the zip crosses two corners of the top's
-  ring first. That is the zips' shape for two holes meeting at a point:
-  k rings through one vertex. With k ≥ 3, which this PR's pierces newly
-  reach, a crossing refuses typed (`PinchOfManyHolesInOneRing`) where a
-  face of one surface and sense has three or more corners at the point,
-  counted over every vertex fused onto it; two holes build as on main.
-  That covers the `kemr` across one ring and the `kef` across faces of
-  one plane where the holes notch the top's edge, and crossings on
-  other faces that move the top's corners to a vertex fused back later.
-  Measured over the plate row's nine fixtures in five poses and the
-  P − U grids at three and four holes. The union and the sequential subtract
-  build the other shape, one ring through the point k times. Which shape
-  is canonical is JOIN's design question,
-  `work/join/two-representations-of-holes-meeting-at-a-point.md`.
+- **The one-shot subtract builds sound.** The plate less the wedges'
+  union, in one boolean, has both operands keep the meeting point as
+  one vertex. JOIN's `zip::split_cones` (main 52cbed0c) splits it per
+  cone before the zips, so the top passes the point once per hole with
+  its corners disjoint, in every fixture and pose of the plate row and
+  in all 728 configurations of the P − U grids. Before it, the zips'
+  crossing built rings through one vertex (k = 2) or, at k ≥ 3, crossed
+  faces this PR refused typed; that refusal retired with the crossing
+  (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
 
 Rows (`crates/topo/tests/holes_meeting_at_a_vertex.rs` and
 `crates/editor-core/tests/union_pinch_member_order.rs`):

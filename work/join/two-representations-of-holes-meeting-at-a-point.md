@@ -2,11 +2,12 @@
 id: two-representations-of-holes-meeting-at-a-point
 kind: issue
 title: Two representations of holes meeting at a point: k rings on one vertex (the zips) against one ring visiting the point k times (the sequential subtract)
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
 design: true
+closed: 2026-10-06
 ---
 
 
@@ -95,3 +96,20 @@ the sequential subtract builds: the split's `mev` without the `kemr`,
 with the pair's zip leaving the copies apart. Then retire
 `PinchOfManyHolesInOneRing`, since a ring can then pass any number of
 copies.
+
+## Answered on main
+
+JOIN's `zip::split_cones` (52cbed0c, closing
+`a-pinch-no-kept-face-can-cross-refuses`) replaced the crossing pre-pass:
+each vertex whose corners lead into several cones of the result is
+split per cone before the zips. The point is one vertex per cone, the
+sequential subtract's shape, and the k-rings form is no longer built
+there. PR 4129, merged with it, measured:
+- the plate less the wedges' union builds sound in all 55 of its
+  fixture and pose pairs, two wedges included ([18, 41, 26], where the
+  crossing built [18, 41, 25]);
+- the P − U grids build sound in all 728 configurations, three and four
+  holes, notches included, with `corners_disjoint` holding on each.
+
+`PinchOfManyHolesInOneRing`, the narrowing this item described, has no
+producer once the crossing is gone, and retires with it.

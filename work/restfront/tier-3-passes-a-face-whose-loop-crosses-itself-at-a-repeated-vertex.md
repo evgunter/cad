@@ -38,31 +38,13 @@ normal at that point. `corners_disjoint` in that test is the planar
 spelling. A curved face needs it in the chart's tangent plane at the
 vertex.
 
-## Reachable on main
+## Reachability
 
-A one-shot `subtract(plate, U)`, where U is the union of leaning
-wedges meeting at a point of the plate's top, builds the crossed shape
-without a mutant (PR 4129's review). This is the zips' representation
-of holes meeting at a point (`zip::split_across`, `finish::pinch_site`),
-JOIN's open design question
-`work/join/two-representations-of-holes-meeting-at-a-point.md`.
-
-- k = 2, on main: [18, 41, 25].
-- k ≥ 3: PR 4129 refuses a zip crossing at a point where a face of
-  one surface and sense passes three or more times
-  (`PinchOfManyHolesInOneRing`), counted over every vertex fused onto
-  the point. Its rows (five poses, and the P − U grids of 168
-  configurations at k = 3 and 560 at k = 4, at rest) build none of
-  them crossed. The gate-dropped mutant builds three wedges
-  [27, 66, 40], four [27, 72, 45], three notches past the plate's edge
-  [21, 57, 34]; fix pass 2's gate, which counted at the split vertex
-  alone, let 34 of the k = 3 grid build crossed, each with one notch.
-  This is measured over those fixtures, not shown for every pose.
-
-Tiers 3 and 3′ and the volume pass on every one of those bodies. A
-later boolean on such a body can refuse `ClassificationInvariant`.
-
-JOIN's sweep rows pass such bodies as SOUND, measured on eb1fae63:
+Before JOIN's `zip::split_cones` (main 52cbed0c), a one-shot
+`subtract(plate, U)` of leaning wedges built the crossed shape without
+a mutant: [18, 41, 25] at k = 2, and at k ≥ 3 three wedges [27, 66, 40],
+four [27, 72, 45], three notches past the plate's edge [21, 57, 34].
+JOIN's sweep rows passed such bodies as SOUND, measured on eb1fae63:
 
 - `join_pierce_runs_sweep::an_island_pinched_twice_to_its_holes_ring_dies_at_each_crossing`: 1 of 6;
 - `join_pierce_runs_sweep::two_pinches_in_one_op_are_each_crossed`: 4 of 6;
@@ -70,6 +52,12 @@ JOIN's sweep rows pass such bodies as SOUND, measured on eb1fae63:
 - `join_pierce_strut_facing::two_edge_runs_build_in_every_op`: 3 of 18;
 - `join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op`: 12 of 18.
 
-Whether tier 3 should refuse the k-rings form waits on that JOIN
-question. `topo::test_support::meeting::corners_disjoint` is the planar
-check, shared.
+Tiers 3 and 3′ and the volume passed on every one of those bodies, and
+a later boolean on such a body could refuse `ClassificationInvariant`.
+`split_cones` splits the point per cone instead, and PR 4129's rows
+(the plate against the union in five poses, the P − U grids at three
+and four holes) build it with disjoint corners. No route on main is
+known to reach the crossed shape now. The ring-order mirror mutant
+above still does, so the tier-3 gap stands.
+`topo::test_support::meeting::corners_disjoint` is the planar check,
+shared.

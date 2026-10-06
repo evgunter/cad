@@ -250,16 +250,14 @@ pub struct BooleanNaming {
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
     pub seam_edges: Vec<EdgeKey>,
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
-    /// A-side pinch welds' first, then the zips', then the pierce
-    /// welds' (`weld_pierce_copies`).
+    /// A-side pinch welds' first, then the zips'.
     pub vertex_merges: Fusions,
     /// The B-side pinch welds' vertex fusions `(dead, kept)` in mint
     /// order, in B-CLONE keys: they ran before the graft, so a dead key
     /// has no result key (translate the kept column through
     /// `graft_vertices`).
     pub weld_merges_b: Fusions,
-    /// Face absorption groups `(kept, absorbed…)`, result keys: the
-    /// pinch crossings' (`zip::cross_pinches`), then
+    /// Face absorption groups `(kept, absorbed…)`, result keys:
     /// `merge_coplanar_faces`'.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
     /// Curved merge groups the output stage did NOT glue, as outside
@@ -666,32 +664,25 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b)
         .with_copies(copies)
         .with_along(along);
-    // A pinch is one vertex on two seams: the first zip fuses it, so
-    // each later zip reads the correspondence through the fusions made.
+    // A vertex several seams meet is fused by the first: each later zip
+    // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
-    // The pierce copies `weld_pierce_copies` joins after the zips, in
-    // the keys the crossings read.
-    let welded = desc.vertex_merges()?;
-    let copies: Vec<Vec<VertexKey>> = fin
-        .pierce_copies
-        .iter()
-        .map(|g| g.iter().map(|&v| welded.survivor(v)).collect())
-        .collect();
-    let crossed = super::zip::cross_pinches(&mut body, &fin.seams, &mut vertex_map, &copies, tol)?;
-    desc.absorb_faces(&crossed);
-    for &(a_face, b_face) in &fin.seams {
+    let seams = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
+    for &(a_face, b_face) in &seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
         desc.absorb_zip(&rep)?;
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
-    let welds = super::finish::weld_pierce_copies(
-        &mut body,
-        &fin.pierce_copies,
-        &desc.vertex_merges()?,
-        tol,
-    )?;
-    desc.absorb_fusions(&welds)?;
+    // A pinch keeps one vertex per cone, so lumps that met only there
+    // share no edge: each connected piece of a shell becomes a shell.
+    let shells: Vec<crate::entity::ShellKey> = body
+        .solids()
+        .flat_map(|(_, solid)| solid.shells.clone())
+        .collect();
+    for shell in shells {
+        body.movefac(shell)?;
+    }
     let vertex_merges = desc.vertex_merges()?;
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
@@ -729,11 +720,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges,
         vertex_merges,
         weld_merges_b: fin.weld_merges_b,
-        merge_groups: crossed
-            .iter()
-            .map(|&(absorbed, kept)| (kept, vec![absorbed]))
-            .chain(merge_rows(&merged))
-            .collect(),
+        merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: [connected.a_fragments, fin.weld_fragments_a].concat(),
         face_fragments_b: [connected.b_fragments, fin.weld_fragments_b].concat(),
@@ -2667,24 +2654,19 @@ impl Descendants {
         Ok(())
     }
 
-    /// Vertex fusions after the zips, result keys, read as a zip's.
+    /// Vertex fusions `(dead, kept)`, result keys: a zip's.
     ///
     /// # Errors
     ///
     /// [`BooleanError::JoinDesync`] where `merges` names a key the
     /// fusions before it killed ([`Fusions::extend`]).
-    pub(super) fn absorb_fusions(&mut self, merges: &Fusions) -> Result<(), BooleanError> {
+    fn absorb_fusions(&mut self, merges: &Fusions) -> Result<(), BooleanError> {
         self.vertices.extend(merges)?;
         for &(dead, kept) in merges {
             self.fused.insert(dead);
             self.fused.insert(kept);
         }
         Ok(())
-    }
-
-    /// Face absorptions `(absorbed, kept)` outside the coplanar merge.
-    pub(super) fn absorb_faces(&mut self, rows: &[(FaceKey, FaceKey)]) {
-        self.faces.extend(rows.iter().copied());
     }
 
     pub(super) fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {

@@ -2234,39 +2234,6 @@ pub enum BooleanError {
         /// it crosses into more.
         partners: [VertexKey; 2],
     },
-    /// The result pinches at `vertex`: two cones of its boundary meet
-    /// there, and the seam zips would fuse the point to itself
-    /// (`zip::cross_pinches`). One vertex holds two cones only where a
-    /// face's boundary crosses from one to the other there, and the
-    /// pre-pass crosses only two corners of one ring, or the corners of
-    /// two faces of one surface and sense, one of them ringless. Here
-    /// none offer. On every residue line measured (that row's table),
-    /// the one face through the point twice passes it on its outer
-    /// loop, round a hole touching that loop there, and crossing it
-    /// would leave a ring meeting the outer loop. Which body is right
-    /// there is open
-    /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
-    PinchUncrossed {
-        /// The pinch vertex, in the joined body's keys.
-        vertex: VertexKey,
-    },
-    /// The result pinches at `vertex`, and the zips would fuse it to
-    /// itself (`zip::cross_pinches`): both operands keep the point as
-    /// one vertex. A crossing there would leave a boundary passing the
-    /// point `holes` times (three or more): the most corners at the
-    /// point, over every vertex fused onto it, of the kept faces of one
-    /// surface and sense, which a `kemr` or `kef` joins and the fusions
-    /// bring onto one vertex. A pierce of three or more Out runs reaches
-    /// it; other routes are not known. Joining two such corners is the
-    /// at-rest shape for two holes meeting at a point, and three or more
-    /// are not measured to build. Which shape holes meeting at a point take is
-    /// open (`work/join/two-representations-of-holes-meeting-at-a-point.md`).
-    PinchOfManyHolesInOneRing {
-        /// The pinch vertex, in the joined body's keys.
-        vertex: VertexKey,
-        /// How many times that boundary would pass it.
-        holes: usize,
-    },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
     /// (two crossing pairs share both their vertices). Each solid's
@@ -2830,10 +2797,6 @@ pub enum BooleanErrorKind {
     PairingMismatch,
     /// [`BooleanError::SharedVertexCrossings`].
     SharedVertexCrossings,
-    /// [`BooleanError::PinchUncrossed`].
-    PinchUncrossed,
-    /// [`BooleanError::PinchOfManyHolesInOneRing`].
-    PinchOfManyHolesInOneRing,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -3037,8 +3000,6 @@ impl BooleanError {
             Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
-            Self::PinchUncrossed { .. } => BooleanErrorKind::PinchUncrossed,
-            Self::PinchOfManyHolesInOneRing { .. } => BooleanErrorKind::PinchOfManyHolesInOneRing,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3514,19 +3475,6 @@ impl core::fmt::Display for BooleanError {
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
                 operand_word(*operand)
-            ),
-            Self::PinchUncrossed { .. } => write!(
-                f,
-                "the result would pinch at one point, where two parts of its boundary meet, \
-                 and the Boolean cannot yet join the faces that pass through that point. \
-                 There is no way through this in the kernel yet"
-            ),
-            Self::PinchOfManyHolesInOneRing { holes, .. } => write!(
-                f,
-                "the result would pinch at one point where one face's boundary passes {holes} \
-                 times, between holes or notches in its edge that meet there, and the Boolean \
-                 cannot yet join more than two there. There is no way through this in the \
-                 kernel yet"
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -6001,13 +5949,6 @@ mod tests {
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
             },
-            BooleanError::PinchUncrossed {
-                vertex: VertexKey::default(),
-            },
-            BooleanError::PinchOfManyHolesInOneRing {
-                vertex: VertexKey::default(),
-                holes: 3,
-            },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
                 b_vertices: [VertexKey::default(); 2],
@@ -6175,8 +6116,6 @@ mod tests {
                 BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
-                BooleanErrorKind::PinchUncrossed => "PinchUncrossed",
-                BooleanErrorKind::PinchOfManyHolesInOneRing => "PinchOfManyHolesInOneRing",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

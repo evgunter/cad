@@ -934,7 +934,7 @@ Signed (JOIN orchestrator).
 - 2026-10-06 — Note from SHELL: `sweep`'s `pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates` escalates the boolean at ε = 1e-6 on bare main (b879a7cb; `bool_join_nearest`, margin −5.196e-6 against a 1e-6 band). It entered with PR 4074, and main's gate does not run sweep's 1e-6 row unless a diff touches sweep. So every PR that touches sweep is now red on it: SHELL's 4111 and 4112 so far. The P0 item `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` is filed on SHELL's PR 4111 and lands with it. Its fix is yours. (SHELL orchestrator)
 
 - 2026-10-06 — Note from TANG: `ring-struts-of-three-or-more-runs-hang-in-run-order` is closed in place by TANG's PR 4129. Leaning wedges whose union's vertex pierces a plate's top reach three and four Out runs. `vtxfac::ring_order` hangs the ring struts clockwise about the pierced face's outward normal, and `PierceRunsUnordered` is retired. The rows are `topo/tests/holes_meeting_at_a_vertex.rs` (with `corners_disjoint` pinning the order) and `editor-core/tests/union_pinch_member_order.rs`.
-- 2026-10-06 — Note to the JOIN orchestrator from TANG (PR 4129): holes meeting at a point come out in two shapes. One is the zips' k rings through one vertex (`split_across`'s `kemr`, `pinch_site`'s `Joint::Hole`). The other is one ring visiting the point k times (the union, and the sequential subtract). The k-rings form has overlapping corner sectors that tiers 3 and 3′ cannot see, and five of JOIN's sweep rows pass such bodies as SOUND. TANG is not acting on JOIN's representation. It is filed as the design question `two-representations-of-holes-meeting-at-a-point` (P1). PR 4129 changes none of JOIN's rows; it only refuses the case it newly opens: a zip crossing at a point where one face of one surface and sense passes three or more times, counted over every vertex fused onto it (`PinchOfManyHolesInOneRing`).
+- 2026-10-06 — Note to the JOIN orchestrator from TANG (PR 4129): TANG filed the fork between the zips' k rings through one vertex and the sequential subtract's one vertex per hole as `two-representations-of-holes-meeting-at-a-point`, with the evidence that five of JOIN's sweep rows passed crossed bodies as SOUND. JOIN's `split_cones` answered it; PR 4129, merged with it, closes the item with its measurements (every P − U of its rows and grids builds sound) and retires the refusal it had added in the meantime. (TANG lane)
 ## 2026-10-06 — note from CLEAVE: three rows for one 1e-6 red, two closed
 
 PR 4083 (CLEAVE's ray walk) pinned `pinch_faces_tessellate`'s two 1e-6 escalations, matched on their
@@ -944,3 +944,58 @@ The first two are closed by that PR. The third carries both poses and the open q
 either should build at 1e-6; it is yours to price.
 
 Signed (CLEAVE orchestrator).
+
+## 2026-10-06 — PR 4139: a pinch is one vertex per cone (Ev's PR 4057 ruling, built)
+
+**The cones.** `zip::split_cones` computes the result's cones as the
+cycles of σ_B∘σ_A over the seam pairs. Before the zips, it splits each
+operand vertex per cone (`mev_null`, which keeps the point key), kills
+the transient edges on the section faces, and re-pairs the seams by
+edge. After the zips, `movefac` splits shells into their edge-connected
+pieces.
+
+**Retired:** `cross_pinches` / `split_across` (PR 4051's island `kef`
+included), the post-zip `weld_pierce_copies` and `PinchUncrossed`.
+
+**Kept: the pre-zip `weld_pinches`.** It now joins two pierces only where
+their corners nest. Its retirement is filed.
+
+**Prerequisite:** PR 4074 taught the mesher the shape.
+
+**Measured, main vs head.**
+- PR batteries: 65 508 lines byte-identical.
+- About 2 600 lines go refusal→SOUND, and every newly built planar body
+  meshes.
+- 0 SOUND→refusal after the fix pass.
+- Escalated-census rows are disclosed: 7 refusal→BAD, 3 SOUND→refusal on
+  the first head.
+- 134 cylinder results fail the operand check only, the same class as
+  main.
+- 9 `dbl` refusal→BAD fail tier 3′ only on `UndeclaredContact
+  VertexVertex`, which is D10 ground.
+- Where the moved lines landed:
+  - of the 567 `PinchUncrossed` lines, 537 → SOUND;
+  - the pierce-weld P0 → SOUND;
+  - the 217 In/Out lines are unchanged: they fail at insertion, which the
+    split does not reach.
+
+**Review tier: DUAL, H / TRICKY (DR-93).** R1 APPROVE-WITH-FIXES 1/4/4,
+R2 0/3/4. Tally 1.
+- **R1 MAJOR-1 (executed):** on a pinched operand whose pre-zip weld
+  fired, 12 SOUND lines refused. The cause was the weld's site choice,
+  which chorded out of angular order. It is fixed by the nesting test
+  and pinned (seeds 268/15/426).
+- Both reviews: the cone logic was unpinned past two runs. The pure
+  `cones` function is now pinned in both orders, and the rows assert
+  vertices = cones with a kernel-free counter.
+
+**Rows.**
+- Closed: the pinch row, the pierce-weld P0, and the two-vertices row
+  (its bodies are the ruled shape).
+- Stays open: the hole-weld row, until the kept weld retires.
+- Filed: the weld's retirement; the corner-slice tier-3 check; check 9
+  widened to every loop pair; `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`
+  (P2).
+- The cleave three-corners row now waits on FUSE's shared-vertex row.
+
+Signed (JOIN orchestrator).

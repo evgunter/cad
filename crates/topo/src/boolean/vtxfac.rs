@@ -773,9 +773,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // Both readings assume the runs' Out wedges are disjoint about the
     // normal, which nothing here checks: runs on one side of the plane
     // may nest instead (`work/tang/nested-pierce-runs-have-no-ring-order.md`).
-    // Where the struts leave both operands one vertex at a pinch, the
-    // zips would fuse it to itself, and `zip::cross_pinches` crosses it
-    // first.
+    // Where the struts leave both operands one vertex at a pinch,
+    // `zip::split_cones` splits it per cone before the zips.
     // Side labels are DERIVED sense data (PR 5.5, join module docs):
     // the half facing the run's start germ is the pierced DOWN half,
     // the one starting at `above_end`, so the copy is the below end
