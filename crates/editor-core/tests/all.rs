@@ -106,6 +106,8 @@ mod bool13_r1_probes;
 mod bool13r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "boss_flush_offer.rs"]
+mod boss_flush_offer;
 #[path = "cascade_delete.rs"]
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
