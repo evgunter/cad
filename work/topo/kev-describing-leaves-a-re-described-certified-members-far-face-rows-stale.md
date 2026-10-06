@@ -3,6 +3,7 @@ id: kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale
 kind: issue
 title: kev_describing leaves a listed certified member's rows on its far face spanning the interval its ends moved from
 status: closed
+pr: 4105
 branch: topo/kev-describing-remints-certified
 opened: 2026-10-04
 priority: P3
