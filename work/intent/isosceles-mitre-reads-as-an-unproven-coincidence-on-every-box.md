@@ -4,7 +4,7 @@ kind: issue
 title: D10: a blend's isosceles-mitre verdict on an extruded box is decided from values, and D10's structural test, which compares carriers, cannot prove the two equal angles one construction
 status: open
 opened: 2026-10-06
-priority: P1
+priority: P0
 cost: M
 ---
 
