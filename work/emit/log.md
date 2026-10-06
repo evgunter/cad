@@ -1965,3 +1965,7 @@ Ev approved removing `Doc::order` and folding seniority in next to the id,
 as a custom pair type `(u32, u64)` rather than bit packing, unless
 something needs one integer. The row stays open for the build, with a
 Ruled section.
+
+## 2026-10-06 — PR 4164: `band_rim_pi` mints the rim's second half-arc
+
+The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pncad::select` and as `pncad.band_rim_pi`, and declared in `pncad.pyi`. The hand spellings in the teapot demo, `blend5_rim_support`, `m4_pr3_names` and `band_run_wall_names` now use the builders, including `meridian_vertex`. Filed `meridian-edge-has-no-minting-builder`, the same class for meridian edges. Review: nothing blocking; the optional findings are folded.

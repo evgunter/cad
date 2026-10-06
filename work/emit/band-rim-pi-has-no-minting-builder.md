@@ -2,8 +2,9 @@
 id: band-rim-pi-has-no-minting-builder
 kind: issue
 title: the minting builders spell band, band_pi and band_rim but not band_rim_pi, so a whole rim on an axis-touching revolve is hand-spelled
-status: review
+status: closed
 opened: 2026-10-02
+closed: 2026-10-06
 priority: P3
 cost: E
 branch: emit/band-rim-pi
