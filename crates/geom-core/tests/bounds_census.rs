@@ -322,6 +322,16 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/open/end_face.rs",
+        subject: "impl<T: Bounds> SectionFrame<T>",
+        why: Selection(
+            "the round end's section frame, `scaled` and `depth`. They read no bracket: \
+             each is `Real` arithmetic (`dot`, `powi`, `sqrt`, `max`), and `depth` is one \
+             term of `CapSliver::clearance`, the margin `ring_clearance` decides, so it \
+             inherits that door's DL5(b) disposition and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/open/end_face.rs",
         subject: "impl<T: Bounds> CapSliver<T>",
         why: Selection(
             "the cut-off's end-face sliver meter `clearance`. It reads no bracket itself — its \
