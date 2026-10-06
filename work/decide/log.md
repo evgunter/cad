@@ -956,3 +956,18 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — Ev's answers: the derived-frame row closes, the two P2s stay open
+
+- `the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+  (P1) is **closed**. The question put to Ev on 2026-10-02 (re-aim the
+  `none` rung?) had been answered in code by DECIDE-3 (`b07a01b8b6`,
+  2026-09-21); the row asserts what the `none` tier now does.
+- `rule-g-trades-sixteen-…` and `the-exact-quotient-re-keys-…` (P2, H)
+  are not gated; the orchestrator's 2026-10-02 summary called them
+  "gated" in error. Ev (in chat, 2026-10-06): defer them only if DECIDE
+  also has live P0 or P1 rows. It has none: its P1s are the parked
+  declared tangency and the deferred revolve carriers. So they stay
+  `open`, behind DECIDE-9's successor
+  `the-read-at-its-node-relabels-a-cancellation-above-it` (P2), which
+  is the next DECIDE unit.
