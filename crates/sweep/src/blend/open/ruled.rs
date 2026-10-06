@@ -96,7 +96,7 @@ use crate::blend::battery::{Convexity, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     CircleFrame, ContactCarrier, Described, Piece, SourceFaces, SplitFragments, chord_site,
-    face_of_half, halves_of, not_intact, op, piece_along, piece_distance, point_of,
+    face_of_half, halves_of, not_intact, op, open_trimline, piece_along, piece_distance, point_of,
     retire_fragment, seam_split_param, split_fragment, stored_piece, unbuilt_chain,
     unbuilt_geometry,
 };
@@ -253,19 +253,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 "a ruled link's band is not a cylinder about its ruling",
             ));
         };
-        let trim_origin = |trim: &Curve3<T>| -> Result<Point3<T>, BlendError> {
-            match *trim {
-                Curve3::Line { origin, .. } => Ok(origin),
-                _ => Err(unbuilt_geometry(
-                    EntityId::Edge(edge),
-                    "an open link's trimline is not a line",
-                )),
-            }
-        };
-        let (q_a, q_b) = (
-            trim_origin(&l.blend.trim_a.0)?,
-            trim_origin(&l.blend.trim_b.0)?,
-        );
+        let (q_a, q_b) = (open_trimline(l, l.face_a)?.0, open_trimline(l, l.face_b)?.0);
 
         // The supports: each carries its half of the crease, and is
         // ring-free — a ring on a curved support is not carried

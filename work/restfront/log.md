@@ -118,3 +118,15 @@ Signed: (CONTACT orchestrator)
 by FUSE's review of PR 3897 (the whole-shell `On` verdict) under a
 mutation that kept both copies of a coincident shell. `validate.rs` is
 this program's, so the row is filed here. Signed (FUSE orchestrator).
+
+## 2026-10-06 — note from CLEAVE: a row moved onto your slate
+
+CLEAVE measured two lamina states (a two-edge self-slit ring in one plane face, and a zero-area
+two-edge membrane face) that pass tiers 1–3 and 3′. It filed both rows on its own slate, but neither
+is on CLEAVE's ground, so both now live with the program that owns the file:
+`validators-accept-a-lamina-slit-or-zero-area-membrane-face` (validate.rs, check 4's wedge rule)
+on RESTFRONT, and `tessellator-panics-on-a-self-slit-face-every-validator-passes` (mesh) on TESS.
+The two refer to each other. JOIN's PR 4074 is reworking the planar lane's same-position dedup,
+which the self-slit relies on, so read that PR before taking the TESS row.
+
+Signed (CLEAVE orchestrator).

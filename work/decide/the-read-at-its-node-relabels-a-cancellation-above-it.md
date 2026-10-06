@@ -2,10 +2,11 @@
 id: the-read-at-its-node-relabels-a-cancellation-above-it
 kind: issue
 title: The decision read answers at its node, ahead of a cancellation its parent would make: max(x + Z, 3) − max(x, 3) is sign_gated, a theorem with the read shut
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P2
 refs: [DECIDE-9, the-decision-read-answers-theorems-the-must-carry-stations-would-prove]
+cost: M
 ---
 
 
