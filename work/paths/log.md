@@ -623,3 +623,5 @@ and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
   merges main is red on the `demos` job until it is resolved.
 
 - 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.
+
+- 2026-10-06 — Red on main at ε = 1e-6 since #4169 (`252db21ff`): `one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does` held a curved-cut quadrature midpoint (7.3e-6 off, pad 1.3e-3) to a fixed 1e-9. #4205 checks the certified bracket instead. The sibling checks are filed as `work/quad/sweep-tests-hold-quadrature-midpoints-to-fixed-tolerances.md`.

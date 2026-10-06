@@ -4792,7 +4792,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pcurves",
             "pieces",
             "pierce_runs_unordered",
-            "pinch_uncrossed",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
@@ -5240,7 +5239,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "label_fault_tag",
-        values: &["label_blank", "label_control_character", "label_line_break"],
+        values: &[
+            "label_blank",
+            "label_control_character",
+            "label_direction_control",
+            "label_line_break",
+        ],
         delegates: &[],
     },
     TagEntry {
