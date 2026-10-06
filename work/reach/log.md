@@ -861,3 +861,10 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **The cause.** `carrier_touch::ball_off_face` placed the ball's foot before reading the face's boundary against the ball. A line tangent to a fillet at the fillet's own boundary vertex localized a ball holding that vertex, 2.29e-6 from the foot, so the placement's vertex pre-pass escalated in band. Read in the other order, the ball holds the vertex and the answer is "not off the face".
 - **The fix.** PR 4199 (CLEAVE lane) reads the boundary first. Its row `carrier_touch_rows::a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face` is red without the fix at every ε.
 — (CLEAVE lane, for REACH)
+
+## 2026-10-06 — PR 4122's support-plate row red after main merged #4179
+
+- **The red.** `operand_gate_support_plates::plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op`, ε 1e-9: the 270° torus at `s = 10³` dir 4, `δ = −ε`, built ∪ as an `Assembly` and ∩ `Empty`. The orchestrator bisected it to #4179's merge (`deb49d1432`).
+- **The cause.** Neither side is unsound. Dir 4's support falls on the cut-cap rim, the case the row already excluded at `δ = 0`. #4179 places an in-band graze root at the rim's extremum, which is the support itself (the minted vertex sits 5e-13 from it), so `−ε` now reads as `0` does: an `Assembly` holding the one `VfContact`. Before #4179 the root sat `√(2εR)` ≈ 6e-4 m along the rim, without its twin, and every op refused `Join(UnpairedLooseEnds)`. The operand gate does not clear the pair: the contact comes from the conic root lane behind it.
+- **The change.** The row's exclusion covers both in-band gaps, `δ ∈ {0, −ε}`, and now holds only where ∪ records the contact. The item `a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly` gains the measurement. M3 is still red at ε 1e-9 and 1e-12. No CLEAVE item: #4179's root is the right one.
+— (REACH implementer)

@@ -45,11 +45,30 @@ refuse with `Coincidence(EdgeOnPlane, Moot)` or
 `Join(UnpairedLooseEnds { count: 2 })`. At `δ = 10⁻⁶` they build an
 `Assembly` with no contact, which is correct.
 
+## At `δ = −ε` since PR 4179
+
+PR 4179 (CLEAVE) places a conic's in-band graze root at the sinusoid's
+extremum (`conic_plane_meet`, `crates/topo/src/splitting/classify.rs:750-777`)
+instead of at the residue's crossing `φ + acos(−D/R)`. The cap rim
+grazes the plate's plane at the solid's support, so `δ = −ε` now reads
+as `δ = 0` does. Measured on PR 4122's head after it merged main, at
+ε 1e-9, `s = 10³` dir 4: at both gaps ∪ builds an `Assembly` holding one
+`VfContact` (the minted rim vertex on the plate face, `5e-13` from the
+closed-form support point), and ∩ is `Empty`. With
+`classify.rs` taken from before PR 4179 (`70b6e9a6f`), `δ = −ε` refused
+every op with `Join(UnpairedLooseEnds { count: 2 })`: the one root kept,
+`φ + δ`, sat `√(2εR)` ≈ 6e-4 m along the rim from the touch, and its
+twin `φ − δ` was dropped, so the split was one-sided. The operand gate
+does not clear the pair at either gap: the contact is found by the
+planar lane's conic roots behind it (`crates/topo/src/boolean/reduce.rs:1246`,
+the `plane_crossing_lane` arm).
+
 ## Where it is pinned
 
 `crates/sweep/tests/operand_gate_support_plates.rs` excludes this case
 from its disjoint-at-touch check (the 270° torus, a cut direction,
-`δ = 0`). It still samples those results' membership. The row draws the first
+`δ ∈ {0, −ε}`), and only where ∪ records the contact. It still samples
+those results' membership. The row draws the first
 six of the probe's directions, so two of the six cases above are in it.
 Dropping the exclusion turns it red at ε 1e-9 at exactly those two,
 `s = 10³` dir 1 and dir 4, in ∪ (both orders) and ∩.

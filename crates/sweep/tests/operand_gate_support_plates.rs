@@ -28,11 +28,14 @@
 //! empty: red at ε 10⁻⁹ and 10⁻¹². At ε 10⁻⁶ the pad covers that
 //! shrink, and the row stays green.
 //!
-//! **Excluded**: the 270° torus touched at `δ = 0` on its cut-cap rim
-//! (a direction whose support falls on a cut) builds an `Assembly` with
-//! an empty `∩`, here and on main
+//! **Excluded**: the 270° torus touched on its cut-cap rim (a direction
+//! whose support falls on a cut) at `δ = 0` or `δ = −ε`, the two gaps
+//! inside the band, may build the point touch it records: `∪` an
+//! `Assembly` whose contacts hold the touch, `∩` empty
 //! (`work/reach/a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly.md`).
-//! Those cases still have their results sampled.
+//! The rim's graze root is its extremum, the support itself, so `−ε`
+//! reads as `0` does. An excluded `∪` that records no contact is still
+//! wrong, and every excluded result is still sampled.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -252,8 +255,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() 
                             .min(0.15 * s - l.y.abs())
                             .min(0.15 * s - l.z.abs())
                     };
-                    let excluded =
-                        shape == Shape::Torus && sweep < 2.0 * PI && on_cut && delta == 0.0;
+                    let excluded = shape == Shape::Torus && sweep < 2.0 * PI && on_cut;
                     for (op, out) in [
                         ("a∪b", topo::union(&a, &b, tol())),
                         ("b∪a", topo::union(&b, &a, tol())),
@@ -269,15 +271,16 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() 
                         let Ok(res) = out else { continue };
                         built += 1;
                         if delta <= 0.0 {
-                            let disjoint = match &res {
-                                BooleanResult::Empty => true,
-                                BooleanResult::Body(bb) => {
-                                    bb.kind == topo::BooleanResultKind::Assembly
-                                }
+                            let (disjoint, touch_recorded) = match &res {
+                                BooleanResult::Empty => (true, true),
+                                BooleanResult::Body(bb) => (
+                                    bb.kind == topo::BooleanResultKind::Assembly,
+                                    bb.contacts != topo::ContactRecords::default(),
+                                ),
                             };
                             if shape == Shape::Frustum {
                                 wrong.push(format!("{label}: the cone wall touches and built"));
-                            } else if disjoint && !excluded {
+                            } else if disjoint && !(excluded && touch_recorded) {
                                 wrong.push(format!("{label}: touching operands built as disjoint"));
                             }
                         }
