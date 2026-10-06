@@ -56,17 +56,14 @@ fn the_tangent_graze_resolves_past_first_order() {
     // those predicates.
     use geom_core::k_stats::Bracket;
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.5, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
     let bracket = Bracket::open();
-    let out = split(
-        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    );
+    let out = split(&body, &plane, Tol::witness());
     let v = bracket.finish().verdicts;
     // The second-order lane ran, by name (telemetry from birth).
     for name in [
@@ -107,6 +104,7 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
     // neighborhood at THAT vertex ties at first order the same way.
     // Pin: never the first-order refusals.
     let body = cylinder_body();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.5, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
@@ -115,11 +113,8 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
     if let Err(topo::splitting::SplitError::Reduce(
         e @ (SplitReduceError::TangencyUnsupported { .. }
         | SplitReduceError::ConsecutiveOnSectors { .. }),
-    )) = split(
-        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    ) {
+    )) = split(&body, &plane, Tol::witness())
+    {
         panic!("second order owns the graze: {e}")
     }
 }

@@ -592,18 +592,14 @@ fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let post = sweep::test_support::finished("the post", post, tol);
     let phi = 0.3_f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.0),
         Vec3::new(phi.sin(), 0.0, phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = topo::splitting::split(
-        &sweep::test_support::finished("the operand", post.clone(), tol),
-        &plane,
-        tol,
-    )
-    .unwrap();
+    let result = topo::splitting::split(&post, &plane, tol).unwrap();
     let topo::splitting::SplitPart::Body(below) = &result.below else {
         panic!("the tilted cut leaves material below");
     };

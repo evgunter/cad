@@ -594,6 +594,7 @@ mod tests {
     fn classify_apex(row: &Row) -> (PlaneSide, PlaneSide, Option<bool>, PlaneSide) {
         let tol = Tol::witness();
         let fx = crate::test_support_fixtures::prism::<f64>(row.profile, 1.0, tol);
+        let operand = crate::test_support::finished("the fixture", fx.body.clone(), tol);
         let plane = crate::test_support_fixtures::split_plane(
             geom_core::Point3::new(0.0, 1.0, 0.0),
             geom_core::Vec3::new(0.0, row.normal, 0.0),
@@ -609,12 +610,7 @@ mod tests {
         };
         let (base, far) = (at(0.0), at(1.0));
         let band = Band::linear(tol).unwrap();
-        let (sides, _) = crate::vertex_sides(
-            &crate::test_support::finished("the operand", fx.body.clone(), tol),
-            &plane,
-            tol,
-        )
-        .unwrap();
+        let (sides, _) = crate::vertex_sides(&operand, &plane, tol).unwrap();
         let entries =
             super::super::classify_neighborhood(&fx.body, &plane, &sides, base, band).unwrap();
         let n = entries.len();
@@ -667,6 +663,7 @@ mod tests {
         let tol = Tol::witness();
         let body =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let body = crate::test_support::finished("the body", body, tol);
         let band = Band::linear(tol).unwrap();
         let h = core::f64::consts::FRAC_1_SQRT_2;
         let point = |v: VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -686,12 +683,7 @@ mod tests {
                 geom_core::Vec3::new(0.0, s * h, -s * h),
                 tol,
             );
-            let (sides, _) = crate::vertex_sides(
-                &crate::test_support::finished("the operand", body.clone(), tol),
-                &plane,
-                tol,
-            )
-            .unwrap();
+            let (sides, _) = crate::vertex_sides(&body, &plane, tol).unwrap();
             let entries =
                 super::super::classify_neighborhood(&body, &plane, &sides, base, band).unwrap();
             let n = entries.len();

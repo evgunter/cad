@@ -102,12 +102,8 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         1.0,
         Tol::witness(),
     );
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 
@@ -123,12 +119,8 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0, Tol::witness());
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 }
@@ -144,12 +136,8 @@ fn tiny_real_sliver_not_wrongly_refused() {
         1.0,
         Tol::witness(),
     );
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -162,12 +150,7 @@ fn tiny_real_sliver_not_wrongly_refused() {
         "sliver volume {va} vs {expect}"
     );
     // And the section query agrees: one tiny region.
-    let s = plane_section(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let s = plane_section(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.regions.len(), 1);
 }
 
@@ -206,28 +189,19 @@ fn in_band_section_escalates_typed_not_misclassified() {
 #[test]
 fn vertex_only_contact_is_typed_empty() {
     let fx = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let fx = topo::test_support::finished("the fx", fx, Tol::witness());
     let s3 = 3.0f64.sqrt();
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
         geom_core::Tol::witness(),
     );
-    let r = split(
-        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let r = split(&fx, &plane, Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(below.vertices().count(), fx.vertices().count());
-    let s = plane_section(
-        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let s = plane_section(&fx, &plane, Tol::witness()).unwrap();
     assert!(s.regions.is_empty());
     assert!(s.u_ref.is_none());
 }

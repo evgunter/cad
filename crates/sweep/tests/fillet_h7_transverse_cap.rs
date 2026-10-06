@@ -366,18 +366,14 @@ fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
 #[test]
 fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
     let rod = rod_d_profile_at::<f64>(tol());
+    let rod = sweep::test_support::finished("the rod", rod, tol());
     let phi = 0.3f64;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.7),
         Vec3::new(phi.sin(), 0.0, phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(
-        &sweep::test_support::finished("the operand", rod.clone(), tol()),
-        &plane,
-        tol(),
-    )
-    .expect("the tilted cut splits");
+    let result = split(&rod, &plane, tol()).expect("the tilted cut splits");
     let SplitPart::Body(below) = &result.below else {
         panic!("the lower part carries material");
     };
@@ -607,17 +603,13 @@ fn the_cap_lever_is_the_links_extent() {
     let band = Band::new(1.2e-3, 1.2e-2).expect("the row's own band, ten wide");
     for (len, in_band) in [(0.3, true), (2.5, false)] {
         let rod = rod_d_profile_of_length_at::<f64>(len, tol());
+        let rod = sweep::test_support::finished("the rod", rod, tol());
         let plane = topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.6 * len),
             Vec3::new(phi.sin(), 0.0, phi.cos()),
             geom_core::Tol::witness(),
         );
-        let result = split(
-            &sweep::test_support::finished("the operand", rod.clone(), tol()),
-            &plane,
-            tol(),
-        )
-        .expect("a 1e-2 tilt splits");
+        let result = split(&rod, &plane, tol()).expect("a 1e-2 tilt splits");
         let SplitPart::Body(below) = &result.below else {
             panic!("the lower part carries material");
         };

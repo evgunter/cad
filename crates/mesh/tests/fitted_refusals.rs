@@ -179,17 +179,13 @@ fn split_cylinder_half() -> Body<f64> {
     )
     .unwrap()
     .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.0),
         Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(
-        &topo::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(ref below) = result.below else {
         panic!("the lower side carries material");
     };

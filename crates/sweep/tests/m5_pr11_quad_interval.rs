@@ -34,17 +34,13 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
     )
     .unwrap()
     .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         p3(0.0, 0.0, H / 2.0),
         v3(PHI.sin(), 0.0, PHI.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(
-        &sweep::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };

@@ -91,12 +91,8 @@ fn r1a_tangent_tip_two_disjoint_copies_with_two_edge_orbits() {
         (0.0, 4.0),
     ];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(2.0, 1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let red = split_reduce(&operand, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
     for z in [0.0, 1.0] {
         let tip = vertex_at(&fx.body, 6.0, 2.0, z);
         let recs: Vec<_> = red
@@ -149,6 +145,7 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
         (0.0, 4.0),
     ];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let (tip_b, tip_t) = (
         vertex_at(&fx.body, 3.0, 2.0, 0.0),
         vertex_at(&fx.body, 3.0, 2.0, 1.0),
@@ -156,12 +153,7 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
 
     // +n (Above = +y): BOB→ABOVE moves the tip edge to Above copies —
     // physically the above side. One dangling null (wide cap bisector).
-    let red_pos = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(2.0, 1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let red_pos = split_reduce(&operand, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
     assert!(
         !joins(&red_pos.body, tip_b, tip_t),
         "+n: tip edge left the old vertices (BOB→ABOVE)"
@@ -179,12 +171,7 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
     // −n (frame-Above = physical below): the tip context reads AOA;
     // AOA→BELOW keeps the tip edge on the OLD vertices — which are the
     // frame-below = physically-ABOVE side. Same physical assignment.
-    let red_neg = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(2.0, -1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let red_neg = split_reduce(&operand, &plane_y(2.0, -1.0), Tol::witness()).unwrap();
     assert!(
         joins(&red_neg.body, tip_b, tip_t),
         "−n: tip edge stays on old vertices (AOA→BELOW) = physically above"
@@ -214,12 +201,8 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
 fn r2_one_sided_tangency_mints_nothing() {
     let profile = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)]; // CCW, apex down
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0, 1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let red = split_reduce(&operand, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 2); // apex bottom + top
     assert!(red.null_edges.is_empty());
     for z in [0.0, 1.0] {
@@ -345,13 +328,10 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         geom_core::Tol::witness(),
     );
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
 
-    let red = match split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    ) {
+    let red = match split_reduce(&operand, &plane, Tol::witness()) {
         Ok(red) => red,
         // At the strictest ε row the certified split_edge lane REFUSES
         // this construction outright: the child-curve re-certification
@@ -389,18 +369,15 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         use geom_core::k_stats::{Probe, start_recording, take_samples};
         let n_operand_vertices = fx.body.vertices().count();
         let fx_p = prism::<Probe>(&profile, 1.0, Tol::witness());
+        let operand =
+            topo::test_support::finished("the fixture", fx_p.body.clone(), Tol::witness());
         let plane_p = topo::test_support::split_plane(
             Point3::new(Probe(100000.0), Probe(100000.0), Probe(0.0)),
             Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
             geom_core::Tol::witness(),
         );
         start_recording();
-        let red_p = split_reduce(
-            &topo::test_support::finished("the operand", fx_p.body.clone(), Tol::witness()),
-            &plane_p,
-            Tol::witness(),
-        )
-        .unwrap();
+        let red_p = split_reduce(&operand, &plane_p, Tol::witness()).unwrap();
         let samples = take_samples();
         assert_eq!(red_p.on_vertices.len(), 4);
         let sweeps = samples
@@ -473,11 +450,8 @@ fn r6_band_honesty_both_sides_and_no_conscription() {
         (0.0, 1.0 - 3.0 * eps),
     ];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    match split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0, 1.0),
-        Tol::witness(),
-    ) {
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    match split_reduce(&operand, &plane_y(1.0, 1.0), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { vertex, diag }) => {
             assert!(diag.predicate.is_some());
             let p = point_of(&fx.body, vertex);
@@ -490,12 +464,8 @@ fn r6_band_honesty_both_sides_and_no_conscription() {
     let off = 2.0 * band.escalate();
     let profile = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0 - off), (0.0, 1.0 - off)];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0, 1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let red = split_reduce(&operand, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     assert!(red.on_vertices.is_empty());
     assert!(red.null_edges.is_empty());
     assert!(red.sides.iter().all(|(_, &s)| s == PlaneSide::Below));
@@ -560,22 +530,13 @@ fn r8_determinism_byte_identical_replay() {
         (0.0, 4.0),
     ];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let dump = |red: &topo::SplitReduction<f64>| {
         let sides: Vec<_> = red.sides.iter().map(|(k, v)| (k, *v)).collect();
         format!("{sides:?}|{:?}|{:?}", red.on_vertices, red.null_edges)
     };
-    let r1 = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(2.0, 1.0),
-        Tol::witness(),
-    )
-    .unwrap();
-    let r2 = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(2.0, 1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let r1 = split_reduce(&operand, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
+    let r2 = split_reduce(&operand, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(dump(&r1), dump(&r2));
 }
 
@@ -599,13 +560,9 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
         (0.0, 4.0),
     ];
     let fx = prism::<Interval>(&wedge, 1.0, geom_core::Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     for (ny, dangling_expected) in [(1.0, 2), (-1.0, 0)] {
-        let red = split_reduce(
-            &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-            &plane_y::<Interval>(2.0, ny),
-            Tol::witness(),
-        )
-        .unwrap();
+        let red = split_reduce(&operand, &plane_y::<Interval>(2.0, ny), Tol::witness()).unwrap();
         // 2 tips + 4 crossings (x=0/x=10 walls at y=2, both rims).
         assert_eq!(red.on_vertices.len(), 6);
         // Tips mint 2 each; crossings 1 each.
@@ -618,12 +575,8 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
     // a non-singleton enclosure for the constructed point.
     let profile = [(0.0, 0.0), (9.0, 0.0), (10.0, 3.0), (0.0, 3.0)];
     let fx = prism::<Interval>(&profile, 1.0, geom_core::Tol::witness());
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y::<Interval>(1.0, 1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let red = split_reduce(&operand, &plane_y::<Interval>(1.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 4); // 2 diagonal + 2 wall crossings
     for &v in &red.on_vertices {
         assert_eq!(red.sides[v], PlaneSide::On);
@@ -638,11 +591,8 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
         (0.0, 1.0 + 3.0 * eps),
     ];
     let fx = prism::<Interval>(&profile, 1.0, geom_core::Tol::witness());
-    match split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y::<Interval>(1.0, 1.0),
-        Tol::witness(),
-    ) {
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    match split_reduce(&operand, &plane_y::<Interval>(1.0, 1.0), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { .. }) => {}
         other => panic!("expected SliverVertex under interval, got {other:?}"),
     }

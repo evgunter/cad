@@ -131,10 +131,11 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
     let first = split_at_y(&body, 1.0);
     let below1 = first.below.body().expect("below of split #1");
     tier3(below1, "coplanar split below");
+    let below1 = sweep::test_support::finished("the lower half", below1.clone(), Tol::witness());
 
     // Transverse second cut straight through the restated edges' span.
     let second = topo::split(
-        &sweep::test_support::finished("the operand", below1.clone(), Tol::witness()),
+        &below1,
         &topo::test_support::split_plane(
             Point3::new(6.5, 0.0, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
@@ -224,9 +225,10 @@ fn tangent_plane_split_of_a_cylinder_never_reaches_the_smooth_arm() {
         (Point2::new(1.0, 0.0), 1.0),
     ]);
     let body = extruded(vec![circle], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     // Plane y = 1 is tangent to the barrel along the line (0,1,z).
     let attempt = topo::split(
-        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
+        &body,
         &topo::test_support::split_plane(
             Point3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),

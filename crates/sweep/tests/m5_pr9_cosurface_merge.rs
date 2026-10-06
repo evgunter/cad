@@ -60,17 +60,13 @@ fn sub_period_wall_pieces_remerge_structurally() {
     // below part's wall is TWO same-key fragments meeting across one
     // original meridian strut (the C12.5 through-cut shape).
     let body = disc_cylinder();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.2, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let parts = split(
-        &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .expect("the tilted-cut lane splits it");
+    let parts = split(&body, &plane, Tol::witness()).expect("the tilted-cut lane splits it");
     let mut part = parts.below.body().expect("a below part exists").clone();
     assert_eq!(wall_count(&part), 2, "two same-key wall fragments");
     let vol_before = topo::mass_properties(&part, Tol::witness()).unwrap().volume;

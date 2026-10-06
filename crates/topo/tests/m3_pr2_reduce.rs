@@ -83,17 +83,13 @@ fn vertex_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> VertexKey {
 #[test]
 fn notched_block_reduction() {
     let fixture = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fixture.body.clone(), Tol::witness());
     let operand_counts = (
         fixture.body.vertices().count(),
         fixture.body.edges().count(),
         fixture.body.faces().count(),
     );
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fixture.body.clone(), Tol::witness()),
-        &plane_y1(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = split_reduce(&operand, &plane_y1(), Tol::witness()).unwrap();
 
     // Functional: the operand is untouched.
     assert_eq!(
@@ -167,12 +163,7 @@ fn notched_block_reduction() {
     }
 
     // Determinism (D9): a second run reproduces the records exactly.
-    let red2 = split_reduce(
-        &topo::test_support::finished("the operand", fixture.body.clone(), Tol::witness()),
-        &plane_y1(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let red2 = split_reduce(&operand, &plane_y1(), Tol::witness()).unwrap();
     assert_eq!(red.null_edges, red2.null_edges);
     assert_eq!(red.on_vertices, red2.on_vertices);
 }
@@ -221,18 +212,14 @@ fn bucket_entries(
 #[test]
 fn tangent_edge_aoa_goes_below() {
     let fixture = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fixture.body.clone(), Tol::witness());
     let plane = plane_y1();
     let (tip_b, tip_t) = (
         vertex_at(&fixture.body, 4.0, 1.0, 0.0),
         vertex_at(&fixture.body, 4.0, 1.0, 1.0),
     );
     // Classification level: [slant: A, tip: ON→B, slant: A, cap dup: B].
-    let (to_other, edges, dups) = bucket_entries(
-        &topo::test_support::finished("the operand", fixture.body.clone(), Tol::witness()),
-        &plane,
-        tip_b,
-        tip_t,
-    );
+    let (to_other, edges, dups) = bucket_entries(&operand, &plane, tip_b, tip_t);
     assert_eq!(to_other, vec![PlaneSide::Below]); // the adjudicated AOA verdict
     assert_eq!(edges, vec![PlaneSide::Above, PlaneSide::Above]);
     assert_eq!(dups, vec![PlaneSide::Below]);
@@ -240,12 +227,7 @@ fn tangent_edge_aoa_goes_below() {
     // Surgery level: two runs ⇒ two copies; the slant half-edges start
     // at distinct new vertices; the tip edge keeps the old (Below-side)
     // vertices at both ends.
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fixture.body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = split_reduce(&operand, &plane, Tol::witness()).unwrap();
     for tip in [tip_b, tip_t] {
         let copies: Vec<_> = red
             .null_edges
@@ -281,27 +263,18 @@ fn tangent_edge_aoa_goes_below() {
 #[test]
 fn touching_wedge_bob_goes_above() {
     let fixture = prism::<f64>(MIRRORED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fixture.body.clone(), Tol::witness());
     let plane = plane_y1();
     let (tip_b, tip_t) = (
         vertex_at(&fixture.body, 4.0, 1.0, 0.0),
         vertex_at(&fixture.body, 4.0, 1.0, 1.0),
     );
-    let (to_other, edges, dups) = bucket_entries(
-        &topo::test_support::finished("the operand", fixture.body.clone(), Tol::witness()),
-        &plane,
-        tip_b,
-        tip_t,
-    );
+    let (to_other, edges, dups) = bucket_entries(&operand, &plane, tip_b, tip_t);
     assert_eq!(to_other, vec![PlaneSide::Above]); // the adjudicated BOB verdict
     assert_eq!(edges, vec![PlaneSide::Below, PlaneSide::Below]);
     assert_eq!(dups, vec![PlaneSide::Above]);
 
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fixture.body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = split_reduce(&operand, &plane, Tol::witness()).unwrap();
     for tip in [tip_b, tip_t] {
         let at_tip: Vec<_> = red
             .null_edges
@@ -335,30 +308,22 @@ fn touching_wedge_bob_goes_above() {
 fn rule_a_mirror_senses() {
     // Notched: floor face outward +y — flanking entries BELOW.
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let (a, b) = (
         vertex_at(&fx.body, 7.0, 1.0, 0.0),
         vertex_at(&fx.body, 6.0, 1.0, 0.0),
     );
-    let (to_other, _, _) = bucket_entries(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y1(),
-        a,
-        b,
-    );
+    let (to_other, _, _) = bucket_entries(&operand, &plane_y1(), a, b);
     assert_eq!(to_other, vec![PlaneSide::Below]);
 
     // Mirrored: ceiling face outward −y — flanking entries ABOVE.
     let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let (a, b) = (
         vertex_at(&fx.body, 6.0, 1.0, 0.0),
         vertex_at(&fx.body, 7.0, 1.0, 0.0),
     );
-    let (to_other, _, _) = bucket_entries(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y1(),
-        a,
-        b,
-    );
+    let (to_other, _, _) = bucket_entries(&operand, &plane_y1(), a, b);
     assert_eq!(to_other, vec![PlaneSide::Above]);
 }
 
@@ -465,11 +430,8 @@ fn sliver_vertex_escalates() {
         (0.0, 1.0 + 3.0 * eps),
     ];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    match split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y1(),
-        Tol::witness(),
-    ) {
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    match split_reduce(&operand, &plane_y1(), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { .. }) => {}
         other => panic!("expected SliverVertex, got {other:?}"),
     }
@@ -482,12 +444,8 @@ fn sliver_vertex_escalates() {
 #[test]
 fn crossing_split_arrangement() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let red = split_reduce(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y1(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let red = split_reduce(&operand, &plane_y1(), Tol::witness()).unwrap();
     let crossing = *red
         .on_vertices
         .iter()
@@ -535,12 +493,8 @@ fn interval_lane_notched_and_wedge() {
     use geom_core::Interval;
     for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 2usize)] {
         let fx = prism::<Interval>(profile, 1.0, geom_core::Tol::witness());
-        let red = split_reduce(
-            &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-            &plane_y1::<Interval>(),
-            Tol::witness(),
-        )
-        .unwrap();
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+        let red = split_reduce(&operand, &plane_y1::<Interval>(), Tol::witness()).unwrap();
         assert_eq!(red.on_vertices.len(), 10);
         assert_eq!(red.null_edges.len(), 12);
         // The V/Λ tip (profile corner index: NOTCHED 6, MIRRORED 2).

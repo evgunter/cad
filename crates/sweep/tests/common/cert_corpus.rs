@@ -87,12 +87,8 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         ),
         geom_core::Tol::witness(),
     );
-    let res = split(
-        &sweep::test_support::finished("the operand", cyl.clone(), tol),
-        &plane,
-        tol,
-    )
-    .unwrap();
+    let cyl = sweep::test_support::finished("the cylinder", cyl, tol);
+    let res = split(&cyl, &plane, tol).unwrap();
     if let SplitPart::Body(above) = &res.above {
         out.push(("cut_cylinder_above".into(), above.clone()));
     }

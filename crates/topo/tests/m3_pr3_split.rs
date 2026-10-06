@@ -138,13 +138,9 @@ fn holed_box_geometric() -> Body<f64> {
 fn generic_plane_asymmetric() {
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let plane = plane_y(1.0);
-    let result = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let result = split(&operand, &plane, Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
 
     // Tier 1 is validated inside every operator (debug asserts); tier 2
@@ -215,12 +211,7 @@ fn generic_plane_asymmetric() {
     }
 
     // D9: byte-identical replay (Debug dump of the full arenas).
-    let again = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let again = split(&operand, &plane, Tol::witness()).unwrap();
     assert_eq!(format!("{above:?}"), format!("{:?}", body_of(&again.above)));
     assert_eq!(format!("{below:?}"), format!("{:?}", body_of(&again.below)));
 }
@@ -231,12 +222,8 @@ fn generic_plane_asymmetric() {
 fn vertex_grazing_plane() {
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 3.0), (0.0, 2.0)];
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
-    let result = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(2.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane_y(2.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     // Tier 3 qualifies: each body alone is manifold and
     // coincidence-free (the grazed corners coincide only ACROSS the
@@ -289,12 +276,8 @@ fn vertex_grazing_plane() {
 #[test]
 fn notched_block_end_to_end() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let result = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -382,12 +365,8 @@ fn pseudomanifold_door(body: &Body<f64>) -> Result<(), Vec<topo::ValidationError
 #[test]
 fn notched_block_halves_pass_the_pseudomanifold_door_with_no_records() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let result = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     for z in [0.0, 1.0] {
         let tips = vertices_at(above, 4.0, 1.0, z);
@@ -410,12 +389,8 @@ fn notched_block_halves_pass_the_pseudomanifold_door_with_no_records() {
 #[test]
 fn moving_one_tip_copy_parts_it_from_its_twin() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let result = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let mut above = body_of(&result.above).clone();
     let tip_points: Vec<topo::PointKey> = [0.0, 1.0]
         .map(|z| {
@@ -468,6 +443,7 @@ fn one_sided_tangency_classifies_with_its_material() {
         ("leaning, from above", &leaning, true),
     ] {
         let fx = prism::<f64>(profile, 1.0, Tol::witness());
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
         for s in [1.0, -1.0] {
             let plane = topo::test_support::split_plane(
@@ -475,12 +451,7 @@ fn one_sided_tangency_classifies_with_its_material() {
                 Vec3::new(0.0, s, 0.0),
                 Tol::witness(),
             );
-            let r = split(
-                &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-                &plane,
-                Tol::witness(),
-            )
-            .unwrap();
+            let r = split(&operand, &plane, Tol::witness()).unwrap();
             let (full, empty) = if material_above == (s > 0.0) {
                 (&r.above, &r.below)
             } else {
@@ -495,12 +466,7 @@ fn one_sided_tangency_classifies_with_its_material() {
                 (v - v0).abs() <= 1e-12 * v0,
                 "{label}, s = {s}: {v} vs {v0}"
             );
-            let section = plane_section(
-                &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-                &plane,
-                Tol::witness(),
-            )
-            .unwrap();
+            let section = plane_section(&operand, &plane, Tol::witness()).unwrap();
             assert!(section.regions.is_empty(), "{label}, s = {s}");
         }
     }
@@ -522,12 +488,8 @@ fn one_sided_tangency_classifies_with_its_material() {
 fn bob_mirror_pinch_refuses_typed() {
     // MIRRORED under +n: pinched floor pieces are BELOW.
     let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let (slab, pieces) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(slab), Ok(()));
     assert_eq!(validate_closed(pieces), Ok(()));
@@ -548,17 +510,13 @@ fn bob_mirror_pinch_refuses_typed() {
 
     // NOTCHED under −n: pinched prisms are BELOW the flipped normal.
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let flipped = topo::test_support::split_plane(
         Point3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, -1.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &flipped,
-        Tol::witness(),
-    )
-    .unwrap();
+    let r = split(&operand, &flipped, Tol::witness()).unwrap();
     // Below the flipped normal = the y > 1 pinched prisms.
     let (pieces, slab) = (body_of(&r.below), body_of(&r.above));
     assert_eq!(validate_closed(pieces), Ok(()));
@@ -580,13 +538,9 @@ fn bob_mirror_pinch_refuses_typed() {
 #[test]
 fn plane_section_slicing() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let before = format!("{:?}", fx.body);
-    let section = plane_section(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let section = plane_section(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(format!("{:?}", fx.body), before, "operand untouched");
     assert_eq!(section.regions.len(), 3);
     assert!(section.regions.iter().all(|r| r.holes.is_empty()));
@@ -620,12 +574,7 @@ fn plane_section_slicing() {
     assert!((total - 7.0).abs() < 1e-12);
 
     // A plane that misses the body: zero regions, typed success.
-    let empty = plane_section(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(9.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let empty = plane_section(&operand, &plane_y(9.0), Tol::witness()).unwrap();
     assert!(empty.regions.is_empty());
     assert!(empty.u_ref.is_none());
 }
@@ -638,6 +587,7 @@ fn plane_section_slicing() {
 #[test]
 fn ring_rehoming_genus_one() {
     let body = holed_box_geometric();
+    let body = topo::test_support::finished("the body", body, Tol::witness());
     assert_eq!(validate_closed(&body), Ok(()));
     // Split at x = 3: the hole (x ∈ [0.5, 1.5]) is entirely below.
     let plane = topo::test_support::split_plane(
@@ -645,12 +595,7 @@ fn ring_rehoming_genus_one() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
-    let result = split(
-        &topo::test_support::finished("the operand", body.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -730,12 +675,8 @@ fn interval_lane_acceptance() {
     // Generic asymmetric split.
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)];
     let fx = prism::<Interval>(&profile, 1.0, geom_core::Tol::witness());
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y::<Interval>(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -760,22 +701,13 @@ fn interval_lane_acceptance() {
 
     // The notched block: three disconnected Above prisms, as at f64.
     let fx = prism::<Interval>(NOTCHED, 1.0, geom_core::Tol::witness());
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y::<Interval>(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert_eq!(body_of(&r.above).shells().count(), 3);
     assert_eq!(body_of(&r.below).shells().count(), 1);
 
     // Slicing: three regions, corners on the plane (containment).
-    let s = plane_section(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y::<Interval>(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let s = plane_section(&operand, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert_eq!(s.regions.len(), 3);
 
     // One-sided tangency classifies with its material on this lane too.
@@ -784,12 +716,8 @@ fn interval_lane_acceptance() {
         1.0,
         geom_core::Tol::witness(),
     );
-    let r = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y::<Interval>(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert!(matches!(r.below, SplitPart::Empty));
     assert_eq!(census(body_of(&r.above)), census(&fx.body));
 }
@@ -799,25 +727,16 @@ fn interval_lane_acceptance() {
 #[test]
 fn empty_sides_are_typed() {
     let fx = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let fx = topo::test_support::finished("the fx", fx, Tol::witness());
     // Plane far above: everything Below.
-    let r = split(
-        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
-        &plane_y(5.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let r = split(&fx, &plane_y(5.0), Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(census(below), census(&fx));
     // Plane coplanar with the top face: ON contact, no cut — still a
     // typed Empty above.
-    let r = split(
-        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let r = split(&fx, &plane_y(1.0), Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     assert_eq!(validate_closed(body_of(&r.below)), Ok(()));
 }
@@ -1017,12 +936,8 @@ fn offset_one_plane(
 #[test]
 fn an_offset_that_moves_neither_tip_copy_keeps_them_on_one_point() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let result = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let mut above = body_of(&result.above).clone();
     assert_eq!(pseudomanifold_door(&above), Ok(()), "before the offset");
     offset_one_plane(&mut above, |o, n| n.x < -0.5 && o.x == 0.0, 0.1);
@@ -1046,12 +961,8 @@ fn an_offset_that_moves_neither_tip_copy_keeps_them_on_one_point() {
 #[test]
 fn an_offset_that_moves_both_tip_copies_together_keeps_them_touching() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
-    let result = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane_y(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let result = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let mut above = body_of(&result.above).clone();
     offset_one_plane(&mut above, |o, n| n.z < -0.5 && o.z == 0.0, 0.1);
     let tips: Vec<topo::VertexKey> = above

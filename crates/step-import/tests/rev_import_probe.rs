@@ -151,18 +151,14 @@ fn conic_trimmed_flip_slips_both_gates() {
     )
     .unwrap()
     .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
     let phi: f64 = 0.3;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
         Vec3::new(phi.sin(), 0.0, phi.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(
-        &topo::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
-        &plane,
-        Tol::witness(),
-    )
-    .unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(cut) = &result.above else {
         panic!("above half carries material");
     };

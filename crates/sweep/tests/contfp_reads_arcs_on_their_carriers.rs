@@ -410,17 +410,13 @@ fn steep_cut(tilt: f64) -> Body<f64> {
     let h = 2.0 * tilt.tan() + 20.0;
     let tall =
         sweep::test_support::prism(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 1.0)], h, tol());
+    let tall = sweep::test_support::finished("the tall", tall, tol());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, h / 2.0),
         Vec3::new(tilt.sin(), 0.0, tilt.cos()),
         geom_core::Tol::witness(),
     );
-    let result = split(
-        &sweep::test_support::finished("the operand", tall.clone(), tol()),
-        &plane,
-        tol(),
-    )
-    .expect("the plane cuts the prism");
+    let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
     let SplitPart::Body(above) = result.above else {
         panic!("the part above the cut is a body");
     };

@@ -140,14 +140,11 @@ fn sector_margin_stream() {
     k_stats::start_recording();
     for c in [1.0, 1.5, 2.0] {
         let body = prism::<Probe>(NOTCHED, 3.0, Tol::witness()).body;
+        let body = topo::test_support::finished("the body", body, Tol::witness());
         // The result is not the point; the recorded decisions are. A
         // typed refusal is a legitimate outcome of a vertex-grazing
         // plane and its margins are recorded either way.
-        let _ = split(
-            &topo::test_support::finished("the operand", body.clone(), Tol::witness()),
-            &plane_y(c),
-            Tol::witness(),
-        );
+        let _ = split(&body, &plane_y(c), Tol::witness());
     }
     let split_samples = k_stats::take_samples();
 

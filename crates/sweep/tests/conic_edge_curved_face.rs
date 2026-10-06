@@ -36,6 +36,7 @@ pub(crate) fn drum_lower() -> AtRestBody<f64> {
         1.0,
         tol,
     );
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol);
     let plane = topo::splitting::SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: UnitVec3::new(
@@ -45,12 +46,7 @@ pub(crate) fn drum_lower() -> AtRestBody<f64> {
         )
         .expect("a cut normal has a length"),
     };
-    let result = topo::splitting::split(
-        &sweep::test_support::finished("the operand", cylinder.clone(), tol),
-        &plane,
-        tol,
-    )
-    .expect("the tilted cut splits");
+    let result = topo::splitting::split(&cylinder, &plane, tol).expect("the tilted cut splits");
     let topo::splitting::SplitPart::Body(below) = result.below else {
         panic!("the cut leaves material below");
     };

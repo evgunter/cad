@@ -310,15 +310,12 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
 #[test]
 fn a_plane_missing_the_cone_splits_the_body() {
     let tower = revolved(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 2.0), (0.0, 2.0)]);
+    let tower = sweep::test_support::finished("the tower", tower, Tol::witness());
     let total = PI + FRUSTUM_VOLUME;
     for phi in [0.0, 0.3] {
         let what = format!("phi {phi}");
-        let result = split(
-            &sweep::test_support::finished("the operand", tower.clone(), Tol::witness()),
-            &plane(phi, 0.5),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(&tower, &plane(phi, 0.5), Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let props = |b: &Body<f64>| topo::props::mass_properties(b, Tol::witness()).unwrap();
         let (pa, pb) = (props(&above), props(&below));
@@ -398,16 +395,13 @@ fn a_tilted_cone_cut_is_never_misread_by_containment() {
 #[test]
 fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
     let cone = revolved(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]);
+    let cone = sweep::test_support::finished("the cone", cone, Tol::witness());
     let total = PI / 3.0;
     assert!((vol(&cone) - total).abs() < 1e-12, "the uncut cone");
     for qy in [0.15, 0.4, 0.75] {
         let what = format!("axis-normal circle at y = {qy}");
-        let result = split(
-            &sweep::test_support::finished("the operand", cone.clone(), Tol::witness()),
-            &plane(0.0, qy),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result =
+            split(&cone, &plane(0.0, qy), Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let tip = PI * (1.0 - qy).powi(3) / 3.0;
         assert!((vol(&above) - tip).abs() < 1e-12, "{what}: the tip cone");
@@ -426,12 +420,8 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
                         phi.sin() * psi.sin(),
                     )),
                 };
-                let result = split(
-                    &sweep::test_support::finished("the operand", cone.clone(), Tol::witness()),
-                    &cut,
-                    Tol::witness(),
-                )
-                .unwrap_or_else(|e| panic!("{what}: {e}"));
+                let result =
+                    split(&cone, &cut, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
                 let (above, below) = halves(&result, &what);
                 let (va, vb) = (vol(&above), vol(&below));
                 assert!((va + vb - total).abs() < 1e-12, "{what}: sum {}", va + vb);

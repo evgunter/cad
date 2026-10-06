@@ -171,18 +171,14 @@ fn silent_fixed_predicates_scale_linearly() {
         );
         // Oblique split of a cube.
         let body = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)).clone();
+        let body = topo::test_support::finished("the body", body, Tol::witness());
         let n = geom_core::Vec3::new(Probe(1.0 / 3.0), Probe(2.0 / 3.0), Probe(2.0 / 3.0));
         let plane = topo::test_support::split_plane(
             geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),
             n,
             geom_core::Tol::witness(),
         );
-        split(
-            &topo::test_support::finished("the operand", body.clone(), Tol::witness()),
-            &plane,
-            Tol::witness(),
-        )
-        .expect("oblique split");
+        split(&body, &plane, Tol::witness()).expect("oblique split");
         let mut out: BTreeMap<&'static str, Vec<f64>> = BTreeMap::new();
         for sample in k_stats::take_samples() {
             if matches!(

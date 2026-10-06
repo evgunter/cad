@@ -8,13 +8,14 @@
 //! component distribution, the carve into two result bodies), the
 //! public [`split`] op, and **slicing** ([`plane_section`], `section`).
 //!
-//! Every door here takes a finished operand ([`crate::AtRestBody`]): a
-//! body tier 3 passed, or one whose scalar runs no at-rest gate (a dual).
-//! Over the latter the door reads what the type promises itself, before
-//! anything else and per solid: tier 2 (a strut, an empty loop, a null
-//! edge, a split shell refuse [`SplitReduceError::ScaffoldingOperand`])
-//! and tier 3's check 7 (an inside-out solid refuses
-//! [`SplitReduceError::InsideOutOperand`]).
+//! The doors that take an operand ([`split`], [`split_reduce`],
+//! [`plane_section`], [`vertex_sides`]) take a finished one
+//! ([`crate::AtRestBody`]): a body tier 3 passed, or one whose scalar runs
+//! no at-rest gate (a dual). Over the latter the door reads what the type
+//! promises itself, before anything else and per solid: tier 2 (a strut,
+//! an empty loop, a null edge, a split shell refuse
+//! [`SplitReduceError::ScaffoldingOperand`]) and tier 3's check 7 (an
+//! inside-out solid refuses [`SplitReduceError::InsideOutOperand`]).
 //!
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
@@ -597,8 +598,7 @@ fn gate_finished<T: geom_core::Decide + crate::props::AtRestPolicy>(
     Ok(operand.gate_unverdicted("the split's operand", band, tol)?)
 }
 
-/// [`split_reduce`] behind the finished-body gate: over the operand as the
-/// pipeline reads it, one solid.
+/// [`split_reduce`] behind the finished-body gate.
 pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,

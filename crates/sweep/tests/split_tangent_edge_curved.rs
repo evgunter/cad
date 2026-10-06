@@ -82,15 +82,12 @@ fn outer() -> Loop {
 #[test]
 fn a_plane_along_a_convex_flat_to_wall_edge_lands_the_bar_whole() {
     let d = extruded(vec![vec![((0.5, 0.0), 1.0), ((-0.5, 0.0), 0.0)]]);
+    let d = sweep::test_support::finished("the d", d, Tol::witness());
     let v = std::f64::consts::PI / 8.0;
     for n in [(-1.0, 1.0), (1.0, -1.0), (-1.0, 0.0), (1.0, 0.0)] {
         let label = format!("n = {n:?}");
-        let r = split(
-            &sweep::test_support::finished("the operand", d.clone(), Tol::witness()),
-            &plane((0.5, 0.0), n),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let r = split(&d, &plane((0.5, 0.0), n), Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
         let want = if n.0 < 0.0 {
             (Some(v), None)
         } else {
@@ -115,14 +112,11 @@ fn a_plane_along_a_reflex_flat_to_wall_edge_cuts_through() {
         ("ccw", vec![((0.5, 0.0), 1.0), ((-0.5, 0.0), 0.0)]),
     ] {
         let b = extruded(vec![outer(), hole]);
+        let b = sweep::test_support::finished("the b", b, Tol::witness());
         for (s, want) in [(1.0, (above, 6.125)), (-1.0, (6.125, above))] {
             let label = format!("{label}, s = {s}");
-            let r = split(
-                &sweep::test_support::finished("the operand", b.clone(), Tol::witness()),
-                &plane((0.5, 0.0), (-s, s)),
-                Tol::witness(),
-            )
-            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            let r = split(&b, &plane((0.5, 0.0), (-s, s)), Tol::witness())
+                .unwrap_or_else(|e| panic!("{label}: {e:?}"));
             let got = (volume(&label, &r.above), volume(&label, &r.below));
             assert!(
                 close(got.0, Some(want.0)) && close(got.1, Some(want.1)),
@@ -203,25 +197,17 @@ fn a_concave_graze_of_a_round_hole_refuses() {
 #[test]
 fn a_convex_graze_of_a_cylinder_lands_it_whole() {
     let disc = extruded(vec![vec![((-0.5, 0.0), 1.0), ((0.5, 0.0), 1.0)]]);
+    let disc = sweep::test_support::finished("the disc", disc, Tol::witness());
     let v = std::f64::consts::PI / 4.0;
     for t in THETAS {
         let u = unit(t);
         for s in [1.0, -1.0] {
             let label = format!("θ = {t}, s = {s}");
             let p = plane((0.5 * u.0, 0.5 * u.1), (s * u.0, s * u.1));
-            let section = topo::splitting::plane_section(
-                &sweep::test_support::finished("the operand", disc.clone(), Tol::witness()),
-                &p,
-                Tol::witness(),
-            )
-            .unwrap_or_else(|e| panic!("{label}: section: {e:?}"));
+            let section = topo::splitting::plane_section(&disc, &p, Tol::witness())
+                .unwrap_or_else(|e| panic!("{label}: section: {e:?}"));
             assert!(section.regions.is_empty(), "{label}: a section");
-            let r = split(
-                &sweep::test_support::finished("the operand", disc.clone(), Tol::witness()),
-                &p,
-                Tol::witness(),
-            )
-            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            let r = split(&disc, &p, Tol::witness()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
             let want = if s > 0.0 {
                 (None, Some(v))
             } else {
@@ -256,6 +242,7 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
     )
     .unwrap()
     .body;
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let pi4 = std::f64::consts::PI / 4.0;
     for (o, n, above) in [
         (p3(0.0, 0.5, 0.0), v3(0.0, 1.0, 0.0), false),
@@ -264,12 +251,7 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
     ] {
         let label = format!("{o:?}, {n:?}");
         let plane = topo::test_support::split_plane(o, n, Tol::witness());
-        let r = split(
-            &sweep::test_support::finished("the operand", body.clone(), Tol::witness()),
-            &plane,
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let r = split(&body, &plane, Tol::witness()).unwrap_or_else(|e| panic!("{label}: {e:?}"));
         let (whole, empty) = if above {
             (&r.above, &r.below)
         } else {
@@ -295,6 +277,7 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
 #[test]
 fn a_near_graze_of_a_cylinder_never_answers_wrongly() {
     let disc = extruded(vec![vec![((-0.5, 0.0), 1.0), ((0.5, 0.0), 1.0)]]);
+    let disc = sweep::test_support::finished("the disc", disc, Tol::witness());
     let (r, v) = (0.5f64, std::f64::consts::PI / 4.0);
     for d in [1e-13, 1e-11, 1e-9, 1e-7, 1e-5, 1e-4] {
         for (inside, off) in [(true, r - d), (false, r + d)] {
@@ -305,11 +288,7 @@ fn a_near_graze_of_a_cylinder_never_answers_wrongly() {
             };
             for s in [1.0, -1.0] {
                 let label = format!("δ = {d:e}, inside = {inside}, s = {s}");
-                let Ok(res) = split(
-                    &sweep::test_support::finished("the operand", disc.clone(), Tol::witness()),
-                    &plane((0.0, off), (0.0, s)),
-                    Tol::witness(),
-                ) else {
+                let Ok(res) = split(&disc, &plane((0.0, off), (0.0, s)), Tol::witness()) else {
                     continue;
                 };
                 let opt = |x: f64| (x > 0.0).then_some(x);
@@ -348,6 +327,7 @@ fn a_convex_graze_beside_a_real_cut_adds_nothing_to_the_section() {
         ((1.0, 2.0), b),
         ((0.0, 2.0), 0.0),
     ]]);
+    let u = sweep::test_support::finished("the u", u, Tol::witness());
     // The segment over a unit chord: angle 4·atan(b), radius
     // (1 + b²)/(4b).
     let (angle, radius) = (4.0 * b.atan(), (1.0 + b * b) / (4.0 * b));
@@ -355,12 +335,8 @@ fn a_convex_graze_beside_a_real_cut_adds_nothing_to_the_section() {
     let (top, rest) = (0.75, 6.0 + segment - 0.75);
     for s in [1.0, -1.0] {
         let label = format!("s = {s}");
-        let r = split(
-            &sweep::test_support::finished("the operand", u.clone(), Tol::witness()),
-            &plane((0.5, 2.0 + b / 2.0), (0.0, s)),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let r = split(&u, &plane((0.5, 2.0 + b / 2.0), (0.0, s)), Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
         let want = if s > 0.0 { (top, rest) } else { (rest, top) };
         let got = (volume(&label, &r.above), volume(&label, &r.below));
         assert!(
@@ -488,17 +464,14 @@ fn a_convex_graze_of_a_boss_on_a_step_cuts_only_the_step() {
         (0.5, 2.0),
         (0.0, 2.0),
     ]);
+    let boss = sweep::test_support::finished("the boss", boss, Tol::witness());
     let beyond = segment(2.0, 0.5);
     let rest = 4.0 * PI + PI / 4.0 - beyond;
     for t in THETAS {
         for s in [1.0, -1.0] {
             let label = format!("θ = {t}, s = {s}");
-            let r = split(
-                &sweep::test_support::finished("the operand", boss.clone(), Tol::witness()),
-                &step_tangent(t, s),
-                Tol::witness(),
-            )
-            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            let r = split(&boss, &step_tangent(t, s), Tol::witness())
+                .unwrap_or_else(|e| panic!("{label}: {e:?}"));
             let want = if s > 0.0 {
                 (beyond, rest)
             } else {
@@ -565,6 +538,7 @@ fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
     )
     .unwrap()
     .body;
+    let body = sweep::test_support::finished("the body", body, t);
     let v = w * h - (4.0 - std::f64::consts::PI) * r * r;
     let c = (w - r, h - r);
     for phi in [
@@ -578,11 +552,7 @@ fn a_convex_graze_of_a_filleted_corner_lands_the_slab_whole() {
         for s in [1.0, -1.0] {
             let label = format!("φ = {phi}, s = {s}");
             let p = plane((c.0 + r * n.0, c.1 + r * n.1), (s * n.0, s * n.1));
-            match split(
-                &sweep::test_support::finished("the operand", body.clone(), t),
-                &p,
-                t,
-            ) {
+            match split(&body, &p, t) {
                 Ok(res) => {
                     let want = if s > 0.0 {
                         (None, Some(v))

@@ -477,9 +477,10 @@ pub fn tilted_cut_upper() -> Body<f64> {
     )
     .expect("the cylinder extrudes")
     .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let phi = 0.3f64;
     let result = topo::splitting::split(
-        &sweep::test_support::finished("the operand", cylinder.clone(), Tol::witness()),
+        &cylinder,
         &topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.5),
             Vec3::new(phi.sin(), 0.0, phi.cos()),
@@ -525,17 +526,13 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         2.5,
         tol,
     );
+    let tall = sweep::test_support::finished("the tall", tall, tol);
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),
         tilted_cut_normal(),
         geom_core::Tol::witness(),
     );
-    let result = topo::splitting::split(
-        &sweep::test_support::finished("the operand", tall.clone(), tol),
-        &plane,
-        tol,
-    )
-    .expect("the plane cuts the prism");
+    let result = topo::splitting::split(&tall, &plane, tol).expect("the plane cuts the prism");
     let part = if above { result.above } else { result.below };
     let topo::splitting::SplitPart::Body(half) = part else {
         panic!("each half carries material");

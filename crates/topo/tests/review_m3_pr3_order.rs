@@ -35,12 +35,8 @@ fn tilted<T: geom_core::Decide>() -> SplitPlane<T> {
 #[test]
 fn tilted_plane_f64_and_replay() {
     let fx = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
-    let r = split(
-        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
-        &tilted(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let fx = topo::test_support::finished("the fx", fx, Tol::witness());
+    let r = split(&fx, &tilted(), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -53,12 +49,7 @@ fn tilted_plane_f64_and_replay() {
     assert!((vb - 2.0).abs() < 1e-9, "below {vb}");
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
     // D9 byte-identical replay under the rotated frame.
-    let again = split(
-        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
-        &tilted(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let again = split(&fx, &tilted(), Tol::witness()).unwrap();
     assert_eq!(format!("{above:?}"), format!("{:?}", body_of(&again.above)));
     assert_eq!(format!("{below:?}"), format!("{:?}", body_of(&again.below)));
 }
@@ -76,12 +67,8 @@ fn tilted_plane_interval_agrees_or_refuses_typed() {
         (0.0, 1.0),
         geom_core::Tol::witness(),
     );
-    let r64 = split(
-        &topo::test_support::finished("the operand", fx64.clone(), Tol::witness()),
-        &tilted(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let fx64 = topo::test_support::finished("the fx64", fx64, Tol::witness());
+    let r64 = split(&fx64, &tilted(), Tol::witness()).unwrap();
     let census64 = |b: &Body<f64>| (b.faces().count(), b.edges().count(), b.vertices().count());
     let c_above = census64(body_of(&r64.above));
     let c_below = census64(body_of(&r64.below));
@@ -92,11 +79,8 @@ fn tilted_plane_interval_agrees_or_refuses_typed() {
         (0.0, 1.0),
         geom_core::Tol::witness(),
     );
-    match split(
-        &topo::test_support::finished("the operand", fx.clone(), Tol::witness()),
-        &tilted::<Interval>(),
-        Tol::witness(),
-    ) {
+    let fx = topo::test_support::finished("the fx", fx, Tol::witness());
+    match split(&fx, &tilted::<Interval>(), Tol::witness()) {
         Ok(r) => {
             let census =
                 |b: &Body<Interval>| (b.faces().count(), b.edges().count(), b.vertices().count());
@@ -121,6 +105,7 @@ fn orientation_flip_swaps_sides_only() {
         1.0,
         Tol::witness(),
     );
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
     let plane = |sy: f64| {
         topo::test_support::split_plane(
             Point3::new(0.0, 1.0, 0.0),
@@ -128,18 +113,8 @@ fn orientation_flip_swaps_sides_only() {
             geom_core::Tol::witness(),
         )
     };
-    let r1 = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane(1.0),
-        Tol::witness(),
-    )
-    .unwrap();
-    let r2 = split(
-        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
-        &plane(-1.0),
-        Tol::witness(),
-    )
-    .unwrap();
+    let r1 = split(&operand, &plane(1.0), Tol::witness()).unwrap();
+    let r2 = split(&operand, &plane(-1.0), Tol::witness()).unwrap();
     let vol = |p: &SplitPart<f64>| mass_properties(body_of(p), Tol::witness()).unwrap().volume;
     assert!((vol(&r1.above) - vol(&r2.below)).abs() < 1e-12);
     assert!((vol(&r1.below) - vol(&r2.above)).abs() < 1e-12);
