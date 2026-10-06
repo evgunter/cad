@@ -23,8 +23,10 @@
 //!
 //! A refusal is a right answer here. Shrinking every reach in
 //! `apart_along` by 0.1% of its width at each end (the review's mutant
-//! M3) clears the 270° torus at `s = 10⁻³`, direction 3, at `δ = −ε`,
-//! where `∪` then ships an `Assembly` and `∩` comes back empty.
+//! M3) clears the 270° torus at `s = 10⁻³`, direction 3, at `δ = 0`
+//! and `δ = −ε`, where `∪` then ships an `Assembly` and `∩` comes back
+//! empty: red at ε 10⁻⁹ and 10⁻¹². At ε 10⁻⁶ the pad covers that
+//! shrink, and the row stays green.
 //!
 //! **Excluded**: the 270° torus touched at `δ = 0` on its cut-cap rim
 //! (a direction whose support falls on a cut) builds an `Assembly` with
