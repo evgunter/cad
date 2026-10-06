@@ -7500,3 +7500,20 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
   - Designers: A `session_01VKoofj8TXfjP4YKX5pzzXK`, B `session_01TsEEZBc38YHfFWL4RD6N4i`, using the fork's existing labels (record on `analysis/design-fork/topo-kef-kfmrh-across-keys`).
   - Reports go to `analysis/design-fork/topo-kef-kfmrh-r5-{A,B}`.
 - **PR 4154 merged** at `c890f7b8` (head `bb1b5a92`, all CI green). Unsubscribed. I left a heads-up on PR 4108 (fuse) to drop its `.revert().expect(..)` calls.
+
+## 17:40 (2026-10-06): PR 3970 round 5 in
+
+- Both designers had pushed by 16:55. I missed it because branch pushes send no event. Both are archived (A about $8.6, B about $2.7).
+- **They agree:**
+  - The brief's premise was wrong: certification already refuses a wrong intrinsic kind.
+  - The real gap is a chart image left where an intrinsic kind is owed, which tier 3 lets through for derived authority.
+  - Final state: the restatement derives kind through one shared predicate (tier 3 check 4's reading), certification stays the guard, there is no debug assert, and callers list only what cannot be derived.
+  - They differ only on a jet-determinate tangent edge stored as a chart: A derives `TangentIntersection`, B keeps the chart.
+- My withheld suggestion was reached by both independently, so it was not offered.
+- Posted both `For Ev` sections, A/B only: `#issuecomment-6021916233`.
+- **New question for Ev, from D2's prefer-intrinsic provenance:**
+  - Ev ratified on 2026-07-19 that every definitely-transverse edge carries `Intersection`, with no authority exemption.
+  - The "declared … exempt by its own declaration" clause is agent-written, from the `99cc678bfd` editing pass of 2026-09-04.
+  - The code exempts *derived* descriptions instead.
+  - Open: whether a declared conventional description on a transverse edge is refused or exempt.
+- Filed `offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section` (P3; it depends on that ruling; PR 4080 pinned the tier-3 finding as expected).
