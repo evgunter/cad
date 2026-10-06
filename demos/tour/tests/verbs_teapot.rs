@@ -101,6 +101,7 @@ use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 #[path = "common/census.rs"]
 mod census;
 use census::{genus, rings};
+use pncad::topo::AtRestBody;
 use pncad::topo::{Body, ReplaceFaceError, ShellError};
 
 /// Every fixture's mouth plane.
@@ -453,15 +454,23 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
     // The tangent one refuses at the CORNER; the non-tangent one
     // hollows. Same surfaces, same authoring route, and the angle
     // between them is the whole difference.
-    let e = pncad::topo::shell(&bullet(tol), 1.0 / 128.0, tol)
-        .expect_err("a tangent junction has no transversal corner to solve");
+    let e = pncad::topo::shell(
+        &AtRestBody::validate(bullet(tol), tol).expect("a finished operand"),
+        1.0 / 128.0,
+        tol,
+    )
+    .expect_err("a tangent junction has no transversal corner to solve");
     assert_eq!(
         offset_refusal(&e),
         "TogetherAxialCorner",
         "the tangent bullet refuses at the corner it is about, not at a carrier lane"
     );
-    pncad::topo::shell(&lifted_dome(tol), 1.0 / 128.0, tol)
-        .expect("the non-tangent dome's junction is transversal, so it hollows");
+    pncad::topo::shell(
+        &AtRestBody::validate(lifted_dome(tol), tol).expect("a finished operand"),
+        1.0 / 128.0,
+        tol,
+    )
+    .expect("the non-tangent dome's junction is transversal, so it hollows");
 }
 
 /// The offset door's own refusal, as a two-word class name plus what
@@ -612,8 +621,12 @@ fn the_hollow_now_survives_every_axial_junction() {
             t,
         ),
     ] {
-        pncad::topo::shell(&body, thickness, tol)
-            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
+        pncad::topo::shell(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            thickness,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
     }
 
     // ONE row is left on the refusing side, and it is written as one
@@ -626,8 +639,12 @@ fn the_hollow_now_survives_every_axial_junction() {
     // a carrier lane at all — it refuses at the corner's own
     // transversality meter.
     let what = "a hemisphere TANGENT to its cylinder";
-    let e = pncad::topo::shell(&bullet(tol), t, tol)
-        .expect_err("this junction is not square, so the hollow must refuse");
+    let e = pncad::topo::shell(
+        &AtRestBody::validate(bullet(tol), tol).expect("a finished operand"),
+        t,
+        tol,
+    )
+    .expect_err("this junction is not square, so the hollow must refuse");
     assert_eq!(
         offset_refusal(&e),
         "TogetherAxialCorner",
@@ -653,9 +670,14 @@ fn the_opened_rim_is_right_on_a_box() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup = pncad::topo::shell_open(&body, 0.02, &top, tol)
-        .expect("a box opens at its top")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        0.02,
+        &top,
+        tol,
+    )
+    .expect("a box opens at its top")
+    .body;
     assert_eq!(
         (rings(&cup), genus(&cup)),
         (1, 0),
@@ -734,9 +756,14 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
             1,
             "{what}: a full revolve sweeps its planar cap whole"
         );
-        let cup = pncad::topo::shell_open(&body, t, &chart, tol)
-            .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
-            .body;
+        let cup = pncad::topo::shell_open(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            t,
+            &chart,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
+        .body;
         assert_eq!(
             pncad::topo::validate_geometric(&cup, tol),
             Ok(()),
@@ -873,9 +900,14 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
         "a full revolve builds an OFF-AXIS annular cap whole, so this cap is ONE face — \
          which is the whole point of the row"
     );
-    let cup = pncad::topo::shell_open(&body, t, &chart, tol)
-        .expect("the annular mouth opens")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        &chart,
+        tol,
+    )
+    .expect("the annular mouth opens")
+    .body;
     assert_eq!(
         pncad::topo::validate_geometric(&cup, tol),
         Ok(()),

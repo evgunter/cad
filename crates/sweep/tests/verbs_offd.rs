@@ -3,13 +3,11 @@
 //! against the moved chart, and the result rests tier-3 valid.
 //!
 //! The analytic fixture is a revolved rectangular annulus — a tube.
-//! Four faces (two coaxial cylinder walls, two annular caps), eight
-//! edges, four vertices, and every description class the door has a
-//! lane for: a `Seam` on each wall, an `Intersection` on each rim, a
-//! `MappedCurve` on each cap's radial seam. Offsetting the outer wall
-//! exercises all three transport lanes AND the re-anchoring of the two
-//! cap seams whose far end moved with it; offsetting a cap exercises
-//! the plane's translation and the two wall seams' re-anchoring.
+//! Four faces (two coaxial cylinder walls, two annular caps, each
+//! carrying its bore as a ring), six edges, four vertices: a `Seam` on
+//! each wall and an `Intersection` on each rim. Offsetting the outer
+//! wall exercises both transport lanes; offsetting a cap exercises the
+//! plane's translation and the two wall seams' re-anchoring.
 //!
 //! The `Approx` rows sit on the loft prism the OFF-C consumer built,
 //! now driven THROUGH the door rather than through the attach layer by
@@ -165,8 +163,8 @@ fn circle_radii(body: &Body<f64>) -> Vec<f64> {
 
 /// **The headline row, both signs.** The outer wall's surface becomes
 /// its offset, its `Seam` and both `Intersection` rims are
-/// re-described against the moved cylinder, the two cap seams whose far
-/// end moved with it are re-anchored, and the body rests tier-3 valid.
+/// re-described against the moved cylinder, and the body rests tier-3
+/// valid.
 #[test]
 fn the_cylinder_wall_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
@@ -243,8 +241,7 @@ fn the_untouched_walls_declared_meridian_is_re_anchored() {
 }
 
 /// **The planar row.** A cap's plane translates by `d·n`, its two rims
-/// translate with it, its `MappedCurve` seam's PLACEMENT absorbs the
-/// same translation, and the two wall seams are re-anchored at their
+/// translate with it, and the two wall seams are re-anchored at their
 /// moved end.
 #[test]
 fn a_planar_cap_offsets_at_both_signs() {

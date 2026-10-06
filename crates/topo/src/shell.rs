@@ -6,6 +6,27 @@
 //! removed, leaving annular rims where the wall's thickness shows
 //! (`crates/geom-brep/README.md`'s vocabulary, unchanged).
 //!
+//! # The operand is at rest
+//!
+//! Both doors take a finished body ([`AtRestBody`]), the Boolean's and
+//! the split's operand type: tier 3 passed on these bits. The verb
+//! answers for the material the operand bounds, so what tier 3 decides
+//! is what the construction reads: an inside-out solid (check 7,
+//! [`ValidationError::NegativeVolume`]) or an inside-out shell (check
+//! 10) would be hollowed as its complement, and a stale or missing
+//! pcurve row would vanish under the closing mint below. Neither
+//! reaches the verb, because neither is an [`AtRestBody`].
+//!
+//! The door reads no second gate where the Boolean and the split read
+//! [`AtRestBody::gate_unverdicted`]: that read is for an operand
+//! carrying no verdict, which only a dual's
+//! [`crate::AtRestPolicy::gate_at_rest_kept`] keeps, and this door is
+//! bounded on the certification right a dual does not hold.
+//!
+//! [`crate::replace_faces_offset`] keeps its `&mut Body`: it is also
+//! this verb's chart-by-chart step over a clone that is mid-construction
+//! between charts, so it cannot be the place a verdict is read.
+//!
 //! # The sealed arm, and what it deliberately does not run
 //!
 //! **Shelling is a PER-SOLID verb, and it applies to every solid the
@@ -158,17 +179,14 @@
 //! door and the validate reads a stored row, the simultaneous lift
 //! doors mint the rows of their own scope (the solid they were handed)
 //! and touch no other, and every other step is `Neither` for rows.
-//! Two consequences are stated because nothing
-//! enforces them: the pass CLEARS the map first, so **a stale or
-//! missing row on the OPERAND is invisible to this verb** — an operand
-//! that fails tier 3 on its own rows shells to a valid body whose rows
-//! are the sound operand's (`shell9_r2_probes`, the laundering rows;
-//! `work/shell/shell-launders-a-stale-operand-row.md`, a posture-table
-//! question for every producer that spells this mint) — and a face
-//! whose carrier class the pass cannot derive stops carrying rows
-//! rather than refusing (`UnsupportedCarrier`; not known to be
-//! reachable through this verb). The refusal is
-//! [`ShellError::Pcurve`], a kernel finding by construction.
+//! The pass CLEARS the map first, so it reads none of the operand's
+//! rows; that they were sound is the operand type's promise (above),
+//! and a stale-row operand refuses where it is gated, not here
+//! (`shell9_r2_probes`). A face whose carrier class the pass cannot
+//! derive stops carrying rows rather than refusing
+//! (`UnsupportedCarrier`; not known to be reachable through this
+//! verb). The refusal is [`ShellError::Pcurve`], a kernel finding by
+//! construction.
 //!
 //! # The record
 //!
@@ -270,15 +288,17 @@
 //! The glue's only output shape is "one region per face, an outer loop
 //! plus rings", so a designated face is safe exactly when its cavity
 //! counterpart's boundary can become an INTERIOR-DISJOINT ring of it.
-//! A revolve's chart does not arrive that way: a full revolve of an
-//! axis-touching profile splits the cap into two half-discs meeting at
-//! the axis apex, and a full revolve of a closed off-axis profile
-//! leaves the annular cap SLIT along a radial seam. Gluing onto either
-//! puts the counterpart's boundary ON the designated face's own —
-//! sharing the apex, running back along the seam — and the result is a
-//! body every structural tier blesses and no triangulator accepts.
+//! A chart need not arrive that way: it may be several faces meeting
+//! along edges only they share — two half-discs meeting at an apex —
+//! or one face SLIT, its loop walking one edge both ways to join a hole
+//! to its outer cycle. A full revolve mints neither (each plane wall is
+//! one face, a disc or an annulus carrying its hole as a ring), but the
+//! glue's hypothesis does not name where the operand came from. Gluing
+//! onto either puts the counterpart's boundary ON the designated face's
+//! own — sharing the apex, running back along the slit — and the result
+//! is a body every structural tier blesses and no triangulator accepts.
 //!
-//! Both are facts about how the operand was swept rather than about
+//! Both are facts about how the operand was built rather than about
 //! the region, and step 3 removes them through the Euler doors alone
 //! (`kef`, `kev`, `kemr`). What survives step 3 is genuinely about the
 //! region and is refused typed
@@ -323,11 +343,11 @@ use crate::entity::{
 };
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
-use crate::live::{NAMES_ONLY_LIVE, linked, proven};
+use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
-use crate::validate::{ValidationError, validate_geometric};
+use crate::validate::{AtRestBody, ValidationError, validate_geometric};
 
 /// Typed refusal of the shell verb (closed enum, D4 ¶3).
 #[derive(Clone, Debug)]
@@ -839,9 +859,10 @@ pub struct HoleRim {
     ///
     /// **A result key, not a source key**, and the distinction is not
     /// academic: on an extruded holed slab this key is the operand's
-    /// own ring loop, while on a revolve's SLIT annular cap the
-    /// designated face carries no ring at all in the operand and this
-    /// loop is minted by `kemr` during the chart reduction. Reading it
+    /// own ring loop, while on a SLIT cap — its hole joined to its outer
+    /// cycle by a slit — the designated face carries no ring at all in
+    /// the operand and this loop is minted by `kemr` during the chart
+    /// reduction. Reading it
     /// as a source key is right on one operand and wrong on the other,
     /// which is why the edge-level rows below exist.
     pub ring: LoopKey,
@@ -903,6 +924,10 @@ pub struct ShellRetired {
 /// the witness travels down the offset chain and the number is read
 /// once, at the site that classifies the residual.
 ///
+/// The operand is a finished body (module docs, "The operand is at
+/// rest"): an inside-out or stale-row body refuses where it is gated,
+/// at [`AtRestBody::validate`], and never reaches the verb.
+///
 /// # Errors
 ///
 /// [`ShellError`] — [`ShellError::Band`] when the committed tolerance
@@ -917,7 +942,7 @@ pub struct ShellRetired {
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
 pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     thickness: T,
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
@@ -940,11 +965,12 @@ pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
 pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &Body<T>,
+    body: &AtRestBody<T>,
     thickness: T,
     open_faces: &[FaceKey],
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
+    let body: &Body<T> = body;
     let mut naming = ShellNaming::default();
     // `shell` reaches this door, so both verbs derive here, once.
     let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;
@@ -957,11 +983,14 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
 
     // ---- Decide: one piece of material per solid. ----
     //
-    // The verb takes a body: a solid holding several pieces is sorted
-    // into one solid per piece first ([`crate::pieces`]), on a clone, so
-    // every key the caller holds still names the same face, edge and
-    // vertex. A body whose every solid has one shell is one piece per
-    // solid by arity and is not read.
+    // A finished operand is already one piece per solid (tier 3's check
+    // 10 refuses two `Outer` shells under one solid), so no operand that
+    // can reach this door is changed by the sort below; whether it and
+    // `ShellError::Pieces` are reachable at all is
+    // `work/shell/shell-operand-shape-arms-behind-the-at-rest-gate.md`.
+    // It runs on a clone, so every key the caller holds still names the
+    // same face, edge and vertex; a body whose every solid has one shell
+    // is not read.
     let sorted;
     let body = if body.solids().any(|(_, s)| s.shells.len() > 1) {
         let mut clone = body.clone();
@@ -1291,7 +1320,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // Per chart, ONCE — not once per designated face. The rim a
     // designation asks for is one region of the mouth plane, and how
     // many faces the operand spent on that region is a fact about the
-    // operand's construction (a full revolve's seam) rather than about
+    // operand's construction rather than about
     // the rim. Both sides of the glue are reduced to one face carrying
     // proper, mutually disjoint loops first
     // ([`canonicalize_chart`]) — which is exactly the condition that
@@ -1791,11 +1820,11 @@ fn undesignated(face: FaceKey) -> ! {
 /// **One face per chart, loops disjoint** — the shape the rim glue's
 /// only output form needs on both sides of it.
 ///
-/// A chart arrives from a revolve carrying that construction's seam:
-/// an axis-touching cap is TWO faces meeting along a diameter, and an
-/// annular cap is one face slit radially, its loop walking the seam
-/// edge in both directions. Neither is a fact about the region — both
-/// are facts about how the operand was swept — and both are exactly
+/// A chart may arrive carrying edges that are no fact about the region:
+/// several faces meeting along edges only they share (two half-discs
+/// meeting along a diameter), or one face SLIT, its loop walking one
+/// edge in both directions to join a hole to its outer cycle. Both are
+/// facts about how the operand was built, and both are exactly
 /// what makes a counterpart's boundary land ON the designated face's
 /// boundary instead of strictly inside it. This reduces them, through
 /// the Euler doors and nothing else:
@@ -1804,10 +1833,10 @@ fn undesignated(face: FaceKey) -> ! {
 ///    (`kef`), leaving the merged loop walking each killed edge's
 ///    surviving partner twice;
 /// 2. a SPUR — such a duplicate whose far vertex the merge left with
-///    one edge on it, the axis apex of a revolved cap — dies with that
+///    one edge on it, the apex of two half-discs — dies with that
 ///    vertex (`kev`);
-/// 3. a SLIT — a duplicate still anchored at both ends, an annular
-///    cap's radial seam — splits the loop in two (`kemr`), the
+/// 3. a SLIT — a duplicate still anchored at both ends, joining a hole
+///    to the outer cycle — splits the loop in two (`kemr`), the
 ///    inner side becoming the ring it always was.
 ///
 /// Returns the surviving face. A chart this cannot reduce refuses
@@ -1989,35 +2018,27 @@ fn pair_rings<T: Decide>(
 
 /// A loop of `face` that walks one edge in BOTH directions, with the
 /// two halves in cycle order — the seam remnant a chart merge leaves,
-/// and the slit a full revolve of a closed profile is born with.
-/// `face` is one this call resolved; its loops and their walks are
-/// links, so a miss panics naming the record.
+/// and a slit joining a hole to its outer cycle.
+/// `face` is one this call resolved; its loops, their walks, each
+/// member's edge and a lone vertex's point are links, so a miss panics
+/// naming the record.
 #[track_caller]
 fn duplicate_in_loop<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
     let data = proven(&body.faces, face, EntityId::Face);
-    let loops =
-        core::iter::once(("outer", data.outer)).chain(data.rings.iter().map(|&l| ("rings", l)));
-    for (field, r#loop) in loops {
-        let LoopBoundary::Cycle { first } = linked(
-            &body.loops,
-            r#loop,
-            EntityId::Loop,
-            EntityId::Face(face),
-            field,
-        )
-        .boundary
-        else {
-            continue;
-        };
-        let cycle = body.loop_walk(first).closed("loop", first);
-        let edge_of = |he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        for (i, &he1) in cycle.iter().enumerate() {
-            let e1 = edge_of(he1);
-            for &he2 in &cycle[i + 1..] {
-                if edge_of(he2) == e1 {
+    for (r#loop, members) in body.face_boundary_by_loop(face, data) {
+        let mut cycle = Vec::new();
+        for member in members {
+            let BoundaryMember::Edge { he, ek, .. } = member else {
+                continue;
+            };
+            cycle.push((he, ek));
+        }
+        for (i, &(he1, e1)) in cycle.iter().enumerate() {
+            for &(he2, e2) in &cycle[i + 1..] {
+                if e2 == e1 {
                     return Some((r#loop, he1, he2));
                 }
             }
@@ -2682,6 +2703,28 @@ fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::test_support::finished;
+
+    /// **The duplicate scan panics on a ring link that does not
+    /// resolve**, where it stepped over it.
+    #[test]
+    fn the_duplicate_scan_panics_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        assert!(
+            duplicate_in_loop(&body, face).is_none(),
+            "a cube face has no slit"
+        );
+        let named = tear_ring(&mut body, face);
+        assert_torn_op_panics(
+            "duplicate_in_loop",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| duplicate_in_loop(b, face),
+        );
+    }
 
     /// A vertex whose orbit does not walk has no valence to answer, so
     /// the read panics naming the walk rather than answer zero, which
@@ -2705,11 +2748,10 @@ mod tests {
         assert_eq!(valence(&lone.body, lone.vertex), 0, "a lone vertex");
     }
 
-    /// The verb takes the operand by reference and never writes it, so a
-    /// torn operand is a panic naming the torn record (D2 row 4), not a
-    /// typed refusal, and the caller's body is left as it was.
+    /// A torn operand is refused where the verb's operand is gated,
+    /// naming the torn record, and so never reaches the verb.
     #[test]
-    fn a_torn_operand_panics_naming_the_record() {
+    fn a_torn_operand_is_refused_at_the_gate_naming_the_record() {
         let tol = Tol::witness();
         let mut body = crate::splitting::reassembly::quad_prism(
             &crate::test_support_fixtures::UNIT_SQUARE,
@@ -2724,17 +2766,13 @@ mod tests {
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
-        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = shell(&body, 0.1, tol);
-        }));
-        let premise = format!(
-            "{}'s surface names {}, which does not resolve",
-            EntityId::Face(face),
-            crate::entity::GeomRef::Surface(dead)
-        );
+        let errors = AtRestBody::validate(body, tol).expect_err("a torn body is not finished");
         assert!(
-            report.contains(&premise) && report.contains(NAMES_ONLY_LIVE),
-            "{report}"
+            errors.contains(&ValidationError::DanglingGeometry {
+                from: EntityId::Face(face),
+                to: crate::entity::GeomRef::Surface(dead),
+            }),
+            "{errors:?}"
         );
     }
 
@@ -2774,10 +2812,10 @@ mod tests {
     #[test]
     fn a_stale_designation_stays_typed() {
         let tol = Tol::witness();
-        let body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let body = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let stale = FaceKey::default();
         assert!(matches!(
-            shell_open(&body, 0.1, &[stale], tol),
+            shell_open(&finished("the brick", body, tol), 0.1, &[stale], tol),
             Err(ShellError::OpenFaceStale { face }) if face == stale
         ));
     }

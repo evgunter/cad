@@ -143,8 +143,8 @@ one, so the sentence conditions on nothing. A pole-touching body with
 merged caps (`merge_coplanar_faces` — the repair every boolean consumer
 runs) hosts every arc on ONE plane face, in that face's own outer
 cycle. The same annulus serves that too: `resolve_rim` routes it there
-on WHERE the rim sits in its host's loop structure (a ring is the
-ladder, the face's own outer cycle is this), and each crossing's host
+on WHERE the rim sits in its host's loop structure (a ring of several
+arcs is the ladder, the face's own outer cycle is this), and each crossing's host
 foot is minted by the LADDER's strut (`HostFoot::Strut`) because the
 merge consumed the host's seam and left the crossing TRIVALENT. The tag
 does not fire at such a crossing — there is no seam there to make a
@@ -160,12 +160,13 @@ every blend trimline in closed form, every other outer-boundary edge
 of a closed rim's supports — one requested in the same call at its own
 trim — against that support's trim, and every edge
 a convex ruled cut-off leaves on its cap against the sliver it
-removes). A full revolve's plane wall is such a host as built: one face
-with no seam, a ONE-EDGE rim its outer cycle or, at an annulus's inner
-circle, one of its rings, whose trim then replaces that ring. Its one
-crossing takes the strut, and the trim is minted so the host keeps its
-key (`lone_host_trim`). A merged cap that is an ANNULUS
-therefore carves on both its rims, one call each. A CURVED single face
+removes). A merged cap that is an ANNULUS
+therefore carves on both its rims, one call each. A full revolve's plane
+wall is such a host as built: one face with no seam, a ONE-EDGE rim its
+outer cycle or, at an annulus's inner circle, its ring, whose trim then
+replaces that ring. Its one crossing takes the strut, and the trim is
+minted so the host keeps its key (`lone_host_trim`); both rims of such
+an annulus are annulus rims, and carve in one call. A CURVED single face
 carrying every arc is authorable through `topo`'s `kef` and refuses at
 the half-band gate on both routes
 (`work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`).

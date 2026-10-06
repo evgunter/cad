@@ -68,6 +68,7 @@ use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
 use crate::common::bitdump::{dump, dump_dir, save};
+use sweep::test_support::finished;
 
 // --- fixtures, verbatim from the merge-base suites -----------------
 
@@ -319,13 +320,24 @@ fn bitdump_shell_open_box_corpus() {
 
     let mut text = String::new();
     let _ = writeln!(text, "== box cup (top designated, t = 0.25) ==");
-    let cup = topo::shell_open(&body, 0.25, &top, tol).unwrap().body;
+    let cup = topo::shell_open(&finished("the operand", body.clone(), tol), 0.25, &top, tol)
+        .unwrap()
+        .body;
     text.push_str(&dump(&cup));
     let _ = writeln!(text, "== box tube (both caps designated, t = 0.25) ==");
-    let tubey = topo::shell_open(&body, 0.25, &both, tol).unwrap().body;
+    let tubey = topo::shell_open(
+        &finished("the operand", body.clone(), tol),
+        0.25,
+        &both,
+        tol,
+    )
+    .unwrap()
+    .body;
     text.push_str(&dump(&tubey));
     let _ = writeln!(text, "== the SEALED box (t = 0.25) ==");
-    let sealed = topo::shell(&body, 0.25, tol).unwrap().body;
+    let sealed = topo::shell(&finished("the operand", body.clone(), tol), 0.25, tol)
+        .unwrap()
+        .body;
     text.push_str(&dump(&sealed));
     save(&dir, "shell_open_box_corpus", &text);
 }

@@ -163,38 +163,24 @@ pub enum SplitJoinError {
     /// A completed section polygon bounds zero area: no degenerate body
     /// is ever emitted.
     ///
-    /// A run reaches it two ways: a below-side PINCH (pieces meeting
-    /// at a tip line on the NEGATIVE side of the run's plane normal,
-    /// where the ch. 14 insertion mints no vertex copies), and a
-    /// concave GRAZE of a curved face (the plane tangent to a hole's
-    /// wall from inside, whose contact closes a polygon of its own). A
-    /// plane tangent along a convex edge or to a convex wall does not
-    /// reach it: rule (b) classifies that entry with its material, and
-    /// the contact mints nothing. Since M3 PR 6a (D7) the public
-    /// [`crate::splitting::split`] consumes this refusal as the pinch
-    /// trigger and reruns under the mirrored plane — where pinched
-    /// fans are ABOVE runs and mint their copies — so a pinch's
-    /// success is orientation-independent. The rerun cannot tell a
-    /// graze from a pinch, so it reruns a graze too; a graze alone
-    /// refuses again there, and one whose contact meets a real section
-    /// refuses [`Self::SectionSpur`]. The error surfaces from
+    /// A run reaches it at a below-side PINCH (pieces meeting at a tip
+    /// line on the NEGATIVE side of the run's plane normal, where the
+    /// ch. 14 insertion mints no vertex copies), and at a section loop
+    /// that closes on one vertex, which bounds nothing however large
+    /// the section it should be
+    /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
+    /// A plane tangent to a curved wall does not reach it: rule (b)
+    /// classifies a convex graze with its material, and rule (a)
+    /// refuses a concave one ([`crate::SplitReduceError::KnifeEdge`]). Since M3
+    /// PR 6a (D7) the public [`crate::splitting::split`] consumes this
+    /// refusal as the pinch trigger and reruns under the mirrored plane
+    /// — where pinched fans are ABOVE runs and mint their copies — so a
+    /// pinch's success is orientation-independent. The error surfaces from
     /// [`crate::splitting::split`] when the mirror run also refuses,
     /// and from the join lane directly (e.g.
     /// [`crate::splitting::plane_section`], which has no sides to
     /// swap).
     DegenerateSection {
-        /// The completed null face.
-        face: FaceKey,
-    },
-    /// A completed section polygon of positive area carries a SPUR: its
-    /// loop runs out along a straight edge the plane only touches and
-    /// straight back. The spur is a concave graze's contact joined
-    /// into a real section's polygon instead of closing one of its own;
-    /// it would leave a zero-width slit in both halves, with two copies
-    /// of every vertex along it on one side. Refused, as the graze
-    /// standing alone is ([`Self::DegenerateSection`]); no degenerate
-    /// body is ever emitted.
-    SectionSpur {
         /// The completed null face.
         face: FaceKey,
     },
@@ -413,15 +399,7 @@ impl SplitJoinError {
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
-                "a section is degenerate: it bounds zero area, where the plane only \
-                 grazes a hole's wall from inside or pinches the solid. Recourse: \
-                 {recourse}"
-            ),
-            Self::SectionSpur { .. } => write!(
-                f,
-                "the plane only touches the solid along a line while cutting it elsewhere, \
-                 and the section would run out along that line and back. Recourse: \
-                 {recourse}"
+                "a section is degenerate: it bounds zero area. Recourse: {recourse}"
             ),
             Self::RingHoming(e) => match e {
                 crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
@@ -568,6 +546,25 @@ fn unbounded(e: crate::splitting::rules::UnboundedFace) -> SplitJoinError {
     }
 }
 
+/// The loop and face of `he`, a half the join reads out of its
+/// working body: a miss of the half or of its loop refuses typed,
+/// naming the key that went stale.
+pub(crate) fn he_loop<T: Real>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Result<(LoopKey, FaceKey), SplitJoinError> {
+    let l = body
+        .get_half_edge(he)
+        .ok_or_else(|| corrupt_he(he))?
+        .parent_loop;
+    Ok((l, body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face))
+}
+
+/// The face of `he` ([`he_loop`]).
+pub(crate) fn he_face<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJoinError> {
+    Ok(he_loop(body, he)?.1)
+}
+
 /// The corruption refusal naming the edge the join was reading.
 pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
     SplitJoinError::Corrupt {
@@ -578,18 +575,6 @@ pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
 /// Chord-mef fragment rows: `(new face, divided-from face)` in mint
 /// order (naming emission, M4 PR 3).
 pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
-
-/// `face` and every fragment the rows divide off it or off one of its
-/// fragments: the faces a key read before those mefs may now name.
-pub(crate) fn lineage(face: FaceKey, rows: &[(FaceKey, FaceKey)]) -> Vec<FaceKey> {
-    let mut out = vec![face];
-    for &(new, from) in rows {
-        if out.contains(&from) {
-            out.push(new);
-        }
-    }
-    out
-}
 
 /// The point of `v`, a vertex the join read out of its working body: a
 /// miss of the vertex or its point panics naming it (D2 row 4).
@@ -688,16 +673,11 @@ impl ChordJoiner {
         body: &mut Body<T>,
         (h1, h2): (HalfEdgeKey, HalfEdgeKey),
     ) -> Result<(), SplitJoinError> {
-        let loop_of = |body: &Body<T>, he| -> Result<(LoopKey, FaceKey), SplitJoinError> {
-            let l = body
-                .get_half_edge(he)
-                .ok_or_else(|| corrupt_he(he))?
-                .parent_loop;
-            Ok((l, body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face))
-        };
-        let ((l1, f1), (l2, f2)) = (loop_of(body, h1)?, loop_of(body, h2)?);
+        let ((l1, f1), (l2, f2)) = (he_loop(body, h1)?, he_loop(body, h2)?);
         let (p1, p2) = (self.pending.contains_key(l1), self.pending.contains_key(l2));
         match (p1, p2) {
+            // Halves on two faces with no pending ring between them are
+            // the plan's to read ([`JoinPlan::of`]).
             (false, false) => {}
             (true, true) if l1 == l2 || f1 != f2 => {
                 return Err(SplitJoinError::RingHomingAmbiguous { ring: l1 });
@@ -2614,6 +2594,7 @@ fn join_shape<T: Decide>(
 fn first_chord<T: Decide>(
     body: &Body<T>,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    face: FaceKey,
     shape: &JoinShape,
     skip: SkipTest<'_, T>,
 ) -> Result<Option<ChordPlan>, SplitJoinError> {
@@ -2632,10 +2613,6 @@ fn first_chord<T: Decide>(
             ends: (d1.start, half(d2.next)?.start),
         }));
     }
-    let face = body
-        .get_loop(d1.parent_loop)
-        .ok_or_else(|| corrupt_loop(d1.parent_loop))?
-        .face;
     let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
     let (target, ring, from) = if d2.parent_loop == outer {
         (d2.next, h1, h2)
@@ -2688,6 +2665,9 @@ fn second_chord<T: Decide>(
 /// adjacent before the surgery or after it.
 pub(crate) struct JoinPlan {
     halves: (HalfEdgeKey, HalfEdgeKey),
+    /// The first half's face, which the plan, the curve and the join
+    /// all read.
+    face: FaceKey,
     first: Option<ChordPlan>,
     second: Option<ChordPlan>,
     /// The edge the segment is, where a locus names one.
@@ -2703,16 +2683,19 @@ impl JoinPlan {
         segment: SegmentEdge<'_, T>,
         band: Band,
     ) -> Result<Self, SplitJoinError> {
-        let l1 = body
-            .get_half_edge(halves.0)
-            .ok_or_else(|| corrupt_he(halves.0))?
-            .parent_loop;
-        let face = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
+        // The second half can sit on another face: a boolean match can
+        // take a germ's half from a sector on a face its ends do not
+        // share (`work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`).
+        // Such a plan stays on the first half's face, and what runs on
+        // it answers: the curve's lane there, or the `mekr` across the
+        // two faces (`NotSameFace`).
+        let face = he_face(body, halves.0)?;
         let shape = join_shape(body, halves)?;
         let mut skip = |b: &Body<T>, he| segment.is(b, he, face, band);
         Ok(Self {
             halves,
-            first: first_chord(body, halves, &shape, &mut skip)?,
+            face,
+            first: first_chord(body, halves, face, &shape, &mut skip)?,
             second: second_chord(body, halves, &mut skip)?,
             locus: segment.locus(),
         })
@@ -2721,6 +2704,11 @@ impl JoinPlan {
     /// The halves joined, in the plan's order.
     pub(crate) fn halves(&self) -> (HalfEdgeKey, HalfEdgeKey) {
         self.halves
+    }
+
+    /// The first half's face, the one the plan is made on.
+    pub(crate) fn face(&self) -> FaceKey {
+        self.face
     }
 
     /// The chords' sites, `(first, second)`.
@@ -2759,9 +2747,9 @@ impl ChordJoiner {
     /// **The segment's chord curve** ([`SegmentCurve`]) for a planned
     /// join, computed once, in the lane the caller selects: the edge's
     /// own copy on [`JoinLane::AlongEdge`] ([`along_edge_spec`]), else
-    /// the section chord [`chord_spec`] mints in the face the halves sit
-    /// in. Both lanes that join — a boolean match and the plane split —
-    /// take their chords' geometry here.
+    /// the section chord [`chord_spec`] mints in the plan's face. Both
+    /// lanes that join — a boolean match and the plane split — take
+    /// their chords' geometry here.
     ///
     /// It is computed for the chord the plan mints first: from that
     /// chord's end, leaving it along `leave`. The curve is computed only
@@ -2775,12 +2763,7 @@ impl ChordJoiner {
         lane: JoinLane<'_, T>,
         leave: Leave<T>,
     ) -> Result<Option<SegmentCurve<T>>, SplitJoinError> {
-        let halves = plan.halves;
-        let l1 = body
-            .get_half_edge(halves.0)
-            .ok_or_else(|| corrupt_he(halves.0))?
-            .parent_loop;
-        let face = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
+        let (halves, face) = (plan.halves, plan.face);
         let Some(chord) = plan.first.as_ref().or(plan.second.as_ref()) else {
             return Ok(None);
         };
@@ -2820,12 +2803,7 @@ impl ChordJoiner {
         curve: &SegmentCurve<T>,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
-        let h2 = plan.halves.1;
-        let l1 = body
-            .get_half_edge(plan.halves.0)
-            .ok_or_else(|| corrupt_he(plan.halves.0))?
-            .parent_loop;
-        let oldf = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
+        let (h2, oldf) = (plan.halves.1, plan.face);
         let mut minted = Vec::new();
         let mut newf = None;
         if let Some(chord) = &plan.first {
@@ -2870,14 +2848,7 @@ impl ChordJoiner {
         // in the new face). Capture the owner at call time, BEFORE the
         // surgery moves loops.
         if let Some(chord) = &plan.second {
-            let l2_now = body
-                .get_half_edge(h2)
-                .ok_or_else(|| corrupt_he(h2))?
-                .parent_loop;
-            let owner = body
-                .get_loop(l2_now)
-                .ok_or_else(|| corrupt_loop(l2_now))?
-                .face;
+            let owner = he_face(body, h2)?;
             let ChordSite::Mef(site) = chord.site else {
                 return Err(SplitJoinError::SectionInvariant {
                     face: owner,
@@ -3005,38 +2976,20 @@ impl ChordJoiner {
             .get_edge(edge)
             .ok_or_else(|| corrupt_edge(edge))?
             .clone();
-        let loop_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<LoopKey, SplitJoinError> {
-            Ok(body
-                .get_half_edge(he)
-                .ok_or_else(|| corrupt_he(he))?
-                .parent_loop)
-        };
-        let l_plus = loop_of(body, edge_data.he_plus)?;
-        let l_minus = loop_of(body, edge_data.he_minus)?;
+        let (l_plus, f_plus) = he_loop(body, edge_data.he_plus)?;
+        let (l_minus, f_minus) = he_loop(body, edge_data.he_minus)?;
         if l_plus == l_minus {
             // The last null edge of a section polygon: kemr leaves the
             // 2-loop null face.
-            let face = body
-                .get_loop(l_plus)
-                .ok_or_else(|| corrupt_loop(l_plus))?
-                .face;
             let result = body.kemr_minting(edge_data.he_plus, edge_data.he_minus, tol)?;
             Ok(CutOutcome::Completed {
-                face,
+                face: f_plus,
                 ring: result.ring,
             })
         } else {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
             // preferring he_plus's side.
-            let f_plus = body
-                .get_loop(l_plus)
-                .ok_or_else(|| corrupt_loop(l_plus))?
-                .face;
-            let f_minus = body
-                .get_loop(l_minus)
-                .ok_or_else(|| corrupt_loop(l_minus))?
-                .face;
             let victim = if self.slivers.contains_key(f_plus) {
                 edge_data.he_plus
             } else if self.slivers.contains_key(f_minus) {
@@ -3554,13 +3507,6 @@ mod tests {
         let msg = SplitJoinError::DegenerateSection { face }.to_string();
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
-
-        // The spur arm carries the same recourse, and it does not claim
-        // the zero area its section does not have.
-        let msg = SplitJoinError::SectionSpur { face }.to_string();
-        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
-        assert!(!msg.contains("declare"), "{msg}");
-        assert!(!msg.contains("zero area"), "{msg}");
 
         let msg = SplitJoinError::Escalated {
             face,

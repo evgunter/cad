@@ -26,6 +26,7 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, SplitPart, split};
 
 use super::shell_operands::vessel;
+use sweep::test_support::finished;
 
 fn v<T: Real>(x: f64, y: f64, b: f64) -> (Point2<T>, T) {
     (Point2::new(x, y).map(T::from_f64), T::from_f64(b))
@@ -180,7 +181,9 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     let vessel = vessel(0.5, 0.4);
     let t = 0.05;
     for (what, body, y) in [("ring_on_outer_vessel", vessel, 0.4)] {
-        let mut sealed = topo::shell(&body, t, tol).expect("sealed shell").body;
+        let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+            .expect("sealed shell")
+            .body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =

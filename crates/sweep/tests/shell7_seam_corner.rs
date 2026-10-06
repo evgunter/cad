@@ -30,6 +30,7 @@ use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
 use crate::common::torus_walls::props_door;
+use sweep::test_support::finished;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
@@ -65,7 +66,7 @@ fn minor_radii(body: &Body<f64>) -> Vec<f64> {
 
 /// Shell to tier 3, two shells, and the wall's closed form.
 fn shelled_to_closed_form(what: &str, body: &Body<f64>) -> topo::Shelled<f64> {
-    let out = topo::shell(body, T, tol())
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
         .unwrap_or_else(|e| panic!("{what}: the full torus shells, got {e}"));
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
@@ -218,7 +219,8 @@ fn a_corner_with_no_profile_constraint_refuses_typed_on_a_hand_split_wedge() {
         (o.x * o.x + o.z * o.z).sqrt() <= 1e-15 && d.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
     });
     let split = split_mid(&mut body, axis_edge);
-    let e = topo::shell(&body, T, tol()).expect_err("the split wedge refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
+        .expect_err("the split wedge refuses");
     let ShellError::Face { error, .. } = &e else {
         panic!("expected the axial door's refusal, got {e}");
     };
@@ -269,8 +271,8 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot() {
     );
     let (rho0, h0) = axial(point(&body, split));
     assert!((rho0 - r).abs() <= 1e-15 && (h0 - h / 2.0).abs() <= 1e-15);
-    let out =
-        topo::shell(&body, T, tol()).unwrap_or_else(|e| panic!("the split drum shells, got {e}"));
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
+        .unwrap_or_else(|e| panic!("the split drum shells, got {e}"));
     let cavity = &out.body;
     assert_eq!(topo::validate_geometric(cavity, tol()), Ok(()), "tier 3");
     let (new, _) = out
@@ -347,7 +349,8 @@ fn shells_with_one_surface_vertices(
         Ok(()),
         "{what}: operand"
     );
-    let out = topo::shell(body, t, tol()).unwrap_or_else(|e| panic!("{what}: shells, got {e}"));
+    let out = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .unwrap_or_else(|e| panic!("{what}: shells, got {e}"));
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
         Ok(()),
@@ -668,7 +671,8 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     let split = split_mid(&mut body, generator);
     topo::mint_pcurves(&mut body, tol()).expect("pcurves");
     assert_eq!(distinct_surfaces_at(&body, split), 2, "wall + cap");
-    let e = topo::shell(&body, 0.05, tol()).expect_err("refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect_err("refuses");
     let (vertex, surfaces, what) =
         corner_refusal(&e).unwrap_or_else(|| panic!("not a corner refusal: {e}"));
     assert_eq!(vertex, split);
@@ -707,7 +711,8 @@ fn a_partial_two_arc_torus_hollows_to_the_props_door() {
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("check 7's volume");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect_err("check 7's volume");
     let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
     assert_eq!(
         source,
@@ -729,7 +734,8 @@ fn a_three_quarter_turn_cone_frustum_refuses_edge_disagreement() {
         Revolution::Partial(3.0 * FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("measured: refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
+        .expect_err("measured: refuses");
     let ShellError::Face { error, .. } = &e else {
         panic!("expected the axial door's refusal, got {e}");
     };

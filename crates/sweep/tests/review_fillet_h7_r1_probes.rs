@@ -359,11 +359,11 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
 /// refuses it, typed, with the recourse that is true of it — a
 /// curved-support carve does not carry rings through. In the flat, the
 /// trimline `mef` leaves the ring on the plane, so the plan admits it
-/// and the ring carry-through pass reads the ring against the trimline:
-/// a square ring is not one circle, and refuses there in that pass's
-/// own words.
+/// and the ring carry-through pass meters the ring edge by edge against
+/// the trimline: the pocket is clear of it, so both creases carve at
+/// the unpocketed rod's closed form and the flat keeps its ring.
 #[test]
-fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_at_the_ring_pass_when_plane() {
+fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_carves_past_it_when_plane() {
     let rod = finished("the rod", rod_with_flat(tol()), tol());
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     for (what, x0, x1, curved) in [
@@ -421,21 +421,32 @@ fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_at_the_ring_pass_w
                 "{what}: each crease has the ringed face as a support"
             );
         }
+        if !curved {
+            let dv = carve_ruled(&source, what);
+            let a = rod_section_cut(ROD_R, ROD_FLAT, R);
+            assert!(
+                (-dv - 2.0 * a * ROD_L).abs() < 1e-12,
+                "{what}: ΔV = −2·A·L, measured {dv}"
+            );
+            let out = fillet_edges(&source, &creases, R, tol()).unwrap();
+            assert!(
+                out.body
+                    .get_face(ringed)
+                    .is_some_and(|f| f.rings.len() == 1),
+                "{what}: the flat keeps its key and its ring"
+            );
+            continue;
+        }
         let err = fillet_edges(&source, &creases, R, tol())
-            .expect_err("a square ring on a support is refused");
+            .expect_err("a square ring on a curved support is refused");
         let detail = match &err.error {
             BlendError::UnsupportedChain { detail, .. }
             | BlendError::UnsupportedGeometry { detail, .. } => *detail,
             other => panic!("{what}: a typed frontier refusal, got {other:?}"),
         };
-        let want = if curved {
-            "support face carries a ring"
-        } else {
-            "a ring edge's carrier is not a circle"
-        };
         assert!(
-            detail.contains(want),
-            "{what}: refused with `{want}`, got {err}"
+            detail.contains("support face carries a ring"),
+            "{what}: refused at the ruled plan, got {err}"
         );
     }
 }
