@@ -7417,3 +7417,13 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Its direction gives the placeholder a kind of its own, possibly a new `CurveGeom` variant reaching about 25 exhaustive matches. That is a representation change, so design forks go to the designers before dispatch.
   - Queued behind the two TOPO lanes in flight and PCERT's `pcurves.rs`/`pcurve_cache.rs` re-port.
 - PR 4154's reviewer and the set_edge_curve lane are still running. Nothing new on PR 3970.
+
+## 14:41 (2026-10-06) check-in
+
+- **PR 4165** `topo: set_edge_curve re-mints a re-parameterized certified edge's faces` is open. Subscribed. FULL reviewer `session_01KSzFXmPnPwhBovUepd9U7n`.
+  - The lane chose a **measured** predicate, `description_moves` (decision `description_moves_carrier`, five sample points), over "every certified description re-mints". The simpler rule refused `carved_sphere_operand`'s union (`Unminted`).
+  - It also drops stale rows in `replace_faces_offset` mid-surgery so the new assert holds.
+  - Reviewer focus: whether the sampling predicate can miss a move between samples; K rows and audit entries for the new decision; reuse of an existing curve-identity reader; offset-door probes.
+- PR 4154's reviewer is waiting on its checks; no verdict yet.
+- Lane sessions report a **seven-day usage warning**. I will hold new implementer dispatches (the placeholder row) until the two PRs in review land.
+- Nothing new on PR 3970.
