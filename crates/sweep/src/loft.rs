@@ -157,6 +157,16 @@ pub enum LoftError {
     /// unreachable when they all come from the same inputs; surfaced
     /// rather than swallowed.
     SectionStructure,
+    /// A section's loop is one segment (D1's full turn: a circle as one
+    /// arc at one vertex). Its wall would be one spline face closing on
+    /// itself around the section, its strut both edges `u = 0` and
+    /// `u = 1` of that one face — and a spline chart is not periodic,
+    /// so the description and pcurve layers have one image for the two
+    /// halves. Refused rather than built unreadable.
+    OneSegmentLoop {
+        /// Canonical index of the loop.
+        loop_index: usize,
+    },
     /// One SLAB definitely stacks AGAINST its own base section's plane
     /// normal. The canonical assembly orients caps and walls by the
     /// forward stacking (module docs) and does not guess: the named
@@ -215,6 +225,12 @@ impl fmt::Display for LoftError {
                 f,
                 "a section's loop or segment structure disagrees with the skinned \
                  geometry or with another section (kernel bug, not an input fault)"
+            ),
+            Self::OneSegmentLoop { loop_index } => write!(
+                f,
+                "loop {loop_index} of the sections is one full-turn arc: its wall would close \
+                 on itself around the section, cut only by its strut, and no spline face here \
+                 represents that cut. Recourse: author the circle as two or more arcs"
             ),
             Self::ReversedStacking { slab } => write!(
                 f,
@@ -454,6 +470,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             .any(|((b, t), w)| b.len() != t.len() || b.len() != w.len())
     {
         return Err(LoftError::SectionStructure);
+    }
+    if let Some(loop_index) = bloops.iter().position(|segs| profile::is_full_turn(segs)) {
+        return Err(LoftError::OneSegmentLoop { loop_index });
     }
     let bq: Vec<Vec<Point3<T>>> = bloops
         .iter()

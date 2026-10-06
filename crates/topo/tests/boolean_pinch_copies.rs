@@ -3,10 +3,9 @@
 //! do not reach rest as two touching vertices, and the result passes
 //! the pseudomanifold door with its own records (f64 and Interval).
 //!
-//! That is not universal: any two-run pierce whose copies no face of
-//! the result meets keeps them apart on their one point (the
-//! shared-point ruling, PR 3813; `boolean::finish::weld_pierce_copies`
-//! welds only copies a face meets).
+//! That is not universal: a pinch is one vertex per cone, so a two-run
+//! pierce whose copies lie in two cones keeps them apart on their one
+//! point key.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

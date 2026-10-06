@@ -381,7 +381,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // is one side (an ON-touching contact mints no null faces).
     if completed.is_empty() {
         body.sweep_and_close();
-        return whole_body_side(reassembled, &red.sides);
+        return whole_body_side(reassembled, &red.sides, &red.plane, tol);
     }
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
@@ -888,9 +888,17 @@ pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitF
 
 /// The un-cut case: the whole body lands on one side, decided by the
 /// first non-ON cached vertex verdict (arena order — deterministic).
+/// A body whose every vertex is ON can still have material off the
+/// plane, along its curved edges — a one-segment cylinder touching the
+/// plane along its seam strut has its two vertices there — so then the
+/// first curved edge whose mid-parameter point is definitely off the
+/// plane decides (`split_edge_side`, the vertex verdict's margin at
+/// that point; edge arena order).
 fn whole_body_side<T: Decide>(
     body: Body<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
+    plane: &super::SplitPlane<T>,
+    tol: Tol,
 ) -> Result<SplitResult<T>, SplitFinishError> {
     let mut side = None;
     for (v, _) in body.vertices() {
@@ -906,6 +914,29 @@ fn whole_body_side<T: Decide>(
             _ => {}
         }
     }
+    if side.is_none() {
+        let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+        for (_, edge) in body.edges() {
+            let Some(curve) = body
+                .get_curve_geom(edge.curve)
+                .and_then(crate::null::CurveGeom::certified)
+            else {
+                continue;
+            };
+            if matches!(curve.carrier(), geom::Curve3::Line { .. }) {
+                continue;
+            }
+            let (t0, t1) = curve.params();
+            let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
+            let offset = crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
+            match crate::validate::decide("split_edge_side", geom_core::Margin::of(offset), band) {
+                Ok(geom_core::Sign::Positive) => side = Some(PlaneSide::Above),
+                Ok(geom_core::Sign::Negative) => side = Some(PlaneSide::Below),
+                Ok(geom_core::Sign::Zero) | Err(_) => continue,
+            }
+            break;
+        }
+    }
     match side {
         Some(PlaneSide::Above) => Ok(SplitResult {
             above: SplitPart::Body(body),
@@ -917,9 +948,9 @@ fn whole_body_side<T: Decide>(
             below: SplitPart::Body(body),
             naming: SplitNaming::default(),
         }),
-        // Every vertex ON: a zero-volume operand, which no closed
-        // solid is; the operand is never validated, so this refuses
-        // here.
+        // Every vertex and every curved edge ON: a zero-volume
+        // operand, which no closed solid is; the operand is never
+        // validated, so this refuses here.
         None => Err(SplitFinishError::Corrupt),
     }
 }

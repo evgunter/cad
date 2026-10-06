@@ -111,6 +111,8 @@ mod offd_r1_probes;
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]
 mod one_door_for_coincident_sections;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
 #[path = "parallel_cylinder_join.rs"]

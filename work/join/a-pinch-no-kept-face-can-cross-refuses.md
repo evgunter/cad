@@ -2,12 +2,13 @@
 id: a-pinch-no-kept-face-can-cross-refuses
 kind: issue
 title: A boolean whose pinch only a face's outer loop could cross refuses PinchUncrossed (cube minus a reflex corner on a cube face, the holed block's intersection, a staircase's second pinch)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 design: true
 refs: [a-pierce-whose-wide-run-pinches-its-intersection-refuses, a-pierce-whose-difference-pinches-at-two-edge-runs-refuses, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face, three-corners-alternating-round-a-corner-refuse-at-the-join]
+closed: 2026-10-06
 ---
 
 
@@ -159,3 +160,71 @@ What the zips meet at the pinned pinches (instrumented `cross_pinches`):
   of one section face (one seam meets the point twice).
 
 Nothing was built past step 0.
+
+## Built (branch `join/pinch-one-vertex-per-cone-build`)
+
+**One vertex per cone, split before the zips** (`zip::split_cones`).
+Each operand vertex's section corners start runs. An A run continues
+into the B run the zip glues to the section corner it ends at, so the
+result's cones are the cycles of `σ_B ∘ σ_A` over the seam pairs. A
+vertex whose runs lie in several cones is split per cone by `mev_null`,
+on its own point key. The transient edge lies on the section faces the
+zips consume and is killed there:
+- `kef` between two section faces, which merges their seams;
+- `kemr` in one section loop, then `mfkrh` for the split-off loop.
+
+The seams are then re-paired, and the correspondence is rebuilt from the
+edges the zips join. A cone that would still fuse a vertex to itself
+refuses `ZipCorrespondence` (no battery line reaches it). Lumps that met
+only at a pinch become shells of their own (`movefac` after the zips).
+
+Retired:
+- the crossing pre-pass (`cross_pinches`, `split_across` and its `kemr`/`kef`
+  crossings, PR 4051's island `kef` included);
+- the post-zip pierce weld (`weld_pierce_copies`);
+- `BooleanError::PinchUncrossed`.
+
+The pre-zip weld stays, as the repair of an operand's coincident
+pierces; its vertex is split per cone with the rest
+(`the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`).
+The corner-slice check and check 9's widening are filed
+(`a-corner-is-a-slice-of-its-face-tier-3-check`,
+`check-9-refuses-only-a-ring-meeting-its-outer-loop`).
+
+**Where this row's 567 lines went** (main `f9bf3bca` vs head, release):
+
+| battery | lines | head |
+|---|---|---|
+| holed block (∩ both orders; cube ∖ block) | 392 | `SOUND` |
+| r1 cube | 48 | `SOUND` |
+| r1 `u2` staircase | 43 | `SOUND` |
+| r2 cube | 26 | `SOUND` |
+| r2 near-tangent | 28 | `SOUND` |
+| r2 cylinder | 30 | `BAD`, operand check only (the curved legal-operand class: 12 536 of main's 17 280 cylinder lines) |
+
+Beyond the 567: 86 lines of review r2's shapes battery and 1 251 of
+PR 4051's island families also go `PinchUncrossed` → `SOUND`, and 62 on
+its cylinder walls → operand-only `BAD`.
+
+Every planar body the batteries newly build (2 648 lines) tessellates at
+δ = 0.05 and passes `check_mesh`. Of the 134 newly built cylinder-wall
+bodies:
+- 30 mesh;
+- 60 refuse `CertificateExceeded` and 44 `Triangulation`, the trimmed
+  lane's refusals at that δ, which main's cylinder bodies meet as often
+  (main: 1 145 and 767 of `isl_cyl`'s lines, head 1 170 and 643).
+
+No line meets the mesher's `PinchWedge`, so no crossing ships.
+
+Pinned by `join_pierce_runs_sweep`:
+- `a_pinch_round_a_notch_on_a_faces_outer_loop_is_one_vertex_per_cone`
+  (`vee300 fib62 face`: its difference's near face runs through two
+  vertices on one point key);
+- `a_staircases_second_pinch_round_a_notch_is_one_vertex_per_cone`;
+- `the_holed_blocks_intersection_pinched_at_its_hole_corner_builds`;
+- `an_island_face_pinched_to_its_holes_ring_stays_its_own_face`;
+- `an_island_pinched_twice_to_its_holes_ring_stays_its_own_face`;
+- `two_pinches_in_one_op_are_each_split_per_cone`.
+
+Each asserts every run `SOUND` and meshing. In `join_pierce_strut_facing`,
+`a_pinch_keeps_one_vertex_per_cone` pins two vertices at `v`.
