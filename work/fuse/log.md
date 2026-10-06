@@ -473,3 +473,14 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   orchestrator re-filed it with the corrected premise and folded in n1
   (the REST lane's new edge rows are untested). The unit row returns to
   `open` for step 2.
+
+- 2026-10-06 — Dispatched step 2 of the PR 3881 build (the join at
+  every output stage; sweeps build one rim per run; `ee` carriage) on
+  `fuse/join-every-stage`. It is topology, outside the D10 hold.
+- 2026-10-06 — Main is red at eps 1e-6 on `sweep::all
+  pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates`.
+  The orchestrator reproduced it on main alone. It is JOIN's
+  (`bool_join_nearest` in `join::nearer`), filed by the 3953 lane as
+  `work/join/a-pinch-face-tessellation-witness-refuses-bool-join-nearest-at-eps-1e-6.md`.
+  PR 3953 is held on it rather than merged on red. PR 3955 landed
+  first.
