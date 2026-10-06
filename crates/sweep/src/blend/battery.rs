@@ -1868,8 +1868,8 @@ pub const END_FACE_OBLIQUE: &str = "a round band ends at a plane end face obliqu
 
 /// The refusal for a straight band — either open band — ending at a
 /// curved end face.
-pub const END_FACE_CURVED: &str = "a straight band ends at a curved end face; the cut-off is \
-     built in a plane end face only";
+pub const END_FACE_CURVED: &str = "a straight band ends at a curved end face, where its \
+     cut-off is not built; it is built in a plane end face";
 
 /// **`fillet3_cap_transverse`** — does a cylinder band's end face lie
 /// perpendicular to the band's spine (a ruled link's ruling, a
