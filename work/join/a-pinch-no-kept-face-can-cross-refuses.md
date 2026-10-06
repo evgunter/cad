@@ -2,12 +2,13 @@
 id: a-pinch-no-kept-face-can-cross-refuses
 kind: issue
 title: A boolean whose pinch only a face's outer loop could cross refuses PinchUncrossed (cube minus a reflex corner on a cube face, the holed block's intersection, a staircase's second pinch)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 design: true
 refs: [a-pierce-whose-wide-run-pinches-its-intersection-refuses, a-pierce-whose-difference-pinches-at-two-edge-runs-refuses, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face, three-corners-alternating-round-a-corner-refuse-at-the-join]
+closed: 2026-10-06
 ---
 
 

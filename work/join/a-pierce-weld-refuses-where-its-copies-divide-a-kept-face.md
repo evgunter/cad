@@ -2,11 +2,12 @@
 id: a-pierce-weld-refuses-where-its-copies-divide-a-kept-face
 kind: issue
 title: The pierce weld refuses where a kept face's outer loop runs through two of a pierce's copies (214 runs on 315° and 225° corners), and a holed difference refuses 'two fragments of a pierced face meet one pinch'
-status: open
+status: closed
 opened: 2026-10-04
 priority: P0
 cost: H
 refs: [a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
+closed: 2026-10-06
 ---
 
 

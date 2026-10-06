@@ -62,3 +62,11 @@ an operand's coincident pierces. That keeps `pinch_site` and its
 the island stays its own face, its outer loop and the hole's ring
 passing the pinch at two vertices on one point key. The rest is
 `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`'s.
+
+## After PR 4139
+
+PR 4139 kept the pre-zip `weld_pinches` (and so `pinch_site`'s
+`Joint::Hole`) for a pinched operand's coincident pierces. A weld now
+joins two pierces only where their corners nest. This row stays open
+until `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`
+retires the weld; it dissolves with it.
