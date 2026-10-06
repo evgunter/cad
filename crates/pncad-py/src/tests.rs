@@ -4744,7 +4744,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
-            "unsupported_body",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",

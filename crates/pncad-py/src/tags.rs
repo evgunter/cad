@@ -1553,7 +1553,6 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::Escalated { .. } => "escalated",
         BlendError::RepeatedEdge { .. } => "repeated_edge",
         BlendError::NonpositiveSize { .. } => "nonpositive_size",
-        BlendError::UnsupportedBody { .. } => "unsupported_body",
         BlendError::UnsupportedChain { .. } => "unsupported_chain",
         BlendError::UnsupportedRunOut { .. } => "unsupported_run_out",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
