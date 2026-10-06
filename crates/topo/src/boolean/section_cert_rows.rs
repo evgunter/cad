@@ -1389,7 +1389,9 @@ fn far_cylinder(through: Point3<f64>, d: Vec3<f64>, radius: f64, far: f64) -> Su
 /// (decided `Zero` at the pair's lever) with its origin 1 km along the
 /// axis, where the axis has drifted `1.9e-7` further out. Read at the
 /// origin, the offset puts `ρ_min` beyond the tube and the pair would
-/// clear W0 with a true loop in it.
+/// clear W0 with a true loop in it. Where the band takes in the `8e-8`
+/// (ε = 1e-6), the pin touches the outer equator, and the touch is the
+/// nearest ruling read at the pivot, not `1.9e-7` out at the origin.
 #[test]
 fn a_far_origin_does_not_move_a_pins_offset() {
     let tilt = 1.9e-10;
@@ -1400,7 +1402,10 @@ fn a_far_origin_does_not_move_a_pins_offset() {
             assert!(!parts.is_empty(), "a true scrape loop cleared as apart")
         }
         Section::Tangent(_) | Section::Intractable => {}
-        Section::Touch(t) => panic!("a torus pair has no touching arm: {t:?}"),
+        Section::Touch(t) => assert!(
+            (t.at - p(2.5 - 8e-8, 0.0, 0.0)).norm() < 1e-9,
+            "the touch is read off the pivot: {t:?}"
+        ),
     }
 }
 
