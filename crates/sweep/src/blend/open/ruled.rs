@@ -96,7 +96,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     /// a cylinder, a trimline not a line, or a cap rim neither a line
     /// nor a circle ([`EndCut::plan`]);
     /// [`BlendError::UnsupportedChain`]
-    /// when a support carries a ring, or when a cap rim is itself
+    /// when a curved support carries a ring, or when a cap rim is itself
     /// requested; [`BlendError::UnsupportedRunOut`] when a foot lands
     /// off its rim; [`BlendError::BodyNotIntact`] when the crease's
     /// halves do not lie in the supports the verdict names, an end is
@@ -124,15 +124,16 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         };
         let (q_a, q_b) = (open_trimline(l, l.face_a)?.0, open_trimline(l, l.face_b)?.0);
 
-        // The supports: each carries its half of the crease, and is
-        // ring-free — a ring on a curved support is not carried
-        // through by this carve. Together the two put the crease on
-        // the support's OUTER cycle (a half-edge's loop is a cycle of
-        // its face, and a ring-free face has one), which is where the
-        // trimline `mef` hangs ([`chord_site`]). The CAP's other cycles
-        // are not refused here: the cut-off `mef` leaves each on the
-        // cap, so each is metered against the region the cut removes
-        // ([`CapSliver`]) by the surgery's ring carry-through pass.
+        // The supports: each carries its half of the crease, and a
+        // CURVED one is ring-free — a ring on a curved support is not
+        // carried through by this carve. A plane support's rings stay
+        // on it: the trimline `mef` ([`chord_site`]) hangs in the cycle
+        // carrying the crease and leaves the face's other cycles on the
+        // support, and the surgery's ring carry-through pass meters each
+        // against the trimline. The CAP's other cycles are not refused
+        // here either: the cut-off `mef` leaves each on the cap, so each
+        // is metered against the region the cut removes ([`CapSliver`])
+        // by the same pass.
         let (hp, hm) = halves_of(body, edge)
             .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ruled link's edge"))?;
         for (face, half) in [(l.face_a, hp), (l.face_b, hm)] {
@@ -145,7 +146,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                     "a ruled link's half-edges do not lie in the faces the verdict names",
                 ));
             }
-            if !fd.rings.is_empty() {
+            let planar = matches!(body.get_surface(fd.surface), Some(Surface::Plane { .. }));
+            if !planar && !fd.rings.is_empty() {
                 return Err(unbuilt_chain(
                     edge,
                     "a ruled band's support face carries a ring, which its curved support cannot \

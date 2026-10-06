@@ -571,3 +571,20 @@ sliver too (the README sentence from PR 4085 corrected to say so — the
 decision unchanged, Ev told), arm (d) pinned by a witness, crossing cut-off
 feet refused at plan. Filed `a-requested-ring-edge-refuses-at-the-ring-meter`.
 The row stays open for steps 3–5 (oblique fillet, mitre, overrun).
+## 2026-10-06 — `lamina-plane-annulus-keeps-its-slit` closed (PR #4136)
+
+A lamina full revolve's plane annulus is one face with its bore as a ring:
+no seam slit and no `Meridian(Seam, s)` name, as a solid's planar wall
+already was (fork-log row 36's "construct"). The blend surgery and rim
+routing follow it: a plane annulus's one-link bore routes to the annulus
+carve, `lone_host_trim` carves a lone crossing, and the ruled band's support
+gate admits a plane support with rings, metered by the ring pass. STEP's
+washer exports 6 edges (census goldens re-blessed). Full review
+(APPROVE-WITH-FIXES, no correctness defect — every carve at its closed form)
+taken in full: a sentence-level prose sweep across blend, topo, mesh and the
+README; the check-9 outer-edge witness rebuilt through a public `mekr_chord`;
+ΔV pins; the deepest-gap reading; and 14 probe rows. Reconciled with 4119's
+piece-by-piece ring readers. Filed: TESS
+`mesh-slit-annulus-rows-no-longer-build-a-slit`, CLEAVE
+`revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6` (main's red,
+merged over); SHELL `offset-door-declared-transport-has-no-built-witness`.

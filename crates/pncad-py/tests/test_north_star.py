@@ -2660,7 +2660,7 @@ class TestBudfillet(unittest.TestCase):
         # below is between two bodies and not against a remembered
         # number (the scene's own discipline).
         self.assertEqual(len(ev.all_vertices(sharp)), 5)
-        self.assertEqual(len(ev.all_edges(sharp)), 10)
+        self.assertEqual(len(ev.all_edges(sharp)), 8)
         self.assertEqual(len(ev.all_faces(sharp)), 5)
         sharp_volume = ev.value(sharp).body().mass_properties().volume
 
@@ -2708,7 +2708,7 @@ class TestBudfillet(unittest.TestCase):
         # Proof 1: three annulus bands, each (+1 vertex, +2 edges,
         # +1 face) over the sharp bud.
         self.assertEqual(len(ev.all_vertices(rolled)), 8)
-        self.assertEqual(len(ev.all_edges(rolled)), 16)
+        self.assertEqual(len(ev.all_edges(rolled)), 14)
         self.assertEqual(len(ev.all_faces(rolled)), 8)
 
         # Proof 2: the band faces exist and are TORI — three of them,
@@ -3282,7 +3282,7 @@ class TestTeapot(unittest.TestCase):
         rolled.validate()
         # Three annulus bands, each (+1 vertex, +2 edges, +1 face).
         self.assertEqual(len(ev.all_vertices(lid)), 9)
-        self.assertEqual(len(ev.all_edges(lid)), 18)
+        self.assertEqual(len(ev.all_edges(lid)), 16)
         self.assertEqual(len(ev.all_faces(lid)), 9)
         # Every band is a TORUS — what sharing an axis of revolution
         # buys — and there are exactly three.

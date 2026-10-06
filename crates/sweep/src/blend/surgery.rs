@@ -76,26 +76,33 @@
 //! The **ANNULUS** rim (a full solid of revolution's latitude rim):
 //! ONE closed edge — or SEVERAL arcs of one rim meeting at chart-seam
 //! vertices, on a pole-touching revolve whose walls are half-bands —
-//! with no ladder to walk either way. Both supports are revolution
-//! WALLS — an annular full revolve mints each profile segment as one
-//! face whose single cycle carries two closed latitude rims and a
-//! doubly-traversed seam meridian; a pole-touching one mints two
-//! half-band faces per segment, each traversing each seam once — and
-//! the band is minted as one more wall of the one-face shape: per
-//! crossing, the MATE's seam split plus the HOST's own foot, one
-//! closed-edge `mef` per support carving its strip, one rim `kef`
-//! merging the strips, and the ladder's own closure `kev` retiring the
-//! rim vertex and fan-merging the MATE seam's remnant into the slit.
-//! Neither support's KIND enters: the shape is what the six moves need.
+//! with no ladder to walk either way. The MATE side is a revolution
+//! WALL — a curved full-revolve wall is one face whose single cycle
+//! carries two closed latitude rims and a doubly-traversed seam
+//! meridian; a pole-touching revolve mints two half-band faces per
+//! segment, each traversing each seam once. The HOST side is such a
+//! wall too, or a PLANE: a full revolve mints each plane wall as one
+//! face with no seam, a disc or an annulus whose circles are its outer
+//! cycle and its ring. The band is minted as one more wall of the
+//! one-face shape: per crossing, the MATE's seam split plus the HOST's
+//! own foot, one closed-edge `mef` per support carving its strip, one
+//! rim `kef` merging the strips, and the ladder's own closure `kev`
+//! retiring the rim vertex and fan-merging the MATE seam's remnant into
+//! the slit.
 //!
-//! **The HOST's foot comes one of two ways, and that is the only place
-//! the two annulus shapes part.** Where the host side is half-bands too,
-//! a seam meets the crossing and splitting it lands the foot on existing
-//! geometry — the seam split taking the strut `mev`'s place. Where ONE
-//! host face carries every arc in its own outer cycle — what a
+//! **The HOST's foot comes one of two ways, and that is where the
+//! annulus shapes part.** Where the host side is walls, a seam meets
+//! the crossing and splitting it lands the foot on existing geometry —
+//! the seam split taking the strut `mev`'s place. Where ONE plane face
+//! carries every arc in one of its cycles — a full revolve's plane
+//! wall, whose rim is its outer cycle or its ring, or what a
 //! coplanar-face merge leaves of a pole-touching cap — the crossing is
 //! TRIVALENT, there is no host seam, and the foot is minted by the
-//! LADDER's strut instead. Everything after it is the same six moves.
+//! LADDER's strut instead. On a rim of one edge the host's kind decides
+//! which: a plane carries no seam. Everything after it is the same six
+//! moves, except that a rim of ONE arc has one strut and so no chord
+//! between two feet: its host trim takes [`lone_host_trim`]'s route
+//! through the host's own cycle.
 //!
 //! # What decides, and what does not
 //!
@@ -201,8 +208,8 @@ use geom_brep::{
 };
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
-    Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    ShellKey, SurfaceKey, VertexKey,
+    Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MekrSite,
+    MevSite, ShellKey, SurfaceKey, VertexKey,
 };
 
 use super::admit::{
@@ -312,11 +319,12 @@ pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
 /// extruded wall's faces split by its seam lines — so each rim arc
 /// bounds its own mate face and consecutive arcs meet at a rim vertex
 /// where exactly one MERIDIAN edge descends into the cap. On an
-/// ANNULUS rim the MATE side is always several FACES of one SURFACE —
-/// the half-band walls a chart seam left — while the HOST side is
-/// either the same, or ONE face carrying every arc in its own outer
-/// cycle, which is what a coplanar-face merge leaves and which
-/// [`HostFoot`] is the per-crossing consequence of. [`RimShape`]
+/// ANNULUS rim the MATE side is revolution walls — one face, or the
+/// half-band faces of one surface a chart seam left — while the HOST
+/// side is either the same, or ONE plane face carrying every arc in
+/// one of its cycles: its outer cycle, which is what a coplanar-face
+/// merge leaves, or on a full revolve's plane wall its outer cycle or
+/// its ring. [`HostFoot`] is the per-crossing consequence. [`RimShape`]
 /// carries what is true of each shape beyond that.
 struct RimPlan<'a, T: Real> {
     chain: &'a Chain<T>,
@@ -347,11 +355,12 @@ enum RimShape {
         ring: LoopKey,
     },
     /// **The annulus.** The band has two closed boundary circles and no
-    /// ladder to walk. Both supports are revolution WALLS of ANY
-    /// analytic kind — a full revolve mints each profile segment as a
+    /// ladder to walk. The mate is a revolution WALL of ANY analytic
+    /// kind — a full revolve mints each curved profile segment as a
     /// wall whose latitude rims are closed, and that shape is what the
-    /// carve needs, not a plane and a sphere. The band is minted as one
-    /// more wall of the same shape.
+    /// carve needs, not a plane and a sphere — and the host is such a
+    /// wall or a plane. The band is minted as one more wall of the
+    /// same shape.
     ///
     /// A pole-touching profile's revolve splits every wall into
     /// half-bands, so the rim arrives as SEVERAL arcs meeting at
@@ -362,14 +371,17 @@ enum RimShape {
     /// it. [`AnnulusRim::crossings`] is one entry per arc, and a
     /// one-edge rim is the one-entry case of it.
     ///
-    /// **The host side may be ONE face carrying every arc**, which is
-    /// what a coplanar-face merge leaves of a pole-touching cap: the
-    /// rim is then that face's whole OUTER cycle rather than several
-    /// half-bands, its crossings are TRIVALENT, and each host foot is a
-    /// strut instead of a seam split ([`HostFoot`]). Nothing else about
-    /// the walk changes — the mate splits, both sides' trimlines, the
+    /// **The host side may be ONE plane face carrying every arc** in
+    /// one of its cycles: what a coplanar-face merge leaves of a
+    /// pole-touching cap, its whole OUTER cycle, or a full revolve's
+    /// plane wall, whose one-edge rim is its outer cycle or its ring.
+    /// Its crossings are TRIVALENT, and each host foot is a strut
+    /// instead of a seam split ([`HostFoot`]). Nothing else about the
+    /// walk changes — the mate splits, both sides' trimlines, the
     /// excise, the crossing merges and the closure slit are the same
-    /// six moves, which is why this is one shape and not a third.
+    /// six moves, which is why this is one shape and not a third; a
+    /// one-edge rim's lone strut reaches its host trim by
+    /// [`lone_host_trim`]'s route rather than a chord.
     Annulus(AnnulusRim),
 }
 
@@ -378,7 +390,8 @@ struct AnnulusRim {
     /// One crossing per rim arc — the vertices the rim's arcs meet at,
     /// each with the mate's seam meridian and the host's own foot
     /// source ([`HostFoot`]). A one-edge rim has exactly one: its own
-    /// vertex, where both walls' doubly-traversed seams meet it.
+    /// vertex, where the mate wall's doubly-traversed seam meets it, and
+    /// the host's where the host is a wall.
     crossings: Vec<SeamCrossing>,
     /// Which crossing carries the band's SLIT, and therefore the
     /// azimuth of the band chart's own seam. Every other crossing is
@@ -396,9 +409,9 @@ enum HostFoot {
     /// meridian meets the crossing and splitting it lands the foot on
     /// EXISTING geometry. Its rim-side piece dies with the vertex.
     Seam(EdgeKey),
-    /// ONE host face carries every arc in its own outer cycle, so the
-    /// crossing is TRIVALENT — two rim arcs and the mate's seam — and no
-    /// host seam exists to split. The foot is minted by the LADDER's own
+    /// ONE plane host face carries every arc in one of its cycles, so
+    /// the crossing is TRIVALENT — the rim's two ends and the mate's
+    /// seam — and no host seam exists to split. The foot is minted by the LADDER's own
     /// move, a strut `mev` out to the host trimline at this vertex's own
     /// parameter ([`strut_foot`]), and the strut dies at the crossing
     /// exactly as the ladder's do.
@@ -1034,10 +1047,12 @@ fn corner_shell(
 /// ([`super::arms::BlendArm::is_coaxial_torus`]) and not for one pair of kinds. Below
 /// it the two shapes part company:
 ///
-/// - the ANNULUS is two revolution WALLS and needs no planar support at
-///   all: its trimlines are latitude circles on each support, minted per
-///   kind by the arm, and the carve reads only the walls' seam
-///   meridians. Every kind gate is dropped here, deliberately;
+/// - the ANNULUS needs no planar support: its mate is a revolution
+///   WALL, its host a wall or a plane carrying the rim as a whole cycle,
+///   its trimlines are latitude circles on each support, minted per
+///   kind by the arm, and the carve reads the walls' seam meridians. The
+///   one kind it asks is whether a one-edge rim's host is a plane, which
+///   carries no seam ([`resolve_annulus`]);
 /// - the LADDER is a ring-and-half-caps configuration, and its gates —
 ///   one shared PLANE support, the rim as a RING of it, ring-free mate
 ///   caps each carrying exactly one arc — are that configuration's own.
@@ -1061,8 +1076,10 @@ fn corner_shell(
 /// When NO single planar face hosts every link — a rim a chart seam has
 /// split, whose supports are half-band walls, several FACES of one
 /// SURFACE per side — it is the annulus with SEAM crossings, as before.
-/// A one-link chain is an annulus by shape (a ring of one face has a
-/// link count greater than one whenever it is a ring at all).
+/// A one-link chain is an annulus by shape, whichever cycle of its host
+/// it is: a ring of ONE edge — a full revolve's plane annulus at its
+/// inner circle — has no ladder to walk, and its host trim replaces that
+/// ring ([`lone_host_trim`]).
 ///
 /// **Neither shape asks which material side the rim is on.** The band
 /// is a torus about the rim's own spine whichever side the ball rests
@@ -1095,9 +1112,10 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     }
 
     // A one-link rim is a different band and a different surgery: its
-    // supports are revolution WALLS, not a ring-and-cap pair, so it
-    // resolves against the wall shape rather than the ring one — and it
-    // asks nothing about either support's kind.
+    // mate is a revolution WALL and its host a wall or a plane carrying
+    // the rim as a whole cycle, never a ring-and-cap pair, so it
+    // resolves against the wall shape. The host's kind decides only
+    // whether its foot is a seam split or a strut.
     if chain.link_count() == 1 {
         let a_planar = is_plane(link0.face_a).ok_or_else(|| {
             not_intact(EntityId::Face(link0.face_a), "a rim link's first support")
@@ -1123,7 +1141,12 @@ fn resolve_rim<'a, T: Decide + Bounds>(
             .ok_or_else(|| {
                 not_intact(EntityId::HalfEdge(host_half), "a rim edge's host-side half")
             })?;
-        let shape = resolve_annulus(body, link0, mate, host_loop, host_half)?;
+        let host_planar = if host == link0.face_a {
+            a_planar
+        } else {
+            b_planar
+        };
+        let shape = resolve_annulus(body, link0, host_planar, mate, host_loop, host_half)?;
         return Ok(RimPlan {
             chain,
             hosts: vec![host],
@@ -1305,7 +1328,8 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// reads incidence and NOTHING else — no convexity, no support
 /// resolution, so it is strictly weaker than this), by
 /// [`resolve_annulus`]/[`wall_seam`] (the same shape on a rim of ONE
-/// self-closed edge and its doubly-traversed wall seams), and by
+/// self-closed edge and its walls' doubly-traversed seams — none on a
+/// plane host, whose crossing is trivalent), and by
 /// [`refresh_annulus_seams`] (the CARVE-time re-read of these keys on
 /// a body carrying earlier bands — a reader adding a fifth reading
 /// starts from this list). They are not
@@ -1320,8 +1344,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// [`resolve_annulus`] (one self-closed edge) and this one (several
 /// arcs) resolve the SAME band onto the same two surfaces, and a
 /// unified resolver is structurally available: the one-edge case is
-/// this one with a single crossing whose two seams are its wall's
-/// doubly-traversed ones. It is deliberately NOT taken here, and the
+/// this one with a single crossing whose seams are its walls'
+/// doubly-traversed ones (the mate's always, the host's where the host
+/// is a wall). It is deliberately NOT taken here, and the
 /// cost is stated so it is a decision rather than an oversight:
 ///
 /// - the one-edge path's gates are load-bearing in a way this one's are
@@ -1663,16 +1688,18 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   [`split_fragment`] names after the source seam
 ///   (`blend_bore_two_rims`).
 /// - **Two ANNULUS rims** carve too — sharing a revolution WALL or a
-///   full-revolve PLANE CAP; a cap is one more wall of the same shape,
-///   its radial seam the meridian (the annulus resolution never asked
-///   a support's kind, so neither does this). What an annulus carve
-///   reaches on a shared face is that face's SEAM MERIDIAN, and the
-///   only plan data that names it is the later rim's crossing seam
-///   KEYS, whose live identity [`refresh_annulus_seams`] re-reads
-///   immediately before that rim's own phase. Identity is all that
+///   full revolve's PLANE wall, which carries one rim as its outer
+///   cycle and the other as its ring. What an annulus carve reaches on
+///   a shared wall is that face's SEAM MERIDIAN, and the only plan data
+///   that names it is the later rim's crossing seam KEYS, whose live
+///   identity [`refresh_annulus_seams`] re-reads immediately before
+///   that rim's own phase. A plane wall has no seam: each rim's foot is
+///   a strut its own phase mints, and its trim replaces its own cycle,
+///   so the earlier carve leaves the later rim's plan nothing stale.
+///   Identity is all that
 ///   moves: every decision stays the plan's (#935; the one-call result
 ///   is pinned against the sequential composition, bit-equal on a
-///   shared WALL and to within a summation ulp on a shared CAP —
+///   shared WALL and to within a summation ulp on a shared PLANE —
 ///   `blend_tworims::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`,
 ///   `blend2_r2_probes::r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call`).
 /// - **A LADDER and an ANNULUS rim** sharing a support are refused:
@@ -1847,8 +1874,8 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
             ));
         };
         // A hostless crossing has no host seam to find, and finding one
-        // would mean an earlier carve put a co-surface edge into a face
-        // whose whole outer cycle is this rim — the same unrepairable
+        // would mean an earlier carve put a co-surface edge into the
+        // face cycle that is this whole rim — the same unrepairable
         // composition the arms above name.
         let host = match (&c.host, host_seam) {
             (HostFoot::Seam(_), Some(seam)) => HostFoot::Seam(seam),
@@ -1870,17 +1897,23 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
 /// separates, with every structural precondition of the annulus band
 /// checked.
 ///
-/// A wall is what a full revolve mints for one profile segment: a face
-/// whose single boundary cycle carries two closed latitude rims and one
-/// seam meridian, traversed twice. That SHAPE is the whole hypothesis —
-/// neither support's kind enters, so a sphere-and-cone rim resolves by
-/// exactly the checks a plane-and-sphere one does. The band replacing
-/// this rim is one more wall of that shape, and its two feet come from
-/// splitting the two seams — so both must be there, and both must meet
-/// the rim at its one vertex.
+/// A curved wall is what a full revolve mints for one profile segment:
+/// a face whose single boundary cycle carries two closed latitude rims
+/// and one seam meridian, traversed twice. That SHAPE is the hypothesis
+/// on the MATE side, and on a curved host — neither kind enters, so a
+/// sphere-and-cone rim resolves by exactly the checks a cylinder-and-
+/// sphere one does — and those feet come from splitting the seams, so
+/// each must be there and meet the rim at its one vertex.
+///
+/// A full revolve's PLANE wall has no seam: it is one face, a disc or
+/// an annulus whose circles are its outer cycle and its ring. A plane
+/// host whose cycle carrying the rim is the rim alone is the hostless
+/// crossing ([`HostFoot::Strut`]), with the rim either that face's
+/// outer cycle or one of its rings.
 fn resolve_annulus<T: Decide + Bounds>(
     body: &Body<T>,
     link0: &Link<T>,
+    host_planar: bool,
     mate: FaceKey,
     host_loop: LoopKey,
     host_half: HalfEdgeKey,
@@ -1911,16 +1944,25 @@ fn resolve_annulus<T: Decide + Bounds>(
     };
     let mate_loop = loop_of_half(body, mate_half)
         .ok_or_else(|| not_intact(EntityId::HalfEdge(mate_half), "a rim edge's mate-side half"))?;
-    let host_seam = wall_seam(body, host_loop, link0.edge, vertex)?;
+    let hostless = host_planar && is_lone_rim(body, host_loop, link0.edge)?;
+    let host_foot = if hostless {
+        HostFoot::Strut
+    } else {
+        HostFoot::Seam(wall_seam(body, host_loop, link0.edge, vertex)?)
+    };
     let mate_seam = wall_seam(body, mate_loop, link0.edge, vertex)?;
-    // The rim vertex carries the rim and the two seams and nothing else:
-    // the band's slit is minted from the MATE seam's rim-side piece
-    // and the HOST seam's rim-side piece dies with this vertex, so a
-    // third incident edge would be left behind by both.
+    // The rim vertex carries the rim, the mate seam and the host seam
+    // where there is one, and nothing else: the band's slit is minted
+    // from the MATE seam's rim-side piece and the HOST foot's edge dies
+    // with this vertex, so a further incident edge would be left behind
+    // by both.
     let mut incident = fan_at(body.edges_of_vertex(vertex))
         .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
     incident.sort_unstable();
-    let mut expected = vec![link0.edge, host_seam, mate_seam];
+    let mut expected = vec![link0.edge, mate_seam];
+    if let HostFoot::Seam(host_seam) = host_foot {
+        expected.push(host_seam);
+    }
     expected.sort_unstable();
     if incident != expected {
         return Err(unbuilt_chain(
@@ -1932,11 +1974,19 @@ fn resolve_annulus<T: Decide + Bounds>(
     Ok(RimShape::Annulus(AnnulusRim {
         crossings: vec![SeamCrossing {
             vertex,
-            host: HostFoot::Seam(host_seam),
+            host: host_foot,
             mate_seam,
         }],
         closure: 0,
     }))
+}
+
+/// Whether `lp`'s cycle is the one edge `rim` and nothing else — a
+/// plane wall's circle, which carries no seam.
+fn is_lone_rim<T: Decide>(body: &Body<T>, lp: LoopKey, rim: EdgeKey) -> Result<bool, BlendError> {
+    let walk = loop_walk(body, lp)
+        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a rim support's boundary cycle"))?;
+    Ok(matches!(walk[..], [(_, _, e)] if e == rim))
 }
 
 /// The seam meridian of a revolution wall's boundary cycle: the one
@@ -2904,8 +2954,8 @@ fn support_boundary_clearance<T: Decide + Bounds>(
                 })
                 .collect::<Result<Vec<_>, BlendError>>()?;
             // A cycle the carve replaces whole (a hostless annulus's
-            // outer cycle of rim arcs, a ladder's own ring) has nothing
-            // left to meter.
+            // cycle of rim arcs, outer or ring; a ladder's own ring) has
+            // nothing left to meter.
             if let Some((margin, bounded)) = margins.into_iter().reduce(worse) {
                 ring_clearance(face, convexity, margin, bounded, band)?;
             }
@@ -3636,12 +3686,17 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     for i in 0..n {
         let (he1, fp_i) = strut_hes[i];
         let fp_j = strut_hes[(i + 1) % n].1;
+        // The last chord closes onto the first trim, minted at `i = 0`,
+        // so a ladder needs two links. It always has them:
+        // [`resolve_rim`] routes every one-link chain to the ANNULUS,
+        // whose single-foot host trim is [`lone_host_trim`].
         let he2 = if i + 1 < n {
             strut_hes[i + 1].0
         } else {
-            first_trim.ok_or_else(|| {
-                unbuilt_chain(plane_walk[i].2, "a rim of a single edge is not implemented")
-            })?
+            let Some(first) = first_trim else {
+                unreachable!("ladder rim: a one-link chain resolves to the annulus, not here")
+            };
+            first
         };
         // Scaffold chord now (the corner-arc precedent); the exact
         // scaled arc is attached in the description pass, once the
@@ -3963,6 +4018,79 @@ fn mef_trim<T: Decide + Bounds + topo::AtRestPolicy>(
     .map_err(|e| op(site, e))
 }
 
+/// **The host trim of a rim with ONE hostless crossing** — a plane
+/// face carrying the one-edge rim as a whole cycle (outer or ring),
+/// strutted at its one vertex. Returns the trim `mef`'s record and the
+/// strut's key, re-minted.
+///
+/// The trim is a closed circle through the one foot, so no chord spans
+/// two feet, and a `mef` from the foot to itself hands the LONE circle
+/// to the new face: the source face would keep the strip and the new
+/// face its remainder. The strip has to be the new face, so the moves
+/// are taken so that the host's own cycle is what the trim enters:
+///
+/// 1. `kemr` the strut, the rim side becoming a ring and the host's
+///    cycle (its outer/ring designation kept) the lone foot;
+/// 2. a lone-vertex `mef` there: the host's cycle keeps the trim's plus
+///    half, the new face — the strip — takes its minus half;
+/// 3. move the rim's ring onto the strip;
+/// 4. `mekr` the strut back across the strip, foot → rim vertex,
+///    leaving the strip's one cycle as a strutted host trim leaves it.
+///
+/// The host keeps its key, its designations and its other rings, and
+/// the plus half runs as the multi-crossing trim's does.
+fn lone_host_trim<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    rim_half: HalfEdgeKey,
+    foot: VertexKey,
+    strut: EdgeKey,
+    tol: Tol,
+) -> Result<(topo::MefCreated, EdgeKey), BlendError> {
+    let Some((hp, hm)) = halves_of(body, strut) else {
+        unreachable!("lone host trim: the strut was minted by this phase and nothing killed it")
+    };
+    let (out, back) = if body.half_edge_end(hp) == Some(foot) {
+        (hp, hm)
+    } else {
+        (hm, hp)
+    };
+    let host_loop = loop_of_half(body, out)
+        .ok_or_else(|| not_intact(EntityId::Edge(strut), "a hostless strut's loop"))?;
+    let rim_ring = body
+        .kemr(back, out)
+        .map_err(|e| op("annulus lone host strut kemr", e))?
+        .ring;
+    let pf = point_of(body, foot)
+        .ok_or_else(|| not_intact(EntityId::Vertex(foot), "a rim band's foot"))?;
+    let trim = body
+        .mef(
+            MefSite::Lone { r#loop: host_loop },
+            EdgeCurveSpec::self_loop_circle_at(pf),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .map_err(|e| op("annulus host trim mef", e))?;
+    let strip = face_of_half(body, trim.he_minus)
+        .ok_or_else(|| not_intact(EntityId::Edge(trim.edge), "a lone host trim's new face"))?;
+    body.ring_move(rim_ring, strip)
+        .map_err(|e| op("annulus lone host ring move", e))?;
+    let pv = body
+        .get_half_edge(rim_half)
+        .and_then(|h| point_of(body, h.start))
+        .ok_or_else(|| not_intact(EntityId::HalfEdge(rim_half), "a rim vertex"))?;
+    let joined = body
+        .mekr(
+            MekrSite::Cycles {
+                target: trim.he_minus,
+                ring: rim_half,
+            },
+            EdgeCurveSpec::line_between(pf, pv),
+            tol,
+        )
+        .map_err(|e| op("annulus lone host strut mekr", e))?;
+    Ok((trim, joined.edge))
+}
+
 /// **One crossing's HOST foot as the carve holds it** — the mid-walk
 /// twin of [`HostFoot`], which says where the foot COMES from; this says
 /// what minting it left behind.
@@ -4162,6 +4290,9 @@ struct ArcPlan<T: Real> {
 /// A HOSTLESS crossing is walked through on the same ground: its host
 /// side is one smooth face either way, and the strut is scaffolding
 /// this call both mints and consumes.
+/// A rim of one edge with a HOSTLESS crossing has no second foot for
+/// step 3's chord to reach, so its host trim is taken through the
+/// host's own cycle instead ([`lone_host_trim`]).
 ///
 /// **The struts leave the body tier-2 invalid between steps 2 and 3**,
 /// because a foot is valence-1 until its trim `mef` lands — measured,
@@ -4362,7 +4493,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     // with the LADDER's strut, from the arc that starts here so the
     // parameter is that arc's own window start — the same point the
     // seam split targets, reached without a seam.
-    let mut host_feet = Vec::with_capacity(n);
+    let mut host_feet: Vec<HostAnchor> = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
         let anchor = match (live[ix].host, c.host) {
             (HostFoot::Seam(seam), HostFoot::Seam(plan)) => {
@@ -4443,56 +4574,68 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     // ---- (3)+(4) The trimlines, one `mef` per support face. The run
     // that moves to the NEW face is the rim side, so each support keeps
     // its own key and the strips are the new faces. ----
-    let mut host_trims = Vec::with_capacity(n);
-    for (i, l) in rim.chain.links().enumerate() {
-        let half = host_side_half(body, l, rim.hosts[i])
-            .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
-        let lp = loop_of_half(body, half)
-            .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side loop"))?;
-        // A seam host is picked by the two pieces at its feet; a
-        // hostless one has no pieces, so its two halves are the ones
-        // FLANKING this arc in the live loop.
-        let (he1, he2) = if seam_chord_feet.is_empty() {
-            let ((h1, v1), (h2, v2)) =
-                flank(body, lp, |row| row.0 == half, 1, 2).ok_or_else(|| {
-                    not_intact(
+    let host_trims = if let [HostAnchor::Strut { foot, strut }] = host_feet[..] {
+        // ONE hostless crossing — a one-edge rim that is a whole cycle
+        // of a plane: the host cycle is the rim and its one strut, so no
+        // chord spans two feet ([`lone_host_trim`]).
+        let half = host_side_half(body, l0, rim.hosts[0])
+            .ok_or_else(|| not_intact(EntityId::Edge(l0.edge), "a rim arc's host-side half"))?;
+        let (trim, strut) = lone_host_trim(body, half, foot, strut, tol)?;
+        host_feet[0] = HostAnchor::Strut { foot, strut };
+        vec![trim]
+    } else {
+        let mut host_trims = Vec::with_capacity(n);
+        for (i, l) in rim.chain.links().enumerate() {
+            let half = host_side_half(body, l, rim.hosts[i])
+                .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
+            let lp = loop_of_half(body, half)
+                .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side loop"))?;
+            // A seam host is picked by the two pieces at its feet; a
+            // hostless one has no pieces, so its two halves are the ones
+            // FLANKING this arc in the live loop.
+            let (he1, he2) = if seam_chord_feet.is_empty() {
+                let ((h1, v1), (h2, v2)) =
+                    flank(body, lp, |row| row.0 == half, 1, 2).ok_or_else(|| {
+                        not_intact(
+                            EntityId::Loop(lp),
+                            "this arc's two strut feet around it in the host's loop",
+                        )
+                    })?;
+                // DEFENSIVE, not a gate: by construction this loop carries
+                // only the rim's arcs (the outer-cycle gate admitted exactly
+                // those), this phase's own struts, and the trims it has
+                // already minted between feet — so the halves flanking an
+                // arc start at feet. Kept because the alternative to
+                // checking is cutting the face blind, and a wrong `mef` site
+                // is a wrong solid rather than a refusal.
+                if !(host_foot_vertices.contains(&v1) && host_foot_vertices.contains(&v2)) {
+                    return Err(not_intact(
                         EntityId::Loop(lp),
                         "this arc's two strut feet around it in the host's loop",
+                    ));
+                }
+                (h1, h2)
+            } else {
+                trim_chords(body, lp, &seam_chord_feet).ok_or_else(|| {
+                    not_intact(
+                        EntityId::Loop(lp),
+                        "a split seam's rim-side and far-side halves at this support's feet",
                     )
-                })?;
-            // DEFENSIVE, not a gate: by construction this loop carries
-            // only the rim's arcs (the outer-cycle gate admitted exactly
-            // those), this phase's own struts, and the trims it has
-            // already minted between feet — so the halves flanking an
-            // arc start at feet. Kept because the alternative to
-            // checking is cutting the face blind, and a wrong `mef` site
-            // is a wrong solid rather than a refusal.
-            if !(host_foot_vertices.contains(&v1) && host_foot_vertices.contains(&v2)) {
-                return Err(not_intact(
-                    EntityId::Loop(lp),
-                    "this arc's two strut feet around it in the host's loop",
-                ));
-            }
-            (h1, h2)
-        } else {
-            trim_chords(body, lp, &seam_chord_feet).ok_or_else(|| {
-                not_intact(
-                    EntityId::Loop(lp),
-                    "a split seam's rim-side and far-side halves at this support's feet",
-                )
-            })?
-        };
-        host_trims.push(mef_trim(
-            body,
-            he1,
-            he2,
-            &arcs[i].host_curve,
-            arcs[i].host_window,
-            l.edge,
-            "annulus host trim mef",
-            tol,
-        )?);
-    }
+                })?
+            };
+            host_trims.push(mef_trim(
+                body,
+                he1,
+                he2,
+                &arcs[i].host_curve,
+                arcs[i].host_window,
+                l.edge,
+                "annulus host trim mef",
+                tol,
+            )?);
+        }
+        host_trims
+    };
     let mut mate_trims = Vec::with_capacity(n);
     for (i, l) in rim.chain.links().enumerate() {
         let hhalf = host_side_half(body, l, rim.hosts[i])
