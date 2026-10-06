@@ -258,7 +258,7 @@ pub mod seam_pairs;
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, SketchPlane};
+use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
@@ -350,6 +350,40 @@ pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f6
         (at(first + 120.0), b120),
         (at(first + 240.0), b120),
     ])
+}
+
+/// **The rounded rectangle**: `w × h` with its lower-left corner at the
+/// sketch origin, each corner a tangent fillet of radius `r`. Its
+/// straight walls end where the fillets start, which is the flush site
+/// the join refuses when another solid's wall lies on that line.
+pub fn rounded(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
+    let t = Tol::witness();
+    Open.at(Point2::new(w / 2.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w / 2.0, h), t)
+        .unwrap()
+        .toward(-1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(0.0, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, -1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .to(Start, t)
+        .unwrap()
+        .into()
 }
 
 /// **The bulge of the minor arc from `a` to `b` about `c`**:
@@ -550,6 +584,31 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         "the cut face is bounded by ellipse arcs"
     );
     half
+}
+
+/// **A bore tilted 0.4 rad about `x`**: a radius-0.1 disc prism of
+/// height 0.8 turned about the `x` axis and centred at `(0.5, 0.5,
+/// 0.5)`, so cut from a unit cube it pierces the top face (and the
+/// bottom) in ELLIPSES — a ring no clearance meter of the blend reads.
+pub fn tilted_bore() -> Body<f64> {
+    let tol = Tol::witness();
+    let bore = sweep::test_support::prism(
+        vec![(Point2::new(-0.1, 0.0), 1.0), (Point2::new(0.1, 0.0), 1.0)],
+        0.8,
+        tol,
+    );
+    let tilt = geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        0.4,
+    );
+    let bore = topo::transform_rigid(&bore, &tilt, tol).expect("the bore turns");
+    topo::transform_rigid(
+        &bore,
+        &geom_core::Affine3::translation(Vec3::new(0.5, 0.5, 0.5)),
+        tol,
+    )
+    .expect("the bore moves")
 }
 
 /// The bulged extrusion: an analytic cylinder wall with a CURVED trim

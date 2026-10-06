@@ -37,18 +37,17 @@ use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
+use super::fragments::Lineage;
 use super::join::CompletedPolygonPair;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
-use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
+use super::zip::{Fusions, Joint, SeamCorrespondence, fuse_by_joint};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
-use crate::entity::{
-    EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
-};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
-use crate::live::proven;
+use crate::live::{BoundaryMember, proven};
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
@@ -75,10 +74,10 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub weld_fragments_b: Vec<(FaceKey, FaceKey)>,
     /// The A-side pinch welds' vertex fusions `(dead, kept)`, result
     /// keys.
-    pub weld_merges_a: Vec<(VertexKey, VertexKey)>,
+    pub weld_merges_a: Fusions,
     /// The B-side pinch welds' vertex fusions, B-clone keys: they ran
     /// before the graft, so a dead key has no result key.
-    pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
+    pub weld_merges_b: Fusions,
     /// The kept copies of each pierce several runs cut, both operands',
     /// in result keys ([`weld_pierce_copies`]).
     pub pierce_copies: Vec<Vec<VertexKey>>,
@@ -308,7 +307,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
     if op == BooleanOp::Subtract {
-        b_kept = b_kept.revert().map_err(BooleanError::Revert)?;
+        b_kept = b_kept.revert();
     }
 
     // ---- The combine door. ----
@@ -416,7 +415,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         if bs.len() > 1
             && !shared_cut
             && !one_pierce
-            && !a_welds.merges.iter().any(|&(_, k)| k == a_survivor)
+            && !a_welds.merges.rows().iter().any(|&(_, k)| k == a_survivor)
         {
             return Err(desync("conflicting seam vertex correspondence"));
         }
@@ -503,25 +502,25 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 /// and both vertices are one pierce's copies); and a weld here that
 /// would divide a face is refused, as no fragment row can record it
 /// after the graft. Copies of one pierce not on one point refuse too.
-/// `fused` is the zips' fusions `(dead, kept)` in result keys, which
-/// `groups` (from [`FinishOut::pierce_copies`]) is read through;
-/// returns this pass's fusions. It runs from the op stage after the
-/// zips (`ops::boolean_op_recut`), not from [`setopfinish`].
+/// `fused` is the fusions `(dead, kept)` before this pass, in result
+/// keys; `groups` (from [`FinishOut::pierce_copies`]) is read through
+/// them, then through this pass's own. Returns this pass's fusions.
+/// It runs from the op stage after the zips
+/// (`ops::boolean_op_recut`), not from [`setopfinish`].
 pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     groups: &[Vec<VertexKey>],
-    fused: &[(VertexKey, VertexKey)],
+    fused: &Fusions,
     tol: Tol,
-) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
+) -> Result<Fusions, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let band = Band::linear(tol)?;
-    let mut merges = fused.to_vec();
-    let mut welds = Vec::new();
+    let mut welds = Fusions::default();
     for group in groups {
         loop {
             let mut live: Vec<VertexKey> = Vec::new();
             for &v in group {
-                let k = survivor(&merges, v);
+                let k = welds.survivor(fused.survivor(v));
                 if body.get_vertex(k).is_some() && !live.contains(&k) {
                     live.push(k);
                 }
@@ -551,8 +550,7 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
                 return Err(desync("a pierce's copies divide a face the zips kept"));
             }
             let (fusion, _) = weld_pair(body, (u, w), joint, p, tol)?;
-            merges.push(fusion);
-            welds.push(fusion);
+            welds.push(fusion)?;
         }
     }
     Ok(welds)
@@ -583,14 +581,14 @@ fn weld_pair<T: Decide + crate::props::AtRestPolicy>(
 /// face each one divided.
 #[derive(Default)]
 struct Welds {
-    merges: Vec<(VertexKey, VertexKey)>,
+    merges: Fusions,
     fragments: Vec<(FaceKey, FaceKey)>,
 }
 
 impl Welds {
     /// The vertex `v` survives as.
     fn kept(&self, v: VertexKey) -> VertexKey {
-        survivor(&self.merges, v)
+        self.merges.survivor(v)
     }
 }
 
@@ -610,14 +608,14 @@ impl Welds {
 /// After the zips, [`weld_pierce_copies`] joins one pierce's own copies
 /// by the same fusion ([`weld_pair`]).
 ///
-/// The site is read from lineage: the pierced face's fragments
-/// (`lineage`, `(new face, divided-from face)` rows), section faces
+/// The site is read from the pierced face's [`Lineage`] through the
+/// join's fragment `rows` and the welds' own, section faces
 /// (`sections`) aside. Pierces that survive on different fragments, or
 /// meet only on a section face, stay apart, as the contact's own
 /// vertices do.
 fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    (operand, lineage, sections): (
+    (operand, rows, sections): (
         Operand,
         &[(FaceKey, FaceKey)],
         &SecondaryMap<FaceKey, SideCode>,
@@ -670,8 +668,8 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 })? {
                     continue;
                 }
-                let fragments = descendants(pierced, lineage.iter().chain(&welds.fragments));
-                let in_lineage = |f: FaceKey| fragments.contains(&f) && !sections.contains_key(f);
+                let lineage = Lineage::of(pierced, rows.iter().chain(&welds.fragments));
+                let in_lineage = |f: FaceKey| lineage.contains(f) && !sections.contains_key(f);
                 let Some((face, joint)) = pinch_site(body, u, w, in_lineage)? else {
                     continue;
                 };
@@ -679,30 +677,11 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 if let Some(made) = made {
                     welds.fragments.push((made, face));
                 }
-                welds.merges.push((dead, kept));
+                welds.merges.push((dead, kept))?;
             }
         }
     }
     Ok(welds)
-}
-
-/// `face` and every face divided from it, through `rows` (`(new face,
-/// divided-from face)`, in any order).
-fn descendants<'r>(
-    face: FaceKey,
-    rows: impl Iterator<Item = &'r (FaceKey, FaceKey)>,
-) -> BTreeSet<FaceKey> {
-    let rows: Vec<_> = rows.collect();
-    let mut out = BTreeSet::from([face]);
-    let mut todo = vec![face];
-    while let Some(f) = todo.pop() {
-        for &&(new, from) in &rows {
-            if from == f && out.insert(new) {
-                todo.push(new);
-            }
-        }
-    }
-    out
 }
 
 /// The one face `allowed` admits whose boundary runs through both `u`
@@ -715,7 +694,8 @@ fn descendants<'r>(
 ///
 /// Where `u`, which both callers resolved just before, or a record
 /// past it does not resolve, or a walk does not close (D2 row 4): its
-/// orbit, each face and loop on it, and each member's start. `body` is
+/// orbit, each face and loop on it, a lone vertex's point, and each
+/// member and its edge. `body` is
 /// an operand mid-operation: carved, whose links the carve leaves
 /// resolving ([`carve`] checks that it drops only records no kept
 /// record names), then partly welded, whose links hold by
@@ -736,18 +716,21 @@ pub(super) fn pinch_site<T: Decide>(
         let f = proven(&body.faces, face, EntityId::Face);
         let mut hus = Vec::new();
         let mut hws = Vec::new();
-        for (l, boundary, members) in face_cycles(body, face, f) {
-            if let LoopBoundary::Empty { vertex } = boundary
-                && (vertex == u || vertex == w)
-            {
-                return Err(desync("a kept pierce vertex stands alone on its face"));
-            }
-            for he in members {
-                let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                if v == u {
-                    hus.push((l, he));
-                } else if v == w {
-                    hws.push((l, he));
+        for (l, members) in body.face_boundary_by_loop(face, f) {
+            for member in members {
+                match member {
+                    BoundaryMember::Isolated { vertex, .. } => {
+                        if vertex == u || vertex == w {
+                            return Err(desync("a kept pierce vertex stands alone on its face"));
+                        }
+                    }
+                    BoundaryMember::Edge { he, half, .. } => {
+                        if half.start == u {
+                            hus.push((l, he));
+                        } else if half.start == w {
+                            hws.push((l, he));
+                        }
+                    }
                 }
             }
         }
@@ -790,8 +773,8 @@ fn one_kept(kept: &[(VertexKey, VertexKey)]) -> Option<VertexKey> {
 ///
 /// # Panics
 ///
-/// Where a record past `face` does not resolve or a loop walk does not
-/// close (D2 row 4). `body` is an operand mid-operation, whose links
+/// Where a record past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve or a loop walk does not close (D2 row 4). `body` is an operand mid-operation, whose links
 /// hold by [`crate::live::OPERATORS_KEEP_LINKS`].
 fn section_boundary<T: Decide>(
     body: &Body<T>,
@@ -800,30 +783,13 @@ fn section_boundary<T: Decide>(
     let f = body.get_face(face).ok_or(BooleanError::JoinDesync {
         what: "a section face no longer resolves",
     })?;
-    Ok(face_cycles(body, face, f)
-        .flat_map(|(_, _, members)| members)
+    Ok(body
+        .face_boundary_linked(face, f)
+        .filter_map(|member| match member {
+            BoundaryMember::Edge { he, .. } => Some(he),
+            BoundaryMember::Isolated { .. } => None,
+        })
         .collect())
-}
-
-/// Each loop of `face` (whose record is `f`), outer first: its key, its
-/// boundary, and its members in walk order (none for a lone vertex).
-///
-/// # Panics
-///
-/// Where a loop `f` names does not resolve or a loop walk does not
-/// close (D2 row 4).
-fn face_cycles<'a, T: Decide>(
-    body: &'a Body<T>,
-    face: FaceKey,
-    f: &'a Face,
-) -> impl Iterator<Item = (LoopKey, LoopBoundary, Vec<HalfEdgeKey>)> + 'a {
-    body.face_loops_linked(face, f).map(|(l, lp)| {
-        let members = match lp.boundary {
-            LoopBoundary::Cycle { first } => body.loop_walk(first).closed("loop", first),
-            LoopBoundary::Empty { .. } => Vec::new(),
-        };
-        (l, lp.boundary, members)
-    })
 }
 
 /// The discarded faces of one operand solid (`boolean::discard`): every

@@ -7,11 +7,17 @@
 //! face patches — on ANY carrier the ladder certifies (plane, sphere,
 //! cylinder, torus; the C4 `Rest` inventory) — and its boundary ∂R — the
 //! seam — runs along operand edges or across single faces, never
-//! through material. The chord joining ([`super::join`]) matches the
-//! germs into segments that name one cell per solid at both of their
-//! ends (germs carry their loci; a segment along an edge of a solid is
-//! that edge, and at an edge-edge site each solid folds it by its own
-//! membership), and its surgery refuses typed where it cannot build a
+//! through material. The lane reads that premise off the section, not
+//! the interiors: every segment the join matched must bound a contact
+//! patch on both solids (step 5), so an edge-in-face contact beside
+//! the patch that leaves no segment (a dip into the patch, a line
+//! kiss) passes it unseen
+//! (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
+//! The chord joining ([`super::join`]) matches the germs into segments
+//! that name one cell per solid at both of their ends (germs carry
+//! their loci; a segment along an edge of a solid is that edge, and at
+//! an edge-edge site each solid folds it by its own membership), and
+//! its surgery refuses typed where it cannot build a
 //! segment's chord — for a seam the join has no section arm for, its
 //! per-kind refusal. This lane takes over those refusals, on the
 //! join's own segments.
@@ -64,7 +70,10 @@
 //!    chord splits keep the license). Patches pair across the mate
 //!    by exact vertex-cycle congruence (antiparallel, through the
 //!    contact-record vertex correspondence) — verified, never
-//!    assumed.
+//!    assumed. The seam must be the patches' boundary on both solids:
+//!    a segment with no patch face beside it is a section through
+//!    material, a crossing the disjoint interiors of step 6 cannot
+//!    have, and the lane is not this frontier.
 //! 6. **The zip**: operand B grafts whole through the combine door
 //!    (interiors are disjoint — nothing is discarded, vol(A∪B) =
 //!    vol(A)+vol(B) exactly), then each patch pair is glued: the
@@ -74,7 +83,10 @@
 //!    along already-fused seam runs — ONE run or several: a closed
 //!    cosurface band's last panel shares a run on each side, and the
 //!    band closure kills the later runs by the configuration each is
-//!    found in). Glue order is a BFS over the patch adjacency.
+//!    found in). Glue order is a BFS over the patch adjacency. The
+//!    disjointness is step 5's reading of the section, so an
+//!    edge-in-face contact with no segment is zipped unseen (the row
+//!    named above).
 //!
 //! The result passes the same output stages as every seamed boolean:
 //! declared coplanar merge, D6 edge descriptions, contact remapping
@@ -88,13 +100,15 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
+use super::edge_join::join_stage;
+use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
-    Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, of_merge, remap_carried, remap_contacts,
+    Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
+    merge_rows, of_merge, split_lineage,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
-use super::zip::{Joint, SeamCorrespondence, ZipReport, fuse_by_joint, survivor_checked, zip_seam};
+use super::zip::{Fusions, Joint, SeamCorrespondence, ZipReport, fuse_by_joint, zip_seam};
 use super::{
     BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp, BooleanReduction,
     BooleanResult, BooleanResultKind, Locus, Operand, OperandKeys,
@@ -105,7 +119,7 @@ use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::live::{Proven, linked, proven};
+use crate::live::{BoundaryMember, Proven, linked, proven};
 use crate::splitting::finish::single_solid;
 use geom_core::Tol;
 
@@ -186,6 +200,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if decls.coincident_faces.is_empty() || red.null_pairs.is_empty() {
         return Ok(None);
     }
+    // Read before the lane's surgery on the clones.
+    let carried = split_lineage(&red, decls, band)?;
 
     // ---- 1. The REST-contact (opposite-oriented) surface sets. ----
     let (a_rest, b_rest) = rest_surfaces(a_pristine, b_pristine, &red.rest_contacts)?;
@@ -383,16 +399,15 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .ok_or_else(|| desync("REST lane: patch face missing from the graft"))
     };
 
-    let mut vertex_merges: Vec<(VertexKey, VertexKey)> = Vec::new();
     let mut seam_edges: Vec<EdgeKey> = a_seam.per_segment.clone();
     let mut desc = Descendants::default();
     for &fa in &glue_order {
         let fb = fb_of(fa)?;
         let rep = glue_pair(&mut body, fa, fb, &vmap, tol)?;
         settle_glue(&body, &mut seam_edges, &rep.interior_edges)?;
-        desc.absorb_zip(&rep);
-        vertex_merges.extend(rep.vertex_merges.iter().copied());
+        desc.absorb_zip(&rep)?;
     }
+    let vertex_merges = desc.vertex_merges()?;
 
     // ---- Output stages (shared with every seamed boolean). ----
     let contacts = red.contacts.clone();
@@ -404,19 +419,12 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let mut contacts = remap_contacts(
+    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    let contacts = carry(
         &body,
         &contacts,
-        KeyView::Direct,
-        KeyView::Graft(&graft),
-        &desc,
-    )?;
-    remap_carried(
-        &mut contacts,
-        &body,
-        decls,
-        &KeyView::Direct,
-        &KeyView::Graft(&graft),
+        [&carried[0], &carried[1]],
+        [&KeyView::Direct, &KeyView::Graft(&graft)],
         &desc,
     )?;
     body.sweep_and_close();
@@ -432,7 +440,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_faces,
         seam_edges,
         vertex_merges,
-        weld_merges_b: Vec::new(),
+        weld_merges_b: Fusions::default(),
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a: a_fragments,
@@ -440,6 +448,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards,
         covered,
+        edge_joins,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,
@@ -534,10 +543,10 @@ fn read_segments<T: Decide + crate::props::AtRestPolicy>(
             let [(u, _), (v, _)] = m.ends;
             let ((a_u, b_u), (a_v, b_v)) = (sites[u], sites[v]);
             Ok(Segment {
-                a_u: fused.end(Operand::A, a_u)?,
-                a_v: fused.end(Operand::A, a_v)?,
-                b_u: fused.end(Operand::B, b_u)?,
-                b_v: fused.end(Operand::B, b_v)?,
+                a_u: fused.end(Operand::A, a_u),
+                a_v: fused.end(Operand::A, a_v),
+                b_u: fused.end(Operand::B, b_u),
+                b_v: fused.end(Operand::B, b_v),
                 a_cell: m.germ.a_locus,
                 b_cell: m.germ.b_locus,
             })
@@ -647,27 +656,21 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// face. `None` where `face`, the caller's key, does not resolve.
 ///
 /// Every hop past the face is a link (its loops, their walks, each
-/// member's start vertex and its point; a null strut's half-edges walk
+/// member's edge, start vertex and its point, a lone vertex's point; a null strut's half-edges walk
 /// like any other), and a miss panics (on an at-rest body by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
     let f = body.get_face(face)?;
-    let mut out = Vec::new();
-    let loops = core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&l| (l, "rings")));
-    for (lk, field) in loops {
-        match loop_boundary(body, lk, EntityId::Face(face), field) {
-            LoopBoundary::Empty { vertex } => {
-                out.push(body.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary"));
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in cycle(body, first) {
-                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                    out.push(body.linked_vertex_point(start, EntityId::HalfEdge(he), "start"));
+    Some(
+        body.face_boundary_linked(face, f)
+            .map(|member| match member {
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
-            }
-        }
-    }
-    Some(out)
+            })
+            .collect(),
+    )
 }
 
 /// **A face pair's consumed extent**, as the carrier doors read it:
@@ -894,27 +897,20 @@ fn rest_surfaces<T: Decide>(
 /// in kill order.
 #[derive(Default)]
 struct Fused {
-    a: Vec<(VertexKey, VertexKey)>,
-    b: Vec<(VertexKey, VertexKey)>,
+    a: Fusions,
+    b: Fusions,
 }
 
 impl Fused {
-    /// The vertex `w` of `operand` stands as once the undo is done
-    /// ([`survivor_checked`]): a nested strut's site is its holder's
-    /// copy, which fuses into the holder's own site.
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::JoinDesync`] on a log that is not well-ordered,
-    /// in every build: it would fold `w` onto a dead key.
-    fn end(&self, operand: Operand, w: VertexKey) -> Result<VertexKey, BooleanError> {
-        survivor_checked(
-            match operand {
-                Operand::A => &self.a,
-                Operand::B => &self.b,
-            },
-            w,
-        )
+    /// The vertex `w` of `operand` stands as once the undo is done: a
+    /// nested strut's site is its holder's copy, which fuses into the
+    /// holder's own site.
+    fn end(&self, operand: Operand, w: VertexKey) -> VertexKey {
+        match operand {
+            Operand::A => &self.a,
+            Operand::B => &self.b,
+        }
+        .survivor(w)
     }
 }
 
@@ -961,7 +957,7 @@ fn undo_struts<T: Decide + crate::props::AtRestPolicy>(
         }
         body.kev_describing(he, &[], tol)
             .map_err(|_| desync("REST lane: strut undo kev refused"))?;
-        fused.push((copy, r.at_vertex));
+        fused.push((copy, r.at_vertex))?;
     }
     Ok(fused)
 }
@@ -1092,13 +1088,8 @@ fn fragment_holding<T: Decide>(
     v: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Option<FaceKey>, BooleanError> {
-    let lineage = crate::chord_join::lineage(face, fragments);
-    let at_u: Vec<FaceKey> = incident_faces(body, u, rings)?
-        .into_iter()
-        .filter(|f| lineage.contains(f))
-        .collect();
-    Ok(super::sectors::sole_common_face(
-        &at_u,
+    Ok(Lineage::of(face, fragments).holding_both(
+        &incident_faces(body, u, rings)?,
         &incident_faces(body, v, rings)?,
     ))
 }
@@ -1174,7 +1165,7 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
         if joined(body, u, v)? {
             continue;
         }
-        let Some(host) = super::sectors::sole_common_face(
+        let Some(host) = sole_common_face(
             &incident_faces(body, u, rings)?,
             &incident_faces(body, v, rings)?,
         ) else {
@@ -1400,6 +1391,13 @@ fn incident_faces<T: Decide>(
 }
 
 /// The face-boundary halves of `face` starting at `u` (outer + rings).
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn halves_at<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1409,15 +1407,12 @@ fn halves_at<T: Decide>(
         .get_face(face)
         .ok_or_else(|| desync("REST lane: chord host face vanished"))?;
     let mut out = Vec::new();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = loop_boundary(body, l, EntityId::Face(face), "loops")
-        else {
+    for member in body.face_boundary_linked(face, f) {
+        let BoundaryMember::Edge { he, half, .. } = member else {
             continue;
         };
-        for he in cycle(body, first) {
-            if proven(&body.half_edges, he, EntityId::HalfEdge).start == u {
-                out.push(he);
-            }
+        if half.start == u {
+            out.push(he);
         }
     }
     Ok(out)
@@ -1430,7 +1425,8 @@ fn halves_at<T: Decide>(
 /// The contact-patch faces of one solid: the seam partitions the
 /// face-adjacency graph; a region qualifies iff every face's surface
 /// is a verified REST-contact surface AND the region touches the
-/// seam. `Ok(None)`: no qualifying region — not this frontier.
+/// seam. `Ok(None)`: no qualifying region, or a seam edge with no
+/// patch face beside it — not this frontier.
 fn patch_faces<T: Decide>(
     body: &Body<T>,
     seam: &SeamSet,
@@ -1438,7 +1434,6 @@ fn patch_faces<T: Decide>(
 ) -> Result<Option<Vec<FaceKey>>, BooleanError> {
     let mut assigned: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
     let mut patch: Vec<FaceKey> = Vec::new();
-    let mut found = false;
     let all_faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for &root in &all_faces {
         if assigned.contains_key(root) {
@@ -1478,11 +1473,21 @@ fn patch_faces<T: Decide>(
             .iter()
             .all(|&f| rest.contains_key(proven(&body.faces, f, EntityId::Face).surface));
         if qualified && touches_seam {
-            found = true;
             patch.extend(region);
         }
     }
-    if !found {
+    // The seam is the patch's boundary: every seam edge has a patch face
+    // on one side at least. One with none is a section through material
+    // beside the contact, which the zip, discarding only the patches,
+    // would leave in the result with both solids' material across it.
+    let in_patch: SecondaryMap<FaceKey, ()> = patch.iter().map(|&f| (f, ())).collect();
+    let bounds_patch = |e: EdgeKey| {
+        let edge = proven(&body.edges, e, EntityId::Edge);
+        [edge.he_plus, edge.he_minus]
+            .into_iter()
+            .any(|he| in_patch.contains_key(body.face_of_linked(he)))
+    };
+    if patch.is_empty() || !seam.per_segment.iter().all(|&e| bounds_patch(e)) {
         return Ok(None);
     }
     Ok(Some(patch))
@@ -1749,13 +1754,16 @@ fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
         } else {
             slit_zip(body, da, db, &shared, vmap, tol)?
         };
-        report
-            .vertex_merges
-            .extend(rep.vertex_merges.iter().copied());
-        report.seam_edges.extend(rep.seam_edges.iter().copied());
-        report
-            .interior_edges
-            .extend(rep.interior_edges.iter().copied());
+        let ZipReport {
+            vertex_merges,
+            seam_edges,
+            interior_edges,
+            edge_merges,
+        } = rep;
+        report.vertex_merges.extend(&vertex_merges)?;
+        report.seam_edges.extend(seam_edges);
+        report.interior_edges.extend(interior_edges);
+        report.edge_merges.extend(edge_merges);
     }
     Ok(report)
 }
@@ -2063,9 +2071,13 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
             } else {
                 return Err(corr("slit-zip final pair is not one copy per side"));
             };
-            report
-                .seam_edges
-                .push(if b_edges.contains_key(e0) { e1 } else { e0 });
+            let (b_copy, a_copy) = if b_edges.contains_key(e0) {
+                (e0, e1)
+            } else {
+                (e1, e0)
+            };
+            report.seam_edges.push(a_copy);
+            report.edge_merges.push((b_copy, a_copy));
             body.kef_minting(b_half, tol)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
@@ -2077,11 +2089,11 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
             let next = walk[(i + 1) % walk.len()];
             let en = edge_in(next);
             if a_edges.contains_key(e) && b_edges.contains_key(en) {
-                fold = Some((he, next));
+                fold = Some((he, next, (en, e)));
                 break;
             }
         }
-        let Some((ha, hb)) = fold else {
+        let Some((ha, hb, copies)) = fold else {
             return Err(corr("slit-zip fold not found"));
         };
         let sa = proven(&body.half_edges, ha, EntityId::HalfEdge).start;
@@ -2103,8 +2115,11 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
         };
         let (merge, _) = fuse_by_joint(body, joint, p, desync, tol)?;
         debug_assert_eq!(merge, (eb, sa), "the slit fuse keeps the a copy");
-        report.vertex_merges.push(merge);
+        report.vertex_merges.push(merge)?;
         report.seam_edges.push(edge_of(body, ha)?);
+        // `ha` runs from `sa` and `hb` back to its correspondent: one
+        // segment, the b copy retired onto the a copy.
+        report.edge_merges.push(copies);
         body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
@@ -2115,6 +2130,25 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **The witnesses and the chord halves panic on a ring link that
+    /// does not resolve**, where they stepped over it.
+    #[test]
+    fn the_boundary_walks_panic_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let u = body.vertices().next().map(|(k, _)| k).unwrap();
+        assert!(face_witnesses(&body, face).is_some(), "the live face reads");
+        assert!(halves_at(&body, face, u).is_ok(), "the live face walks");
+        let named = tear_ring(&mut body, face);
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("face_witnesses", &mut body, &premise, |b| {
+            face_witnesses(b, face)
+        });
+        assert_torn_op_panics("halves_at", &mut body, &premise, |b| halves_at(b, face, u));
+    }
 
     /// **A glue's deaths settle against the seam, one glue at a time.**
     /// A seam edge that died and was reported interior leaves the seam;
@@ -2419,7 +2453,7 @@ mod tests {
                     Operand::A => &red.a,
                     Operand::B => &red.b,
                 };
-                let end = fused.end(r.operand, r.at_vertex).unwrap();
+                let end = fused.end(r.operand, r.at_vertex);
                 assert!(
                     body.get_vertex(end).is_some(),
                     "{nest:?}: {:?}'s site {:?} reads as {end:?}, which the undo killed",
@@ -2428,7 +2462,7 @@ mod tests {
                 );
             }
             assert_eq!(
-                (fused.end(nest, c1).unwrap(), fused.end(nest, c2).unwrap()),
+                (fused.end(nest, c1), fused.end(nest, c2)),
                 (site, site),
                 "{nest:?}: one and two fusions deep, a nested site reads as the notch strut's site"
             );
@@ -2458,9 +2492,7 @@ mod tests {
     /// strut's site is the notch strut's copy, and a segment ends there.
     /// Every end [`read_segments`] answers is live, and the nested one
     /// reads as the notch strut's site. Red if the ends are taken as
-    /// the raw sites. A fusion log that is not well-ordered refuses
-    /// typed in every build, where an unchecked fold would land on a
-    /// dead key.
+    /// the raw sites.
     #[test]
     fn the_segment_ends_read_through_the_undo_to_standing_vertices() {
         let tol = Tol::witness();
@@ -2500,16 +2532,6 @@ mod tests {
                 outer.at_vertex
             );
         }
-
-        let unordered = Fused {
-            a: Vec::new(),
-            b: vec![(VertexKey::default(), VertexKey::default())],
-        };
-        let got = unordered.end(Operand::B, VertexKey::default());
-        assert!(
-            matches!(got, Err(BooleanError::JoinDesync { .. })),
-            "a fusion into itself: {got:?}"
-        );
     }
 
     /// **The interior-edge walk panics on a torn half's face**: an edge

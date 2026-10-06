@@ -271,20 +271,24 @@
 //! placeholder used to leave a COMPLETE row set stated in the chart
 //! the face left, and this pass skips exactly that face.
 //!
-//! **Completes the map** — [`crate::Body::set_edge_curve`] (and the
-//! members [`crate::Body::kev_describing`] re-describes), the
-//! surface setter's sibling, which is NOT the same case: a carrier swap
-//! moves neither the row's key nor its chart, and pass 2 re-derives
-//! every row's agreement from the edge's current carrier, so what it
-//! stales is refused loud, on a complete face and on the rows a
-//! half-minted one stores alike. So it keeps the rows it finds, as a `Neither` door does, with one
-//! exception: a null edge's first description is the first door that
-//! can derive the rows of its halves, and on a face the site mint
-//! selects ([`StoredRows::remints`]) it re-mints every loop no other
-//! null edge holds open ([`site_rows`]) — the whole face, once no null
-//! edge is left on it. A kill that lists a null member describes it
-//! for the first time, and re-mints the same way over each face as
-//! the kill leaves it.
+//! **Completes the map** — [`crate::Body::set_edge_curve`] and
+//! [`crate::Body::kev_describing`]'s listed members. A carrier swap is
+//! the surface setter's sibling, NOT the same case: it moves neither
+//! the row's key nor its chart, and pass 2 re-derives every row's
+//! agreement from the edge's current carrier, so what it stales is
+//! refused loud, on a complete face and on the rows a half-minted one
+//! stores alike. These doors re-mint the faces whose rows their
+//! description moves and keep the rows they find everywhere else, as a
+//! `Neither` door does. A null edge's first description is the first
+//! door that can derive the rows of its halves; a certified edge's
+//! rows are stated over the carrier and interval `set_edge_curve`
+//! replaces; and a kill that lists a member moves its end with its
+//! carrier, null or certified, so the rows its halves store would span
+//! the interval the end moved from. On each face such a half is on, as the door leaves
+//! it, and that the site mint selects ([`StoredRows::remints`]), the
+//! door re-mints every loop no other null edge holds open
+//! ([`site_rows`]) — the whole face, once no null edge is left on it. A
+//! certified edge's face on a spline chart is left as found.
 //!
 //! **A kill that takes the last null edge off a loop releases it**, and
 //! the rows the loop missed while it was held open are owed there
@@ -3410,7 +3414,7 @@ pub(crate) fn site_rows<T: Decide>(
                 let SiteCarriers::Described(described) = curves else {
                     unreachable!(
                         "site_rows: a Described half under non-Described carriers; \
-                         `Body::null_description_rows` is the one constructor of \
+                         `Body::description_rows` is the one constructor of \
                          `SiteHalf::Described`, and it plans under \
                          `SiteCarriers::Described` alone"
                     )
@@ -3418,7 +3422,7 @@ pub(crate) fn site_rows<T: Decide>(
                 let Some(&(_, edge)) = described.iter().find(|(e, _)| *e == of) else {
                     unreachable!(
                         "site_rows: a Described half whose edge the carriers do not list; \
-                         `Body::null_description_rows` marks a half Described only when it is \
+                         `Body::description_rows` marks a half Described only when it is \
                          a half of one of `described`'s edges, and passes that same slice as \
                          the carriers"
                     )
@@ -3480,6 +3484,17 @@ pub(crate) fn site_rows<T: Decide>(
         let item = |i: usize| -> Result<WalkItem<'_, T>, PcurveCertifyError> {
             match (stands[i], halves[i]) {
                 (Some(cache), SiteHalf::Existing(he)) => {
+                    debug_assert!(
+                        !matches!(
+                            geom_core::k_stats::detached(|| {
+                                let (carrier, ..) = traversal(SiteHalf::Existing(he));
+                                row_interval(body, he, cache, &carrier, band)
+                            })
+                            .0,
+                            Err(PcurveMintError::RowInterval { .. })
+                        ),
+                        "site_rows: the image kept for {he:?} spans an interval its edge does not"
+                    );
                     let (t0, t1) = cache.params();
                     Ok(WalkItem {
                         base: Cow::Borrowed(cache.pcurve()),
@@ -4709,17 +4724,24 @@ pub(crate) mod staleness_posture {
         /// against this one, and about any face on a chart
         /// [`super::chart_mints`] refuses.
         Neither,
-        /// Keeps the rows it finds, as `Neither` does, and rests on the
-        /// same tier-3 pass for what its write stales in them — except
-        /// on a face it COMPLETES: where it installs the first carrier of
-        /// a null edge, whose halves no door before it could give a row,
-        /// it re-mints through the site mint ([`super::site_rows`])
-        /// every loop of the face they are on that no other null edge
-        /// holds open, on a face the site mint selects
-        /// ([`super::StoredRows::remints`]) — every loop of it, whatever
-        /// it missed, once no null edge is left on it. Those loops leave
-        /// complete, or the face rowless where the closed-form lane
-        /// cannot mint it, or — on a spline chart — as found.
+        /// Re-mints through the site mint ([`super::site_rows`]) every
+        /// face its description moves the rows of, and keeps the rows it
+        /// finds on every other face, as `Neither` does, resting on the
+        /// same tier-3 pass for what its write stales in them. Those
+        /// faces are the ones a null edge's halves are on where the door
+        /// installs its first carrier, which no door before it could
+        /// give a row; the ones a certified edge's halves are on where
+        /// the door replaces its carrier, since the rows kept there
+        /// state the carrier and interval the edge leaves; and, for a kill that re-describes the
+        /// members it merges, every face a listed member's halves are
+        /// on, null or certified, since the kill moves a certified
+        /// member's end with its carrier. On such a face the site mint
+        /// selects ([`super::StoredRows::remints`]) it re-mints every
+        /// loop no other null edge holds open — every loop of it,
+        /// whatever it missed, once no null edge is left on it. Those
+        /// loops leave complete, or the face rowless where the
+        /// closed-form lane cannot mint it. A certified edge's face on a
+        /// spline chart is left as found, for the tier-3 pass.
         Completes,
     }
 
@@ -4876,13 +4898,13 @@ pub(crate) mod staleness_posture {
             (
                 "kev_describing",
                 Completes,
-                "kill op, `set_edge_curve`'s posture for the members it re-describes: a \
-             certified member keeps its rows, and a listed NULL member's description is its \
-             first, re-minted through the same planner over the faces its halves are on as \
-             the kill leaves them (the killed halves gone), every listed member's halves \
-             under the curve the kill installs; and `kev` with a band, minting what a loop \
-             a killed null edge releases misses on every other face it is on \
-             (`Body::plan_released_rows`)",
+                "kill op, completing every face a listed member's halves are on: a NULL \
+             member's description is its first, and a CERTIFIED member's end moves with its \
+             carrier, so each such face is re-minted through `set_edge_curve`'s planner as \
+             the kill leaves it (the killed halves gone), every listed member's halves under \
+             the curve the kill installs, a certified member's face on a spline chart left \
+             as found; and `kev` with a band, minting what a loop a killed null edge \
+             releases misses on every other face it is on (`Body::plan_released_rows`)",
             ),
             (
                 "kemr_minting",
@@ -5070,32 +5092,30 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
              across a move onto the same chart and dropped on any other. The edges it \
-             re-describes are the listed certified ones, whose rows stand as \
-             `set_edge_curve` leaves a certified edge's",
+             re-describes are the listed certified ones, whose rows it keeps on a face that \
+             keeps its chart, for the tier-3 pass to re-certify against the new carrier \
+             (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
             ),
             (
                 "set_edge_curve",
                 Completes,
-                "a carrier swap is content staleness the tier-3 pass re-certifies against, \
-             and NOT the surface setter's case: neither the row's key nor its chart moves, \
-             and pass 2 re-derives each row's agreement from the edge's current carrier, so \
-             a staled row is refused per half-edge on a COMPLETE face. A face whose chart \
-             mints nothing stores no minted row to stale; a HALF-MINTED one does, and this \
-             pass re-certifies nothing on it \
-             (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`) — \
-             the pass's property for every content staleness, which dropping rows here \
-             would trade for a re-mint on every swap that certifies. A NULL edge's first \
-             description is where its halves' rows can first be derived: on a face they are \
-             on whose only gaps a null edge holds open, every loop no other null edge holds \
-             open has what it misses minted before the door mutates, and on one no null \
-             edge is left on, every loop does",
+                "a carrier swap is NOT the surface setter's case: neither the row's key nor \
+             its chart moves, and pass 2 re-derives each row's agreement from the edge's \
+             current carrier. Every description of a CERTIFIED edge re-mints the faces its \
+             halves are on, since its rows are stated over the carrier and interval it \
+             replaces; one that restates both re-derives the rows it found. A NULL edge's first description is where its halves' rows can first be \
+             derived. On a face the halves are on whose only gaps a null edge holds open, \
+             every loop no other null edge holds open is re-minted before the door mutates, \
+             and on one no null edge is left on, every loop is. A HALF-MINTED face, and a \
+             certified edge's face on a spline chart, keep the rows they store, for the \
+             pass to re-certify",
             ),
             (
                 "describe_at_rest",
-                Neither,
+                Completes,
                 "`set_edge_curve` with the edge's own carrier and interval put back \
-                 verbatim — only the description moves, so not even content staleness \
-                 reaches a pcurve",
+                 verbatim, which re-mints the faces the edge's halves are on as any \
+                 certified description does",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
             ("set_surface_source", Neither, "GeomSource metadata"),

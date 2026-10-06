@@ -211,7 +211,11 @@ impl<B: crate::spoken::Say> PartRow<B> {
     /// `doc`'s own row, reached through no instance of `doc`'s, its
     /// nodes as `doc` holds them: the ones the body's own sentence
     /// names, the sentence every carrier says it by.
-    pub(crate) fn own<P>(doc: &Doc<P>, of: crate::ident::DocumentId, body: B) -> Self {
+    pub(crate) fn own<P: crate::program::ProfilePayload>(
+        doc: &Doc<P>,
+        of: crate::ident::DocumentId,
+        body: B,
+    ) -> Self {
         let held = Arc::new(crate::spoken::held_by(&body, doc));
         Self {
             of,
@@ -731,7 +735,7 @@ impl AtRestFinding {
     /// holds it, and the first instance of its route is this
     /// document's.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -823,10 +827,9 @@ impl crate::spoken::Say for MintRefusal {
                 why,
             } => write!(
                 f,
-                "{}'s {} reference ({} {}) does not name a face of the product: {}",
+                "{}'s {} reference ({}) does not name a face of the product: {}",
                 by.node_as(*mate, "mate"),
                 side.name(),
-                name.kind.article(),
                 by.name(name),
                 crate::spoken::Said(why, by)
             ),
@@ -853,7 +856,7 @@ impl MintRefusal {
     /// `doc` holds it now ([`crate::Doc::spoken`]). A row is memoized with
     /// the part that minted it, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -1101,7 +1104,7 @@ impl AssemblyError {
     /// holds it, but for the first instance of its route, which is this
     /// document's.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -1726,8 +1729,8 @@ fn attribute(
         // `UndeclaredContact` is the definition of unattributed: no
         // mate authored it, which is what makes it F1's hard error.
         //
-        // The VERTEX-granular staleness arms name a v-v or v-on-f
-        // record, and [`mint`] makes `PatchContact` and nothing else
+        // The VERTEX- and EDGE-granular staleness arms name a v-v,
+        // v-on-f, v-on-e or e-e record, and [`mint`] makes `PatchContact` and nothing else
         // — so no declaration of this document is the subject, and a
         // stale record a PART carries is a finding against the
         // document that a mate cannot answer for. Sharing a face with
@@ -1766,7 +1769,9 @@ fn attribute(
         | ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::VertexVertex { .. }
-                | topo::StaleDeclaration::VertexOnFace { .. },
+                | topo::StaleDeclaration::VertexOnFace { .. }
+                | topo::StaleDeclaration::VertexOnEdge { .. }
+                | topo::StaleDeclaration::EdgeEdge { .. },
         }
         | ValidationError::CensusEscalated { .. }
         | ValidationError::CensusLaneUnsupported { .. }

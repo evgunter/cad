@@ -2,12 +2,11 @@
 id: a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made
 kind: issue
 title: A declared coplanar merge leaves a collinear valence-2 vertex that an earlier fold step's cut made, so a union's finished body depends on member order
-status: dispatched
+status: open
 priority: P1
 cost: M
 opened: 2026-09-24
-refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
-branch: fuse/cell-pair-contacts
+refs: [declared-flush-union-edge-and-vertex-names-follow-member-order, sweeps-build-one-rim-edge-per-segment-not-per-run, curved-joinable-vertices-are-left-unjoined]
 ---
 
 
@@ -134,3 +133,97 @@ Build order, each step its own unit:
 3. The tier-2 check that no joinable vertex remains.
 4. Naming: a union edge spanning several member edges is named for the
    set (EMIT's ground).
+
+## Step 1 landed (FUSE, PR 3955, 2026-10-06)
+
+Contact records are cell pairs, recorded coincidences under D10:
+- **Record kinds:** `VeContact (vertex, edge)`, and `EeContact` for
+  two edge interiors that meet (crossing or overlapping). The census
+  certifies both kinds in both directions.
+- **Carriage:** one substitution door (`ops::carry`) replaces
+  `remap_contacts` and `remap_carried`, and routes through main's link
+  doors. Zip, merge and join rows are substitution sources.
+- **Edge-split lineage** places a `(vertex, edge)` record on the
+  piece of the split edge the vertex lies on.
+- **The join:** `boolean/edge_join.rs` (`joinable_vertices`,
+  `join_edges`) exists but is not wired into any output stage yet. On
+  PR 3881's three documents it certifies 18 of 18 orders at V16 E24.
+- **DESIGN.md tier 3′** restates the ruled structure in D10 terms.
+- **Folded in and closed:** the P1
+  `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.
+- **Review:** dual. Lane 2's three MAJORs (zip pairing off by one; the
+  join dropping a crossing point contact; lineage's stay-on-parent arm
+  untested) were fixed and re-checked. Lane 1 found D10 conformance
+  held.
+- **Residue:**
+  - `an-edge-edge-record-has-no-carriage-into-a-later-op` (P2, step 2);
+  - ZIP's re-filed `a-rest-lane-slit-zip-kills-seam-edges-with-no-substitution-row`
+    (P3);
+  - INTENT stage 4 retires `StaleDeclaration::VertexOnEdge` / `EdgeEdge`
+    and their tags (list in the PR body).
+
+## Step 2 (FUSE, PR 4140, 2026-10-06)
+
+Built: the boolean half of step 2. Steps 2 and 4 land together: the
+join makes a flush rim one edge across two members' rims, which the
+pair emitter can only name as a set (step 4, PR 4161 on
+`fuse/set-names`, based on this branch).
+
+- **The join at every boolean output stage:** `edge_join::join_stage`
+  runs after the merge in the seamed path, the graft and
+  single-operand fallbacks and the declared-REST lane, and writes its
+  substitution rows into the op's one `Descendants`. Every output has
+  maximal edges for the planar inventory.
+- **The join's chords along an edge are substitution rows.** A chord
+  the join mints on a segment whose locus is an edge holds that edge's
+  interior where the op drops the edge (`join::Connected::along`), so a
+  carried record on it lands without a search of the result.
+- **Edge-edge carriage:** `CarriedContacts.ee`, checked at the door
+  (line edges only), and `ee_lineage` placing a split edge's record on
+  its pieces by the census's own segment questions. `split_lineage`'s
+  vertex-on-edge side asks the same questions.
+- **Fail-loud:** every pair `carry` drops is an explicit arm with its
+  reason; the census's segment questions refuse a `None` with no
+  escalation.
+- **Naming facts for step 4:** `BooleanNaming::edge_joins`,
+  `joined_edge`, `joined_into`, `stretch_through_joins`.
+- **Review:** dual. Lane 1's two MAJORs (a door search for an edge's
+  holder; untested stage paths) fixed; lane 2 accounted for the perf12
+  census golden's every moved row.
+- **Not built, filed P1:**
+  - `sweeps-build-one-rim-edge-per-segment-not-per-run` (sweeps);
+  - `curved-joinable-vertices-are-left-unjoined` (curved joins; ruled
+    in PR 3881).
+  Both precede step 3.
+
+## Steps 2 and 4 landed (FUSE, PR 4140 with PR 4161, 2026-10-06)
+
+PR 4161 (step 4) merged into `fuse/join-every-stage`, and PR 4140
+landed both on main.
+- A joined union edge is named as the flat set of member edges it
+  covers (`RoleSeg::Merged` on an edge), order-free. It was witnessed
+  on this row's `[a, b, slab]` document, PR 3881's three edge-contact
+  documents, and four flush boxes in all 24 orders.
+- A retired rim piece is offered the joined edge.
+- PR 4140's body lists the readings of the 3881 naming bullet that the
+  orchestrator ruled within the ruling, under "Readings of the 3881
+  naming bullet".
+- 4161's single FULL review found no BLOCKER. Its README overclaim was
+  ruled as wording and fixed.
+
+**Next:**
+- step 2's rest: sweeps building one rim per run, and curved joins
+  (the two P1 rows above);
+- step 3, the tier-2 no-joinable-vertex check, planar-only until
+  curved joins land.
+
+
+## The refusing orders reach `SeamVertexParentage` (EMIT, 2026-10-06)
+
+The table's `[a, s, b]` and `[s, a, b]` refuse `DeclareResolve` today.
+With that refusal gone (INTENT's stage 4, or a scratch fan-out), they
+refuse `NamingError::SeamVertexParentage` instead, and
+`emit_union_flush_names::a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names`
+meets it in `[0,2,1]`. Measured in
+`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
+"Re-measured on main (2026-10-06)".

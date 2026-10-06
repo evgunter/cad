@@ -8,7 +8,8 @@
 //! registry rather than in it, so this module runs the rows the
 //! registry would have run on them — both lanes, persistence, the
 //! bump — and pins the reason they are outside: a dual has no shell
-//! door.
+//! door. One row also shells `corpus/die_pips.rs`' revolved ball,
+//! whose closed form is π-valued and so is metered, not equated.
 //!
 //! # The oracles, derived rather than measured
 //!
@@ -29,7 +30,7 @@
 //! ```
 //!
 //! Every dimension is dyadic, so both are exact in `f64` and asserted
-//! with `==`, never metered.
+//! with `==`, never metered. The ball's `4/3·π(R³ − (R−t)³)` is not.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -389,25 +390,27 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
     let blank = test_utils::refusal::tag(blank_of(&doc).0);
+    let step = fixture::step_of(&piece);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
         format!(
-            "a shell open-face name failed to resolve: the face name minted by node {blank} no \
-             longer resolves in this evaluation: the recorded reference disagrees with the recipe \
-             as it stands on the derivation path (node {blank}'s payload differs)"
+            "a shell open-face name failed to resolve: the side wall over piece 7 of the profile \
+             step {step} of node {blank} no longer resolves in this evaluation: the recorded \
+             reference disagrees with the recipe as it stands on the derivation path (node \
+             {blank}'s payload differs)"
         )
     );
 
     // (b) a name of the wrong KIND: an edge that really is there, so
     // it resolves and then fails the door's faces-only check.
+    let mut edge = None;
     let (doc, n) = cup_with(|blank| {
-        Node::shell(
-            blank,
-            fixture::len(cup::T),
-            vec![fixture::prism_edges(&doc, blank, 4)[0].clone()],
-        )
+        let open = fixture::prism_edges(&doc, blank, 4)[0].clone();
+        edge = Some(open.clone());
+        Node::shell(blank, fixture::len(cup::T), vec![open])
     });
+    let edge = edge.expect("the shell was built");
     let e = refusal(&doc, n);
     assert!(
         matches!(
@@ -418,10 +421,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     );
     assert_eq!(
         e.to_string(),
-        format!(
-            "the shell open-face name minted by node {} denotes an edge, not a face",
-            test_utils::refusal::tag(blank_of(&doc).0)
-        )
+        format!("the shell's open face names {edge}, which is an edge, not a face")
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its
@@ -613,4 +613,42 @@ fn both_documents_round_trip_through_persistence() {
             d.name
         );
     }
+}
+
+/// **The pole-touching ball row**: a sealed `Shell` over the revolved
+/// half disc (`die_pips`' ball: one bulge-1 arc pole to pole, closed on
+/// the axis) evaluates green, tier-3 valid at the difference of two
+/// balls `4/3·π(R³ − (R−t)³)` — the route a user takes from a revolve.
+#[test]
+fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
+    use corpus::die_pips::PIP_R;
+    let d = corpus::die_pips::document();
+    let ball = d
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
+        .expect("the pip ball");
+    let t = 0.01;
+    let (doc, sealed) = fixture::insert(d.doc, Node::shell(ball, fixture::len(t), Vec::new()));
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
+    let body = body_of(&ev, sealed);
+    assert_eq!(
+        topo::validate_geometric(body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
+    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
+    // `sweep`'s `pole_ball_shells` rule: rounding scales with R³, the
+    // pad is the quadrature's own bound.
+    assert!(
+        (m.volume - want).abs() <= 1e-12 * PIP_R.powi(3) + m.volume_pad,
+        "volume {} vs the closed form {want}",
+        m.volume
+    );
 }

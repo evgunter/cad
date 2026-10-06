@@ -1706,15 +1706,7 @@ fn local_binding_span(
 /// The count is part of the key. Without it a Display impl rendering
 /// one binding at several sites collapses to one row, and repairing
 /// some of them leaves the guard green over the rest.
-const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[(
-    "crates/topo/src/boolean/voids.rs",
-    "VoidInsertError",
-    "e",
-    1,
-    "`RevertError` carries struct variants. Found BY this census; \
-     reachability into `typed_err` not traced, so severity is undecided and \
-     the site is disclosed rather than claimed",
-)];
+const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 
 /// The blind spot, written down WITH ITS REASON.
 ///
@@ -1800,16 +1792,16 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
-        "e",
-        1,
-        "an inner arm — `match edge { Some(e) => .. }` — whose pattern names no \
-         variant path, so this census reads no field type from it",
+        "gap",
+        4,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
-        "gap",
-        3,
+        "offset",
+        1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1838,17 +1830,24 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
-        "crates/topo/src/replace_face.rs",
-        "ReplaceFaceError",
-        "v_max",
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        POSITIONAL,
+        1,
+        "a positional `{:?}` over an expression this census does not type",
+    ),
+    (
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
-        "crates/topo/src/replace_face.rs",
-        "ReplaceFaceError",
-        "v_min",
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized_minor",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
@@ -1892,15 +1891,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
-    ),
-    (
-        "crates/viewer/src/idpass.rs",
-        "NameAndPath",
-        POSITIONAL,
-        1,
-        "a positional `{:?}` over `name.path`, an expression this census does not \
-         type; and the field's declared type, `RolePath`, is a `type` alias, which \
-         this census does not index",
     ),
 ];
 

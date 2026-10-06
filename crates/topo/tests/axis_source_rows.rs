@@ -205,7 +205,7 @@ fn a_cleared_row_survives_a_second_transform_and_a_revert() {
     let (b, keys, _) = stamped();
     let once = transform_rigid(&b, &aside(), Tol::witness()).unwrap();
     let twice = transform_rigid(&once, &aside(), Tol::witness()).unwrap();
-    let reverted = twice.revert().unwrap();
+    let reverted = twice.revert();
     for k in keys {
         assert_eq!(reverted.surface_axis_record(k), Some(&AxisRecord::Cleared));
     }
@@ -216,7 +216,7 @@ fn a_cleared_row_survives_a_second_transform_and_a_revert() {
 #[test]
 fn a_revert_carries_the_axis_rows_verbatim() {
     let (b, keys, axis) = stamped();
-    let reverted = b.revert().unwrap();
+    let reverted = b.revert();
     for k in keys {
         assert_eq!(reverted.surface_axis_source(k), Some(&axis));
     }
