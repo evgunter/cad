@@ -89,13 +89,14 @@
 //!
 //! A BOUNDARY point as intermediate is a
 //! self-touching trim loop, refused typed
-//! ([`TessellateError::SelfTouchingTrimLoop`]). That refusal has no
-//! at-rest fixture on purpose: split sections and boolean seams mint
-//! simple loops, and hand-building a self-touching one at the mesh
-//! layer would need a full body whose certified pcurve caches
-//! describe a loop the mint pass itself refuses (`LoopNotClosed`/
-//! continuity) — the arm stands as the backstop's tripwire (review
-//! MIN-1), not a reachable lane.
+//! ([`TessellateError::SelfTouchingTrimLoop`]): a boundary point
+//! inside another segment of its loop. A loop through two vertices at
+//! one point is not that shape; both are walk entries at one handle,
+//! which [`Pinches`] reads. The refusal has no at-rest fixture:
+//! hand-building a boundary point inside another segment at the mesh
+//! layer would need a full body whose certified pcurve caches describe
+//! a loop the mint pass itself refuses (`LoopNotClosed`/continuity) —
+//! the arm stands as the backstop's tripwire (review MIN-1).
 
 use std::collections::{HashMap, HashSet};
 
@@ -109,7 +110,7 @@ use topo::{Body, FaceKey};
 use crate::cert;
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
-use crate::planar::{classify_faces, edge_key, shoelace2};
+use crate::planar::{Pinches, Walk, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
@@ -353,18 +354,20 @@ pub(crate) fn tessellate_trimmed(
             Boundary(u32),
             Grid(usize),
         }
+        // The first entry's slot at each handle; [`Pinches`] overrides
+        // a boundary slot per triangle at a pinch handle.
         let mut meta: Vec<(f64, f64, Slot)> = Vec::new();
         let mut handles = Vec::with_capacity(polygon.len());
+        let mut walk = Walk::new();
         for &(u, v, id) in &polygon {
             let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
                 outcome = Some(Err(TessellateError::Triangulation { face: fk }));
                 break 'retry;
             };
-            if h.index() == meta.len() {
-                meta.push((u, v, Slot::Boundary(id)));
-            }
+            walk.enter(&mut meta, h, (u, v, Slot::Boundary(id)), id);
             handles.push(h);
         }
+        let mut pinches = Pinches::of(&walk, fk);
         for (k, &(u, v)) in candidates.iter().enumerate() {
             if dropped.contains(&k) {
                 continue;
@@ -428,6 +431,10 @@ pub(crate) fn tessellate_trimmed(
             }
             for e in realised {
                 let e = cdt.directed_edge(e);
+                if let Err(refused) = pinches.note_side(e, (a, i), (b, (i + 1) % handles.len())) {
+                    outcome = Some(Err(refused));
+                    break 'retry;
+                }
                 *crossings.entry(edge_key(e)).or_insert(0) += 1;
             }
         }
@@ -517,6 +524,14 @@ pub(crate) fn tessellate_trimmed(
                     Slot::Boundary(id) => PatchVertex::Shared(id),
                     Slot::Grid(c) => grid_ids[&c],
                 };
+                match pinches.id_in(f, vtx.fix(), flip) {
+                    Ok(Some(id)) => ids[k] = PatchVertex::Shared(id),
+                    Ok(None) => {}
+                    Err(e) => {
+                        outcome = Some(Err(e));
+                        break 'retry;
+                    }
+                }
             }
             // A triangle with two corners on one mesh vertex is
             // degenerate in 3-D. Dropping it is `curved`'s idiom, and

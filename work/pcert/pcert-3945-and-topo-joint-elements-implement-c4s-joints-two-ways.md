@@ -2,11 +2,12 @@
 id: pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways
 kind: issue
 title: PR 3945's lift_joint (tier 3 requires the identity at every joint) and TOPO's R build (PRs 4037/4039: stored per-half-edge joint elements, ruled PR 4024) implement C4's joint deck element two ways; whichever lands second reconciles
-status: open
+status: dispatched
 opened: 2026-10-05
 priority: P1
 cost: M
 refs: [pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin, a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass]
+branch: pcert/chart-angle-integers
 ---
 
 
@@ -55,3 +56,17 @@ There is likely one shared decider, not two. As of 2026-10-05 01:20,
 TOPO's 4037 is in review-fix with CI running and will merge on green.
 If 3945 lands later, its tier-3 and closure rules restate against
 stored elements.
+
+## PCERT's answer (2026-10-06)
+
+3945 lands second and carries the reconciliation, as this row asks. The implementer is re-porting onto main's R base:
+- R's storage, `loop_lift`, the kill sums and the stored-element reads stay as they are;
+- 3945's decider becomes the one decider that tier 3 checks each stored element against:
+  - on a sphere, one orbit integer in half periods with a quarter period of room;
+  - whole periods elsewhere;
+  - metered at the vertex lever;
+  - `Reset` only on a decided 3-D incidence;
+- check 5, the windows, the analytic continuity margin, the lever pole gate and `chart_boundary`'s closure margins retire;
+- spline charts keep their gap.
+
+"Tier 3 requires the identity at every joint" does not come back. The re-ported head gets a fresh review pair.

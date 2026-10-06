@@ -2016,24 +2016,14 @@ fn plan_edge<T: Decide>(
                 },
             )?)
         }
-        // An image in an untouched neighbour's chart names no key the
-        // moved face wears after the move, and the edge has left the
-        // locus the image draws. It is stated as what it now is: the
-        // section of the moved chart and the neighbour's. A declaration
-        // rides only a chart image, so a declared edge moves into the
-        // face's own chart instead, its image derived from the
-        // transported carrier.
-        EdgeDescription::Chart(ref c) => match carried_declaration()? {
-            None => {
+        // An image in an untouched neighbour's chart.
+        EdgeDescription::Chart(ref c) => {
+            let declared = carried_declaration()?;
+            if declared.is_none() {
                 neighbour_section(c.surface)?;
-                EdgeDescriptionSpec::Intersection {
-                    s1: old_key,
-                    s2: c.surface,
-                    witness: new_mid,
-                }
             }
-            Some(mc) => EdgeDescriptionSpec::chart(old_key).declared_by(mc),
-        },
+            crate::offset_restate::held_neighbour_image(old_key, c.surface, declared, new_mid)
+        }
         EdgeDescription::Intersection { s1, s2, witness } => {
             EdgeDescriptionSpec::Intersection { s1, s2, witness }
         }

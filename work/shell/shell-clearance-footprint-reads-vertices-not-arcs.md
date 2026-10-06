@@ -4,6 +4,8 @@ kind: issue
 title: wall_clearance's planar footprint box is folded over boundary VERTICES only, so an arc bowing out of a face's vertex hull is outside its footprint and a crossing pair can read as separated
 status: open
 opened: 2026-09-26
+priority: P1
+cost: E
 ---
 
 
