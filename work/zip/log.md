@@ -199,3 +199,25 @@ A designer pair is weighing the zip's seam realization: blinding on `analysis/de
 `a-round-tube-standing-on-a-plate-refuses-seam-orientation` builds on main in every order and is closed by PR 4126. A 2160-boolean variant sweep around it found no `SeamOrientation` refusal. 4126 merged over an inherited red: JOIN's `pinch-tessellate-row-escalates-at-eps-1e-6`, annotated on the PR.
 
 **Friction (finding).** This remote container's disk allowance is about 40 GB. One lane's debug target grows to 7–13 GB once it has built probes and a branch or two, so three concurrent cargo lanes fill it. Two lanes hit ENOSPC or near it today. The width-1 build slot also serialized designer probes behind lane suites for 20+ minutes. In this environment, more than about three building lanes belong in their own cloud sessions (`memories/orchestration-model.md`, the 2026-10-02 rule), not as subagents here.
+
+## 2026-10-06 — what the day closed, and the D10 hold
+
+**Closed:** the round tube (PR 4126), the flush boss (PR 4130), the reflex wrong volume (PR 4127), the rabbet fold order (PR 4127), and the seam zip's half-minted wall (already fixed by PR 3531). On merge, PR 4116 closes `Fusions` and the recourse row.
+
+**PR 4127** (single full review, then a fix pass) makes the REST zip decline a mate whose seam does not bound its contact patches. That retires a live wrong body: `vol a + vol b` behind a join lever, which passed every gate in 2 of 16 runs.
+- The reviewer's numbers: 95 zip entries and 91 builds unchanged; a 277-run lever grid with 0 declines of a pure contact; 58 wrong bodies without the check.
+- Not caught, and parked on one row: edge-in-face contacts with no section segment. A dip refuses in the gate's words. A kiss builds at the right volume but fails tier 3′, which the door's gate does not run (REACH's `boolean-door-runs-the-census-over-its-result`).
+
+**PR 4116** (single full review, then a fix pass, then a delta review) makes a fusion list unrepresentable unless it is well-ordered. Its reviews filed:
+- on FUSE: the face-lineage half of the same class, and `fused_into` naming vertices that are not live in the result, in about 1 of 8 lattice results;
+- on WIRE: `emit_topo` reads a fusion chain one hop. Two-hop chains do reach it, in 632 of 3,639 results.
+
+**The D10 hold.** JOIN's log carries Ev's 2026-10-03 hold: no new unit that meaningfully uses declared pairs or declared contact. It covers the declared-REST zip, which only declared coincident faces reach. ZIP's lanes were dispatched before this orchestrator read it.
+- On Ev's ruling in chat, the admission fix (a live wrong body) finished as a started unit.
+- **The designers' fork.** Two blinded designers converged independently: retire the zip and give the join what it builds today. That went to INTENT as stage-4 input (`the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms`), with no `[ev]` PR (Ev, in chat). The blinding byte is on `analysis/design-fork/rest-zip-seam-realization`. The fork never went to Ev as a PR, so it is not a design-fork log row.
+- Every remaining REST-lane row is parked on `d10-one-way-to-say-intent-is-unbuilt`, and ZIPTAIL folded back in (`docs/doc-ledger/ziptail-leaves-the-tracker.md`).
+- ZIP is `blocked`, with nobody on it.
+
+**Class findings without a row:**
+- About ten per-file `vol` helper copies across `crates/sweep/tests` (P4; noted in PR 4127's body).
+- A one-line slow-set filter in `.config/nextest.toml` that every PR adding a slow test conflicts on. Both are friction, not defects.

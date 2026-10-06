@@ -1,11 +1,12 @@
 ---
 id: rest-zip-frontier-refusals-reached-by-no-row
 kind: issue
-title: "zip: none of the rest zip's fifteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured"
-status: open
+title: zip: none of the rest zip's fifteen typed sub-frontier refusals is reached by any row, so which are gates and which are dead is unmeasured
+status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## Finding
@@ -175,3 +176,7 @@ of the REST-lane probe files (`join1_delta2_harness`, `join_rc_probes`,
   to fire, an end with edges would then have to have no boundary half
   in a face its orbit lists. That is an inference, not a measurement.
 - The other fourteen are not reached in these runs.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.

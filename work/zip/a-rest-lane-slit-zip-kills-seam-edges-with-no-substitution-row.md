@@ -2,10 +2,11 @@
 id: a-rest-lane-slit-zip-kills-seam-edges-with-no-substitution-row
 kind: issue
 title: The REST lane's slit zip kills R-interior run edges and vertices with no substitution row, and its new edge rows have no test
-status: open
+status: parked
 opened: 2026-10-03
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## The finding
@@ -44,3 +45,7 @@ record can name these cells.
   killed interior edges and run vertices.
 - Add a row that goes red when `glue_pair` drops `edge_merges` or the
   fold rows.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.

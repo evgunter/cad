@@ -15,14 +15,8 @@ priority: P0
 The seam-closing half, after the join has matched the section's
 chords: the declared-REST zip that glues a resting contact
 (`boolean/rest.rs`) and the seam zip that closes each section seam into
-its walls (`boolean/zip.rs`). Its rows fail LATE, which makes them the
-expensive ones to diagnose from a user's seat.
+its walls (`boolean/zip.rs`).
 
-`rest-zip-seam-chord-on-cylinder-wall` stores a straight chord on a
-cylinder wall, the one geometric wrong answer here;
-`a-round-tube-standing-on-a-plate-refuses-seam-orientation` and
-`a-boss-flush-with-a-block-edge-refuses-its-declared-union` are ordinary
-unions that refuse. The rest is what the zip's refusals say, what they
-drop, and arms no row reaches.
-
-Charter and order: `work/zip/plan.md`; narrative in `work/zip/log.md`.
+Every live row is parked on the D10 hold, and the declared-REST zip
+retires at D10 stage 4. `work/zip/plan.md` says what happens to each
+row when the hold lifts; the narrative is in `work/zip/log.md`.
