@@ -581,16 +581,16 @@ fn torus_ring_refuses_spindle_crossing() {
     assert_eq!(minor_radius.to_bits(), 1.5f64.to_bits());
 }
 
-/// NURBS is not closed under offset: typed refusal naming the
-/// approximating-surface route as the coming door.
+/// NURBS is not closed under offset: a typed refusal that names the
+/// fitted offset it has none of, and says there is no way through yet.
 #[test]
 fn nurbs_refuses_typed_naming_the_approximating_route() {
     let err = offset_surface(&Surface::<f64>::nurbs_placeholder(), 0.1, band()).unwrap_err();
     assert!(matches!(err, OffsetError::NotClosedUnderOffset));
     let msg = err.to_string();
     assert!(
-        msg.contains("approximating-surface") && msg.contains("not closed under offset"),
-        "the refusal must name the coming route: {msg}"
+        msg.contains("fitted offset") && msg.ends_with(geom_core::NOT_YET_ENDING),
+        "the refusal names the fitted route and says it is not built: {msg}"
     );
 }
 

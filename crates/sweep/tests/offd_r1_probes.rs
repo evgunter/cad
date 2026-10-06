@@ -421,13 +421,13 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
         (
             "planar prism",
             prism(),
-            "a chart image of a neighbour's chart",
+            "a curve drawn on a neighbour's surface",
             false,
         ),
         (
             "twisted loft",
             twisted_loft(0.3),
-            "a chart image of a neighbour's chart",
+            "a curve drawn on a neighbour's surface",
             true,
         ),
     ] {
@@ -469,5 +469,39 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
             }
             other => panic!("{name}: expected the structural refusal or the fit's, got {other}"),
         }
+    }
+}
+
+/// **An offset as deep as the walls are tall collapses their seams, and
+/// says so.** The prism's walls are 1 m tall: moving the top cap 1 m
+/// down puts each vertical seam's moved end on its other end, and 1.5 m
+/// carries it past. Both are the move's length — a user's input — so
+/// the refusal names the offset and asks for a shorter one rather than
+/// reporting a kernel defect.
+#[test]
+fn an_offset_as_deep_as_the_walls_collapses_their_seams() {
+    for d in [-1.0_f64, -1.5] {
+        let mut body = prism();
+        let top = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, .. }) if origin.z > 0.5
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let e = topo::replace_face_offset(&mut body, top, d, Tol::witness())
+            .expect_err("a seam of no length refuses");
+        assert!(
+            matches!(e, ReplaceFaceError::ReanchorCollapse { offset, .. } if offset == d),
+            "{d}: {e:?}"
+        );
+        let text = e.to_string();
+        assert!(
+            text.contains(&format!("{d:?} m")) && !text.contains("kernel defect"),
+            "{d}: {text}"
+        );
     }
 }

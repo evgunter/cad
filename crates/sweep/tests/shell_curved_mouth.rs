@@ -238,4 +238,3 @@ fn a_whole_side_wall_disconnects_the_caps() {
         other => panic!("expected the disconnect gate, got {other:?}"),
     }
 }
-
