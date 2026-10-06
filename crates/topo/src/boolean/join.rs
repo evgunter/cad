@@ -1944,7 +1944,8 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
             | geom_brep::SectionError::BeyondOperandExtent { .. }
-            | geom_brep::SectionError::Carrier(_),
+            | geom_brep::SectionError::Carrier(_)
+            | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the declared equal-radius cylinder section refused at the germ pair \
              with a refusal this pair cannot produce",

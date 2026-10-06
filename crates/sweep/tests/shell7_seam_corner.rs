@@ -678,7 +678,7 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     assert_eq!(vertex, split);
     assert_eq!(surfaces, 2);
     assert!(
-        what.starts_with("a line profile and a plane containing the axis meet here off the axis"),
+        what.starts_with("a line profile and a plane parallel to the axis meet here off the axis"),
         "got {what:?}"
     );
 }

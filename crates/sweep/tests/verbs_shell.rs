@@ -1222,7 +1222,7 @@ fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
 /// instead of two, and the wall stops being a number the author has to
 /// keep consistent across two call sites.
 #[test]
-fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_lift() {
+fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube() {
     // The hand construction still builds, unchanged — the debt is real
     // and the demo is not broken, it is just paid by hand.
     let by_hand = klein_elbow(vec![
@@ -1263,27 +1263,58 @@ fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_lift() {
         "a spiric-bounded cap's area, at {face:?}"
     );
 
-    // The opened arm stops one stage earlier, at the rim stage's LIFT:
-    // the cavity's off-axis caps keep the lifted solid off the axial
-    // door, and the per-chart door's re-anchor leaves a curved corner
-    // off its carrier.
+    // The opened arm SHELLS: the lift takes the axial door (the cavity's
+    // caps stand parallel to the axis, which the gate admits at any
+    // stand-off), and the rims it puts back on the meridian planes are
+    // the section's meridian circles, not spirics.
     let open = topo::shell_open(
         &finished("the operand", solid.clone(), Tol::witness()),
         KLEIN_WALL,
         &caps,
         Tol::witness(),
     )
-    .expect_err("the opened arm's lift");
-    let ShellError::Lift { error, .. } = &open else {
-        panic!("the opened arm's lift, got {open:?}");
+    .unwrap_or_else(|e| panic!("the opened klein elbow shells: {e:?}"))
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&open, Tol::witness()),
+        Ok(()),
+        "tier 3 on the opened elbow"
+    );
+    let census = |b: &Body<f64>| {
+        (
+            b.shells().count(),
+            b.faces().count(),
+            b.edges().count(),
+            b.vertices().count(),
+        )
     };
-    let topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. } = **error else {
-        panic!("the lift's re-anchor, got {error:?}");
+    assert_eq!(
+        census(&open),
+        census(&by_hand),
+        "the opened elbow has the hand-built tube's topology"
+    );
+    let spirics = open
+        .edges()
+        .filter(|(k, _)| topo::query::edge_carrier_kind(&open, *k) == Some(geom::CurveKind::Spiric))
+        .count();
+    assert_eq!(spirics, 0, "every rim on a meridian plane is a circle");
+    let volume = |b: &Body<f64>| {
+        topo::mass_properties(b, Tol::witness())
+            .expect("the elbow's props")
+            .volume
     };
-    println!("[measured] the opened klein elbow's lift re-anchor gap = {gap}");
+    // Pappus: a quarter turn of the annulus about the spine radius.
+    let (r_out, r_in) = (KLEIN_R + KLEIN_WALL / 2.0, KLEIN_R - KLEIN_WALL / 2.0);
+    let want = core::f64::consts::PI.powi(2) / 2.0 * 1.2 * (r_out.powi(2) - r_in.powi(2));
+    let (got, hand) = (volume(&open), volume(&by_hand));
+    println!("[measured] opened elbow volume {got}, hand-built {hand}, Pappus {want}");
     assert!(
-        (5.0e-4..2.0e-3).contains(&gap),
-        "the measured sub-millimetre gap, got {gap}"
+        (got - want).abs() <= 1e-12,
+        "opened volume {got}, want {want}"
+    );
+    assert!(
+        (hand - want).abs() <= 1e-12,
+        "hand-built volume {hand}, want {want}"
     );
 }
 

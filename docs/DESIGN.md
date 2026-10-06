@@ -553,10 +553,9 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   meters composite and refuse with the class named, their faces left
   uncached, excused by C4's exemption until each class's route lands.
   The same exemption covers a spline carrier at the closed-form door
-  and the zero-offset spiric, mirror-torus spiric and no-fitted
-  classes. Each class has its own PCERT row: the torus general circle,
-  the cone section, the spline carrier, and the spiric and no-fitted
-  classes together.
+  and the mirror-torus spiric and no-fitted classes. Each class has
+  its own PCERT row: the torus general circle, the cone section, the
+  spline carrier, and the spiric and no-fitted classes together.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing

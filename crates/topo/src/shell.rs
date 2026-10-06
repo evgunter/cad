@@ -1128,8 +1128,15 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // whole-body reading would put both on the per-chart door — which
     // refuses the vessel's corners it solves alone. The ladder is
     // unchanged; what it reads is the solid's own faces. The cavity
-    // and the rim lift read the same ladder over the same solid, so a
-    // solid is on the same door on the way in and on the way back out.
+    // and the rim lift read the same ladder over the same solid, and
+    // the lift reads it on the body the cavity's door BUILT — so the
+    // two answer alike because the axial gate's roster is closed under
+    // that door's output: an offset keeps a coaxial wall coaxial, a
+    // plane normal to the axis normal to it, and a plane parallel to
+    // the axis parallel to it at any stand-off (`offset_axial::classify`),
+    // and the planar ladder's all-planes answer is closed the same way.
+    // A solid is therefore on the same door on the way in and on the
+    // way back out.
     // The operand's partition serves every solid: `cavity` is a clone,
     // so it carries the same keys, and re-aiming the scope at one solid
     // is a `Vec` swap rather than another walk over the whole body.
