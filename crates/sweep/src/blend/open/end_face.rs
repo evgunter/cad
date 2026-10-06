@@ -295,7 +295,7 @@ impl<T: Bounds> SectionFrame<T> {
     /// The section's scaled radius at `d`: below one inside it.
     fn scaled(self, d: Vec3<T>) -> T {
         let (x, y) = (d.dot(self.u) / self.major, d.dot(self.w) / self.minor);
-        (x * x + y * y).sqrt()
+        (x.powi(2) + y.powi(2)).sqrt()
     }
 
     /// **How far inside the section an edge stays**, in meters: positive
