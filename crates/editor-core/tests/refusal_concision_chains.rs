@@ -3885,7 +3885,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             "OperandOuterShells",
             S::OperandOuterShells {
                 solid: SolidKey::default(),
-                outer: 0,
             },
         ),
         (

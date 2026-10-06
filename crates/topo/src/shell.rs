@@ -368,21 +368,17 @@ pub enum ShellError<T: Real> {
         /// The sort's typed refusal, verbatim.
         error: crate::pieces::PieceSortError,
     },
-    /// One of the operand's solids, once sorted into pieces, does not
-    /// classify to exactly one outer shell. Not a shape this verb
-    /// thickens. Two ways reach it: no outer shell at all (only
-    /// cavities, which bound no material), or more than one where the
-    /// sort's role reader ([`crate::validate::shell_role`]) left a shell
-    /// undecided — silent beside one decided `Outer` — and this verb's
-    /// classifier ([`crate::props::classify_shells_of`]) decided it
-    /// `Outer`: two readers of one sign that can part in band
-    /// (`work/fuse/one-home-for-where-a-shell-stands.md`). The roles are
-    /// read per solid, so the refusal names which solid it is about.
+    /// One of the operand's solids, once sorted into pieces, has no
+    /// outer shell: only cavities, which bound no material. Not a shape
+    /// this verb thickens. More than one cannot reach here: the sort
+    /// reads roles through the one shell-role reader
+    /// ([`crate::props::shell_role`]) and this verb classifies through
+    /// the same reader and lane, so a solid the sort leaves with a
+    /// second decided `Outer` does not exist, and an undecided shell
+    /// refuses [`Self::Roles`].
     OperandOuterShells {
-        /// The solid whose shells did not classify to one boundary.
+        /// The solid with no outer shell.
         solid: SolidKey,
-        /// How many of ITS shells classified as outer boundaries.
-        outer: usize,
     },
     /// The re-partition of an operand void and its dilated twin into a
     /// solid of their own refused. The keys are the shell op's own —
@@ -573,10 +569,10 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the body could not be sorted into solids before it is thickened: {error}"
             ),
-            Self::OperandOuterShells { outer, .. } => write!(
+            Self::OperandOuterShells { .. } => write!(
                 f,
-                "a solid of the body has {outer} outer shells once sorted into pieces, not \
-                 one, which the shell op cannot thicken"
+                "a solid of the body has no outer shell, only cavities, which bound no \
+                 material to thicken"
             ),
             Self::Partition { shell, error } => write!(
                 f,
@@ -1007,11 +1003,15 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         if shells.len() == 1 {
             continue;
         }
-        let roles = crate::props::classify_shells_of(body, shells, tol)
+        let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
             .map_err(|error| ShellError::Roles { error })?;
-        let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
-        if outer != 1 {
-            return Err(ShellError::OperandOuterShells { solid, outer });
+        match roles.iter().filter(|c| c.role == ShellRole::Outer).count() {
+            0 => return Err(ShellError::OperandOuterShells { solid }),
+            1 => {}
+            outer => unreachable!(
+                "{outer} decided outer shells under one solid after the sort, which read \
+                 them through the same reader and lane"
+            ),
         }
         voids.extend(
             roles

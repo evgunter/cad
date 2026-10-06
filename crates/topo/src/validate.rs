@@ -401,7 +401,7 @@ use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
-use crate::props::{AtRestOutcome, Certified, ShellRole};
+use crate::props::{AtRestOutcome, Certified};
 
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -4200,9 +4200,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   walk that refuses — `KindUnsupported` on a spline or `Approx` face,
 ///   a partial sphere, cone or torus face outside the walk's chart
 ///   classes, an escalation, an exhausted ray schedule, an uncertified
-///   at-infinity volume. A shell every one of whose vertices touches
-///   another shell is silent too (a touching vertex is skipped for the
-///   next). And check 10 reads one point per shell, which decides only
+///   at-infinity volume. A shell no witness of which is off every other
+///   shell is silent too: the witness ladder ([`crate::stands`]) reads
+///   its vertices, edge midpoints and planar face interiors, and skips
+///   one that touches. And check 10 reads one point per shell, which decides only
 ///   under the no-crossing premise — **shells that cross** are global
 ///   self-intersection's, the first item of this list.
 ///   (`work/restfront/check-10-is-silent-where-point-in-solid-refuses`.)
@@ -4730,10 +4731,10 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// the `Outer` (`-1` in its cavity), or a `Void` inside another `Void`
 /// (`-1`). Check 7's per-solid total is positive on both.
 ///
-/// **One witness point per shell, under the no-crossing premise**
-/// ([`witness_insides`]): the winding the OTHER shells put on shell `s`
-/// is `Σ ±[s inside t]` over them, which must be `0` if `s` is `Outer`
-/// and `1` if `s` is a `Void`.
+/// **One decisive witness per shell, under the no-crossing premise**
+/// ([`crate::stands::witness_insides`], the witness ladder): the winding
+/// the OTHER shells put on shell `s` is `Σ ±[s inside t]` over them,
+/// which must be `0` if `s` is `Outer` and `1` if `s` is a `Void`.
 ///
 /// **Silent where the walk cannot answer** — check 9's posture, and
 /// the false-refusal direction is the one this check must never fail
@@ -4743,15 +4744,15 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 ///   still undecided when the schedule runs out) is not counted, and
 ///   silences every winding verdict in its solid, since it enters each
 ///   of them;
-/// - a walk that refuses, or a shell every vertex of which touches
-///   another shell, leaves that shell's winding verdict unmade.
+/// - a walk that refuses, or a shell no witness of which the ladder
+///   reads off every other shell (each lies on one, or reads in band),
+///   leaves that shell's winding verdict unmade.
 ///
 /// Those silences are the residue [`validate_geometric`]'s
 /// not-yet-checked list names.
 ///
-/// **A shell's role is its own sign, read the way check 7 reads a
-/// solid's** ([`shell_role`], through the lane the door made check 7
-/// through, `quad`). Every door that makes check 10 calls this behind a
+/// **A shell's role is its own sign** ([`crate::props::shell_role`],
+/// through the lane the door made check 7 through, `quad`). Every door that makes check 10 calls this behind a
 /// clean check 7: a winding read off a solid whose orientation is
 /// refused would be cascade noise.
 ///
@@ -4767,6 +4768,7 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Vec<ValidationError> {
     use crate::props::ShellRole;
+    use crate::stands::{Insides, ShellRead, witness_insides};
 
     let mut errors = Vec::new();
     for (solid, record) in body.solids.iter() {
@@ -4836,171 +4838,6 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     errors
-}
-
-/// One shell of a solid, read for nesting: its key, its role
-/// ([`shell_role`]) and its faces as a point-in-solid selection, read
-/// once and probed many times.
-pub(crate) struct ShellRead {
-    /// The shell.
-    pub(crate) shell: ShellKey,
-    /// Its decided role.
-    pub(crate) role: crate::props::ShellRole,
-    /// Its faces, as the walk's selection.
-    pub(crate) sel: crate::boolean::solid_contain::SolidFaces,
-}
-
-impl ShellRead {
-    /// `shell` read: `None` where its selection cannot be read, and the
-    /// shell's typed refusal where its role cannot ([`shell_role`]).
-    pub(crate) fn of<T: Decide>(
-        body: &Body<T>,
-        shell: ShellKey,
-        band: Band,
-        tol: Tol,
-        quad: Option<crate::props::QuadLane<T>>,
-    ) -> Option<Result<Self, crate::props::ShellClassifyError>> {
-        let sel = crate::boolean::solid_contain::SolidFaces::of_shell(body, shell).ok()?;
-        Some(
-            shell_role(body, shell, sel.faces(), band, tol, quad).map(|role| Self {
-                shell,
-                role,
-                sel: sel.with_role(role),
-            }),
-        )
-    }
-}
-
-/// What one witness of a shell says about the solid's other shells.
-pub(crate) enum Insides {
-    /// Per shell of the reading, in its order: whether the witness lies
-    /// inside that shell's closed surface (`false` for the shell
-    /// itself).
-    Read(Vec<bool>),
-    /// Every vertex of the shell lies on another shell.
-    Touching,
-    /// The walk refused at a witness.
-    Refused(crate::boolean::PointInSolidError),
-}
-
-/// **Where shell `reads[i]` stands among the others** — check 10's
-/// witness loop, shared with the result sort ([`crate::pieces`]).
-///
-/// Tier 3 assumes shells do not cross, and under that premise whether
-/// a shell lies inside another's closed surface is the same at every
-/// point of it. So one point of it (a vertex: an exact stored position)
-/// decides, probed against each other shell alone with the crate's one
-/// point-in-solid walk over that shell's faces. The walk answers
-/// whether the point is in the material the selection alone bounds:
-/// for an `Outer` shell that is its inside, so `In` is inside; for a
-/// `Void` the faces point INTO the cavity, so the material is the
-/// cavity's complement and `Out` is inside. An `OnBoundary` answer
-/// means the witness lies where two shells TOUCH, which says nothing
-/// about nesting, so the next vertex is tried.
-///
-/// `may_enclose` is the caller's screen: a shell it rules out is read
-/// as not enclosing this one and is not probed. It must be sound — a
-/// shell that could enclose must pass — so only a certificate of
-/// disjointness rules one out (the result sort's padded boxes).
-pub(crate) fn witness_insides<T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    i: usize,
-    reads: &[ShellRead],
-    may_enclose: &dyn Fn(usize) -> bool,
-    band: Band,
-    tol: Tol,
-) -> Insides {
-    use crate::boolean::SolidContainment;
-    use crate::boolean::solid_contain::point_in_solid_faces;
-    use crate::props::ShellRole;
-
-    'witness: for witness in shell_vertices(body, reads[i].shell) {
-        let mut inside = vec![false; reads.len()];
-        for (t, other) in reads.iter().enumerate() {
-            if t == i || !may_enclose(t) {
-                continue;
-            }
-            inside[t] = match point_in_solid_faces(body, &other.sel, witness, band, tol) {
-                Ok(SolidContainment::In) => other.role == ShellRole::Outer,
-                Ok(SolidContainment::Out) => other.role == ShellRole::Void,
-                Ok(SolidContainment::OnBoundary) => continue 'witness,
-                Err(e) => return Insides::Refused(e),
-            };
-        }
-        return Insides::Read(inside);
-    }
-    Insides::Touching
-}
-
-/// Every vertex of `shell`, as positions, in face-arena order and each
-/// face's loop order (outer loop first), repeats included — the
-/// witnesses check 10 tries in turn. Lazy: a shell whose first vertex
-/// touches no other shell reads only that one.
-pub(crate) fn shell_vertices<'b, T: Real>(
-    body: &'b Body<T>,
-    shell: ShellKey,
-) -> impl Iterator<Item = geom_core::Point3<T>> + 'b {
-    body.faces()
-        .filter(move |(_, d)| d.shell == shell)
-        .flat_map(move |(_, face)| {
-            core::iter::once(face.outer)
-                .chain(face.rings.iter().copied())
-                .flat_map(move |lk| {
-                    let vertices: Vec<VertexKey> = match body.get_loop(lk).map(|l| l.boundary) {
-                        Some(LoopBoundary::Empty { vertex }) => vec![vertex],
-                        Some(LoopBoundary::Cycle { .. }) | None => loop_cycle_of(body, lk)
-                            .unwrap_or_default()
-                            .iter()
-                            .filter_map(|&he| body.half_edges.get(he).map(|h| h.start))
-                            .collect(),
-                    };
-                    vertices
-                })
-        })
-        .filter_map(move |v| vertex_point(body, v))
-}
-
-/// One shell's role, from its own sign walk through `quad`, certified
-/// round by round ([`crate::props::Round::certify`]).
-///
-/// # Errors
-///
-/// The shell's typed refusal: the walk's or the re-derivation's
-/// [`crate::props::ShellClassifyError::Props`], or the role read the
-/// last round left undecided (escalated, zero or straddling).
-pub(crate) fn shell_role<T: Decide>(
-    body: &Body<T>,
-    shell: ShellKey,
-    faces: &[FaceKey],
-    band: Band,
-    tol: Tol,
-    quad: Option<crate::props::QuadLane<T>>,
-) -> Result<ShellRole, crate::props::ShellClassifyError> {
-    use crate::props::ShellClassifyError;
-    let last = core::cell::Cell::new(None);
-    let props = |source| ShellClassifyError::Props { shell, source };
-    crate::props::sign_walk(
-        body,
-        faces,
-        band,
-        tol,
-        quad,
-        quad,
-        |round| match round.certify(PLUS_V, PLUS_V_EXACT) {
-            Certified::Role(role) => Some(Ok(role)),
-            Certified::Refused(source) => Some(Err(props(source))),
-            Certified::Open(unread) | Certified::Unresolved(unread) => {
-                last.set(Some(unread));
-                None
-            }
-        },
-        |_| match last.get() {
-            Some(unread) => Err(unread.refusal(shell, band)),
-            None => unreachable!("a sign walk settles every round it reads"),
-        },
-    )
-    .map_err(props)
-    .and_then(|(role, _)| role)
 }
 
 /// Tier 3's transience fence on its own: a

@@ -3612,7 +3612,7 @@ impl SolidFaces {
     /// re-deriving it from the closed-form signed volume, which an
     /// obliquely trimmed curved face does not certify. The role is the
     /// same fact either way; a reader that decided it through the
-    /// quadrature lane (`crate::validate::ShellRead`) hands it over.
+    /// quadrature lane (`crate::stands::ShellRead`) hands it over.
     pub(crate) fn with_role(self, role: crate::props::ShellRole) -> Self {
         let side = match role {
             crate::props::ShellRole::Outer => SolidContainment::Out,
@@ -5340,7 +5340,7 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    use crate::props::{Certified, ShellRole};
+    use crate::props::ShellRole;
     // Measured in closed form, so an obliquely trimmed face refuses here
     // (`work/contact/at-infinity-probe-measures-in-closed-form-only`);
     // the sign is certified through the scalar's own lane
@@ -5391,28 +5391,21 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         },
         None => PointInSolidError::ZeroVolumeBody,
     };
-    let last = core::cell::Cell::new(None);
-    let (role, _) = crate::props::sign_walk(
+    // The one role walk, measured in closed form and certified through
+    // the scalar's own lane.
+    let (role, _) = crate::props::role_walk(
         body,
         faces,
         band,
         tol,
-        None,
-        T::quad_lane(),
-        |round| match round.certify(AT_INFINITY, AT_INFINITY_ENCLOSURE) {
-            Certified::Role(role) => Some(Ok(role)),
-            Certified::Refused(source) => Some(Err(refused(source))),
-            Certified::Open(unread) | Certified::Unresolved(unread) => {
-                last.set(Some(unread));
-                None
-            }
-        },
-        |_| match last.get() {
-            Some(unread) => Err(undecided(unread)),
-            None => unreachable!("a sign walk settles every round it reads"),
-        },
+        (None, T::quad_lane()),
+        (AT_INFINITY, AT_INFINITY_ENCLOSURE),
     )
     .map_err(refused)?;
+    let role = role.map_err(|refusal| match refusal {
+        crate::props::RoleWalkRefusal::Refused(source) => refused(source),
+        crate::props::RoleWalkRefusal::Unread(unread) => undecided(*unread),
+    });
     // An `Outer` boundary leaves infinity outside its material, a `Void`
     // one inside.
     match role? {

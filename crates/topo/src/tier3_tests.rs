@@ -2699,8 +2699,13 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
 
     let band = geom_core::Band::linear(tol).expect("a band");
     let sel = SolidFaces::of_shell(&body, big_void).expect("a selection");
-    let first = crate::validate::shell_vertices(&body, small_void)
-        .next()
+    let first = body
+        .faces()
+        .find(|(_, f)| f.shell == small_void)
+        .and_then(|(_, f)| match body.get_loop(f.outer)?.boundary {
+            crate::entity::LoopBoundary::Cycle { first } => body.half_edge_start_point(first),
+            crate::entity::LoopBoundary::Empty { .. } => None,
+        })
         .expect("the cube has vertices");
     assert_eq!(
         point_in_solid_faces(&body, &sel, first, band, tol).expect("the walk answers"),
@@ -2750,10 +2755,8 @@ fn far_anchored_slab(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> {
 fn roles_of(body: &Body<f64>, tol: Tol) -> (crate::ShellRole, crate::ShellRole) {
     let band = geom_core::Band::linear(tol).expect("a band");
     let (shell, _) = body.shells.iter().next().expect("one shell");
-    let solid = body.solids().next().expect("one solid").0;
-    let faces = body.faces_of_solid(solid).expect("its faces");
     let lane = Some(crate::props::QuadLane::certified());
-    let read = crate::validate::shell_role(body, shell, &faces, band, tol, lane)
+    let (read, _) = crate::props::shell_role(body, shell, band, tol, lane)
         .expect("check 10's read decides a role");
     let classified = crate::classify_shells(body, tol).expect("the shell classifies");
     (read, classified[0].role)
@@ -2820,6 +2823,45 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
             crate::boolean::point_in_solid(body, p, band, tol).expect("containment answers")
         });
         assert_eq!(got, want, "{name}: inside and beside the slab");
+    }
+}
+
+/// **The census's void screen reads a shell's role as the rest of the
+/// crate does.** The far-anchored slab of the row above, whose `f64`
+/// sum reads it negative: a lane-free role read calls the upright slab
+/// a `Void` (the premise, asserted), and a cross-solid gate holding no
+/// lane dropped it as one. Through the scalar's own lane the gate reads
+/// what the shell classification reads, both ways round.
+#[test]
+fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
+    use crate::ShellRole::{Outer, Void};
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
+    let shell = upright.shells.iter().next().expect("one shell").0;
+    assert_eq!(
+        crate::props::shell_role(&upright, shell, band, tol, None)
+            .expect("a lane-free read decides")
+            .0,
+        Void,
+        "the premise: read with no lane, the upright slab's rounded sum calls it a cavity"
+    );
+    let inverted = upright.revert().expect("the slab reverts");
+    for (body, want) in [(&upright, Outer), (&inverted, Void)] {
+        let classified = crate::classify_shells(body, tol).expect("the shell classifies")[0].role;
+        let gate = crate::census::gate_role(body, shell, band, tol);
+        assert_eq!(
+            (gate, classified),
+            (Some(want), want),
+            "the gate and the classification"
+        );
     }
 }
 

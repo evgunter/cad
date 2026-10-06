@@ -241,11 +241,11 @@ fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
 }
 
 #[test]
-fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
+fn r2_operand_outer_shells_names_the_offending_solid() {
     // A solid with NO outer shell: two inside-out cubes filed under one
     // solid (the `sweep-testing` merge door), beside a plain block. The
     // sort leaves it alone (it has no second `Outer` to move), and the
-    // verb refuses it naming that solid and its own count — the plain
+    // verb refuses it naming that solid — the plain
     // neighbour's shell is never classified.
     let cube = |at: Vec3<f64>| {
         topo::transform_rigid(
@@ -270,7 +270,7 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
     assert!(
         matches!(
             e,
-            ShellError::OperandOuterShells { solid, outer: 0 } if solid == voids_solid
+            ShellError::OperandOuterShells { solid } if solid == voids_solid
         ),
         "{e}"
     );

@@ -2830,7 +2830,7 @@ pub fn classify_shells_structural<T: Decide>(
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
     let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
-    classify_shells_via(body, &every, tol, None)
+    classify_shells_through(body, &every, tol, None)
 }
 
 /// [`classify_shells`] restricted to `shells` — the same classification,
@@ -2858,83 +2858,162 @@ pub fn classify_shells_of<T: Decide + geom_core::CertifiedBounds>(
     shells: &[ShellKey],
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
-    classify_shells_via(body, shells, tol, Some(QuadLane::certified()))
+    classify_shells_through(body, shells, tol, Some(QuadLane::certified()))
 }
 
 /// The per-shell walk over the lane the caller holds — the shared body
-/// of [`classify_shells_of`] and [`classify_shells_structural`].
-fn classify_shells_via<T: Decide>(
+/// of [`classify_shells_of`] and [`classify_shells_structural`], and the
+/// door a caller that must read the lane another read of the same
+/// shells held takes (`shell`, behind the result sort).
+pub(crate) fn classify_shells_through<T: Decide>(
     body: &Body<T>,
     shells: &[ShellKey],
     tol: Tol,
     quad: Option<QuadLane<T>>,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
     let band = Band::linear(tol).map_err(|error| ShellClassifyError::Band { error })?;
-    let hook = reporting_hook(quad);
     let mut out = Vec::new();
     for (shell_key, shell) in body.shells.iter() {
         if !shells.contains(&shell_key) {
             continue;
         }
-        let props = |source| ShellClassifyError::Props {
-            shell: shell_key,
-            source,
-        };
-        // The per-shell walk reads at the REPORTING level: a shell role
-        // is a claim about a volume, and its faces run their whole
-        // schedules. Same flux and the same hook as
-        // [`mass_properties_impl`], restricted to this shell's faces,
-        // then the sequential fold of [`fold_runs`] in the shell's own
-        // face list order, which is this walk's order throughout — the
-        // whole-body walks' is the face arena's.
-        //
-        // **Serial, and not [`decide_faces`]**: every shell the census
-        // meets is below the per-face map's break-even, so mapping
-        // here buys a regression and no body a gain — the numbers are
-        // on `work/perf/`'s
-        // `parallel-map-costs-a-fixed-price-on-a-cheap-body`, with the
-        // reason ([`decide_faces_serially`] restates it at the door).
-        // The grain that could repay the price is the loop over SHELLS
-        // above, which measures at about break-even on the same
-        // document; that is the census's own question and not this
-        // loop's, so the face grain does not want re-trying.
-        let runs = decide_faces_serially(&shell.faces, |&face_key| {
-            face_flux(body, face_key, band, &hook, tol, RoundWindow::SCHEDULE)
-        })
-        .map_err(props)?;
-        // As at [`mass_properties_impl`]: unreachable from the hook
-        // above, and what keeps this walk correct for the hook
-        // signature rather than for one hook.
-        let (sums, refused) = fold_runs(&runs);
-        if let Some((face, source)) = refused {
-            return Err(props(MassPropsError::Face { face, source }));
-        }
-        let (area, area_pad) = (sums.surface_area, sums.area_pad);
-        let (volume, volume_pad) = (sums.volume, sums.volume_pad);
-        let role = match certify_role(
-            sums.reading(),
-            |tight| quad.map(|lane| rederived(body, band, tol, lane, &runs, tight)),
-            SHELL_ROLE_NAMES,
-            SHELL_ROLE_ENCLOSURE_NAMES,
-            band,
-        ) {
-            Certified::Role(role) => role,
-            Certified::Open(unread) | Certified::Unresolved(unread) => {
-                return Err(unread.refusal(shell_key, band));
-            }
-            Certified::Refused(source) => return Err(props(source)),
-        };
+        // The role is the one reader's ([`shell_role`]); the numbers are
+        // its certificate carried to the reporting target.
+        let (role, certificate) = shell_role_named(
+            body,
+            shell_key,
+            (band, tol),
+            quad,
+            (SHELL_ROLE_NAMES, SHELL_ROLE_ENCLOSURE_NAMES),
+        )?;
+        let sums = certificate
+            .refine_to_target()
+            .map_err(|source| ShellClassifyError::Props {
+                shell: shell_key,
+                source,
+            })?;
         out.push(ShellClassification {
             shell: shell_key,
             solid: shell.solid,
-            volume,
-            volume_pad,
-            surface_area: area,
-            area_pad,
+            volume: sums.volume,
+            volume_pad: sums.volume_pad,
+            surface_area: sums.surface_area,
+            area_pad: sums.area_pad,
             role,
         });
     }
     Ok(out)
+}
+
+/// **A shell's role, the one reader** — whether `shell` bounds material
+/// (`Outer`) or a cavity (`Void`), read off the sign of the volume its
+/// own faces enclose, in its own face-list order. Every caller that
+/// decides a shell's role reads it here: tier 3's check 10 and the
+/// result sort ([`crate::stands::ShellRead`]), the shell classification
+/// ([`classify_shells_of`]) and the census's void screen. `quad` is the
+/// lane the faces are measured and the sign certified through
+/// ([`role_walk`]). The certificate rides back for a caller that wants
+/// the volume itself ([`SignCertificate::refine_to_target`]).
+///
+/// A shell the body does not hold reads no face, and refuses as a
+/// volume of zero.
+///
+/// # Errors
+///
+/// The shell's typed refusal: the walk's or the re-derivation's
+/// [`ShellClassifyError::Props`], or the role the last round left
+/// undecided (escalated, zero or straddling).
+pub(crate) fn shell_role<'b, T: Decide>(
+    body: &'b Body<T>,
+    shell: ShellKey,
+    band: Band,
+    tol: Tol,
+    quad: Option<QuadLane<T>>,
+) -> Result<(ShellRole, SignCertificate<'b, T>), ShellClassifyError> {
+    shell_role_named(
+        body,
+        shell,
+        (band, tol),
+        quad,
+        (crate::validate::PLUS_V, crate::validate::PLUS_V_EXACT),
+    )
+}
+
+/// [`shell_role`] with its decisions logged under `names` (on the walk's
+/// sums, then on the re-derivation): the classification's own names, or
+/// check 7's, which tier 3 reads a shell's role under. A name labels a
+/// decision and changes none.
+fn shell_role_named<'b, T: Decide>(
+    body: &'b Body<T>,
+    shell: ShellKey,
+    (band, tol): (Band, Tol),
+    quad: Option<QuadLane<T>>,
+    names: (RoleNames, RoleNames),
+) -> Result<(ShellRole, SignCertificate<'b, T>), ShellClassifyError> {
+    let props = |source| ShellClassifyError::Props { shell, source };
+    let faces = body.get_shell(shell).map_or(&[][..], |s| &s.faces[..]);
+    let (role, certificate) =
+        role_walk(body, faces, band, tol, (quad, quad), names).map_err(props)?;
+    match role {
+        Ok(role) => Ok((role, certificate)),
+        Err(RoleWalkRefusal::Refused(source)) => Err(props(source)),
+        Err(RoleWalkRefusal::Unread(unread)) => Err(unread.refusal(shell, band)),
+    }
+}
+
+/// Why a [`role_walk`] decided no role.
+#[derive(Clone, Debug)]
+pub(crate) enum RoleWalkRefusal {
+    /// A round's interval re-derivation refused a face.
+    Refused(MassPropsError),
+    /// The schedule ran out with the sign undecided: the last round's
+    /// reading.
+    Unread(Box<RoleUnread>),
+}
+
+/// **The role walk** — the sign walk ([`sign_walk`]) over `faces`,
+/// measured through `lanes.0` and certified through `lanes.1` round by
+/// round ([`Round::certify`], under `names.0` on the walk's sums and
+/// `names.1` on the re-derivation), stopping at the first round that
+/// certifies a role or refuses. Its one in-band behaviour is
+/// [`certify_role`]'s, and every role read of a closed surface is this
+/// walk: a shell's ([`shell_role`]) and a point-in-solid selection's at
+/// infinity (`boolean::solid_contain`), which differ in the faces they
+/// hand and the lanes they hold, never in how a reading becomes a role.
+///
+/// # Errors
+///
+/// [`MassPropsError`] where a face has no enclosure at all
+/// ([`sign_walk`]).
+pub(crate) fn role_walk<'b, T: Decide>(
+    body: &'b Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+    lanes: (Option<QuadLane<T>>, Option<QuadLane<T>>),
+    names: (RoleNames, RoleNames),
+) -> Result<(Result<ShellRole, RoleWalkRefusal>, SignCertificate<'b, T>), MassPropsError> {
+    let last = core::cell::Cell::new(None);
+    sign_walk(
+        body,
+        faces,
+        band,
+        tol,
+        lanes.0,
+        lanes.1,
+        |round| match round.certify(names.0, names.1) {
+            Certified::Role(role) => Some(Ok(role)),
+            Certified::Refused(source) => Some(Err(RoleWalkRefusal::Refused(source))),
+            Certified::Open(unread) | Certified::Unresolved(unread) => {
+                last.set(Some(unread));
+                None
+            }
+        },
+        |_| match last.get() {
+            Some(unread) => Err(RoleWalkRefusal::Unread(Box::new(unread))),
+            None => unreachable!("a sign walk settles every round it reads"),
+        },
+    )
 }
 
 /// The refusal of a shell whose bracket `[lo, hi]` classified to neither
