@@ -5,6 +5,7 @@ title: A boss drawn on a block's top flush with its side wall refuses the declar
 status: closed
 opened: 2026-09-30
 closed: 2026-10-06
+pr: 4130
 branch: zip/chord-rows
 priority: P1
 cost: H
