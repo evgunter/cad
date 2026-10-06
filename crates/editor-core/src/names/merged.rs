@@ -17,7 +17,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{EntityKind, MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
+use super::role::{MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -56,7 +56,7 @@ pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<Sta
                     .iter()
                     .rev()
                     .fold(c.clone(), |inner, &(side, node)| StableName {
-                        kind: EntityKind::Face,
+                        kind: name.kind,
                         node,
                         path: vec![side(NameRef::new(inner))],
                     })
@@ -282,7 +282,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::names::role::{CapEnd, ProfileEdgeRef};
+    use crate::names::role::{CapEnd, EntityKind, ProfileEdgeRef};
     use crate::node::RecipeNodeId;
 
     fn face(node: u64, path: Vec<RoleSeg>) -> StableName {
