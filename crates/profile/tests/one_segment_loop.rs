@@ -200,7 +200,7 @@ fn a_one_vertex_table_that_is_not_a_full_turn_is_refused() {
         Some(ProfileError::DegenerateSegment(at)),
     );
     assert_eq!(
-        validate(vec![circle(0.0, 0.0, 1e-12, TAU)]).err(),
+        validate(vec![circle(0.0, 0.0, 0.1 * Tol::witness().eps(), TAU)]).err(),
         Some(ProfileError::DegenerateSegment(at)),
     );
     assert_eq!(
