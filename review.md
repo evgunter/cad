@@ -1,6 +1,6 @@
 # Review of PR #4135, frozen head 17c7349bb5
 
-Lane `reach-dual4135-r2`. **Verdict: APPROVE-WITH-FIXES.** MAJOR 1 · MINOR 3 · NOTE 5. Wall clock 2026-10-06 11:25Z – (in progress).
+Lane `reach-dual4135-r2`. **Verdict: APPROVE-WITH-FIXES.** MAJOR 1 · MINOR 3 · NOTE 5. Wall clock 2026-10-06 11:25Z – 14:40Z.
 
 **Read:** the brief's list, the PR body (`get` only), and no comments, reviews or `analysis/reach-dual/*` branch. **Glimpses: none.**
 
@@ -56,7 +56,7 @@ Lane `reach-dual4135-r2`. **Verdict: APPROVE-WITH-FIXES.** MAJOR 1 · MINOR 3 ·
 **Suites** (geom-brep, topo, sweep):
 - ε 1e-9: 5,577/5,577 green.
 - ε 1e-6: only `pinch_faces_tessellate::…` and `pocket_ring_steep_ellipse::…` fail, both known red on main.
-- ε 1e-12: running.
+- ε 1e-12: 5,577/5,577 green (frozen head, run alone after a first 1e-12 pass was cut off at its time limit). The 1e-9 and 1e-6 runs had the probe modules compiled in but excluded.
 
 ## Style
 
