@@ -14,13 +14,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Expr, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName,
-    member_of, product,
+    Formula, MateFrame, MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName, member_of,
+    product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, head, head_at, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -121,7 +122,7 @@ fn seat_with(
     b: SitedFace,
     primitive: MatePrimitive,
     clocking: Option<f64>,
-) -> Node<ProfileProgram> {
+) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -148,12 +149,12 @@ fn seat_with(
     }
 }
 
-fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     seat_with(a, b, MatePrimitive::FrameCoincidence, None)
 }
 
 /// Insert `mate` and answer its id.
-fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = step(
         doc,
         DocEdit::InsertNode {
@@ -407,7 +408,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         s.doc.clone(),
         Node::Pattern {
             input: s.top,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -418,7 +419,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_fold_into_one_pair() {
         doc,
         Node::Part {
             of: pattern,
-            select: PartSelect::Instance(Expr::count(1)),
+            select: PartSelect::Instance(Formula::count(1)),
         },
     );
     let copy1 = in_copy(pattern, 1, s.top_cap());
@@ -672,7 +673,7 @@ fn a_part_above_a_union_refuses_at_evaluation_before_the_gate_reads_it() {
         doc,
         Node::Part {
             of: moved,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
     );
     let head = head_at(part, member_name(union, t1, s.top_cap()));

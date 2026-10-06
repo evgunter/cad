@@ -15,12 +15,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
-    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, groups,
+    Formula, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, assemble, groups,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -62,7 +63,7 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
 }
@@ -70,12 +71,7 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// A determining `Rest` mate by frame coincidence: `b`'s bottom frame
 /// onto the `a`-side frame at `origin` (one coincidence, DETERMINED —
 /// the A11 rule-4 tree edge wants no residual).
-fn seat_mate(
-    a: StableName,
-    b: StableName,
-    origin: [f64; 3],
-    sense: AxisSense,
-) -> Node<editor_core::ProfileProgram> {
+fn seat_mate(a: StableName, b: StableName, origin: [f64; 3], sense: AxisSense) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -117,7 +113,7 @@ fn four_legs(
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(spacing),
@@ -238,7 +234,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(4),
+            count: Formula::count(4),
             kind: PatternKind::Circular {
                 axis,
                 step: ang(theta),
@@ -314,7 +310,7 @@ fn two_seats(
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(spacing),
@@ -463,7 +459,7 @@ fn mates_never_solve_pattern_parameters() {
         panic!("the pattern is live");
     };
     assert!(
-        spacing.bit_eq(&len(3.0)),
+        spacing.bit_eq(&editor_core::test_support::stored_expr(&len(3.0))),
         "the spacing expression is untouched: {spacing:?}"
     );
 
@@ -506,7 +502,7 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -572,7 +568,7 @@ fn the_master_name_spelling_refuses_moved_above() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -641,7 +637,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -678,7 +674,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         doc2,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -729,7 +725,7 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         doc,
         Node::Pattern {
             input: leg,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(1.0),

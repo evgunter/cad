@@ -1,25 +1,54 @@
-//! **Limb 3's one-arc proof**: a tube's chain holds the traced arc and
-//! nothing else (C2).
+//! **Limb 3's one-arc proof**: a tube's chain holds one arc of the locus,
+//! spanning the carrier, and nothing else (C2). The proof is the same at
+//! every door, a search's and an edge's at rest.
 //!
 //! Limb 3's enclosure, zero-free over a box, makes the solution set in
 //! the box a graph over the slices transverse to the carrier: at most one
 //! solution on each. That is less than one arc. A second arc beside the
 //! first along the carrier, leaving through the box's sides, is a graph
-//! too, and a search banks every cell inside a tube as accounted
-//! ([`super::exhaust`]). This module proves the rest.
+//! too, and so is a carrier joining two arcs across a gap within ε of
+//! both surfaces. This module proves the rest.
 //!
-//! **The argument.** Let `R` be a box cut to the region the search covers
-//! (the wall's knot rectangle, the ℝ³ slab); it is convex. Each
-//! connected piece of the solution set in `R` is a graph over the
-//! slices, so it ends on `∂R` at two distinct points. It cannot end
-//! inside `R`, where the zero set continues by the implicit function
-//! theorem, and it cannot close up. A boundary holding exactly two
-//! solutions, each a simple crossing of `∂R`, therefore holds the ends of
-//! exactly one piece. A tangential touch of `∂R` is never counted as a
-//! crossing: on an edge it fails the monotone test, at a corner the
-//! joint rule refuses it, and on a face Krawczyk cannot isolate it.
-//! Consecutive boxes whose pieces share a solution hold one connected
-//! arc between them, and every solution in the chain lies on it.
+//! **One piece per box.** Let `R` be a box cut to the region it is
+//! searched over (the wall's knot rectangle; the ℝ³ slab where a search
+//! clips to one); it is convex. Each connected piece of the solution set
+//! in `R` is a graph over the slices, so it ends on `∂R` at two distinct
+//! points. It cannot end inside `R`, where the zero set continues by the
+//! implicit function theorem, and it cannot close up. A boundary holding
+//! exactly two solutions, each a simple crossing of `∂R`, therefore holds
+//! the ends of exactly one piece. A tangential touch of `∂R` is never
+//! counted as a crossing: on an edge it fails the monotone test, at a
+//! corner the joint rule refuses it, and on a face Krawczyk cannot
+//! isolate it.
+//!
+//! **The side arm.** Along a side of the wall's domain that lies on the
+//! plane within ε no boundary zero is simple, and no count is read. There
+//! a chart box with an edge on that side holds the side's piece where the
+//! boundary pass, reading that stretch of the side as it reads a whole
+//! side, finds `|φ| ≤ ε` along it and no piece of it clear of the plane
+//! (Ev's #3862 rule: `φ` one-signed along it and the wall moving further
+//! that way inward, the exact empty answer), and the side's cover puts
+//! every solution in the box within ε of the side ([`read_stretch`],
+//! [`side_stretch`]). The piece is that stretch of the side, as a region
+//! of the locus, not a curve. Two stretches of one side link where their
+//! overlap reads within ε and no piece of it clear.
+//!
+//! **One arc, spanning the carrier.** Consecutive boxes whose pieces
+//! share a solution hold one connected arc between them, and every
+//! solution in the chain lies on it. The first box's piece meets the
+//! slice through the carrier's start and the last box's the slice
+//! through its end, so the arc runs from end to end of the carrier: a
+//! carrier overrunning its arc refuses. An arc's end counts also where a
+//! zero of the locus is certified within ε of the carrier's end on a
+//! slice beside it; a side's where the end, moved across onto the side,
+//! lands on its stretch at a point the boundary pass reads within ε of
+//! the plane and not clear. [`Shortfall::Short`] is read only where that
+//! is certified not so, and a reading that resolves neither is
+//! [`Shortfall::Undecided`]. A side's end whose `|φ|` is not certified
+//! within ε is such a reading. Where a box resolves no piece but an end
+//! is certified unreached by its own box (by the side's reading where a
+//! side holds that box's piece, by an arc's where none does), no chain
+//! reaches that end, and the refusal is `Short`.
 //!
 //! **The walks.**
 //! - Chart edges ([`boundary_zeros`]): each edge is cut into runs, each
@@ -32,12 +61,14 @@
 //! says so ([`Shortfall::Undecided`]).
 
 use geom::{NurbsCurve2, Surface};
-use geom_core::{Bounds, CertifiedBounds, Interval};
+use geom_core::{Band, Bounds, CertifiedBounds, Interval};
 
+use super::ChartAxis;
+use super::boundary::{ChartEnd, ChartSide, Reading, SIDES, cut_along, read_stretch, side_stretch};
 use super::certify::ChartWindow;
 use super::enclose::{Box3, NurbsBoxes, implicit_enclosure, implicit_gradient_enclosure};
 use super::exhaust::UvRect;
-use super::section::sign;
+use super::section::{SectionReader, sign};
 
 /// The deepest a walk cuts one edge or face piece.
 pub(crate) const EXIT_DEPTH: u32 = 40;
@@ -68,7 +99,11 @@ pub(crate) enum Shortfall {
     /// Two consecutive boxes each hold one piece, but the reading that
     /// would show the pieces meet certifies no shared solution there.
     Unlinked,
-    /// A walk resolved no count, or a linking reading no sign.
+    /// The chain's pieces do not reach an end of the carrier: the slice
+    /// through that end is certified to hold no solution, and the
+    /// carrier's end lies farther than ε from the locus.
+    Short,
+    /// A walk resolved no count, or a linking or end reading no sign.
     Undecided,
 }
 
@@ -249,18 +284,10 @@ pub(crate) fn boundary_zeros<T: CertifiedBounds>(
     Some(zeros)
 }
 
-/// Whether `φ` changes sign between the two ends of the line through
-/// `p` along `e`, cut to `rect`. `Some(true)` puts a zero on the
-/// segment between them, which lies in `rect` (convex). `Some(false)`:
-/// both ends are certified of one sign. `None`: an end has no certified
-/// sign, or the line misses the interior of `rect`.
-pub(crate) fn holds_zero<T: CertifiedBounds>(
-    boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
-    p: (f64, f64),
-    e: (f64, f64),
-    rect: UvRect,
-) -> Option<bool> {
+/// The ends of the line through `p` along `e`, cut to `rect`, each
+/// clamped into it, so the segment between them lies in `rect`
+/// (convex). `None` where the line misses the interior of `rect`.
+fn slice(p: (f64, f64), e: (f64, f64), rect: UvRect) -> Option<[(f64, f64); 2]> {
     let (mut lo, mut hi) = (f64::NEG_INFINITY, f64::INFINITY);
     for (pc, ec, (r0, r1)) in [(p.0, e.0, rect.u), (p.1, e.1, rect.v)] {
         if ec == 0.0 {
@@ -276,38 +303,467 @@ pub(crate) fn holds_zero<T: CertifiedBounds>(
     if lo.partial_cmp(&hi) != Some(core::cmp::Ordering::Less) {
         return None;
     }
-    // Clamped into the rectangle, so the segment between them is in it.
     let at = |t: f64| {
-        let (u, v) = (
+        (
             (p.0 + t * e.0).clamp(rect.u.0, rect.u.1),
             (p.1 + t * e.1).clamp(rect.v.0, rect.v.1),
-        );
-        sign(phi_over(boxes, plane, (u, u, v, v)))
+        )
     };
-    Some(at(lo)? != at(hi)?)
+    Some([at(lo), at(hi)])
 }
 
-/// **The chart chain's solution set is the one arc** (module docs).
-///
-/// - **Hypothesis:** a zero-free `∂φ/∂e⊥` over every window, each
-///   clipped to the wall's `domain` as every enclosure over it is.
-/// - **Each window:** its boundary holds exactly two simple zeros
-///   ([`boundary_zeros`]).
-/// - **Consecutive windows:** they share a zero inside their overlap, on
-///   the line along the first window's `e⊥` through the knot they
-///   share.
-/// - **A lone window:** it holds a zero on that line through its span's
-///   middle.
+/// The certified sign of `φ` at a chart point.
+fn sign_at<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    (u, v): (f64, f64),
+) -> Option<bool> {
+    sign(phi_over(boxes, plane, (u, u, v, v)))
+}
+
+/// Whether `φ` changes sign between the two ends of the line through
+/// `p` along `e`, cut to `rect` ([`slice`]). `Some(true)` puts a zero on
+/// the segment between them, which lies in `rect`. `Some(false)`: both
+/// ends are certified of one sign. `None`: an end has no certified
+/// sign, or the line misses the interior of `rect`.
+pub(crate) fn holds_zero<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    p: (f64, f64),
+    e: (f64, f64),
+    rect: UvRect,
+) -> Option<bool> {
+    let [a, b] = slice(p, e, rect)?;
+    Some(sign_at(boxes, plane, a)? != sign_at(boxes, plane, b)?)
+}
+
+/// What one window, cut to the wall's domain, holds: exactly one piece
+/// of the locus, of one of two kinds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Piece {
+    /// Two simple solutions on its boundary ([`boundary_zeros`]): the
+    /// ends of one arc.
+    Crossing,
+    /// A stretch of its boundary on this side of the wall's domain that
+    /// the boundary pass reads within ε of the plane with no piece of it
+    /// clear, with every solution in the window within ε of the side by
+    /// the side's cover ([`side_stretch`]).
+    Side(ChartSide),
+}
+
+/// The coordinate `side` fixes, of `r`'s edge on that side.
+fn edge_at(side: ChartSide, r: UvRect) -> f64 {
+    let (lo, hi) = match side.fixed {
+        ChartAxis::U => r.u,
+        ChartAxis::V => r.v,
+    };
+    if side.end == ChartEnd::Low { lo } else { hi }
+}
+
+/// The coordinate `side` fixes, of a chart point, and the one along it.
+fn split((u, v): (f64, f64), side: ChartSide) -> (f64, f64) {
+    match side.fixed {
+        ChartAxis::U => (u, v),
+        ChartAxis::V => (v, u),
+    }
+}
+
+/// Whether `r` has an edge on `side` of `domain`.
+fn on_side(r: UvRect, domain: UvRect, side: ChartSide) -> bool {
+    edge_at(side, r) == edge_at(side, domain)
+}
+
+/// The reader of `φ` along each side of the wall's domain, in [`SIDES`]
+/// order: the boundary pass's row of the net for that side
+/// ([`super::boundary::side_row`]), its control points enclosed
+/// ([`SectionReader`]); `None` where the row or its
+/// Bernstein form is refused, and that side holds no piece.
+fn side_readers<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    (n, p0): ([Interval; 3], [Interval; 3]),
+) -> [Option<SectionReader>; 4] {
+    SIDES.map(|side| {
+        let row = super::boundary::side_row(boxes.surface(), side).ok()?;
+        let control: Vec<[Interval; 3]> = row
+            .control()
+            .iter()
+            .map(|c| [c.x, c.y, c.z].map(Interval::from_certified))
+            .collect();
+        SectionReader::of(row.knots(), &control, row.weights(), (p0, n))
+    })
+}
+
+/// The reader of `side`, from [`side_readers`].
+fn reader_of(readers: &[Option<SectionReader>; 4], side: ChartSide) -> Option<&SectionReader> {
+    SIDES
+        .iter()
+        .zip(readers)
+        .find_map(|(s, r)| (*s == side).then_some(r.as_ref()).flatten())
+}
+
+/// The side a window's piece lies along: one of its edges on a side of
+/// the domain, whose stretch the boundary pass reads within ε and no
+/// piece of it clear, with the side's cover holding every zero of the
+/// window within ε of the side ([`side_stretch`]); `None` where none
+/// does.
+fn side_piece<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    (domain, readers): (UvRect, &[Option<SectionReader>; 4]),
+    r: UvRect,
+    band: Band,
+) -> Option<ChartSide> {
+    SIDES.into_iter().find(|&side| {
+        on_side(r, domain, side)
+            && reader_of(readers, side)
+                .is_some_and(|reader| side_stretch(boxes, plane.0, reader, (side, domain), r, band))
+    })
+}
+
+/// The one piece a window holds: the side cover, or else its
+/// boundary's two simple zeros. The cover is read first: along a side
+/// within ε of the plane no zero on it is simple, and the walk spends
+/// its pieces finding that out.
 ///
 /// # Errors
 ///
-/// The first [`Shortfall`] met, windows in order.
+/// [`Shortfall::Count`] for a count other than two with no side cover,
+/// [`Shortfall::Undecided`] for a walk that resolved none.
+fn piece<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    sides: (UvRect, &[Option<SectionReader>; 4]),
+    r: UvRect,
+    band: Band,
+) -> Result<Piece, Shortfall> {
+    if let Some(side) = side_piece(boxes, plane, sides, r, band) {
+        return Ok(Piece::Side(side));
+    }
+    match boundary_zeros(boxes, plane, r) {
+        Some(2) => Ok(Piece::Crossing),
+        Some(n) => Err(Shortfall::Count(n)),
+        None => Err(Shortfall::Undecided),
+    }
+}
+
+/// A reading that should certify a solution.
+fn found(reading: Option<bool>, missing: Shortfall) -> Result<(), Shortfall> {
+    match reading {
+        Some(true) => Ok(()),
+        Some(false) => Err(missing),
+        None => Err(Shortfall::Undecided),
+    }
+}
+
+/// The Euclidean norm of a vector of three non-negative bounds, as an
+/// enclosure.
+fn norm3(c: [f64; 3]) -> Interval {
+    use geom_core::Real as _;
+    let [x, y, z] = c.map(pt);
+    (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
+}
+
+/// How far any point of `a` can lie from any point of `b`, rounded up;
+/// `∞` where a side is not certified.
+fn farthest(a: Box3, b: Box3) -> f64 {
+    if ![a.x, a.y, a.z, b.x, b.y, b.z]
+        .iter()
+        .all(|i| i.is_certified())
+    {
+        return f64::INFINITY;
+    }
+    let d = |x: Interval, y: Interval| (x.hi() - y.lo()).max(y.hi() - x.lo()).next_up();
+    norm3([d(a.x, b.x), d(a.y, b.y), d(a.z, b.z)]).hi()
+}
+
+/// How near any point of `a` can lie to any point of `b`, rounded down;
+/// `0` where a side is not certified.
+fn nearest(a: Box3, b: Box3) -> f64 {
+    if ![a.x, a.y, a.z, b.x, b.y, b.z]
+        .iter()
+        .all(|i| i.is_certified())
+    {
+        return 0.0;
+    }
+    let g = |x: Interval, y: Interval| (x.lo() - y.hi()).max(y.lo() - x.hi()).next_down().max(0.0);
+    norm3([g(a.x, b.x), g(a.y, b.y), g(a.z, b.z)]).lo()
+}
+
+/// What a reading of the solutions near a carrier's end found.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Near {
+    /// A solution within ε of the end, certified.
+    Found,
+    /// None, certified: the reading's chord holds no sign change, or the
+    /// part of it that does lies wholly farther than ε from the end.
+    Far,
+    /// The reading resolved neither.
+    Unknown,
+}
+
+/// Whether the chord of `r` through `p` along `e` holds a solution
+/// within `eps` metres of `end`: its ends take certified opposite signs,
+/// and the chord is cut at [`EXIT_CUT`], keeping the sign change, until
+/// the wall over the part kept lies within `eps` of `end`
+/// ([`Near::Found`]), or wholly farther ([`Near::Far`]). A chord whose
+/// wall lies wholly farther than `eps` from `end`, or with both ends
+/// certified of one sign, is [`Near::Far`]; an unsigned point,
+/// a missed slice, a cut below `f64` resolution or the halvings spent
+/// are [`Near::Unknown`].
+fn crossing_near<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    r: UvRect,
+    (p, e): ((f64, f64), (f64, f64)),
+    (end, eps): (Box3, f64),
+) -> Near {
+    let Some([a, b]) = slice(p, e, r) else {
+        return Near::Unknown;
+    };
+    // The wall over the whole chord farther than `eps` from the end: no
+    // solution on it is near, whatever its signs.
+    let chord = boxes.rect_box(a.0.min(b.0), a.0.max(b.0), a.1.min(b.1), a.1.max(b.1));
+    if nearest(chord, end) > eps {
+        return Near::Far;
+    }
+    let (Some(sa), Some(sb)) = (sign_at(boxes, plane, a), sign_at(boxes, plane, b)) else {
+        return Near::Unknown;
+    };
+    if sa == sb {
+        return Near::Far;
+    }
+    let (mut lo, mut hi) = (a, b);
+    for _ in 0..NEAR_HALVINGS {
+        let seg = boxes.rect_box(
+            lo.0.min(hi.0),
+            lo.0.max(hi.0),
+            lo.1.min(hi.1),
+            lo.1.max(hi.1),
+        );
+        if farthest(seg, end) <= eps {
+            return Near::Found;
+        }
+        if nearest(seg, end) > eps {
+            return Near::Far;
+        }
+        // Off the middle, as the walks cut: a chord about a carrier on
+        // the locus has it at its middle.
+        let mid = (
+            lo.0 + EXIT_CUT * (hi.0 - lo.0),
+            lo.1 + EXIT_CUT * (hi.1 - lo.1),
+        );
+        if mid == lo || mid == hi {
+            return Near::Unknown;
+        }
+        match sign_at(boxes, plane, mid) {
+            Some(s) if s == sa => lo = mid,
+            Some(_) => hi = mid,
+            None => return Near::Unknown,
+        }
+    }
+    Near::Unknown
+}
+
+/// Whether a solution of the window `r` lies within `eps` metres of the
+/// carrier's end `end`, its chart point `q`: on the slice through `q`
+/// along `e`, or on a slice through a point `q + δ·τ` beside it, `τ`
+/// pointing back along the carrier and `δ` halved towards `q`
+/// ([`crossing_near`]). The shifted slices read an end at a crossing of
+/// the wall's domain side or corner, where the slice through `q` itself
+/// leaves the domain at once. A shifted slice that misses the window is
+/// not read: it holds none of the window's solutions. [`Near::Far`] only
+/// where every slice read is.
+fn near_end<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    (q, e, tau): ((f64, f64), (f64, f64), (f64, f64)),
+    r: UvRect,
+    end: (Box3, f64),
+) -> Near {
+    let mut all = crossing_near(boxes, plane, r, (q, e), end);
+    if all == Near::Found {
+        return all;
+    }
+    let mut d = (r.u.1 - r.u.0).max(r.v.1 - r.v.0);
+    for _ in 0..NEAR_HALVINGS {
+        let p = (q.0 + d * tau.0, q.1 + d * tau.1);
+        if p == q {
+            return all;
+        }
+        d *= 0.5;
+        // A slice that misses the window holds none of its solutions.
+        if slice(p, e, r).is_none() {
+            continue;
+        }
+        match crossing_near(boxes, plane, r, (p, e), end) {
+            Near::Found => return Near::Found,
+            Near::Unknown => all = Near::Unknown,
+            Near::Far => {}
+        }
+    }
+    Near::Unknown
+}
+
+/// The most halvings [`crossing_near`] and [`near_end`] take: past this
+/// many an interval is below an `f64`'s resolution of any chord it could
+/// be cut from.
+const NEAR_HALVINGS: u32 = 1100;
+
+/// A carrier's end, as the slice through it reads it.
+#[derive(Clone, Copy, Debug)]
+struct CarrierEnd {
+    /// The slice's direction in the chart.
+    e: (f64, f64),
+    /// A chart direction pointing back along the carrier from its end:
+    /// its tangent at its end span's middle.
+    tau: (f64, f64),
+    /// The carrier's point there, enclosed.
+    at: Box3,
+}
+
+/// **The window's piece reaches the carrier's end.**
+/// - A side's piece reaches it where the end's chart point, moved
+///   straight across onto the side, lands on the window's stretch, at a
+///   point the boundary pass reads not clear ([`read_stretch`]). The
+///   slice through the end is not read: at a corner of the domain it
+///   leaves the window at once.
+/// - An arc reaches it where the slice holds a solution in the window
+///   ([`holds_zero`]), or the carrier's end lies within ε of a solution
+///   in the window ([`near_end`]).
+///
+/// [`Shortfall::Short`] only where that is certified not so: an arc's
+/// end certified far ([`end_reading`]), a side's end off its stretch or
+/// on a point the pass reads clear. A reading that resolves neither is
+/// [`Shortfall::Undecided`]: an arc's end read neither way, a side's end
+/// whose `φ` is refused, or whose `|φ|` is not certified within ε
+/// ([`Reading::Beyond`], which is no certificate that it is beyond).
+fn reaches_end<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    (readers, eps): (&[Option<SectionReader>; 4], f64),
+    (piece, r): (Piece, UvRect),
+    q: (f64, f64),
+    end: CarrierEnd,
+) -> Result<(), Shortfall> {
+    match piece {
+        Piece::Side(side) => {
+            let t = split(q, side).1;
+            let (a, b) = super::boundary::along(side, r);
+            if !(a <= t && t <= b) {
+                return Err(Shortfall::Short);
+            }
+            let reader = reader_of(readers, side).ok_or(Shortfall::Undecided)?;
+            match read_stretch(
+                boxes,
+                plane.0,
+                reader,
+                (side, cut_along(side, r, (t, t))),
+                eps,
+            ) {
+                Reading::Within(_) => Ok(()),
+                Reading::Clear => Err(Shortfall::Short),
+                Reading::Refused | Reading::Beyond => Err(Shortfall::Undecided),
+            }
+        }
+        Piece::Crossing => match end_reading(boxes, plane, r, q, end, eps) {
+            Near::Found => Ok(()),
+            Near::Far => Err(Shortfall::Short),
+            Near::Unknown => Err(Shortfall::Undecided),
+        },
+    }
+}
+
+/// How the window `r` reads the carrier's end `q` by an arc's standard:
+/// [`Near::Found`] where the slice through the end holds a solution
+/// ([`holds_zero`]) or one lies within ε of the end ([`near_end`]);
+/// [`Near::Far`] where the slice is certified to hold none and every
+/// near reading is certified far; else [`Near::Unknown`].
+fn end_reading<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    r: UvRect,
+    q: (f64, f64),
+    end: CarrierEnd,
+    eps: f64,
+) -> Near {
+    match holds_zero(boxes, plane, q, end.e, r) {
+        Some(true) => Near::Found,
+        reading => match (
+            near_end(boxes, plane, (q, end.e, end.tau), r, (end.at, eps)),
+            reading,
+        ) {
+            (Near::Found, _) => Near::Found,
+            (Near::Far, Some(false)) => Near::Far,
+            _ => Near::Unknown,
+        },
+    }
+}
+
+/// Whether the window `r`'s solutions are certified far from the
+/// carrier's end `q` ([`end_reading`]).
+fn end_far<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    r: UvRect,
+    q: (f64, f64),
+    end: CarrierEnd,
+    eps: f64,
+) -> bool {
+    end_reading(boxes, plane, r, q, end, eps) == Near::Far
+}
+
+/// **Consecutive windows hold one piece between them**, read on the
+/// slice through the knot `p` they share, cut to their overlap.
+/// - An arc on either side: a solution there lies on it, and on the
+///   other's piece (an arc's, or within ε of a side's stretch, as every
+///   solution of the side's window is).
+/// - Two stretches of one side: they overlap along it, and the boundary
+///   pass reads no piece of the overlap clear ([`read_stretch`]).
+fn link<T: CertifiedBounds>(
+    boxes: &NurbsBoxes<'_, T>,
+    plane: ([Interval; 3], [Interval; 3]),
+    (domain, readers, eps): (UvRect, &[Option<SectionReader>; 4], f64),
+    (a, b): (Piece, Piece),
+    overlap: UvRect,
+    (p, e): ((f64, f64), (f64, f64)),
+) -> Result<(), Shortfall> {
+    match (a, b) {
+        (Piece::Side(s), Piece::Side(t)) => {
+            if s != t || !on_side(overlap, domain, s) {
+                return Err(Shortfall::Unlinked);
+            }
+            let reader = reader_of(readers, s).ok_or(Shortfall::Undecided)?;
+            match read_stretch(boxes, plane.0, reader, (s, overlap), eps) {
+                Reading::Within(_) => Ok(()),
+                Reading::Clear => Err(Shortfall::Unlinked),
+                Reading::Refused | Reading::Beyond => Err(Shortfall::Undecided),
+            }
+        }
+        _ => found(holds_zero(boxes, plane, p, e, overlap), Shortfall::Unlinked),
+    }
+}
+
+/// **The chart chain's solution set is one arc, and it spans the
+/// carrier** (module docs).
+///
+/// - **Hypothesis:** a zero-free `∂φ/∂e⊥` over every window, each
+///   clipped to the wall's `domain` as every enclosure over it is.
+/// - **Each window:** it holds one piece ([`piece`]).
+/// - **Consecutive windows:** their pieces meet ([`link`]).
+/// - **The carrier's ends:** the first window's piece reaches the
+///   carrier's start, the last window's its end ([`reaches_end`]).
+///
+/// # Errors
+///
+/// The first [`Shortfall`] met: windows in order, then links in order,
+/// then the start and the end.
 pub(crate) fn one_arc<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     plane: ([Interval; 3], [Interval; 3]),
-    domain: UvRect,
+    (domain, band): (UvRect, Band),
     pcurve: &NurbsCurve2<T>,
     windows: &[(ChartWindow, (f64, f64))],
+    ends: [Box3; 2],
 ) -> Result<(), Shortfall> {
     let at = |t: f64| {
         let p = pcurve.span_at(t).eval_in_span(T::from_f64(t));
@@ -318,28 +774,84 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
         .map(|(w, _)| meet(w.rect, domain))
         .collect::<Option<Vec<UvRect>>>()
         .ok_or(Shortfall::Undecided)?;
-    for r in &clipped {
-        match boundary_zeros(boxes, plane, *r) {
-            Some(2) => {}
-            Some(n) => return Err(Shortfall::Count(n)),
-            None => return Err(Shortfall::Undecided),
-        }
-    }
-    let linked = |found: Option<bool>| match found {
-        Some(true) => Ok(()),
-        Some(false) => Err(Shortfall::Unlinked),
-        None => Err(Shortfall::Undecided),
+    let (Some(first), Some(last)) = (windows.first(), windows.last()) else {
+        return Err(Shortfall::Undecided);
     };
-    match windows {
-        [(w, e)] => linked(holds_zero(boxes, plane, at(w.mid), *e, clipped[0])),
-        _ => windows
-            .windows(2)
-            .zip(clipped.windows(2))
-            .try_for_each(|(w, r)| {
-                let overlap = meet(r[0], r[1]).ok_or(Shortfall::Undecided)?;
-                linked(holds_zero(boxes, plane, at(w[0].0.ends.1), w[0].1, overlap))
-            }),
+    let n = windows.len() - 1;
+    // The tangent at a span's middle is `e⊥` turned back: `(e.1, −e.0)`.
+    let back = |e: (f64, f64), sense: f64| (sense * e.1, -sense * e.0);
+    let carrier_ends = [
+        (
+            0,
+            at(first.0.ends.0),
+            CarrierEnd {
+                e: first.1,
+                tau: back(first.1, 1.0),
+                at: ends[0],
+            },
+        ),
+        (
+            n,
+            at(last.0.ends.1),
+            CarrierEnd {
+                e: last.1,
+                tau: back(last.1, -1.0),
+                at: ends[1],
+            },
+        ),
+    ];
+    let readers = side_readers(boxes, plane);
+    let piece_at = |k: usize| piece(boxes, plane, (domain, &readers), clipped[k], band);
+    let pieces = (0..clipped.len())
+        .map(piece_at)
+        .collect::<Result<Vec<Piece>, Shortfall>>();
+    // A window that resolves no piece leaves the chain undecided, unless
+    // an end of the carrier is certified unreached by its window: by the
+    // side's reading where a side holds the window's piece, and by an
+    // arc's where none does. No chain reaches that end, whatever the
+    // undecided window holds.
+    let unreached = |&(k, q, end): &(usize, (f64, f64), CarrierEnd)| match piece_at(k) {
+        Ok(p @ Piece::Side(_)) => {
+            reaches_end(
+                boxes,
+                plane,
+                (&readers, band.zero()),
+                (p, clipped[k]),
+                q,
+                end,
+            ) == Err(Shortfall::Short)
+        }
+        _ => end_far(boxes, plane, clipped[k], q, end, band.zero()),
+    };
+    let pieces = match pieces {
+        Err(Shortfall::Undecided) if carrier_ends.iter().any(unreached) => {
+            return Err(Shortfall::Short);
+        }
+        other => other?,
+    };
+    for k in 1..windows.len() {
+        let overlap = meet(clipped[k - 1], clipped[k]).ok_or(Shortfall::Undecided)?;
+        let (w, e) = windows[k - 1];
+        link(
+            boxes,
+            plane,
+            (domain, &readers, band.zero()),
+            (pieces[k - 1], pieces[k]),
+            overlap,
+            (at(w.ends.1), e),
+        )?;
     }
+    for (k, q, end) in carrier_ends {
+        reaches_end(
+            boxes,
+            plane,
+            (&readers, band.zero()),
+            (pieces[k], clipped[k]),
+            q,
+            end,
+        )?;
+    }
+    Ok(())
 }
 
 /// A box's side along axis `i` (0, 1, 2 for x, y, z).
@@ -359,15 +871,7 @@ fn with_side(b: Box3, i: usize, s: Interval) -> Box3 {
 }
 
 /// The solutions of `f₁ = f₂ = 0` on the boundary of `r`, each in a box
-/// that holds exactly one.
-///
-/// Each face piece is treated one of four ways:
-/// - dropped where `f₁` or `f₂` is zero-free over it;
-/// - kept where the Krawczyk operator of the pair restricted to the face
-///   maps it strictly into its own interior (one solution, enclosed by
-///   the image);
-/// - dropped where the image misses it;
-/// - cut otherwise.
+/// that holds exactly one ([`face_walk`] on each of its six faces).
 ///
 /// `None` when a piece resolves no way within [`EXIT_DEPTH`] cuts, or the
 /// walk passes [`EXIT_PIECES`].
@@ -379,46 +883,66 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
     let mut roots = Vec::new();
     let mut pieces = 0u32;
     for k in 0..3 {
-        let (i, j) = ((k + 1) % 3, (k + 2) % 3);
         for c in [side(r, k).lo(), side(r, k).hi()] {
-            let mut stack = vec![(with_side(r, k, pt(c)), 0u32)];
-            while let Some((x, depth)) = stack.pop() {
-                pieces += 1;
-                if pieces > EXIT_PIECES {
-                    return None;
-                }
-                if sign(implicit_enclosure(s1, x)).is_some()
-                    || sign(implicit_enclosure(s2, x)).is_some()
-                {
-                    continue;
-                }
-                match krawczyk(s1, s2, x, (i, j)) {
-                    Some(Krawczyk::One(root)) => {
-                        roots.push(root);
-                        continue;
-                    }
-                    Some(Krawczyk::None) => continue,
-                    None => {}
-                }
-                if depth >= EXIT_DEPTH {
-                    return None;
-                }
-                let span = |a: usize| side(x, a).hi() - side(x, a).lo();
-                let a = if span(i) >= span(j) { i } else { j };
-                let s = side(x, a);
-                let cut = s.lo() + EXIT_CUT * (s.hi() - s.lo());
-                stack.push((
-                    with_side(x, a, Interval::from_bounds(cut, s.hi())),
-                    depth + 1,
-                ));
-                stack.push((
-                    with_side(x, a, Interval::from_bounds(s.lo(), cut)),
-                    depth + 1,
-                ));
-            }
+            face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut pieces)?;
         }
     }
     Some(roots)
+}
+
+/// The solutions on the face `x` held at axis `k`, pushed onto `roots`.
+/// Each face piece is treated one of four ways:
+/// - dropped where `f₁` or `f₂` is zero-free over it;
+/// - kept where the Krawczyk operator of the pair restricted to the face
+///   maps it strictly into its own interior (one solution, enclosed by
+///   the image);
+/// - dropped where the image misses it;
+/// - cut otherwise.
+///
+/// `None` when a piece resolves no way within [`EXIT_DEPTH`] cuts, or
+/// `pieces` passes [`EXIT_PIECES`].
+fn face_walk<T: CertifiedBounds>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    (x, k): (Box3, usize),
+    roots: &mut Vec<Box3>,
+    pieces: &mut u32,
+) -> Option<()> {
+    let (i, j) = ((k + 1) % 3, (k + 2) % 3);
+    let mut stack = vec![(x, 0u32)];
+    while let Some((x, depth)) = stack.pop() {
+        *pieces += 1;
+        if *pieces > EXIT_PIECES {
+            return None;
+        }
+        if sign(implicit_enclosure(s1, x)).is_some() || sign(implicit_enclosure(s2, x)).is_some() {
+            continue;
+        }
+        match krawczyk(s1, s2, x, (i, j)) {
+            Some(Krawczyk::One(root)) => {
+                roots.push(root);
+                continue;
+            }
+            Some(Krawczyk::None) => continue,
+            None => {}
+        }
+        if depth >= EXIT_DEPTH {
+            return None;
+        }
+        let span = |a: usize| side(x, a).hi() - side(x, a).lo();
+        let a = if span(i) >= span(j) { i } else { j };
+        let s = side(x, a);
+        let cut = s.lo() + EXIT_CUT * (s.hi() - s.lo());
+        stack.push((
+            with_side(x, a, Interval::from_bounds(cut, s.hi())),
+            depth + 1,
+        ));
+        stack.push((
+            with_side(x, a, Interval::from_bounds(s.lo(), cut)),
+            depth + 1,
+        ));
+    }
+    Some(())
 }
 
 /// What the Krawczyk test proved over a face piece.
@@ -487,27 +1011,115 @@ fn krawczyk<T: CertifiedBounds>(
     }
 }
 
-/// **The ℝ³ chain's solution set is the one arc** (module docs).
+/// **The box `r`'s piece reaches the carrier's end `at`**, `k` the
+/// axis the carrier runs most along there.
+/// - The slice of `r` through the end across axis `k` holds a solution
+///   (Krawczyk on that face).
+/// - Or a box about the end of diameter `eps`, cut to `r`, holds one on
+///   its boundary: the locus within ε of the carrier's end.
+///
+/// [`Shortfall::Short`] only where both are certified not so: the
+/// slice's walk resolved with no root, and the box about the end is
+/// disjoint from `r` or its walk resolved with none. An end whose slice
+/// lies outside `r` along `k` (a carrier leaving a search's slab, which
+/// a search does not hand over) is [`Shortfall::Undecided`].
+fn r3_reaches_end<T: CertifiedBounds>(
+    (s1, s2): (&Surface<T>, &Surface<T>),
+    r: Box3,
+    (at, k): (Box3, usize),
+    eps: f64,
+) -> Result<(), Shortfall> {
+    if ![at.x, at.y, at.z, r.x, r.y, r.z]
+        .iter()
+        .all(|i| i.is_certified())
+    {
+        return Err(Shortfall::Undecided);
+    }
+    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let c = mid(side(at, k));
+    if !(side(r, k).lo() <= c && c <= side(r, k).hi()) {
+        return Err(Shortfall::Undecided);
+    }
+    let mut roots = Vec::new();
+    let sliced = face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut 0);
+    if !roots.is_empty() {
+        return Ok(());
+    }
+    // A half-width of eps/(2√3) less the end's own width keeps the box
+    // and the end inside a ball of diameter eps.
+    let h = 0.5 * eps / 3f64.sqrt();
+    let about = |i: Interval| {
+        let (m, h) = (mid(i), h - 0.5 * (i.hi() - i.lo()));
+        (h > 0.0).then(|| Interval::from_bounds(m - h, m + h))
+    };
+    let ball = (|| {
+        Some(Box3 {
+            x: about(at.x)?,
+            y: about(at.y)?,
+            z: about(at.z)?,
+        })
+    })();
+    // Disjoint along some axis: no solution of `r` lies in the ball.
+    let apart = |b: Box3| {
+        [(b.x, r.x), (b.y, r.y), (b.z, r.z)]
+            .iter()
+            .any(|(p, q)| p.hi() < q.lo() || q.hi() < p.lo())
+    };
+    let near = match ball {
+        None => Near::Unknown,
+        Some(b) if apart(b) => Near::Far,
+        Some(b) => match b.intersection(r).and_then(|b| face_roots(s1, s2, b)) {
+            Some(v) if !v.is_empty() => Near::Found,
+            Some(_) => Near::Far,
+            None => Near::Unknown,
+        },
+    };
+    match (near, sliced) {
+        (Near::Found, _) => Ok(()),
+        (Near::Far, Some(())) => Err(Shortfall::Short),
+        _ => Err(Shortfall::Undecided),
+    }
+}
+
+/// The axis a direction runs most along.
+pub(crate) fn dominant_axis(e: [f64; 3]) -> usize {
+    let a = e.map(f64::abs);
+    if a[0] >= a[1] && a[0] >= a[2] {
+        0
+    } else if a[1] >= a[2] {
+        1
+    } else {
+        2
+    }
+}
+
+/// **The ℝ³ chain's solution set is one arc, and it spans the
+/// carrier** (module docs).
 ///
 /// - **Hypothesis:** a zero-free `(∇f₁ × ∇f₂)·e` over every box, each
-///   cut to the searched `slab`.
+///   cut to the searched `slab` where a search clips to one.
 /// - **Each box:** exactly two simple solutions on its boundary
 ///   ([`face_roots`]).
 /// - **Consecutive boxes:** they share their piece where a boundary
 ///   solution of either lies in the other, which then holds it too.
+/// - **The carrier's ends:** the first box's piece reaches the carrier's
+///   start, the last box's its end ([`r3_reaches_end`]); `ends` holds
+///   each end's point and the axis the carrier runs most along there.
 ///
 /// # Errors
 ///
-/// The first [`Shortfall`] met, boxes in order, then links in order.
+/// The first [`Shortfall`] met, boxes in order, then links in order,
+/// then the start and the end.
 pub(crate) fn one_arc_r3<T: CertifiedBounds>(
     s1: &Surface<T>,
     s2: &Surface<T>,
-    boxes: &[Box3],
-    slab: Box3,
+    (boxes, slab): (&[Box3], Option<Box3>),
+    ends: [(Box3, usize); 2],
+    eps: f64,
 ) -> Result<(), Shortfall> {
     let cut = boxes
         .iter()
-        .map(|b| b.intersection(slab))
+        .map(|b| slab.map_or(Some(*b), |s| b.intersection(s)))
         .collect::<Option<Vec<Box3>>>()
         .ok_or(Shortfall::Undecided)?;
     let mut roots = Vec::with_capacity(cut.len());
@@ -527,7 +1139,12 @@ pub(crate) fn one_arc_r3<T: CertifiedBounds>(
         } else {
             Err(Shortfall::Unlinked)
         }
-    })
+    })?;
+    let (Some(&first), Some(&last)) = (cut.first(), cut.last()) else {
+        return Err(Shortfall::Undecided);
+    };
+    r3_reaches_end((s1, s2), first, ends[0], eps)?;
+    r3_reaches_end((s1, s2), last, ends[1], eps)
 }
 
 #[cfg(test)]
@@ -538,13 +1155,15 @@ mod tests {
 
     use geom::{NurbsCurve2, NurbsSurface, Surface};
     use geom_core::spline::KnotVector;
-    use geom_core::{Interval, Point2, Point3, Vec3};
+    use geom_core::{Band, Interval, Point2, Point3, Vec3};
 
+    use super::super::ChartAxis;
     use super::super::certify::chart_tube_windows;
     use super::super::enclose::{Box3, NurbsBoxes};
     use super::super::exhaust::UvRect;
     use super::{
         Krawczyk, Shortfall, boundary_zeros, edge_runs, face_roots, krawczyk, one_arc, one_arc_r3,
+        pt,
     };
 
     /// A biquadratic graph `z = g(x) + h(y)` over `[0, 1]²` from the
@@ -619,6 +1238,21 @@ mod tests {
         .unwrap()
     }
 
+    /// The fold's run band, at its ε.
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// The wall's points at a pcurve's two ends, the carrier's ends.
+    fn ends_on(wall: &NurbsSurface<f64>, pc: &NurbsCurve2<f64>) -> [Box3; 2] {
+        let (t0, t1) = pc.domain();
+        [t0, t1].map(|t| {
+            let q = pc.eval(t);
+            let p = wall.eval(q.x, q.y);
+            bx((p.x, p.x), (p.y, p.y), (p.z, p.z))
+        })
+    }
+
     /// The probe's windows with their `e⊥`, for a straight pcurve along
     /// `v`: `e⊥ = (−1, 0)`.
     fn windows(pc: &NurbsCurve2<f64>, pad: (f64, f64)) -> Vec<(super::ChartWindow, (f64, f64))> {
@@ -633,7 +1267,7 @@ mod tests {
     /// whole wall holds both arcs; its boundary holds their four ends,
     /// and a window over it is refused by its count. Red under
     /// `boundary_zeros(..) == Some(2)` loosened to `.is_some()` or
-    /// `>= Some(2)`: the lone window then reaches its link, and the
+    /// `>= Some(2)`: the lone window then reaches its ends, and the
     /// refusal changes cause.
     #[test]
     fn a_window_holding_two_arcs_is_refused_by_its_count_of_four() {
@@ -642,7 +1276,14 @@ mod tests {
         let whole = rect((0.0, 1.0), (0.0, 1.0));
         assert_eq!(boundary_zeros(&boxes, ground(), whole), Some(4));
         let pc = across(u0, 1);
-        let found = one_arc(&boxes, ground(), whole, &pc, &windows(&pc, (3.0, 8.0)));
+        let found = one_arc(
+            &boxes,
+            ground(),
+            (whole, band()),
+            &pc,
+            &windows(&pc, (3.0, 8.0)),
+            ends_on(&wall, &pc),
+        );
         assert_eq!(found, Err(Shortfall::Count(4)));
     }
 
@@ -667,7 +1308,14 @@ mod tests {
             );
         }
         assert_eq!(
-            one_arc(&boxes, ground(), whole, &pc, &ws),
+            one_arc(
+                &boxes,
+                ground(),
+                (whole, band()),
+                &pc,
+                &ws,
+                ends_on(&wall, &pc)
+            ),
             Err(Shortfall::Unlinked)
         );
     }
@@ -813,7 +1461,13 @@ mod tests {
             );
         }
         assert_eq!(
-            one_arc_r3(&cylinder, &sphere, &[long, short], slab),
+            one_arc_r3(
+                &cylinder,
+                &sphere,
+                (&[long, short], Some(slab)),
+                [(long, 1), (short, 1)],
+                1e-9
+            ),
             Err(Shortfall::Unlinked)
         );
     }
@@ -894,6 +1548,397 @@ mod tests {
         assert_eq!(
             boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.2, 1.0))),
             None
+        );
+    }
+
+    /// A wall `z = k·x + h(y)` over `[0, 1]²`, `(u, v) = (x, y)`, linear
+    /// in `u` and in `v` a quadratic B-spline on the knots
+    /// `0, 0, 0, ½, ¾, 1, 1, 1` with coefficients `h` (its Greville
+    /// abscissae carry `y = v`).
+    fn knotted(k: f64, h: [f64; 5]) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0], 2).unwrap();
+        let ys = [0.0, 0.25, 0.625, 0.875, 1.0];
+        let control = (0..10)
+            .map(|i| {
+                let x = f64::from(i / 5);
+                Point3::new(x, ys[(i % 5) as usize], k * x + h[(i % 5) as usize])
+            })
+            .collect();
+        NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap()
+    }
+
+    /// A polyline pcurve through `pts`, one span per segment.
+    fn polyline(pts: &[(f64, f64)]) -> NurbsCurve2<f64> {
+        let n = pts.len() - 1;
+        let mut knots = vec![0.0];
+        knots.extend((0..=n).map(|k| k as f64 / n as f64));
+        knots.push(1.0);
+        NurbsCurve2::new(
+            KnotVector::clamped(knots, 1).unwrap(),
+            pts.iter().map(|&(u, v)| Point2::new(u, v)).collect(),
+            vec![1.0; n + 1],
+        )
+        .unwrap()
+    }
+
+    /// Each span's window at `pad` with its own `e⊥`.
+    fn spans(
+        pc: &NurbsCurve2<f64>,
+        pts: &[(f64, f64)],
+        pad: f64,
+    ) -> Vec<(super::ChartWindow, (f64, f64))> {
+        chart_tube_windows(pc, (pad, pad))
+            .unwrap()
+            .into_iter()
+            .zip(pts.windows(2))
+            .map(|(w, p)| {
+                let (tx, ty) = (p[1].0 - p[0].0, p[1].1 - p[0].1);
+                let n = tx.hypot(ty);
+                (w, (-ty / n, tx / n))
+            })
+            .collect()
+    }
+
+    /// A coarse run band, so a unit-scale wall reads a side within it.
+    fn coarse() -> Band {
+        Band::new(1e-3, 1e-2).unwrap()
+    }
+
+    /// **A window on a side within ε of the plane holds the side's piece.**
+    /// `z = x` meets `z = 0` in the side `u = 0` itself: along it `φ` is
+    /// zero, so no boundary zero is simple, and the walk resolves no
+    /// count. The side cover holds: every zero of a window on that side
+    /// lies on it. Red under the side-cover arm removed (the walk's
+    /// `Undecided` then speaks).
+    #[test]
+    fn a_window_on_a_side_within_eps_of_the_plane_holds_the_sides_piece() {
+        let wall = knotted(1.0, [0.0; 5]);
+        let boxes = NurbsBoxes::new(&wall);
+        let pts = [(0.0, 0.0), (0.0, 0.5), (0.0, 1.0)];
+        let pc = polyline(&pts);
+        let whole = rect((0.0, 1.0), (0.0, 1.0));
+        let ws = spans(&pc, &pts, 0.01);
+        for (w, _) in &ws {
+            let r = super::meet(w.rect, whole).unwrap();
+            assert_eq!(
+                boundary_zeros(&boxes, ground(), r),
+                None,
+                "FIXTURE: window {r:?}'s boundary walk resolves no count"
+            );
+        }
+        assert_eq!(
+            one_arc(
+                &boxes,
+                ground(),
+                (whole, coarse()),
+                &pc,
+                &ws,
+                ends_on(&wall, &pc)
+            ),
+            Ok(())
+        );
+    }
+
+    /// The locus `x = −h(y)` of [`knotted`] at `k = 1` runs along the side
+    /// `u = 0` for `y ≤ ½` and, for the `h` given, leaves it: the pcurve
+    /// along that side to its knot at `y = 0.55`, then to `(0.3, 1)`
+    /// where `h(1) = −0.3` puts the locus. The lower window is the
+    /// side's (its stretch within ε, ε = 10⁻³), the upper a crossing
+    /// window.
+    fn side_then_crossing(h: [f64; 5]) -> Result<(), Shortfall> {
+        let wall = knotted(1.0, h);
+        let boxes = NurbsBoxes::new(&wall);
+        let pts = [(0.0, 0.0), (0.0, 0.55), (0.3, 1.0)];
+        let pc = polyline(&pts);
+        let whole = rect((0.0, 1.0), (0.0, 1.0));
+        let ws = spans(&pc, &pts, 0.01);
+        let r: Vec<UvRect> = ws
+            .iter()
+            .map(|(w, _)| super::meet(w.rect, whole).unwrap())
+            .collect();
+        let readers = super::side_readers(&boxes, ground());
+        if h[3] < 0.0 {
+            assert_eq!(
+                super::piece(&boxes, ground(), (whole, &readers), r[0], coarse()),
+                Ok(super::Piece::Side(super::SIDES[0])),
+                "FIXTURE: the lower window is the side's"
+            );
+            assert_eq!(
+                super::piece(&boxes, ground(), (whole, &readers), r[1], coarse()),
+                Ok(super::Piece::Crossing),
+                "FIXTURE: the upper window is a crossing window"
+            );
+        }
+        one_arc(
+            &boxes,
+            ground(),
+            (whole, coarse()),
+            &pc,
+            &ws,
+            ends_on(&wall, &pc),
+        )
+    }
+
+    /// **A side's window and a crossing window link through a solution
+    /// they share.** With `h ≤ 0` the locus leaves the side inward and
+    /// runs on to `(0.3, 1)`: one arc, and the slice through the shared
+    /// knot holds a zero in the overlap. Where `h` rises above zero past
+    /// `y = ½` the locus leaves the domain there and comes back through
+    /// the side near `y = 0.8`: the lower window's stretch reads clear
+    /// past `y = ½`, so it holds no side's piece, and the chain refuses.
+    #[test]
+    fn a_sides_window_and_a_crossing_window_link_through_a_shared_solution() {
+        assert_eq!(side_then_crossing([0.0, 0.0, 0.0, -0.01, -0.3]), Ok(()));
+        assert!(side_then_crossing([0.0, 0.0, 0.0, 0.01, -0.3]).is_err());
+    }
+
+    /// **A link or an end that the boundary pass reads clear does not
+    /// hold.** `z = x + ½ε`, ε = 10⁻³: along the side `u = 0` the plane
+    /// distance is `½ε > 0`, within the band, and the wall rises away from
+    /// the plane inward, so the side is clear of it (the exact empty
+    /// answer), and no slice holds a zero. A side's stretch linked to an arc, two stretches of the side
+    /// linked, two stretches of different sides linked, and a side's
+    /// piece reaching an end on the side or off it, all refuse. Red under
+    /// the side-to-arc link forced, the side-to-side link forced, and the
+    /// side's end check forced.
+    #[test]
+    fn a_link_or_an_end_the_boundary_pass_reads_clear_does_not_hold() {
+        let wall = knotted(1.0, [5e-4; 5]);
+        let boxes = NurbsBoxes::new(&wall);
+        let whole = rect((0.0, 1.0), (0.0, 1.0));
+        let readers = super::side_readers(&boxes, ground());
+        let (u_low, v_low) = (super::SIDES[0], super::SIDES[2]);
+        assert_eq!((u_low.fixed, v_low.fixed), (ChartAxis::U, ChartAxis::V));
+        let overlap = rect((0.0, 0.1), (0.4, 0.6));
+        let (p, e) = ((0.05, 0.5), (1.0, 0.0));
+        let link = |a, b| {
+            super::link(
+                &boxes,
+                ground(),
+                (whole, &readers, 1e-3),
+                (a, b),
+                overlap,
+                (p, e),
+            )
+        };
+        let (side, other, arc) = (
+            super::Piece::Side(u_low),
+            super::Piece::Side(v_low),
+            super::Piece::Crossing,
+        );
+        assert_eq!(link(side, arc), Err(Shortfall::Unlinked));
+        assert_eq!(link(arc, side), Err(Shortfall::Unlinked));
+        assert_eq!(link(side, side), Err(Shortfall::Unlinked));
+        assert_eq!(link(side, other), Err(Shortfall::Unlinked));
+        let end = |q: (f64, f64)| {
+            super::reaches_end(
+                &boxes,
+                ground(),
+                (&readers, 1e-3),
+                (side, overlap),
+                q,
+                super::CarrierEnd {
+                    e: (1.0, 0.0),
+                    tau: (0.0, -1.0),
+                    at: Box3 {
+                        x: pt(0.0),
+                        y: pt(q.1),
+                        z: pt(0.0),
+                    },
+                },
+            )
+        };
+        assert_eq!(
+            end((0.05, 0.5)),
+            Err(Shortfall::Short),
+            "an end on the side"
+        );
+        let flush = knotted(1.0, [0.0; 5]);
+        let fb = NurbsBoxes::new(&flush);
+        let fr = super::side_readers(&fb, ground());
+        assert_eq!(
+            super::link(
+                &fb,
+                ground(),
+                (whole, &fr, 1e-3),
+                (side, side),
+                overlap,
+                (p, e)
+            ),
+            Ok(()),
+            "the control: a flush side's stretches link"
+        );
+        assert_eq!(
+            super::reaches_end(
+                &fb,
+                ground(),
+                (&fr, 1e-3),
+                (side, overlap),
+                (0.05, 0.5),
+                super::CarrierEnd {
+                    e: (1.0, 0.0),
+                    tau: (0.0, -1.0),
+                    at: Box3 {
+                        x: pt(0.0),
+                        y: pt(0.5),
+                        z: pt(0.0),
+                    },
+                },
+            ),
+            Ok(()),
+            "the control: a flush side's piece reaches an end on it"
+        );
+        assert_eq!(
+            super::reaches_end(
+                &fb,
+                ground(),
+                (&fr, 1e-3),
+                (side, overlap),
+                (0.0, 0.7),
+                super::CarrierEnd {
+                    e: (1.0, 0.0),
+                    tau: (0.0, -1.0),
+                    at: Box3 {
+                        x: pt(0.0),
+                        y: pt(0.7),
+                        z: pt(0.0),
+                    },
+                },
+            ),
+            Err(Shortfall::Short),
+            "an end past the window's stretch of the side"
+        );
+    }
+
+    /// **The pieces must reach both ends of the carrier.** `z = x − 0.2 −
+    /// 0.6y` meets `z = 0` in the line from `(0.2, 0)` to `(0.8, 1)`;
+    /// the pcurve `u = 0.2` follows it from `v = 0` and runs on to
+    /// `v = 1` after the line has left its window through the side
+    /// `u = 0.45`. The window holds one arc, two boundary zeros, but the
+    /// slice through the overrun end holds none and no solution lies
+    /// within ε of it. Declared both ways, the overrun end is the last,
+    /// then the first: red under either end's check removed.
+    #[test]
+    fn a_piece_short_of_either_end_of_the_carrier_refuses() {
+        let wall = biq([-0.2, 0.3, 0.8], [0.0, -0.3, -0.6]);
+        let boxes = NurbsBoxes::new(&wall);
+        let whole = rect((0.0, 1.0), (0.0, 1.0));
+        for pts in [[(0.2, 0.0), (0.2, 1.0)], [(0.2, 1.0), (0.2, 0.0)]] {
+            let pc = polyline(&pts);
+            let ws = spans(&pc, &pts, 0.25);
+            let r = super::meet(ws[0].0.rect, whole).unwrap();
+            assert_eq!(
+                boundary_zeros(&boxes, ground(), r),
+                Some(2),
+                "FIXTURE: the window holds one arc"
+            );
+            assert_eq!(
+                one_arc(
+                    &boxes,
+                    ground(),
+                    (whole, band()),
+                    &pc,
+                    &ws,
+                    ends_on(&wall, &pc)
+                ),
+                Err(Shortfall::Short),
+                "the pcurve {pts:?}"
+            );
+        }
+        // The control: a carrier that stops on the locus.
+        let pts = [(0.2, 0.0), (0.45, 5.0 / 12.0)];
+        let pc = polyline(&pts);
+        let ws = spans(&pc, &pts, 0.25);
+        assert_eq!(
+            one_arc(
+                &boxes,
+                ground(),
+                (whole, band()),
+                &pc,
+                &ws,
+                ends_on(&wall, &pc)
+            ),
+            Ok(())
+        );
+    }
+
+    /// **In ℝ³ too, the piece must reach both ends of the carrier.** The
+    /// planes `y = ½x` and `z = 0` meet in a line that enters the box
+    /// `[0.1, 1] × [0, 0.3] × [−0.1, 0.1]` through its face `x = 0.1` and
+    /// leaves through `y = 0.3` at `x = 0.6`. A carrier from the entry
+    /// to `x = 0.9`, its end's slice `x = 0.9` holding no solution in the
+    /// box, refuses, either way round: red under either end's check
+    /// removed.
+    #[test]
+    fn an_r3_piece_short_of_either_end_of_the_carrier_refuses() {
+        let n = Vec3::new(-0.5, 1.0, 0.0);
+        let p1 = plane(Point3::new(0.0, 0.0, 0.0), n / n.norm());
+        let p2 = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let b = bx((0.1, 1.0), (0.0, 0.3), (-0.1, 0.1));
+        assert_eq!(
+            face_roots(&p1, &p2, b).map(|v| v.len()),
+            Some(2),
+            "FIXTURE: the box holds one piece"
+        );
+        let at = |x: f64, y: f64| (bx((x, x), (y, y), (0.0, 0.0)), 0);
+        let (entry, overrun) = (at(0.1, 0.05), at(0.9, 0.05));
+        for ends in [[entry, overrun], [overrun, entry]] {
+            assert_eq!(
+                one_arc_r3(&p1, &p2, (&[b], None), ends, 1e-9),
+                Err(Shortfall::Short)
+            );
+        }
+        assert_eq!(
+            one_arc_r3(&p1, &p2, (&[b], None), [entry, at(0.5, 0.25)], 1e-9),
+            Ok(()),
+            "the control: a carrier stopping on the locus"
+        );
+    }
+
+    /// **A side within the band holds the side's piece only where its
+    /// cover is within ε.** `z = 10⁻³x + h(y)` with `h` zero at both ends
+    /// of the side `u = 0` and up to `3·10⁻⁴` below between: no piece of
+    /// the side reads clear and `|φ| ≤ ε` along it (ε = 10⁻³), but the
+    /// locus runs `|h|/10⁻³` deep, from the side into the wall and back.
+    /// The side's cover reaches past ε, so the window is no side's, and
+    /// its walk refuses. Red under limb 3 taking a side within the band
+    /// as its piece without the cover's verdict.
+    #[test]
+    fn a_side_within_the_band_whose_cover_reaches_past_eps_holds_no_piece() {
+        let b = 1e-4;
+        let wall = knotted(1e-3, [0.0, -2.0 * b, -b, -3.0 * b, 0.0]);
+        let boxes = NurbsBoxes::new(&wall);
+        let whole = rect((0.0, 1.0), (0.0, 1.0));
+        let pts = [(0.1, 0.0), (0.1, 1.0)];
+        let pc = polyline(&pts);
+        let ws = spans(&pc, &pts, 0.2);
+        let r = super::meet(ws[0].0.rect, whole).unwrap();
+        let side = super::SIDES[0];
+        let readers = super::side_readers(&boxes, ground());
+        let reader = readers[0].as_ref().unwrap();
+        assert!(
+            matches!(
+                super::read_stretch(&boxes, ground().0, reader, (side, r), coarse().zero()),
+                super::Reading::Within(_)
+            ),
+            "FIXTURE: the side lies within the band of the plane, no piece of it clear"
+        );
+        assert_eq!(
+            super::side_piece(&boxes, ground(), (whole, &readers), r, coarse()),
+            None
+        );
+        assert!(
+            one_arc(
+                &boxes,
+                ground(),
+                (whole, coarse()),
+                &pc,
+                &ws,
+                ends_on(&wall, &pc)
+            )
+            .is_err(),
+            "the window holding two arcs certified"
         );
     }
 }

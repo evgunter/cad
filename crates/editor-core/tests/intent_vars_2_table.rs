@@ -24,7 +24,7 @@ use editor_core::mc::{McConfig, sample_offsets};
 use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
-    Dimension, Distribution, DocEdit, EditError, Expr, FreeValue, FreeVar, MeasureExpr, Node,
+    Dimension, Distribution, DocEdit, EditError, Formula, FreeValue, FreeVar, MeasureExpr, Node,
     ParamBox, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, VarDecl, VarId,
     VarKind, VarName, apply, load, save, var_env_over,
 };
@@ -71,10 +71,10 @@ fn id(doc: &ProfileDoc, name: &str) -> VarId {
 /// the two variables apart.
 fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
     let doc = twins();
-    let w = Expr::named(n("w"), Dimension::Length);
-    let v = Expr::named(n("v"), Dimension::Length);
-    let two = Expr::literal(2.0, Dimension::Scalar).unwrap();
-    let sum = Expr::add(w, Expr::mul(two, v).unwrap()).unwrap();
+    let w = Formula::named(n("w"), Dimension::Length);
+    let v = Formula::named(n("v"), Dimension::Length);
+    let two = Formula::literal(2.0, Dimension::Scalar).unwrap();
+    let sum = Formula::add(w, Formula::mul(two, v).unwrap()).unwrap();
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -293,7 +293,16 @@ fn a_kind_is_fixed() {
     )
     .expect("a definition of the variable's kind applies");
     assert_eq!(defined.var_named("w"), Some(w), "and keeps the id");
-    assert!(defined.var(w).unwrap().def().bit_eq(&same_kind.stored()));
+    let VarDecl::Free(free) = same_kind else {
+        panic!("the definition is free")
+    };
+    assert!(
+        defined
+            .var(w)
+            .unwrap()
+            .def()
+            .bit_eq(&editor_core::VarDef::Free(free))
+    );
 }
 
 // -------------------------------------------------------------- row 10

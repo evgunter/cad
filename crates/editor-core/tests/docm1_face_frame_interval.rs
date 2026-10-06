@@ -16,7 +16,7 @@ use crate::fixture::{self, Recorder, ang, len, scl};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
     FreeVar, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId,
     RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -170,7 +170,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
             translation: [
                 len(0.0),
                 len(0.0),
-                Expr::named(VarName::from_static("lift"), Dimension::Length),
+                Formula::named(VarName::from_static("lift"), Dimension::Length),
             ],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: ang(0.0),
@@ -277,7 +277,7 @@ fn an_interval_extrude_of_a_widened_height() {
         );
         r.insert(Node::Extrude {
             profile,
-            distance: Expr::named(VarName::from_static("hh"), Dimension::Length),
+            distance: Formula::named(VarName::from_static("hh"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
         let doc = r.doc;
@@ -341,7 +341,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     );
     let cube = r.insert(Node::Extrude {
         profile,
-        distance: Expr::named(VarName::from_static("h"), Dimension::Length),
+        distance: Formula::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {

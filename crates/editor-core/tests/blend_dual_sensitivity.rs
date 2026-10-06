@@ -20,7 +20,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, FreeVar, LoopProgram,
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
     MeasureExpr, MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
     UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -111,12 +111,12 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
     }));
     let cube = r.insert(Node::Extrude {
         profile,
-        distance: Expr::named(name("depth"), Dimension::Length),
+        distance: Formula::named(name("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let blank = r.insert(Node::fillet(
         cube,
-        Expr::named(name("radius"), Dimension::Length),
+        Formula::named(name("radius"), Dimension::Length),
         prism_edges(&r.doc, cube, 4),
     ));
     let ev = eval(&r.doc);

@@ -5676,9 +5676,11 @@ mod stepped_operand_tests {
             };
             let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band()).unwrap();
             let mirrored = |i: i64| Affine3::translation(unit_dir.get() * (-4.25 * i as f64));
-            let written = reversed
-                .clone()
-                .map(|e| e.expect("the negation is within the expression bound"));
+            let written = reversed.clone().map(|e| {
+                crate::test_support::stored_expr(
+                    &e.expect("the negation is within the expression bound"),
+                )
+            });
             let back = Vec3::new(value(&written[0]), value(&written[1]), value(&written[2]));
             let followed =
                 SteppedOperands::linear(back, 4.25, &written, band()).expect("the recourse builds");

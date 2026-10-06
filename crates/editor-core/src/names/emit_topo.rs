@@ -3002,7 +3002,7 @@ mod split_carries_candidates {
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
-    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+    fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
         let a = crate::apply(
             &doc,
             &DocEdit::InsertNode {

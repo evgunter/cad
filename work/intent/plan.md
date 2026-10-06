@@ -20,7 +20,12 @@ lands half of a representation change.
    become reads; a `Select` operation defines `Face`/`Edge` variables
    and owns the N5 ladder; the product becomes an explicit list
    (A10's sink rule retires).
-3. **Spaces and placement.** Frames as variables; a placement is the
+3. **Spaces and placement.** Frames as variables, with frames and
+   directions as their own variable kinds (a datum's origin and axes are
+   not independent reals; stage 1 spells them as `Scalar` variables in
+   the interim). Whether any value is varied in analysis stays the
+   user's choice, by its tolerance (and, if a situation needs it, a
+   per-study selection), never by its kind; a placement is the
    bundle of mates pinning one copy; the world frame and export;
    gauges, offsets, `Transform`-as-placement and absolute datums
    retire; the per-space computing frame; overconstraint refuses

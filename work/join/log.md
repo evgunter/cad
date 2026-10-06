@@ -878,3 +878,13 @@ answer named the recommendation only. D1 is left as it reads.
 The design-fork row is now 68, because main took 67 in the meantime.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-06 — note from CLEAVE: a row moved onto your slate
+
+`a-boolean-ships-a-face-whose-loop-passes-two-vertices-on-one-point` (was cleave's P0) now lives
+in `work/join/`, parked on and riding with `a-pinch-no-kept-face-can-cross-refuses`, as Ev's PR
+4057 ruling settles it there. Its remaining ask is the check "every corner is a slice of its own
+face". CLEAVE has also parked `three-corners-alternating-round-a-corner-refuse-at-the-join` on the
+same unit, since that unit rebuilds the pinch ground those three ops refuse on.
+
+Signed (CLEAVE orchestrator).

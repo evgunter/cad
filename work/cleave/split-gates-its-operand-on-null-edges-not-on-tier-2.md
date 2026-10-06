@@ -2,8 +2,12 @@
 id: split-gates-its-operand-on-null-edges-not-on-tier-2
 kind: issue
 title: The split's operand gate checks null edges by hand, not tier 2, so a strut-bearing operand is not refused at its gate
-status: open
+status: dispatched
 opened: 2026-10-02
+priority: P1
+cost: E
+rides_with: split-answers-an-inside-out-operand-with-two-inside-out-halves
+branch: cleave/split-operand-gate
 ---
 
 

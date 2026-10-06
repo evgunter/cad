@@ -133,13 +133,13 @@ pub enum VarDecl {
     /// A free variable.
     Free(FreeVar),
     /// A variable defined by an expression over other variables.
-    Defined(Expr),
+    Defined(crate::Formula),
 }
 
 impl VarDecl {
     /// A variable defined by `expr`.
     #[must_use]
-    pub fn defined(expr: Expr) -> Self {
+    pub fn defined(expr: crate::Formula) -> Self {
         Self::Defined(expr)
     }
 
@@ -149,24 +149,6 @@ impl VarDecl {
         match self {
             Self::Free(free) => VarKind::from(free.dim()),
             Self::Defined(expr) => VarKind::from(expr.dim()),
-        }
-    }
-
-    /// The stored definition this declares. A name leaf the door did
-    /// not lower stays, and the door refuses it.
-    #[must_use]
-    pub fn stored(&self) -> VarDef {
-        match self {
-            Self::Free(free) => VarDef::Free(free.clone()),
-            Self::Defined(expr) => VarDef::Defined(expr.clone()),
-        }
-    }
-
-    /// The defining expression, when the declaration is one.
-    pub(crate) fn defined_mut(&mut self) -> Option<&mut Expr> {
-        match self {
-            Self::Free(_) => None,
-            Self::Defined(expr) => Some(expr),
         }
     }
 }
@@ -183,7 +165,7 @@ impl From<VarDef> for VarDecl {
     fn from(def: VarDef) -> Self {
         match def {
             VarDef::Free(free) => Self::Free(free),
-            VarDef::Defined(expr) => Self::Defined(expr),
+            VarDef::Defined(expr) => Self::Defined(crate::Formula::from(expr)),
         }
     }
 }

@@ -2,10 +2,11 @@
 id: split-answers-an-inside-out-operand-with-two-inside-out-halves
 kind: issue
 title: topo::split answers an inside-out operand with two inside-out halves: its operand gate reads no orientation
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P1
 cost: M
+branch: cleave/split-operand-gate
 ---
 
 

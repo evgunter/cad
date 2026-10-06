@@ -731,7 +731,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
         doc,
         Node::Pattern {
             input: tr,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
                 spacing: len(2.0),

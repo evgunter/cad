@@ -166,7 +166,7 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
 #[test]
 fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
     for id in [5, i64::MAX as u64, i64::MAX as u64 + 1, u64::MAX] {
-        let program = ProfileProgram {
+        let program: ProfileProgram = ProfileProgram {
             plane: RecipeNodeId(id),
             loops: Vec::new(),
             ids: Vec::new(),

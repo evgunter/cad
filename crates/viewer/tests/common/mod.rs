@@ -105,7 +105,7 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 // produce.
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, Expr, FreeVar, LoopProgram, Node, ProfileProgram, RecipeNodeId,
+    Dimension, Doc, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, RecipeNodeId,
     VarName,
 };
 use pncad::geom_core::Tol;
@@ -133,7 +133,7 @@ pub fn band() -> pncad::geom_core::Band {
 /// naming the notation (`sketch::loop_program` with one of its own),
 /// which is the point of the units riding the lowering rather than
 /// the op.
-pub fn shape(template: &ProfileShape) -> LoopProgram {
+pub fn shape(template: &ProfileShape) -> LoopProgram<Formula> {
     viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
 }
 
@@ -176,8 +176,11 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
             // `thickness / 2` — a composed expression over a
             // parameter, which is the shape the refusal affordance
             // exists for.
-            distance: Expr::div(Expr::named(thickness_param(), Dimension::Length), scl(2.0))
-                .expect("length / scalar is a length"),
+            distance: Formula::div(
+                Formula::named(thickness_param(), Dimension::Length),
+                scl(2.0),
+            )
+            .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },
         tol,
@@ -199,7 +202,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
+            distance: Formula::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
         },
         tol,
