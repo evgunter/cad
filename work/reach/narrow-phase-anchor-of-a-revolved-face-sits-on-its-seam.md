@@ -35,3 +35,19 @@ of a cone, cylinder or torus, the centre of a sphere), or the carrier's
 own axis offered as a candidate direction. Measure first: a cone wall
 beside a ball, clear, swept through poses as
 `crates/sweep/tests/operand_gate_pose.rs` sweeps the cone and the bar.
+
+## Measured, 2026-10-06 (PR 4122's review)
+
+The review of PR 4122 (`analysis/reach-review/4122`, `review.md`
+NOTE-1, `probes/review4122_probes.rs`) measured the refusals this item
+predicts. Each one is uniform across poses, so the verdict is the
+pair's; what it lacks is a separating direction.
+
+- A bar whose edge sits 2%·s off the frustum's cone wall (gap
+  0.019·s) refuses at every pose.
+- The 270° cone refuses at the cut, at every pose.
+- Plates set 1e-3·s off the support of the 270° frustum, along 16
+  oblique directions at three scales, refuse 30 of 120 runs.
+
+In every case the narrow phase finds no planar normal and no anchor
+axis that parts the pair.
