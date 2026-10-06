@@ -470,7 +470,9 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 /// (z = 0/0.15/2), `(3√29/(3√29 + √5701) + 3/40)/2` — the pin the
 /// stop's note narrates, checked against `loft_parameters` at build
 /// time.
-const NONUNIFORM_T: f64 = 0.12562684454950906;
+// The kernel's answer, one ulp below the closed form evaluated in f64
+// (0.12562684454950906): the mean over eight rows rounds differently.
+const NONUNIFORM_T: f64 = 0.12562684454950904;
 
 fn prism_sections(tol: Tol) -> Vec<Section<ConstructedLoop<f64>>> {
     vec![

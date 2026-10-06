@@ -50,3 +50,23 @@ where the split lands — but the underlying sensitivity is this row's.
 `loft_geometry` / `loft_body` / `sweep_geometry`.
 
 **Verdict:**
+
+## Built (2026-10-06)
+
+On `carve/loft-v-is-the-whole-sets`, as weighed: `loft_geometry`
+takes the parameters; `loft_body` and `loft_parameters` share one
+whole-set helper (Eq. 10.8 over every row of every wall, per-section
+shares sorted, the mean taken exact when the rows agree); `sweep_body`
+and `sweep_geometry` put each station at `i/(k − 1)`. Pinned by
+`loft_v_is_the_section_set` (four spellings, and a symmetry roll, build
+bit-identical walls) and
+`turning_orientation::the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll`
+(the issue's two frames: bit-identical walls, `v = 0.5` on the
+inflection).
+
+**Open: the rule's "holes alike" clause meets the tour's tube cell.**
+`demos/tour/src/skinned.rs` asserts `V_tube = (1 − λ²)·V_solid` for an
+annular loft and its hole-less twin over the same stations. With hole
+rows in the average, the hole moves the outer skin and the identity is
+off by 5.1e-5 relative; with the outer loop's rows only, it holds to
+1.9e-16. The PR lays out the options; the cell is left as it was.
