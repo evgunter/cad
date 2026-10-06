@@ -1353,7 +1353,19 @@ mod tests {
             node: before.spoken(carrier),
             name: before.spoken_name(&wall),
         }];
-        assert_eq!(out.maintenance, expected, "the door reports the strand");
+        // Beside the strand, the outcome carries the anonymous
+        // variables the rewritten arguments were written in, which the
+        // status line does not say (`frame::maintenance_notice`).
+        let (anonymous, named): (Vec<_>, Vec<_>) = out
+            .maintenance
+            .iter()
+            .cloned()
+            .partition(|row| matches!(row, Maintenance::AnonymousVarRemoved { .. }));
+        assert_eq!(named, expected, "the door reports the strand");
+        assert!(
+            !anonymous.is_empty(),
+            "the reshaping retires the variables it rewrote"
+        );
         let line: Vec<String> = crate::frame::outcome_notices(&out)
             .map(|notice| notice.text().to_owned())
             .collect();
