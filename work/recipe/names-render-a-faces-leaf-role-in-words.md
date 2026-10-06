@@ -91,3 +91,16 @@ The fix pass builds the #3906 ruling.
   - The DOORS face composer (`face-pick-cannot-name-which-face`) speaks within the landed evaluation when it lands.
   - The budget is Ev's question.
   - Six rows' unmarked recourses are WIRE's `refusals-forwarding-a-name-state-no-marked-recourse`.
+
+## Built (2026-10-06, PR 3886, third fix pass)
+
+Ev's ruling on #4069 (`refusals-with-the-longest-scoped-names-overrun-the-budget`, its own `## Built`) and the third review's findings.
+
+- **A name's final words differ from every other name's in its table.** `names::words::table_details` works out every name's detail at once: each name searched greedily against the names it reads alike with at no citation opened, then every name said at its own detail, and each group that still reads alike said in full until none does. The review's two collision probes are unit rows (`two_names_at_their_own_details_never_read_alike`), red against the old per-name search.
+- **Worked out once per table.** The details live in the `NameTable` (a cache like its seal: a clone starts empty, a write empties it), so a tree that says a failed row each frame searches nothing again. The words themselves are said fresh from the document each time, so a rename reads at once. Cost row: `a_failed_row_said_within_the_largest_table_is_cheap_again` (552 names: about 24 ms the first time, 14 µs after, debug build).
+- **`head` says every field.** `BandCross` and `BandSlit` say their band (`a_band_crossing_and_slit_say_their_band`).
+- **Words.** "the leg of" goes; ", on <node>" leaves the name (the sentence says a holder where two faces read alike). By tag a B join says what the name holds, "through operand B of node X"; with the document, the operation, spelled by `verbs::VerbKind::noun`. The composite carry arms read "<name> from operand A". The gate checks each operation's join (`each_boolean_join_says_its_operation`).
+- **A content ratchet.** `SAID_DIGEST` beside `NAME_WORDS`; the cap/member mutant moves it.
+- **One rule for a dropped step.** The strand row and `HeldNodes::respoken` both say a dropped step by its tag (`SpokenName::steps_respoken`), so no sentence mixes the two programs' rows. The strand sentence says which cause applies (`Took`: the node that made it deleted, a step it names dropped, or a kept step's piece undrawn).
+- **No role path on the status line.** `idpass::NameAndPath` is gone: the picking-paths notice says names in words, and the path is the `Disagreement`'s `Debug`, for a log; no viewer surface prints it.
+- **Remains.** `a-vanished-name-carries-no-holding-node` (a bare `Vanished`, and the picking-paths tie, carry no holder). The DOORS face composer (`face-pick-cannot-name-which-face`) as before.

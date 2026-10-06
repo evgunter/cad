@@ -21,3 +21,5 @@ A name says the node that minted it, not the node whose output holds the entity,
 Carrying the holder means a field on `ResolveError::Vanished` (and `NodeGone`, `Ambiguous` for the same reason), set by every N5 ladder that mints one: `resolve::resolve`'s rungs and `eval::wire`'s `ladder`. That is the resolve payload's shape across the kernel, the Python crossing and the tests that build these values, wider than the words unit.
 
 Priority low while the bare form has no viewer surface: every viewer door that says a resolve failure leads with the reference.
+
+A second instance of the class, found by the same sweep: the viewer's picking-paths notice (`viewer/src/idpass.rs` `Disagreement`) keeps the ray's tie as names alone (`from_ray: Vec<StableName>`, built in `pane/viewport.rs` `cursor_news` from `faces_under_cursor`'s hits with their nodes dropped), so a tie between two copies' faces reads "tied between X and X". The comparison is by name on purpose (`idpass::disagreement`'s docs); the sentence could keep each hit's node beside its name, as `HitTestError::Ambiguous` does.
