@@ -10,6 +10,7 @@ use crate::common::shell_operands::{hollow_box, vessel};
 use crate::common::torus_walls::klein_elbow;
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
+use sweep::test_support::finished;
 use sweep::test_support::{block, corners, prism};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
@@ -53,7 +54,15 @@ fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
 /// face offsets (no margin exists), the cavity is inside-out.
 #[test]
 fn probe_overthick_box_fails_loud() {
-    let r = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 1.9, Tol::witness());
+    let r = topo::shell(
+        &finished(
+            "the operand",
+            block(2.0, 3.0, 4.0, Tol::witness()),
+            Tol::witness(),
+        ),
+        1.9,
+        Tol::witness(),
+    );
     match r {
         Err(e) => println!("[probe] overthick box: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -68,7 +77,11 @@ fn probe_overthick_box_fails_loud() {
 /// PR's own named gap fixture. Every per-face margin is positive.
 #[test]
 fn probe_overhalf_slab_fails_loud() {
-    let r = topo::shell(&operands::slab(), 0.6, Tol::witness());
+    let r = topo::shell(
+        &finished("the operand", operands::slab(), Tol::witness()),
+        0.6,
+        Tol::witness(),
+    );
     match r {
         Err(e) => println!("[probe] over-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -82,7 +95,11 @@ fn probe_overhalf_slab_fails_loud() {
 /// Exactly half the thickness: the cavity's top and bottom coincide.
 #[test]
 fn probe_exact_half_slab_fails_loud() {
-    let r = topo::shell(&operands::slab(), 0.5, Tol::witness());
+    let r = topo::shell(
+        &finished("the operand", operands::slab(), Tol::witness()),
+        0.5,
+        Tol::witness(),
+    );
     match r {
         Err(e) => println!("[probe] exact-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -110,7 +127,11 @@ fn probe_lshape_colliding_cavity_fails_loud() {
         2.0,
         Tol::witness(),
     );
-    let r = topo::shell(&l, 0.6, Tol::witness());
+    let r = topo::shell(
+        &finished("the operand", l.clone(), Tol::witness()),
+        0.6,
+        Tol::witness(),
+    );
     match r {
         Err(e) => println!("[probe] L-shape: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -145,7 +166,11 @@ fn probe_dumbbell_neck_collision_fails_loud() {
         2.0,
         Tol::witness(),
     );
-    let r = topo::shell(&db, 0.3, Tol::witness());
+    let r = topo::shell(
+        &finished("the operand", db.clone(), Tol::witness()),
+        0.3,
+        Tol::witness(),
+    );
     // **MAJ-1, closed (ordinal 82 -> fix pass).** At `259fde04` this
     // returned Ok, tier-3 VALIDATED, and reported volume 11.76 against
     // a true erosion volume of 11.312: the cavity's neck walls
@@ -180,9 +205,13 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 #[test]
 fn probe_shell_of_a_hollow_thickens_every_boundary() {
     let hollow = hollow_box();
-    let shelled = topo::shell(&hollow, 0.05, Tol::witness())
-        .expect("a hollow operand thickens every boundary")
-        .body;
+    let shelled = topo::shell(
+        &finished("the operand", hollow.clone(), Tol::witness()),
+        0.05,
+        Tol::witness(),
+    )
+    .expect("a hollow operand thickens every boundary")
+    .body;
     assert_eq!(
         topo::validate_geometric(&shelled, Tol::witness()),
         Ok(()),
@@ -234,9 +263,14 @@ fn probe_opened_box_census() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
-    let cup = topo::shell_open(&body, t, &[top], Tol::witness())
-        .expect("the PR's own green fixture")
-        .body;
+    let cup = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &[top],
+        Tol::witness(),
+    )
+    .expect("the PR's own green fixture")
+    .body;
     let counts = euler_counts(&cup);
     let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] cup census: V={v} E={e} F={f} R={r} S={s}");
@@ -249,9 +283,14 @@ fn probe_opened_box_census() {
 
     // And the tube (two opposite rims): genus 1.
     let bottom = plane_face_at(&body, 0.0);
-    let tube = topo::shell_open(&body, t, &[top, bottom], Tol::witness())
-        .expect("the PR's own green fixture")
-        .body;
+    let tube = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &[top, bottom],
+        Tol::witness(),
+    )
+    .expect("the PR's own green fixture")
+    .body;
     let counts = euler_counts(&tube);
     let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] tube census: V={v} E={e} F={f} R={r} S={s}");
@@ -268,7 +307,12 @@ fn probe_adjacent_two_face_opening() {
     let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
     let side = plane_face_x(&body, w);
-    match topo::shell_open(&body, t, &[top, side], Tol::witness()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &[top, side],
+        Tol::witness(),
+    ) {
         Err(e) => println!("[probe] adjacent pair: typed refusal: {e}"),
         Ok(topo::Shelled { body: open, .. }) => {
             assert_eq!(
@@ -338,7 +382,12 @@ fn probe_opened_vessel_cup() {
     // regression that turned the revolved cup into a typed refusal
     // would have read as a green probe. The verb builds this rim, so
     // anything else reds here.
-    match topo::shell_open(&v, t, &top, Tol::witness()) {
+    match topo::shell_open(
+        &finished("the operand", v.clone(), Tol::witness()),
+        t,
+        &top,
+        Tol::witness(),
+    ) {
         Err(e) => panic!(
             "the revolved vessel cup must BUILD ({} top faces designated); the verb \
              refused with {e}",
@@ -427,8 +476,13 @@ fn probe_stale_designation_refuses_typed() {
         .last()
         .expect("the prism has more faces than the box");
     assert!(body.get_face(foreign).is_none(), "the key must not resolve");
-    let e = topo::shell_open(&body, 0.25, &[foreign], Tol::witness())
-        .expect_err("a stale designation must refuse");
+    let e = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        0.25,
+        &[foreign],
+        Tol::witness(),
+    )
+    .expect_err("a stale designation must refuse");
     assert!(
         matches!(e, topo::ShellError::OpenFaceStale { .. }),
         "expected OpenFaceStale, got {e}"

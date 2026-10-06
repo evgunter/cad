@@ -149,10 +149,6 @@ fn seeds() -> Vec<BlendError> {
             edge: EdgeKey::default(),
         },
         BlendError::NonpositiveSize { size: 0.0 },
-        BlendError::UnsupportedBody {
-            solids: 2,
-            shells: 2,
-        },
         BlendError::UnsupportedChain {
             edge: EdgeKey::default(),
             detail: "a chain shape that is not built",
