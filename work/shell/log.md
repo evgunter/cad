@@ -1219,3 +1219,17 @@ Fix list of ten items sent to the lane. Both pre-existing wrong bodies are to be
 PR 4163 merged at `45e35802`, after the single STYLE review and the lane's fix pass (`22de2fbd`, with 4151 merged in and S4 swept over `offset_axial.rs`). Every check was green. The carrier and its three riders are closed. The lane session is archived.
 
 Units 1–6 are merged. Unit 7 (curved designated face) is in flight on `shell/curved-mouth`.
+
+## 2026-10-06 21:15 — unit 7 dual review dispatched
+
+- **Lane report.** Unit 7's report landed on PR 4191 at head `3332ebea`, with run 37528954027 green.
+  - A pole-touching periodic designation opens to a seamed band.
+  - A non-wrapping window becomes a ring.
+  - `offset_distance` is now the lift's one home.
+  - Three items are filed: the cone tip and the tangent dome both refuse in the sealed arm, and a band between two boundaries is left as this unit's residue.
+  - The lane flagged its reading of the seam-keeping spec for review.
+- **Dual review.** H, concurrent, dispatched on that frozen head with identical briefs and six claims:
+  - R1 is `session_01AzyaddcRJcicphMd5V1AYF`;
+  - R2 is `session_01A9qDF2o7DTnahmwynRC6TV`.
+
+  Protocol `713b017b7`; blinding byte 74.
