@@ -1391,18 +1391,25 @@ pub struct NurbsLane<T: Real> {
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     /// The certified plane × NURBS lane, and the only constructor
-    /// there is: [`crate::plane_nurbs_limbs`] instantiated at `T`, and
-    /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
-    /// midpoint of the old parameter.
+    /// there is: [`crate::plane_nurbs_limbs`] and [`Self::seeded_foot`]
+    /// instantiated at `T`.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
             limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
-            foot: |carrier, point, seed| {
-                let (lo, hi) = (seed.lo(), seed.hi());
-                carrier.project_from_seed(point, lo + 0.5 * (hi - lo))
-            },
+            foot: Self::seeded_foot,
         }
+    }
+
+    /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
+    /// midpoint of `seed`.
+    fn seeded_foot(
+        carrier: &geom::NurbsCurve3<T>,
+        point: Point3<T>,
+        seed: T,
+    ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
+        let (lo, hi) = (seed.lo(), seed.hi());
+        carrier.project_from_seed(point, lo + 0.5 * (hi - lo))
     }
 }
 
@@ -2953,13 +2960,16 @@ mod wiring_rows {
     use super::NurbsLane;
     use crate::edge_nurbs::plane_nurbs_limbs;
 
-    /// `Ok(())` when the field holds `plane_nurbs_limbs`; otherwise the
-    /// field's name.
+    /// `Ok(())` when the fields hold `plane_nurbs_limbs` and
+    /// `seeded_foot`; otherwise the first wrong field's name.
     fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
         if !std::ptr::fn_addr_eq(lane.limbs, plane_nurbs_limbs::<T> as fn(_, _, _, _, _) -> _) {
             return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
+        }
+        if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
+            return Err("foot is not `NurbsLane::seeded_foot`");
         }
         Ok(())
     }
@@ -2969,7 +2979,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 
@@ -2980,7 +2990,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`NurbsLane::<Sym<f64>>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<Sym<f64>>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 
@@ -2990,7 +3000,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Probe>(),
             Ok(()),
-            "`NurbsLane::<Probe>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<Probe>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 
@@ -2999,7 +3009,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`NurbsLane::<Interval>::certified()` holds something other than `plane_nurbs_limbs`"
+            "`NurbsLane::<Interval>::certified()` holds something other than `plane_nurbs_limbs` and `seeded_foot`"
         );
     }
 }
