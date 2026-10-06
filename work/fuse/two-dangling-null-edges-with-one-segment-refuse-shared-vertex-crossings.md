@@ -2,11 +2,11 @@
 id: two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings
 kind: issue
 title: Two dangling null edges with one segment nest by their codes
-status: dispatched
+status: closed
+closed: 2026-10-06
 opened: 2026-10-03
 priority: P0
 cost: M
-branch: fuse/one-arc-struts
 ---
 
 
@@ -45,3 +45,10 @@ flips with `y`'s union order, no longer reaches it.
 ## Owed
 
 Nothing beyond the merge.
+
+## Closed (PR 3953, 2026-10-06)
+
+The one-arc lens cases build in every op and pass tier 3′. That covers
+both y orders, both scales, and the notched and filled variants,
+`y ∖ cube` included now that PR 3955's carriage landed. The Out-holds
+rule is ported onto JOIN's `insert.rs`.
