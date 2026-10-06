@@ -454,6 +454,18 @@ fn build_corner(
     leg_out: OracleLeg,
     r: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    build_corner_at(corner, leg_in, leg_out, r, Tol::witness())
+}
+
+/// [`build_corner`] at any scalar and band: the oracle's f64 data read
+/// into `T`, the same lattice calls.
+fn build_corner_at<T: profile::ArcCarrierScalar>(
+    corner: Point2<f64>,
+    leg_in: OracleLeg,
+    leg_out: OracleLeg,
+    r: f64,
+    w: Tol,
+) -> Result<ProfileLoop<T>, PathError<T>> {
     let (leg_in, leg_out) = match mirror_corner(corner, leg_in, leg_out) {
         Some(m) => (
             cap_incoming(corner, leg_in),
@@ -461,69 +473,115 @@ fn build_corner(
         ),
         None => (leg_in, leg_out),
     };
-    let head = leg_in.far_point(corner);
-    let next = leg_out.far_point(corner);
+    let p = |q: Point2<f64>| Point2::new(T::from_f64(q.x), T::from_f64(q.y));
+    let f = T::from_f64;
+    let head = p(leg_in.far_point(corner));
+    let next = p(leg_out.far_point(corner));
     let closed = match (leg_in, leg_out) {
         (OracleLeg::Arc { center: c1, .. }, OracleLeg::Arc { center: c2, .. }) => Open
             .arc_fillet_arc(
                 Center {
-                    c: c1,
+                    c: p(c1),
                     winding: leg_in.winding(),
                     p: head,
                 },
-                r,
+                f(r),
                 Center {
-                    c: c2,
+                    c: p(c2),
                     winding: leg_out.winding(),
                     p: next,
                 },
-                Tol::witness(),
+                w,
             )?
-            .line_to(Start, Tol::witness())?,
+            .line_to(Start, w)?,
         (OracleLeg::Arc { center: c1, .. }, OracleLeg::Line { .. }) => {
             let (dx, dy) = leg_out.travel_dir(corner, false);
             Open.arc_fillet(
                 Center {
-                    c: c1,
+                    c: p(c1),
                     winding: leg_in.winding(),
                     p: head,
                 },
-                r,
-                Tol::witness(),
+                f(r),
+                w,
             )?
-            .at(next, Tol::witness())?
-            .toward(dx, dy, Tol::witness())?
-            .line(0.25, Tol::witness())?
-            .line_to(Start, Tol::witness())?
+            .at(next, w)?
+            .toward(f(dx), f(dy), w)?
+            .line(f(0.25), w)?
+            .line_to(Start, w)?
         }
         (OracleLeg::Line { .. }, OracleLeg::Arc { center: c2, .. }) => {
             let (dx, dy) = leg_in.travel_dir(corner, true);
             Open.at(head)
-                .toward(dx, dy, Tol::witness())?
+                .toward(f(dx), f(dy), w)?
                 .fillet_arc(
-                    r,
+                    f(r),
                     Center {
-                        c: c2,
+                        c: p(c2),
                         winding: leg_out.winding(),
                         p: next,
                     },
-                    Tol::witness(),
+                    w,
                 )?
-                .line_to(Start, Tol::witness())?
+                .line_to(Start, w)?
         }
         (OracleLeg::Line { .. }, OracleLeg::Line { .. }) => {
             let (dx1, dy1) = leg_in.travel_dir(corner, true);
             let (dx2, dy2) = leg_out.travel_dir(corner, false);
             Open.at(head)
-                .toward(dx1, dy1, Tol::witness())?
-                .fillet(r, Tol::witness())?
-                .at(next, Tol::witness())?
-                .toward(dx2, dy2, Tol::witness())?
-                .line(0.25, Tol::witness())?
-                .line_to(Start, Tol::witness())?
+                .toward(f(dx1), f(dy1), w)?
+                .fillet(f(r), w)?
+                .at(next, w)?
+                .toward(f(dx2), f(dy2), w)?
+                .line(f(0.25), w)?
+                .line_to(Start, w)?
         }
     };
     Ok(closed.loop_.into_loop())
+}
+
+/// **A fillet on a decided offset tangency registers nothing it did not
+/// prove.** The corner `CAD_FUZZ_SEED=0x063fda568e08fb0f` drew at
+/// iteration 380 of `fuzz_offset_carrier_construction_tangency_and_bulge`
+/// at ε = 1e-6: two arc legs whose offset carriers
+/// `fillet_offset_circles_internal` decides tangent, so the fillet
+/// centre is on them only to that decision and its rims are not the
+/// radius over the reals. Built at `f64` and at `Interval`: a fillet
+/// that registered its endpoint facts there would abort the `Interval`
+/// build, the exact witness separating the rim at its start. At ε =
+/// 1e-6 both build; at another ε the classification differs, and only
+/// the absence of an abort is asserted (a typed answer is printed).
+#[test]
+fn the_decided_tangent_fuzz_corner_builds_at_interval() {
+    let corner = Point2::new(0.9172118604657906, 0.862214677933687);
+    let leg_in = OracleLeg::Arc {
+        center: Point2::new(0.7238483837240783, 1.029671309136586),
+        radius: 0.255795147474432,
+        tau: -1.0,
+        far_angle: 7.878574846268673,
+    };
+    let leg_out = OracleLeg::Arc {
+        center: Point2::new(1.0053814475969767, 0.8933271466707279),
+        radius: 0.09349792407212658,
+        tau: 1.0,
+        far_angle: 6.177768336234397,
+    };
+    let (r, w) = (0.07525705177877821, Tol::witness());
+    let at_f64 = build_corner_at::<f64>(corner, leg_in, leg_out, r, w).map(|_| ());
+    let at_interval =
+        build_corner_at::<geom_core::Interval>(corner, leg_in, leg_out, r, w).map(|_| ());
+    if w.eps() == 1e-6 {
+        assert!(at_f64.is_ok(), "the corner builds at f64: {at_f64:?}");
+        assert!(
+            at_interval.is_ok(),
+            "the corner builds at Interval: {at_interval:?}"
+        );
+    } else {
+        eprintln!(
+            "ε = {}: f64 {at_f64:?}, Interval {at_interval:?} (no abort)",
+            w.eps()
+        );
+    }
 }
 
 /// Locate the emitted fillet arc: the unique segment whose recovered
@@ -931,13 +989,11 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
          enclosing tangency; the boundary this suite pins says it builds none — {}",
         fuzz::replay()
     );
-    // `n_major` stays a REPORT. It comes out 0, which is the fuzz
-    // corroborating the bound `fillet_bulge`'s docs argue for — the corner-side extent gates keep
-    // every fillet arc below half a turn, so the negative-apothem branch
-    // is unreachable through this door and is unit-tested directly
-    // instead. Deliberately not asserted either way: a future change that
-    // legitimately admits major arcs should not fail here, it should make
-    // the branch live.
+    // `n_major` stays a REPORT, not asserted either way. The corner-side
+    // extent gates keep a fillet arc short of half a turn wherever their
+    // decisions are exact, but a lens fillet sweeps π to within the band
+    // (a decided offset tangency, `fillet_decided_tangency.rs`), and the
+    // one quarter-tangent spelling reads either side of π.
     eprintln!(
         "fuzz: ok {n_ok}, arc legs {n_arc_leg}, arc-by-arc {n_arc_arc}, enclosing {n_enclosing}, major {n_major}"
     );

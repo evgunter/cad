@@ -43,6 +43,27 @@ pub enum ArcSweep {
     Cw,
 }
 
+impl ArcSweep {
+    /// The sense as the literal ±1: `+1` counterclockwise, `−1`
+    /// clockwise.
+    pub(crate) fn sign<T: Real>(self) -> T {
+        match self {
+            Self::Ccw => T::one(),
+            Self::Cw => -T::one(),
+        }
+    }
+}
+
+/// A decided turn's side σ as the literal ±1 (`+1` left), or `None`
+/// for a turn decided Zero, which has no side.
+pub(crate) fn turn_side<T: Real>(turn: Sign) -> Option<T> {
+    match turn {
+        Sign::Positive => Some(T::one()),
+        Sign::Negative => Some(-T::one()),
+        Sign::Zero => None,
+    }
+}
+
 /// The shape of one leg of a fillet corner
 /// ([`arc_fillet_trims`]).
 ///
@@ -170,11 +191,8 @@ pub(crate) struct LineFilletTrims<T: Real> {
     /// fillet arc's end.
     pub t2: Point2<T>,
     /// The fillet arc's bulge tan(φ/4), by the quarter-angle identity on
-    /// `half_tan` (see [`line_line_fillet_trims`]'s docs).
+    /// tan(φ/2) (see [`line_line_fillet_trims`]'s docs).
     pub bulge: T,
-    /// tan(φ/2): the corner's signed half-turn — its sign is the turn
-    /// side σ (positive = left/counterclockwise).
-    pub half_tan: T,
     /// The incoming leg's fit classification (`fillet_leg_fit`,
     /// exact-order band): `Positive` emits the straight piece + declared
     /// joint, `Zero` suppresses both (exact fit).
@@ -259,7 +277,6 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
         t1,
         t2,
         bulge,
-        half_tan,
         fit_in,
         fit_out,
     })
@@ -285,6 +302,11 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     /// carrier-identity checks; no emitted coordinate reads it, and the
     /// builder door ignores it.
     pub center: Point2<T>,
+    /// Whether [`center`](Self::center) lies on both offset carriers by
+    /// the intersection's algebra (the crossing branch,
+    /// [`crate::Facts::Registered`]) or only to its decided-tangent
+    /// classification ([`crate::Facts::Decided`]); see [`OffsetCentres`].
+    pub centre_facts: crate::Facts,
     /// The incoming leg's `fillet_leg_fit` classification: `Positive`
     /// emits the trimmed piece + declared joint, `Zero` suppresses both.
     pub fit_in: Sign,
@@ -530,16 +552,13 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     // (2) the corner's turn: its sign is the side both carriers offset
     // toward, so the offset construction never searches.
     let turn = Margin::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
-    let sgn = match decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)? {
-        Sign::Positive => T::one(),
-        Sign::Negative => -T::one(),
-        Sign::Zero => {
-            return Err(ArcTrimRefusal::AlreadyTangent {
-                align: leg_in.dir.dot(leg_out.dir),
-                margin: turn.value(),
-                arm,
-            });
-        }
+    let decided = decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)?;
+    let Some(sgn) = turn_side::<T>(decided) else {
+        return Err(ArcTrimRefusal::AlreadyTangent {
+            align: leg_in.dir.dot(leg_out.dir),
+            margin: turn.value(),
+            arm,
+        });
     };
 
     // (2b) the enclosing class, refused before it can be constructed.
@@ -581,7 +600,10 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     }
 
     // (3) the offset carriers' intersection — the candidate centers.
-    let centers = match (leg_in.arc, leg_out.arc) {
+    let OffsetCentres {
+        centres: centers,
+        facts: centre_facts,
+    } = match (leg_in.arc, leg_out.arc) {
         (None, None) => return Ok(ArcFilletOutcome::LineLine),
         (Some(arc), None) => leg_out.offset_line_circle(corner, sgn, radius, arc, band)?,
         (None, Some(arc)) => leg_in.offset_line_circle(corner, sgn, radius, arc, band)?,
@@ -634,8 +656,9 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             survivors.push(ArcFilletCandidate {
                 t1,
                 t2,
-                bulge: fillet_bulge(t1, t2, center, radius, sgn),
+                bulge: quarter_tan_about(t1, t2, center, radius, sgn),
                 center,
+                centre_facts,
                 fit_in,
                 fit_out,
                 setbacks: [sb_in, sb_out],
@@ -961,10 +984,7 @@ impl<T: Real> Leg<T> {
                 }
             }
             FilletLegShape::Arc { center, sweep } => {
-                let turn = match sweep {
-                    ArcSweep::Ccw => T::one(),
-                    ArcSweep::Cw => -T::one(),
-                };
+                let turn = sweep.sign::<T>();
                 let to_corner = corner - center;
                 let radius = to_corner.norm_squared().sqrt();
                 // The tangent at the corner: τ·(C − O)⟂ / R.
@@ -1024,11 +1044,10 @@ impl<T: Real> Leg<T> {
     /// that class is refused before a candidate centre is ever computed
     /// (`arc_fillet_trims`' `fillet_enclosing_carrier` gate, per
     /// `crates/profile/README.md`), so no shipped door arrives
-    /// here with a negative ρ. The general form stays for the same reason
-    /// [`fillet_bulge`]'s major-arc branch does: the sign rule is the
-    /// closed form's, not a property of which corners the gates admit,
-    /// and a form that silently mirrored the point would be wrong rather
-    /// than merely unreachable. It is pinned directly, at
+    /// here with a negative ρ. The general form stays because the sign
+    /// rule is the closed form's, not a property of which corners the
+    /// gates admit, and a form that silently mirrored the point would be
+    /// wrong rather than merely unreachable. It is pinned directly, at
     /// `tangent_point_flips_across_the_centre_at_a_negative_offset_radius`.
     ///
     /// # Why this reduces the error rather than hiding it
@@ -1126,7 +1145,7 @@ impl<T: Real> Leg<T> {
         radius: T,
         arc: ArcCarrier<T>,
         band: Band,
-    ) -> Result<Vec<Point2<T>>, ArcTrimRefusal<T>>
+    ) -> Result<OffsetCentres<T>, ArcTrimRefusal<T>>
     where
         T: Decide,
     {
@@ -1135,30 +1154,29 @@ impl<T: Real> Leg<T> {
         let rho = offset_radius(&arc, sgn, radius);
         let h = (arc.center - on_offset).dot(normal);
         let foot = arc.center - normal * h;
-        Ok(
-            match decide(
-                "fillet_offset_line_circle",
-                Margin::of(rho.abs() - h.abs()),
-                band,
-            )
-            .map_err(ArcTrimRefusal::Escalated)?
-            {
-                // powi(2)-discipline squares: ρ and h both straddle zero
-                // in general (ci.yml's "interval-square powi(2) allowlist").
-                Sign::Positive => {
-                    let half = (rho.powi(2) - h.powi(2)).sqrt();
-                    vec![foot + self.dir * half, foot - self.dir * half]
-                }
-                // Decided tangent: the single candidate IS the foot — no
-                // sqrt of a rounding-signed zero.
-                Sign::Zero => vec![foot],
-                Sign::Negative => {
-                    return Err(ArcTrimRefusal::NoCorner {
-                        reason: NoCornerReason::OffsetCarriersDisjoint,
-                    });
-                }
-            },
+        match decide(
+            "fillet_offset_line_circle",
+            Margin::of(rho.abs() - h.abs()),
+            band,
         )
+        .map_err(ArcTrimRefusal::Escalated)?
+        {
+            // powi(2)-discipline squares: ρ and h both straddle zero
+            // in general (ci.yml's "interval-square powi(2) allowlist").
+            Sign::Positive => {
+                let half = (rho.powi(2) - h.powi(2)).sqrt();
+                Ok(OffsetCentres::crossing(vec![
+                    foot + self.dir * half,
+                    foot - self.dir * half,
+                ]))
+            }
+            // Decided tangent: the single candidate IS the foot — no
+            // sqrt of a rounding-signed zero.
+            Sign::Zero => Ok(OffsetCentres::tangent(foot)),
+            Sign::Negative => Err(ArcTrimRefusal::NoCorner {
+                reason: NoCornerReason::OffsetCarriersDisjoint,
+            }),
+        }
     }
 }
 
@@ -1298,7 +1316,7 @@ impl<T: Real> ArcCarrier<T> {
         sgn: T,
         radius: T,
         band: Band,
-    ) -> Result<Vec<Point2<T>>, ArcTrimRefusal<T>>
+    ) -> Result<OffsetCentres<T>, ArcTrimRefusal<T>>
     where
         T: Decide,
     {
@@ -1356,50 +1374,76 @@ impl<T: Real> ArcCarrier<T> {
         let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);
         let base = self.center + link * (along / dist);
         if external == Sign::Zero || internal == Sign::Zero {
-            return Ok(vec![base]);
+            return Ok(OffsetCentres::tangent(base));
         }
         let half = (rho1.powi(2) - along.powi(2)).sqrt();
         let offset = left_normal(link) * (half / dist);
-        Ok(vec![base + offset, base - offset])
+        Ok(OffsetCentres::crossing(vec![base + offset, base - offset]))
     }
 }
 
-/// The fillet arc's bulge tan(θ/4) from its tangent points and center.
+/// The candidate centres an offset-carrier intersection hands back (0,
+/// 1 or 2, in fixed order), with what its algebra proves of them.
 ///
-/// With u = T₁ − P, w = T₂ − P, ψ = |θ|/2 ∈ (0, π): sin ψ = L/(2r) from
-/// the chord L = |T₂ − T₁|, and cos ψ = ±|M − P|/r from the apothem at
-/// the chord midpoint M, the sign being that of σ·(u × w) (positive iff
-/// |θ| < π). Then tan(θ/4) = σ·sin ψ/(1 + cos ψ), written below without
-/// dividing through by r. Correct for major arcs, no square root of a
-/// cancelling difference, and no transcendental.
+/// **A crossing proves its centres** ([`crate::Facts::Registered`]): on
+/// the line×circle branch the centre is the foot on the offset line
+/// moved `√(ρ² − h²)` along it, and on the circle×circle branch it is
+/// `along` down the link and `√(ρ₁² − along²)` across it, so it lies on
+/// both offset carriers over the reals wherever the decided-positive
+/// radicand is, and each tangent point — the centre's foot on its leg's
+/// carrier — is the fillet radius from it. **A decided tangency proves
+/// nothing**: the one candidate is the foot (or the link point) the
+/// offset carriers would touch at, which is on them only to the
+/// `fillet_offset_*` classification that called them tangent
+/// ([`crate::Facts::Decided`]).
+struct OffsetCentres<T: Real> {
+    centres: Vec<Point2<T>>,
+    facts: crate::Facts,
+}
+
+impl<T: Real> OffsetCentres<T> {
+    fn crossing(centres: Vec<Point2<T>>) -> Self {
+        Self {
+            centres,
+            facts: crate::Facts::Registered,
+        }
+    }
+
+    fn tangent(centre: Point2<T>) -> Self {
+        Self {
+            centres: vec![centre],
+            facts: crate::Facts::Decided,
+        }
+    }
+}
+
+/// **The quarter-tangent of an arc about a known centre**: X =
+/// tan(Δθ/4) of the arc from `a` to `b` about `centre` on the carrier
+/// of `radius`, turning in the sense `sgn` (±1), spelled
+/// `σ·h / (r + σ·p)` — `h` the half-chord, `p` the centre's signed
+/// offset from the chord along its left normal. Algebraic in its
+/// inputs: no angle is read off an endpoint, and no sign is chosen.
 ///
-/// # The negative-apothem (major-arc) branch is defensive
-///
-/// `copysign` flips the apothem when σ·(u × w) < 0, i.e. when the fillet
-/// sweeps MORE than half a turn. That branch is **not reachable through
-/// [`arc_fillet_trims`]** (review NOTE): the corner-side
-/// extent gates put both tangent points on the corner side of their
-/// legs, which bounds the fillet's turn below π — a 200k-corner search
-/// over all four corner classes (line/arc × line/arc, radii 0.03–3,
-/// enclosing cases included, 106k accepted) tops out at |bulge| =
-/// 0.9804, i.e. θ = 0.987·π, approaching the bound from below and never
-/// crossing it. The nearest approach is a near-cusp line×line corner.
-///
-/// The general form is kept, and the branch is covered by a direct unit
-/// test (`fillet_bulge_major_arc_branch`) rather than an e2e row that
-/// cannot exist, because this is the general tan(θ/4) identity and the
-/// bound is a property of the *gates*, not of the formula: a future
-/// caller that relaxes the extent rule (or a v2 lowering that anchors
-/// sides differently) must not silently get a wrong bulge.
-fn fillet_bulge<T: Real>(t1: Point2<T>, t2: Point2<T>, center: Point2<T>, radius: T, sgn: T) -> T {
-    let two = T::from_f64(2.0);
-    let cross = (t1 - center).perp_dot(t2 - center);
-    let chord = t2 - t1;
-    let half_chord = chord.norm_squared().sqrt() / two;
-    let apothem = (t1.lerp(t2, T::from_f64(0.5)) - center)
-        .norm_squared()
-        .sqrt();
-    sgn * half_chord / (radius + apothem.copysign(sgn * cross))
+/// Over the reals, with both ends on the carrier (`r² = p² + h²`), half
+/// the included angle θ has `sin = h/r` and `cos = σ·p/r`, so X is
+/// `σ·sin/(1 + cos)` = tan(θ/4), and the sense picks θ in (0, 2π) or
+/// (−2π, 0) — past a half turn the centre is on the chord's other
+/// side, `σ·p` is negative, and the same expression reads the major
+/// arc. `r + σ·p` is the sum the half-angle form takes, so a short arc
+/// carries no cancellation; it vanishes only at a full turn. Ends off
+/// the carrier give the quarter-tangent the same expression reads off
+/// them; what that proves is the caller's to say.
+pub(crate) fn quarter_tan_about<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    centre: Point2<T>,
+    radius: T,
+    sgn: T,
+) -> T {
+    let chord = b - a;
+    let len = chord.norm();
+    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
+    sgn * (len * T::from_f64(0.5)) / (radius + sgn * offset)
 }
 
 #[cfg(test)]
@@ -1421,13 +1465,11 @@ mod tests {
         assert!((b - (core::f64::consts::FRAC_PI_8).tan()).abs() < 1e-15);
     }
 
-    /// [`fillet_bulge`]'s major-arc branch (review NOTE): the
-    /// `copysign`-negated apothem. Unreachable through `fillet_corner`
-    /// (its docs carry the search that establishes the θ < π bound), so
-    /// the general identity is pinned here directly, against `tan(θ/4)`
-    /// for sweeps on both sides of π and in both traversal senses.
+    /// [`quarter_tan_about`] on both sides of a half turn, in both
+    /// senses, against `tan(θ/4)`: past π the centre's signed offset
+    /// changes side and the one expression reads the major arc.
     #[test]
-    fn fillet_bulge_major_arc_branch() {
+    fn quarter_tan_about_reads_both_sides_of_a_half_turn() {
         let radius = 1.5;
         let center = Point2::new(-0.25, 0.75);
         let on = |deg: f64| {
@@ -1435,21 +1477,20 @@ mod tests {
             Point2::new(center.x + radius * c, center.y + radius * s)
         };
         // θ swept from t1 to t2 in the `sgn` sense; the pairs straddle π
-        // so both signs of σ·(u × w) are exercised.
+        // so the centre is on both sides of the chord.
         for &theta in &[60.0, 179.0, 181.0, 270.0, 359.0] {
             for &sgn in &[1.0, -1.0] {
                 let start = 17.0;
                 let t1 = on(start);
                 let t2 = on(start + sgn * theta);
-                let b = fillet_bulge(t1, t2, center, radius, sgn);
+                let b = quarter_tan_about(t1, t2, center, radius, sgn);
                 let want = sgn * f64::tan(f64::to_radians(theta) / 4.0);
                 // Relative: tan(θ/4) blows up as θ → 2π (229 at 359°).
                 assert!(
                     (b - want).abs() <= 1e-11 * want.abs().max(1.0),
                     "theta {theta} sgn {sgn}: bulge {b} vs tan(theta/4) {want}"
                 );
-                // Above π the apothem must have been negated, which is
-                // exactly when |bulge| exceeds tan(π/4) = 1.
+                // Above π, exactly, |X| exceeds tan(π/4) = 1.
                 assert_eq!(
                     b.abs() > 1.0,
                     theta > 180.0,
