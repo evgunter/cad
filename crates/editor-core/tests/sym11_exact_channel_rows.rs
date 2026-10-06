@@ -12,9 +12,9 @@
 //! The nominal half is pinned by the gating row
 //! `m10_9_no_registrant_lies_on_any_measured_document`, which replays
 //! the same five documents and now reads the dispute column too. This
-//! file is the ceiling-plus-δ half, a second whole-box replay of each,
-//! and it runs where the gating row does: in `.config/nextest.toml`'s
-//! slow set.
+//! file is the ceiling-plus-δ half, a second whole-box replay of each.
+//! It runs on the per-PR fast set: since #3774 its replays stop early
+//! and it costs under the slow set's 1 s bar (0.86 s hosted).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -102,10 +102,10 @@ fn replay_on_a_thread(
 /// [`PAST_THE_CEILING`] is the measurement, identical at ε = 1e-6,
 /// 1e-9 and 1e-12.
 ///
-/// **What runs it: the slow set** (`.config/nextest.toml`), at the
-/// default ε on every PR whose diff seeds `editor-core`, and every
-/// night at every ε row. It is five whole-box replays on top of the
-/// gating row's, which keeps it off the per-PR fast set.
+/// **What runs it: the per-PR fast set**, at the default ε on every PR
+/// whose diff seeds `editor-core`, and every night at every ε row. It
+/// costs 0.86 s hosted, under `.config/nextest.toml`'s 1 s slow-set bar,
+/// so it is not in the slow set.
 #[test]
 fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
     let tol = Tol::witness();
