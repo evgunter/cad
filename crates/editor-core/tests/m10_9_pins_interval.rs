@@ -505,6 +505,10 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// analyzed box, the two dials read the same receipt at every ε row
 /// (`work/rules/the-negative-arm-lost-its-document-consumer`).
 ///
+/// The frozen count moved 3138 → 3220 when an intrinsic edge
+/// description's surfaces became a set (`geom_brep::SurfacePair`) and
+/// the certificate began checking them in key order; no decision moved.
+///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
 /// at every ε row. It is two whole-box pad replays on top of the gating
@@ -545,7 +549,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1340, 2, 54, 1272, 3138),
+        (1340, 2, 54, 1272, 3220),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(

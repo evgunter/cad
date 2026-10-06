@@ -42,12 +42,19 @@ use crate::m10_9_pins_interval::measured_studies;
 /// moved since SYM-11 (2026-09-21), merge by merge, is the attribution
 /// table in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+///
+/// Only the `frozen` column moved when an intrinsic edge description's
+/// surfaces became a set (`geom_brep::SurfacePair`) and the certificate
+/// began checking them in key order rather than the builder's: +29,
+/// +24, +12, +24, +12 in this order. No decision moved: `symbolic_zero`,
+/// `registered` and `numeric` are what they were
+/// (`work/carve/certify-residual-predicates-still-name-a-slot`).
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1103, 0, 704, 612]),
-    ("r1_annulus", [588, 0, 451, 804]),
-    ("r2_link", [373, 9, 284, 484]),
-    ("r2_filleted_bracket", [644, 0, 516, 806]),
-    ("r2_rounded_pad", [368, 0, 302, 302]),
+    ("two_hole_plate", [1103, 0, 704, 641]),
+    ("r1_annulus", [588, 0, 451, 828]),
+    ("r2_link", [373, 9, 284, 496]),
+    ("r2_filleted_bracket", [644, 0, 516, 830]),
+    ("r2_rounded_pad", [368, 0, 302, 314]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
