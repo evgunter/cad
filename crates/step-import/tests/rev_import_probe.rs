@@ -151,6 +151,7 @@ fn conic_trimmed_flip_slips_both_gates() {
     )
     .unwrap()
     .body;
+    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
     let phi: f64 = 0.3;
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 1.25),

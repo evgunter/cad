@@ -133,7 +133,8 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(door.to_string(), carried.to_string());
 }
 
-/// The unit cube, finished — the boolean rows' first operand.
+/// The unit cube, finished — the boolean rows' first operand, and the
+/// split rows' operand.
 fn unit_cube() -> AtRestBody<f64> {
     sweep::test_support::finished(
         "the unit cube",
@@ -460,7 +461,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         edges: Vec::new(),
         radius: 0.1_f64,
     }
-    .run_split(&cube, tol())
+    .run_split(&unit_cube(), tol())
     .expect_err("a fillet hands back one body, not two sides");
     assert_eq!(
         err.to_string(),
@@ -523,7 +524,7 @@ fn dump_sides(above: &SplitPart<f64>, below: &SplitPart<f64>) -> String {
 
 #[test]
 fn the_split_dispatch_is_the_split_door() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = unit_cube();
     let plane = z_plane(0.5);
 
     let door = split(&cube, &plane, tol()).unwrap();
@@ -584,7 +585,7 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
 /// it, so that is not the failure this row guards.)
 #[test]
 fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
-    let prism = pinch_prism();
+    let prism = sweep::test_support::finished("the pinch prism", pinch_prism(), tol());
     let plane = pinch_plane();
 
     let door = split(&prism, &plane, tol()).unwrap();
@@ -624,7 +625,7 @@ fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
 /// a refusal.
 #[test]
 fn an_empty_split_side_crosses_as_the_typed_empty() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = unit_cube();
     let plane = z_plane(5.0);
 
     let door = split(&cube, &plane, tol()).unwrap();
@@ -648,7 +649,7 @@ fn an_empty_split_side_crosses_as_the_typed_empty() {
 /// section.
 #[test]
 fn a_split_refusal_crosses_the_dispatch_unaltered() {
-    let empty = Body::<f64>::new();
+    let empty = sweep::test_support::finished("the empty body", Body::<f64>::new(), tol());
     let plane = z_plane(0.5);
 
     let door = split(&empty, &plane, tol()).unwrap_err();

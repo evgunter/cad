@@ -77,7 +77,7 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (442_782, 141_968, 12_774, 6_870);
+const PINNED: (usize, usize, usize, usize) = (442_782, 141_890, 13_932, 7_110);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

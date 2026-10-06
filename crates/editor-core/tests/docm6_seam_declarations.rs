@@ -1346,16 +1346,16 @@ fn contradicted(
     .0
 }
 
-/// **The inner nodes of a memoized refusal are spoken from the document
-/// they are numbered in, and only by a frame that holds it.** The part
-/// and the outer document both hold a contradicted pair of mates under
-/// the same ids, labelled apart. The outer document's own failure
-/// speaks both of its mates and names its failing node once; the
-/// instance's carried level keeps the part's tags in a frame that holds
-/// only the outer document, and reads as the part's own tree draws it
-/// in a frame that holds the part.
+/// **A part's nodes are said as the pinned part holds them, never as
+/// the outer document holds the same ids.** The part and the outer
+/// document both hold a contradicted pair of mates under the same ids,
+/// labelled apart. The outer document's own failure speaks both of its
+/// mates from the outer document and names its failing node once; the
+/// instance's fault and its carried level say the part's labels in a
+/// frame holding only the outer document, exactly as the part's own
+/// tree draws them.
 #[test]
-fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding_it() {
+fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids() {
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-c-cube"), Tol::witness());
     let inner = contradicted(
@@ -1400,12 +1400,6 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
         ),
         "the outer mate's own failure speaks the mate it contradicts, and names itself once"
     );
-    assert!(
-        own.to_string().starts_with(&format!(
-            "node {ta} failed: the mate solve refused: mate {th} and this mate cannot both hold"
-        )),
-        "the tag form: {own}"
-    );
     let (renamed, _) = step(
         outer.clone(),
         DocEdit::SetLabel {
@@ -1427,73 +1421,52 @@ fn a_carried_levels_inner_nodes_are_spoken_from_the_part_only_by_a_frame_holding
     let [level] = levels.as_slice() else {
         panic!("one carried level, in the part: {levels:?}");
     };
-    assert!(
-        matches!(level.document, editor_core::CarriedIn::Part(r) if *r == inner_ref),
-        "{levels:?}"
-    );
-    let in_outer = level.line_in(&outer);
-    assert!(
-        in_outer.contains(&format!("mate {th}")) && !in_outer.contains("outer"),
-        "a level in the part is never spoken from the outer document, which holds its ids as \
-         other nodes: {in_outer}"
-    );
-    assert_eq!(in_outer, level.line(), "a frame without the part says tags");
-    let inner_ev = run(&inner, &with_resolver(store));
-    let inner_own = inner_ev
+    assert_eq!(level.document.doc_ref(), Some(&inner_ref), "{levels:?}");
+    let inner_own = run(&inner, &with_resolver(store))
         .node_error(level.node)
-        .expect("the part's own tree draws the level's node failed");
+        .expect("the part's own tree draws the level's node failed")
+        .spoken(&inner);
+    let in_outer = level.line_in(&outer);
     assert_eq!(
-        level.line_in_part(&inner, Tol::witness()),
-        inner_own.spoken(&inner),
-        "a frame holding the part draws the level as the part's own tree does"
+        in_outer, inner_own,
+        "a frame holding only the outer document draws the level as the part's own tree does"
     );
     assert!(
-        level
-            .line_in_part(&inner, Tol::witness())
-            .contains("\"inner held\""),
-        "{}",
-        level.line_in_part(&inner, Tol::witness())
+        in_outer.contains("\"inner held\"") && !in_outer.contains("outer"),
+        "the level says the part's labels and never the outer document's for the same ids: \
+         {in_outer}"
     );
-    let editor_core::NodeErrorKind::Part { fault, doc_ref } = &error.kind else {
-        panic!("the instance refuses on its part: {error:?}");
-    };
-    let fault_spoken = fault.spoken(doc_ref, &inner, Tol::witness());
+    assert_eq!(in_outer, level.line(), "the level holds its own nodes");
+    let in_frame = error.spoken(&outer);
     assert!(
-        fault_spoken.starts_with(&format!("the part's {} failed", inner.spoken(level.node))),
-        "the part's fault speaks its node from the part: {fault_spoken}"
+        in_frame.contains(&format!("the part's {} failed", inner.spoken(level.node)))
+            && !in_frame.contains("outer"),
+        "the instance's own line says the part's node as the part holds it: {in_frame}"
     );
-    let t = test_utils::refusal::tag(level.node.0);
+    let (_, fault_said) = in_frame
+        .split_once(" failed: ")
+        .expect("the instance's line opens with its node");
     assert!(
-        error
-            .spoken(&outer)
-            .contains(&format!("the part's node {t} failed")),
-        "the outer frame says the part's node by tag, though it holds the id: {}",
-        error.spoken(&outer)
+        error.to_string().ends_with(fault_said),
+        "a frame without the outer document says the part's nodes the same: {error}"
     );
 }
 
-/// An outer document holding one instance of a contradicted stand:
-/// the part, another version of it (a label moved), the outer document
-/// its evaluation and the failed instance.
-fn a_failed_part(
-    id: &str,
-) -> (
-    ProfileDoc,
-    ProfileDoc,
-    ProfileDoc,
-    editor_core::Evaluation<f64>,
-    RecipeNodeId,
-) {
+/// **A part's labels are its pin's.** A relabelled part is another
+/// version with another pin, and an instance of each says the labels its
+/// own pin fixes: the snapshot on a fault can never be another
+/// version's, and two faults over different pins are unequal.
+#[test]
+fn a_part_fault_says_the_labels_its_pin_fixes() {
     let mut store = PartStore::default();
-    let (cube, cube_body) = store.insert_part(cube_part(&format!("{id}-cube")), Tol::witness());
+    let (cube, cube_body) = store.insert_part(cube_part("speak-d-cube"), Tol::witness());
     let inner = contradicted(
         cube,
         cube_body,
-        &format!("{id}-inner"),
+        "speak-d-inner",
         "inner held",
         "inner added",
     );
-    let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (relabelled, _) = step(
         inner.clone(),
         DocEdit::SetLabel {
@@ -1501,10 +1474,37 @@ fn a_failed_part(
             label: Some(editor_core::Label::new("inner moved").expect("a valid label")),
         },
     );
-    let outer = ProfileDoc::empty(DocumentId::derive(&format!("{id}-outer")), Tol::witness());
-    let (outer, instance) = insert(outer, Node::instantiate_part(inner_ref));
-    let ev = run(&outer, &with_resolver(store));
-    (inner, relabelled, outer, ev, instance)
+    // One store per version: a store holds one version of a document.
+    let instance_of = |part: ProfileDoc| {
+        let mut store = store.clone();
+        let part_ref = store.insert(part, Tol::witness());
+        let outer = ProfileDoc::empty(DocumentId::derive("speak-d-outer"), Tol::witness());
+        let (outer, instance) = insert(outer, Node::instantiate_part(part_ref));
+        let ev = run(&outer, &with_resolver(store));
+        let error = ev.node_error(instance).expect("the part has no body");
+        let level = error
+            .kind
+            .carried_chain()
+            .next()
+            .unwrap_or_else(|| panic!("the part's level: {error:?}"))
+            .line();
+        (part_ref, part_fault(error).0.clone(), level)
+    };
+    let (inner_ref, at_inner, inner_line) = instance_of(inner);
+    let (moved_ref, at_moved, moved_line) = instance_of(relabelled);
+    assert_ne!(inner_ref.pin, moved_ref.pin, "a label is in the pin");
+    assert!(
+        inner_line.contains("\"inner held\"") && !inner_line.contains("inner moved"),
+        "{inner_line}"
+    );
+    assert!(
+        moved_line.contains("\"inner moved\"") && !moved_line.contains("inner held"),
+        "{moved_line}"
+    );
+    assert_ne!(
+        at_inner, at_moved,
+        "the faults hold different labels under different pins, so they differ"
+    );
 }
 
 /// The part fault of a failed part instance, with its reference.
@@ -1515,55 +1515,7 @@ fn part_fault(error: &editor_core::NodeError) -> (&editor_core::PartFault, &DocR
     (fault, doc_ref)
 }
 
-/// A part's fault is spoken only from the part its ids are numbered in.
-#[test]
-#[should_panic(expected = "is rendered from document")]
-fn a_part_fault_is_never_spoken_from_another_document() {
-    let (_, _, outer, ev, instance) = a_failed_part("speak-d");
-    let error = ev.node_error(instance).expect("the part has no body");
-    let (fault, doc_ref) = part_fault(error);
-    let _ = fault.spoken(doc_ref, &outer, Tol::witness());
-}
-
-/// ... and only from the version its reference pins: another version
-/// may hold its ids under other labels.
-#[test]
-#[should_panic(expected = "rendered from another version")]
-fn a_part_fault_is_never_spoken_from_another_version_of_the_part() {
-    let (inner, relabelled, _, ev, instance) = a_failed_part("speak-f");
-    let error = ev.node_error(instance).expect("the part has no body");
-    let (fault, doc_ref) = part_fault(error);
-    assert!(
-        fault
-            .spoken(doc_ref, &inner, Tol::witness())
-            .contains("the part's"),
-        "the pinned version speaks"
-    );
-    let _ = fault.spoken(doc_ref, &relabelled, Tol::witness());
-}
-
-/// A carried level in a part is spoken only from that part ...
-#[test]
-#[should_panic(expected = "is rendered from document")]
-fn a_carried_level_is_never_spoken_from_another_document() {
-    let (_, _, outer, ev, instance) = a_failed_part("speak-g");
-    let error = ev.node_error(instance).expect("the part has no body");
-    let level = error.kind.carried_chain().next().expect("the part's level");
-    let _ = level.line_in_part(&outer, Tol::witness());
-}
-
-/// ... at the version its reference pins.
-#[test]
-#[should_panic(expected = "rendered from another version")]
-fn a_carried_level_is_never_spoken_from_another_version_of_the_part() {
-    let (inner, relabelled, _, ev, instance) = a_failed_part("speak-h");
-    let error = ev.node_error(instance).expect("the part has no body");
-    let level = error.kind.carried_chain().next().expect("the part's level");
-    let _ = level.line_in_part(&inner, Tol::witness());
-    let _ = level.line_in_part(&relabelled, Tol::witness());
-}
-
-// ---- A part's product refusal is spoken from the part only where the part is held ----
+// ---- A part's product refusal says the part's labels ----
 
 /// A block placed under two roots (two transforms of its extrude), the
 /// extrude labelled `label`, in a document named `id`. Every document's
@@ -1589,12 +1541,11 @@ fn placed_twice(id: &str, label: &str) -> (ProfileDoc, RecipeNodeId) {
     (doc, block)
 }
 
-/// **A part's product refusal keeps the part's tags in a frame holding
+/// **A part's product refusal says the part's labels in a frame holding
 /// only the outer document**, which holds the same id as its own
-/// labelled extrude, and reads as the part's own gather says it in a
-/// frame holding the part.
+/// labelled extrude, and says it as the part's own gather does.
 #[test]
-fn a_parts_product_refusal_keeps_its_tags_where_the_outer_document_holds_the_id() {
+fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let mut store = PartStore::default();
     let (inner, block) = placed_twice("speak-p-inner", "inner block");
     let inner_ref = store.insert(inner.clone(), Tol::witness());
@@ -1609,8 +1560,8 @@ fn a_parts_product_refusal_keeps_its_tags_where_the_outer_document_holds_the_id(
 
     let ev = run(&outer, &opts);
     let error = ev.node_error(instance).expect("the part has no product");
-    let (fault, doc_ref) = part_fault(error);
-    let editor_core::PartFault::PartProduct { refusal } = fault else {
+    let (fault, _) = part_fault(error);
+    let editor_core::PartFault::PartProduct { refusal, .. } = fault else {
         panic!("the part's gather refuses: {fault:?}");
     };
     assert_eq!(
@@ -1619,21 +1570,16 @@ fn a_parts_product_refusal_keeps_its_tags_where_the_outer_document_holds_the_id(
     );
     let in_outer = error.spoken(&outer);
     assert!(
-        in_outer.contains(&format!("node {t}'s body is placed under two roots"))
-            && !in_outer.contains("block\""),
-        "a part's refusal is never spoken from the outer document, which holds its ids as \
-         other nodes: {in_outer}"
-    );
-    let in_part = fault.spoken(doc_ref, &inner, Tol::witness());
-    assert!(
-        in_part.contains(&format!(
+        in_outer.contains(&format!(
             "Extrude \"inner block\" ({t})'s body is placed under two roots"
-        )),
-        "a frame holding the part speaks it from the part: {in_part}"
+        )) && !in_outer.contains("outer block"),
+        "a part's refusal says the part's label, never the outer document's for its id: \
+         {in_outer}"
     );
     let own = product_recorded(&inner, &run(&inner, &opts), Tol::witness())
         .expect_err("the part's own gather refuses")
         .spoken(&inner);
+    let in_part = fault.to_string();
     assert!(
         in_part.contains(
             own.strip_prefix("product: ")

@@ -437,11 +437,67 @@ pub mod test_support {
     ///
     /// The reduction's or the join's refusal.
     pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
-        operand: &Body<T>,
+        operand: &crate::AtRestBody<T>,
         plane: &crate::SplitPlane<T>,
         tol: geom_core::Tol,
     ) -> Result<Body<T>, crate::SplitError> {
         crate::splitting::through_the_join(operand, plane, tol)
+    }
+
+    /// The split's reduction over a closed body tier 3 does not finish
+    /// (`splitting::reduce`, [`crate::split_reduce`] past its
+    /// finished-body gate). For the rows whose pose no finished body
+    /// realizes — a prism with a straight profile corner keeps the edge
+    /// between its coplanar walls a scaffold — and which pin that
+    /// refusal themselves. It reads tier 2 itself: the pipeline past the
+    /// gate holds a null edge unreachable, so a body tier 2 refuses
+    /// panics here, naming its findings.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's refusal.
+    pub fn split_reduce_unfinished<T: geom_core::Decide + crate::props::AtRestPolicy>(
+        body: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::SplitReduction<T>, crate::SplitReduceError> {
+        tier_two_clean("split_reduce_unfinished", body);
+        crate::splitting::reduce(body, plane, tol)
+    }
+
+    /// The premise of the doors past the split's finished-body gate:
+    /// `body` passes tier 2.
+    #[allow(clippy::panic)]
+    fn tier_two_clean<T: geom_core::Real>(door: &str, body: &Body<T>) {
+        if let Err(errors) = crate::validate_closed(body) {
+            panic!("{door}: tier 2 refuses the body, outside the door's premise: {errors:?}");
+        }
+    }
+
+    /// The split's carrier gate and vertex sweep over a closed body tier
+    /// 3 does not finish ([`crate::vertex_sides`] past its finished-body
+    /// gate), for the rows whose fixture relabels a face to a kind the
+    /// carrier gate reads, which strands the face's edges below tier 3.
+    /// It reads tier 2 itself, as [`split_reduce_unfinished`] does: a
+    /// body tier 2 refuses panics here, naming its findings.
+    ///
+    /// # Errors
+    ///
+    /// The carrier gate's or the sweep's refusal.
+    #[allow(clippy::type_complexity)]
+    pub fn split_carrier_gate<T: geom_core::Decide>(
+        body: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<
+        (
+            slotmap::SecondaryMap<crate::VertexKey, crate::PlaneSide>,
+            Vec<crate::VertexKey>,
+        ),
+        crate::SplitReduceError,
+    > {
+        tier_two_clean("split_carrier_gate", body);
+        crate::splitting::carrier_gate_and_sides(body, plane, tol)
     }
 
     /// **Which decision a Boolean refusal came from**, as the executed-
