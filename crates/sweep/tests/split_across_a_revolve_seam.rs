@@ -128,12 +128,6 @@ fn a_counterbore_and_a_cone_socket_split_across_their_axes() {
         (0.6, bore * 0.6, 0.0),
     ] {
         for s in [1.0, -1.0] {
-            // Flush with the step under −y the finish refuses
-            // `RechartUndescribed` until its promoted ring's edges are
-            // restated in the section plane.
-            if c == 0.6 && s < 0.0 {
-                continue;
-            }
             let label = format!("counterbore at y = {c}, tilt {tilt}, s = {s}");
             let p = across(y, c, tilt, 2.0, s);
             let [b, a] = if c == 0.6 {

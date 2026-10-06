@@ -64,7 +64,7 @@ use geom_core::{Decide, Real, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
-use super::{PlaneSide, SplitReduction, section_loops};
+use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
@@ -195,19 +195,16 @@ pub enum SplitFinishError {
         /// The winding's diagnostic, when it escalated.
         diag: Option<geom_core::Indeterminate>,
     },
-    /// The split plane is tangent to a curved face along the section's
-    /// boundary with the two faces' materials OPPOSED: the cut would
-    /// leave a wedge end — a knife edge no input declared, which D1
-    /// makes the minting op's refusal. (A cut piece lies on one side
-    /// of the plane, so the end it can reach is the cusp, wedge 0.) A
-    /// split has no declaration channel, so every such edge refuses; a
-    /// π seam (materials aligned) cuts.
-    SectionCusp {
-        /// The section-boundary edge the knife edge would be.
-        edge: EdgeKey,
-        /// The operand's curved face the plane is tangent to.
-        face: FaceKey,
-    },
+    /// The plane is tangent to a curved face along the section's
+    /// boundary with the two faces' materials OPPOSED: a wedge end the
+    /// cut would leave, [`KnifeEdge`]. (A cut piece lies on one side of
+    /// the plane, so the end it can reach is the cusp, wedge 0.) A π
+    /// seam (materials aligned) cuts. The reduction refuses the same
+    /// contact first wherever it reads the wall tangent at an ON vertex
+    /// ([`super::SplitReduceError::KnifeEdge`]); this read, of the
+    /// dihedral along the edge over the edge's own arm, is the one left
+    /// where the two arms decide differently in the band.
+    KnifeEdge(KnifeEdge),
     /// Two section faces each read as enclosing the other around a
     /// hole: their outlines were decided disjoint, and disjoint
     /// outlines cannot (kernel bug, loudly).
@@ -287,12 +284,7 @@ impl core::fmt::Display for SplitFinishError {
                 "two cut faces each read as enclosing the other around hole {hole:?}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::SectionCusp { .. } => write!(
-                f,
-                "the split plane is tangent to a curved face where it cuts, so a piece \
-                 would taper to a knife edge nobody asked for. Recourse: move the split \
-                 plane off the tangency"
-            ),
+            Self::KnifeEdge(k) => write!(f, "{k}"),
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
                     f,
@@ -409,27 +401,23 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // taken before the re-chart and stated with it.
         let ring_sense = section_sense(&body, section.face, ring, normal_of(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, normal_of(other_side), band)?;
+        // Both faces of the null pair move onto their section planes in
+        // one re-chart, with the edges still described against the chart
+        // they leave restated in their plane, which every section
+        // boundary edge lies in; the boundary pass below gives each its
+        // honest class. One re-chart reads both faces' edges before
+        // either moves, so neither restatement depends on the other, and
+        // the two lists are disjoint: an edge between the two faces
+        // would have both faces wearing the one inherited chart, which
+        // `section_plane_restatements` skips.
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        let mut restated = section_plane_restatements(&body, promoted.face)?;
+        restated.extend(section_plane_restatements(&body, section.face)?);
         body.set_face_surfaces_describing(
-            vec![Rechart::new(
-                plane_for(ring_side),
-                promoted.face,
-                ring_sense,
-            )],
-            &[],
-            tol,
-        )?;
-        // The face the null pair leaves on its old chart moves last, and
-        // the edges still described against that chart move with it,
-        // restated in the section plane every section boundary edge lies
-        // in; the boundary pass below gives each its honest class.
-        let restated = section_plane_restatements(&body, section.face)?;
-        body.set_face_surfaces_describing(
-            vec![Rechart::new(
-                plane_for(other_side),
-                section.face,
-                outer_sense,
-            )],
+            vec![
+                Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
+                Rechart::new(plane_for(other_side), section.face, outer_sense),
+            ],
             &restated,
             tol,
         )?;
@@ -677,7 +665,7 @@ fn section_plane_restatements<T: Decide>(
 /// A curved wall smooth against the section is judged by its material
 /// pairing: aligned is a π seam and takes the conventional path,
 /// opposed is a wedge end nothing declared and refuses
-/// ([`SplitFinishError::SectionCusp`]).
+/// ([`SplitFinishError::KnifeEdge`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
 ///
 /// The body is mid-operation, past the carve; each edge is read after
@@ -778,10 +766,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         )
                         .map_err(|diag| SplitFinishError::DescribeEscalated { edge, diag })?;
                         if pairing == geom_brep::MaterialPairing::Opposed {
-                            return Err(SplitFinishError::SectionCusp {
-                                edge,
-                                face: other_face,
-                            });
+                            return Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                                wall: other_face,
+                                at: KnifeEdgeSite::Edge(edge),
+                            }));
                         }
                     }
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {

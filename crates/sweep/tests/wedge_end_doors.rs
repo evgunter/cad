@@ -1,5 +1,5 @@
 //! **The wedge-end doors that need a curved body** (D1 tier 3): the
-//! split's `SectionCusp` refusal and its counter-rows, the curved
+//! split's knife-edge refusal and its counter-rows, the curved
 //! boolean's refusals of an undeclared kiss, and the blend and shell
 //! consumers of a declared cusp body. A cusp or slit is legal at rest
 //! iff jet-determinate, so tier 3 no longer refuses one nobody
@@ -25,9 +25,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{brick, finished, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
-use topo::{
-    Body, BooleanErrorKind, ContactMark, EdgeKey, ShellError, SplitError, SplitFinishError,
-};
+use topo::{Body, BooleanErrorKind, ContactMark, EdgeKey, KnifeEdgeSite, ShellError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -126,9 +124,10 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 /// the hole's side of `x = 1` the material near the tangent line is two
 /// crescents between the cut face and the wall, each vanishing to a
 /// knife edge (a doubled cusp): jet-determinate, so tier 3 would pass
-/// it, and nothing declared it. Both orientations of the plane, since
-/// the side that carries the crescents is `below` in one and `above`
-/// in the other.
+/// it, and nothing declared it. The reduction reads the graze and
+/// refuses it there. Both orientations of the plane, since the side
+/// that carries the crescents is `below` in one and `above` in the
+/// other.
 #[test]
 fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
     let body = plate_with_hole();
@@ -139,9 +138,31 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
             Vec3::new(normal, 0.0, 0.0),
             geom_core::Tol::witness(),
         );
-        match topo::split(&body, &plane, tol()) {
-            Err(SplitError::Finish(SplitFinishError::SectionCusp { .. })) => {}
-            other => panic!("normal {normal}: expected SectionCusp, got {other:?}"),
+        let knife = match topo::split(&body, &plane, tol()) {
+            Err(e) => *e
+                .knife_edge()
+                .unwrap_or_else(|| panic!("normal {normal}: refused {e:?}, not the knife edge")),
+            Ok(_) => panic!("normal {normal}: answered"),
+        };
+        let wall = body.get_surface(body.get_face(knife.wall).unwrap().surface);
+        assert_eq!(
+            wall.map(geom::Surface::kind),
+            Some(geom::SurfaceKind::Cylinder),
+            "normal {normal}: the hole's wall"
+        );
+        let KnifeEdgeSite::Edge(seam) = knife.at else {
+            panic!("normal {normal}: read along the seam, got {:?}", knife.at);
+        };
+        let he = body.get_edge(seam).unwrap().he_plus;
+        for v in [
+            body.get_half_edge(he).unwrap().start,
+            body.half_edge_end(he).unwrap(),
+        ] {
+            let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            assert!(
+                (q.x - 1.0).abs() < 1e-12 && q.y.abs() < 1e-12,
+                "normal {normal}: the seam at (1, 0), {q:?}"
+            );
         }
     }
 }

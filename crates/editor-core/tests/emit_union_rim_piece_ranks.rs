@@ -1062,7 +1062,7 @@ fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>>
 /// the other 18 refuse what they refused before this rule, each on its
 /// own row: 2 `Emission` (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`)
 /// and 16 `DeclareResolve` on a declared face the fold split
-/// (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+/// (`union-refuses-in-some-member-orders-and-publishes-in-others`).
 /// Judged in the fold, those 6 refused `DeclareResolve` as well, on
 /// `a`'s wall consumed whole by `b`.
 #[test]

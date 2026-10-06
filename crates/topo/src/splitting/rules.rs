@@ -56,7 +56,7 @@
 //! | `S`-ON-`S` | convex edge | `S` |
 //! | `S`-ON-`S` | reflex edge | opposite `S` |
 //! | `S`-ON-`S` | smooth edge or duplicate, convex graze | `S` |
-//! | `S`-ON-`S` | smooth edge or duplicate, concave graze | opposite `S` |
+//! | `S`-ON-`S` | smooth edge or duplicate, concave graze | refused by rule (a), [`SplitReduceError::KnifeEdge`] |
 //! | `S`-ON-`S` | smooth edge or duplicate, no graze | opposite `S` (a safety default) |
 //! | `A`-ON-`B`, `B`-ON-`A` | any | `Below` |
 //! | | in the band | refused, [`SplitReduceError::SliverSector`] |
@@ -106,31 +106,34 @@
 //!   cylinder or a cone touched from outside. Every bit of material at
 //!   the vertex is on `S`, so the entry goes to `S` and the body lands
 //!   whole on its material's side, as a planar edge contact does.
-//! - **Concave graze** — the material lies across the plane at first
-//!   order, and the wall bends away from it: a round hole or a conical
-//!   socket touched from inside. Material lies on both sides, and the
-//!   piece on `S` meets the cut face tangentially along the contact:
-//!   two crescents vanishing to a knife edge that the split, having no
-//!   declaration channel, refuses. The entry goes opposite `S`, which
-//!   mints the null edge, and the graze refuses
-//!   (`wedge_end_doors::a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint`
-//!   pins the knife edge's refusal, and
-//!   `split_tangent_edge_curved.rs`'s concave rows pin it at every
-//!   azimuth). Sending it to `S` instead returns the true volumes with
-//!   the hole's wall touching the cut face's interior along the
-//!   contact, with no edge for it, and tier 3 passes that
+//! - **Concave graze** — the wall bends away from its material: a
+//!   round hole or a conical socket touched from inside. Material lies
+//!   on both sides of the plane, and the piece on the wall's side meets
+//!   the cut face tangentially along the contact: two crescents
+//!   vanishing to a knife edge that the split, having no declaration
+//!   channel, refuses. Rule (a) refuses it where it finds the wall
+//!   tangent ([`SplitReduceError::KnifeEdge`]), so rule (b) never holds
+//!   one; it reads the same contact there whether the wall's neighbours
+//!   are rim edges, a seam or a face in the plane
+//!   (`split_tangent_edge_curved.rs`'s concave rows). Sending it to `S`
+//!   instead returns the true volumes with the hole's wall touching the
+//!   cut face's interior along the contact, with no edge for it, and
+//!   tier 3 passes that
 //!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
-//! - A wall's first- and second-order reads that disagree contradict
-//!   the `S`-ON-`S` neighbours, which are curves on the same wall, and
-//!   refuse as a sliver; a wall that osculates its tangent plane is
-//!   [`SplitReduceError::TangencyUnsupported`].
+//! - A convex wall whose material, read at first order, lies across
+//!   from its `S`-ON-`S` neighbours contradicts them (they are curves
+//!   on the same wall) and refuses as a sliver; a wall that osculates
+//!   its tangent plane is [`SplitReduceError::TangencyUnsupported`].
 //!
 //! Anywhere else — a plane face, or a curved one not tangent to the
 //! plane — opposite `S` stays a safety default, not a derivation: it
-//! mints the null edge, so the configuration is cut or refuses, never
-//! answered wrongly. The rows are
+//! mints the null edge, and the join cuts there. A contact with no
+//! material across it never takes the default: a cusp's zero-width
+//! sector is refused by the neighbourhood classifier before either
+//! rule runs (`SliverSector` on `sector_straight`), and a curved wall
+//! tangent to the plane is rule (a)'s. The rows are
 //! `sweep/tests/split_tangent_edge_curved.rs` (convex grazes of a
-//! cylinder and a cone answered, concave ones guarded).
+//! cylinder and a cone answered, concave ones refused).
 //!
 //! **Mixed** neighbours are a free convention: either side yields
 //! manifold results; `Below` is kept for both witnesses' agreement and
@@ -140,9 +143,11 @@ use geom_brep::{EntersMaterial, WallBend, enters_material};
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::neighborhood::{chord, sector_face};
-use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
+use super::{
+    KnifeEdge, KnifeEdgeSite, PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError,
+};
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, Proven, proven};
 use crate::validate::decide;
 
@@ -154,9 +159,10 @@ use crate::validate::decide;
 /// last-wins, as the book).
 ///
 /// Returns, per entry, whether its sector's face is a curved wall the
-/// plane grazes (tangent at the vertex, definitely bending off it):
-/// rule (b) reads those walls' convexity rather than deciding the
-/// tangency again.
+/// plane grazes from outside (tangent at the vertex, definitely bending
+/// into its material), which rule (b) reads rather than deciding the
+/// tangency again. A wall that bends away from its material is a knife
+/// edge, refused here ([`SplitReduceError::KnifeEdge`]).
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -166,6 +172,12 @@ pub(super) fn apply_rule_a<T: Decide>(
 ) -> Result<Vec<bool>, SplitReduceError> {
     let n = entries.len();
     let mut grazes = vec![false; n];
+    // The edges lying in the plane, as classified before this rule
+    // rewrites any entry: where a knife edge's contact runs.
+    let in_plane: Vec<bool> = entries
+        .iter()
+        .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
+        .collect();
     for k in 0..n {
         let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
@@ -219,8 +231,55 @@ pub(super) fn apply_rule_a<T: Decide>(
                     let so_margin = Margin::sagitta(kappa, extent);
                     match decide("tangent_sector_osculation", so_margin, band) {
                         Ok(Sign::Positive) => {
-                            grazes[k] = true;
-                            continue;
+                            let bend = geom_brep::bends_into_material(
+                                surface, p_base, n_face, extent, band,
+                            )
+                            .map_err(|e| match e {
+                                geom_brep::WallBendError::Indefinite(kind) => unreachable!(
+                                    "a {kind:?} wall reached rule (a): `sector_face` admits \
+                                     only planes, cylinders and cones"
+                                ),
+                                geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
+                                    diag,
+                                    ..
+                                }) => sliver(diag),
+                            })?;
+                            match bend {
+                                WallBend::IntoMaterial => {
+                                    grazes[k] = true;
+                                    continue;
+                                }
+                                WallBend::OutOfMaterial => {
+                                    let at = [k, (k + 1) % n]
+                                        .into_iter()
+                                        .filter(|&j| in_plane[j])
+                                        .map(|j| {
+                                            proven(
+                                                &body.half_edges,
+                                                entries[j].he,
+                                                EntityId::HalfEdge,
+                                            )
+                                            .edge
+                                        })
+                                        .find(|&e| straight(body, e))
+                                        .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge);
+                                    return Err(SplitReduceError::KnifeEdge(KnifeEdge {
+                                        wall: face,
+                                        at,
+                                    }));
+                                }
+                                // A cylinder or cone has one zero principal
+                                // curvature, so this margin is half the
+                                // osculation margin just decided ≥ Kε: it
+                                // reads flat only when K ≤ 2, which
+                                // `CAD_AMBIGUITY_K` admits (any K > 1).
+                                WallBend::Flat => {
+                                    return Err(SplitReduceError::TangencyUnsupported {
+                                        face,
+                                        vertex,
+                                    });
+                                }
+                            }
                         }
                         Ok(Sign::Zero | Sign::Negative) => {
                             return Err(SplitReduceError::TangencyUnsupported { face, vertex });
@@ -264,6 +323,16 @@ pub(super) fn apply_rule_a<T: Decide>(
         entries[(k + 1) % n].class = class;
     }
     Ok(grazes)
+}
+
+/// Whether `edge` is a straight line: the shape of the contact a plane
+/// tangent to a cylinder or a cone makes, along a ruling.
+fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
+    let curve = proven(&body.edges, edge, EntityId::Edge).curve;
+    matches!(
+        body.get_curve_geom(curve).and_then(crate::null::CurveGeom::certified),
+        Some(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
+    )
 }
 
 /// Rule (b): reclassify every remaining ON entry by its cyclic
@@ -396,50 +465,39 @@ fn wall_graze<T: Decide>(
     side: PlaneSide,
     band: Band,
 ) -> Result<PlaneSide, SplitReduceError> {
-    let p = body.resolve_vertex_point(vertex, Proven);
     let toward_side = if side == PlaneSide::Above {
         plane.normal.get()
     } else {
         -plane.normal.get()
     };
     let mut verdict = None;
-    for &(he, tangent) in sectors {
+    for &(he, grazed) in sectors {
         let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
-        let contradiction = |predicate| sliver(crate::invalid_margin::invalid(band, predicate));
-        let this =
-            if tangent {
-                let extent = face_extent(body, vertex, face)?;
-                let surface = face_surface(body, face);
-                let material_on_side = match enters_material(toward_side, n_face, extent, band) {
-                    Ok(EntersMaterial::Enters) => true,
-                    Ok(EntersMaterial::Exits) => false,
-                    Ok(EntersMaterial::Tangent) => return Err(contradiction("enters_material")),
-                    Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
-                };
-                let bend = geom_brep::bends_into_material(surface, p, n_face, extent, band)
-                    .map_err(|e| match e {
-                        geom_brep::WallBendError::Indefinite(kind) => {
-                            SplitReduceError::CurvedBooleanUnsupported { face, kind }
-                        }
-                        geom_brep::WallBendError::Lever(geom_brep::LeverEscalation {
-                            diag,
-                            ..
-                        }) => sliver(diag),
-                    })?;
-                match (material_on_side, bend) {
-                    (true, WallBend::IntoMaterial) => side,
-                    (false, WallBend::OutOfMaterial) => side.opposite(),
-                    (_, WallBend::Flat) => {
-                        return Err(SplitReduceError::TangencyUnsupported { face, vertex });
-                    }
-                    _ => return Err(contradiction("wall_bend_order2")),
+        let this = if grazed {
+            // Rule (a) read this wall bending into its material, so its
+            // material lies on the side it leaves the plane toward.
+            let extent = face_extent(body, vertex, face)?;
+            match enters_material(toward_side, n_face, extent, band) {
+                Ok(EntersMaterial::Enters) => side,
+                Ok(EntersMaterial::Exits | EntersMaterial::Tangent) => {
+                    return Err(sliver(crate::invalid_margin::invalid(
+                        band,
+                        "wall_bend_order2",
+                    )));
                 }
-            } else {
-                side.opposite()
-            };
+                Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
+            }
+        } else {
+            side.opposite()
+        };
         match verdict {
-            Some(v) if v != this => return Err(contradiction("wall_bend_order2")),
+            Some(v) if v != this => {
+                return Err(sliver(crate::invalid_margin::invalid(
+                    band,
+                    "wall_bend_order2",
+                )));
+            }
             _ => verdict = Some(this),
         }
     }
