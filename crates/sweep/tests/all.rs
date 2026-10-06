@@ -658,6 +658,8 @@ mod join3_review_r1;
 mod join_pierce_runs_sweep;
 #[path = "join_pierce_strut_facing.rs"]
 mod join_pierce_strut_facing;
+#[path = "join_pinch_cones_r2_probes.rs"]
+mod join_pinch_cones_r2_probes;
 #[path = "join_rc_probes.rs"]
 mod join_rc_probes;
 #[path = "join_reflex_wedge_probes.rs"]
