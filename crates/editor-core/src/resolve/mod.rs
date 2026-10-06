@@ -1549,6 +1549,15 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     // 5. Vanished. N3 structural offers first (merge/unmerge), then
     //    the diagnosis ladder.
     offers.extend(merge_offers(new.eval, name));
+    if name.kind == EntityKind::Edge
+        && let Some(base) = unqualified(name)
+    {
+        for offer in merge_offers(new.eval, &base) {
+            if !offers.contains(&offer) {
+                offers.push(offer);
+            }
+        }
+    }
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
@@ -2143,6 +2152,9 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 ///   row is found whole and at its own depth; a candidate that merely
 ///   embeds it deeper (a seam across it) needs no separate offer, the
 ///   row itself still resolving at the node whose table minted it.
+///   An edge set covers its edges the same way, and a PIECE of one of
+///   them (a rim piece a join retired) is offered the set that covers
+///   the edge it was a piece of: the set's edge holds every piece of it.
 /// - **Runs.** A sweep's run wall holds its pieces' walls the same way
 ///   (`names::merged::constituents`, the one view): a wall a station
 ///   joined into a run is offered the run wall that covers it, and a

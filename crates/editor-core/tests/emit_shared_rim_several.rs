@@ -292,3 +292,67 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
     // judged contact, with `b` covering it, are the 12 the count lost.
     assert_eq!(fused, 148, "cells fused");
 }
+
+/// **A reference to a retired rim piece is offered the joined edge.**
+/// Where `a` runs flush with `b`, `a`'s rim is no longer held in
+/// pieces: the output stage joins it with `b`'s into one edge, named
+/// for the set of the two rims. A piece name spelled before that (here
+/// built by hand, as a document saved then would carry it) resolves
+/// `Vanished`, and the set-named edge that holds the whole rim, and so
+/// every piece of it, is among its offers.
+#[test]
+fn a_retired_rim_piece_is_offered_its_joined_edge() {
+    let (doc, ids) = document(&[A, B], &[0, 1]);
+    let (a, b) = (ids[0], ids[1]);
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (docx, union) = declared_union(doc, &ids, pairs);
+    let ev = run(&docx);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let rim = |m: RecipeNodeId| {
+        crate::fixture::member_entity(
+            union,
+            m,
+            StableName {
+                kind: EntityKind::Edge,
+                node: m,
+                path: vec![RoleSeg::RimEdge(
+                    CapEnd::End,
+                    crate::fixture::piece(&docx, m, 0, 2),
+                )],
+            },
+            EntityKind::Edge,
+        )
+    };
+    let mut set = vec![rim(a), rim(b)];
+    set.sort();
+    let joined = StableName {
+        kind: EntityKind::Edge,
+        node: union,
+        path: vec![RoleSeg::Merged(set)],
+    };
+    let t = table(&ev, union);
+    edge_of(t, "the joined rim", &joined);
+    let corners: Vec<StableName> = t
+        .iter()
+        .filter(|(n, _)| n.kind == EntityKind::Vertex)
+        .map(|(n, _)| n.clone())
+        .take(2)
+        .collect();
+    let mut piece = rim(a);
+    piece
+        .path
+        .push(RoleSeg::Fragment(Qualifier::Ends(corners)));
+    let ctx = editor_core::RunCtx {
+        doc: &docx,
+        eval: &ev,
+    };
+    let editor_core::Resolution::Failed(f) = editor_core::resolve(ctx, &piece) else {
+        panic!("the retired piece resolves");
+    };
+    assert!(
+        matches!(f.error, editor_core::ResolveError::Vanished { .. }),
+        "{:?}",
+        f.error
+    );
+    assert!(f.offers.contains(&joined), "{:?}", f.offers);
+}
