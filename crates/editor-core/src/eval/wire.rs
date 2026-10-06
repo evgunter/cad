@@ -4423,8 +4423,8 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// [`NodeErrorKind::CurvedSolidFrontier`] door, a constant so the
 /// acceptance rows assert the SAME text, which says why.
 pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — a \
-     closed chain of segments, a full circle among them as one segment \
-     at one vertex — while §10.4's rigid-profile sweep needs the path as \
+     closed chain of segments, or a full circle as one segment at one \
+     vertex — while §10.4's rigid-profile sweep needs the path as \
      ONE open curve, so every recipe-expressible sweep waits on a \
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";

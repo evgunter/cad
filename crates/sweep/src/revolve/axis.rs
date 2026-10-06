@@ -199,7 +199,7 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
         // A one-segment loop is a full turn (D1): its arc is the whole
         // carrier, so both radial extrema lie on it, and its chord —
         // the apex's and the membership margin's — is zero.
-        let full_turn = lp.segments().len() == 1;
+        let full_turn = lp.is_full_turn();
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
             if let SegmentKind::Arc { arc, .. } = s.kind {

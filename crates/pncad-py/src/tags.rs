@@ -1397,7 +1397,7 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
         ProfileError::EmptyProfile => "empty_profile",
-        ProfileError::TooFewVertices { .. } => "too_few_vertices",
+        ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
         ProfileError::NearFullArc(_) => "near_full_arc",
         ProfileError::InconsistentArc { .. } => "inconsistent_arc",
@@ -1405,6 +1405,7 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
         ProfileError::NonSimple { .. } => "non_simple",
         ProfileError::TangentialContact { .. } => "tangential_contact",
         ProfileError::TangentJointOutOfRange { .. } => "tangent_joint_out_of_range",
+        ProfileError::TangentJointOnFullTurn { .. } => "tangent_joint_on_full_turn",
         ProfileError::UndeclaredTangency { .. } => "undeclared_tangency",
         ProfileError::TangencyContradicted { .. } => "tangency_contradicted",
         ProfileError::SliverLoop { .. } => "sliver_loop",

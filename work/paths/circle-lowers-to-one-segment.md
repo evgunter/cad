@@ -19,15 +19,16 @@ Unit 4 of the #3218 lowering. `circle(c, r)` lowers through `circle_split`'s ker
   `one-segment-loop-revolves-and-lofts-to-one-wall` builds the wrap
   edge (#4175); this unit makes every revolve or loft of a `circle`
   take it.
-- Validate's `ByConstruction` full-turn arm (`seg::full_turn`) decides
-  only the turn's reach: no door constructs a full turn yet, so the
-  arm's consistency rests on this unit's `circle_split` kernel writing
-  b = a and |Δθ| = 2π exactly. The arm is guarded in debug builds;
-  this unit owns showing that construction.
+- Validate's `ByConstruction` full-turn arm (`seg::build_loop_seg`)
+  decides only the turn's reach and sense: no door constructs a full
+  turn yet, so the arm trusts the construction to write its start on
+  its carrier and |Δθ| = 2π. This unit's `circle_split` kernel is that
+  construction, and owns showing it.
 - An extruded one-segment cylinder cut ACROSS its wall by a plane (a
   slab, a pocket floor) refuses `Join(SingleSiteSectionLoop)`
   (`work/join/closed-in-face-section-loop-has-one-site.md`), where
   today's two-arc cylinder builds. That row is parked on D10.
 - `lift::lift_seamed` still refuses fewer than two vertices
-  (`LiftRefusal::TooFewVertices`, "a loop needs at least two vertices"):
+  (`LiftRefusal::TooFewVertices`, "the chain vocabulary spells a loop
+  of at least two vertices"):
   a one-segment loop lifts to `circle` once `circle` lowers to one.

@@ -586,8 +586,9 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 /// 2-vertex cap has only two vertices — and they carry the traversal's
 /// winding faithfully (each sits between its segment's endpoints in
 /// loop order). A one-segment loop is a full turn at its one vertex
-/// (D1), whose chord has no apex: its carrier points a quarter, a half
-/// and three quarters of the way round stand in, in the same order.
+/// (D1), whose chord has no apex: its carrier points a quarter of the
+/// way round, its antipode ([`geom_core::Arc2::antipode`]) and three
+/// quarters of the way round stand in, in the same order.
 ///
 /// `qs` are the world vertices and `place` the matching placement, so
 /// a rotated or translated cap passes the rotated or translated pair.
@@ -601,10 +602,10 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
         if let SegmentKind::Arc { arc, .. } = s.kind().get() {
-            if segs.len() == 1 {
-                for q in [0.25, 0.5, 0.75] {
-                    pts.push(placed(arc.point_from(s.a(), T::from_f64(q))));
-                }
+            if profile::is_full_turn(segs) {
+                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.25))));
+                pts.push(placed(arc.antipode(s.a())));
+                pts.push(placed(arc.point_from(s.a(), T::from_f64(0.75))));
             } else {
                 pts.push(placed(arc.apex(s.a(), s.b())));
             }
@@ -694,7 +695,8 @@ pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
 
 /// Re-describes `edge`, both of whose halves bound one face on `wall`,
 /// as that chart's seam (`EdgeDescriptionSpec::seam`): the certified
-/// carrier and interval kept verbatim.
+/// carrier and interval kept verbatim. Extrude's one-segment strut and
+/// a full revolve's periodic meridian both go through here.
 pub(crate) fn describe_seam<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,

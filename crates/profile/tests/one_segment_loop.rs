@@ -268,3 +268,74 @@ fn a_full_turn_between_two_vertices_is_refused() {
         Some(ProfileError::DegenerateSegment(at)),
     );
 }
+
+/// **A full turn's vertex is not an endpoint.** A loop crossing a
+/// one-segment circle 5e-5 round from its vertex — inside the √(rKε)
+/// zone where a chord arc's span reads its endpoint — is refused as a
+/// CROSSING, as the same circle written as two arcs with their
+/// vertices elsewhere is; and so is one crossing at the vertex itself.
+#[test]
+fn a_crossing_at_or_near_a_full_turns_vertex_is_a_crossing() {
+    let at = |phi: f64, rho: f64| Point2::new(rho * phi.cos(), rho * phi.sin());
+    let tool = |phi: f64| -> ProfileLoop<f64> {
+        RawLoop::polygon([at(phi, 0.9), at(phi, 1.1), at(phi + 0.2, 1.1)])
+    };
+    let half = |sweep: f64| {
+        Segment::Arc(Arc2 {
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep,
+        })
+    };
+    let two_arcs: ProfileLoop<f64> = RawLoop::new([
+        (Point2::new(0.0, -1.0), half(PI)),
+        (Point2::new(0.0, 1.0), half(PI)),
+    ]);
+    let one = SegmentRef {
+        loop_index: 1,
+        segment_index: 0,
+    };
+    let want = profile::ContactKind::Crossing;
+    for phi in [5e-5, 0.0] {
+        for (what, circle_loop) in [
+            ("one segment", circle(0.0, 0.0, 1.0, TAU)),
+            ("two arcs", two_arcs.clone()),
+        ] {
+            let got = validate(vec![circle_loop, tool(phi)]);
+            assert!(
+                matches!(
+                    got,
+                    Err(ProfileError::NonSimple { first, second, kind })
+                        if first.loop_index == 0 && second == one && kind == want
+                ),
+                "{what}, crossed {phi} rad from the vertex: want {want:?}, got {got:?}"
+            );
+        }
+    }
+}
+
+/// **A one-segment loop has no joint to declare.** Its vertex joins the
+/// carrier to itself, so declaring it tangent is refused, typed, before
+/// anything reads the declaration; an index past it is out of range as
+/// on any loop.
+#[test]
+fn a_declared_joint_on_a_full_turn_is_refused() {
+    let declared = |joints: Vec<usize>| circle(0.0, 0.0, 1.0, TAU).with_tangent_joints(joints);
+    assert_eq!(
+        validate(vec![declared(vec![0])]).err(),
+        Some(ProfileError::TangentJointOnFullTurn { loop_index: 0 }),
+    );
+    assert_eq!(
+        validate(vec![square(2.0), declared(vec![0])]).err(),
+        Some(ProfileError::TangentJointOnFullTurn { loop_index: 1 }),
+    );
+    assert_eq!(
+        validate(vec![declared(vec![1])]).err(),
+        Some(ProfileError::TangentJointOutOfRange {
+            loop_index: 0,
+            joint: 1,
+            count: 1,
+        }),
+    );
+    assert!(validate(vec![declared(Vec::new())]).is_ok());
+}

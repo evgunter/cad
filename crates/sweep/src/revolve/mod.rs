@@ -899,7 +899,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     }
     // After the axis classes, which refuse a full turn that reaches the
     // axis by what is wrong with it.
-    if let Some(loop_index) = loops.iter().position(|segs| segs.len() == 1) {
+    if let Some(loop_index) = loops.iter().position(|segs| profile::is_full_turn(segs)) {
         return Err(RevolveError::OneSegmentLoop { loop_index });
     }
 

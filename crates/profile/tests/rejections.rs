@@ -36,13 +36,7 @@ fn empty_profile_is_rejected() {
 #[test]
 fn empty_loop_fails_arity() {
     let p = profile(vec![chain(&[])]);
-    assert_eq!(
-        err(&p),
-        ProfileError::TooFewVertices {
-            loop_index: 0,
-            count: 0,
-        }
-    );
+    assert_eq!(err(&p), ProfileError::EmptyLoop { loop_index: 0 });
 }
 
 /// One vertex is a legal arity (D1's full turn), but the bulge door

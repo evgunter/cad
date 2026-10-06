@@ -37,12 +37,17 @@ pub(crate) struct Seg<T: Real> {
     pub a: Point2<T>,
     /// End point.
     pub b: Point2<T>,
-    /// The chord vector `b − a`.
+    /// The chord vector `b − a`: zero for a full turn, whose `b` is
+    /// its `a`.
     pub chord: Vec2<T>,
-    /// The chord length |b − a| (definitely positive — degeneracy is
-    /// rejected before a `Seg` is built).
+    /// The chord length |b − a|: definitely positive between two
+    /// vertices (degeneracy is rejected before a `Seg` is built), and
+    /// zero for a full turn, whose reach `vertex_separation` decides
+    /// instead.
     pub len: T,
-    /// The unit chord direction `chord / len`.
+    /// The unit chord direction `chord / len`; a full turn, which has
+    /// no chord, stores its traversal heading at its vertex
+    /// ([`Seg::heading_at`]). Finite and unit either way.
     pub unit: Vec2<T>,
     /// Line or arc, decided by the `segment_straightness` predicate.
     pub kind: SegKind<T>,
@@ -57,21 +62,34 @@ pub(crate) enum SegKind<T: Real> {
 }
 
 /// Arc geometry: the canonical segment's carrier and sweep, plus the
-/// apex and span chord the membership margins are written on.
+/// span its membership margin is written on.
 pub(crate) struct ArcGeom<T: Real> {
     /// The canonical segment's carrier and signed sweep.
     pub arc: Arc2<T>,
-    /// The arc's apex (its midpoint — the point farthest from the
-    /// chord).
-    pub apex: Point2<T>,
-    /// |a − apex|: the chordal span threshold for membership (a carrier
-    /// point q lies on the arc iff |q − apex| ≤ this — chord length is
-    /// monotone in angular distance up to π, and the apex splits the arc
-    /// into two halves of angle |θ|/2 ≤ π).
-    pub span_chord: T,
+    /// Which carrier points the arc holds.
+    pub span: ArcSpan<T>,
     /// The turn sense: `Positive` = counterclockwise sweep,
     /// `Negative` = clockwise.
     pub turn: Sign,
+}
+
+/// Which carrier points an arc holds ([`arc_span`]).
+pub(crate) enum ArcSpan<T: Real> {
+    /// An arc between two vertices, 0 < |Δθ| < 2π.
+    Chord {
+        /// The arc's apex (its midpoint — the point farthest from the
+        /// chord).
+        apex: Point2<T>,
+        /// |a − apex|: the chordal span threshold for membership (a
+        /// carrier point q lies on the arc iff |q − apex| ≤ this —
+        /// chord length is monotone in angular distance up to π, and
+        /// the apex splits the arc into two halves of angle |θ|/2 ≤ π).
+        span_chord: T,
+    },
+    /// D1's full turn, one segment at one vertex: every carrier point,
+    /// and its vertex is not an endpoint — it joins the carrier to
+    /// itself, so a contact there is interior like any other.
+    FullTurn,
 }
 
 /// Why a segment's shape could not be read, each arm carrying the
@@ -84,6 +102,13 @@ pub(crate) enum ShapeIssue<T: Real> {
     /// unreachable for a true distance but mapped here defensively).
     Degenerate {
         /// The chord length |b − a|, meters.
+        margin: T,
+    },
+    /// A full turn reaches nowhere: its carrier is below the band or
+    /// its sweep is nothing (`full_turn_reach` classified Zero, or
+    /// `full_turn_sense` did after it).
+    DegenerateTurn {
+        /// The turn's signed reach 2r·Δθ/2π, meters.
         margin: T,
     },
     /// The arc is within tolerance of a full circle
@@ -104,6 +129,7 @@ impl<T: Real> ShapeIssue<T> {
     pub(crate) fn predicate(&self) -> &'static str {
         match self {
             Self::Degenerate { .. } => "vertex_separation",
+            Self::DegenerateTurn { .. } => "full_turn_reach",
             Self::NearFull { .. } => "arc_diameter_clearance",
             Self::Escalated(source) => source.predicate.unwrap_or("<unnamed>"),
         }
@@ -275,8 +301,8 @@ pub(crate) fn build_seg<T: Decide>(
 
 /// Builds and classifies segment `k` of the loop `vertices` /
 /// `segments` ([`build_seg`] with the loop's arity in hand): a loop of
-/// one vertex holding an arc is D1's full turn, read by
-/// [`build_full_turn`]; every other segment runs from vertex `k` to
+/// one vertex holding an arc is D1's full turn ([`crate::is_full_turn`]),
+/// read by [`full_turn`]; every other segment runs from vertex `k` to
 /// vertex `k + 1 (mod n)` through [`build_seg`] — a one-vertex LINE
 /// included, whose zero chord `vertex_separation` refuses.
 pub(crate) fn build_loop_seg<T: Decide>(
@@ -286,35 +312,46 @@ pub(crate) fn build_loop_seg<T: Decide>(
     consistency: Consistency,
     band: Band,
 ) -> Result<Seg<T>, SegIssue<T>> {
-    let n = vertices.len();
     let a = vertices[k];
-    match (n, segments[k]) {
-        (1, Segment::Arc(arc)) => match consistency {
+    match segments[k] {
+        Segment::Arc(arc) if crate::is_full_turn(segments) => match consistency {
             Consistency::Decide => full_turn(a, arc, band, |arc, span| {
                 check_carrier(arc, a, a, span, Range::FullTurn, band)
             }),
+            // No door constructs a full turn yet, so nothing has yet
+            // shown a construction that writes one exactly (its start
+            // on its carrier, |Δθ| = 2π): this arm decides the turn's
+            // reach and sense and trusts the rest, like every
+            // constructed arc. `circle-lowers-to-one-segment` owns that
+            // construction and its proof.
             Consistency::ByConstruction => {
                 full_turn(a, arc, band, |_, _| Ok(())).map_err(SegIssue::Shape)
             }
         },
-        _ => build_seg(a, vertices[(k + 1) % n], segments[k], consistency, band),
+        _ => build_seg(
+            a,
+            vertices[(k + 1) % vertices.len()],
+            segments[k],
+            consistency,
+            band,
+        ),
     }
 }
 
 /// **A full turn at one vertex** (D1: the loop's one segment, from its
 /// vertex `a` back to it through |Δθ| = 2π) — [`build_seg`]'s
-/// predicates where a full turn has no chord to write them on:
+/// questions where a full turn has no chord to write them on, under
+/// predicate names of their own:
 ///
-/// - **`vertex_separation`** — margin: the full turn's reach from its
-///   vertex, |m| with m = 2r·Δθ/2π (meters: the sweep as a fraction of
-///   a turn, levered by the diameter — the diameter at |Δθ| = 2π).
-///   Zero ⇒ degenerate (a carrier below the band, or a sweep of
-///   nothing).
-/// - **`segment_straightness`** — margin: m itself, the antipode's
-///   signed offset from the tangent at the vertex (the sagitta, whose
-///   limit a chord arc's (L/2)·tan(Δθ/4) is). Its sign is the turn;
-///   its magnitude was just decided Positive, so Zero is unreachable
-///   and is refused as degenerate rather than read as a line.
+/// - **`full_turn_reach`** — margin: the turn's reach from its vertex,
+///   |m| with m = 2r·Δθ/2π (meters: the sweep as a fraction of a turn,
+///   levered by the diameter — the diameter at |Δθ| = 2π). Zero ⇒
+///   degenerate (a carrier below the band, or a sweep of nothing).
+/// - **`full_turn_sense`** — margin: m itself, the antipode's signed
+///   offset from the tangent at the vertex (the sagitta, whose limit a
+///   chord arc's (L/2)·tan(Δθ/4) is). Its sign is the turn; its
+///   magnitude was just decided Positive, so Zero is unreachable and
+///   is refused as degenerate rather than read as a line.
 /// - **The consistency checks** (under [`Consistency::Decide`]), as
 ///   [`build_seg`] states them with `b = a`, except that
 ///   **`arc_sweep_range`** reads the full-turn factor of its range
@@ -323,14 +360,10 @@ pub(crate) fn build_loop_seg<T: Decide>(
 ///   turns round is Zero at `arc_landing`).
 ///
 /// No `arc_diameter_clearance`: a full turn is the circle that gate
-/// keeps chord arcs short of. The apex is the antipode
-/// ([`Arc2::antipode`]) and the span chord its distance from `a`, so
-/// `arc_span` reads every carrier point but the vertex Positive and the
-/// vertex Zero — an endpoint, as at a chord arc's ends. The chordal
-/// defect is second order at the vertex (cos(|θ|/4) = 0), so a Zero
-/// there means within ≈ √(4rKε) of the vertex along the carrier; Zero
-/// routes to a touch (refused between loops) or a grazing ray
-/// (retried), never to an accept.
+/// keeps chord arcs short of. Its span is [`ArcSpan::FullTurn`]: every
+/// carrier point, the vertex included, so a contact at or near the
+/// vertex is interior. Its chord frame is the finite one [`Seg`]
+/// documents (zero chord, zero length, the heading at the vertex).
 fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     a: Point2<T>,
     arc: Arc2<T>,
@@ -340,12 +373,12 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
     let reach = Margin::levered(arc.sweep / T::tau(), arc.radius + arc.radius);
     let m = reach.value();
-    match decide("vertex_separation", Margin::of(m.abs()), band).map_err(escalated)? {
+    match decide("full_turn_reach", Margin::of(m.abs()), band).map_err(escalated)? {
         Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Err(ShapeIssue::Degenerate { margin: m }.into()),
+        Sign::Zero | Sign::Negative => return Err(ShapeIssue::DegenerateTurn { margin: m }.into()),
     }
-    let turn = match decide("segment_straightness", reach, band).map_err(escalated)? {
-        Sign::Zero => return Err(ShapeIssue::Degenerate { margin: m }.into()),
+    let turn = match decide("full_turn_sense", reach, band).map_err(escalated)? {
+        Sign::Zero => return Err(ShapeIssue::DegenerateTurn { margin: m }.into()),
         turn @ (Sign::Positive | Sign::Negative) => turn,
     };
     let span = match turn {
@@ -353,20 +386,19 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
         Sign::Positive | Sign::Zero => arc.sweep,
     };
     check(arc, span)?;
-    let apex = arc.antipode(a);
-    let frame = ChordFrame::of(a, a);
+    let kind = SegKind::Arc(ArcGeom {
+        arc,
+        span: ArcSpan::FullTurn,
+        turn,
+    });
+    let heading = heading_on(&kind, a, Vec2::zero());
     Ok(Seg {
         a,
         b: a,
-        chord: frame.chord,
-        len: frame.len,
-        unit: frame.unit,
-        kind: SegKind::Arc(ArcGeom {
-            arc,
-            apex,
-            span_chord: a.distance(apex),
-            turn,
-        }),
+        chord: a - a,
+        len: T::zero(),
+        unit: heading,
+        kind,
     })
 }
 
@@ -451,8 +483,7 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             }
             SegKind::Arc(ArcGeom {
                 arc,
-                apex,
-                span_chord,
+                span: ArcSpan::Chord { apex, span_chord },
                 turn,
             })
         }
@@ -629,12 +660,16 @@ fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, In
 /// to endpoint-Touch contacts, which are errors for non-adjacent pairs
 /// and are discounted only within ε of the actual shared vertex
 /// (`contact_at_shared_vertex` is an uncompressed direct distance).
+///
+/// A full turn ([`ArcSpan::FullTurn`]) holds every carrier point, so
+/// nothing is decided: its vertex is not an endpoint.
 fn arc_span<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
-    decide(
-        "arc_span",
-        Margin::of(g.span_chord - q.distance(g.apex)),
-        band,
-    )
+    match g.span {
+        ArcSpan::Chord { apex, span_chord } => {
+            decide("arc_span", Margin::of(span_chord - q.distance(apex)), band)
+        }
+        ArcSpan::FullTurn => Ok(Sign::Positive),
+    }
 }
 
 /// **`contact_at_shared_vertex`** (and other point-coincidence
@@ -739,6 +774,21 @@ pub(crate) fn junction_reverses<T: Decide>(
     ))
 }
 
+/// [`Seg::heading_at`] on a segment of kind `kind` whose chord
+/// direction is `unit`.
+fn heading_on<T: Real>(kind: &SegKind<T>, p: Point2<T>, unit: Vec2<T>) -> Vec2<T> {
+    match kind {
+        SegKind::Line => unit,
+        SegKind::Arc(g) => {
+            let ccw = perp(p - g.arc.centre) * (T::one() / g.arc.radius);
+            match g.turn {
+                Sign::Negative => -ccw,
+                Sign::Positive | Sign::Zero => ccw,
+            }
+        }
+    }
+}
+
 /// **An arc leg's lever arm**: the smaller of its carrier's radius and
 /// its chord. The radius is what an angular margin displaces over; the
 /// chord bounds it for an arc shorter than its own radius, where the
@@ -749,11 +799,14 @@ pub(crate) fn arc_lever<T: Real>(radius: T, chord: T) -> T {
 
 impl<T: Real> Seg<T> {
     /// The leg's lever arm at a junction: a line's length, an arc's
-    /// [`arc_lever`].
+    /// [`arc_lever`], a full turn's radius.
     pub(crate) fn arm(&self) -> T {
         match &self.kind {
             SegKind::Line => self.len,
-            SegKind::Arc(g) => arc_lever(g.arc.radius, self.len),
+            SegKind::Arc(g) => match g.span {
+                ArcSpan::Chord { .. } => arc_lever(g.arc.radius, self.len),
+                ArcSpan::FullTurn => g.arc.radius,
+            },
         }
     }
 
@@ -761,16 +814,7 @@ impl<T: Real> Seg<T> {
     /// endpoints: a line's chord direction; an arc's counterclockwise
     /// carrier tangent at `p`, reversed on a clockwise turn.
     pub(crate) fn heading_at(&self, p: Point2<T>) -> Vec2<T> {
-        match &self.kind {
-            SegKind::Line => self.unit,
-            SegKind::Arc(g) => {
-                let ccw = perp(p - g.arc.centre) * (T::one() / g.arc.radius);
-                match g.turn {
-                    Sign::Negative => -ccw,
-                    Sign::Positive | Sign::Zero => ccw,
-                }
-            }
-        }
+        heading_on(&self.kind, p, self.unit)
     }
 }
 
@@ -1165,7 +1209,12 @@ fn arc_arc<T: Decide>(
                     Sign::Negative => {}
                 }
             }
-            if coincident("arc_apex_identity", g1.apex, g2.apex, band)? == Sign::Zero {
+            // A full turn holds every carrier point, so a pair with
+            // one never reaches here: the loop above found an overlap.
+            if let (ArcSpan::Chord { apex: apex1, .. }, ArcSpan::Chord { apex: apex2, .. }) =
+                (&g1.span, &g2.span)
+                && coincident("arc_apex_identity", *apex1, *apex2, band)? == Sign::Zero
+            {
                 // Same endpoints AND same apex: identical spans.
                 return Ok(PairOutcome::Overlap);
             }

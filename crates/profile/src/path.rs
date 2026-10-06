@@ -3467,6 +3467,7 @@ impl<T: Decide> Core<T> {
                 }
                 Err(
                     issue @ (seg::ShapeIssue::Degenerate { margin }
+                    | seg::ShapeIssue::DegenerateTurn { margin }
                     | seg::ShapeIssue::NearFull { margin }),
                 ) => {
                     return Err(flattened(issue.predicate(), margin));

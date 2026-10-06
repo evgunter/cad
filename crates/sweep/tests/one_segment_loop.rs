@@ -10,9 +10,12 @@
 //!   as the wall's seam; outer and hole, both directions, `f64` and
 //!   `Interval`;
 //! - **revolve** and **loft** refuse a one-segment loop, typed: the one
-//!   wall each would build wraps a period no chart here has a seam on
-//!   (a torus's tube angle; a spline wall's `u`);
-//! - **a boolean** on an extruded periodic wall with a seam strut.
+//!   wall each would build wraps a period whose wrap edge no chart here
+//!   reads yet (a torus's tube angle; a spline wall's `u`); a circle
+//!   reaching the axis keeps its own axis refusal;
+//! - **a boolean** on an extruded periodic wall with a seam strut, and
+//!   **a split** through its seam vertices and along its strut, held
+//!   against the two-arc form.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -195,28 +198,53 @@ fn one_segment_circles_extrude_as_holes_and_around_them() {
     }
 }
 
-/// The same extrusions at `Interval`, all three tiers.
+/// **The same extrusions at `Interval`**, over vertex phase × winding
+/// × extrude side × outer or hole: all three tiers, the census, the
+/// strut described as the wall's seam, and a volume enclosure that
+/// holds the closed form.
 #[test]
 fn one_segment_circles_extrude_at_interval() {
-    let f = Interval::from_f64;
-    for loops in [
-        vec![circle::<Interval>(0.5, -0.25, 1.5, TAU)],
-        vec![rect(-2.0, -2.0, 2.0, 2.0), circle(0.25, 0.0, 1.0, TAU)],
-        vec![circle(0.0, 0.0, 2.0, -TAU), circle(0.0, 0.0, 1.0, TAU)],
-    ] {
-        let n = loops.len();
-        let t = extrude(
-            &validated(loops),
-            Extrusion::Distance {
-                depth: f(1.5),
-                side: ExtrudeSide::Along,
-            },
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{n} loops: the extrusion builds at Interval: {e}"));
-        tiers(&t.body, &format!("{n} loops at Interval"));
-        let v = topo::mass_properties(&t.body, tol()).unwrap().volume;
-        assert!(v.lo() > 0.0, "{n} loops: {v:?}");
+    let (r, h) = (1.0, 1.5);
+    for phase in [0.0, 1.0] {
+        for sweep in [TAU, -TAU] {
+            for side in [ExtrudeSide::Along, ExtrudeSide::Against] {
+                for hole in [false, true] {
+                    let what = format!("phase {phase}, sweep {sweep}, {side:?}, hole {hole}");
+                    let circle = circle_at::<Interval>(0.25, 0.0, r, phase, sweep);
+                    let (loops, want, counts) = if hole {
+                        (
+                            vec![rect(-2.0, -2.0, 2.0, 2.0), circle],
+                            (16.0 - PI * r * r) * h,
+                            (10, 15, 7),
+                        )
+                    } else {
+                        (vec![circle], PI * r * r * h, (2, 3, 3))
+                    };
+                    let t = extrude(
+                        &validated(loops),
+                        Extrusion::Distance {
+                            depth: Interval::from_f64(h),
+                            side,
+                        },
+                        tol(),
+                    )
+                    .unwrap_or_else(|e| panic!("{what}: the extrusion builds at Interval: {e}"));
+                    tiers(&t.body, &what);
+                    assert_eq!(census(&t.body), counts, "{what}");
+                    let walls = t.walls.last().unwrap();
+                    assert_eq!(walls.len(), 1, "{what}: the circle's one wall");
+                    assert!(
+                        is_seam(&t.body, walls[0].strut),
+                        "{what}: the strut is the wall's seam"
+                    );
+                    let v = topo::mass_properties(&t.body, tol()).unwrap().volume;
+                    assert!(
+                        v.lo() <= want && want <= v.hi(),
+                        "{what}: volume {v:?} does not hold the closed form {want}"
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -396,29 +424,253 @@ fn a_one_segment_section_skins_and_the_loft_refuses_typed() {
     }
 }
 
-/// A one-segment circle centred on the axis crosses it, and one tangent
-/// to it touches it, whatever its arity: both refuse, typed.
+/// **A one-segment circle that reaches the axis is refused by what is
+/// wrong with it**, before the one-segment refusal: each geometry pins
+/// its own axis class.
 #[test]
 fn a_one_segment_circle_on_or_against_the_axis_refuses() {
-    for (what, lp) in [
-        ("centred on the axis", circle(0.0, 0.0, 1.0, TAU)),
-        ("tangent to the axis", circle_at(1.0, 0.0, 1.0, PI, TAU)),
-    ] {
+    use sweep::RevolveError as E;
+    let arc = |what: &str, got: &E| {
+        assert!(
+            matches!(
+                got,
+                E::ArcCrossesAxis {
+                    loop_index: 0,
+                    segment_index: 0
+                }
+            ),
+            "{what}: {got:?}"
+        );
+    };
+    let toroid = |what: &str, got: &E| {
+        assert!(
+            matches!(
+                got,
+                E::UnsupportedToroid {
+                    loop_index: 0,
+                    segment_index: 0
+                }
+            ),
+            "{what}: {got:?}"
+        );
+    };
+    let vertex = |what: &str, got: &E| {
+        assert!(
+            matches!(
+                got,
+                E::VertexCrossesAxis {
+                    loop_index: 0,
+                    vertex_index: 0
+                }
+            ),
+            "{what}: {got:?}"
+        );
+    };
+    type Want = fn(&str, &E);
+    let cases: [(&str, ProfileLoop<f64>, Want); 5] = [
+        // The sphere class: a full turn about an on-axis centre spans
+        // past π, so it dips below the axis.
+        ("centred on the axis", circle(0.0, 0.0, 1.0, TAU), arc),
+        // The toroid classes: the carrier reaches the axis off-centre.
+        ("crossing the axis", circle(0.5, 0.0, 1.0, TAU), toroid),
+        (
+            "tangent to the axis at its vertex",
+            circle_at(1.0, 0.0, 1.0, PI, TAU),
+            toroid,
+        ),
+        (
+            "tangent to the axis away from its vertex",
+            circle(1.0, 0.0, 1.0, -TAU),
+            toroid,
+        ),
+        // The vertex itself lies across the axis.
+        (
+            "its vertex across the axis",
+            circle_at(1.0, 0.0, 1.5, PI, TAU),
+            vertex,
+        ),
+    ];
+    for (what, lp, want) in cases {
         let got = sweep::revolve(
             &validated(vec![lp]),
             y_axis(),
             sweep::Revolution::Partial(1.0),
             tol(),
         );
+        want(what, &got.expect_err(what));
+    }
+}
+
+/// The circle about the origin of radius `r` as two arcs, its vertices
+/// at carrier angles `phase` and `phase + π`: the form a one-segment
+/// circle is held against.
+fn two_arc_circle(r: f64, phase: f64) -> ProfileLoop<f64> {
+    let half = Segment::Arc(Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: r,
+        sweep: PI,
+    });
+    let (c, s) = (r * phase.cos(), r * phase.sin());
+    RawLoop::new([(Point2::new(c, s), half), (Point2::new(-c, -s), half)])
+}
+
+/// What a split leaves on each side, each side checked at all three
+/// tiers: its volume, or `None` for no material.
+fn split_volumes(
+    body: &Body<f64>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+    what: &str,
+) -> Result<[Option<f64>; 2], topo::SplitError> {
+    let plane = topo::test_support::split_plane(
+        geom_core::Point3::new(origin[0], origin[1], origin[2]),
+        geom_core::Vec3::new(normal[0], normal[1], normal[2]),
+        tol(),
+    );
+    let out = topo::split(
+        &topo::test_support::finished("the cylinder", body.clone(), tol()),
+        &plane,
+        tol(),
+    )?;
+    Ok([&out.above, &out.below].map(|part| {
+        part.body().map(|b| {
+            tiers(b, what);
+            volume(b)
+        })
+    }))
+}
+
+/// **A split of an extruded one-segment cylinder builds where the
+/// two-arc cylinder does, at the same volumes.** The cylinder is r = 1
+/// about the z axis, its seam strut on the vertex's meridian. The
+/// planes, at two vertex phases (one per winding) and both extrude
+/// sides: through the bottom seam vertex and the axis's midpoint, and
+/// through the top one (each halves the body, so the face-extent lever
+/// of a cap whose one vertex is on the plane is read); tangent to the
+/// wall along the strut (both vertices ON, all material on one side);
+/// and containing the strut and the axis (π | π).
+#[test]
+fn a_split_through_the_seam_builds_as_the_two_arc_form_does() {
+    for side in [ExtrudeSide::Along, ExtrudeSide::Against] {
+        for (phase, sweep) in [(0.0, TAU), (PI / 2.0, -TAU)] {
+            let one = extruded(vec![circle_at(0.0, 0.0, 1.0, phase, sweep)], 2.0, side).body;
+            let two = extruded(vec![two_arc_circle(1.0, phase)], 2.0, side).body;
+            let (c, s) = (phase.cos(), phase.sin());
+            let (bottom, top) = match side {
+                ExtrudeSide::Along => (0.0, 2.0),
+                ExtrudeSide::Against => (-2.0, 0.0),
+            };
+            let mid = (bottom + top) / 2.0;
+            let cases: [(&str, [f64; 3], [f64; 3], [Option<f64>; 2]); 4] = [
+                (
+                    "through the bottom seam vertex",
+                    [c, s, bottom],
+                    [c, s, 1.0],
+                    [Some(PI), Some(PI)],
+                ),
+                (
+                    "through the top seam vertex",
+                    [c, s, top],
+                    [-c, -s, 1.0],
+                    [Some(PI), Some(PI)],
+                ),
+                (
+                    "tangent along the strut",
+                    [c, s, mid],
+                    [c, s, 0.0],
+                    [None, Some(TAU)],
+                ),
+                (
+                    "containing the strut and the axis",
+                    [0.0, 0.0, mid],
+                    [-s, c, 0.0],
+                    [Some(PI), Some(PI)],
+                ),
+            ];
+            for (plane, origin, normal, want) in cases {
+                let what = format!("{side:?}, phase {phase}, sweep {sweep}: {plane}");
+                for (form, body) in [("one segment", &one), ("two arcs", &two)] {
+                    let got = split_volumes(body, origin, normal, &what)
+                        .unwrap_or_else(|e| panic!("{what}, {form}: the split builds: {e:?}"));
+                    for (got, want) in got.iter().zip(&want) {
+                        match (got, want) {
+                            (Some(got), Some(want)) => {
+                                close(*got, *want, &format!("{what}, {form}"));
+                            }
+                            (None, None) => {}
+                            _ => panic!("{what}, {form}: sides {got:?}, want {want:?}"),
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **`segment_curve` converts an arc back to its own start only as one
+/// full turn.** A zero chord with a half turn or two turns is refused,
+/// typed, and so is a full turn between two distinct points; the full
+/// turn converts and closes on its start.
+#[test]
+fn segment_curve_converts_a_closed_arc_only_as_one_full_turn() {
+    use geom_brep::SketchSegment;
+    let place = geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 0.0));
+    let arc = |sweep: f64| Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: 1.0,
+        sweep,
+    };
+    let (a, b) = (Point2::new(1.0, 0.0), Point2::new(-1.0, 0.0));
+    for (what, seg) in [
+        (
+            "a half turn back to its start",
+            SketchSegment::Arc {
+                a,
+                b: a,
+                arc: arc(PI),
+            },
+        ),
+        (
+            "two turns back to its start",
+            SketchSegment::Arc {
+                a,
+                b: a,
+                arc: arc(2.0 * TAU),
+            },
+        ),
+        (
+            "a full turn between two points",
+            SketchSegment::Arc {
+                a,
+                b,
+                arc: arc(TAU),
+            },
+        ),
+    ] {
         assert!(
             matches!(
-                got,
-                Err(sweep::RevolveError::ArcCrossesAxis { .. }
-                    | sweep::RevolveError::UnsupportedToroid { .. }
-                    | sweep::RevolveError::VertexCrossesAxis { .. })
+                sweep::segment_curve(0, seg, place),
+                Err(sweep::SkinError::DegenerateSection { section: 0, .. })
             ),
-            "{what}: {:?}",
-            got.err()
+            "{what}"
+        );
+    }
+    for sweep in [TAU, -TAU] {
+        let curve = sweep::segment_curve(
+            0,
+            SketchSegment::Arc {
+                a,
+                b: a,
+                arc: arc(sweep),
+            },
+            place,
+        )
+        .unwrap_or_else(|e| panic!("a full turn of {sweep} converts: {e}"));
+        let (t0, t1) = curve.domain();
+        let (start, end) = (curve.eval(t0), curve.eval(t1));
+        assert!(
+            start.distance(end) < 1e-12 && (start.x - 1.0).abs() < 1e-12,
+            "a full turn of {sweep} closes on its start: {start:?} → {end:?}"
         );
     }
 }

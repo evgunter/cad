@@ -436,7 +436,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     {
         return Err(LoftError::SectionStructure);
     }
-    if let Some(loop_index) = bloops.iter().position(|segs| segs.len() == 1) {
+    if let Some(loop_index) = bloops.iter().position(|segs| profile::is_full_turn(segs)) {
         return Err(LoftError::OneSegmentLoop { loop_index });
     }
     let bq: Vec<Vec<Point3<T>>> = bloops

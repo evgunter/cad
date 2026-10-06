@@ -47,6 +47,7 @@
 //! routes through `k_stats`; the raw `f64` comparisons below are
 //! structure selection under C6.
 
+use core::f64::consts::TAU;
 use std::sync::Arc;
 
 use geom::NurbsCurve3;
@@ -277,10 +278,12 @@ impl From<FitError> for SkinError {
 /// # Errors
 ///
 /// [`SkinError::DegenerateSection`] for a line of zero length, a zero
-/// or non-finite sweep, or an arc whose start is not a finite, positive
-/// distance from its centre (an arc may close on its own start: D1's
-/// full turn, one segment at one vertex); [`SkinError::Structure`] if validated
-/// construction refuses.
+/// or non-finite sweep, an arc whose start is not a finite, positive
+/// distance from its centre, an arc between two points sweeping a full
+/// turn or more, or an arc back to its own start that is not one full
+/// turn (D1's full turn, one segment at one vertex, is the one that
+/// converts); [`SkinError::Structure`] if validated construction
+/// refuses.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
@@ -304,7 +307,7 @@ pub fn segment_curve(
                 vec![1.0, 1.0],
             )?)
         }
-        SketchSegment::Arc { a, arc, .. } => {
+        SketchSegment::Arc { a, b, arc } => {
             let Arc2 {
                 centre,
                 sweep: theta,
@@ -312,6 +315,19 @@ pub fn segment_curve(
             } = arc;
             if !theta.is_finite() || theta == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
+            }
+            // An arc that ends where it starts lands there after whole
+            // turns, and converts only as ONE (D1's full turn): its
+            // sweep is nearer one turn than none or two. An arc between
+            // two points stops short of a turn.
+            if a.distance(b) > 0.0 {
+                if !(theta.abs() < TAU) {
+                    return Err(degenerate("a full turn or more between two points"));
+                }
+            } else if !(theta.abs() > TAU / 2.0 && theta.abs() < 1.5 * TAU) {
+                return Err(degenerate(
+                    "an arc from a point back to itself that is not one full turn",
+                ));
             }
             let spoke = a - centre;
             let rim = spoke.norm();
