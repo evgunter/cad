@@ -2533,6 +2533,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VolumeBackstop",
         1,
     ),
+    ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
+    ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
@@ -2552,6 +2554,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
+    (
+        "ops.rs",
+        "split_lineage",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     (
         "ops.rs",
         "volume_backstop",

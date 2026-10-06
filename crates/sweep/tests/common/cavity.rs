@@ -126,8 +126,8 @@ pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
 /// The block is `[0,4]³`; the cavity is `[1,3]³`; and a round chimney
 /// of radius `0.5` on the axis `x = y = 2`, from `z = 2.5` clear of the
 /// top, is cut first — so the cavity is a VENT rather than a void, i.e.
-/// one shell, which is what the surgery's body door admits, with the
-/// vent's mouth strictly inside the cavity's ceiling. The vent is round
+/// one shell, with the vent's mouth strictly inside the cavity's
+/// ceiling. The vent is round
 /// because the ring the mouth leaves in that ceiling rides through the
 /// carve, and the exact ring-clearance check covers circle rings.
 ///
@@ -147,8 +147,9 @@ pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
 /// refuse at the G1 door, because the trivalent-ends clause only
 /// speaks once a chain has ends at all. A concave component that
 /// reaches the surface always ends at mixed corners, so it must
-/// enclose; an enclosed void is two shells, which the body door
-/// refuses; hence a vented cavity.
+/// enclose: a sealed void (a second shell, carved in `blend_per_shell`)
+/// or, as here, a cavity vented through a face its edges do not touch,
+/// which keeps the block one shell.
 ///
 /// **That argument does not make this the smallest such body.** A
 /// triangular prism cavity carves the same way with nine edges and six
