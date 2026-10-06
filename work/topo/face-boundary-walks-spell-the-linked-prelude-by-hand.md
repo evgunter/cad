@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-10-06
 priority: P3
 cost: E
+pr: 4099
 branch: topo/face-boundary-walks-one-home
 refs: [4078]
 ---
