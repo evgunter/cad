@@ -1264,21 +1264,6 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )
 }
 
-/// The box of the ball about `c` of radius `r`, from their enclosures,
-/// padded by `pad`.
-fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> bvh::Aabb {
-    let r = r.hi();
-    bvh::Aabb {
-        min_x: c.x.lo() - r,
-        min_y: c.y.lo() - r,
-        min_z: c.z.lo() - r,
-        max_x: c.x.hi() + r,
-        max_y: c.y.hi() + r,
-        max_z: c.z.hi() + r,
-    }
-    .padded(pad)
-}
-
 /// **Whether a boundary edge of `face` may meet `region`**: some edge of
 /// one of its loops has a certified box, padded by `pad`, overlapping it.
 /// `face` is one the caller read out of `body`.
@@ -3691,7 +3676,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // neither statement survives trimming. A trimmed group's
             // escape is read off its faces instead, and cut in.
             let group = closed_sphere_group(x, face, &charts);
-            let ball_box = centred_box(center, radius, pad);
+            let ball_box = boxes::centred_box(center, radius, pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
             for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
@@ -3756,7 +3741,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // witness extends to the whole circle.
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
-                                let circle_box = centred_box(foot, rho, pad);
+                                let circle_box = boxes::centred_box(foot, rho, pad);
                                 if face_boundary_meets(y, yf, &circle_box, pad) {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
