@@ -140,9 +140,136 @@ compound `∇F₁ · (∇F₁ / n1)`.
 
 **Right.** No decision changed class, and the receipt reads the
 re-spelled jet as fewer frozen nodes, which follows from the change.
-The link and the bracket do not move: past the ceiling their replays
-stop at the extrude's attachment gate (`carrier_matches_mapped_source`)
-before any tangency is read.
+The link's and the bracket's `frozen` do not move. Past the ceiling
+both replays stop at the extrude's attachment gate
+(`carrier_matches_mapped_source`), so their receipts are a truncated
+replay's. Whether the jet is reached before that stop was not
+measured.
 
 Neither move is a defect, so the stop rule does not apply to the
 window.
+
+### Since the window: `8ee3daf171` to `main` at `07ddd620a2`
+
+The same script was run along `main`'s first parent. It was taken at
+the parent and at the merge of every PR that re-pinned either row or
+`measured_studies`, and at the head. Each stretch between those
+points whose ends disagreed was bisected over its commits that change
+a `crates/*/src/*.rs` file. Past-the-ceiling receipts here are
+`[symbolic_zero, sign_gated, registered, numeric, frozen]`, because
+`sign_gated` stops being 0 at #2468. The pad's rule-F row reads the
+same at both dials from #3254 on, so one tuple stands for both.
+
+Every move, at ε = 1e-9, with the merge it is bisected to. The parent
+of each merge reads the row before it.
+
+| merge | plate | annulus | link | bracket | pad, past the ceiling | pad rule-F row | credited where |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `8ee3daf171` (start) | `[803,0,140,470,1044]` | `[328,0,140,209,1056]` | `[214,0,76,179,556]` | `[428,0,141,343,1096]` | `[854,0,128,979,2722]` | off `(858,0,104,999,2722)`, on `(854,0,128,979,2722)` | — |
+| #3313 `387e2e1447` must-carry gate | — | — | — | — | sz +28, num +84 | sz +28, num +84 both dials | both rows (ENCL) |
+| #3254 `b5b7dcc342` arc span from the stored sweep | — | — | reg +9, num −9 | — | frozen −130 | frozen −130; rule F off now reads rule F on's receipt | `Study` at `certifies_at` (link) |
+| #3266 `1bdbdeb726` run-out carrier | — | — | — | sz +1, num +1 | sz +3, num +3 | sz +3, num +3 | both rows |
+| #3455 `6552c509ad` step-id digest chain | — | — | — | — | frozen −15 | frozen −15 | **not credited** |
+| #3612 `fefdc50aba` the schedule assigns its ends | — | — | — | frozen −3 | frozen −48 | frozen −48 | **not credited** |
+| #3645 `993456137f` one `mid_point` | frozen +96 | frozen +96 | frozen +48 | frozen +96 | frozen +168 | frozen +168 | **not credited** |
+| #2468 `dc39bce95d` `props/sign-hull` | sz +8, num −8 | — | reg −5, num +5 | sz +7, sg +5, num −12 | sz +8, sg +34, reg +22, num −64 | the same | `Study` (`7e6371fbae`); rule-F row (`304e61c6a6`) |
+| #3697 `1346a31745` the schedule's middle is `mid_param` | frozen −96 | frozen −96 | frozen −48 | frozen −96 | frozen −168 | frozen −168 | **not credited** |
+| #3594 `c28f9aba17` node-id digest mint | — | — | — | — | frozen +15 | frozen +15 | **not credited** |
+| #3527 `44b64db0ba` copied arc carriers | — | — | — | frozen −4 | reg −2, num +2, frozen −34 | the same | `Study` (`registered`, `numeric`) |
+| #3807 `c983e6e299` DECIDE-9 | — | — | — | — | sz +32, sg −32 | the same | `Study`, rule-F row |
+| #3759 `82b52c36cb` PCERT | sz +136, reg +8, num +236, frozen +24 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +68, reg +4, num +118, frozen +12 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +87, reg +4, num +176, frozen +77; refuses at `pcurve_envelope` | `(1036,2,152,1188,2587)`, refuses at `pcurve_envelope` | `Study`, rule-F row |
+| #3981 `6d1cef94cf` check 5's escape | sz +8, num −8 | sg +8, num −8 | sz +4, num −4 | sg +8, num −8 | sz +4, num −4 | sz +4, num −4 | `Study` (plate, link, pad) |
+| #4037 `201239b0e4` joint elements | num +14 | num +14 | num +7 | num +14 | num +10 | num +10 | **not credited** |
+
+Every other stretch reads the same at both ends. #4011 (INTENT-VARS-1
+PR 2) moves nothing past the ceiling. The parents taken, in table
+order: `453faa7d18`, `69b0ce3b4a`, `65f395e88e`, `40bfe407bf`,
+`0eccbbff6b`, `c191268379`, `f497cf22eb`, `81a70cb612`, `8247568db8`,
+`a049d2c5ed`, `1c1c23be85`, `0612478485`, `675fdccc69`, and `d01d8ae1fe`
+for #4037. #3804 (SYM-15, `810bc55336`) reads #3807's values.
+
+**At the head (`07ddd620a2`), ε = 1e-9:** plate `[955,0,148,704,1068]`,
+annulus `[440,32,148,451,1080]`, link `[286,0,84,296,568]`, bracket
+`[548,37,149,574,1113]`, pad `[1016,2,152,1186,2587]`. The pad's
+rule-F row reads `(1040,2,152,1194,2587)` at both dials. The stored
+`PAST_THE_CEILING` carries only #3313's and #3266's deltas. The rule-F
+row was last re-pinned by #3759 (PCERT), so #3981's and #4037's
+deltas, `symbolic_zero` +4 and `numeric` +6, leave it red.
+
+#### The moves no PR credited
+
+- **#4037 (`numeric` +14 / +14 / +7 / +14 / +10): right.** This merge
+  makes "the closure joint decided as every joint" (its branch log):
+  a loop's closing joint is read by the same walk as every other
+  joint. The per-predicate split at the parent and at the merge, taken
+  with the scratch probe on the four documents whose shape report fits
+  in this box's memory, moves only the loop walk. On the plate:
+  - `pcurve_loop_closure` `[0,0,0,4]` and `pcurve_loop_closure_height`
+    `[4,0,0,0]` are gone;
+  - `pcurve_loop_continuity` `[12,0,8,4]` → `[16,0,8,8]`;
+  - `pcurve_loop_pole_joint` `[0,0,0,12]` → `[0,0,0,16]`;
+  - `pcurve_loop_branch` `[0,0,0,24]` → `[0,0,0,34]`.
+
+  The annulus and the bracket move identically, and the link moves by
+  half. Theorems are unchanged in count, since the closing joint's
+  height theorem becomes a continuity theorem, and no decision leaves
+  a discharge column. The closing joint now asks the questions every
+  joint asks, and those answers are definite margins, so they land in
+  `numeric`.
+- **#3645 then #3697 (`frozen` up 96 / 96 / 48 / 96 / 168, then down by
+  exactly as much): right, both.** #3645 spelled each edge's witness as
+  the carrier's `mid_point(ta, tb)`. The certification schedule's
+  middle station was still `t0 + (t1 − t0)·0.5`, so the same point was
+  built twice and the second copy froze as well. #3697 made the
+  schedule's middle station `mid_param` ("a certificate evaluates an
+  edge's middle once"), and the duplicates went. No decision moves at
+  either merge.
+- **#3612 (`frozen` −48 pad, −3 bracket): right.** The schedule now
+  assigns its last sample `t1` itself rather than `t0 + (t1 − t0)·1`,
+  so the end sample is the endpoint's node and not a second one. No
+  decision moves.
+- **#3455 (−15) and #3594 (+15), the pad's `frozen` only: the merges
+  are right; the receipt's dependence on them is a finding.** Both
+  change how ids are minted and no arithmetic, yet the pad's frozen
+  set moves at both. Filed on SYM's slate as
+  `the-pads-frozen-set-moves-with-the-documents-id-mint`.
+- **#3254's `frozen` −130 on the pad and its rule-F convergence:
+  right.** The carrier's span became the stored sweep signed by the
+  decided turn instead of `4·atan|b|`, so the `|b|` atom is gone. With
+  rule F shut, the pad now reads what rule F used to give it
+  (`symbolic_zero` −4, `registered` +24, `numeric` −20). With rule F on
+  no decision moves. Both are consistent with rule F having no `abs`
+  left to open, and with fewer compounds over the old span to freeze.
+  Neither was isolated further. On `main` this, not the axis-order basis that
+  #2468 brought, is where rule F stopped moving anything on the pad.
+  The evidence is added to `the-negative-arm-lost-its-document-consumer`.
+
+#### The moves a PR credited
+
+Each was credited at `certifies_at` in `measured_studies`, or in the
+rule-F row, and argued there. Past the ceiling each moves the same
+predicates in the same direction:
+- #3313: the must-carry stations' new `dihedral_wedge` decisions;
+- #3254: the link's span sharing the pushforward's atom;
+- #3266: the run-outs proved zero;
+- #2468: DECIDE-3's fold, rule G and the decision read, then the
+  read's pre-emption of 32 theorems;
+- #3527: copied carriers;
+- #3807: DECIDE-9 returns those 32 to theorems;
+- #3759: the pcurve mint's new checks, with the bracket and the pad
+  now refusing at `pcurve_envelope`;
+- #3981: check 5's escape.
+
+The calls on these stand as those PRs made them. One stored value was
+not the merged tree's: #2468 stored the rule-F row's `frozen` as 2577,
+where its merge reads 2697. The difference is #3612's −48 and #3645's
++168 taken together. Two numbers differ
+from the credited ones only because the scale differs:
+- at #2468 the link's `registered` falls by 5 past the ceiling, where
+  `certifies_at` falls by 2 ("main's arc_span trade does not show with
+  rule G in", `7e6371fbae`);
+- at #3981 the annulus and the bracket gain 8 `sign_gated` past the
+  ceiling, where `certifies_at` is unmoved.
+
+**No move since the window is a defect in code SYM does not own**, so
+the stop rule does not apply. The one finding is on SYM's own slate.
