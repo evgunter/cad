@@ -1704,3 +1704,20 @@ part as its two consequences. The row
 `a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` stays open
 for the build, with a Ruled section naming it. Fork-log row renumbered
 from 45 to 71 on merging main (main had taken 45–70).
+
+## 2026-10-06 — PR 3841: a carried row's route says this document's instance by label
+
+`Route::say` reads `route.through` off the speaking document (kind,
+label and tag) when the sentence is made. The `via` hops belong to
+deeper documents and stay said by tag. The same goes for the mate, the
+group and the cause, which are spelled in the part (that is the separate
+part-at-the-seam row). Covered: `AssemblyError::CarriedMintRefusal`,
+`Attribution::Carried`, `ExportError::UnplacedBelow`, and Python
+`CarriedRefusal.__str__`. The viewer badge and Python `export_err`
+already spoke through `spoken(doc)`. The review found nothing blocking.
+Two twin-id tests were folded in, each mutation-checked:
+- a four-document route whose `via` hop shares an id with an outer node
+  labelled "spare seat";
+- an unplaced group whose id the outer document holds as "twin group".
+The two-nouns-per-route reading (kind noun for the first hop,
+"instance" for later ones) stays as `NodeAs` makes it.

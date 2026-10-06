@@ -182,7 +182,10 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{
+    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3,
+    Sign, Vec3,
+};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
@@ -217,6 +220,12 @@ pub enum SolidContainment {
 
 /// Typed failure of [`point_in_solid`].
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PointInSolidErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PointInSolidError {
     /// A predicate escalated (in-band margin).
     Escalated {
@@ -225,8 +234,8 @@ pub enum PointInSolidError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
-    /// Every schedule ray grazed — the query is ill-conditioned at
-    /// this ε.
+    /// Every schedule ray grazed, for a point the boundary pre-pass
+    /// placed off every face.
     RayExhausted,
     /// The at-infinity orientation probe found a (near-)zero signed
     /// volume — the body bounds no material to be inside of.
@@ -482,11 +491,13 @@ impl core::fmt::Display for PointInSolidError {
                  to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
+            // The boundary pre-pass has placed the point off every face,
+            // so there is no coincidence to declare.
             Self::RayExhausted => write!(
                 f,
-                "cannot tell what is inside the solid: every test ray grazed its \
-                 boundary, so the question is ill-conditioned at this tolerance. \
-                 Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: the point is off its boundary, but \
+                 every test ray grazed one of its edges or vertices, or ran tangent to a \
+                 face's surface. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             // `PointInLoopError` is shared with the split, whose wrapper
             // states its own recourse; so the ray-exhausted arm carries
@@ -495,7 +506,7 @@ impl core::fmt::Display for PointInSolidError {
             // margin already ends in the shared recourse.
             Self::Loop(e @ crate::splitting::PointInLoopError::RayExhausted { .. }) => write!(
                 f,
-                "cannot tell what is inside the solid: {e}. Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: {e}. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
