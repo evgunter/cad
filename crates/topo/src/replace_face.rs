@@ -140,7 +140,7 @@ use std::sync::Arc;
 
 use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, ExtentBall, Nappe};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe};
 use geom_core::k_stats::decide;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
@@ -1438,9 +1438,9 @@ fn mint_offset<T: Decide>(
 
 /// **Whether the arm serves this pose** at the C5 gate: the moved
 /// surface against the untouched one, read over the edge's carrier on
-/// `[t0, t1]` — the scalar arms at [`pose_reach`], the cylinder pair
-/// across [`pose_ball`]. Each is the tightest statement of that reach
-/// this site has: a looser lever can decide an in-band pose as served
+/// `[t0, t1]` ([`geom_brep::Reach::Span`]). Every arm is levered by the
+/// carrier's exact per-carrier distance from its pivot, never by a ball
+/// around the edge: a looser lever decides an in-band pose as served
 /// ([`geom_brep::intersect::route_pose`]).
 fn pose_route<T: Decide>(
     moved: &Surface<T>,
@@ -1450,117 +1450,12 @@ fn pose_route<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<geom_brep::intersect::PairRoute, geom_brep::SectionError> {
-    let extent = pose_reach([moved, other], carrier, t0, t1);
-    let reach = pose_ball(carrier, t0, t1);
-    geom_brep::intersect::route_pose(moved, other, extent, reach, band)
-}
-
-/// **The scalar reach a pose is read over** at the C5 gate: an UPPER
-/// bound on how far the edge's carrier stands from either surface's
-/// ANCHOR (a cone's apex, a sphere's or torus's centre, a cylinder's
-/// origin; a plane has none). An arm's angular trilean meters a tilt
-/// `θ` as the locus displacement `θ·extent`, and about an anchor that
-/// displacement is largest at the carrier point farthest from it, so
-/// this is the extent at which the pose question means something for
-/// THIS edge.
-///
-/// The bound is per carrier, never an underestimate (an underestimated
-/// lever would read a tilted pose as definitely untilted), and exact
-/// where the carrier allows (an overestimated one can decide an
-/// in-band pose as tilted, which on a two-sided trilean is a served
-/// class too):
-///
-/// - a **line** segment: its endpoints (distance to a point is convex
-///   along a line, so a segment attains its maximum at an end);
-/// - a **circle** or **ellipse**: centre distance plus the radius, or
-///   the larger semi-axis MAGNITUDE (the mint certifies an ellipse
-///   stored with `minor > major` or a negative `major`), whatever the
-///   parameter span — a closed rim, whose two endpoints coincide, is
-///   exactly the case sampling misses;
-/// - a **spiric** (a curve on a torus): centre distance plus `R + r`;
-/// - a **NURBS** carrier: its control points (the convex-hull property
-///   of positive weights).
-///
-/// A cylinder's origin is any point of its axis, so it can overstate
-/// the reach; that is the cone×cylinder arm's own reading, which this
-/// site does not re-anchor (`work/tang/` names the sibling).
-fn pose_reach<T: Real>(surfaces: [&Surface<T>; 2], carrier: &Curve3<T>, t0: T, t1: T) -> T {
-    let mut reach = T::zero();
-    for s in surfaces {
-        let anchor = match *s {
-            Surface::Cone { apex, .. } => apex,
-            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
-            Surface::Cylinder { origin, .. } => origin,
-            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => continue,
-        };
-        let far = match carrier {
-            Curve3::Line { origin, dir } => (*origin + *dir * t0 - anchor)
-                .norm()
-                .max((*origin + *dir * t1 - anchor).norm()),
-            Curve3::Circle { center, radius, .. } => (*center - anchor).norm() + radius.abs(),
-            Curve3::Ellipse {
-                center,
-                major,
-                minor,
-                ..
-            } => (*center - anchor).norm() + major.abs().max(minor.abs()),
-            Curve3::Spiric {
-                center,
-                major_radius,
-                minor_radius,
-                ..
-            } => (*center - anchor).norm() + major_radius.abs() + minor_radius.abs(),
-            Curve3::Nurbs(n) => n
-                .control()
-                .iter()
-                .fold(T::zero(), |m, &p| m.max((p - anchor).norm())),
-        };
-        reach = reach.max(far);
-    }
-    reach
-}
-
-/// **The ball a pose is read across** at the C5 gate, for the arm that
-/// reads a ball (the cylinder pair): enclosing the edge's carrier over
-/// `[t0, t1]`, never an underestimate — an underestimated reach would
-/// read a tilted pose as served:
-///
-/// - a **line** segment: the ball on its endpoints;
-/// - a **circle** or **ellipse**: about its centre out to the radius,
-///   or the larger semi-axis MAGNITUDE (the mint certifies an ellipse
-///   stored with `minor > major` or a negative `major`), whatever the
-///   parameter span — a closed rim, whose two endpoints coincide, is
-///   exactly the case sampling misses;
-/// - a **spiric** (a curve on a torus): about its centre out to `R + r`;
-/// - a **NURBS** carrier: the ball on its control points (the
-///   convex-hull property of positive weights).
-fn pose_ball<T: Real>(carrier: &Curve3<T>, t0: T, t1: T) -> ExtentBall<T> {
-    match carrier {
-        Curve3::Line { origin, dir } => {
-            let p0 = *origin + *dir * t0;
-            let half = (*origin + *dir * t1 - p0) * T::from_f64(0.5);
-            ExtentBall::new(p0 + half, half.norm())
-        }
-        Curve3::Circle { center, radius, .. } => ExtentBall::new(*center, radius.abs()),
-        Curve3::Ellipse {
-            center,
-            major,
-            minor,
-            ..
-        } => ExtentBall::new(*center, major.abs().max(minor.abs())),
-        Curve3::Spiric {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => ExtentBall::new(*center, major_radius.abs() + minor_radius.abs()),
-        Curve3::Nurbs(n) => {
-            let control: Vec<ExtentBall<T>> =
-                n.control().iter().copied().map(ExtentBall::point).collect();
-            ExtentBall::enclosing(&control)
-                .unwrap_or_else(|| unreachable!("a NURBS carrier has control points"))
-        }
-    }
+    let reach = geom_brep::Reach::Span {
+        carrier: carrier.clone(),
+        t0,
+        t1,
+    };
+    geom_brep::intersect::route_pose(moved, other, &reach, band)
 }
 
 /// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
@@ -2660,25 +2555,24 @@ mod shift_chart_v_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod pose_reach_rows {
     use geom::{Curve3, Surface};
+    use geom_brep::Reach;
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{pose_ball, pose_reach, pose_route};
+    use super::pose_route;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("a linear band")
+    }
 
     /// **The reach bounds every point of an ellipse in any stored order or
     /// sign.** The mint certifies an ellipse stored with `minor > major`
-    /// and one with a negative `major` (its `u_ref` flipped); both the
-    /// scalar reach and the ball's lever from a surface's anchor must
-    /// still be at least each point's distance from it, round the whole
-    /// turn. Read at `|major|`, the first falls short by `minor − major`.
+    /// and one with a negative `major` (its `u_ref` flipped); the span's
+    /// lever from a surface's anchor must still be at least each point's
+    /// distance from it, round the whole turn. Read at `|major|`, the
+    /// first falls short by `minor − major`.
     #[test]
     fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
         let anchor = Point3::new(0.3, -0.2, 0.1);
-        let sphere = Surface::Sphere {
-            center: anchor,
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
         for (major, minor, u) in [(0.5, 0.9, 1.0), (-0.9, 0.5, -1.0), (0.9, -0.5, 1.0)] {
             let e = Curve3::Ellipse {
                 center: Point3::new(0.1, 0.2, 0.0),
@@ -2687,18 +2581,19 @@ mod pose_reach_rows {
                 minor,
                 u_ref: Vec3::new(u, 0.0, 0.0),
             };
-            let scalar = pose_reach([&sphere, &sphere], &e, 0.0, 0.5);
-            let ball = pose_ball(&e, 0.0, 0.5).lever_from(anchor);
+            let reach = Reach::Span {
+                carrier: e.clone(),
+                t0: 0.0,
+                t1: 0.5,
+            }
+            .lever_from(anchor);
             for k in 0..=720 {
                 let t = core::f64::consts::TAU * f64::from(k) / 720.0;
                 let far = (e.eval(t) - anchor).norm();
-                for (which, reach) in [("scalar", scalar), ("ball", ball)] {
-                    assert!(
-                        reach >= far,
-                        "({major}, {minor}): the {which} reach {reach} falls short of {far} \
-                         at θ = {t}"
-                    );
-                }
+                assert!(
+                    reach >= far,
+                    "({major}, {minor}): the reach {reach} falls short of {far} at θ = {t}"
+                );
             }
         }
     }
@@ -2714,8 +2609,7 @@ mod pose_reach_rows {
     /// the arm cannot tell from a parabola.
     #[test]
     fn a_line_edges_pose_is_read_at_its_endpoints_not_its_ball() {
-        let band = Band::linear(Tol::witness()).expect("a linear band");
-        let eps = band.zero();
+        let eps = band().zero();
         let alpha: f64 = 0.5;
         let cone = Surface::Cone {
             apex: Point3::new(0.0, 0.0, 0.0),
@@ -2728,7 +2622,12 @@ mod pose_reach_rows {
             dir: Vec3::new(0.0, 1.0, 0.0),
         };
         let tight = 8.0_f64.sqrt();
-        assert!((pose_reach([&cone, &cone], &edge, 0.0, 4.0) - tight).abs() < 1e-12);
+        let span = Reach::Span {
+            carrier: edge.clone(),
+            t0: 0.0,
+            t1: 4.0,
+        };
+        assert!((span.lever_from(Point3::origin()) - tight).abs() < 1e-12);
         for k in [6.0, 8.0, 9.0, 9.9] {
             // `D = sin α·sin β − cos α·cos β = −cos(α + β)` for a normal
             // tilted `β` off the axis.
@@ -2738,11 +2637,53 @@ mod pose_reach_rows {
                 normal: Vec3::new(beta.sin(), 0.0, beta.cos()),
                 u_ref: Vec3::new(0.0, 1.0, 0.0),
             };
-            let got = pose_route(&plane, &cone, &edge, 0.0, 4.0, band);
+            let got = pose_route(&plane, &cone, &edge, 0.0, 4.0, band());
             assert!(
                 matches!(got, Err(geom_brep::SectionError::Escalated(_))),
                 "k = {k}: an in-band near-parabola must escalate, got {got:?}"
             );
+        }
+    }
+
+    /// **A ruling edge's pose is levered at its endpoints, not its
+    /// ball** (row A). Two unit cylinders, the first along `z`, the
+    /// second through `(2, 0, 0)` tilted `θ = k·ε/√2` in `xz`: tangent
+    /// along the ruling `(1, 0, z)`, the edge `(1, 0, −1)..(1, 0, 1)`.
+    /// The edge's endpoints stand `√2` from either axis's foot of its
+    /// midpoint, so `cc_axes_parallel` reads `k·ε`, in the band, and the
+    /// gate escalates in both orders. Levered at the edge's ball
+    /// (`r + half = 2`), it read `k·ε·√2`, definitely crossing for
+    /// `k ≥ 8`, and the gate served the meeting axes' ellipse pair.
+    /// `k = 1.2` is in the band too, and reads Zero if the lever is cut
+    /// below the endpoints' distance.
+    #[test]
+    fn a_ruling_edges_pose_is_read_at_its_endpoints_not_its_ball() {
+        let eps = band().zero();
+        let c1 = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let edge = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, -1.0),
+            dir: Vec3::unit_z(),
+        };
+        for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
+            let theta: f64 = k * eps / 2.0_f64.sqrt();
+            let c2 = Surface::Cylinder {
+                origin: Point3::new(2.0, 0.0, 0.0),
+                axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                radius: 1.0,
+                u_ref: Vec3::unit_y(),
+            };
+            for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
+                let got = pose_route(a, b, &edge, 0.0, 2.0, band());
+                assert!(
+                    matches!(got, Err(geom_brep::SectionError::Escalated(_))),
+                    "k = {k} ({label}): an in-band tilt must escalate, got {got:?}"
+                );
+            }
         }
     }
 }

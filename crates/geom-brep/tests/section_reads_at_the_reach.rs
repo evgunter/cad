@@ -14,7 +14,7 @@ use geom_brep::intersect::{
     EqualCylinderSection, PlaneCylinderSection, RadiusEvidence, cylinder_cylinder_section,
     plane_cylinder_section,
 };
-use geom_brep::{ExtentBall, TangentLocus, tangent_locus};
+use geom_brep::{ExtentBall, Reach, TangentLocus, tangent_locus};
 use geom_core::{Point3, Vec3};
 
 /// Where along its axis each cylinder's origin is stored, in metres
@@ -61,7 +61,7 @@ fn plane_cylinder_reads_one_verdict_at_every_stored_origin() {
     let axis = tilted(Vec3::unit_z());
     for along in STORED {
         let cyl = cylinder(Point3::new(0.0, 0.0, 1.0), axis, along);
-        match plane_cylinder_section(&plane(), &cyl, reach, band()) {
+        match plane_cylinder_section(&plane(), &cyl, &Reach::Ball(reach), band()) {
             Ok(PlaneCylinderSection::TangentLine(geom::Curve3::Line { origin, .. })) => assert!(
                 origin.x.abs() < 1.0 && origin.z.abs() < band().zero(),
                 "stored {along} m along: the ruling is stated beside the reach, on the plane: \
@@ -101,7 +101,13 @@ fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
             let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), toward, along2);
             for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                 let at = format!("stored {along1} m, {along2} m along, ({label})");
-                match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, reach, band()) {
+                match cylinder_cylinder_section(
+                    a,
+                    b,
+                    RadiusEvidence::Declared,
+                    &Reach::Ball(reach),
+                    band(),
+                ) {
                     Ok(EqualCylinderSection::TangentLine(geom::Curve3::Line {
                         origin, ..
                     })) => {
@@ -133,7 +139,8 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
     let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), tilted(-Vec3::unit_y()), -1000.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
-        match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, reach, band()) {
+        match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, &Reach::Ball(reach), band())
+        {
             Err(geom_brep::SectionError::Escalated(d)) => assert_eq!(
                 d.predicate,
                 Some("cc_axes_parallel"),
@@ -152,21 +159,51 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
     }
 }
 
+/// **The tilt is levered from the NEARER foot, not the farther.** The
+/// pair and the ball of [`the_tilt_lever_does_not_depend_on_operand_order`]
+/// (feet levers 6 m and 8 m), tilted `zero/7`: from the nearer foot the
+/// tilt reads `6/7·zero`, inside the zero band, so the section is the
+/// tangent ruling and the witness mints, in both orders. Pivoted on the
+/// farther foot it reads `8/7·zero`, in the band, and both escalate.
+/// The row above guards the other side: a lever cut to the ball's
+/// radius reads its tilt as Zero.
+#[test]
+fn the_tilt_is_levered_from_the_nearer_foot() {
+    let reach = ExtentBall::new(Point3::new(0.0, -5.0, 0.0), 1.0);
+    let theta = band().zero() / 7.0;
+    let toward = Vec3::unit_x() * theta.cos() - Vec3::unit_y() * theta.sin();
+    let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
+    let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), toward, -1000.0);
+    for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
+        match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, &Reach::Ball(reach), band())
+        {
+            Ok(EqualCylinderSection::TangentLine(_)) => {}
+            other => panic!("({label}): from the nearer foot the tilt is Zero: {other:?}"),
+        }
+        match tangent_locus(a, b, reach, band()) {
+            Ok(TangentLocus::Line { .. }) => {}
+            other => panic!("({label}): the witness reads the same lever: {other:?}"),
+        }
+    }
+}
+
 /// **Crossing axes, wherever the origins are stored.** Two unit
 /// cylinders crossing about the origin, the second lifted `g` along
 /// `a1×a2`, `g` a quarter of the zero band clear of each band edge.
 /// Whether the axes meet (`cc_axes_coplanar`) is one verdict for each
 /// `g` at every stored origin, in both operand orders.
 ///
-/// The gap is read between the axes' feet at the reach. Measured in
-/// `f64` at the default ε with origins stored up to 1e6 m out, a
-/// stored-origin reading changed verdict for `g` within about
-/// `0.14·zero` of an edge, and the feet reading within about
-/// `0.07·zero`. That remainder is the stored lines themselves: a far
-/// coordinate carries its own rounding, which no reading undoes. This
-/// row's `g` sit outside both windows, so it guards the reading
-/// against regressing to anything coarser than the stored coordinates
-/// rather than showing the stored-origin reading red.
+/// The gap is read between the axes' feet at the reach. That narrows
+/// how far the verdict moves with the stored origins, and by how much
+/// is particular to the geometry: on this fixture, at the default ε
+/// with origins stored up to 1e6 m out, the review measured the window
+/// in which the verdict moves at `≥ 0.31·zero` of a band edge for a
+/// stored-origin reading and `≤ 0.24·zero` at the feet, about a third
+/// narrower. The rest is the stored lines themselves: a far coordinate
+/// carries its own rounding, which no reading undoes. This row's `g`
+/// sit outside both windows, so it guards the reading against
+/// regressing to anything coarser than the stored coordinates rather
+/// than showing the stored-origin reading red.
 ///
 /// The slides scale with the band (1e6 m at the default zero of 1e-9),
 /// so a slide's own rounding stands in one ratio to the band at every
@@ -199,7 +236,7 @@ fn crossing_axes_read_one_verdict_at_every_stored_origin() {
                         a,
                         b,
                         RadiusEvidence::Declared,
-                        reach,
+                        &Reach::Ball(reach),
                         band(),
                     ));
                     match seen {

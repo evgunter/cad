@@ -507,6 +507,15 @@ lane reads its gap between the feet. The frame asks the table's own
 `chord-join-face-reach-misses-a-curved-edges-bulge` and
 `cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
 
+**Fix pass 2** (the second full review: three MAJORs, one class). Every
+caller's ball lever had decided an in-band tilt as served. The
+classifiers now take a `Reach`, a reading point and a lever that is an
+exact distance to consumed points, and each caller hands the lever it
+used before. `germ_reach` and its unlogged F21 check are gone. The
+frame's coplanarity row is the table's `cc_axes_coplanar`. Rows A, B and
+C were red on the ball levers and are green; every lever mutant is
+killed.
+
 ## 2026-10-06 — the D10 hold reaches TANG; triage; the next slate
 
 The weekly limit stopped every lane on 2026-10-03, before TANG parked

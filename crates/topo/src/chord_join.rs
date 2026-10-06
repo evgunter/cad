@@ -553,18 +553,24 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
-/// The ball about `at` that [`face_extent`] says encloses `face`'s
-/// boundary: the reach the section table reads a wall's pose across.
-fn face_reach<T: Decide>(
+/// The reach the section table reads a wall's pose at: the base vertex
+/// `at`, levered by [`face_extent`], the farthest boundary vertex of
+/// `face` from it — the lever this lane metered the table at before the
+/// table read its gap at an axis foot. A lever is an exact distance to
+/// consumed points, never a ball around them
+/// ([`geom_brep::Reach`]'s module docs): levered at a ball about `at`,
+/// a vertex on a wall `r` from the axis read `r + face_extent` from the
+/// foot, and an in-band tilt decided as an ellipse.
+fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
-) -> Result<geom_brep::ExtentBall<T>, SplitJoinError> {
-    let extent = face_extent(body, at, face).map_err(unbounded)?;
-    Ok(geom_brep::ExtentBall::new(
-        body.resolve_vertex_point(at, Proven),
-        extent,
-    ))
+) -> Result<geom_brep::Reach<T>, SplitJoinError> {
+    let lever = face_extent(body, at, face).map_err(unbounded)?;
+    Ok(geom_brep::Reach::Measured {
+        at: body.resolve_vertex_point(at, Proven),
+        lever,
+    })
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -793,7 +799,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    reach: geom_brep::ExtentBall<T>,
+    reach: &geom_brep::Reach<T>,
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -877,8 +883,13 @@ fn section_case<T: Decide>(
     // generator pair is the ruling case, its tangent generator the
     // tangent one — the cylinder's parallel-axis lane, one kind over.
     if let geom::Surface::Cone { .. } = wall {
-        return match geom_brep::plane_cone_section(plane_s, wall, reach.radius(), band)
-            .map_err(table)?
+        return match geom_brep::plane_cone_section(
+            plane_s,
+            wall,
+            reach.lever_from(reach.at()),
+            band,
+        )
+        .map_err(table)?
         {
             geom_brep::PlaneConeSection::TiltedEllipse(c)
             | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
@@ -1302,7 +1313,7 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let case = section_case(face, band, &plane_s, &wall, face_reach(body, at, face)?)?;
+    let case = section_case(face, band, &plane_s, &wall, &section_reach(body, at, face)?)?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1414,7 +1425,7 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let conic = match section_case(face, band, &plane_s, wall, face_reach(body, u1, face)?)? {
+    let conic = match section_case(face, band, &plane_s, wall, &section_reach(body, u1, face)?)? {
         // Ruling seams are straight chords on the plane too.
         SectionCase::Straight => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
@@ -3320,6 +3331,69 @@ mod tests {
         body.get_edge(made.edge).unwrap().he_plus
     }
 
+    /// **A wall's pose is levered at its face extent, not a ball about
+    /// the base vertex** (row C). A unit cylinder face about `z` whose
+    /// base vertex `(1, 0, 0)` lies on the ruling the plane `x = 1`
+    /// touches, its other vertex `(1, 0, 1)` a face extent of 1 away;
+    /// the plane through the base vertex tilted so the axis meets it at
+    /// `sin β = k·ε`. Levered at the face extent, `pc_axis_plane_parallel`
+    /// reads `k·ε`, in the band, and the table escalates. Levered at a
+    /// ball of that radius about the base vertex, the axis's foot stood
+    /// `r` inside it and the lever read `r + 1 = 2`: `2·k·ε`, a definite
+    /// tilt for `k ≥ 5`, and a tilted ellipse. `k = 1.2` is in the band
+    /// too, and reads Zero if the lever is cut below the face extent.
+    #[test]
+    fn a_walls_pose_is_levered_at_its_face_extent() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let base = Point3::new(1.0, 0.0, 0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, 1.0),
+            Tol::witness(),
+        )
+        .unwrap();
+        for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
+            let sin_beta: f64 = k * band.zero();
+            let normal = UnitVec3::new(
+                Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+                "row C",
+                band,
+            )
+            .unwrap();
+            let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+            assert!(
+                matches!(
+                    got,
+                    Err(SplitJoinError::Escalated { ref diag, .. })
+                        if diag.predicate == Some("pc_axis_plane_parallel")
+                ),
+                "k = {k}: an in-band tilt must escalate, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
     /// The split lane's adjacency question on a conic between edge (a
     /// cylinder cap's rim, which a planar divided face carries): the
     /// belly verdict and the coplanar verdict. The rim is the upper
@@ -3544,8 +3618,11 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> geom_brep::ExtentBall<f64> {
-        geom_brep::ExtentBall::new(Point3::origin(), 4.0)
+    fn reach() -> geom_brep::Reach<f64> {
+        geom_brep::Reach::Measured {
+            at: Point3::origin(),
+            lever: 4.0,
+        }
     }
 
     fn plane() -> geom::Surface<f64> {
@@ -3581,7 +3658,7 @@ mod section_case_pair_tests {
     fn the_pair_is_order_free() {
         let f = FaceKey::default();
         for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
-            let got = section_case(f, band(), &a, &b, reach()).expect("the rim arm is wired");
+            let got = section_case(f, band(), &a, &b, &reach()).expect("the rim arm is wired");
             let SectionCase::Conic(c) = got else {
                 panic!("a square cut names a rim circle");
             };
@@ -3599,13 +3676,13 @@ mod section_case_pair_tests {
             (cylinder(), sphere()),
             (sphere(), sphere()),
         ] {
-            match section_case(f, band(), &a, &b, reach()) {
+            match section_case(f, band(), &a, &b, &reach()) {
                 Err(SplitJoinError::SectionInvariant { .. }) => {}
                 Err(e) => panic!("a curved pair must refuse SectionInvariant, got {e:?}"),
                 Ok(_) => panic!("a curved pair must refuse typed, never classify"),
             }
         }
-        match section_case(f, band(), &plane(), &plane(), reach()) {
+        match section_case(f, band(), &plane(), &plane(), &reach()) {
             Err(SplitJoinError::SectionInvariant { .. }) => {}
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),

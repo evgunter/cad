@@ -7,7 +7,7 @@ use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
-use crate::extent::ExtentBall;
+use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
     ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel, parallel_axes_at,
     parallel_cylinder_gap, plane_cylinder_ruled,
@@ -123,6 +123,9 @@ pub fn tangent_locus<T: Decide>(
     reach: ExtentBall<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
+    // The witness reads the ball its callers hand it, as it did before
+    // the classifiers took a `Reach` (`crate::extent`'s module docs).
+    let reach = &Reach::Ball(reach);
     let escalate = TangentLocusError::Escalated;
     match (a, b) {
         (
@@ -391,7 +394,13 @@ mod tests {
                 Ok(TangentLocus::Line { .. }) => {}
                 other => panic!("{label}: the witness mints the ruling: {other:?}"),
             }
-            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, metre, band) {
+            match cylinder_cylinder_section(
+                a,
+                b,
+                RadiusEvidence::Declared,
+                &Reach::Ball(metre),
+                band,
+            ) {
                 Ok(EqualCylinderSection::TangentLine(_)) => {}
                 other => panic!("{label}: the section classifies the same tangency: {other:?}"),
             }

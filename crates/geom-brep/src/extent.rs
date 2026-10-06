@@ -17,28 +17,32 @@
 //!
 //! An extent that UNDER-states the consumed region makes a tilt read
 //! smaller than it is, which is the wrong-answer direction, so every
-//! constructor here encloses the region it is handed. That is a claim
-//! about the constructor, not the caller: a ball built from a face's
-//! boundary vertices encloses those vertices, and a curved edge between
-//! them can bulge past it.
-//!
-//! **An OVER-stated extent is not safe either.** It reads a tilt as
-//! larger than it is, which on a one-sided row only escalates more —
-//! but on a two-sided row whose definite side is a SERVED class (a
-//! tilt that names an ellipse, a sine that names crossing axes) it
-//! decides a reading that is in the band at the consumed extent, and
-//! serves a class the arm could not tell from its neighbour. The
-//! policy every row holds: a reading in the band at the consumed
-//! extent answers Zero or escalates, never a definite sign. So a ball
-//! is to be as tight as its caller can make it, and a ball says
-//! nothing about where the consumed region actually reaches: a
+//! constructor here encloses the region it is handed. A ball says
+//! nothing about where the consumed region actually reaches, so a
 //! displacement read at its far side is an upper bound only, never
 //! evidence that a consumed point stands that far off.
+//!
+//! **An OVER-stated extent is not safe either**, and that is what
+//! [`Reach`] is for. On a one-sided row a lever past the consumed
+//! extent only escalates more. On a two-sided row whose definite side
+//! is a SERVED class (a tilt that names an ellipse, a sine that names
+//! crossing axes) it decides a reading that is in the band at the
+//! consumed extent, and serves a class the arm cannot tell from its
+//! neighbour. The rule the section classifiers' callers hold: **a lever
+//! is an exact distance to consumed points; an enclosing ball is never
+//! a lever on a two-sided served row.** [`Reach`] carries the lever its
+//! caller measured (an edge's exact per-carrier distance, a face
+//! extent the caller measured) to the classifier, rather than a ball
+//! the classifier would lever from.
+//!
+//! The tangent-locus witness still reads a ball, [`Reach::Ball`]: the
+//! one its callers, the carrier doors, hand it, which is how it read
+//! before the classifiers took a [`Reach`].
 //!
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
-use geom::Surface;
+use geom::{Curve3, Surface};
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
 /// A closed ball `|x − center| ≤ radius` enclosing a consumed region
@@ -108,27 +112,6 @@ impl<T: Real> ExtentBall<T> {
         origin + axis * (self.center - origin).dot(axis)
     }
 
-    /// The lever of a relative tilt between two lines `oᵢ + s·aᵢ`
-    /// (`aᵢ` unit) whose gap is read between their feet
-    /// ([`Self::foot_on`]): the lesser of the two feet's levers. Holding
-    /// either line and turning the other about its own foot bounds the
-    /// same displacement across the ball, so the lesser bound holds as
-    /// well, and it does not depend on which line is named first.
-    ///
-    /// **Why a foot's lever, and not the ball's radius alone.** Axial
-    /// travel along parallel lines does not move their gap, which
-    /// suggests the radius would do. But the gap is read between the
-    /// two FEET, and while the lines are parallel only within the band
-    /// the feet stand apart along the axis as well: the foot-to-foot
-    /// distance carries an axial part of up to `min(ρ)·θ`, `ρ` a foot's
-    /// lever. A lever shorter than a foot's would let that part and the
-    /// tilt together exceed what the gap row was told it bridges.
-    #[must_use]
-    pub fn lever_between(self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
-        let lever = |(origin, axis)| self.lever_from(self.foot_on(origin, axis));
-        lever(line1).min(lever(line2))
-    }
-
     /// The ball, if it reads: `None` where its centre or radius is
     /// poison or infinite (a box with no claim to make), whose lever
     /// would meter nothing.
@@ -169,6 +152,150 @@ impl<T: Real> ExtentBall<T> {
             | Surface::Nurbs(_)
             | Surface::Approx(_) => None,
         }
+    }
+}
+
+/// **What a section classifier reads its axis rows across**: a point
+/// whose foot on each axis is where the gap is read, and the lever a
+/// tilt is metered at from any pivot (module docs: a lever is an exact
+/// distance to consumed points, never an enclosing ball on a two-sided
+/// served row).
+#[derive(Clone, Debug)]
+pub enum Reach<T: Real> {
+    /// A ball enclosing the consumed region, levered from a pivot out to
+    /// its far side ([`ExtentBall::lever_from`]). The tangent-locus
+    /// witness's reading, the ball its callers (the carrier doors) hand
+    /// it.
+    Ball(ExtentBall<T>),
+    /// A length the caller measured, read about `at`. The lever does not
+    /// move with the pivot: it is the caller's own statement of how far
+    /// the verdict is consumed, as that caller levered it before the
+    /// classifiers read their gap at a foot (chord_join's face extent,
+    /// the germ frame's lever).
+    Measured {
+        /// The point whose foot on an axis the gap is read at.
+        at: Point3<T>,
+        /// The caller's lever.
+        lever: T,
+    },
+    /// An edge's carrier over `[t0, t1]`, read at a point among the
+    /// consumed ones ([`Self::at`]) and levered by the EXACT per-carrier
+    /// farthest distance from the pivot ([`Self::lever_from`]).
+    Span {
+        /// The edge's carrier.
+        carrier: Curve3<T>,
+        /// The span's start parameter.
+        t0: T,
+        /// The span's end parameter.
+        t1: T,
+    },
+}
+
+impl<T: Real> Reach<T> {
+    /// The point whose foot on an axis the classifiers read a gap at.
+    #[must_use]
+    pub fn at(&self) -> Point3<T> {
+        match self {
+            Self::Ball(ball) => ball.center(),
+            Self::Measured { at, .. } => *at,
+            // A point among the consumed ones, read without evaluating
+            // the carrier: the segment's midpoint, a conic's or a
+            // spiric's centre, a NURBS hull's control-point mean.
+            Self::Span { carrier, t0, t1 } => match carrier {
+                Curve3::Line { origin, dir } => *origin + *dir * ((*t0 + *t1) * T::from_f64(0.5)),
+                Curve3::Circle { center, .. }
+                | Curve3::Ellipse { center, .. }
+                | Curve3::Spiric { center, .. } => *center,
+                Curve3::Nurbs(n) => {
+                    let control = n.control();
+                    let first = control[0];
+                    let n_pts = T::from_f64(control.len() as f64);
+                    let sum = control
+                        .iter()
+                        .fold(Vec3::new(T::zero(), T::zero(), T::zero()), |acc, &p| {
+                            acc + (p - first)
+                        });
+                    first + sum / n_pts
+                }
+            },
+        }
+    }
+
+    /// The lever a tilt pinned at `pivot` is metered at.
+    ///
+    /// - [`Self::Ball`]: the ball's far side from `pivot`.
+    /// - [`Self::Measured`]: the caller's lever, whatever the pivot.
+    /// - [`Self::Span`]: an upper bound on the carrier's distance from
+    ///   `pivot` over the span, per carrier, never an underestimate and
+    ///   exact where the carrier allows:
+    ///   - a **line** segment: its endpoints (distance to a point is
+    ///     convex along a line, so a segment attains its maximum at an
+    ///     end);
+    ///   - a **circle** or **ellipse**: centre distance plus the radius,
+    ///     or the larger semi-axis MAGNITUDE (the mint certifies an
+    ///     ellipse stored with `minor > major` or a negative `major`),
+    ///     whatever the parameter span — a closed rim, whose two
+    ///     endpoints coincide, is exactly the case sampling misses;
+    ///   - a **spiric** (a curve on a torus): centre distance plus
+    ///     `R + r`;
+    ///   - a **NURBS** carrier: its control points (the convex-hull
+    ///     property of positive weights).
+    #[must_use]
+    pub fn lever_from(&self, pivot: Point3<T>) -> T {
+        match self {
+            Self::Ball(ball) => ball.lever_from(pivot),
+            Self::Measured { lever, .. } => *lever,
+            Self::Span { carrier, t0, t1 } => match carrier {
+                Curve3::Line { origin, dir } => (*origin + *dir * *t0 - pivot)
+                    .norm()
+                    .max((*origin + *dir * *t1 - pivot).norm()),
+                Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
+                Curve3::Ellipse {
+                    center,
+                    major,
+                    minor,
+                    ..
+                } => (*center - pivot).norm() + major.abs().max(minor.abs()),
+                Curve3::Spiric {
+                    center,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => (*center - pivot).norm() + major_radius.abs() + minor_radius.abs(),
+                Curve3::Nurbs(n) => n
+                    .control()
+                    .iter()
+                    .fold(T::zero(), |m, &p| m.max((p - pivot).norm())),
+            },
+        }
+    }
+
+    /// The point of the line `origin + s·axis` (`axis` unit) nearest
+    /// [`Self::at`]: where a datum on that line is read.
+    #[must_use]
+    pub fn foot_on(&self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
+        origin + axis * (self.at() - origin).dot(axis)
+    }
+
+    /// The lever of a relative tilt between two lines `oᵢ + s·aᵢ`
+    /// (`aᵢ` unit) whose gap is read between their feet
+    /// ([`Self::foot_on`]): the lesser of the two feet's levers. Holding
+    /// either line and turning the other about its own foot bounds the
+    /// same displacement across the reach, so the lesser bound holds as
+    /// well, and it does not depend on which line is named first.
+    ///
+    /// **Why a foot's lever, and not a ball's radius alone.** Axial
+    /// travel along parallel lines does not move their gap, which
+    /// suggests the radius would do. But the gap is read between the
+    /// two FEET, and while the lines are parallel only within the band
+    /// the feet stand apart along the axis as well: the foot-to-foot
+    /// distance carries an axial part of up to `min(ρ)·θ`, `ρ` a foot's
+    /// lever. A lever shorter than a foot's would let that part and the
+    /// tilt together exceed what the gap row was told it bridges.
+    #[must_use]
+    pub fn lever_between(&self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
+        let lever = |(origin, axis)| self.lever_from(self.foot_on(origin, axis));
+        lever(line1).min(lever(line2))
     }
 }
 

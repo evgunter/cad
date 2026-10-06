@@ -92,29 +92,35 @@ consumed on and read their gap where it is:
 `tangent_locus` calls the same helpers (`plane_cylinder_ruled`,
 `parallel_axes_at`, `lever_between`), so `pc_parallel_gap` and
 `cc_parallel_gap` are one reading whichever lane logs them. Callers now
-hand a ball:
+hand a `Reach`: a point to read the gap at the foot of, and a lever.
+A lever is an exact distance to consumed points, never an enclosing
+ball (two full reviews; each ball a caller tried decided an in-band
+tilt as served):
 
-- chord_join hands the ball about its base vertex that `face_extent`
-  measures.
-- The germ frame hands the SMALLER of the two germ faces' balls. The
-  section lies on both faces, so either ball encloses it; the union
-  overstated the reach. The plane×cylinder pair, which was levered at
-  the radius, reads it too.
-- `route_pose` hands the ball enclosing the edge to the cylinder pair
-  only. Its scalar-extent arms keep the exact per-carrier reach from
-  the pair's anchors (`pose_reach`).
+- `route_pose` hands the edge's span (`Reach::Span`), levered by its
+  exact per-carrier distance from each pivot, for every arm.
+- chord_join hands its base vertex and `face_extent`
+  (`Reach::Measured`), the lever it used before.
+- The germ frame hands the centre of the curved face's boundary
+  vertices and the lever it used before: the radius for the
+  plane×cylinder pair, the larger radius or the walls' span for the
+  cylinder pair.
+- The tangent-locus witness reads the ball its callers hand it
+  (`Reach::Ball`), as before.
 
-The review's fix pass showed that an OVER-stated lever is not safe on a
-two-sided row whose definite side is served. Both regressions are
-pinned as rows, red before the fix: the plane×cone near-parabola and
-the pin on a plate. The crossing lane reads `cc_axes_coplanar` between
-the feet as well. The frame asks the table's own `cc_axes_parallel`
-(`geom_brep::cylinder_axes_parallel`).
+Rows pin each caller: the plane×cone near-parabola and a ruling edge
+(`route_pose`), a coin on edge on a table (the germ frame), a wall's
+base vertex on the tangent ruling (chord_join). Each was red on the
+ball levers and is green on the exact ones. The crossing lane and the
+germ frame ask the table's own `cc_axes_coplanar` and
+`cc_axes_parallel` (`geom_brep::cylinder_axes_coplanar`,
+`cylinder_axes_parallel`), read between the feet.
 
 The class sweep's three siblings (cone×cylinder's `coc_coaxial`, the
 join's parallel radical plane, `chart_region_cyl_offset`) are filed as
 `cylinder-offsets-read-at-a-stored-origin-off-the-reach`, with
-`carrier_cyl_reach`'s operand-2 pivot and `pose_reach`'s cylinder
-anchor added in the fix pass. Also filed in the fix pass:
-`chord-join-face-reach-misses-a-curved-edges-bulge` and
+`carrier_cyl_reach`'s operand-2 pivot and `route_pose`'s cylinder
+anchor added in the fix passes. Also filed:
+`chord-join-face-reach-misses-a-curved-edges-bulge` (both directions of
+chord_join's lever) and
 `cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.

@@ -65,10 +65,7 @@ the kernel has named many predicates since M10-7, and the table has
 not followed. Four table names no longer appear in the sweep at all:
 `arc_continue_needs_arc_carrier`, `arc_continue_off_carrier`,
 `path_arc_continue_on_carrier`, and the retired
-`bool_germ_frame_axes_parallel` (removed). The unlogged check
-`bool_germ_reach_smaller` (F21) that PR adds is outside the rule: it
-reaches the funnel through `check_unlogged`, and its name carries no
-filter word.
+`bool_germ_frame_axes_parallel` (removed).
 
 `EXPLICIT` means the margin is a closed form in the parameters over
 analytic carriers — a distance, a dot, a cross, a radius difference, a

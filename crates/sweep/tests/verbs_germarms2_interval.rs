@@ -11,8 +11,9 @@
 //! `topo::boolean::join`'s `frame_dispatch_interval_tests`, which calls
 //! `pair_section_frame` at `Interval` directly and reaches both arms —
 //! meeting axes to `Zero`/pinch, skew axes to a definite sign/`NoArm`.
-//! That is the certified-scalar statement about
-//! `bool_germ_frame_axes_coplanar`; what this file adds is that the
+//! That is the certified-scalar statement about the frame's coplanarity
+//! row (`cc_axes_coplanar`, the section table's, which the frame asks);
+//! what this file adds is that the
 //! BODY-level poses behave at `Interval` as they do at `f64`.
 //!
 //! The poses are the `f64` suite's, built through the same public
@@ -139,7 +140,7 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 ///   `carrier_matches_mapped_source` — and it explicitly refuses an
 ///   escalation of either germ-frame predicate, because those are the
 ///   very predicates this unit's rows exist to pin: a substring test
-///   would have greened a `bool_germ_frame_axes_coplanar` escalation,
+///   would have greened a `cc_axes_coplanar` escalation,
 ///   i.e. the arm going indeterminate, as if it were noise.
 fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &str) {
     if crate::common::germ_pair::same_door(direct, reposed) {
@@ -165,9 +166,10 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
     assert!(
         !matches!(
             cause.predicate,
-            // The frame's parallelism is the section table's own row,
-            // `cc_axes_parallel` (`geom_brep::cylinder_axes_parallel`).
-            Some("bool_germ_frame_axes_coplanar" | "cc_axes_parallel")
+            // The frame asks the section table's own rows,
+            // `cc_axes_coplanar` and `cc_axes_parallel`
+            // (`geom_brep::cylinder_axes_coplanar` / `_parallel`).
+            Some("cc_axes_coplanar" | "cc_axes_parallel")
         ),
         "{what}: a germ-frame predicate going indeterminate is the defect this unit \
          pins, never an accepted escape; direct {d}, re-posed {r}"

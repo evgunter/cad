@@ -44,24 +44,25 @@ Two more sites read a cylinder's position off the reach, found by PR
   cylinder pair) pivots on operand 2's foot (`reach.foot_on(o2, a2)`)
   and measures `apart` from operand 1's stored origin against `a1`. It
   decides the sum, as it should, but its pivot depends on which operand
-  is named first. `ExtentBall::lever_between` is the order-free lever.
-- `route_pose`'s scalar extent (`replace_face::pose_reach`,
-  `crates/topo/src/replace_face.rs`) takes a cylinder's stored ORIGIN
-  as its anchor. The origin is any point of the axis, so the extent can
-  overstate the reach without bound, and the cone×cylinder arm it feeds
-  decides `coc_axes_parallel` on it. Over-stating is not safe on a
-  two-sided row whose definite side is served (the review's MAJOR-1
-  class). The cylinder's anchor is the foot of the edge's ball on its
-  axis.
+  is named first. `Reach::lever_between` is the order-free lever.
+- `route_pose`'s scalar extent (`crates/geom-brep/src/intersect.rs`,
+  the edge's `Reach::Span` levered from the pair's anchors) takes a
+  cylinder's stored ORIGIN as its anchor. The origin is any point of
+  the axis, so the extent can overstate the reach without bound, and
+  the cone×cylinder arm it feeds decides `coc_axes_parallel` on it.
+  Over-stating is not safe on a two-sided row whose definite side is
+  served (PR 4118's review, MAJOR-1's class). The cylinder's anchor is
+  the foot of the edge's reading point on its axis.
 
 ## The fix's shape
 
 Read each offset where the consumed extent is, as the two classifiers
-now do: the feet of an `ExtentBall`'s centre on the axes
-(`ExtentBall::foot_on`), the tilt levered from there
-(`ExtentBall::lever_between` for two axes, the apex for a cone). The
-chart-region and join sites need a ball from their callers; the cone
-arm's callers (`route_pose`'s edge ball, chord_join's cone lane) already hold one.
+now do: the feet of a `Reach`'s point on the axes (`Reach::foot_on`),
+the tilt levered from there by an EXACT distance to the consumed
+points (`Reach::lever_between` for two axes, the apex for a cone),
+never a ball around them. The chart-region and join sites need a reach
+from their callers; the cone arm's callers (`route_pose`'s edge span,
+chord_join's cone lane) already hold one.
 
 Found by the class sweep of the `tang/classifiers-read-at-the-reach`
 lane (pattern: `x − a·(x·a)` with `x` an origin difference; the hit
