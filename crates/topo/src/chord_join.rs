@@ -91,10 +91,12 @@
 //! A **self-loop chord** (both ends one vertex) is the split's on a
 //! curved face whose one crossing is the face's seam vertex — a full
 //! revolve's wall, cut across its one seam: there the chord is the
-//! whole section conic, from the vertex round to itself. Everywhere
-//! else — a planar face, a boolean lane, a ruling or tangent section —
-//! a self-loop is a lone site, and rides `mef`'s placeholder circle
-//! (`EdgeCurveSpec::self_loop_circle_at`), which bounds nothing.
+//! whole section conic, from the vertex round to itself. On a planar
+//! face, in a boolean lane, or on a ruling section, a self-loop is a
+//! lone site, and rides `mef`'s placeholder circle
+//! (`EdgeCurveSpec::self_loop_circle_at`), which bounds nothing. A
+//! tangent ruling has no self-loop: its two ends coincide along the
+//! ruling, which refuses.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
@@ -929,8 +931,9 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
 /// Whether an edge from `start` to `end` on `curve` is a lone site's
 /// placeholder: a self-loop on a scaffold carrier, which `mef` certifies
 /// at a lone site as `EdgeCurveSpec::self_loop_circle_at` and
-/// [`chord_spec`] leaves on every self-loop chord but a curved split
-/// face's whole conic. Its circle is arbitrary, so it bounds nothing.
+/// [`chord_spec`] leaves on every self-loop chord it mints but a curved
+/// split face's whole conic (module docs, "The section-chord
+/// geometry"). Its circle is arbitrary, so it bounds nothing.
 ///
 /// Nothing in the edge marks a placeholder apart from an honest
 /// whole-turn scaffold, so this reading holds only in a body whose
@@ -1117,8 +1120,8 @@ fn arc_leaving<T: Decide>(
 ///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
 ///    pairing's answer; the chord does not ask the face again. A
 ///    self-loop (`u1 == u2`) is the whole conic, run the same way; on
-///    a ruling or tangent section, and outside the split's curved lane,
-///    a self-loop stays a lone site (`None`, the placeholder circle).
+///    a ruling section, and outside the split's curved lane, a
+///    self-loop stays a lone site (`None`, the placeholder circle).
 /// 3. Describe as `Intersection { wall, aux plane, witness }` with the
 ///    witness minted at the carrier's mid-parameter (the witness
 ///    contract) — certification then pins endpoints, residuals, and
@@ -1187,7 +1190,6 @@ fn chord_spec<T: Decide>(
     let conic = match case {
         // Ruling sections: the straight chord is the honest carrier.
         SectionCase::Straight => return Ok(None),
-        SectionCase::Tangent(_) if u1 == u2 => return Ok(None),
         // C7 (M5 PR 9): the tangent ruling is described
         // `TangentIntersection { wall, aux plane }` and pushed through
         // the ordinary certification gate by the mef/mekr caller. No
