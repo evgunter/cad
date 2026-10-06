@@ -1067,13 +1067,6 @@ fn pair_region_verified<T: Decide>(
     )
 }
 
-/// Builds the geometry snapshot: exact planar entities for the
-/// vertex-granular sweeps, curved entities routed to the
-/// face-granular arms (M9-2 — the census ADMITS every carrier kind;
-/// the blanket exact-on-planar refusal retired with the census arms
-/// that replaced it, and what each arm can and cannot certify is the
-/// module-docs envelope, stated rather than sampled). Total: every
-/// entity lands in exactly one bucket, so there is no refusal path.
 /// The exact sweeps' admission test for one edge, in ONE place.
 /// [`snapshot`] keeps an edge iff its carrier is a certified `Line`,
 /// and `line_bounded` — the planar × planar skip's premise — asks the
@@ -1108,8 +1101,9 @@ fn face_loops(face: &Face) -> impl Iterator<Item = LoopKey> + '_ {
 /// `body` can walk, `Err(loop)` for one it cannot — a lost loop, an
 /// empty (lone-vertex) loop, an unwalkable cycle. What an unwalkable
 /// loop MEANS is the caller's to say, at the call site; this walk
-/// never decides it. The file's one loop-walk: every site that reads
-/// a face's boundary reads it here.
+/// never decides it. The typed walk that `snapshot` and the backstop
+/// read; the boundary-box sites read
+/// [`Body::face_boundary_linked`], whose every hop is a link.
 fn face_cycles<'a, T: Real>(
     body: &'a Body<T>,
     face: &'a Face,
@@ -1125,6 +1119,13 @@ fn face_cycles<'a, T: Real>(
     })
 }
 
+/// Builds the geometry snapshot: exact planar entities for the
+/// vertex-granular sweeps, curved entities routed to the
+/// face-granular arms (M9-2 — the census ADMITS every carrier kind;
+/// the blanket exact-on-planar refusal retired with the census arms
+/// that replaced it, and what each arm can and cannot certify is the
+/// module-docs envelope, stated rather than sampled). Total: every
+/// entity lands in exactly one bucket, so there is no refusal path.
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body
         .vertices
@@ -2786,11 +2787,11 @@ fn boundary_axial<T: Decide>(
     let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
     for member in body.face_boundary_linked(f, face) {
         let sp = match member {
-            BoundaryMember::Isolated(p) => {
+            BoundaryMember::Isolated { point: p, .. } => {
                 let p = SpanBox::point(p);
                 edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p))
             }
-            BoundaryMember::Edge { ek, edge: e } => {
+            BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
                 let certified = body.edge_curve_linked(ek, e).certified();
                 let carrier = certified.map(geom_brep::EdgeCurve::carrier);
@@ -2846,11 +2847,11 @@ fn boundary_reach<T: Decide>(
     };
     for member in body.face_boundary_linked(f, face) {
         match member {
-            BoundaryMember::Isolated(p) => {
+            BoundaryMember::Isolated { point: p, .. } => {
                 let p = frame.point(p);
                 grow((p, p));
             }
-            BoundaryMember::Edge { ek, edge } => grow(edge_reach_of(body, ek, edge, frame)?),
+            BoundaryMember::Edge { ek, edge, .. } => grow(edge_reach_of(body, ek, edge, frame)?),
         }
     }
     acc

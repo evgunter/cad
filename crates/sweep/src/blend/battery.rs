@@ -1673,8 +1673,9 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 ///   arcs walking one cycle) and so is strictly stronger;
 /// - `surgery::resolve_annulus` / `wall_seam` — the ONE-EDGE admission,
 ///   whose set-equality on the rim vertex's orbit is the same shape
-///   read against a single self-closed edge and its doubly-traversed
-///   wall seams.
+///   read against a single self-closed edge, its mate wall's
+///   doubly-traversed seam, and its host's where the host is a wall (a
+///   plane host carries none).
 ///
 /// The intended relation is: this one ADMITS every site the other two
 /// do, and more. Anything that narrows it must narrow the recourse with
