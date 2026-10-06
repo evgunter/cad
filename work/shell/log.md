@@ -1233,3 +1233,41 @@ Units 1–6 are merged. Unit 7 (curved designated face) is in flight on `shell/c
   - R2 is `session_01A9qDF2o7DTnahmwynRC6TV`.
 
   Protocol `713b017b7`; blinding byte 74.
+
+## 2026-10-06 22:20 — unit 7 dual review adjudicated
+
+The dual review on frozen head `3332ebea` returned R1 NOT-MERGEABLE-AS-IS and R2 APPROVE-WITH-FIXES.
+
+The kernel work held under both reviewers' probes:
+- caps from 1° to 89.9°, at both poles and on re-posed bodies, each against its closed form;
+- the planar merge-base differential, bit-identical;
+- `demos/tour` 96/96.
+
+Both reviewers accepted the seam-keeping reading as within the spec.
+
+Correspondence pre-note:
+- **Bilateral:**
+  - the void-side seamed band builds but has no row, and one mutant direction survives (MIN/MIN, both executed);
+  - `chart_read` misreads windows wider than π (MIN/MIN, both demonstrated);
+  - `chart_read` is a second copy of `topo::chart::Chart`;
+  - `re_anchored` is a third spelling of `split_specs`;
+  - escalations are folded into shape refusals;
+  - the interior-edge wrap test is a proxy (unsure, both);
+  - the pncad-py docstring is stale;
+  - `audit_record` has no void arm;
+  - the lift's cone/nappe arm is reached by no built body.
+- **Unilateral R1:**
+  - **MAJOR**, executed with a red document probe: `emit_shell` names only `rim.rim`, so a seamed band cannot be evaluated from a document ("kernel bug" naming refusal);
+  - the dead `seams.len()==1` arm;
+  - the guard text claims more than it checks;
+  - `RimNaming.ring` names a retired loop on a band;
+  - the NURBS ApproxNesting text.
+- **Unilateral R2:**
+  - `offset_distance`'s Offset refusals have no row;
+  - a second `periodic` rule;
+  - stale planar premises at `shell.rs:272` and `:1696`;
+  - `lift_to` reads `from[0]` alone;
+  - the module header keeps growing.
+- **Tally candidate:** R1's document-path MAJOR (unilateral, contract/API, demonstrated by a red probe, fair pair). Blinded coding is pending.
+
+A ten-item fix list has been sent to the lane, and both reviewers are archived.
