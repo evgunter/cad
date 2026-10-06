@@ -17,7 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Dual64, Tol};
-use topo::{Body, ShellDoor};
+use topo::ShellDoor;
 use verbs::{Verb, VerbError, VerbOut};
 
 /// The seat's shell door at a dual, as a function item: naming the
@@ -25,7 +25,7 @@ use verbs::{Verb, VerbError, VerbOut};
 /// can supply.
 type RunShellAtDual = fn(
     &Verb<Dual64>,
-    &Body<Dual64>,
+    &topo::AtRestBody<Dual64>,
     Tol,
     ShellDoor<Dual64>,
 ) -> Result<VerbOut<Dual64>, VerbError<Dual64>>;

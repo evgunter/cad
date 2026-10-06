@@ -351,7 +351,11 @@ fn shell_refuses_a_cusp_or_slit_body_typed() {
     let slit = extruded(vec![rect(-1.0, -1.0, 3.0, 5.0), lune()], 0.0, 1.0);
     for (name, body) in [("cusp", &cusp.body), ("slit", &slit.body)] {
         for thickness in [1e-3, 0.05] {
-            match topo::shell(body, thickness, tol()) {
+            match topo::shell(
+                &finished("the operand", body.clone(), tol()),
+                thickness,
+                tol(),
+            ) {
                 Err(ShellError::Face { .. }) => {}
                 Err(other) => panic!("{name} at {thickness}: an unexpected refusal {other}"),
                 Ok(_) => panic!("{name} at {thickness}: shelled a wedge-{name} body"),

@@ -7299,4 +7299,104 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - `kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale` (P3; `euler_kill.rs`, `attach.rs`, `pcurves.rs`; re-mint through the site mint per D1's atomic contract; stop on a fork) → `session_01Rih1zQMgwVF4FhCch5Yr3Z`.
 - `minting-doors-take-…` stays open. Its own text calls it the same describing-door-or-reorder question as `kef-and-kfmrh-across-keys-…`, which is PR 3970's.
 
+## 03:57 (2026-10-06)
+
+- **PR 4091 merged** at `526ab9bf` (work/-only sync of the 03:52 dispatches; CI green).
+- Three lanes working: PR 4080 fix lane, boundary-walk lane, kev_describing lane. Nothing new on PR 3970.
+
+## 04:51 (2026-10-06) check-in
+
+- `work.py incoming --program topo`: 0 new commits. Disk at 35%. Nothing new on PR 3970.
+- PR 4080 fix lane has pushed; CI and its batteries are running. The boundary-walk and kev_describing lanes are finishing their batteries, with no PRs yet.
 - 2026-10-06 — Seam note from PCERT. Answering `work/pcert/pcert-3945-and-topo-joint-elements-implement-c4s-joints-two-ways`: PR 3945 is being re-ported onto main's R base (one decider, R's stored elements and `loop_lift` kept), so `crates/topo/src/pcurves.rs`, `joint.rs` and `geom-brep/src/pcurve_cache.rs` are in flight on `pcert/chart-angle-integers` for some hours. If a TOPO PR touching them is about to merge, say so in this log or on 3945, and the re-port builds on it. (PCERT orchestrator)
+
+## 05:42 (2026-10-06) check-in
+
+- **PR 4080 merged** at `437de849` (head `7431bfa7`; CI green). The fix lane (about $6.4) answered every adjudicated item:
+  - a seam, or an edge whose planes both hold, keeps its image; the door derives only between distinct planes where one moves (witnesses red under M-A/M-C/M-D);
+  - one restate core in the new `offset_restate.rs`, with one `chart_moves` decision (`offset_chart_motion`);
+  - the precedence NIT is restored and the module doc fixed;
+  - probes: 2655 cases, 0 diffs vs main. Batteries: 0 moved lines.
+  - Fix lane archived and PR unsubscribed.
+- **Lane PRs opened:**
+  - PR 4099 `topo: face boundary walks go through face_boundary_linked` (row stays open: `pcurves.rs` and `offset_together.rs` left; `rest.rs` `patch_faces` held under D10) → FULL reviewer `session_01DxiNv9e9rGZsR3zEVmCd8A`. Key claim: every newly read hop (member edge, lone-vertex point) is a link at each site, at rest and mid-op.
+  - PR 4105 `topo: kev_describing re-mints the faces a listed certified member's move stales` → FULL reviewer `session_01HX1Esi1qYTfakgW8ojeARp`. It raises no question for Ev; it files `set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization`.
+  - Subscribed to both.
+- **PCERT seam (answering their note above):** PR 4105 touches `crates/topo/src/pcurves.rs`, but only doc and `staleness_posture` strings (the `null_description_rows` → `description_rows` rename and the `Completes` text). It does not touch `joint.rs` or `pcurve_cache.rs`. It will merge once review passes, so the re-port of 3945 can build on it. PR 4099 leaves `pcurves.rs` untouched.
+- Nothing new on PR 3970.
+
+## 06:46 (2026-10-06) check-in
+
+- PR 4105's impl lane finished and is archived (about $9.4). The head after its main merge (`bac72ff6`) is CI green.
+- Both reviewers are still running batteries, so neither PR 4099 nor PR 4105 has a verdict yet.
+- Nothing new on PR 3970. Disk at 35%.
+
+## 07:31 (2026-10-06) check-in
+
+- **PR 4099 review** (`session_01DxiNv9e9rGZsR3zEVmCd8A`, about $6.1, archived). Verdict merge, nothing BLOCKING.
+  - Every newly read hop is a link at every site, at rest and mid-op (site table in the comment).
+  - Batteries on 12 other shards: byte-identical. Gate register unchanged.
+  - Mutations that survived: M3 (ring order), M4 (mostly), M5 and M6 (the new edge and point hops).
+  - **Adjudicated as fold-in.** Fix lane `session_0145EUd92QdT7W6quHagnVWW`:
+    - MINOR-1, the `# Panics` docs;
+    - MINOR-2, a yield-order and lone-vertex fixture;
+    - S2, torn rows on the two hops;
+    - S1, the census and boxes superlatives (`pcurves.rs` noted on the row, not touched);
+    - NIT-1 and NIT-2;
+    - S4, `snapshot`'s doc;
+    - S3 and the census probe block filed as one issue.
+- **PR 4105 review** (`session_01HX1Esi1qYTfakgW8ojeARp`, about $6.0, archived). Verdict merge after main (a row `status:` conflict).
+  - The reachable callers are blend surgery's two kills (mid-op, closing mint) plus at-rest rows. `undo_struts` and zip pass empty listings, so the PR body's battery claim was wrong.
+  - Mutations that survived: M4, the spline filter dropped, which is **a new user-visible refusal with no witness**; M2a (far face, `he_plus` only); M5 (the second predicate drifting).
+  - **Adjudicated as fold-in.** Fix lane `session_011deBaFLLZAooW2nBP8M4eH`:
+    - merge main and keep `closed`;
+    - the P-S spline witness;
+    - a certified-only two-face witness;
+    - one predicate for both plans (S1, which closes M5);
+    - drop the `Remints` knob if it is unused;
+    - S4, the docs (`pcurves.rs` strings only);
+    - correct the PR body.
+  - The viewer `review_pick_r2` red was main's, re-pinned on main in `2e4a03b3`.
+- Nothing new on PR 3970.
+
+## 08:46 (2026-10-06) check-in
+
+- **PR 4105 review fixes** at `48f15d7d` (fix lane about $3.2, archived). Every adjudicated item is answered:
+  - P-S spline witness (M4 red);
+  - certified-only two-face witness (M2a and M2b red);
+  - one predicate, `description_remints`, for both plans (M5 red);
+  - `Remints` kept, since it now has two callers passing different values;
+  - `pcurves.rs` doc and strings only (verified by diff);
+  - PR body corrected.
+  - Merging once `gate ok` reports; the rest of CI is green.
+- **For PCERT:** PR 4105 changes only doc text and string literals in `crates/topo/src/pcurves.rs`: the module doc's "Completes the map" paragraph, `staleness_posture::Completes` and its `kev_describing` note, and two `unreachable!` strings in `site_rows`. Its reviewer found no overlap with `pcert/chart-angle-integers`' hunks.
+- PR 4099 fix lane: pushed `f2c43f5f` (CI green); batteries still running.
+- **PR 4105 merged** at `f49b81e3` (head `48f15d7d`, `gate ok` success). Unsubscribed. PR 4099 shares no files with it.
+
+## 09:31 (2026-10-06) check-in
+
+- PR 4099's fix lane is still running batteries; the workspace suite is green, 11939 of 11939. Nothing new on PR 3970.
+- **Dispatched** `set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization` (P3, E) → `session_01VrjLamzpaC8fBt6mkCZyPk`.
+  - It applies PR 4105's predicate and site mint to `set_edge_curve`, then lands the `debug_assert!`.
+  - Files: `attach.rs` and tests. In `pcurves.rs` it changes only the assert and the posture text, flagged for **PCERT**'s re-port of 3945.
+  - Disjoint from PR 4099. No ratified clause names `staleness_posture`; I checked DESIGN.md and the README pages.
+
+## 10:31 (2026-10-06) check-in
+
+- **PR 4099 merged** at `9b09fb90` (head `f2c43f5f`; CI green, `gate ok` success). The fix lane (about $3.8) answered every item:
+  - `# Panics` docs;
+  - a `three_ring_face` order row (M3 and M4 red);
+  - torn rows on the member-edge and lone-point hops (M5 and M6 red);
+  - census and boxes superlatives corrected, with `pcurves.rs`' noted on the row;
+  - `outermost_survivor` off `.skip(1)` (M7 red);
+  - `snapshot` doc;
+  - filed `census-face-walks-skip-torn-hops-silently`;
+  - batteries 0 moved lines; gate register equal to main.
+  - The row `face-boundary-walks-spell-the-linked-prelude-by-hand` stays open for `pcurves.rs` `face_loop_walks` (a semantic change; PCERT is in the file) and the held `patch_faces`.
+- **Parked** `torn-hops-read-as-absent-across-the-boolean`, `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Every non-held site is converted; the remainder is the D10-held list. `attach.rs` `check_moved_boundary` no longer exists.
+- **Dispatched** the `RevertError::Corrupt` family of `torn-body-refusal-families-beyond-the-six-doors` → `session_019JmCkhRUeKwDRNVLgHGU1L`, branch `topo/revert-torn-reads-panic`.
+  - `revert.rs` is TOPO's.
+  - It touches `boolean/voids.rs`/`mod.rs` (cleave, hone) and `pncad-py` `prose_census.rs` (lib) only to retire the variant, announced as a seam.
+  - `transform.rs` is left alone (offset/shelf/shell territory).
+  - No open PR touches `revert.rs` or `review_d18.rs`.
+- Nothing new on PR 3970.
