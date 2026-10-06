@@ -46,3 +46,32 @@ lamina's plane annulus the way the wire case does (`kemr`). Drop the
 `editor-core/src/names/emit_sweep.rs::name_revolve`, and update
 `RevolvedKind::Full`'s doc (`revolve/mod.rs`), which states the lamina
 exception today.
+
+## Findings (`band/lamina-annulus-is-one-face`)
+
+Measured on the tree: the lamina needs nothing the solid's plane wall
+doesn't. `build_lamina` kills each plane wall's meridian slit with the
+same `kemr` the wire case uses (`unslit_plane_wall`, `SlitEnd::Annulus`);
+tier 2 holds, the washer's volume bits are unchanged, and the emitter
+drops `Meridian(Seam, s)` on its own (it reads `meridians`, now `None`
+for a plane wall).
+
+What read the slit was the blend, as this row said, and one more door
+than it named:
+
+- `resolve_annulus` took the slit as the plane side's seam. A plane
+  host whose cycle carrying the rim is the rim alone is now the
+  hostless crossing (`HostFoot::Strut`), the rim the face's outer cycle
+  or one of its rings (`AnnulusRim::host_ring`).
+- With ONE crossing the host trim spans no two feet, and a `mef` from
+  the foot to itself hands the lone circle to the NEW face — the source
+  plane would keep the strip. `lone_host_trim` takes the trim through
+  the host's own cycle instead (`kemr` the strut, lone-vertex `mef`,
+  `ring_move` the rim's ring onto the strip, `mekr` the strut back).
+- The ring pass read only circle rings; a notch cut into the bore now
+  lands in a ring, so a ring that is not one circle is metered edge by
+  edge with the outer cycle (`support_boundary_clearance`).
+- The ruled band refused any ringed support; a washer's bottom face
+  now carries its bore as a ring. A plane support's rings stay on it
+  through the trimline `mef` and are metered by the ring pass, so only
+  a CURVED support's ring refuses (`RuledPlan::plan`).
