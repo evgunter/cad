@@ -490,6 +490,8 @@ mod revolve_ring;
 mod revolve_washer;
 #[path = "ring_r1_probes.rs"]
 mod ring_r1_probes;
+#[path = "round_tube_on_plate.rs"]
+mod round_tube_on_plate;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
 #[path = "s393_start_frame_door.rs"]

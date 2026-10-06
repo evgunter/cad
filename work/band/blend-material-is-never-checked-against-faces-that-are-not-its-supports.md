@@ -4,7 +4,7 @@ kind: issue
 title: blend: the band's material is never checked against faces that are not its supports, so a concave fillet grows into an island and builds an overlapping body every tier admits
 status: open
 opened: 2026-10-06
-priority: P1
+priority: P0
 cost: H
 ---
 
@@ -55,3 +55,35 @@ per-shell door makes the second witness reachable through
 `Node::Fillet`, which is why this is P1: an ordinary document
 (an island in a hollow, unioned) ships a wrong body silently.
 
+
+## A third witness: a CONVEX band through a thin wall (review of PR 4092)
+
+The full review of PR #4092 (sided radius headroom), on its head
+`e1e1ef43`, built the convex case. `thin_flare` is a revolved wall
+0.05 thick with a bore of radius 0.225 that turns 30° into a cone (the
+tour's Klein neck→flare in miniature). The convex inner corner's band
+reaches `0.0353·r` along the bisector, and the outer corner sits at
+`0.0518`, so the band leaves the material once `r > 1.466`. At
+`r = 1.5` and `1.6`, `fillet_edges` builds and `validate_geometric` is
+`Ok` at all three eps rows; the band's bisector point lies past the outer
+wall. On main the unsided radius headroom refuses these by accident (it
+limits `r` by the bore's curvature, which the ball does not roll
+against). The reviewer's probes are on branch `review/4092-probes`
+(`crates/sweep/tests/review_4092_probes.rs`). PR 4092 waits on this row.
+
+## Priority
+
+P0, raised by the BAND orchestrator: a normal verb (fillet) silently
+returns a wrong body that every tier admits, on ordinary geometry (an
+island in a hollow; a fillet in a thin-walled revolve). This is "a live
+wrong answer" in `work/README.md`'s bands.
+
+## Scope note (orchestrator)
+
+This extends predicate 2 (face clearance, C8 in `crates/geom-brep/README.md`)
+from "the support faces' own boundary features" to "every face of the
+body within the band's reach that is not a support of the chain, in any
+shell". It is the predicate's ratified meaning, not a new predicate. The
+check must certify clearance or refuse typed (`FaceClearance` /
+`FaceClearanceUncertified`), before construction, and replay at
+`Interval`.
