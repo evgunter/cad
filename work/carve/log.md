@@ -317,3 +317,62 @@ it; a note is on ZIP's log. Main is now red at 1e-6 on PATHS'
 rows are green, with any red confined to rows that are red on main.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `sweep-cap-plane-winds-against-a-convex-arc-region` closed (PR 4187)
+
+`sweep::swept::cap_plane` is the one home for all six cap sites
+(extrude's, loft's and the partial revolve's two each). It keeps
+Newell's plane over `cap_points` and flips it exactly when one decided
+comparison, the K predicate `cap_plane_orientation`, says Newell's
+normal opposes the region's (± the sketch normal, by the verb's
+`reverse` and the cap's end). The C-shape's caps now point out of the
+material in extrude, loft and partial revolve, at f64 and Interval.
+
+**Ruled mid-unit: B2.**
+- A (the placed sketch normal) failed CI with 13 rows in `editor-core`
+  and `step-export`. The placed `c2` is a far looser enclosure at
+  Interval than Newell over the actual points, and that is a geometric
+  reason, not output stability.
+- C (an arc-exact vector area) would have been a third copy of the
+  circular-segment formula.
+- B2 is bit-identical wherever Newell already agrees. The reviewer
+  dumped every face surface and vertex on base and branch to confirm.
+
+Review: single FULL (Opus). It found no MAJOR. Its fix pass:
+- The orientation refusal now carries the escalation's payload and the
+  shared `KERNEL_DEFECT_ENDING`. It had forwarded a recourse menu that
+  offered "declare the coincidence".
+- The new arms are in the concision census, plus two rows.
+- The right-handed-frame claim is a stated precondition that cites
+  PATHS' `sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary`.
+- The lane's overstated TESS row became the true
+  `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`.
+## 2026-10-06 — `two-section-loft-with-an-inverted-top-normal-builds` closed (PR 4188)
+
+The stacking fold also decides section k+1's normal against slab k's
+displacement, under the same `loft_stacking` band. A far section that
+does not face along the stack refuses `FarSectionNotForward { slab }`,
+and an in-band far reading escalates as its own
+`FarStackingEscalated`. The downward-facing top section and an interior
+section facing back (z = 0, 1, 0.5 with normals +z, −z, −z) now refuse
+at the door; before, one built and validated and the other refused
+opaquely at an Euler certification.
+
+Review: single FULL (Opus). It found one MAJOR, which matters beyond
+this PR: **the designers' argument for the interim was false.** The
+check refuses embedded, correctly oriented bodies (a hood whose top
+turns 100°; an oblique arc sweep), because 3-D rings can turn edge-on
+to the stack and stay simple. The orchestrator ruled to keep it as a
+DISCLOSED CONSERVATIVE interim. Today the inverted-top loft builds
+silently, and a false refusal is the cheaper failure in a charter whose
+subject is bodies that should refuse. The old near check already
+over-refuses the mirror case. Every sentence that claimed "every
+refusal is a fold" was corrected. The over-refused bodies are pinned as
+rows that should build once the certificate lands, and that cost is
+recorded on the certificate unit's row. Filed on CARVE:
+`a-reflected-loft-placement-evades-both-normal-checks` (P1, M).
+**A class finding:** an argument a designer pair agrees on is still a
+claim to falsify. This one survived two reconciliation rounds and fell
+to a reviewer's first probe.
+
+Signed: (CARVE orchestrator)
