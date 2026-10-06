@@ -2,11 +2,13 @@
 id: a-second-crossing-by-one-face-renames-the-first-and-its-pieces
 kind: issue
 title: The crossing ordinal is not local: a second crossing of an edge by a face that already crosses it renames the first crossing and every piece whose Ends cite it
-status: open
+status: review
 opened: 2026-10-01
 priority: P1
 cost: M
 refs: [edge-pieces-are-named-by-their-ends]
+pr: 4203
+branch: emit/crossing-sense
 ---
 
 ## What

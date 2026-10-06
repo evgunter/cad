@@ -1988,3 +1988,23 @@ Two nightly-only reds remain, both stale test pins, fixed on
 
 Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
 with `return_content=false` returns a signed URL that `curl` fetches.
+
+## 2026-10-06 — PR 4203: every crossing carries its sense; lone pieces of divided edges carry `Ends`
+
+The ruled row from PR 4134, built.
+- The boolean records each operand edge piece's in/on/out class at its vertex (`EdgePieceClass`, D5). The rows come from vtxfac's raw codes and from `sectors::wedge_classes`.
+- The boolean and union name an edge × face vertex `Crossing { edge, face, sense }` and an edge × edge vertex `EdgeCrossing { a, a_sense, b, b_sense }`.
+- The Split's `CrossingVertex` gains `sense`.
+- Ranks run per sense.
+- Senses ride a union's fold and flip under `RankRule::Reverse`.
+
+`Ends` then lands on every piece of a divided edge, a lone one included. A whole edge stays bare.
+
+The pinned test is rebuilt as one document edited in place. The goldens moved broadly, and the full-form word ratchet grew (p99 69 → 166, max 111 → 718).
+
+Filed:
+- the touch and edge × edge spelling (design);
+- the unoriented-seam refusal (design);
+- the union rewrite leaving a Split's crossings unread;
+- the union seam cut to one piece;
+- the end-touch row, which main's edge joins left without a witness.
