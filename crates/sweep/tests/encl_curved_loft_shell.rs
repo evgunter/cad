@@ -198,7 +198,7 @@ fn a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name() {
         .body;
     let mut moved = body.clone();
     let cap = top_cap(&body);
-    let Err(ReplaceFaceError::ReanchorLaneUnsupported { scalar, .. }) = topo::replace_face_offset(
+    let Err(ReplaceFaceError::NurbsLaneUnsupported { scalar, .. }) = topo::replace_face_offset(
         &mut moved,
         cap,
         <Dual64 as geom_core::Real>::from_f64(-THICKNESS),
@@ -207,4 +207,75 @@ fn a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name() {
         panic!("expected the lane refusal at a dual");
     };
     assert_eq!(scalar, <Dual64 as geom_core::Real>::NAME);
+}
+
+/// The circular vase: three circle sections of radius 1, 1.3 and 1 at
+/// heights 0, 1 and 2, lofted at degree 2 — two spline walls whose
+/// seams leave each cap at a slant.
+fn vase() -> Body<f64> {
+    let circle = |r: f64| {
+        vec![profile::test_support::bulge_loop(vec![
+            (geom_core::Point2::new(r, 0.0), 1.0),
+            (geom_core::Point2::new(-r, 0.0), 1.0),
+        ])]
+    };
+    let places = [0.0, 1.0, 2.0]
+        .iter()
+        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect::<Vec<_>>();
+    sweep::loft_body::<f64>(
+        &[circle(1.0), circle(1.3), circle(1.0)],
+        &places,
+        2,
+        Tol::witness(),
+    )
+    .expect("the vase lofts")
+    .body
+}
+
+/// The vase's seams are curved, so its corner's gap is the twisted
+/// loft's to first order: the thickness times the sine of the seam's
+/// slant where it leaves the refusing cap.
+#[test]
+fn shelling_the_vase_refuses_at_its_oblique_cap_corner() {
+    let body = vase();
+    let e = topo::shell(
+        &finished("the vase", body.clone(), Tol::witness()),
+        THICKNESS,
+        Tol::witness(),
+    )
+    .expect_err("a spline-walled body does not shell today");
+    let ShellError::Face { face, error } = &e else {
+        panic!("expected a per-face offset refusal, got {e}");
+    };
+    assert!(is_cap(&body, *face), "the refusing face is not a cap: {e}");
+    let ReplaceFaceError::ReanchorOffCarrier { edge, gap } = error.as_ref() else {
+        panic!("expected the oblique corner's re-anchor refusal, got {e}");
+    };
+    assert_wall_seam(&body, *edge, "the vase's corner");
+    let data = body.get_edge(*edge).expect("the seam resolves");
+    let curve = body
+        .get_curve_geom(data.curve)
+        .and_then(topo::CurveGeom::certified)
+        .expect("the seam carries a certified curve");
+    let (t0, t1) = curve.params();
+    let cap_z = match body
+        .get_face(*face)
+        .and_then(|f| body.get_surface(f.surface))
+    {
+        Some(geom::Surface::Plane { origin, .. }) => origin.z,
+        _ => unreachable!("the refusing face is a cap"),
+    };
+    let at_cap = if (curve.carrier().eval(t0).z - cap_z).abs() < 1e-9 {
+        t0
+    } else {
+        t1
+    };
+    let tangent = curve.carrier().deriv(at_cap);
+    let sine = tangent.cross(Vec3::unit_z()).norm() / tangent.norm();
+    let first_order = THICKNESS * sine;
+    assert!(
+        (gap - first_order).abs() < 0.05 * first_order,
+        "the gap {gap} is the cap's displacement across the seam to first order, {first_order}"
+    );
 }

@@ -2252,7 +2252,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::ReanchorOffCarrier { edge, .. }
         | ReplaceFaceError::ReanchorPastCarrierEnd { edge, .. }
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
-        | ReplaceFaceError::ReanchorLaneUnsupported { edge, .. }
+        | ReplaceFaceError::NurbsLaneUnsupported { edge, .. }
         | ReplaceFaceError::NeighborPoseUnroutable { edge, .. } => {
             face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus)
         }

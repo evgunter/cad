@@ -2955,6 +2955,51 @@ fn plane_nurbs_pair<T: Real>(
 /// The helper is instantiated once per certifying scalar, and that
 /// census counts the instantiations against the tree's
 /// `CertifiedEnclosure` impls.
+/// [`NurbsLane::carrier_foot`]'s seed is what picks the foot: a point
+/// moved along a carrier is read on the branch it was moved from, not
+/// wherever a fixed start converges.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod foot_rows {
+    use geom::NurbsCurve3;
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+
+    use super::NurbsLane;
+
+    /// A U-shaped cubic, `x = 6t(1 − t)`, `y = 3t² − 2t³`. The distance
+    /// from its point at `t = 0.9`, `(0.54, 0.972)`, has a second local
+    /// minimum near `t = 0.1` on the lower leg, about 0.94 m away, which
+    /// is where Newton seeded at the domain start converges.
+    #[test]
+    fn the_seed_decides_which_stationary_point_is_the_foot() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let carrier = NurbsCurve3::new(knots, control, vec![1.0; 4]).unwrap();
+        let target = carrier.eval(0.9);
+        let lane = NurbsLane::<f64>::certified();
+        let moved_from = lane.carrier_foot(&carrier, target, 0.85).unwrap();
+        assert!(
+            (moved_from.t - 0.9).abs() < 1e-9 && moved_from.distance < 1e-9,
+            "seeded at the old parameter 0.85 the foot is the point itself, got t = {} at {} m",
+            moved_from.t,
+            moved_from.distance
+        );
+        let from_the_start = lane.carrier_foot(&carrier, target, 0.0).unwrap();
+        assert!(
+            from_the_start.t < 0.3 && from_the_start.distance > 0.5,
+            "seeded at the domain start the foot is the lower leg's minimum, got t = {} at {} m",
+            from_the_start.t,
+            from_the_start.distance
+        );
+    }
+}
+
 #[cfg(test)]
 mod wiring_rows {
     use super::NurbsLane;

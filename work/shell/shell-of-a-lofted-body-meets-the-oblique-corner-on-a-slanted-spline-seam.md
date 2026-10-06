@@ -23,14 +23,24 @@ build:
 | body | refusal (on a cap) | gap |
 |---|---|---|
 | twisted loft, 0.3 rad (`common::approx::twisted_loft`) | `ReanchorOffCarrier` on a wall–wall seam | 0.019466 m |
-| circular vase (three circle sections r = 1, 1.3, 1, degree 2) | `ReanchorOffCarrier` on a wall–wall seam | 0.025370 m |
+| circular vase (circle sections r = 1, 1.3, 1 at z = 0, 1, 2, degree 2) | `ReanchorOffCarrier` on a wall–wall seam | 0.025370 m |
 | straight square prism (`common::approx::prism`) | passes the re-anchor; see `work/iso/nurbs-iso-derive-line-rim-arm-refuses-an-interior-row.md` | — |
 
 The twisted loft's gap is exactly `0.05 · sin(slant)`, where the slant
 is the seam's chord against the cap normal (the seam drifts 0.4227 m
 over its 1 m height): `crates/sweep/tests/encl_curved_loft_shell.rs`,
 `shelling_the_curved_loft_refuses_at_the_oblique_cap_corner_before_any_fit`,
-asserts that to 1e-12.
+asserts that to 1e-12. The vase's seams are curved, so its gap is that
+to first order (0.025725 from the seam's tangent at the cap):
+`shelling_the_vase_refuses_at_its_oblique_cap_corner` in the same file
+builds the vase and asserts the gap within 5% of it.
+
+The M7-8 cube (`crates/topo/tests/fixture/m7_8.rs`, pcurves minted)
+meets a different wall at each scalar: `shell(0.1)` at `f64` refuses
+`FittedBoundaryUnsupported` on the wall's edge, and at `Interval` the
+re-chart refuses "the plane × NURBS Intersection lane refused —
+outside the plane × NURBS lane: the analytic operand's structural
+parameters are not exact at this scalar".
 
 ## Why
 
