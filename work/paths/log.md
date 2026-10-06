@@ -589,3 +589,7 @@ coincidence is now a margined verdict (no declarations), checked by the
 ## 2026-10-06 — the sketch plane waits on D10 too
 
 `the-sketch-plane-is-its-frame` now also waits on `d10-one-way-to-say-intent-is-unbuilt`, because a sketch plane is a placement and so falls under the D10 hold. It stays parked on `store-constructed-carriers` as well.
+
+- 2026-10-06 — D10 and the lattice's `.tangent()`. Ev: "the refactor is likely to change the details of how `.tangent()` works under the hood, but the api will likely stay similar".
+  - Read: units on how segments are stored (3, 4, 6) and the storage P0s may start under the hold.
+  - A unit that reworks how declared tangent joints are recorded or verified waits for D10's build, as the sketch plane does.
