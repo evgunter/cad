@@ -1581,7 +1581,9 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "Section(Carrier)",
                 J::Section {
                     face,
-                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes),
+                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes(
+                        payloads::named("ellipse_axes_distinct"),
+                    )),
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),

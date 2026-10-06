@@ -359,13 +359,16 @@ fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
     let _ = carve_and_check(&source, "D-profile rod");
 }
 
-/// **The first moment `∫∫ x dA` of the region [`rod_section_cut`]
-/// measures**, by the same decomposition: the quad's polygon moment,
-/// less the fillet sector's at `c`, plus the rod segment's (its sector
-/// at the origin less the triangle `O, V, f_a`). A sector of radius `ρ`
-/// and sweep `σ` has its centroid `4ρ·sin(σ/2)/(3σ)` out along its
-/// bisector.
-fn rod_section_moment_x(big_r: f64, flat: f64, r: f64) -> f64 {
+/// **The first moment `∫∫ (along·p) dA` of the region
+/// [`rod_section_cut`] measures**, for a planar direction `along`, by
+/// the same decomposition: the quad's polygon moment, less the fillet
+/// sector's at `c`, plus the rod segment's (its sector at the origin
+/// less the triangle `O, V, f_a`). A sector of radius `ρ` and sweep `σ`
+/// has its centroid `4ρ·sin(σ/2)/(3σ)` out along its bisector. The
+/// region is the one at the crease with `y > 0`; the other crease's is
+/// its mirror in `y = 0`.
+fn rod_section_moment(big_r: f64, flat: f64, r: f64, along: (f64, f64)) -> f64 {
+    let dot = |p: (f64, f64)| along.0 * p.0 + along.1 * p.1;
     let h = ((big_r - r).powi(2) - (flat - r).powi(2)).sqrt();
     let c = (flat - r, h);
     let v = (flat, (big_r.powi(2) - flat.powi(2)).sqrt());
@@ -375,35 +378,43 @@ fn rod_section_moment_x(big_r: f64, flat: f64, r: f64) -> f64 {
     let mut quad_moment = 0.0;
     for i in 0..4 {
         let (p, q) = (quad[i], quad[(i + 1) % 4]);
-        quad_moment += (p.0 + q.0) * (p.0 * q.1 - q.0 * p.1) / 6.0;
+        quad_moment += dot((p.0 + q.0, p.1 + q.1)) * (p.0 * q.1 - q.0 * p.1) / 6.0;
     }
-    let sector = |cx: f64, rho: f64, from: f64, sweep: f64| {
+    let sector = |at: (f64, f64), rho: f64, from: f64, sweep: f64| {
         let reach = 4.0 * rho * (sweep / 2.0).sin() / (3.0 * sweep);
-        0.5 * rho * rho * sweep * (cx + reach * (from + sweep / 2.0).cos())
+        let mid = from + sweep / 2.0;
+        0.5 * rho * rho * sweep * dot((at.0 + reach * mid.cos(), at.1 + reach * mid.sin()))
     };
     let theta = ((flat - r) / (big_r - r)).acos();
     let beta = (flat / big_r).acos();
-    let triangle = 0.5 * (v.0 * f_a.1 - f_a.0 * v.1) * (v.0 + f_a.0) / 3.0;
-    quad_moment - sector(c.0, r, 0.0, theta) + sector(0.0, big_r, beta, theta - beta) - triangle
+    let triangle = 0.5 * (v.0 * f_a.1 - f_a.0 * v.1) * dot((v.0 + f_a.0, v.1 + f_a.1)) / 3.0;
+    quad_moment - sector(c, r, 0.0, theta) + sector((0.0, 0.0), big_r, beta, theta - beta)
+        - triangle
 }
 
 /// **An oblique cap cuts the ruled band off in an ellipse.** The rod's
-/// top is cut off by a plane tilted `φ` off the ruling's normal plane,
-/// `z = 0.7 − x·tan φ`, so each crease's upper end is a plane cap
-/// oblique to the ruling — and its rim on the rod is itself an ellipse.
-/// The band is cut off in the cap's section of it, an ellipse of minor
-/// semi-axis `r` and major `r / cos φ`; each crease removes its section
-/// over the length at the section's centroid,
-/// `ΔV = A·0.7 − tan φ·∫∫x dA` ([`rod_section_moment_x`]), alone and
-/// both in one call.
+/// top is cut off by a plane through `(0, 0, 0.7)` with unit normal
+/// `n`, tilted `φ` off the ruling's normal plane about `y` or about
+/// `x`, `z = 0.7 − (n_x·x + n_y·y)/n_z`, so
+/// each crease's upper end is a plane cap oblique to the ruling — and
+/// its rim on the rod is itself an ellipse. The band is cut off in the
+/// cap's section of it, an ellipse of minor semi-axis `r` and major
+/// `r / n_z`; each crease removes its section over the length at the
+/// section's centroid, `ΔV = A·0.7 − (n_x·∫∫x dA + n_y·∫∫y dA)/n_z`
+/// ([`rod_section_moment`]), alone and both in one call. Each end arc
+/// lies on the band and on the cap to `1e-12`.
 #[test]
 fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
     let rod = rod_d_profile_at::<f64>(tol());
     let rod = sweep::test_support::finished("the rod", rod, tol());
-    for phi in [0.3f64, -0.2] {
+    for (about, phi) in [("y", 0.3f64), ("y", -0.2), ("x", 0.3), ("x", -0.6)] {
+        let n = match about {
+            "y" => Vec3::new(phi.sin(), 0.0, phi.cos()),
+            _ => Vec3::new(0.0, phi.sin(), phi.cos()),
+        };
         let plane = topo::test_support::split_plane(
             Point3::new(0.0, 0.0, 0.7),
-            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            n,
             geom_core::Tol::witness(),
         );
         let result = split(&rod, &plane, tol()).expect("the tilted cut splits");
@@ -413,18 +424,33 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
         validate_geometric(below, tol()).expect("the cut rod is tier-3 valid");
         let creases = rod_creases(below);
         assert_eq!(creases.len(), 2, "the creases survive the cut");
-        let one = rod_section_cut(ROD_R, ROD_FLAT, R) * 0.7
-            - phi.tan() * rod_section_moment_x(ROD_R, ROD_FLAT, R);
-        let enclosure = |body: &Body<f64>| {
-            let p = mass_properties(body, tol()).expect("certified props");
+        let area = rod_section_cut(ROD_R, ROD_FLAT, R);
+        let (mx, my) = (
+            rod_section_moment(ROD_R, ROD_FLAT, R, (1.0, 0.0)),
+            rod_section_moment(ROD_R, ROD_FLAT, R, (0.0, 1.0)),
+        );
+        // A crease's section is the `y > 0` one or its mirror.
+        let removes = |crease: EdgeKey| {
+            let he = below.get_edge(crease).expect("a crease").he_plus;
+            let start = below.get_half_edge(he).expect("its half").start;
+            let y = below
+                .get_point(below.get_vertex(start).expect("its vertex").point)
+                .expect("its point")
+                .y;
+            area * 0.7 - (n.x * mx + n.y * my * y.signum()) / n.z
+        };
+        let (one, two) = (removes(creases[0]), removes(creases[1]));
+        let what = format!("φ = {phi} about {about}");
+        let enclosure = |body: &Body<f64>, which: &str| {
+            let p = mass_properties(body, tol())
+                .unwrap_or_else(|e| panic!("{what}: {which}'s certified props, got {e:?}"));
             (p.volume, p.volume_pad)
         };
-        let (vol0, pad0) = enclosure(below);
-        let what = format!("φ = {phi}");
+        let (vol0, pad0) = enclosure(below, "the cut rod");
         for (request, removed) in [
             (vec![creases[0]], one),
-            (vec![creases[1]], one),
-            (creases.clone(), 2.0 * one),
+            (vec![creases[1]], two),
+            (creases.clone(), one + two),
         ] {
             let out = fillet_edges(below, &request, R, tol())
                 .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
@@ -433,12 +459,21 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
             assert_naming_totality(below, &out, &request, &what);
             // The rod's wall is trimmed by an ellipse already, so both
             // volumes are the quadrature lane's certified enclosures.
-            let (vol1, pad1) = enclosure(&out.body);
+            let (vol1, pad1) = enclosure(&out.body, "the filleted rod");
             let (dv, pad) = (vol0 - vol1, pad0 + pad1);
             assert!(
                 pad < crate::band_planar_cut_off::pad_ceiling()
                     && (dv - removed).abs() < 1e-12 + pad,
                 "{what}: ΔV {dv} ± {pad} vs the closed form {removed}"
+            );
+            assert!(
+                (dv - removed).abs() < crate::band_planar_cut_off::midpoint_tol(),
+                "{what}: ΔV's midpoint {dv} is off the closed form {removed}"
+            );
+            let (arcs, stray) = crate::band_planar_cut_off::arc_residual(&out);
+            assert!(
+                arcs > 0 && stray < 1e-12,
+                "{what}: {arcs} end arcs, one straying {stray} from a face it joins"
             );
             let rec = out.naming.as_ref().expect("births");
             let mut ellipses = 0;
@@ -458,11 +493,11 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                         ellipses += 1;
                         assert_eq!(minor, R, "{what}: minor = r");
                         assert!(
-                            (major - R / phi.cos()).abs() < 1e-14,
+                            (major - R / n.z).abs() < 1e-14,
                             "{what}: major = r / cos φ, got {major}"
                         );
                         assert!(
-                            axis.cross(Vec3::new(phi.sin(), 0.0, phi.cos())).norm() < 1e-14,
+                            axis.cross(n).norm() < 1e-14,
                             "{what}: the ellipse lies in the cap"
                         );
                         assert!(
@@ -487,8 +522,8 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
 /// departure is the ellipse, `r / cos φ` along the tilt's trace; an
 /// in-band departure escalates naming the predicate; and a departure
 /// definite only at a long lever, whose ellipse's axes differ by the
-/// tilt SQUARED, escalates under the same decision through the ellipse
-/// door's own predicate — the near-perpendicular sliver band.
+/// tilt SQUARED, escalates as `CapEllipse` on the ellipse door's own
+/// verdict — the near-perpendicular sliver band.
 #[test]
 fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let band = Band::linear(tol()).expect("a band");
@@ -499,14 +534,18 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     assert!(matches!(circle, EndSection::Circle), "{circle:?}");
     let phi = 0.3f64;
     let n = Vec3::new(phi.sin(), 0.0, phi.cos());
-    let EndSection::Ellipse {
+    let oblique = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse");
+    let EndSection::Ellipse(Curve3::Ellipse {
         major,
-        u_major,
-        normal,
-    } = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse")
+        minor,
+        u_ref: u_major,
+        axis: normal,
+        ..
+    }) = oblique
     else {
-        panic!("a definite departure picks the ellipse");
+        panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
+    assert_eq!(minor, R, "the minor semi-axis is the radius");
     assert!((major - R / phi.cos()).abs() < 1e-15, "major = r / cos φ");
     assert!(
         u_major.dot(n).abs() < 1e-15 && u_major.y.abs() < 1e-15,
@@ -532,7 +571,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
         panic!("the sliver band escalates, got {sliver:?}");
     };
     assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
-    assert_eq!(*decision, BlendDecision::CapTransverse);
+    assert_eq!(*decision, BlendDecision::CapEllipse);
 }
 
 /// **The vocabulary is the ratified one and the tag maps its policy.**
@@ -743,12 +782,12 @@ fn the_cap_lever_is_the_links_extent() {
             else {
                 panic!("L = {len}: the verdict escalates, got {verdict:?}");
             };
-            assert_eq!(decision, BlendDecision::CapTransverse, "L = {len}");
-            let predicate = if in_band {
-                "fillet3_cap_transverse"
+            let (want, predicate) = if in_band {
+                (BlendDecision::CapTransverse, "fillet3_cap_transverse")
             } else {
-                "ellipse_axes_distinct"
+                (BlendDecision::CapEllipse, "ellipse_axes_distinct")
             };
+            assert_eq!(decision, want, "L = {len}");
             assert_eq!(source.predicate, Some(predicate), "L = {len}");
         }
     }

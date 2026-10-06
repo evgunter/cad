@@ -45,9 +45,9 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, MefSite, 
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    CircleFrame, ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, face_of_half,
-    halves_of, not_intact, op, piece_along, piece_distance, point_of, retire_fragment,
-    split_fragment, split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
+    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
+    not_intact, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
+    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
@@ -58,71 +58,15 @@ pub(in crate::blend) const FOOT_INSIDE_A_FACE: &str = "a straight band's trimlin
      face's plane past its rim, so its foot lands inside a face rather than on that rim";
 
 /// The band's section by the end face, between the two feet.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(in crate::blend) enum EndCurve<T: Real> {
     /// A plane band's: the straight chord.
     Chord,
-    /// A cylinder band's at an end face perpendicular to its spine: the
-    /// arc of the band's radius about the spine's crossing.
-    Arc {
-        /// The spine's crossing of the end face's plane.
-        center: Point3<T>,
-        /// The band's radius.
-        radius: T,
-    },
-    /// A cylinder band's at an oblique end face: the arc of the end
-    /// plane's section of the band, the ellipse about the spine's
-    /// crossing with the band's radius for its minor semi-axis.
-    Ellipse {
-        /// The spine's crossing of the end face's plane.
-        center: Point3<T>,
-        /// The end face's unit normal.
-        axis: Vec3<T>,
-        /// The semi-major axis.
-        major: T,
-        /// The semi-minor axis: the band's radius.
-        minor: T,
-        /// The unit semi-major direction.
-        u_major: Vec3<T>,
-    },
-}
-
-impl<T: Real> EndCurve<T> {
-    /// The end curve of a band whose section the battery picked:
-    /// `spine` is a point of a cylinder band's spine (still to be
-    /// carried to the end face) and `radius` its radius, read only for
-    /// the round kinds.
-    pub(in crate::blend) fn of(section: EndSection<T>, spine: Point3<T>, radius: T) -> Self {
-        match section {
-            EndSection::Chord => Self::Chord,
-            EndSection::Circle => Self::Arc {
-                center: spine,
-                radius,
-            },
-            EndSection::Ellipse {
-                major,
-                u_major,
-                normal,
-            } => Self::Ellipse {
-                center: spine,
-                axis: normal,
-                major,
-                minor: radius,
-                u_major,
-            },
-        }
-    }
-
-    /// The round kinds' centre and inner radius: the spine's crossing,
-    /// and the radius of the disc about it the band's section bounds —
-    /// on an ellipse its minor semi-axis, the disc its section contains.
-    fn round(self) -> Option<(Point3<T>, T)> {
-        match self {
-            Self::Chord => None,
-            Self::Arc { center, radius } => Some((center, radius)),
-            Self::Ellipse { center, minor, .. } => Some((center, minor)),
-        }
-    }
+    /// A cylinder band's: the circle or ellipse the end face cuts from
+    /// it ([`EndSection`]), about the spine's crossing of the end
+    /// plane, its axis turned so the arc from `face_a`'s foot to
+    /// `face_b`'s runs forward, the short way.
+    Round(Curve3<T>),
 }
 
 /// One cut-off end of a band, as the plan read it off the source body.
@@ -149,23 +93,26 @@ pub(in crate::blend) struct EndCut<T: Real> {
 impl<T: Decide + Bounds> EndCut<T> {
     /// **Plan one cut-off end** of the band over `crease` between
     /// `face_a` and `face_b`, whose trimlines on those faces pass
-    /// through `q_a` and `q_b` along `along`; `curve` says what the
-    /// band's section is ([`EndCurve::of`]), its centre still to be
-    /// carried to the end face.
+    /// through `q_a` and `q_b` along `along`; `section` is what the
+    /// battery read the band's section to be, and `spine` a cylinder
+    /// band's spine point (still to be carried to the end face) and
+    /// radius.
     ///
     /// Every point is a stored trimline or spine point carried along
     /// `along` to the stored end plane; nothing is sampled. `along` is
     /// transverse to the plane by the battery's classification of this
-    /// end (independent face normals at the vertex, or an end face
-    /// perpendicular to a cylinder band's spine), so the quotient is
-    /// total.
+    /// end (independent face normals at the vertex, read by
+    /// `fillet3_corner_independence` on a planar band's corner and on a
+    /// ruled band's tilted cap, or a cap perpendicular to a cylinder
+    /// band's spine), so the quotient is total.
     ///
     /// # Errors
     ///
     /// [`BlendError::UnsupportedRunOut`] when a foot does not land
     /// inside its rim's span ([`FOOT_INSIDE_A_FACE`]);
     /// [`BlendError::UnsupportedGeometry`] when a rim carries no
-    /// certified line, circle or ellipse;
+    /// certified line, circle or ellipse, or a round section has no
+    /// cylinder band;
     /// [`BlendError::BodyNotIntact`] when the end is not the incidence
     /// the verdict classified or the end face is not a plane.
     #[allow(clippy::too_many_arguments)] // the band's own reads, one per argument.
@@ -176,7 +123,8 @@ impl<T: Decide + Bounds> EndCut<T> {
         (face_a, face_b): (FaceKey, FaceKey),
         (q_a, q_b): (Point3<T>, Point3<T>),
         along: Vec3<T>,
-        curve: EndCurve<T>,
+        section: EndSection<T>,
+        spine: Option<(Point3<T>, T)>,
     ) -> Result<Self, BlendError> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
@@ -194,40 +142,63 @@ impl<T: Decide + Bounds> EndCut<T> {
                 "a cut-off's end face's stored surface is not a plane",
             ));
         };
-        let section = |p: Point3<T>| p + along * ((*po - p).dot(*n) / along.dot(*n));
-        let (foot_a, foot_b) = (section(q_a), section(q_b));
+        let carry = |p: Point3<T>| p + along * ((*po - p).dot(*n) / along.dot(*n));
+        let (foot_a, foot_b) = (carry(q_a), carry(q_b));
         // The feet must land on the rims, strictly inside their spans:
         // anywhere else the band runs into a face the cut-off does not
         // touch.
         for (rim, foot) in [(rim_a, foot_a), (rim_b, foot_b)] {
             foot_param(body, rim, vertex, foot)?;
         }
-        let curve = match curve {
-            EndCurve::Chord => EndCurve::Chord,
-            EndCurve::Arc { center, radius } => EndCurve::Arc {
-                center: section(center),
-                radius,
-            },
-            EndCurve::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_major,
-            } => EndCurve::Ellipse {
-                center: section(center),
-                axis,
-                major,
-                minor,
-                u_major,
-            },
+        // A round section is placed about the spine's crossing, and run
+        // forward from `face_a`'s foot: the arc between the feet is under
+        // half a turn, so its sense is the turn from one foot to the other.
+        let round = |placed: Option<Curve3<T>>, center: Point3<T>| {
+            let unbuilt = || unbuilt_geometry(EntityId::Vertex(vertex), "a cut-off's section");
+            let placed = placed.ok_or_else(unbuilt)?;
+            let turn = (foot_a - center).cross(foot_b - center);
+            let backward = match placed {
+                Curve3::Circle { axis, .. } | Curve3::Ellipse { axis, .. } => {
+                    turn.dot(axis).hi() < 0.0
+                }
+                _ => return Err(unbuilt()),
+            };
+            Ok(EndCurve::Round(if backward {
+                placed.reversed().ok_or_else(unbuilt)?
+            } else {
+                placed
+            }))
+        };
+        let curve = match (section, spine) {
+            (EndSection::Chord, _) => EndCurve::Chord,
+            (EndSection::Circle, Some((spine, radius))) => {
+                let center = carry(spine);
+                let circle = Curve3::Circle {
+                    center,
+                    axis: n.normalize(),
+                    radius,
+                    u_ref: (foot_a - center).normalize(),
+                };
+                round(Some(circle), center)?
+            }
+            (EndSection::Ellipse(ellipse), Some((spine, _))) => {
+                let center = carry(spine);
+                let origin = Point3::new(T::zero(), T::zero(), T::zero());
+                round(ellipse.translated(center - origin), center)?
+            }
+            (_, None) => {
+                return Err(unbuilt_geometry(
+                    EntityId::Vertex(vertex),
+                    "a round cut-off's band is not a cylinder about its spine",
+                ));
+            }
         };
         let sliver = CapSliver::of(
             body,
             vertex,
             face,
             [(rim_a, foot_a), (rim_b, foot_b)],
-            curve,
+            &curve,
         )?;
         Ok(Self {
             vertex,
@@ -241,21 +212,9 @@ impl<T: Decide + Bounds> EndCut<T> {
 
     /// The end curve's carrier, as the description pass reads it.
     fn carrier(&self) -> ContactCarrier<T> {
-        match self.curve {
+        match &self.curve {
             EndCurve::Chord => ContactCarrier::Chord,
-            EndCurve::Arc { center, radius } => ContactCarrier::TransverseArc { center, radius },
-            EndCurve::Ellipse {
-                center,
-                major,
-                minor,
-                u_major,
-                ..
-            } => ContactCarrier::TransverseEllipse {
-                center,
-                major,
-                minor,
-                u_major,
-            },
+            EndCurve::Round(curve) => ContactCarrier::Transverse(curve.clone()),
         }
     }
 }
@@ -267,44 +226,40 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// other and the two rim pieces from the feet to the old vertex `V`. It
 /// lies in the region
 ///
-/// `Ω = { radius ≤ ‖p − center‖ ≤ reach } ∩ { (p − center)·toward ≥ floor }`:
+/// `Ω = { ‖p − center‖ ≤ reach } ∖ E ∩ ⋂ₖ { (p − center)·dₖ ≥ floorₖ }`:
 ///
-/// - outside the disc of `radius` about `center`: on a round end the
-///   band's section — a circle of the band's radius, or an ellipse
-///   whose minor semi-axis it is, so it contains that disc — is tangent
-///   to both rims and lies on the far side of `A` from `V` (in the
-///   material the band keeps on the convex side, in the void it leaves
-///   on the concave side), and `S` lies outside it; on a chord end
-///   `radius` is zero and the clause is empty;
-/// - within `reach` and above `floor`, because `‖p − center‖` is convex
-///   and `(p − center)·toward` linear, so over the compact `S` the first
-///   is largest, and the second smallest, somewhere on `S`'s boundary,
-///   which is `A` and the two rim pieces; `reach` and `floor` are those
-///   extremes over the three pieces, each in closed form over its own
-///   window ([`piece_distance`], [`piece_along`]) — but for an ellipse
-///   `A`'s term of `reach`, which is its semi-major axis, a bound on
-///   the extreme rather than the extreme.
+/// - outside `E`, the inside of the band's section: on a round end the
+///   section — a circle of the band's radius, or an ellipse whose minor
+///   semi-axis it is — is convex, tangent to both rims, and lies on the
+///   far side of `A` from `V` (in the material the band keeps on the
+///   convex side, in the void it leaves on the concave side), and `S`
+///   lies outside it; on a chord end `E` is empty;
+/// - within `reach` and above every `floorₖ`, because `‖p − center‖` is
+///   convex and `(p − center)·dₖ` linear, so over the compact `S` the
+///   first is largest, and each second smallest, somewhere on `S`'s
+///   boundary, which is `A` and the two rim pieces; `reach` and the
+///   floors are those extremes over the three pieces, each in closed
+///   form over its own window ([`piece_distance`], [`piece_along`]; an
+///   ellipse's distance from its own centre is extreme at its window's
+///   ends or at a major vertex).
 ///
-/// `toward` is the unit direction from `center` to `V`. Its choice is
-/// free for soundness — every unit direction gives a sound `floor` —
-/// and this one lays the half-plane's edge across the corner, so the
-/// part of the disc on the far side of `center` from `V`, which the
-/// cut-off does not touch, lies outside `Ω`.
+/// The directions `dₖ` are free for soundness — every unit direction
+/// gives a sound floor. They are `toward`, the unit direction from
+/// `center` to `V`, which lays a half-plane's edge across the corner so
+/// the part of the section on the far side of `center` from `V` lies
+/// outside `Ω`; and on a round end both senses of the section's two
+/// axes, which hold `Ω` to the box the sliver spans in the section's
+/// own frame however far a tilted section's major axis reaches.
 ///
-/// A round `A` is not an edge of the source, so the plan describes it:
-/// at a foot the rim and the section are tangent and `S` is the cusp
-/// between them, so `A` leaves the foot in the direction the rim piece
-/// leaves it towards `V` — the arc from that foot turning about
-/// `(foot − center) × tangent` to the other foot. An ellipse is read as
-/// the affine image of the unit circle in its own frame, where a linear
-/// function keeps its form. A chord `A` is the segment between the
-/// feet, and `center` its midpoint.
+/// A round `A` is the section's arc from one foot to the other, run
+/// forward ([`EndCurve::Round`]); a chord `A` is the segment between
+/// the feet, and `center` its midpoint.
 ///
 /// An edge that misses `Ω` misses `S`; the converse does not hold, and
 /// that is the meter's conservative direction.
 ///
 /// Two of its terms are pinned by no assembly row, only by the piece
-/// meters' unit row: the arc's term of `floor`, which binds only when a
+/// meters' unit row: the arc's term of a floor, which binds only when a
 /// rim piece spans more than π, and the whole-circle arm of an arc
 /// extreme on a cap edge (work item
 /// `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned`).
@@ -317,22 +272,64 @@ pub(in crate::blend) struct CapSliver<T: Real> {
     /// face but the one the cut runs in.
     pub(in crate::blend) rims: [EdgeKey; 2],
     center: Point3<T>,
-    /// `Ω`'s inner radius: the band's on a round end, zero on a chord.
-    radius: T,
+    /// `E`, on a round end: the section's frame, and its semi-axes.
+    inside: Option<SectionFrame<T>>,
     /// `Ω`'s outer radius.
     reach: T,
-    /// The unit direction from `center` to the old vertex.
-    toward: Vec3<T>,
-    /// The least `(p − center)·toward` over the sliver.
-    floor: T,
+    /// Each direction `dₖ`, with the least `(p − center)·dₖ` over the
+    /// sliver.
+    floors: Vec<(Vec3<T>, T)>,
+}
+
+/// A round section's frame in the end plane: `p − center` is inside
+/// it when `(d·u/major)² + (d·w/minor)² < 1`.
+#[derive(Clone, Copy)]
+struct SectionFrame<T: Real> {
+    u: Vec3<T>,
+    w: Vec3<T>,
+    major: T,
+    minor: T,
+}
+
+impl<T: Bounds> SectionFrame<T> {
+    /// The section's scaled radius at `d`: below one inside it.
+    fn scaled(self, d: Vec3<T>) -> T {
+        let (x, y) = (d.dot(self.u) / self.major, d.dot(self.w) / self.minor);
+        (x * x + y * y).sqrt()
+    }
+
+    /// **How far inside the section an edge stays**, in meters: positive
+    /// when every point of `carrier` over `window` lies inside it. The
+    /// scaled radius is convex in the point, so a segment's largest is
+    /// at an end; a circle or ellipse of semi-axis at most `a` about
+    /// `c` stays within `a/minor` of `c`'s, the scaling stretching no
+    /// length by more than `1/minor`. A scaled radius `ρ < 1` is at
+    /// least `minor·(1 − ρ)` from the section, which shrinks no length
+    /// by less than `minor`. `None` for a carrier with no closed form.
+    fn depth(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
+        let rho = match *carrier {
+            Curve3::Line { origin, dir } => self
+                .scaled(origin + dir * ta - center)
+                .max(self.scaled(origin + dir * tb - center)),
+            Curve3::Circle {
+                center: c, radius, ..
+            } => self.scaled(c - center) + radius / self.minor,
+            Curve3::Ellipse {
+                center: c, major, ..
+            } => self.scaled(c - center) + major / self.minor,
+            Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
+        };
+        Some(self.minor * (T::one() - rho))
+    }
 }
 
 impl<T: Bounds> CapSliver<T> {
     /// **How clear one end-face edge is of the sliver**: the `carrier`
     /// over `window` misses `Ω` when this is positive, being the largest
-    /// of how far the edge stays inside the inner disc, beyond `reach`,
-    /// and short of `floor`. `None` for a carrier with no closed form
-    /// ([`piece_distance`]).
+    /// of how far the edge stays inside the section (or the disc of its
+    /// minor semi-axis), beyond `reach`,
+    /// and short of each floor. `None` for a carrier with no closed
+    /// form ([`piece_distance`]).
     ///
     /// Each term clears the whole edge on its own, so an edge that
     /// misses `Ω` only by leaving it through different faces at
@@ -340,12 +337,20 @@ impl<T: Bounds> CapSliver<T> {
     /// a silent pass.
     pub(in crate::blend) fn clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         let (near, far) = piece_distance(carrier, window, self.center)?;
-        let (_, high) = piece_along(carrier, window, self.center, self.toward)?;
-        Some(
-            (self.radius - far)
-                .max(near - self.reach)
-                .max(self.floor - high),
-        )
+        let mut clear = near - self.reach;
+        if let Some(section) = self.inside {
+            // The disc of the minor semi-axis lies inside the section,
+            // and `far` is exact where the section's own bound is not.
+            clear =
+                clear
+                    .max(section.minor - far)
+                    .max(section.depth(carrier, window, self.center)?);
+        }
+        for &(d, floor) in &self.floors {
+            let (_, high) = piece_along(carrier, window, self.center, d)?;
+            clear = clear.max(floor - high);
+        }
+        Some(clear)
     }
 }
 
@@ -353,9 +358,9 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// **The region a cut-off removes from its end face**, read off the
     /// source before any mutation. `rims` pairs each rim with its foot,
     /// `face_a`'s first. The end curves differ only in the curve's own
-    /// term: a round one is read over its span from `face_a`'s foot, a
-    /// chord — `center` its midpoint, no inner disc — at its two ends,
-    /// where a segment's extremes are.
+    /// terms: a round one is read over its window from `face_a`'s foot
+    /// to `face_b`'s, a chord — `center` its midpoint, no section
+    /// inside — at its two ends, where a segment's extremes are.
     ///
     /// # Errors
     ///
@@ -363,30 +368,105 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// certified line, circle or ellipse; [`BlendError::UnsupportedRunOut`] from
     /// a foot off its rim's span; [`BlendError::BodyNotIntact`] when the
     /// old vertex, a rim, or the end face's half of a rim does not
-    /// resolve.
+    /// resolve, or a round end curve does not run forward from one foot
+    /// to the other.
     fn of(
         body: &Body<T>,
         vertex: VertexKey,
         cap: FaceKey,
         rims: [(EdgeKey, Point3<T>); 2],
-        curve: EndCurve<T>,
+        curve: &EndCurve<T>,
     ) -> Result<Self, BlendError> {
         let pv = point_of(body, vertex)
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
         let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
-        let (center, radius) = curve
-            .round()
-            .unwrap_or((foot_a + (foot_b - foot_a) * T::from_f64(0.5), T::zero()));
-        let toward = (pv - center).normalize();
-        // The rims' pieces from their feet to the old vertex: each one's
-        // far extent from `center` and least height along `toward`.
+        // The rims' pieces from their feet to the old vertex.
         let pieces = [
             rim_piece(body, rim_a, vertex, foot_a)?,
             rim_piece(body, rim_b, vertex, foot_b)?,
         ];
-        let mut far = [T::zero(); 2];
-        let mut low = far;
-        for (i, ((carrier, window), _)) in pieces.iter().enumerate() {
+        // The end curve's own piece, its centre, and on a round end the
+        // section's frame and its far extent from that centre.
+        let (center, round) = match curve {
+            EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
+            EndCurve::Round(arc) => {
+                let (center, axis, major, minor, u) = match *arc {
+                    Curve3::Circle {
+                        center,
+                        axis,
+                        radius,
+                        u_ref,
+                    } => (center, axis, radius, radius, u_ref),
+                    Curve3::Ellipse {
+                        center,
+                        axis,
+                        major,
+                        minor,
+                        u_ref,
+                    } => (center, axis, major, minor, u_ref),
+                    Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                        return Err(unbuilt_geometry(
+                            EntityId::Vertex(vertex),
+                            "a cut-off's round end curve is neither a circle nor an ellipse",
+                        ));
+                    }
+                };
+                let backward = || {
+                    not_intact(
+                        EntityId::Vertex(vertex),
+                        "a cut-off's round end curve does not run forward from one foot to \
+                         the other",
+                    )
+                };
+                let ta = arc.param_near(foot_a, T::zero()).ok_or_else(backward)?;
+                let tb = arc.param_near(foot_b, ta).ok_or_else(backward)?;
+                if (tb - ta).lo() <= 0.0 {
+                    return Err(backward());
+                }
+                let frame = SectionFrame {
+                    u,
+                    w: axis.cross(u),
+                    major,
+                    minor,
+                };
+                // The distance from the centre at `t` is
+                // `√(major²·cos²t + minor²·sin²t)`, largest at a window
+                // end or at a major vertex `t = kπ` inside the window.
+                let at = |p: Point3<T>| (p - center).norm();
+                let first = T::zero() - (T::zero() - ta / T::pi()).floor();
+                let vertex_inside = (first * T::pi() - tb).lo() <= 0.0;
+                let far = if vertex_inside {
+                    major
+                } else {
+                    at(foot_a).max(at(foot_b))
+                };
+                (center, Some((arc, (ta, tb), frame, far)))
+            }
+        };
+        let toward = (pv - center).normalize();
+        let mut directions = vec![toward];
+        if let Some((_, _, frame, _)) = round {
+            directions.extend([frame.u, -frame.u, frame.w, -frame.w]);
+        }
+        let mut reach = match round {
+            Some((_, _, _, far)) => far,
+            None => (foot_a - center).norm().max((foot_b - center).norm()),
+        };
+        let mut floors = Vec::with_capacity(directions.len());
+        for d in directions {
+            let low = match round {
+                Some((arc, window, _, _)) => {
+                    piece_along(arc, window, center, d)
+                        .ok_or_else(|| {
+                            unbuilt_geometry(EntityId::Vertex(vertex), "a cut-off's round section")
+                        })?
+                        .0
+                }
+                None => (foot_a - center).dot(d).min((foot_b - center).dot(d)),
+            };
+            floors.push((d, low));
+        }
+        for (i, (carrier, window)) in pieces.iter().enumerate() {
             let unsupported = || {
                 unbuilt_geometry(
                     EntityId::Edge(rims[i].0),
@@ -394,73 +474,23 @@ impl<T: Decide + Bounds> CapSliver<T> {
                      rims the sliver's extent is closed-form over",
                 )
             };
-            far[i] = piece_distance(carrier, *window, center)
-                .ok_or_else(unsupported)?
-                .1;
-            low[i] = piece_along(carrier, *window, center, toward)
-                .ok_or_else(unsupported)?
-                .0;
+            reach = reach.max(
+                piece_distance(carrier, *window, center)
+                    .ok_or_else(unsupported)?
+                    .1,
+            );
+            for (d, floor) in &mut floors {
+                let (low, _) = piece_along(carrier, *window, center, *d).ok_or_else(unsupported)?;
+                *floor = floor.min(low);
+            }
         }
-        let (curve_far, curve_low) = match curve {
-            EndCurve::Chord => (
-                (foot_a - center).norm().max((foot_b - center).norm()),
-                (foot_a - center)
-                    .dot(toward)
-                    .min((foot_b - center).dot(toward)),
-            ),
-            // The arc, from `face_a`'s foot along the tangent its rim
-            // piece leaves that foot by (the type's docs), to `face_b`'s:
-            // its span read in `(0, τ]` past the start.
-            EndCurve::Arc { .. } => {
-                let from = foot_a - center;
-                let arc = CircleFrame {
-                    center,
-                    axis: from.cross(pieces[0].1).normalize(),
-                    radius,
-                    u_ref: from.normalize(),
-                };
-                let (low_arc, _) =
-                    arc.along((T::zero(), arc.past(T::zero(), foot_b)), center, toward);
-                (radius, low_arc)
-            }
-            // The ellipse as the unit circle's image `center + major·cos t·u
-            // + minor·sin t·w`, its frame turned as the arc's is: `toward`'s
-            // height over it is the height of the circle point at `t` along
-            // `major·(u·toward)·u + minor·(w·toward)·w`.
-            EndCurve::Ellipse {
-                major,
-                minor,
-                u_major,
-                ..
-            } => {
-                let axis = (foot_a - center).cross(pieces[0].1).normalize();
-                let w = axis.cross(u_major);
-                let on_circle = |p: Point3<T>| {
-                    let d = p - center;
-                    center + u_major * (d.dot(u_major) / major) + w * (d.dot(w) / minor)
-                };
-                let unit = CircleFrame {
-                    center,
-                    axis,
-                    radius: T::one(),
-                    u_ref: u_major,
-                };
-                let from = on_circle(foot_a) - center;
-                let start = from.dot(w).atan2(from.dot(u_major));
-                let span = unit.past(start, on_circle(foot_b));
-                let lifted = u_major * (major * u_major.dot(toward)) + w * (minor * w.dot(toward));
-                let (low_arc, _) = unit.along((start, start + span), center, lifted);
-                (major, low_arc)
-            }
-        };
         Ok(Self {
             cap,
             rims: [rim_a, rim_b],
             center,
-            radius,
-            reach: curve_far.max(far[0]).max(far[1]),
-            toward,
-            floor: curve_low.min(low[0]).min(low[1]),
+            inside: round.map(|(_, _, frame, _)| frame),
+            reach,
+            floors,
         })
     }
 }
@@ -578,12 +608,11 @@ pub(in crate::blend) fn shared_rims_clear<'e, T: Decide + Bounds + 'e>(
 }
 
 /// **One rim's piece from its foot to the old vertex**: the rim's stored
-/// carrier, the window of the piece on it, and the unit tangent at the
-/// foot pointing along the piece towards the vertex. The stored window
-/// runs along `he_plus` (`topo`'s edge-direction invariant), so the
-/// vertex sits at the window's start when `he_plus` starts there and at
-/// its end otherwise; the foot's parameter is the one the carve splits
-/// the rim at.
+/// carrier and the window of the piece on it. The stored window runs
+/// along `he_plus` (`topo`'s edge-direction invariant), so the vertex
+/// sits at the window's start when `he_plus` starts there and at its
+/// end otherwise; the foot's parameter is the one the carve splits the
+/// rim at.
 ///
 /// # Errors
 ///
@@ -596,7 +625,7 @@ fn rim_piece<T: Decide + Bounds>(
     rim: EdgeKey,
     vertex: VertexKey,
     foot: Point3<T>,
-) -> Result<(Piece<'_, T>, Vec3<T>), BlendError> {
+) -> Result<Piece<'_, T>, BlendError> {
     let he_plus = body
         .get_edge(rim)
         .ok_or_else(|| not_intact(EntityId::Edge(rim), "an end face's rim"))?
@@ -608,11 +637,10 @@ fn rim_piece<T: Decide + Bounds>(
         ));
     };
     let t = foot_param(body, rim, vertex, foot)?;
-    let forward = carrier.ders1(t).1.normalize();
     if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
-        Ok(((carrier, (t0, t)), -forward))
+        Ok((carrier, (t0, t)))
     } else if body.half_edge_end(he_plus) == Some(vertex) {
-        Ok(((carrier, (t, t1)), forward))
+        Ok((carrier, (t, t1)))
     } else {
         Err(not_intact(
             EntityId::Edge(rim),

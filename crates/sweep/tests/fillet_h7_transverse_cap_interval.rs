@@ -199,7 +199,7 @@ fn cap_transverse_trio_at_the_certified_scalar() {
     let phi = 0.3f64;
     let oblique = cap_transverse(v, v3(phi.sin(), 0.0, phi.cos()), tau, radius, lever, band)
         .expect("an oblique cap is the ellipse");
-    let EndSection::Ellipse { major, .. } = oblique else {
+    let EndSection::Ellipse(geom::Curve3::Ellipse { major, .. }) = oblique else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
     let expected = 0.1 / phi.cos();

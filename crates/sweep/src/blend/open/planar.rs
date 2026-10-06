@@ -38,7 +38,7 @@ use topo::{
     VertexKey,
 };
 
-use super::end_face::{CutRims, EndCurve, EndCut, cut_off, fold_sliver};
+use super::end_face::{CutRims, EndCut, cut_off, fold_sliver};
 use crate::blend::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary,
 };
@@ -326,15 +326,9 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
     let l = link.link();
     let (q_a, along) = open_trimline(l, l.face_a)?;
     let (q_b, _) = open_trimline(l, l.face_b)?;
-    let curve = match (section, &l.blend.surface) {
-        (EndSection::Chord, _) => EndCurve::Chord,
-        (_, Surface::Cylinder { origin, radius, .. }) => EndCurve::of(section, *origin, *radius),
-        (_, _) => {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(l.edge),
-                "a plane–plane fillet's band is not a cylinder about its edge",
-            ));
-        }
+    let spine = match l.blend.surface {
+        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
+        _ => None,
     };
     let end = EndCut::plan(
         body,
@@ -343,7 +337,8 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
         (l.face_a, l.face_b),
         (q_a, q_b),
         along,
-        curve,
+        section,
+        spine,
     )?;
     Ok(CutOffPlan { link, end })
 }

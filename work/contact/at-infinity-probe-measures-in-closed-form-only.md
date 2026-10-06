@@ -195,3 +195,16 @@ names. Pinned by
 `the_ellipse_edges_pass_the_tessellator_and_the_boolean`. The ruled
 band's oblique cap and the tour bracket's filleted chords
 (`demos/tour/src/bracket.rs`) carry the same face shape.
+
+**At ε = 1e-12, through the elliptic end (PR 4173's review).** The
+same fillet on the parallelogram leaning `s = 3` (its walls 72° off
+square), with a brick crossing the band's end arc,
+`brick((-0.5, 0.15), (-0.5, 0.05), (0.92, 1.5))`: subtract and union
+refuse `VolumeUnmeasured` ("the quadrature could not decide whether
+its enclosure of a face's contribution had converged"), and intersect
+builds. All three build at ε = 1e-9 and 1e-6, consistent with each
+other. This is not the probe's closed-form gap but the quadrature's
+convergence escalation,
+`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`,
+met on the same face shape. Pinned by `band_planar_oblique_fillet.rs`
+`a_brick_through_a_steep_elliptic_end_builds_in_every_op`.

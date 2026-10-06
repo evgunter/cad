@@ -68,7 +68,7 @@ use geom::Surface;
 use geom_core::{Bounds, Decide, Real, Tol};
 use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, MefSite, VertexKey};
 
-use super::end_face::{CapSliver, CutRims, EndCurve, EndCut, cut_off, end_rims, fold_sliver};
+use super::end_face::{CapSliver, CutRims, EndCut, cut_off, end_rims, fold_sliver};
 use crate::blend::BlendError;
 use crate::blend::admit::AdmittedOpen;
 use crate::blend::battery::EndSection;
@@ -163,7 +163,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             // The battery's classification, read rather than re-made:
             // predicate 6 tagged this end `EndFace` and the verdict
             // carries it.
-            let Some(&(_, section)) = end_faces.iter().find(|(e, _)| *e == v) else {
+            let Some((_, section)) = end_faces.iter().find(|(e, _)| *e == v) else {
                 return Err(not_intact(
                     EntityId::Vertex(v),
                     "a ruled link's end is not among the end faces the verdict classified",
@@ -186,7 +186,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 (l.face_a, l.face_b),
                 (q_a, q_b),
                 tau,
-                EndCurve::of(section, spine_origin, radius),
+                section.clone(),
+                Some((spine_origin, radius)),
             )?);
         }
         let Ok(ends) = <[EndCut<T>; 2]>::try_from(ends) else {

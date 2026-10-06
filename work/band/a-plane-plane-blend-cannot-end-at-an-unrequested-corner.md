@@ -139,11 +139,20 @@ Build order (each step widens admission; this row closes with step 4):
 
 - `fillet3_cap_transverse` is the kind-picker for both bands: Zero the
   circle, definite the ellipse (minor `r`, major `r / cos θ`), in band
-  escalated. The ellipse's axes differ by `r·(1/cos θ − 1)`, second
+  escalated. The ellipse's axes differ by `r·(sec θ − 1)`, second
   order in the tilt, so a tilt the departure decides definitely can
-  still name axes the ellipse door reads as one circle; that window
-  escalates under `CapTransverse` through `ellipse_axes_distinct`, the
-  door's own gate, read before the plan builds the carrier.
+  still name axes the ellipse door reads as one circle. The battery
+  builds the ellipse through `Curve3::ellipse` and takes that door's
+  verdict: the window escalates as `CapEllipse`, margin the axes'
+  difference, recourse the tilt that clears the band (about `√(2e/r)`)
+  or squaring the face. Its width in user terms is
+  `second-order-cap-window-escalates-small-drafts.md`.
+- The sliver's enclosure is the disc to the sliver's reach, less the
+  inside of the section, within the half-plane towards the old vertex
+  and the box the sliver spans in the section's axes; the elliptic
+  arc's reach is exact (a window end, or the major vertex where the
+  window holds one). Holes in the kept wall inside the ellipse build,
+  and a steep wall's far edges stay clear however long its major axis.
 - An end face nearly containing the spine is refused by
   `fillet3_corner_independence` with its margin: inside `corner_config`
   on the planar band, and on the ruled band's oblique cap by the same

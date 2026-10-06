@@ -267,15 +267,18 @@ shared-ruling hypothesis is metered at): Zero where the cap is
 perpendicular to the ruling, definite where it is oblique. The band
 ends in that plane's section of it, an exact stored arc about the
 spine's crossing — of the circle of the band's radius, or of the
-ellipse whose minor semi-axis that radius is, whose major is the
-radius over the tilt's cosine, and whose axes the ellipse door's own
-`ellipse_axes_distinct` must tell apart, the near-perpendicular tilts
-where it cannot escalating under `fillet3_cap_transverse`
+ellipse whose minor semi-axis that radius is and whose major is the
+radius over the tilt's cosine, built through the ellipse door
+(`Curve3::ellipse`), whose own verdict on its axes is the second
+decision: the near-perpendicular tilts whose axes it cannot tell apart
+escalate as `CapEllipse` on that door's `ellipse_axes_distinct`, with
+the axes' difference `r·(sec θ − 1)` for margin
 (`RunOutPolicy::CutOffAtEndFace`; `CornerConfig::policy` maps
 the tag). An oblique cap whose three face normals are dependent — a
 cap that nearly contains the ruling — refuses
 `UnsupportedCorner { DependentNormals }` under
-`fillet3_corner_independence`, as a plane–plane end does. The carve (`blend/open/ruled.rs`, beside the planar band's
+`fillet3_corner_independence`, as a plane–plane end does. The carve
+(`blend/open/ruled.rs`, beside the planar band's
 `blend/open/planar.rs`, both cutting off through `blend/open/end_face.rs`;
 the rim phases stay in `blend/surgery.rs`)
 mints no strut: the cap's two
@@ -292,12 +295,12 @@ was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
 before any mutation, over its own window, against a region that
-encloses the sliver: the annulus about the spine's crossing from the
-band's radius out to the farthest the sliver reaches, cut down to the
-half-plane towards the old vertex that the sliver lies in. On an
-elliptic end the disc of the band's radius lies inside the section,
-so the same annulus encloses the sliver, its outer radius bounded by
-the major semi-axis. The meter is
+encloses the sliver: the disc about the spine's crossing out to the
+farthest the sliver reaches, less the inside of the band's section
+(the circle, or the ellipse), cut down to the half-plane towards the
+old vertex that the sliver lies in and, on a round end, to the box the
+sliver spans in the section's own axes — so a tilted section's long
+major axis reaches no edge the sliver does not. The meter is
 the same ring carry-through pass under the same
 `fillet3_ring_clearance`; an edge not definitely clear of the region
 refuses `RingClearance` at the cap

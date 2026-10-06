@@ -586,7 +586,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 continue;
             }
             if let Some((_, section)) = verdict.end_faces.iter().find(|(e, _)| *e == v) {
-                cut_offs.push(cut_off_plan(source, *o, v, *section)?);
+                cut_offs.push(cut_off_plan(source, *o, v, section.clone())?);
                 continue;
             }
             match ends.iter_mut().find(|c| c.vertex() == v) {
@@ -2375,14 +2375,14 @@ pub(super) fn piece_along<T: Bounds>(
 
 /// **A circle carrier's frame**, destructured once, so that every
 /// closed form over an arc of it is total: the piece meters above
-/// reach it through [`Self::of`], and a caller that builds a circle of
-/// its own (a ruled cut-off's arc) holds one outright.
+/// reach it through [`Self::of`], and their ellipse arm builds the unit
+/// circle of the ellipse's frame outright.
 #[derive(Clone, Copy)]
-pub(super) struct CircleFrame<T: Real> {
-    pub(super) center: Point3<T>,
-    pub(super) axis: Vec3<T>,
-    pub(super) radius: T,
-    pub(super) u_ref: Vec3<T>,
+struct CircleFrame<T: Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
 }
 
 impl<T: Real> CircleFrame<T> {
@@ -2413,7 +2413,7 @@ impl<T: Real> CircleFrame<T> {
     /// **The angle of the circle point `q` past parameter `t`**, read
     /// in `(0, τ]` — the branch `Curve3::param_near` takes anchored
     /// half a turn past `t`, where a full turn is `q` at `t` itself.
-    pub(super) fn past(self, t: T, q: Point3<T>) -> T {
+    fn past(self, t: T, q: Point3<T>) -> T {
         let (w, radial) = (q - self.center, self.at(t + T::pi()) - self.center);
         T::pi() + w.dot(self.axis.cross(radial)).atan2(w.dot(radial))
     }
@@ -3179,24 +3179,13 @@ pub(super) enum ContactCarrier<T: Real> {
     Chord,
     /// A corner arc about the corner ball's centre (sweep < π).
     CornerArc { center: Point3<T>, radius: T },
-    /// A cylinder band's cut-off at a plane end face perpendicular to
-    /// its spine: the arc of that plane's section of the band (a circle of the band's radius about
-    /// the spine's crossing, sweep < π) — where the band meets the cap
+    /// A cylinder band's cut-off at a plane end face: the arc of that
+    /// plane's section of the band — the circle or the ellipse the
+    /// plan placed about the spine's crossing, run forward from one
+    /// foot to the other (sweep < π) — where the band meets the cap
     /// TRANSVERSALLY, so it is described as the plain intersection
     /// locus, never a tangent one.
-    TransverseArc { center: Point3<T>, radius: T },
-    /// A cylinder band's cut-off at an oblique plane end face: the arc of
-    /// that plane's section of the band, an ellipse (sweep < π), met
-    /// TRANSVERSALLY like [`Self::TransverseArc`]. Its semi-axes are the
-    /// ones `fillet3_cap_transverse` passed through the ellipse door's
-    /// own predicate, so the carrier is built from them as they stand;
-    /// its normal is the turn from the edge's start to its end.
-    TransverseEllipse {
-        center: Point3<T>,
-        major: T,
-        minor: T,
-        u_major: Vec3<T>,
-    },
+    Transverse(Curve3<T>),
     /// An exact stored arc (the rim trim circles — π-safe).
     Exact(Curve3<T>, T, T),
     /// A torus band's SLIT: a double-traversed minor-circle arc
@@ -3389,13 +3378,13 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // whose whole enclosure is not strictly under a period refuses
     // typed rather than cutting blind.
     //
-    // A period is a CIRCLE's or an ELLIPSE's: a line carrier (a transverse cap's chord
-    // rim) has no branch to alias by, and its window is a length that
-    // may exceed 2π without meaning anything. The skip is by
-    // construction, not by measurement: no fixture in the tree splits a
-    // line rim longer than 2π, so an unconditional guard survives every
-    // row today — the carrier-kind test is here because the sentence
-    // above is true, not because a row demands it.
+    // A period is a CIRCLE's or an ELLIPSE's: a line carrier (a plane
+    // end face's straight rim) has no branch to alias by, and its window
+    // is a length that may exceed 2π without meaning anything. The skip
+    // is by construction, not by measurement: no fixture in the tree
+    // splits a line rim longer than 2π, so an unconditional guard
+    // survives every row today — the carrier-kind test is here because
+    // the sentence above is true, not because a row demands it.
     //
     // `topo`'s edge split spells the same guard as the
     // `bool_split_span_period` DECIDE row, which is the right posture
@@ -5045,9 +5034,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
     let transverse = matches!(
         carrier,
-        ContactCarrier::Chord
-            | ContactCarrier::TransverseArc { .. }
-            | ContactCarrier::TransverseEllipse { .. }
+        ContactCarrier::Chord | ContactCarrier::Transverse(_)
     );
     let (curve, t0, t1) = match carrier {
         ContactCarrier::TrimLine | ContactCarrier::Chord => {
@@ -5061,15 +5048,13 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 len,
             )
         }
-        // ONE construction for all three arc kinds, deliberately: a
-        // corner arc, a cap's cut-off arc and a band's slit are the
-        // same short arc about a stored centre (sweep < π, so the
-        // `atan2` turn is unambiguous), and the only thing that differs
-        // is the DESCRIPTION they take below. Byte-identical copies of
-        // the geometry would let one drift from another with nothing
-        // to say so.
+        // ONE construction for both arc kinds, deliberately: a corner
+        // arc and a band's slit are the same short arc about a stored
+        // centre (sweep < π, so the `atan2` turn is unambiguous), and
+        // the only thing that differs is the DESCRIPTION they take
+        // below. Byte-identical copies of the geometry would let one
+        // drift from the other with nothing to say so.
         ContactCarrier::CornerArc { center, radius }
-        | ContactCarrier::TransverseArc { center, radius }
         | ContactCarrier::SeamArc { center, radius } => {
             let u = (p0 - center).normalize();
             let w = (p1 - center).normalize();
@@ -5085,31 +5070,23 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 turn.norm().atan2(u.dot(w)),
             )
         }
-        // The short arc from `p0` to `p1`, run forward: the frame's
-        // normal is turned to the arc's own, which an affine image of
-        // the circle keeps, so `p1` is read less than half a turn past
-        // `p0`.
-        ContactCarrier::TransverseEllipse {
-            center,
-            major,
-            minor,
-            u_major,
-        } => {
-            let curve = Curve3::Ellipse {
-                center,
-                axis: (p0 - center).cross(p1 - center).normalize(),
-                major,
-                minor,
-                u_ref: u_major,
+        // The plan ran the section forward from one foot to the other;
+        // the edge runs whichever way its `he_plus` does, so where `p1`
+        // reads before `p0` the carrier is run back, the same locus.
+        ContactCarrier::Transverse(curve) => {
+            let unread = || not_intact(EntityId::Edge(edge), "a cut-off arc's end parameter");
+            let window = |c: &Curve3<T>| {
+                let t0 = c.param_near(p0, T::zero()).ok_or_else(unread)?;
+                Ok::<_, BlendError>((t0, c.param_near(p1, t0).ok_or_else(unread)?))
             };
-            let parameter = |p: Point3<T>, near: T| {
-                curve.param_near(p, near).ok_or_else(|| {
-                    not_intact(EntityId::Edge(edge), "a cut-off ellipse's end parameter")
-                })
-            };
-            let t0 = parameter(p0, T::zero())?;
-            let t1 = parameter(p1, t0)?;
-            (curve, t0, t1)
+            let (t0, t1) = window(&curve)?;
+            if (t1 - t0).lo() > 0.0 {
+                (curve, t0, t1)
+            } else {
+                let back = curve.reversed().ok_or_else(unread)?;
+                let (t0, t1) = window(&back)?;
+                (back, t0, t1)
+            }
         }
         ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
     };

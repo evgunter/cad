@@ -16,6 +16,7 @@
 
 use core::f64::consts::PI;
 
+use geom::{Curve3, Surface};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::blend::battery::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
@@ -44,6 +45,65 @@ pub(crate) fn volume(body: &Body<f64>) -> f64 {
 /// default and finer rows and a thousand eps at the coarse one.
 pub(crate) fn pad_ceiling() -> f64 {
     (1e3 * tol().eps()).max(1e-6)
+}
+
+/// How near a carve's volume midpoint sits to the closed form on an
+/// ellipse-trimmed band, set by the run's eps alone and never by the
+/// enclosure, so a row cannot pass by its enclosure widening: `1e-8` at
+/// the default and finer rows (measured within `7e-9`), ten eps at the
+/// coarse one (measured within `1.4e-6`).
+pub(crate) fn midpoint_tol() -> f64 {
+    (10.0 * tol().eps()).max(1e-8)
+}
+
+/// **How far the carve's round end arcs stray from the faces they
+/// join**: over 65 points of each circle or ellipse arc the carve
+/// minted, the largest distance from either face's stored plane,
+/// cylinder or sphere, with the number of arcs read.
+pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
+    let rec = out.naming.as_ref().expect("the carve records its births");
+    let (mut arcs, mut worst) = (0, 0.0f64);
+    for (arc, _, _) in &rec.arcs {
+        let e = out.body.get_edge(*arc).expect("a minted arc");
+        let c = out
+            .body
+            .get_curve_geom(e.curve)
+            .and_then(|g| g.certified())
+            .expect("a certified arc");
+        if !matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. }) {
+            continue;
+        }
+        arcs += 1;
+        let surfaces = [e.he_plus, e.he_minus].map(|h| {
+            let f = out.body.face_of_half_edge(h).expect("an arc's face");
+            out.body
+                .get_surface(out.body.get_face(f).expect("a face").surface)
+                .expect("a stored surface")
+                .clone()
+        });
+        let (t0, t1) = c.params();
+        for k in 0..=64 {
+            let p = c.carrier().eval(t0 + (t1 - t0) * f64::from(k) / 64.0);
+            for s in &surfaces {
+                let d = match *s {
+                    Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
+                    Surface::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                        ..
+                    } => {
+                        let d = p - origin;
+                        ((d - axis * d.dot(axis)).norm() - radius).abs()
+                    }
+                    Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+                    ref other => panic!("an end arc joins a {other:?}"),
+                };
+                worst = worst.max(d);
+            }
+        }
+    }
+    (arcs, worst)
 }
 
 /// A body's volume and the half-width of its certified enclosure: zero
@@ -156,6 +216,15 @@ pub(crate) fn carve(
     assert!(
         pad < pad_ceiling() && (dv - removed).abs() < 1e-12 + pad,
         "{what} ({verb:?}): ΔV {dv} ± {pad} vs the closed form {removed}"
+    );
+    assert!(
+        (dv - removed).abs() < midpoint_tol(),
+        "{what} ({verb:?}): ΔV's midpoint {dv} is off the closed form {removed}"
+    );
+    let (_, stray) = arc_residual(&out);
+    assert!(
+        stray < 1e-12,
+        "{what} ({verb:?}): an end arc strays {stray} from a face it joins"
     );
     out
 }

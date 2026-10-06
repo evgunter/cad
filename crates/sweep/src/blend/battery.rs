@@ -34,8 +34,8 @@
 //!   `spine_regularity_refuses_before_the_torus_is_minted` pins by
 //!   showing the refusal arrives with no surface allocated.
 
-use geom::Curve3;
 use geom::Surface;
+use geom::{Curve3, EllipseInvalid};
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
@@ -1895,7 +1895,7 @@ pub const END_FACE_CURVED: &str = "a straight band ends at a curved end face, wh
 /// **What a band's plane end face cuts from it**: a chord from a plane
 /// band, and from a cylinder band the kind [`cap_transverse`] picked —
 /// one kind per configuration (D3).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum EndSection<T: Real> {
     /// A plane band's (the chamfer's) section, at any angle: the
     /// straight chord between the feet.
@@ -1903,18 +1903,13 @@ pub enum EndSection<T: Real> {
     /// The end face is perpendicular to the spine: the section is the
     /// circle of the band's radius about the spine's crossing.
     Circle,
-    /// The end face is oblique: the section is the ellipse about the
-    /// spine's crossing whose minor semi-axis is the band's radius,
-    /// across the tilt, and whose major semi-axis is `major`, along
-    /// `u_major` — the radius over the cosine of the tilt.
-    Ellipse {
-        /// The semi-major axis, meters.
-        major: T,
-        /// The unit semi-major direction, in the end face's plane.
-        u_major: Vec3<T>,
-        /// The end face's unit normal, the ellipse's axis.
-        normal: Vec3<T>,
-    },
+    /// The end face is oblique: the section is this ellipse, as
+    /// [`geom::Curve3::ellipse`] admitted it — about the origin, its
+    /// axis the end face's unit normal, its minor semi-axis the band's
+    /// radius across the tilt and its major the radius over the
+    /// cosine of the tilt, along the tilt's trace. The plan carries it
+    /// to the spine's crossing.
+    Ellipse(Curve3<T>),
 }
 
 /// **`fillet3_cap_transverse`** — the kind-picker for a cylinder band's
@@ -1932,18 +1927,18 @@ pub enum EndSection<T: Real> {
 /// normal: the cap plane's normal is the stored surface's, the ruling
 /// the arm's own cylinder axis.
 ///
-/// The ellipse's semi-axes differ by `radius·(1/cos θ − 1)`, second
+/// The ellipse's semi-axes differ by `radius·(sec θ − 1)`, second
 /// order in the tilt, so a tilt the departure decides definitely may
-/// still name axes the ellipse door reads as one circle. That window
-/// is the same configuration's sliver band seen through the carrier,
-/// and it escalates under this decision, gated by
-/// `ellipse_axes_distinct` — [`geom::Curve3::ellipse`]'s own predicate
-/// on its own margin, so the stored ellipse the plan builds from these
-/// semi-axes is one that door admits. An end face that nearly contains
-/// the spine — a tilt near a right angle, whose ellipse runs off to
-/// infinity — is not this decision's: its three face normals at the
-/// vertex are dependent, which `fillet3_corner_independence` refuses
-/// with its margin ([`corner_independence`]).
+/// still name axes too close to tell from one circle. The ellipse is
+/// built here, through [`geom::Curve3::ellipse`], and that door's
+/// verdict on its own axes (`ellipse_axes_distinct`) is the second
+/// decision, reported as [`BlendDecision::CapEllipse`]: where it reads
+/// them as one circle, or in band, the end escalates with that margin.
+/// An end face that nearly contains the spine — a tilt near a right
+/// angle, whose ellipse runs off to infinity — is not this decision's:
+/// its three face normals at the vertex are dependent, which
+/// `fillet3_corner_independence` refuses with its margin
+/// ([`corner_independence`]).
 ///
 /// **Both directions are normalised HERE**, so the margin is the sine
 /// of the angle between them whatever a caller passes: the stored
@@ -1954,8 +1949,10 @@ pub enum EndSection<T: Real> {
 ///
 /// # Errors
 ///
-/// [`BlendError::Escalated`] on an in-band departure, or on a definite
-/// one whose ellipse's axes are not definitely distinct.
+/// [`BlendError::Escalated`] on an in-band departure
+/// ([`BlendDecision::CapTransverse`]), or on a definite one whose
+/// ellipse's axes the ellipse door does not read as definitely
+/// distinct ([`BlendDecision::CapEllipse`]).
 pub fn cap_transverse<T: Decide + Bounds>(
     vertex: VertexKey,
     cap_normal: Vec3<T>,
@@ -1973,25 +1970,31 @@ pub fn cap_transverse<T: Decide + Bounds>(
         // The margin is a norm: Negative is unreachable, and both
         // definite verdicts are the departure.
         Sign::Positive | Sign::Negative => {
-            let major = radius / n.dot(tau).abs();
-            geom_core::k_stats::decide_positive(
-                "ellipse_axes_distinct",
-                Margin::of(major - radius),
-                band,
-            )
-            .map_err(|source| BlendError::Escalated {
-                site,
-                decision: BlendDecision::CapTransverse,
-                source,
-            })?;
             // The minor axis runs across the tilt, the major along its
             // trace in the end plane — `plane_cylinder_section`'s frame.
             let u_major = (tilt / tilt.norm()).cross(n);
-            Ok(EndSection::Ellipse {
-                major,
-                u_major,
-                normal: n,
-            })
+            let major = radius / n.dot(tau).abs();
+            let origin = Point3::new(T::zero(), T::zero(), T::zero());
+            Curve3::ellipse(origin, n, major, radius, u_major, band)
+                .map(EndSection::Ellipse)
+                .map_err(|refused| match refused {
+                    EllipseInvalid::CircularAxes(source) | EllipseInvalid::Escalated(source) => {
+                        BlendError::Escalated {
+                            site,
+                            decision: BlendDecision::CapEllipse,
+                            source,
+                        }
+                    }
+                    // `major ≥ radius` by construction, and the radius
+                    // passed the size gate.
+                    EllipseInvalid::AxesSwapped | EllipseInvalid::MinorNotPositive => {
+                        BlendError::SurgeryInvariant {
+                            at: EntityId::Vertex(vertex),
+                            detail: "an oblique end face's ellipse came out with its axes \
+                                     swapped or a minor semi-axis that is not positive",
+                        }
+                    }
+                })
         }
     }
 }
@@ -2152,7 +2155,7 @@ fn corner_at<T: Decide + Bounds>(
             return Err(indeterminate());
         };
         let section = cap_transverse(vertex, *normal, axis, radius, link.arm_len, band)?;
-        if let EndSection::Ellipse { .. } = section {
+        if let EndSection::Ellipse(_) = section {
             let p = point_at(body, vertex)?;
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
             for (slot, f) in normals.iter_mut().zip([link.face_a, link.face_b, cap]) {
