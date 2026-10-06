@@ -283,6 +283,8 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "seat3_flush_detector.rs"]
 mod seat3_flush_detector;
+#[path = "shell_operand_gate.rs"]
+mod shell_operand_gate;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
@@ -307,6 +309,8 @@ mod stated_general_image_mint;
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
+#[path = "vertex_on_edge_records.rs"]
+mod vertex_on_edge_records;
 #[path = "void_door.rs"]
 mod void_door;
 

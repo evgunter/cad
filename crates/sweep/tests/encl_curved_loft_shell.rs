@@ -26,6 +26,7 @@ use geom_core::{Dual64, Tol, Vec3};
 use topo::{Body, EdgeKey, FaceKey, PcurveMintError, ReplaceFaceError, ShellError};
 
 use crate::common::approx::{nurbs_walls, prism, twisted_loft};
+use sweep::test_support::finished;
 
 /// The wall thickness these rows shell at, in metres: 2.5% of the
 /// 2 m section, a thickness a user would ask for.
@@ -90,8 +91,12 @@ fn seam_chord(body: &Body<f64>, edge: EdgeKey) -> Vec3<f64> {
 #[test]
 fn shelling_the_curved_loft_refuses_at_the_oblique_cap_corner_before_any_fit() {
     let body = twisted_loft(0.3);
-    let e = topo::shell(&body, THICKNESS, Tol::witness())
-        .expect_err("a spline-walled body does not shell today");
+    let e = topo::shell(
+        &finished("the operand", body.clone(), Tol::witness()),
+        THICKNESS,
+        Tol::witness(),
+    )
+    .expect_err("a spline-walled body does not shell today");
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };
