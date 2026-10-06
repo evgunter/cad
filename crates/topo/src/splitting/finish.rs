@@ -437,25 +437,21 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         let ring_sense = section_sense(&body, section.face, ring, normal_of(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, normal_of(other_side), band)?;
         // Both faces of the null pair move onto their section planes in
-        // one re-chart, with the edges still described against the chart
-        // they leave restated in their plane, which every section
-        // boundary edge lies in; the boundary pass below gives each its
-        // honest class. One re-chart reads both faces' edges before
-        // either moves, so neither restatement depends on the other, and
-        // the two lists are disjoint: an edge between the two faces
-        // would have both faces wearing the one inherited chart, which
-        // `section_plane_restatements` skips.
+        // one re-chart, with the edges the move strands restated
+        // (`section_plane_restatements`); the boundary pass below gives
+        // each its honest class. An edge between the two moving faces
+        // would be listed from both and refuse typed
+        // (`DuplicateRedescription`), or, naming neither's chart,
+        // `RechartUndescribed`.
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
-        let mut restated = section_plane_restatements(&body, promoted.face)?;
-        restated.extend(section_plane_restatements(&body, section.face)?);
-        body.set_face_surfaces_describing(
-            vec![
-                Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
-                Rechart::new(plane_for(other_side), section.face, outer_sense),
-            ],
-            &restated,
-            tol,
-        )?;
+        let charts = vec![
+            Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
+            Rechart::new(plane_for(other_side), section.face, outer_sense),
+        ];
+        let stranded = body.stranded_by(&charts)?;
+        let mut restated = section_plane_restatements(&body, promoted.face, &stranded)?;
+        restated.extend(section_plane_restatements(&body, section.face, &stranded)?);
+        body.set_face_surfaces_describing(charts, &restated, tol)?;
         body.clear_null_face_pair(section.face);
         section_side.insert(promoted.face, ring_side);
         section_side.insert(section.face, other_side);
@@ -611,12 +607,10 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
         .collect();
     for (hole, parent) in nested {
         let chart = body.get_face(parent).ok_or_else(corrupt)?.surface;
-        let restated = section_plane_restatements(body, hole)?;
-        body.set_face_surfaces_describing(
-            vec![Rechart::shared(chart, hole, false)],
-            &restated,
-            tol,
-        )?;
+        let charts = vec![Rechart::shared(chart, hole, false)];
+        let stranded = body.stranded_by(&charts)?;
+        let restated = section_plane_restatements(body, hole, &stranded)?;
+        body.set_face_surfaces_describing(charts, &restated, tol)?;
         body.kfmrh(parent, hole)?;
         section_side.remove(hole);
         naming.sections.retain(|&(f, _)| f != hole);
@@ -625,15 +619,17 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// The re-descriptions a section face's re-chart takes: every edge of
-/// `face` whose description names the chart the face wears now, where
-/// the edge's other face does not wear it, stated as an image in that
-/// chart — which the re-chart reads as the section plane the face moves
-/// onto ([`Body::set_face_surfaces_describing`]). Carrier, interval and
-/// a declared authority travel verbatim; a null edge has no description
-/// to restate.
+/// `face` among those the re-chart strands (`stranded`, from
+/// [`Body::stranded_by`]) whose description names the chart the face
+/// wears now, stated as an image in that chart. The re-chart reads
+/// that image as the chart the face moves onto, or, where the edge's
+/// other face keeps the chart, as that chart itself
+/// ([`Body::set_face_surfaces_describing`]). Carrier, interval and a
+/// declared authority travel verbatim.
 fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
+    stranded: &[EdgeKey],
 ) -> Result<Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)>, SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
@@ -648,19 +644,10 @@ fn section_plane_restatements<T: Decide>(
         };
         for he in body.loop_cycle(first).ok_or_else(corrupt)? {
             let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            if out.iter().any(|(e, _)| *e == edge) {
+            if !stranded.contains(&edge) || out.iter().any(|(e, _)| *e == edge) {
                 continue;
             }
             let edge_data = body.get_edge(edge).ok_or_else(corrupt)?;
-            let mate = if edge_data.he_plus == he {
-                edge_data.he_minus
-            } else {
-                edge_data.he_plus
-            };
-            let other = body.face_of_half_edge(mate).ok_or_else(corrupt)?;
-            if body.get_face(other).ok_or_else(corrupt)?.surface == chart {
-                continue;
-            }
             let geom = body.get_curve_geom(edge_data.curve).ok_or_else(corrupt)?;
             let Some(curve) = geom.certified() else {
                 continue;

@@ -576,6 +576,10 @@ Signed (CLEAVE orchestrator).
   - RESTFRONT: whether a derived description short of intrinsic must refuse at rest (D2/C7 against
     `validate.rs`);
   - PRED: two more hand-rolled fold sites.
+- **PR 4158 merges** (`a-cylinder-split-through-its-seam-ruling-…`, P0, closed). The re-chart reads
+  the door's own stranded-edge query (`Body::stranded_by`) instead of a second spelling of it. What
+  moved is disclosed in the PR body: edges whose descriptions were already incoherent are no longer
+  restated early, so curve keys are permuted in 28 tests, with the final descriptions unchanged.
 - **PR 4083 merged** (the ray walk, DR-90).
   - Its tail ported the Klein tour tripwire's retirement and re-baselined the tolerance stop, both
     after PATHS PR 3774, which turned main's tour red unseen. The tolerance study's own answer moved,

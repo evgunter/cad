@@ -2758,11 +2758,12 @@ fn region_faces<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod loop_roles_rows {
-    use super::super::shell_witness::{Reading, Tally};
+    use super::super::shell_witness::Reading;
     use super::super::{BooleanError, SideCode};
     use super::loop_roles;
     use crate::chord_join::SplitJoinError;
     use crate::entity::{FaceKey, LoopKey};
+    use crate::stands::Tally;
     use slotmap::SlotMap;
 
     fn keys() -> (FaceKey, LoopKey, LoopKey) {
