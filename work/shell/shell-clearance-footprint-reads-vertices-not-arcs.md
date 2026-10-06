@@ -2,12 +2,13 @@
 id: shell-clearance-footprint-reads-vertices-not-arcs
 kind: issue
 title: wall_clearance's planar footprint box is folded over boundary VERTICES only, so an arc bowing out of a face's vertex hull is outside its footprint and a crossing pair can read as separated
-status: review
+status: closed
 opened: 2026-09-26
 priority: P1
 cost: E
 pr: 4115
 branch: shell/planar-gate-misses
+closed: 2026-10-06
 ---
 
 
@@ -35,3 +36,16 @@ the way `point_in_carrier_loop`'s reach does
 (`crates/topo/src/splitting/containment.rs`, `loop_reach`). It could
 also count any non-line edge as "may overlap", which is the conservative
 (#571) direction.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4115)
+
+`shell::wall_clearance`'s planar footprints fold each edge's whole
+extent through `splitting::containment::carrier_ball`, the existing
+`Decide`-level home, rather than a new per-kind dispatcher. Two
+offset cylindrical voids that passed the gate on main now refuse
+`WallClearance`. A seeded sweep (`every_arc_lies_in_its_footprint_box`)
+checks that every sampled arc point lies in its box. The single full
+review found no point outside the box over 60 000 random arcs. The
+class (four extent dispatchers) is FLUX's
+`an-edges-extent-has-four-dispatchers`, and the vertex-only siblings
+are filed on CHART, HONE and TANG.

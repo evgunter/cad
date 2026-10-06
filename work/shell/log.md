@@ -1126,3 +1126,24 @@ No ratified text moves, so there is no `[ev]` PR. The spec basis is in
 the item. Unit 6 now runs BEFORE unit 7, whose partial-revolve lift
 depends on it. Its review tier is DUAL: the gate change re-routes many
 bodies and is hard to reverse once rows are rebuilt on it.
+
+## Unit 3 MERGED (2026-10-06, PR 4115)
+
+The planar wall-clearance gate:
+- reads arc-bounded footprints through the existing `carrier_ball`;
+- decides facing on a levered drift, unioned with the old cosine
+  window, with the gap taken short by the drift.
+
+Single full review: APPROVE-WITH-FIXES on two MINORs (window narrowing
+on tall parts; the drift correction unguarded). Both are fixed with rows
+that go red under the review's mutants, and the fourth extent dispatcher
+was replaced by reuse. Filed:
+- the extent class (FLUX);
+- vertex-only siblings (CHART, HONE, TANG);
+- the rim_wedge cosines (HONE);
+- the tilted residue (shell).
+
+Merged over six failures that are red on main at ε = 1e-6:
+- JOIN's pinch row;
+- BAND's `bounds_census` roster row (filed here, P0);
+- four CLEAVE split closed-form rows (filed by the orchestrator, P0).
