@@ -511,8 +511,9 @@ fn sym_9_what_each_retry_recovers() {
 /// written at a slot to an anonymous defined variable, which the
 /// environment binds through the non-finite door as it binds every
 /// definition: `symbolic_zero` gains those bindings' theorems on every
-/// document (the plate +1, the annulus +2, the boss +4, the bracket
-/// +3, the link +2), and no other column moves. The untoleranced
+/// document, over the rows just above (the plate +1, the annulus +2,
+/// the boss +4, the bracket +3, the link +2), and no other column
+/// moves; the pad's drive receipt holds. The untoleranced
 /// variables bind as constants (VR8), as the literals they were did.
 ///
 /// It pins the whole split with the ladder against the same replay
@@ -535,16 +536,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [1103, 0, 0, 704], [1103, 0, 0, 704], 0),
-        ("r1_annulus", [588, 32, 0, 451], [588, 32, 0, 451], 0),
-        ("r1_segment_boss", [533, 26, 28, 414], [533, 26, 28, 414], 0),
+        ("two_hole_plate", [1104, 0, 0, 704], [1104, 0, 0, 704], 0),
+        ("r1_annulus", [590, 32, 0, 451], [590, 32, 0, 451], 0),
+        ("r1_segment_boss", [537, 26, 28, 414], [537, 26, 28, 414], 0),
         (
             "r2_filleted_bracket",
-            [1401, 45, 49, 1050],
-            [1401, 45, 49, 1050],
+            [1404, 45, 49, 1050],
+            [1404, 45, 49, 1050],
             0,
         ),
-        ("r2_link", [824, 0, 52, 679], [824, 0, 52, 679], 0),
+        ("r2_link", [826, 0, 52, 679], [826, 0, 52, 679], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {

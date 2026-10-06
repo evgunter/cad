@@ -487,7 +487,7 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   other line holds; the untoleranced variables bind as constants
 ///   (VR8), as the literals did.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1143 forms 16228 frozen 252 digest ec7f0e1f5408b1a10acfda342f5c2ec4\n\
+     Plain/Decision calls 1144 forms 16228 frozen 252 digest 6b453ed507fdba691c57444744a77b0a\n\
      Plain/Assertion calls 664 forms 3915 frozen 360 digest fad58c6c6cf5c21324e21b64ab8b051b\n\
      Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 432 forms 9117 frozen 0 digest 118d6298ed4bc7280acf1d0749f45f88\n\
