@@ -307,13 +307,17 @@ fn both_sweeps_evaluate_in_one_document() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a chart image's flag became
+/// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
+/// whose field name moved; with `wrap: ` read back as `seam: ` the
+/// feed reproduces every old constant, so no evaluation moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xfa04_f1a7_d1c4_847d),
         ("corner_table", 0xc035_7765_7d3d_dcdc),
-        ("cut_cylinder", 0xcea6_3bbf_f0ce_47ad),
-        ("boss_union", 0xeb25_210f_2b67_d89b),
+        ("cut_cylinder", 0x71fd_044a_cb78_e8e1),
+        ("boss_union", 0x7ab8_9e3e_787f_6f17),
         ("kitchen_sink", 0xecfa_9ee8_aeda_a48d),
     ];
     let mut moved: Vec<String> = Vec::new();

@@ -178,11 +178,15 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// edge-edge kinds: the digest feeds the records' `Debug`, which now
 /// prints empty `ve` and `ee` lists; with those fields stripped every
 /// constant here held.
+/// RE-BLESSED, `cut_cylinder` only, when a chart image's flag became
+/// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
+/// whose field name moved; with `wrap: ` read back as `seam: ` the
+/// feed reproduces every old constant, so no evaluation moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xcea6_3bbf_f0ce_47adu64),
+        ("cut_cylinder", 0x71fd_044a_cb78_e8e1u64),
         ("part_select", 0x1b9e_8357_e7b5_ba6c),
         ("kitchen_sink", 0xecfa_9ee8_aeda_a48d),
     ] {

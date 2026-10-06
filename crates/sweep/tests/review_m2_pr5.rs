@@ -149,6 +149,13 @@ fn seam_edges(body: &Body<f64>) -> Vec<(EdgeKey, topo::SurfaceKey)> {
         .collect()
 }
 
+/// A wire full revolve's walls are each two π-bands parted at both
+/// meridians, so no edge of it is a wrap edge (D1: a wrap edge's two
+/// halves bound one face).
+fn assert_no_wrap_edges(body: &Body<f64>) {
+    assert_eq!(seam_edges(body), vec![], "a wire's meridians part two π-bands");
+}
+
 /// Asserts every Seam edge's samples sit at azimuth ≈ 0 of its own
 /// surface (the u = 0 alignment claim, checked by the reviewer's own
 /// azimuth computation, not by re-running certification).
@@ -366,9 +373,12 @@ fn survives_wire_four_segment_dome_two_band_structure() {
     // Q3) saying a profile entity determined the locus. The row reads
     // those, and additionally pins each image to ITS OWN wall's chart
     // — teeth the variant test never had.
+    // A wire's angle-0 meridians part their walls' two π-bands, so they
+    // are no wrap edges (D1) but declared images at rest, as the π
+    // copies are.
     let wall_of = |seg: usize| wall_key(&t.body, t.walls()[0][seg].unwrap());
-    assert_seam_of(&t.body, meridians[1].unwrap(), wall_of(1));
-    assert_seam_of(&t.body, meridians[2].unwrap(), wall_of(2));
+    assert_declared_image_in(&t.body, meridians[1].unwrap(), wall_of(1));
+    assert_declared_image_in(&t.body, meridians[2].unwrap(), wall_of(2));
     for seg in [0, 3, 4] {
         assert!(meridians[seg].is_none() && pi_meridians[seg].is_none());
     }
@@ -386,8 +396,7 @@ fn survives_wire_four_segment_dome_two_band_structure() {
         }
     }
     assert!(t.rims[0][0].is_none() && t.rims[0][4].is_none());
-    // u = 0 alignment of every Seam (reviewer's own azimuth check).
-    assert_seams_on_u0(&t.body);
+    assert_no_wrap_edges(&t.body);
     // Sign + kernel-coupled magnitude: cylinder π + frustum 7π/24.
     assert!(my_signed_volume(&t.body) > 0.0);
     let v = full_pappus_y(&t);
@@ -441,7 +450,7 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
             ));
         }
     }
-    assert_seams_on_u0(&t.body);
+    assert_no_wrap_edges(&t.body);
     // Independent volume: Pappus for the cylinder solid of revolution:
     // V = π·r²·h = π·1²·2. Dense chordal fan (64 samples) from
     // boundary points is sound here (wire faces are half-bands whose
@@ -685,12 +694,12 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
 
 #[test]
 fn survives_forged_seam_on_pi_meridian_is_refused() {
-    // The angle-π meridian of the ball is NOT the u = 0 iso-curve of
-    // the sphere. Seam is exempt from tier 3's prefer-intrinsic pass
-    // BY KIND — so the only thing standing between a forged Seam and a
-    // silently wrong model is set_edge_curve's certification gate
-    // (SeamSide: samples must sit on the u_ref side). Verify the gate
-    // actually refuses.
+    // The angle-π meridian of the ball parts its two π-bands, so it is
+    // no wrap edge of either. A wrap flag forged onto it meters the one
+    // image like any chart image — the π meridian IS an image of the
+    // sphere — so certification admits it, and what stands between it
+    // and a silently wrong model is tier 3's adjacency arm: a wrap
+    // edge's two halves bound one face (D1).
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -1.0), 1.0),
         (Point2::new(0.0, 1.0), 0.0),
@@ -711,16 +720,14 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
         param_start: t0,
         param_end: t1,
     };
-    let err = t
-        .body
+    t.body
         .set_edge_curve(pi_edge, forged, Tol::witness())
-        .unwrap_err();
-    assert!(
-        matches!(err, topo::EulerOpError::Certification { .. }),
-        "forged Seam on the π meridian must be refused by certification: {err:?}"
+        .expect("the π meridian is an image of the sphere, so its one meter certifies");
+    assert_eq!(
+        topo::validate_geometric(&t.body, Tol::witness()),
+        Err(vec![topo::ValidationError::DescriptionNotAdjacent { edge: pi_edge }]),
+        "a forged wrap flag on an edge between two faces is refused at tier 3"
     );
-    // The body is untouched on Err: still fully tier-valid.
-    assert_all_tiers(&t.body);
 }
 
 #[test]
@@ -1555,12 +1562,12 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
             EdgeDescription::TangentIntersection { .. }
         ));
     }
-    // The sphere meridian arc is the seam; its pi copy conventional.
+    // The sphere meridian arc and its pi copy are both images at rest.
     assert!(matches!(
         description(&t.body, meridians[2].unwrap()),
         EdgeDescription::Chart(_)
     ));
-    assert_seams_on_u0(&t.body);
+    assert_no_wrap_edges(&t.body);
     // Pappus: cylinder 1 + spherical cap 2/3 -> V = 5pi/3 (256-chord
     // arc sampling: relative error < 1e-4).
     assert!(my_signed_volume(&t.body) > 0.0);

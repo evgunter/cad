@@ -4064,8 +4064,12 @@ fn torus_chart<T: Decide>(
             });
         };
         steps.rotate_left(first);
-        // The lift: (lifted v, Δu) per rim, and the loop's two windings.
-        let mut rims: Vec<(T, T)> = Vec::new();
+        // The lift. Each rim's level is its own branch-canonical angle
+        // (`torus_angle`, read off its carrier alone) plus the whole
+        // number of turns the walk reached it on, so a rim's lifted
+        // level depends on the loop's geometry and not on where the
+        // walk began: the turns are counted from the loop's lowest.
+        let mut rims: Vec<(T, T, T)> = Vec::new();
         let mut running = None;
         let (mut wind_u, mut wind_v) = (T::zero(), T::zero());
         let mut length = T::zero();
@@ -4077,11 +4081,12 @@ fn torus_chart<T: Decide>(
                     du,
                     rho,
                 } => {
-                    let v = match running {
-                        None => torus_angle(sin_v, cos_v, band),
+                    let angle = torus_angle(sin_v, cos_v, band);
+                    let at = match running {
+                        None => angle,
                         Some(at) => {
-                            // The rim's level on the branch the walk
-                            // reached: the turn from the running `v`.
+                            // The turn from the running `v` to the
+                            // rim's level must be no turn at all.
                             let (s, c) = T::sin_cos(at);
                             let delta = (sin_v * c - cos_v * s).atan2(cos_v * c + sin_v * s);
                             require_zero(
@@ -4090,13 +4095,15 @@ fn torus_chart<T: Decide>(
                                 band,
                                 Premise::Inventory,
                             )?;
-                            at + delta
+                            at
                         }
                     };
+                    let turns = (at - angle).periodic_branch(T::tau());
+                    let v = angle + T::tau() * turns;
                     running = Some(v);
                     wind_u = wind_u + du;
                     length = length + rho * du.abs();
-                    rims.push((v, du));
+                    rims.push((angle, turns, du));
                 }
                 TorusStep::Meridian { dv } => {
                     running = running.map(|at| at + dv);
@@ -4117,10 +4124,19 @@ fn torus_chart<T: Decide>(
             band,
             Premise::Inventory,
         )?;
-        let (lo, hi) = min_max(&rims.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
+        let base = rims
+            .iter()
+            .map(|&(_, turns, _)| turns)
+            .fold(None, |lo: Option<T>, k| Some(lo.map_or(k, |lo| lo.min(k))))
+            .unwrap_or_else(T::zero);
+        let lifted: Vec<(T, T)> = rims
+            .iter()
+            .map(|&(angle, turns, du)| (angle + T::tau() * (turns - base), du))
+            .collect();
+        let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
         let anchor = lo + (hi - lo) * half;
         let (f_m, g_m) = (f(anchor), g(anchor));
-        let (flux, area) = rims.iter().fold((T::zero(), T::zero()), |(fl, ar), &(v, du)| {
+        let (flux, area) = lifted.iter().fold((T::zero(), T::zero()), |(fl, ar), &(v, du)| {
             (fl - (f(v) - f_m) * du, ar - (g(v) - g_m) * du)
         });
         per_loop.push((area, length));
