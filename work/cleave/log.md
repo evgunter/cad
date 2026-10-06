@@ -550,3 +550,11 @@ Signed (CLEAVE orchestrator).
     `certified-line-carrier-is-read-in-five-places` (P4).
   - Class noted: **a fix pass that widens a rule earns a delta review.** Rule (a) now reads every
     tangent wall; the first review never saw that code.
+- **PR 4120 merges.** The P0 `a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section` is closed:
+  a pipe cut across its axis now splits.
+  - Cause: every curved self-loop chord got a placeholder circle. Its area was zero (`DegenerateSection`)
+    or made up (`Finish(Corrupt)`, which blamed the body).
+  - Review: single FULL, then the orchestrator's read of the fix pass. The placeholder's type is filed
+    on TOPO.
+  - Class noted: a stand-in value that rides into a reader as if it were real (the placeholder circle)
+    needs a type, not a convention. Two readers disagreed on how to recognise it.

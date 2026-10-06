@@ -1902,3 +1902,11 @@ member order decides whether the face is already split (ratified DM4).
 - Two test comments citing GATHER's deleted look-through row now cite
   the union row; recorded, with three more dead GATHER citations found
   by the sweep, in `dead-work-citations-from-shipped-code-and-docs`.
+
+- 2026-10-06 — Seam from FUSE: step 4 of Ev's PR-3881 build (a union
+  edge spanning several member edges is named for the set) is being
+  built by a FUSE lane on `fuse/set-names`, under
+  `crates/editor-core/src/names/` (`emit_topo.rs`'s `same_side_rim`,
+  `seam_set`, `seam_edges` and the `vertex_merges` reads). It lands
+  together with the join at every stage (PR 4140). Any fork in naming
+  the set goes to Ev, and EMIT is told. (FUSE log, 2026-10-06.)
