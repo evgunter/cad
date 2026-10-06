@@ -388,15 +388,14 @@ fn subdivided_rim_blends_as_one_band_as_built() {
     );
 }
 
-/// **A boolean's merged faces carry the same joint.** Two flush unit
-/// cubes unioned into a `2 × 1 × 1` box, their touching faces and
-/// coplanar sides declared: each long side is one face, but the merge
-/// keeps the vertices where the operands' rims met, so
-/// each of the four long edges is two collinear links on the same two
-/// faces. Every edge fillets, each long edge as one band, at the
+/// **A boolean's merged faces leave no joint.** Two flush unit cubes
+/// unioned into a `2 × 1 × 1` box, their touching faces and coplanar
+/// sides declared: each long side is one face, and the output stage
+/// joins the vertices where the operands' rims met (maximal edges), so
+/// the box has its 12 edges. Every edge fillets as its own band, at the
 /// rounded box's closed form.
 #[test]
-fn a_union_of_flush_cubes_fillets_its_split_rims_as_one_band() {
+fn a_union_of_flush_cubes_is_a_box_that_fillets_edge_by_edge() {
     let t = Tol::witness();
     let (ca, cb) = (cube_at(0.0, 0.0, 0.0, 1.0), cube_at(1.0, 0.0, 0.0, 1.0));
     // The touching pair (`Rest`), and the four pairs of coplanar sides
@@ -425,13 +424,13 @@ fn a_union_of_flush_cubes_fillets_its_split_rims_as_one_band() {
     let body = &r.body().expect("non-empty").body;
     assert_eq!(body.faces().count(), 6, "the merged box has six faces");
     let req: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    assert_eq!(req.len(), 16, "12 box edges, the four long ones split");
+    assert_eq!(req.len(), 12, "the box's 12 edges, the long ones whole");
 
     let f = sweep::fillet::fillet_edges(body, &req, R, t).expect("the union fillets");
     assert_eq!(topo::validate_geometric(&f.body, t), Ok(()), "tier 3");
     assert_eq!(f.blend_faces.len(), 12, "one band per box edge");
     let rec = f.naming.as_ref().expect("birth records");
-    assert_eq!(rec.joined_blends.len(), 4, "the four long edges");
+    assert_eq!(rec.joined_blends.len(), 0, "no edge is split");
     sweep::test_support::assert_naming_totality(body, &f, &req, "union fillet");
     // The shrunk box `a × b × c` swept by the ball: core, six slabs,
     // twelve quarter-cylinders summing to `π r² (a + b + c)`, and one

@@ -285,9 +285,11 @@ const AREA_OVERLAP_VOLUME: f64 = 13.4;
 
 #[test]
 fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold_contact() {
-    use Seen::{Fused, SeamVertex};
+    use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_3", Tol::witness());
     let (doc, [a, s, big], pairs) = area_overlap_fixture(doc);
+    // Every order fuses: the vertex whose half-decided parentage refused
+    // two of them was a cut vertex the output stage now joins away.
     every_order(
         &doc,
         &[("a", a), ("s", s), ("big", big)],
@@ -295,10 +297,10 @@ fn no_order_of_an_area_overlap_declaration_under_a_covering_block_refuses_a_fold
         AREA_OVERLAP_VOLUME,
         &[
             ("a,s,big", Fused),
-            ("a,big,s", SeamVertex),
+            ("a,big,s", Fused),
             ("s,a,big", Fused),
             ("s,big,a", Fused),
-            ("big,a,s", SeamVertex),
+            ("big,a,s", Fused),
             ("big,s,a", Fused),
         ],
     );

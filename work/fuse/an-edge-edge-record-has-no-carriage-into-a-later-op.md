@@ -2,8 +2,10 @@
 id: an-edge-edge-record-has-no-carriage-into-a-later-op
 kind: issue
 title: An edge-edge record has no carriage into a later op: CarriedContacts holds no ee rows, and no split lineage places one
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-06
+pr: PRNUM
 priority: P2
 cost: M
 ---
@@ -32,3 +34,24 @@ op. Nothing reaches this today: no output stage runs the join yet.
   `(vertex, edge)` rule decides by the split's own vertex against a
   vertex the record names; an edge-edge record names no vertex, so the
   rule for it has to be written, not copied.
+
+## Closed (FUSE, PR PRNUM, 2026-10-06)
+
+- `CarriedContacts.ee` holds edge-edge rows, validated at the door
+  (`carried e-e edge key does not resolve`, `carried e-e pair names
+  one edge twice`), and the substitution door (`carry` in
+  `crates/topo/src/boolean/ops.rs`) carries them like the join's.
+- Edge-split lineage (`ee_lineage`): where the reduction split either
+  edge, the record lands on every pair of pieces whose interiors
+  still meet, decided by the census's own segment questions
+  (`census::segment_interiors_meet`), and a split vertex minted on
+  the contact is recorded against the piece it rests on (or the
+  vertex it meets).
+- Rows: `an_edge_edge_record_carries_onto_the_piece_of_a_split_edge_that_holds_it`
+  (red when the door drops carried `ee` rows, and when lineage leaves
+  the record on the split edge's own key) and
+  `a_carried_edge_edge_row_whose_key_does_not_resolve_refuses_at_the_door`,
+  in `crates/topo/tests/vertex_on_edge_records.rs`.
+- Not pinned by a row: the arm where a split lands exactly on the
+  crossing (the record becomes a `(vertex, edge)` record).
+

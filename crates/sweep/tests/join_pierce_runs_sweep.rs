@@ -1042,8 +1042,10 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 /// - edges that share no end point lie farther apart than the band;
 /// - edges that share an end vertex part by more than it at the
 ///   shorter one's far end;
-/// - edges that end on one point at two vertices meet at `v`, where the
-///   pierce's copies stay apart (no face meets both, PR 3813). Those
+/// - edges that meet at `v`, where the pierce's copies stay apart (no
+///   face meets both, PR 3813): edges that end there at two vertices,
+///   or an edge ending there on the interior of a seam edge the output
+///   stage joined through the other copy's point. Those
 ///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
 ///   within the band for a
 ///   stretch, which the census passes: that class is filed
@@ -1138,7 +1140,21 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
                         at_copies += 1;
                         continue;
                     }
-                    (None, None) => segment_distance(g1, g2),
+                    (None, None) => {
+                        let gap = segment_distance(g1, g2);
+                        // The output stage joins the copy lying on a seam
+                        // line away (maximal edges), so the other copy's
+                        // edge ends at `v` on that line's interior.
+                        if gap <= band
+                            && [g1.0, g1.1, g2.0, g2.1]
+                                .iter()
+                                .any(|&p| len((p, v)) <= band)
+                        {
+                            at_copies += 1;
+                            continue;
+                        }
+                        gap
+                    }
                 };
                 assert!(
                     gap > band,

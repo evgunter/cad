@@ -44,3 +44,19 @@ record can name these cells.
   killed interior edges and run vertices.
 - Add a row that goes red when `glue_pair` drops `edge_merges` or the
   fold rows.
+
+## Left by FUSE step 2 (2026-10-06)
+
+FUSE's step 2 of the PR 3881 build (branch `fuse/join-every-stage`)
+carries `ve` and `ee` records into every boolean, the REST lane
+included, so the row is reachable. Step 2 did not fix it, and built no
+witness for it. Its reading of `slit_zip`, for whoever picks this up:
+
+- Both contact patches glue away, so the R-interior run edges and run
+  vertices look like they leave the boundary for material, with no
+  face of the result holding their interiors. If so, a record naming
+  one is consumed (the door's drop rule) and an `Edge → Face` row
+  would be wrong there. A witness should settle it before any row is
+  written.
+- The second owed item stands: nothing turns red when `glue_pair`
+  drops `edge_merges` or the fold rows.
