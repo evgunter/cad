@@ -87,9 +87,11 @@ pub(crate) struct Study {
 ///
 /// The scales are M10-9's brackets, the link's lowered to its own
 /// ceiling, and all five certify whole at them. `refused_by` stays for
-/// the next document that refuses. How each count came to its value,
-/// merge by merge, is the attribution table in
-/// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+/// the next document that refuses. How each count moved since SYM-11
+/// (2026-09-21), merge by merge, is the attribution table in
+/// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`;
+/// the earlier reasons (rule E's and rule F's trades, the must-carry
+/// derivation) are in this doc's git history (`git log -L`).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {

@@ -180,7 +180,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     assert!(
         matches!(
             failure(&ev, u),
-            Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::Vanished { .. })
+            Some(NodeErrorKind::DeclareResolve { error, .. }) if matches!(**error, ResolveError::Vanished { .. })
         ),
         "{:?}",
         failure(&ev, u)
@@ -253,14 +253,14 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let ev = run(&stranded);
     let got = failure(&ev, u);
     assert!(
-        matches!(got, Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::Vanished { .. })),
+        matches!(got, Some(NodeErrorKind::DeclareResolve { error, .. }) if matches!(**error, ResolveError::Vanished { .. })),
         "with the name's node live, the stranded site vanishes: {got:?}"
     );
     let (stranded, _) = step(stranded, DocEdit::DeleteNode { id: c });
     let ev = run(&stranded);
     let got = failure(&ev, u);
     assert!(
-        matches!(got, Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::NodeGone { .. })),
+        matches!(got, Some(NodeErrorKind::DeclareResolve { error, .. }) if matches!(**error, ResolveError::NodeGone { .. })),
         "rung 1 does not outrank the stranded site at the union: {got:?}"
     );
 }

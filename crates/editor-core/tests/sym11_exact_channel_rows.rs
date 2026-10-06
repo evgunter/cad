@@ -39,7 +39,8 @@ use crate::m10_9_pins_interval::measured_studies;
 /// bracket and the pad stop at the replayed profile's validation
 /// (`arc_span`, `line_span`), so theirs is the validation prefix's
 /// receipt, and nothing in that prefix reaches the door. How each value
-/// came to be, merge by merge, is the attribution table in
+/// moved since SYM-11 (2026-09-21), merge by merge, is the attribution
+/// table in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("two_hole_plate", [1103, 0, 704, 612]),
@@ -103,7 +104,8 @@ fn replay_on_a_thread(
 /// 1e-9 and 1e-12.
 ///
 /// **What runs it: the per-PR fast set**, at the default ε on every PR
-/// whose diff seeds `editor-core`, and every night at every ε row. It
+/// whose test scope includes `editor-core` (a change to it or to a crate
+/// it depends on), and every night at every ε row. It
 /// costs 0.86 s hosted, under `.config/nextest.toml`'s 1 s slow-set bar,
 /// so it is not in the slow set.
 #[test]

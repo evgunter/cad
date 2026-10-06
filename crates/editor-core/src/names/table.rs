@@ -176,6 +176,7 @@ pub struct NameTable {
     forward: BTreeMap<NameRef, Row>,
     reverse: BTreeMap<EntityRef, NameRef>,
     sealed: Sealed,
+    said: Said,
 }
 
 // The rows, and nothing else. Whether a table has been sealed is a
@@ -195,6 +196,7 @@ impl core::fmt::Debug for NameTable {
             forward,
             reverse,
             sealed: _,
+            said: _,
         } = self;
         f.debug_struct("NameTable")
             .field("forward", forward)
@@ -232,6 +234,30 @@ impl PartialEq for Sealed {
 }
 
 impl Eq for Sealed {}
+
+/// **The detail each name of a table is said at within it**
+/// ([`super::words::table_details`]), worked out on the first sentence
+/// that asks and kept for every later one: a tree that redraws a failed
+/// row each frame says its names at no further search.
+///
+/// A cache like [`Sealed`]: a clone starts empty (it is cloned to be
+/// added to), a write empties it, and it is no part of the value.
+#[derive(Default)]
+struct Said(std::sync::OnceLock<BTreeMap<NameRef, super::words::Detail>>);
+
+impl Clone for Said {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for Said {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Said {}
 
 /// A duplicate-name insertion outside the tie path (the
 /// no-silent-aliasing bug, typed).
@@ -321,6 +347,15 @@ impl NameTable {
         }
     }
 
+    /// **The detail `name` is said at within this table**, `None` where
+    /// the table does not hold it ([`super::words::table_details`]).
+    pub(crate) fn detail(&self, name: &StableName) -> Option<&super::words::Detail> {
+        self.said
+            .0
+            .get_or_init(|| super::words::table_details(self))
+            .get(name)
+    }
+
     /// Rows in key order, as the shared handles — [`NameTable::iter`]'s
     /// twin for an emitter that is about to EMBED each name in a
     /// downstream one.
@@ -371,6 +406,7 @@ impl NameTable {
         ent: EntityRef,
     ) -> Result<(), DuplicateName> {
         use std::collections::btree_map::Entry as Slot;
+        self.said = Said::default();
         // Each direction is searched ONCE: the vacant slot the
         // collision check lands on is the slot the row is written into.
         if name.kind != ent.key.kind() {
@@ -486,6 +522,7 @@ impl NameTable {
         ks: Box<[u32]>,
     ) -> Result<(), DuplicateName> {
         use std::collections::btree_map::Entry as Slot;
+        self.said = Said::default();
         debug_assert_eq!(ents.len(), ks.len(), "one candidate per entity");
         for e in &ents {
             if name.kind != e.key.kind() || self.reverse.contains_key(e) {
