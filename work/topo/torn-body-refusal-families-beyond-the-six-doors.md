@@ -130,6 +130,10 @@ each one over a key the caller carries:
 - `zip.rs` `split_across`: `ZipCorrespondence` "a pinch half-edge" /
   "a pinch loop no longer resolves", "a pinch vertex's orbit does not
   close"; the vertex itself keeps "a pinch vertex no longer resolves".
+  Since retired with `cross_pinches` (PR 4139): its successor
+  `split_cones` reads its hops through `proven` / `linked`
+  (`split_side`'s loops, `repair`'s faces) and keeps "section face no
+  longer resolves" typed over the seams it is handed.
 - `carrier_cross.rs` `boundary_crossing`: `ClassificationInvariant`
   "boundary loop lost", "does not close", "half-edge lost"; "face lost"
   stays.

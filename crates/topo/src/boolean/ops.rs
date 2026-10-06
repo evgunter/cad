@@ -2554,6 +2554,7 @@ impl Descendants {
         }
     }
 
+    /// Vertex fusions `(dead, kept)`, result keys: a zip's.
     fn absorb_fusions(&mut self, merges: &[(VertexKey, VertexKey)]) {
         for &(dead, kept) in merges {
             self.vertices.push((dead, kept));
