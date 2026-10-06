@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P3
 cost: E
 branch: emit/band-rim-pi
+pr: 4164
 ---
 
 
