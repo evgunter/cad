@@ -7207,3 +7207,21 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - `a-moving-door-carries-minted-rows-onto-an-unminted-face-and-half-mints-it` and `a-moving-door-leaves-a-complete-spline-destination-half-minted` are open design forks over `kef`/`kfmrh`/`ring_move`, which neighbour PR 3970's question.
   - `minting-doors-take-…` and `kev-describing-…` wait for the next slot.
 - Nothing new on PR 3970.
+
+## 00:58 check-in (2026-10-06)
+
+- **The split/chord/reach lane opened PR 4078** (+1324/-191, 13 files).
+  - 18 sites tabled with at rest / mid-op and premise, plus census reach rules, the chord join, `splitting/join.rs`, `finish.rs` and `section_loops.rs`.
+  - `wall_outline` reads its carrier through `AzimuthImage.carrier`, so the shadowed M12 is gone.
+  - The `solid_contain` folds now carry only geometric refusals, but their `CorruptFace` label is now wrong where they fire; left to the families row with evidence.
+  - Implementer archived (about $21.3).
+- **The tier-3 lane opened PR 4076** (+370/-33, 8 files).
+  - `classify_point_in_solid` places every `PointInSolidError` / `PointInLoopError` arm by name, with shared texts.
+  - `census.rs` `of_point_in_solid` splits `Loop(_)`.
+  - Roster-checked samples.
+  - Implementer archived (about $4.6).
+- Reviewers dispatched:
+  - PR 4078 FULL → `session_013k8oqDrWLvVppLutZfNfKg`. It attacks the mid-op premises, judges the knowingly-wrong `CorruptFace` label, and runs fresh-target batteries.
+  - PR 4076 → `session_01A4Rh5QmkpHomLtmFEKs1eV`. It checks each text's truth at rest, in particular the `RayExhausted` wording against PR 4055's correction.
+  - Both PRs touch `census.rs`; collisions to be checked.
+- The planar-offset lane has no PR yet. Nothing new on PR 3970.
