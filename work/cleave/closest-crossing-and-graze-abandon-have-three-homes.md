@@ -2,11 +2,13 @@
 id: closest-crossing-and-graze-abandon-have-three-homes
 kind: issue
 title: The ray-walk driver (schedule, graze, set-aside, exhaustion) and the closest-crossing fold have six homes
-status: dispatched
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: H
 branch: cleave/ray-walk
+closed: 2026-10-06
+pr: 4083
 ---
 
 Found by the dual review of PR 4046 (both lanes, style Q1). PR 4046 added
@@ -107,3 +109,17 @@ member order (`reach_slab_cut_sector_side`), and the tour's two
 tilted-cut walls, now held checks. The rows that pinned their refusals
 were rewritten; CONTACT's two frontier rows and VACUITY's torus-shell
 row are annotated.
+
+## Closed (PR 4083, 2026-10-06)
+
+`topo::ray_walk` holds the one walk driver, the one ranking of what a walk met (`Evidence`: the first
+`Blocked`, else the first `InBand`, else `NoRaySettled`), the shared closest-crossing fold, and the
+parity reading. Every ray reader runs on it. `Blocked` carries only limits read from definite
+decisions.
+- Review tier: DUAL (concurrent, H). Both reviews returned APPROVE-WITH-FIXES; one raised a MAJOR (the
+  sphere pre-pass read an arc's carrier circle). The union went through one fix pass.
+- An independent verifier then confirmed the fix pass at `87d0efe885`:
+  - every listed mutant goes red;
+  - 194,580 queries per side, with 0 wrong answers and no answer that became a refusal;
+  - the three newly built bodies are at closed form;
+  - the two 1e-6 pinch escalations are bit-identical on base.

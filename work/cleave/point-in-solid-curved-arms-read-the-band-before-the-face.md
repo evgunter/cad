@@ -89,3 +89,15 @@ and where every ray meets that face the refusal is the same
 `Escalated` it was. Part 1, the pre-pass reading the band before the
 face, is still open.
 
+
+## Evidence (PR 4083's verifier, 2026-10-06)
+
+After PR 4083, the only refusals left near a trimmed curved face's carrier are of this row's shape.
+The cylinder, sphere-patch and torus pre-passes refuse anywhere in their carrier's band before reading
+the trim. A sphere example: 1,700 points radially ±3ε off the sphere, off every arc's continuation,
+refuse `bool_point_in_solid_sphere`, the same as on base. Partial-arc points on the sphere now answer.
+
+A related nested ε-dependence, read in the code and not demonstrated (it needs a spline-edged face):
+`cast_ray`'s `at_hit` maps `EdgeCarrierUnsupported` to `Blocked`. That error comes from the in-face
+loop walk, which ranks `Blocked(Uncrossable)` above an in-band ray of its own, so a tighter ε could
+free the solid's ray.
