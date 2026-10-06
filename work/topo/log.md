@@ -7330,3 +7330,31 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - PR 4105's impl lane finished and is archived (about $9.4). The head after its main merge (`bac72ff6`) is CI green.
 - Both reviewers are still running batteries, so neither PR 4099 nor PR 4105 has a verdict yet.
 - Nothing new on PR 3970. Disk at 35%.
+
+## 07:31 (2026-10-06) check-in
+
+- **PR 4099 review** (`session_01DxiNv9e9rGZsR3zEVmCd8A`, about $6.1, archived). Verdict merge, nothing BLOCKING.
+  - Every newly read hop is a link at every site, at rest and mid-op (site table in the comment).
+  - Batteries on 12 other shards: byte-identical. Gate register unchanged.
+  - Mutations that survived: M3 (ring order), M4 (mostly), M5 and M6 (the new edge and point hops).
+  - **Adjudicated as fold-in.** Fix lane `session_0145EUd92QdT7W6quHagnVWW`:
+    - MINOR-1, the `# Panics` docs;
+    - MINOR-2, a yield-order and lone-vertex fixture;
+    - S2, torn rows on the two hops;
+    - S1, the census and boxes superlatives (`pcurves.rs` noted on the row, not touched);
+    - NIT-1 and NIT-2;
+    - S4, `snapshot`'s doc;
+    - S3 and the census probe block filed as one issue.
+- **PR 4105 review** (`session_01HX1Esi1qYTfakgW8ojeARp`, about $6.0, archived). Verdict merge after main (a row `status:` conflict).
+  - The reachable callers are blend surgery's two kills (mid-op, closing mint) plus at-rest rows. `undo_struts` and zip pass empty listings, so the PR body's battery claim was wrong.
+  - Mutations that survived: M4, the spline filter dropped, which is **a new user-visible refusal with no witness**; M2a (far face, `he_plus` only); M5 (the second predicate drifting).
+  - **Adjudicated as fold-in.** Fix lane `session_011deBaFLLZAooW2nBP8M4eH`:
+    - merge main and keep `closed`;
+    - the P-S spline witness;
+    - a certified-only two-face witness;
+    - one predicate for both plans (S1, which closes M5);
+    - drop the `Remints` knob if it is unused;
+    - S4, the docs (`pcurves.rs` strings only);
+    - correct the PR body.
+  - The viewer `review_pick_r2` red was main's, re-pinned on main in `2e4a03b3`.
+- Nothing new on PR 3970.
