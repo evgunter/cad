@@ -1249,6 +1249,18 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "CapPlaneOrientation",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
+            },
+        ),
+        (
+            "CapPlaneEdgeOn",
+            E::CapPlane {
+                source: sweep::CapPlaneError::EdgeOn,
+            },
+        ),
+        (
             "SidePlane",
             E::SidePlane {
                 loop_index: 0,
@@ -1358,6 +1370,18 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             "CapPlane",
             E::CapPlane {
                 source: sweep::CapPlaneError::Newell(newell()),
+            },
+        ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
+            },
+        ),
+        (
+            "CapPlaneEdgeOn",
+            E::CapPlane {
+                source: sweep::CapPlaneError::EdgeOn,
             },
         ),
         ("Op", E::Op { source: euler() }),
@@ -2143,6 +2167,13 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             "CapPlane",
             E::CapPlane(sweep::CapPlaneError::Newell(newell())),
         ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane(sweep::CapPlaneError::Orientation(named(
+                "cap_plane_orientation",
+            ))),
+        ),
+        ("CapPlaneEdgeOn", E::CapPlane(sweep::CapPlaneError::EdgeOn)),
         ("Pcurve", E::Pcurve(pcurve())),
         (
             "SeamStructure",

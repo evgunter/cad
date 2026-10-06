@@ -641,15 +641,15 @@ impl core::fmt::Display for CapPlaneError {
             Self::Newell(e) => write!(f, "a cap is not planar: {e}"),
             Self::Orientation(cause) => write!(
                 f,
-                "a cap's plane could not be oriented against the profile's winding: {cause}. \
-                 There is no way through: a certified cap plane lies in its sketch plane, so \
-                 this is a kernel defect; report it"
+                "whether a cap's plane faces along the profile's winding or against it could \
+                 not be decided: {}. {}",
+                cause.payload(),
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::EdgeOn => write!(
                 f,
-                "a cap's plane stands edge-on to the profile's own plane. There is no way \
-                 through: a certified cap plane lies in its sketch plane, so this is a kernel \
-                 defect; report it"
+                "a cap's plane stands edge-on to the profile's own plane. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
         }
     }
@@ -672,8 +672,15 @@ impl std::error::Error for CapPlaneError {}
 /// derives it).
 ///
 /// `forward` is `cap_points` of the swept chain at this cap's station.
-/// `place` must be right-handed (`c2 = c0 × c1`), which every sweep
-/// frame is by construction.
+///
+/// **Precondition: `place` is a rigid, right-handed frame**
+/// (`c2 = c0 × c1`, unit and orthogonal), so that "counterclockwise in
+/// the sketch" means "counterclockwise about `c2`". Nothing enforces it
+/// at the public doors yet — `profile::SketchPlane::new` and the loft's
+/// placements admit a reflected or skewed map, which reaches the
+/// orientation decision's refusals with a kernel-defect ending when the
+/// cause is the caller's frame
+/// (`work/paths/sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary.md`).
 pub(crate) fn cap_plane<T: Decide>(
     forward: &[Point3<T>],
     place: Affine3<T>,
@@ -698,7 +705,7 @@ pub(crate) fn cap_plane<T: Decide>(
         unreachable!("newell_plane mints a plane")
     };
     let sketch_normal = place.linear.c2.normalize();
-    let region_normal = if reversed == (end == CapEnd::Start) {
+    let expected_outward = if reversed == (end == CapEnd::Start) {
         sketch_normal
     } else {
         -sketch_normal
@@ -709,7 +716,8 @@ pub(crate) fn cap_plane<T: Decide>(
     // cap point lies in the sketch plane, and Newell certified them all
     // within ε of its own plane, so for a region of mean width w ≫ ε
     // the two planes meet at an angle of order ε/w and the cosine is
-    // ±1 to that order. An escalation here is a kernel defect.
+    // ±1 to that order. Under the precondition above an escalation
+    // here is a kernel defect.
     let mut half_perimeter = T::zero();
     for (i, &p) in ordered.iter().enumerate() {
         half_perimeter = half_perimeter + (ordered[(i + 1) % ordered.len()] - p).norm();
@@ -717,7 +725,7 @@ pub(crate) fn cap_plane<T: Decide>(
     half_perimeter = half_perimeter * T::from_f64(0.5);
     let agrees = decide(
         "cap_plane_orientation",
-        Margin::levered(normal.dot(region_normal), half_perimeter),
+        Margin::levered(normal.dot(expected_outward), half_perimeter),
         band,
     )
     .map_err(CapPlaneError::Orientation)?;

@@ -1024,3 +1024,92 @@ fn a_convex_arc_c_shape_partial_revolve_caps_point_out_and_certify() {
         panic!("the C-shape wedge certifies at rest, refused with {errs:?}");
     }
 }
+
+/// **The C-shape's caps point out whichever way the sweep runs.** An
+/// extrusion against the sketch normal reverses the swept chain, and so
+/// does a partial revolve through a negative angle: each flips the cap's
+/// expected outward normal, so a sign error in either term would mint
+/// the caps inside out here and not on the forward rows above.
+///
+/// **How it goes red.** A dropped `reverse` term leaves the
+/// `Against` caps facing into the material (`out` ±1 the wrong way) and
+/// tier 3 refuses both bodies with `LoopRoleInverted`. The runtime
+/// values are the stored cap normals and the two validation results.
+#[test]
+fn a_convex_arc_c_shape_caps_point_out_against_the_normal_and_reversed() {
+    let tol = Tol::witness();
+    let prof = Profile::new(SketchPlane::xy(), c_shape(0.0))
+        .validate(tol)
+        .expect("the C-shape is a valid counterclockwise profile");
+    let body = extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Against,
+        },
+        tol,
+    )
+    .expect("extrude builds the C-shape against the normal")
+    .body;
+    let caps = planar_caps(&body);
+    assert_eq!(caps.len(), 2, "two arc-bearing caps");
+    for &(face, _, z, nz) in &caps {
+        let out = if body.get_face(face).expect("live").sense {
+            nz
+        } else {
+            -nz
+        };
+        let want = if z < -0.5 { -1.0 } else { 1.0 };
+        assert!(
+            (out - want).abs() < 1e-12,
+            "Against: the cap at z = {z} has outward normal z-component {out}, want {want}"
+        );
+    }
+    assert_eq!(
+        topo::validate_geometric(&body, tol),
+        Ok(()),
+        "the C-shape extruded against the normal certifies"
+    );
+    let wedge = revolve(
+        &validated(c_shape(3.0)),
+        axis_y(),
+        Revolution::Partial(-core::f64::consts::FRAC_PI_2),
+        tol,
+    )
+    .expect("the reversed partial revolve builds the C-shape")
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&wedge, tol),
+        Ok(()),
+        "the C-shape revolved through a negative quarter turn certifies"
+    );
+}
+
+/// **Every new cap-plane refusal states one ending and no
+/// declaration.** The orientation escalation and the edge-on plane are
+/// only reachable through a kernel defect or a non-rigid frame, so
+/// each renders the one kernel-defect ending, and none hands the user
+/// the generic recourse menu an `Indeterminate`'s own Display carries.
+///
+/// **How it goes red.** Rendering the whole `Indeterminate` adds its
+/// recourse menu (`recourse_markers` 2, and the declaration wording);
+/// dropping the ending leaves 0. The runtime value is each rendered
+/// sentence.
+#[test]
+fn every_new_cap_plane_refusal_states_one_ending_and_no_declaration() {
+    let band = Band::linear(Tol::witness()).expect("the run's band forms");
+    let esc = geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::value((band.zero() + band.escalate()) / 2.0),
+        band,
+        predicate: Some("cap_plane_orientation"),
+        terminal_sliver: false,
+    };
+    for e in [
+        sweep::CapPlaneError::Orientation(esc),
+        sweep::CapPlaneError::EdgeOn,
+    ] {
+        let s = sweep::ExtrudeError::CapPlane { source: e }.to_string();
+        assert_eq!(test_utils::refusal::recourse_markers(&s), 1, "{s}");
+        assert!(!s.contains("declare"), "{s}");
+    }
+}
