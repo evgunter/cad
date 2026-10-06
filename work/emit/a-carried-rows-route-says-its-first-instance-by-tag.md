@@ -2,10 +2,12 @@
 id: a-carried-rows-route-says-its-first-instance-by-tag
 kind: unit
 title: A carried row's route says this document's instance by tag where the assembly frame holds the document
-status: review
+status: closed
 opened: 2026-10-02
+closed: 2026-10-06
 priority: P3
 pr: 3841
+branch: emit/label-residue-route
 cost: E
 parent: node-labels-are-document-data
 ---
