@@ -284,14 +284,12 @@ fn a_brick_edge_tangent_to_a_wall_in_its_mouth_builds() {
     assert_every_op_apart("sector, brick", &sector, &brick, (1.5 * PI, 0.6));
 }
 
-/// **Torus: the root door's remainder.** The 270° revolution of the
-/// donut (`R = 2`, `r = 1/2`) about y, and a turned brick whose edge
-/// touches the torus on its outer equator in the mouth. The line ×
-/// torus quartic answers a graze as an uncertain count and localizes no
-/// touch, so this pose still refuses at the pierce
-/// (`work/reach/a-line-grazing-a-torus-is-not-localized-at-the-pierce.md`).
+/// **Torus.** The 270° revolution of the donut (`R = 2`, `r = 1/2`)
+/// about y, and a turned brick whose edge grazes the torus on its outer
+/// equator in the mouth. The line × torus quartic answers a graze as an
+/// uncertain count, which the localization reads.
 #[test]
-fn a_brick_edge_grazing_a_torus_in_its_mouth_keeps_its_refusal() {
+fn a_brick_edge_grazing_a_torus_in_its_mouth_builds() {
     let tol = Tol::witness();
     let profile = Profile::new(
         SketchPlane::xy(),
@@ -322,5 +320,47 @@ fn a_brick_edge_grazing_a_torus_in_its_mouth_keeps_its_refusal() {
         n,
         Vec3::new(0.0, 1.0, 0.0),
     );
-    assert_every_op_refuses("donut, brick", &donut, &brick, pierce_refusal);
+    let donut_volume = 0.75 * 2.0 * PI.powi(2) * 2.0 * 0.5f64.powi(2);
+    assert_every_op_apart("donut, brick", &donut, &brick, (donut_volume, 1.0));
+}
+
+/// **A circle edge.** A coin of radius 0.3 and thickness 0.5 on the x
+/// axis, its rim at `x = 0` centred `(0, −1.3, 0)`: that rim circle
+/// touches the unit sphere at `(0, −1, 0)`, below the lens's face, and
+/// the circle × sphere door answers the tangency as uncertain.
+#[test]
+fn a_rim_circle_tangent_to_the_lens_sphere_below_its_face_builds() {
+    let tol = Tol::witness();
+    let r = 0.3;
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![profile::circle(Point2::new(0.0, -1.3), r, tol).unwrap().into()],
+    )
+    .validate(tol)
+    .unwrap();
+    let rod = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 0.5,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    // A quarter about y carries `(x, y, z)` to `(z, y, −x)`.
+    let coin = moved(
+        &rod,
+        &Affine3::rotation_about_axis(
+            geom_core::Point3::origin(),
+            Vec3::new(0.0, 1.0, 0.0),
+            PI / 2.0,
+        ),
+    );
+    assert_every_op_apart(
+        "lens, coin",
+        &lens(),
+        &coin,
+        (lens_volume(), PI * r * r * 0.5),
+    );
 }

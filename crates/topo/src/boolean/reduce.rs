@@ -494,7 +494,7 @@ fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(),
 /// tier 1 an unresolvable curve key at the operand gate, and the
 /// sweep's only surgery (`split_edge`) mints certified pieces, so a
 /// miss past the gate is a kernel invariant, not the operand's fault.
-fn certified<T: geom_core::Real>(
+pub(super) fn certified<T: geom_core::Real>(
     geom: Option<&CurveGeom<T>>,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
     geom.and_then(CurveGeom::certified)
@@ -3049,11 +3049,11 @@ enum SpanVerdict<T: geom_core::Real> {
     LiesOn,
     /// The line definitely misses the wall entirely.
     Miss,
-    /// The line is TANGENT to the carrier, and the touch is certified off
-    /// this face ([`touch_off_face`]): every point of the line the band
-    /// can put on the carrier lies on the carrier outside the trim. Like
-    /// [`Self::Miss`] it accounts for no crossing of THIS face; unlike it,
-    /// the line may meet the carrier, so an endpoint the band puts ON the
+    /// The roots did not settle, and every touch of the span with the
+    /// carrier is certified off this face
+    /// ([`super::carrier_touch::off_face`]): the span meets the carrier,
+    /// if at all, outside the trim. Like [`Self::Miss`] it accounts for no
+    /// crossing of THIS face; unlike it, an endpoint the band puts ON the
     /// carrier is no contradiction.
     OffFace,
     /// The roots did not settle the span and the caller keeps its own
@@ -3104,9 +3104,8 @@ fn wall_crossing<T: Decide + Bounds>(
     let found = match *carrier {
         geom::Curve3::Line { origin, dir } => {
             match line_wall_roots_of(origin, dir, (t1 - t0).abs(), surface, band)? {
-                LineRoots::Roots(found) => found,
-                LineRoots::Verdict(verdict) => return Ok(verdict),
-                LineRoots::Touch(touch) => return touch_off_face(y, face, touch, band),
+                Ok(found) => found,
+                Err(verdict) => return Ok(verdict),
             }
         }
         // The conic root doors ([`super::circle_roots`]), one answer
@@ -3147,7 +3146,18 @@ fn wall_crossing<T: Decide + Bounds>(
         // circle or ellipse that lies on a sphere, wall or torus. (A
         // ruling on a wall is the line door's `Constant`, above.)
         CircleRoots::OnSurface => return Ok(SpanVerdict::LiesOn),
-        CircleRoots::Uncertain => return Ok(SpanVerdict::Unsettled),
+        // A tangency, or a count the door could not certify: where the
+        // span may meet the carrier is localized and read against the
+        // face, which settles it off the face or keeps the door.
+        CircleRoots::Uncertain => {
+            return Ok(
+                if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? {
+                    SpanVerdict::OffFace
+                } else {
+                    SpanVerdict::Unsettled
+                },
+            );
+        }
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
         CircleRoots::CountDisagrees => {
             return Err(BooleanError::ClassificationInvariant {
@@ -3249,51 +3259,11 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
     }
 }
 
-/// What [`line_wall_roots_of`] answers about a line.
-enum LineRoots<T: geom_core::Real> {
-    /// The root doors' answer.
-    Roots(CircleRoots<T>),
-    /// An answer that shape has no word for: an axis-parallel line's
-    /// residual is constant along it without being zero
-    /// ([`SpanVerdict::Constant`]).
-    Verdict(SpanVerdict<T>),
-    /// A tangency to a wall or a sphere, localized.
-    Touch(CarrierTouch<T>),
-}
-
-/// **A line's tangency to a carrier, localized**: the point `at` where
-/// the line comes nearest the carrier, and a `reach` such that every
-/// point of the line whose residual the band does not decide off the
-/// carrier lies within `reach` of `at`. `kappa` is the carrier's
-/// smallest radius, the scale below which a ball about a point near the
-/// carrier meets it in one cap.
-#[derive(Clone, Copy, Debug)]
-struct CarrierTouch<T: geom_core::Real> {
-    at: Point3<T>,
-    reach: T,
-    kappa: T,
-}
-
-impl<T: Decide> CarrierTouch<T> {
-    /// The touch of the line `origin + dir·t` with a carrier whose
-    /// residual along it is `(a·(t − t*)² − h²)/2r`, `a = |dir⊥|²` the
-    /// squared speed across the carrier, `h²` the squared half-chord the
-    /// discriminant decided `Zero` (so `|h²| ≤ 2r·zero`), `t*` the
-    /// vertex. Where the residual is not decided off the carrier,
-    /// `|residual| < escalate`, so `a·(t − t*)² < 2r·(zero + escalate)`:
-    /// the reach is that run in metres along the line.
-    fn of_quadratic(origin: Point3<T>, dir: geom_core::Vec3<T>, t_star: T, a: T, r: T, band: Band) -> Self {
-        let run = (T::from_f64(2.0 * (band.zero() + band.escalate())) * r / a).sqrt();
-        Self {
-            at: origin + dir * t_star,
-            reach: dir.norm() * run,
-            kappa: r,
-        }
-    }
-}
-
-/// The certified LINE × wall roots, per kind ([`LineRoots`]). `span` is
-/// the run of the line's parameter the edge covers, the lever the wall's
+/// The certified LINE × wall roots, per kind, in the root doors' answer
+/// shape — or, for the one answer that shape has no word for, the
+/// verdict itself: an axis-parallel line's residual is constant along it
+/// without being zero ([`SpanVerdict::Constant`]). `span` is the run of
+/// the line's parameter the edge covers, the lever the wall's
 /// axis-parallel rung is metered over.
 fn line_wall_roots_of<T: Decide>(
     origin: Point3<T>,
@@ -3301,7 +3271,7 @@ fn line_wall_roots_of<T: Decide>(
     span: T,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<LineRoots<T>, BooleanError> {
+) -> Result<Result<CircleRoots<T>, SpanVerdict<T>>, BooleanError> {
     use super::solid_contain::WallRoots;
     let two = |ts: [T; 2]| {
         let mut thetas = [T::zero(); 2 * super::circle_roots::MAX_DEGREE];
@@ -3315,8 +3285,8 @@ fn line_wall_roots_of<T: Decide>(
     // sphere, so neither has such a case. A tangency is not a crossing
     // this lane can act on — the material verdicts behind a pierce are
     // first-order, and along a tangency every first-order datum ties —
-    // so it is localized ([`CarrierTouch`]) for the face to read.
-    Ok(LineRoots::Roots(match *surface {
+    // so it keeps the door.
+    Ok(Ok(match *surface {
         geom::Surface::Cylinder {
             origin: c_origin,
             axis,
@@ -3330,16 +3300,8 @@ fn line_wall_roots_of<T: Decide>(
             diag: fault.diag,
         })? {
             WallRoots::Two(ts) => two(ts),
-            WallRoots::Tangent => {
-                let w = origin - c_origin;
-                let (wp, dp) = (w - axis * w.dot(axis), dir - axis * dir.dot(axis));
-                let a = dp.norm_squared();
-                let t_star = T::zero() - wp.dot(dp) / a;
-                return Ok(LineRoots::Touch(CarrierTouch::of_quadratic(
-                    origin, dir, t_star, a, radius, band,
-                )));
-            }
-            WallRoots::AxisParallel => return Ok(LineRoots::Verdict(SpanVerdict::Constant)),
+            WallRoots::Tangent => CircleRoots::Uncertain,
+            WallRoots::AxisParallel => return Ok(Err(SpanVerdict::Constant)),
             WallRoots::Miss => CircleRoots::Miss,
         },
         // The quartic: the ray lane's own certified root door, over the
@@ -3376,172 +3338,12 @@ fn line_wall_roots_of<T: Decide>(
                     diag,
                 })? {
                 WallRoots::Two(ts) => two(ts),
-                WallRoots::Tangent => {
-                    let a = dir.norm_squared();
-                    let t_star = T::zero() - (origin - center).dot(dir) / a;
-                    return Ok(LineRoots::Touch(CarrierTouch::of_quadratic(
-                        origin, dir, t_star, a, radius, band,
-                    )));
-                }
+                WallRoots::Tangent => CircleRoots::Uncertain,
                 WallRoots::AxisParallel | WallRoots::Miss => CircleRoots::Miss,
             }
         }
         _ => CircleRoots::Uncertain,
     }))
-}
-
-/// **A carrier touch read against the face**: [`SpanVerdict::OffFace`]
-/// when the touch is certified off it, [`SpanVerdict::Unsettled`]
-/// otherwise.
-///
-/// Every point where the line can meet the carrier lies in the ball `B`
-/// of radius `reach` about `at` ([`CarrierTouch`]). With `reach`
-/// definitely below the carrier's smallest radius, `B` meets the carrier
-/// in one cap. No vertex or edge of the face reaching `B`
-/// ([`clear_of_ball`]), the face holds all of that cap or none of it, and
-/// `at`, placed on the carrier and `Out` of the trim, says none. So the
-/// line meets the carrier, if at all, outside this face.
-///
-/// # Errors
-///
-/// The placement's escalation or a stale face, as in [`wall_crossing`],
-/// and an edge with no certified carrier.
-fn touch_off_face<T: Decide + Bounds>(
-    y: &Body<T>,
-    face: FaceKey,
-    touch: CarrierTouch<T>,
-    band: Band,
-) -> Result<SpanVerdict<T>, BooleanError> {
-    if !matches!(
-        decide(
-            "bool_touch_reach_in_carrier",
-            Margin::of(touch.kappa - touch.reach),
-            band,
-        ),
-        Ok(Sign::Positive)
-    ) {
-        return Ok(SpanVerdict::Unsettled);
-    }
-    match super::contain::curved_face_placement(y, face, touch.at, band) {
-        Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => {}
-        Ok(_)
-        | Err(
-            super::contain::ContainError::EmptyLoop(_)
-            | super::contain::ContainError::LoopUnreadable(_)
-            | super::contain::ContainError::Curved(_)
-            | super::contain::ContainError::RayExhausted
-            | super::contain::ContainError::Uncrossable(_),
-        ) => return Ok(SpanVerdict::Unsettled),
-        Err(super::contain::ContainError::Escalated(diag)) => {
-            return Err(BooleanError::Escalated {
-                decision: BooleanDecision::Containment,
-                diag,
-            });
-        }
-        Err(super::contain::ContainError::StaleFace(face)) => {
-            super::contain::driver_face_stale(face)
-        }
-    }
-    let f = crate::live::proven(&y.faces, face, EntityId::Face);
-    for (_, l) in y.face_loops_linked(face, f) {
-        let clear = match l.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => clear_of_ball(
-                (y.resolve_vertex_point(vertex, crate::live::Proven) - touch.at).norm(),
-                touch.reach,
-                band,
-            ),
-            crate::entity::LoopBoundary::Cycle { first } => {
-                let mut clear = true;
-                for he in y.loop_walk(first).closed("loop", first) {
-                    let ek = crate::live::proven(&y.half_edges, he, EntityId::HalfEdge).edge;
-                    if !edge_clear_of_ball(y, ek, touch.at, touch.reach, band)? {
-                        clear = false;
-                        break;
-                    }
-                }
-                clear
-            }
-        };
-        if !clear {
-            return Ok(SpanVerdict::Unsettled);
-        }
-    }
-    Ok(SpanVerdict::OffFace)
-}
-
-/// Whether a lower bound `gap` on a distance from a touch definitely
-/// exceeds its `reach`.
-fn clear_of_ball<T: Decide>(gap: T, reach: T, band: Band) -> bool {
-    matches!(
-        decide("bool_touch_edge_clear", Margin::of(gap - reach), band),
-        Ok(Sign::Positive)
-    )
-}
-
-/// **Whether `edge` of `y` stays definitely farther than `reach` from
-/// `at`.** Its certified box, padded by the sweep's pad, clear of the
-/// ball's box answers at once. Otherwise a lower bound on the distance
-/// is decided against `reach`, per carrier: a segment's own distance;
-/// for an arc, the distance to its whole circle; for an elliptic arc,
-/// the offset from its plane together with the in-plane gap to the
-/// annulus between its semi-axes, where the whole ellipse lies. Any
-/// other carrier is not clear.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] for an edge with no
-/// certified carrier.
-fn edge_clear_of_ball<T: Decide + Bounds>(
-    y: &Body<T>,
-    edge: EdgeKey,
-    at: Point3<T>,
-    reach: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let pad = boxes::sweep_pad(band);
-    if !boxes::edge_box(y, edge, pad).overlaps(&boxes::centred_box(at, reach, pad)) {
-        return Ok(true);
-    }
-    let e = crate::live::proven(&y.edges, edge, EntityId::Edge);
-    // A point's offset from a plane through `center` with normal `axis`,
-    // and its distance from `center` within that plane.
-    let split = |center: Point3<T>, axis: geom_core::Vec3<T>| {
-        let w = at - center;
-        let n = axis / axis.norm();
-        let h = w.dot(n);
-        (h, (w - n * h).norm())
-    };
-    let gap = match *certified(y.get_curve_geom(e.curve))?.carrier() {
-        geom::Curve3::Line { .. } => {
-            let a = boxes::edge_end_point(y, edge, e.he_plus, "he_plus");
-            let b = boxes::edge_end_point(y, edge, e.he_minus, "he_minus");
-            let (d, w) = (b - a, at - a);
-            let s = (w.dot(d) / d.norm_squared()).max(T::zero()).min(T::one());
-            (w - d * s).norm()
-        }
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => {
-            let (h, rho) = split(center, axis);
-            ((rho - radius).powi(2) + h.powi(2)).sqrt()
-        }
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            ..
-        } => {
-            let (h, rho) = split(center, axis);
-            let g = (rho - major).max(minor - rho).max(T::zero());
-            (g.powi(2) + h.powi(2)).sqrt()
-        }
-        _ => return Ok(false),
-    };
-    Ok(clear_of_ball(gap, reach, band))
 }
 
 /// What one edge×curved-face pair asks of the sweep.
