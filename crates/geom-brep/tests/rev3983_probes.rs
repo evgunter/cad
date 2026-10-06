@@ -923,3 +923,45 @@ fn leverb_near_tangent_parabola() {
         }
     }
 }
+
+/// Round 4 (lever A): a plane near-tangent to a unit-radius wall,
+/// `z = x²/2` (the unit cylinder to second order at its crest), cut by
+/// `z = δ`, `δ = d²/2`, `d = 1e-4`: the two lines `2d` = 0.2 mm apart
+/// cross at `sin θ ≈ 1e-4`, and the pose is `δ = 5e-9` from tangency.
+#[test]
+fn levera_near_tangent_cylinder() {
+    for (rho, d) in [(1.0, 1e-4), (1.0, 1e-3)] {
+        let w = 0.01;
+        let delta = d * d / (2.0 * rho);
+        let xp = lin(-w, 2.0 * w, 0.0);
+        let zp = xp.mul(&xp).scale(1.0 / (2.0 * rho));
+        let (n, m) = (2, 1);
+        let xn = bernstein(&xp, n, m);
+        let zn = bernstein(&zp, n, m);
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for i in 0..=n {
+            for j in 0..=m {
+                control.push(Point3::new(xn[i][j], 0.02 * j as f64, zn[i][j]));
+            }
+        }
+        let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, delta),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let domain = SsiDomain {
+            center: Point3::new(0.0, 0.01, 0.0),
+            half_extent: 1.0,
+            extent: 0.02,
+            floor_scale: 1.0,
+        };
+        let tag = format!("rho={rho} d={d:e} δ={delta:.2e} eps={:e}", eps());
+        match ssi::plane_nurbs_ssi(&plane, &wall, domain, band()) {
+            Ok(out) => eprintln!("LEVERA4 {tag}: Ok {} branches", out.branches.len()),
+            Err(e) => eprintln!("LEVERA4 {tag}: Err {}", format!("{e}").chars().take(200).collect::<String>()),
+        }
+    }
+}

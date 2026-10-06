@@ -667,8 +667,19 @@ pub(crate) fn lever_variant() -> Option<&'static str> {
     match std::env::var("LEVER_VARIANT").ok().as_deref() {
         Some("geo") => Some("geo"),
         Some("extent") => Some("extent"),
+        Some("sag") => Some("sag"),
         _ => None,
     }
+}
+
+/// Round 4: the sagitta form, `sin θ · min(E, ½ sin θ · ρ)`.
+pub(crate) fn sag() -> bool {
+    lever_variant() == Some("sag")
+}
+
+/// The sagitta lever: `min(E, ½ · sine · ρ)`.
+pub(crate) fn sag_lever(sine: f64, rho: f64, extent: f64) -> f64 {
+    extent.min(0.5 * sine * rho)
 }
 
 /// The smallest radius of normal curvature of a surface at a chart

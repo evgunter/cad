@@ -989,6 +989,31 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         else {
             return Ok(None);
         };
+        // Round-4 probe (`LEVER_METRIC`): the sine read also along the
+        // chart direction whose image is perpendicular, on the surface,
+        // to the locus's at the window's centre; either reading is a
+        // lower bound of sin θ over the window, so the larger is one.
+        let margin = if std::env::var("LEVER_METRIC").is_ok() {
+            let su = boxes.deriv_box(u0, u1, v0, v1, true).center();
+            let sv = boxes.deriv_box(u0, u1, v0, v1, false).center();
+            let (su, sv) = (
+                geom_core::Vec3::new(su.x, su.y, su.z),
+                geom_core::Vec3::new(sv.x, sv.y, sv.z),
+            );
+            let tt = su * tx + sv * ty;
+            let (a, b) = (sv.dot(tt), -su.dot(tt));
+            let nab = (a * a + b * b).sqrt();
+            if nab.is_finite() && nab > 0.0 {
+                match chart_transverse_margin(&boxes, n, (u0, u1, v0, v1), (b, -a, nab)) {
+                    Ok(Some(m2)) => margin.max(m2),
+                    _ => margin,
+                }
+            } else {
+                margin
+            }
+        } else {
+            margin
+        };
         if margin < worst {
             worst = margin;
         }
@@ -1115,6 +1140,16 @@ impl core::fmt::Display for OneArcRefusal {
 ///
 /// A narrower rung is the more specific reading of the same carrier, so
 /// it speaks over every wider one.
+/// Round 4 probe: under the sagitta form the tube's arm is
+/// `min(E, ½ · clearance · ρ)`, `arm` carrying ρ; otherwise `arm`.
+fn sag_arm<T: Decide>(arm: T, clearance: f64, extent: f64) -> T {
+    if super::system::sag() {
+        (arm * T::from_f64(0.5 * clearance)).min(T::from_f64(extent))
+    } else {
+        arm
+    }
+}
+
 fn limb_three<T: Decide>(
     extent: f64,
     arm: T,
@@ -1145,7 +1180,7 @@ fn limb_three<T: Decide>(
                 // probe: with LEVER_DESCEND, a rung whose levered clearance
                 // falls in the band gives way to a narrower one, as a rung
                 // that is not one arc does; the narrowest's verdict stands.
-                match tube_transversality(rung.margin, arm, rung.boxes, band) {
+                match tube_transversality(rung.margin, sag_arm(arm, rung.margin, extent), rung.boxes, band) {
                     Ok(t) => return Ok((rung, t)),
                     Err(e) if std::env::var("LEVER_DESCEND").is_ok() => {
                         if std::env::var("LEVER_DEBUG").is_ok() {
@@ -1179,7 +1214,7 @@ fn limb_three<T: Decide>(
         (true, Some(Err(shortfall))) => shortfall,
         (true, _) => Shortfall::Undecided,
         (false, _) => {
-            let t = tube_transversality(rung.margin, arm, rung.boxes, band)?;
+            let t = tube_transversality(rung.margin, sag_arm(arm, rung.margin, extent), rung.boxes, band)?;
             return Ok((rung, t));
         }
     };
@@ -1454,7 +1489,10 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            let arm = if super::system::lever_variant() == Some("geo") && std::env::var("LEVER_REGION").is_err() {
+            let arm = if super::system::sag() {
+                let w = n.surface();
+                T::from_f64(super::system::sampled_wall_arm(w, w.knots_u().domain(), w.knots_v().domain()))
+            } else if super::system::lever_variant() == Some("geo") && std::env::var("LEVER_REGION").is_err() {
                 let w = n.surface();
                 let wa = super::system::sampled_wall_arm(w, w.knots_u().domain(), w.knots_v().domain());
                 if std::env::var("LEVER_DEBUG").is_ok() {

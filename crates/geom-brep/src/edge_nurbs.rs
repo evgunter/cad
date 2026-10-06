@@ -549,7 +549,10 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // curvature arm is infinite, so the honest arm is the
         // edge's spatial extent — the same meter the analytic
         // `Intersection` arm hands `classify_dihedral`.
-        let lever = if crate::ssi::system::lever_variant() == Some("geo") {
+        let lever = if crate::ssi::system::sag() {
+            let a = crate::ssi::system::jet_arm_of(&jet);
+            extent.min(sin_theta * T::from_f64(0.5 * a))
+        } else if crate::ssi::system::lever_variant() == Some("geo") {
             let a = crate::ssi::system::jet_arm_of(&jet);
             extent.min(T::from_f64(a))
         } else {

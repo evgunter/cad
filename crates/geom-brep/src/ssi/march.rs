@@ -926,6 +926,11 @@ pub(crate) fn decide_transversality<const N: usize>(
     let arm = Real::min(sys.lever_arm(x), extent);
     decide_positive("ssi_transversality_arm", Margin::of(arm), band)
         .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
+    let arm = if super::system::sag() {
+        super::system::sag_lever(sin_theta, sys.lever_arm(x), extent)
+    } else {
+        arm
+    };
     let transversality = Margin::levered(sin_theta, arm);
     // Zero is the sliver band: a tangential (or in-band tangential)
     // contact along the candidate locus, C7's regime. `sin θ · arm` is a
