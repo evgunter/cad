@@ -7544,3 +7544,6 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
    - delete the check-in trigger;
    - unsubscribe, archive, clean worktrees.
    The P3s, P4s and design rows stay on the board for the next orchestrator.
+- 18:46 check-in:
+  - The PR 4165 fix lane has pushed `db8b742e` and is running the release battery against main. It has not yet reported its review fixes.
+  - PR 3702 ("the coplanar merge returns no stranded description") is **merged**, so agreed part 1 of PR 3970 is already done. The build unit covers privacy plus the vouch, the kill refusals and twins, tier 1, chartless transients and the scope-close assertion.
