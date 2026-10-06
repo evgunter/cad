@@ -1244,6 +1244,17 @@ fn sector_overlap<T: Decide>(
     Ok(straight || crossed)
 }
 
+/// A sector bound's side code against a face's PLANE ([`side_code`]
+/// with [`NO_CURVATURE`]): what the sector passes read a bound against.
+fn plane_side_code<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    face_normal: OutwardNormal<T>,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    side_code(dir, reach, face_normal, NO_CURVATURE(), band)
+}
+
 /// One sector's two side codes, `(start, end)`.
 type SidePair = (SideCode, SideCode);
 
@@ -1254,7 +1265,7 @@ fn pair_codes<T: Decide>(
     sb: &BoolSector<T>,
     band: Band,
 ) -> Result<(SidePair, SidePair), BooleanError> {
-    let code = |dir, reach, normal| side_code(dir, reach, normal, NO_CURVATURE(), band);
+    let code = |dir, reach, normal| plane_side_code(dir, reach, normal, band);
     Ok((
         (
             code(sa.start, sa.start_reach, sb.normal)?,
@@ -1365,7 +1376,7 @@ pub(super) fn wedge_classes<T: Decide>(
             faces.push((s.face, s.normal));
         }
     }
-    let code = |dir, reach, normal| side_code(dir, reach, normal, NO_CURVATURE(), band);
+    let code = |dir, reach, normal| plane_side_code(dir, reach, normal, band);
     let met = match faces.as_slice() {
         [(f0, _), (_, n1)] => {
             let inside =

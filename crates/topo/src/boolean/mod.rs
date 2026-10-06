@@ -402,18 +402,25 @@ impl SideCode {
 }
 
 /// **One operand edge piece's side of the other operand, beside a
-/// vertex the classification read** (D5: a birth row, recorded as the
-/// sector passes read it, never re-measured): the piece of operand
-/// `operand`'s edge `edge` that starts or ends at `vertex`, and which
-/// side of the other operand's boundary it lies on just beside it.
+/// vertex the classification read**: the piece of operand `operand`'s
+/// edge `edge` that starts or ends at `vertex`, and which side of the
+/// other operand's boundary it lies on just beside it.
 ///
-/// The vertex-on-face pass records every edge at the piercing vertex,
-/// read against the pierced face; the vertex-vertex pass records every
-/// edge at each vertex of a pair whose other vertex lies inside an edge
-/// of its body (two faces meeting along it), read against that wedge,
-/// and nothing at any other pair. `class` is the reading before any
-/// reclassification lumps it: `In` and `On` both lie in the other
-/// operand's closed body.
+/// Two passes write rows, and only the first records a decision the
+/// classification made:
+/// - The vertex-on-face pass records every edge at the piercing vertex,
+///   read against the pierced face: the side codes that pass decided
+///   and acted on, recorded as it read them (D5's birth row), before
+///   any reclassification lumps them.
+/// - The vertex-vertex pass records every edge at each vertex of a pair
+///   whose other vertex lies inside an edge of its body (two faces
+///   meeting along it), read against that wedge, or at a convex corner,
+///   and nothing at any other pair (`sectors::wedge_classes`). The
+///   classification itself decides sector pairs, not edges, so these
+///   rows are a measurement of their own, taken beside it from the same
+///   sectors, not a record of what it decided.
+///
+/// `In` and `On` both lie in the other operand's closed body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EdgePieceClass {
     /// The operand whose edge the piece is.

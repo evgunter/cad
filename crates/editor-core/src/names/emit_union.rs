@@ -1474,13 +1474,27 @@ impl Fold {
         senses: &CrossingSenses,
     ) -> Result<(), NamingError> {
         let mut carried = CrossingSenses::new();
-        if naming.a_keys == topo::OperandKeys::Direct {
-            let fused = naming.fused_into();
-            for (v, read) in core::mem::take(&mut self.senses) {
-                let v = fused.get(&v).copied().unwrap_or(v);
-                if result.get_vertex(v).is_some() {
-                    carried.entry(v).or_default().extend(read);
+        // The accumulation is the step's A side. Its senses carry where
+        // the result arena is its clone; where none of its material is
+        // in the result its vertices are gone, and so is what they read.
+        // The kernel grafts only B, so an A side whose keys come through
+        // graft rows is a record this fold cannot read.
+        match naming.a_keys {
+            topo::OperandKeys::Direct => {
+                let fused = naming.fused_into();
+                for (v, read) in core::mem::take(&mut self.senses) {
+                    let v = fused.get(&v).copied().unwrap_or(v);
+                    if result.get_vertex(v).is_some() {
+                        carried.entry(v).or_default().extend(read);
+                    }
                 }
+            }
+            topo::OperandKeys::Absent => {}
+            topo::OperandKeys::Grafted => {
+                return Err(NamingError::Emission {
+                    what: "a union fold step grafted its accumulation, whose crossing senses it \
+                           reads by result key",
+                });
             }
         }
         for (&v, read) in senses {
