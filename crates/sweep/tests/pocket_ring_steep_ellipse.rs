@@ -507,11 +507,13 @@ fn miss(
     let t2 = topo::validate_closed(&bb.body).is_ok();
     let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
     let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
-    let v = topo::mass_properties(&bb.body, tol()).map(|m| m.volume);
+    let m = topo::mass_properties(&bb.body, tol());
+    let v = m.as_ref().map(|m| m.volume).map_err(|e| e.clone());
+    let pad = m.as_ref().map_or(0.0, |m| m.volume_pad);
     match v {
-        Ok(v) if t2 && t3 && cert && (v - volume).abs() < vol_tol => None,
+        Ok(v) if t2 && t3 && cert && (v - volume).abs() < vol_tol + pad => None,
         _ => Some(format!(
-            "body t2={t2} t3p={t3} cert={cert} v={v:?} want={volume}"
+            "body t2={t2} t3p={t3} cert={cert} v={v:?} pad={pad} want={volume}"
         )),
     }
 }
@@ -528,6 +530,13 @@ fn miss(
 /// The plate's bodies are not asked to unite with a far brick (the
 /// differential `outcome`'s operand check), which every plate body of
 /// this shape refuses on main too.
+
+/// At ε 1e-6 the θ = 70° mirrored pose reads its pierce-sector margin
+/// (≈ 3.5e-6) inside the band: every run escalates on this predicate, typed,
+/// rather than building. The same shape as `pinch_faces_tessellate`'s
+/// `REFUSES_AT_1E6`.
+const REFUSES_AT_1E6: (f64, &str) = (70.0, "bool_pierce_sector_side_curved");
+
 #[test]
 fn steep_ellipse_poses_build_sound_or_refuse_typed() {
     use Want::{Sound, SoundOrRefused};
@@ -614,7 +623,8 @@ fn steep_ellipse_poses_build_sound_or_refuse_typed() {
             2.0 * ((R + t) / theta.cos() + 1.0),
         );
         let va = (xs.1 - xs.0) * 4.0 * t;
-        let vb = topo::mass_properties(&rd, tol()).unwrap().volume;
+        let mb = topo::mass_properties(&rd, tol()).unwrap();
+        let (vb, pad_b) = (mb.volume, mb.volume_pad);
         let vi = want_i(theta, xs, t);
         for (op, order, want) in runs {
             let volume = match (op, order) {
@@ -628,7 +638,18 @@ fn steep_ellipse_poses_build_sound_or_refuse_typed() {
             } else {
                 (&rd, &pl)
             };
-            if let Some(m) = miss(ops(op, l, r), want, volume, 1e-7) {
+            let got = ops(op, l, r);
+            if tol().eps() == 1e-6 && theta_deg == REFUSES_AT_1E6.0 && mirror {
+                let escalated = match &got {
+                    Err(BooleanError::Escalated { diag, .. }) => diag.predicate,
+                    _ => None,
+                };
+                if escalated != Some(REFUSES_AT_1E6.1) {
+                    misses.push(format!("theta={theta_deg} mirror {op} {order}: at 1e-6 want the in-band escalation, got {got:?}"));
+                }
+                continue;
+            }
+            if let Some(m) = miss(got, want, volume, 1e-7 + pad_b) {
                 misses.push(format!(
                     "theta={theta_deg} x={xs:?} mirror={mirror} {op} {order} ({want:?}): {m}"
                 ));
