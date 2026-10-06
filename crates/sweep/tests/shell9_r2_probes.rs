@@ -1,7 +1,7 @@
 //! **SHELL-9 review lane R2 — probes.** Rows here falsify (or fail to
 //! falsify) the unit's claims by execution: the end-to-end consumer
-//! exercise over the public doors, the drum's refusal reason, and what
-//! the closing mint does to an operand whose own pcurve map is wrong.
+//! exercise over the public doors, the drum's refusal reason, and
+//! the operand gate refusing an operand whose own pcurve map is wrong.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -229,83 +229,52 @@ fn r2_drum_reverted_cavity_alone_is_the_reason() {
     );
 }
 
-/// **Claim 7 — does the closing mint launder an operand whose own
-/// pcurve map is wrong?** An operand missing one row fails tier 3; the
-/// verb takes it anyway and returns a valid body.
-#[test]
-fn r2_the_closing_mint_launders_an_invalid_operand() {
-    let v = vessel(1.0, 2.0);
-    assert_eq!(topo::validate_geometric(&v, tol()), Ok(()), "operand valid");
-    let good = topo::shell(&finished("the operand", v.clone(), tol()), 0.2, tol())
-        .expect("the sound operand shells");
-    let good_rows: Vec<String> = good
-        .body
-        .pcurves()
-        .map(|(he, c)| {
-            format!(
-                "{he:?} {:?} {:?} {:?}",
-                c.params(),
-                c.pcurve(),
-                good.body.joint(he)
-            )
+/// The refusal the shell's operand gate gives `body`
+/// (`AtRestBody::validate`), every finding a pcurve one, as text.
+fn refused_on_rows(body: Body<f64>) -> Vec<String> {
+    let errors = topo::AtRestBody::validate(body, tol())
+        .expect_err("an operand that fails the tier-3 pcurve pass is not a finished body");
+    errors
+        .iter()
+        .map(|e| match e {
+            topo::ValidationError::Pcurve { finding } => format!("{finding:?}"),
+            other => panic!("the refusal is the pcurve pass's alone, got {other:?}"),
         })
-        .collect();
+        .collect()
+}
 
-    let mut maimed = v.clone();
+/// **Claim 7 — an operand whose own pcurve map is wrong never reaches
+/// the verb.** The closing mint clears the map before re-deriving, so
+/// the verb itself cannot see a missing row; the operand's gate does.
+/// Red without it: the verb took the operand and returned a valid body
+/// whose rows were the sound operand's, bit for bit.
+#[test]
+fn r2_an_operand_missing_a_row_is_refused_at_the_gate() {
+    let mut maimed = vessel(1.0, 2.0);
     let victim = maimed.pcurves().map(|(he, _)| he).next().expect("a row");
     maimed.detach_pcurve(victim).expect("removed");
-    let findings = pcurve_findings(&maimed);
+    let findings = refused_on_rows(maimed);
     assert!(
         !findings.is_empty(),
         "the maimed operand fails the tier-3 pcurve pass"
-    );
-    println!("[r2] maimed operand findings: {findings:?}");
-
-    // Measured, and pinned as measured: the verb takes the
-    // tier-3-invalid operand and returns a valid body whose rows are
-    // the sound operand's, bit for bit. A gate on the operand's rows
-    // would flip this row; that is a posture-table decision
-    // (`work/shell/shell-launders-a-stale-operand-row.md`).
-    let s = topo::shell(&finished("the operand", maimed.clone(), tol()), 0.2, tol())
-        .expect("the verb takes the tier-3-invalid operand");
-    assert_eq!(
-        topo::validate_geometric(&s.body, tol()),
-        Ok(()),
-        "and returns a valid body"
-    );
-    let rows: Vec<String> = s
-        .body
-        .pcurves()
-        .map(|(he, c)| {
-            format!(
-                "{he:?} {:?} {:?} {:?}",
-                c.params(),
-                c.pcurve(),
-                s.body.joint(he)
-            )
-        })
-        .collect();
-    assert_eq!(
-        rows, good_rows,
-        "bit-identical to the sound operand's result"
     );
 }
 
 /// **Claim 7, sharper — a WRONG row, not a missing one.** One joint's
 /// element moved a whole period off the one its two images decide: the
 /// operand is tier-3 invalid with a stale row, exactly the defect the
-/// pcurve pass exists to catch. What does the verb do?
+/// pcurve pass exists to catch. Red without the gate: the verb returned
+/// `Ok` and a tier-3-valid body.
 #[test]
-fn r2_the_closing_mint_launders_a_stale_row() {
-    let v = vessel(1.0, 2.0);
-    let (he, element) = v
+fn r2_an_operand_with_a_stale_row_is_refused_at_the_gate() {
+    let mut maimed = vessel(1.0, 2.0);
+    let (he, element) = maimed
         .joints()
         .find_map(|(he, e)| match e {
             topo::JointElement::Shift(deck) => Some((he, deck)),
             topo::JointElement::Reset(_) => None,
         })
         .expect("the vessel carries rows");
-    let mut maimed = v.clone();
     maimed.attach_joint(
         he,
         topo::JointElement::Shift(topo::Deck {
@@ -313,26 +282,10 @@ fn r2_the_closing_mint_launders_a_stale_row() {
             ..element
         }),
     );
-    let findings = pcurve_findings(&maimed);
-    assert_eq!(
-        findings.len(),
-        1,
-        "the wrong element breaks its joint: {findings:?}"
-    );
+    let findings = refused_on_rows(maimed);
     assert!(
-        findings.iter().all(|f| f.contains("LoopDiscontinuity")),
-        "{findings:?}"
-    );
-    // Measured, and pinned as measured: the closing mint clears the map
-    // before re-deriving, so the wrong row is laundered — the verb
-    // returns `Ok` and a tier-3-valid body. Same disposition as the
-    // row above.
-    let s = topo::shell(&finished("the operand", maimed.clone(), tol()), 0.2, tol())
-        .expect("the verb takes the stale-row operand");
-    assert_eq!(
-        topo::validate_geometric(&s.body, tol()),
-        Ok(()),
-        "and returns a tier-3-valid body"
+        findings.len() == 1 && findings[0].contains("LoopDiscontinuity"),
+        "the wrong element breaks its joint: {findings:?}"
     );
 }
 

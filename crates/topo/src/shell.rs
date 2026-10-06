@@ -2728,11 +2728,10 @@ mod tests {
         assert_eq!(valence(&lone.body, lone.vertex), 0, "a lone vertex");
     }
 
-    /// The verb takes the operand by reference and never writes it, so a
-    /// torn operand is a panic naming the torn record (D2 row 4), not a
-    /// typed refusal, and the caller's body is left as it was.
+    /// A torn operand is refused where the verb's operand is gated,
+    /// naming the torn record, and so never reaches the verb.
     #[test]
-    fn a_torn_operand_panics_naming_the_record() {
+    fn a_torn_operand_is_refused_at_the_gate_naming_the_record() {
         let tol = Tol::witness();
         let mut body = crate::splitting::reassembly::quad_prism(
             &crate::test_support_fixtures::UNIT_SQUARE,
@@ -2747,17 +2746,13 @@ mod tests {
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
-        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = shell(&finished("the operand", body.clone(), tol), 0.1, tol);
-        }));
-        let premise = format!(
-            "{}'s surface names {}, which does not resolve",
-            EntityId::Face(face),
-            crate::entity::GeomRef::Surface(dead)
-        );
+        let errors = AtRestBody::validate(body, tol).expect_err("a torn body is not finished");
         assert!(
-            report.contains(&premise) && report.contains(NAMES_ONLY_LIVE),
-            "{report}"
+            errors.contains(&ValidationError::DanglingGeometry {
+                from: EntityId::Face(face),
+                to: crate::entity::GeomRef::Surface(dead),
+            }),
+            "{errors:?}"
         );
     }
 
@@ -2797,10 +2792,10 @@ mod tests {
     #[test]
     fn a_stale_designation_stays_typed() {
         let tol = Tol::witness();
-        let body = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let body = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let stale = FaceKey::default();
         assert!(matches!(
-            shell_open(&finished("the operand", body.clone(), tol), 0.1, &[stale], tol),
+            shell_open(&finished("the brick", body, tol), 0.1, &[stale], tol),
             Err(ShellError::OpenFaceStale { face }) if face == stale
         ));
     }
