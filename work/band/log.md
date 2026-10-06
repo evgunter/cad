@@ -518,3 +518,21 @@ Opus = A, Fable = B; both matched after round 3). The row's build order is
 in its `## Ruled` section; step 1 dispatches next. Filed
 `chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
 question.
+
+## 2026-10-06 — `a-blend-refuses-a-solid-of-several-shells` closed (PR #4113)
+
+A blend carves each chain inside the shell it lies in and leaves every other
+shell untouched, byte for byte down to the pcurve rows (the inventory gate
+that refused any body but one solid of one shell is gone). The row's premise
+was wrong: the bracket split's leg-tip half is two solids of one shell each;
+the door covers that and a solid with a void shell. A chain or corner whose
+supports lie in two shells is tier-1-invalid and refuses `BodyNotIntact`
+(the `AcrossShells` variant the lane first minted was folded in). Full
+review (APPROVE-WITH-FIXES, no MAJOR) — its N6 showed a tier-3′ backstop at
+the door would refuse a valid island round and miss one-shell overlap, so
+none was added; the overlap hole the lane found is
+`blend-material-is-never-checked-against-faces-that-are-not-its-supports`
+(P0, in flight). The fix pass also caught that an empty request on an
+empty body had begun to answer `SurgeryInvariant`. Filed JOIN's
+`pinch-tessellate-row-escalates-coincidence-at-eps-1e-6` (main red at 1e-6;
+merged over it). First BAND units run as cloud sessions.

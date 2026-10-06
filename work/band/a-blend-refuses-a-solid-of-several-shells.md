@@ -2,10 +2,12 @@
 id: a-blend-refuses-a-solid-of-several-shells
 kind: issue
 title: blend: a solid of several outer shells refuses UnsupportedBody before any chain is read, so a split half that came out in two pieces cannot be blended
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+pr: 4113
+closed: 2026-10-06
 ---
 
 Found by SHOW's `split-node-chords-by-name-has-no-demo` while varying
