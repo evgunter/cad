@@ -25,7 +25,10 @@ The replay is `sym11_the_exact_channel_never_contradicts_past_the_ceiling`'s
 | #3455 `6552c509ad` | step ids mint from a digest chain | 2592 → 2577 |
 | #3594 `c28f9aba17` | node ids mint from the document's one mint chain | 2529 → 2544 |
 
-The parents are `40bfe407bf` and `8247568db8`. Neither merge changes a
+The parent column was read at the nearest first-parent predecessors
+that change library source, `40bfe407bf` and `8247568db8`; the true
+first parents, `59431c457a` and `8e0bca253b`, read the same (2592 and
+2529, the review's re-run). Neither merge changes a
 file under `geom-core`, `geom-brep`, `sweep` or `profile`. No decision
 column moves on any of the five measured documents at either merge.
 The other four documents' `frozen` does not move. The pad's rule-F row
@@ -34,11 +37,29 @@ moves by the same amount at both dials.
 
 ## What is not measured
 
-Why it moves. One route is that evaluation visits independent nodes in
-an order keyed on `RecipeNodeId` (`editor-core/src/eval/schedule.rs`),
-so a re-mint reorders which node the session builds first, and with it
-which compound reaches the term budget. This is a hypothesis: no probe
-has re-keyed the ids on a fixed tree.
+Why it moves. Two routes are ruled out:
+- **Not the schedule, at #3594.** `editor-core/src/eval/schedule.rs` breaks ties
+  between ready nodes by their position in `Doc::order`, the author's
+  order, and `Doc::positions` (`editor-core/src/doc.rs`) says an id is
+  a digest and says nothing of seniority. That has held since #3593
+  (`3bc4df6595`, 2026-09-30), so a re-mint does not reorder the
+  schedule at #3594. At #3455 the tie-break was still the id. #3593's
+  own re-keying of the ties did not move the pad's `frozen`: the
+  stretch that holds it, `6552c509ad` to `0eccbbff6b`, reads 2577 at
+  both ends (SYM-16's bisect). That is weaker than a probe, since
+  nothing inside the stretch was bisected and a cancelling move would
+  read the same.
+- **Not the parameters' symbol order.** At both merges a parameter's
+  symbol is keyed on its name (`analysis::param_env_over` hands
+  `T::axis_named` the name at `c28f9aba17`), so the parameters sort the
+  same before and after either re-mint.
+
+What is left is something keyed on a minted id inside what the session
+builds: atoms, or the order in which a map keyed on a node or step id
+is walked, which decides which compound is built first and so which
+one reaches the term budget. That is `sym-tier-reach-depends-on-symbol-order`'s
+class, order and not content deciding what the tier reaches. This
+is a hypothesis: no probe has re-keyed the ids on a fixed tree.
 
 ## Why it matters
 

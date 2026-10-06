@@ -186,16 +186,16 @@ window.
 ### Since the window: `8ee3daf171` to `main` at `07ddd620a2`
 
 The same script was run along `main`'s first parent. It was taken at
-the parent and at the merge of every PR that re-pinned either row or
-`measured_studies`, and at the head. Each stretch between those
+the merge of every PR that re-pinned either row or `measured_studies`,
+at the commit before it (the parent column below), and at the head. Each stretch between those
 points whose ends disagreed was bisected over its commits that change
 a `crates/*/src/*.rs` file. Past-the-ceiling receipts here are
 `[symbolic_zero, sign_gated, registered, numeric, frozen]`, because
 `sign_gated` stops being 0 at #2468. The pad's rule-F row reads the
 same at both dials from #3254 on, so one tuple stands for both.
 
-Every move, at ε = 1e-9, with the merge it is bisected to. The parent
-of each merge reads the row before it.
+Every move, at ε = 1e-9, with the merge it is bisected to. The row
+before each is the reading at the commit before the merge.
 
 | merge | plate | annulus | link | bracket | pad, past the ceiling | pad rule-F row | credited where |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -209,18 +209,28 @@ of each merge reads the row before it.
 | #2468 `dc39bce95d` `props/sign-hull` | sz +8, num −8 | — | reg −5, num +5 | sz +7, sg +5, num −12 | sz +8, sg +34, reg +22, num −64 | the same | `Study` (`7e6371fbae`); rule-F row (`304e61c6a6`) |
 | #3697 `1346a31745` the schedule's middle is `mid_param` | frozen −96 | frozen −96 | frozen −48 | frozen −96 | frozen −168 | frozen −168 | **not credited** |
 | #3594 `c28f9aba17` node-id digest mint | — | — | — | — | frozen +15 | frozen +15 | **not credited** |
-| #3527 `44b64db0ba` copied arc carriers | — | — | — | frozen −4 | reg −2, num +2, frozen −34 | the same | `Study` (`registered`, `numeric`) |
+| #3527 `44b64db0ba` copied arc carriers | — | — | — | frozen −4 | reg −2, num +2, frozen −34 | the same | `Study` (`registered`, `numeric`); `frozen` judged below |
 | #3807 `c983e6e299` DECIDE-9 | — | — | — | — | sz +32, sg −32 | the same | `Study`, rule-F row |
-| #3759 `82b52c36cb` PCERT | sz +136, reg +8, num +236, frozen +24 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +68, reg +4, num +118, frozen +12 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +87, reg +4, num +176, frozen +77; refuses at `pcurve_envelope` | `(1036,2,152,1188,2587)`, refuses at `pcurve_envelope` | `Study`, rule-F row |
+| #3759 `82b52c36cb` PCERT | sz +136, reg +8, num +236, frozen +24 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +68, reg +4, num +118, frozen +12 | sz +112, sg +24, reg +8, num +236, frozen +24 | sz +87, reg +4, num +176, frozen +77; refuses at `pcurve_envelope` | `(1036,2,152,1188,2587)`, refuses at `pcurve_envelope` | `Study`, rule-F row; `frozen` judged below |
 | #3981 `6d1cef94cf` check 5's escape | sz +8, num −8 | sg +8, num −8 | sz +4, num −4 | sg +8, num −8 | sz +4, num −4 | sz +4, num −4 | `Study` (plate, link, pad) |
 | #4037 `201239b0e4` joint elements | num +14 | num +14 | num +7 | num +14 | num +10 | num +10 | **not credited** |
 
 Every other stretch reads the same at both ends. #4011 (INTENT-VARS-1
-PR 2) moves nothing past the ceiling. The parents taken, in table
-order: `453faa7d18`, `69b0ce3b4a`, `65f395e88e`, `40bfe407bf`,
-`0eccbbff6b`, `c191268379`, `f497cf22eb`, `81a70cb612`, `8247568db8`,
-`a049d2c5ed`, `1c1c23be85`, `0612478485`, `675fdccc69`, and `d01d8ae1fe`
-for #4037. #3804 (SYM-15, `810bc55336`) reads #3807's values.
+PR 2) moves nothing past the ceiling. #3804 (SYM-15, `810bc55336`)
+reads #3807's values.
+
+The commit before each merge, in table order, is the nearest
+first-parent predecessor that changes library source, which is not
+always the merge's first parent: `453faa7d18`, `69b0ce3b4a`,
+`65f395e88e`, `40bfe407bf` (first parent `59431c457a`), `0eccbbff6b`
+(`4e50090523`), `c191268379` (`48d23b0796`), `f497cf22eb`,
+`81a70cb612` (`df2ba5764c`), `8247568db8` (`8e0bca253b`),
+`a049d2c5ed`, `1c1c23be85`, `0612478485`, `675fdccc69`, and
+`d01d8ae1fe` (`cb86a8e184`) for #4037. Where the two differ, the
+commits between them change no file under `crates/` other than
+Markdown (`git diff --name-only`), so they build the same rows. The
+review re-ran three of the first parents, `59431c457a`, `8e0bca253b`
+and `cb86a8e184`, and each read what its predecessor here reads.
 
 **At the head (`07ddd620a2`), ε = 1e-9:** plate `[955,0,148,704,1068]`,
 annulus `[440,32,148,451,1080]`, link `[286,0,84,296,568]`, bracket
@@ -280,21 +290,43 @@ deltas, `symbolic_zero` +4 and `numeric` +6, leave it red.
 
 #### The moves a PR credited
 
-Each was credited at `certifies_at` in `measured_studies`, or in the
-rule-F row, and argued there. Past the ceiling each moves the same
-predicates in the same direction:
+Each decision move was credited at `certifies_at` in
+`measured_studies`, or in the rule-F row, and argued there. Past the
+ceiling each moves the same predicates in the same direction:
 - #3313: the must-carry stations' new `dihedral_wedge` decisions;
 - #3254: the link's span sharing the pushforward's atom;
 - #3266: the run-outs proved zero;
 - #2468: DECIDE-3's fold, rule G and the decision read, then the
   read's pre-emption of 32 theorems;
-- #3527: copied carriers;
+- #3527: copied carriers, the pad's `registered` −2 and `numeric` +2;
 - #3807: DECIDE-9 returns those 32 to theorems;
 - #3759: the pcurve mint's new checks, with the bracket and the pad
   now refusing at `pcurve_envelope`;
 - #3981: check 5's escape.
 
-The calls on these stand as those PRs made them. One stored value was
+The calls on these stand as those PRs made them. Two of these merges
+also moved `frozen`, which no pin credited and no PR judged:
+
+- **#3527 (`frozen` −34 pad, −4 bracket): right.** A lift now carries
+  the stored arc carrier instead of re-lowering it from the chord and
+  bulge. `Study`'s note at the merge reads the credited trade the same
+  way: the re-lowered centre froze to an atom a rim registration
+  reached, and over the copied carrier it does not
+  (`work/rules/registrations-sealed-inside-frozen-compounds`). Building
+  fewer re-lowered nodes leaves fewer to freeze, and no decision class
+  moves beyond the credited trade. Which nodes left the set was not
+  read: no per-node freeze listing was taken at the parent and the
+  merge.
+- **#3759 (`frozen` +24 plate, annulus and bracket, +12 link, +77 pad):
+  right.** The extrude now closes with the pcurve mint, so every replay
+  builds the mint's checks, check 4's envelope and the loop walk's
+  branches. Those are new compounds, and a share of them freeze: the
+  same merge adds 236 `numeric` decisions on the plate, annulus and
+  bracket, and 118 on the link, which has half their walls, as its
+  `frozen` +12 is half of +24. The pad's +77 is over a different prefix,
+  since it starts refusing at `pcurve_envelope` at the same merge.
+  Whether any node that had a form before lost it was not read node by
+  node; the call rests on the decision columns, which only rise. One stored value was
 not the merged tree's: #2468 stored the rule-F row's `frozen` as 2577,
 where its merge reads 2697. The difference is #3612's −48 and #3645's
 +168 taken together. Two numbers differ
