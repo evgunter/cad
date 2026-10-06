@@ -1126,3 +1126,23 @@ No ratified text moves, so there is no `[ev]` PR. The spec basis is in
 the item. Unit 6 now runs BEFORE unit 7, whose partial-revolve lift
 depends on it. Its review tier is DUAL: the gate change re-routes many
 bodies and is hard to reverse once rows are rebuilt on it.
+
+## Unit 4 MERGED (2026-10-06, PR 4117)
+
+Lofted and NURBS-walled bodies get past the wall-seam re-anchor. The
+re-anchor is certified and seeded on spline carriers and in closed form
+on ellipses. Single full review: APPROVE-WITH-FIXES, no MAJOR. The fix
+pass:
+- adds a seed-sensitive row (red under the reviewer's seedless mutant);
+- makes the analytic arms explicit;
+- re-measures |δ| over the new carrier kinds;
+- uses one `NurbsLaneUnsupported` spelling within the door;
+- corrects the refusal docs and the vase number.
+Filed:
+- the closed-carrier seam case, the three-spellings class and the
+  spline-extension residue (shell);
+- the zero-span "kernel defect" text, riding unit 5;
+- the ellipse boolean `param_near` sites (HONE);
+- the interior-row iso arm (ISO).
+ENCL's rigid-map row, which was parked on the closed item, is re-parked
+on the oblique-corner item that now gates it.
