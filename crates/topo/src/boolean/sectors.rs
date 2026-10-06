@@ -1129,7 +1129,7 @@ fn tangent_face<T: Decide>(
         }
     }
     let at_site = faces_at(side.body, side.site).map_err(stale_site)?;
-    Ok(crate::chord_join::sole_common_face(&at_site, &far_faces))
+    Ok(super::fragments::sole_common_face(&at_site, &far_faces))
 }
 
 /// The faces around a site of `body` (every copy null edges tie

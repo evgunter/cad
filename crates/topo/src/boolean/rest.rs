@@ -88,6 +88,7 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
+use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
     Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
     merge_rows, of_merge, split_lineage,
@@ -100,7 +101,6 @@ use super::{
     BooleanResult, BooleanResultKind, Locus, Operand, OperandKeys,
 };
 use crate::body::Body;
-use crate::chord_join::{Lineage, sole_common_face};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;

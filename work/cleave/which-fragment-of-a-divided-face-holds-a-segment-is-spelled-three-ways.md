@@ -42,30 +42,28 @@ arc its pairing names. `rest::fragment_holding` and
 
 ## Built (branch cleave/fragment-lineage)
 
-- **`chord_join::Lineage`** is the one lineage: a face and every face
-  the fragment rows divide off it, rows in any order (the fixpoint
-  `finish`'s `descendants` was). `Lineage::holding_both` names the face
-  of the lineage holding both ends of a segment through
-  `chord_join::sole_common_face`, moved there from `boolean::sectors`.
-  `rest::fragment_holding` reads `holding_both`; `finish::weld_pinches`
-  reads `Lineage::contains` as `pinch_site`'s admission.
-  `chord_join::lineage` and `finish::descendants` are gone.
-- **`JoinPlan` names the face holding both halves** (`face_holding`),
-  read by `segment_curve`, `ChordJoiner::join` and the boolean's
-  both-chords-skipped refusal (`JoinPlan::face`). Halves on two faces
-  refuse typed there: `SectionInvariant`, "a join's two halves sit on
-  two faces, and no chord joins loops of two faces".
-- **Measured** (topo + sweep, default profile, 4531 tests, instrumented):
-  - `segment_curve` WAS handed halves on two faces: 64 calls in 6 sweep
-    tests (`join2_r1_probes::unions_through_ring_vertices_…`,
-    `join2_r2_probes::a_like_far_ends_tie_…`, `…a_channel_whose_arm_ends_…`,
-    `…an_island_of_ring_vertex_segments_…`,
-    `reach_continuation::a_tangency_in_the_middle_of_an_edge_…`,
-    `rest_nested_strut::a_pinch_apex_meeting_one_vertex_…`). Every one
-    was refused already: 37 by `chord_spec` computed in the first half's
-    face (`SectionInvariant`, the tangent-germ frontier words), 27 by the
-    join's `mekr` (`Euler(NotSameFace)`). With `face_holding` the same
-    6 tests, and no others, refuse at the plan; all 4531 pass.
-  - The one-pass mint-order lineage and the fixpoint agreed on every
-    call (16 test threads: 13 through `rest`, 3 through the weld): every
-    current caller hands rows in mint order.
+- **`boolean::fragments`** is the home: `Lineage` (a face and every face
+  the fragment rows divide off it, rows in any order: the fixpoint
+  `finish`'s `descendants` was) and `sole_common_face`, moved from
+  `boolean::sectors`. `Lineage::holding_both` names the face of the
+  lineage holding both ends of a segment. `rest::fragment_holding`
+  reads it, `finish::weld_pinches` reads `Lineage::contains` as
+  `pinch_site`'s admission, and `sectors::tangent_face` and
+  `rest::mirror_edges` read `sole_common_face`.
+  `chord_join::lineage` and `finish::descendants` are gone. Unit rows
+  pin rows listed out of mint order and a lineage holding two shared
+  faces.
+- **`JoinPlan` reads the face once** (`JoinPlan::face`, the first
+  half's), and `first_chord`, `segment_curve`, `ChordJoiner::join` and
+  the boolean's both-chords-skipped refusal read the plan's.
+  `chord_join::he_loop`/`he_face` are the one half-edge → loop/face
+  reader (`splitting::join::he_face`, `place_pending`'s `loop_of`,
+  `cut_core`'s and `join`'s reads retired into them).
+- **Halves on two faces are reached** and left to today's refusals
+  (ruled on PR 4131's review): 64 `segment_curve` calls in 6 sweep
+  tests, refused by the curve's lane on the first half's face (37,
+  `SectionInvariant`) or the join's `mekr` (27, `NotSameFace`). The
+  half-selection defect behind them is
+  `work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`.
+- The one-pass mint-order lineage and the fixpoint agreed on every call
+  measured; every caller hands rows in mint order.

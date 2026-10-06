@@ -66,7 +66,7 @@ use crate::body::Body;
 use crate::chord_join::{
     ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
     SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he,
-    corrupt_loop, vertex_point, wall_section,
+    corrupt_loop, he_face, vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -206,15 +206,6 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
 /// The edge of a half-edge.
 fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJoinError> {
     Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge)
-}
-
-/// The face owning a half-edge's loop.
-fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJoinError> {
-    let l = body
-        .get_half_edge(he)
-        .ok_or_else(|| corrupt_he(he))?
-        .parent_loop;
-    Ok(body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.face)
 }
 
 /// The fixed partners of the null-edge halves on faces with more than
