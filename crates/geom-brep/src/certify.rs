@@ -243,8 +243,8 @@ pub enum CertCheck {
 ///
 /// **The word carries the KIND of quantity the check meters**, because
 /// the sentence cannot. [`CertifyError::ResidualExceeded`] wrote the
-/// noun itself — "{check} residual at sample …" — for all fifteen
-/// checks that reach it, and five of them meter no residual:
+/// noun itself — "{check} residual at sample …" — for every check
+/// that reaches it, and five of them meter no residual:
 /// [`CertCheck::TangentHull`] and [`CertCheck::PlaneNurbsHull`] are sup
 /// bounds, [`CertCheck::TangentParallel`] a parallelism defect,
 /// [`CertCheck::SeamHalfplane`] a component and [`CertCheck::SeamSide`]
@@ -542,7 +542,7 @@ impl core::fmt::Display for CertifyError {
             ),
             // The check says its own noun ([`CertCheck`]'s `Display`);
             // this sentence decides only the grammar around it. Five of
-            // the fifteen checks that reach this arm meter no residual
+            // the checks that reach this arm meter no residual
             // (two sup bounds, a parallelism defect, a component, an
             // excess), so the noun is not the sentence's to write.
             Self::ResidualExceeded { check, sample } => {
@@ -3251,9 +3251,8 @@ mod tests {
     /// The `Display` arms are an exhaustive match, so the words cannot
     /// fall BEHIND the taxonomy — a check without a word does not
     /// compile. What hand-written phrases CAN do is collide,
-    /// and several of these are one token apart by design (surface 1
-    /// against surface 2, the carrier's residual against the witness
-    /// point's), so a literal copied onto a neighbouring row is the
+    /// and several of these are one token apart by design (the
+    /// carrier's residual against the witness point's), so a literal copied onto a neighbouring row is the
     /// live failure mode, and a refusal naming a phrase two checks
     /// share cannot say which check refused.
     ///
