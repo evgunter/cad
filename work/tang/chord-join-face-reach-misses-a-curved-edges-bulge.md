@@ -37,6 +37,16 @@ foot. It is wrong in both directions:
   two-sided row whose definite side is served, an over-stated lever is
   as wrong as an under-stated one.
 
+PR 4118's third fix pass floored every measured lever at the pivot's
+distance from where it was measured. On this lane that raised a face
+shorter than the radius to the radius, past the face extent main
+levered by: the fourth review served a tilted ellipse where main
+escalated (`h = 0.5`, `k ≥ 6`; `h = 0.2`, `k ≥ 3`). The fourth fix pass
+keeps the floor only where the cylinder pair reads its foot-to-foot gap
+(`Reach::lever_between`). This lane levers at the face extent again, and
+`chord_join::tests::a_short_faces_pose_is_levered_at_its_face_extent_not_the_radius`
+pins that.
+
 ## The shape of a fix
 
 Measure the lever exactly: the consumed points' farthest axial distance

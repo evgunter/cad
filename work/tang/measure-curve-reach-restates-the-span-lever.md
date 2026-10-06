@@ -24,6 +24,9 @@ section classifiers. The two have drifted:
 
 The values agree on every certified carrier, whose radii are positive.
 
+The drift predates PR 4118: main's `replace_face::pose_reach`, the
+lever the span's rule was taken from, already read the magnitudes.
+
 ## Why it is not folded into PR 4118
 
 Routing `curve_reach` through the span lever adds the `abs` nodes to

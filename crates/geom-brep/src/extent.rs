@@ -28,15 +28,17 @@
 //! is a SERVED class (a tilt that names an ellipse, a sine that names
 //! crossing axes) it decides a reading that is in the band at the
 //! consumed extent, and serves a class the arm cannot tell from its
-//! neighbour. The rule the section classifiers' callers hold: **no lever
-//! is a ball chosen around the consumed region.** An edge's span
-//! ([`Reach::Span`]) is levered by its per-carrier farthest distance
-//! from a pivot chosen to make that distance least, so it is never
-//! longer than the same distance from the stored origin the classifiers
-//! levered an edge from before they read at a foot. A face's caller
-//! ([`Reach::Measured`]) hands the length it levered by before, floored
-//! at the pivot's distance from where it measured; those lengths are not
-//! exact distances yet (filed on TANG's slate).
+//! neighbour. The rule the section classifiers' callers hold: **a lever
+//! is never shorter than the region it consumes, and never longer than
+//! the lever the caller read the same row at before the classifiers
+//! read at a foot.** No ball chosen around the consumed region is a
+//! lever. An edge's span ([`Reach::Span`]) is levered by its
+//! per-carrier farthest distance from a pivot chosen to make that
+//! distance least, so it is no longer than the same distance from the
+//! stored origin the classifiers levered an edge from before. A face's
+//! caller ([`Reach::Measured`]) hands the length it levered by before;
+//! only the cylinder pair floors it ([`Reach::lever_between`]). Those
+//! lengths are not exact distances yet (filed on TANG's slate).
 //!
 //! The tangent-locus witness reads a ball, [`Reach::Ball`]: the one its
 //! callers, the carrier doors, hand it, as before the classifiers took a
@@ -176,8 +178,9 @@ pub enum Reach<T: Real> {
     Ball(ExtentBall<T>),
     /// A length the caller measured from `at` (chord_join's face extent,
     /// the germ frame's radius or span), read at the foot of `at`. Its
-    /// lever from a pivot is that length or the pivot's distance from
-    /// `at`, whichever is longer ([`Self::lever_from`]).
+    /// lever is that length ([`Self::lever_from`]), floored for the
+    /// cylinder pair at the foot's distance from `at`
+    /// ([`Self::lever_between`]).
     Measured {
         /// The point the caller measured from.
         at: Point3<T>,
@@ -199,36 +202,15 @@ pub enum Reach<T: Real> {
 }
 
 impl<T: Real> Reach<T> {
-    /// The point a [`Self::Ball`] or a [`Self::Measured`] reach is read
-    /// at: the ball's centre, or the point the caller measured from. A
-    /// [`Self::Span`] is read at a pivot chosen per axis
-    /// ([`Self::foot_on`]); its `at` is a point among its consumed ones
-    /// (the segment's midpoint, a conic's or spiric's centre, a NURBS
-    /// carrier's first control point), for a reader that needs one
-    /// point and no axis.
-    #[must_use]
-    pub fn at(&self) -> Point3<T> {
-        match self {
-            Self::Ball(ball) => ball.center(),
-            Self::Measured { at, .. } => *at,
-            Self::Span { carrier, t0, t1 } => match carrier {
-                Curve3::Line { origin, dir } => *origin + *dir * ((*t0 + *t1) * T::from_f64(0.5)),
-                Curve3::Circle { center, .. }
-                | Curve3::Ellipse { center, .. }
-                | Curve3::Spiric { center, .. } => *center,
-                Curve3::Nurbs(n) => n.control()[0],
-            },
-        }
-    }
-
     /// The lever a tilt pinned at `pivot` is metered at: an upper bound
     /// on the consumed region's distance from `pivot`.
     ///
     /// - [`Self::Ball`]: the ball's far side from `pivot`.
-    /// - [`Self::Measured`]: the caller's length, or `|at − pivot|` if
-    ///   that is longer — a pivot farther from `at` than the caller's
-    ///   length reaches at least that far, and a lever shorter than it
-    ///   would read a tilt there as smaller than it displaces `at`.
+    /// - [`Self::Measured`]: the caller's length, whatever the pivot: the
+    ///   caller measured it as the distance its consumed points stand
+    ///   along the reading's axis from `at`, which is what a tilt pinned
+    ///   at `at`'s foot moves the plane×cylinder section by. The cylinder
+    ///   pair reads more than that ([`Self::lever_between`]).
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
     ///   - a **line** segment: its endpoints (distance to a point is
@@ -247,7 +229,7 @@ impl<T: Real> Reach<T> {
     pub fn lever_from(&self, pivot: Point3<T>) -> T {
         match self {
             Self::Ball(ball) => ball.lever_from(pivot),
-            Self::Measured { at, lever } => lever.max((*at - pivot).norm()),
+            Self::Measured { lever, .. } => *lever,
             Self::Span { carrier, .. } => match carrier {
                 Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
                 Curve3::Ellipse {
@@ -273,7 +255,8 @@ impl<T: Real> Reach<T> {
     /// The pivot on the line `origin + s·axis` (`axis` unit) the reach
     /// is read at.
     ///
-    /// - [`Self::Ball`], [`Self::Measured`]: the foot of [`Self::at`].
+    /// - [`Self::Ball`]: the foot of its centre; [`Self::Measured`]: the
+    ///   foot of `at`.
     /// - [`Self::Span`] of a conic or a spiric: the foot of its centre,
     ///   which is where its lever (centre distance plus a constant) is
     ///   least.
@@ -291,7 +274,15 @@ impl<T: Real> Reach<T> {
                 carrier: Curve3::Line { .. } | Curve3::Nurbs(_),
                 ..
             } => minimax_on_axis(&self.span_points(), origin, axis),
-            _ => foot(self.at(), origin, axis),
+            Self::Span {
+                carrier:
+                    Curve3::Circle { center, .. }
+                    | Curve3::Ellipse { center, .. }
+                    | Curve3::Spiric { center, .. },
+                ..
+            } => foot(*center, origin, axis),
+            Self::Ball(ball) => foot(ball.center(), origin, axis),
+            Self::Measured { at, .. } => foot(*at, origin, axis),
         }
     }
 
@@ -328,9 +319,27 @@ impl<T: Real> Reach<T> {
     /// distance carries an axial part of up to `min(ρ)·θ`, `ρ` a foot's
     /// lever. A lever shorter than a foot's would let that part and the
     /// tilt together exceed what the gap row was told it bridges.
+    ///
+    /// **A measured length is floored here, and only here, at the foot's
+    /// distance from `at`.** The caller measured its length along the
+    /// axis from `at`; the foot-to-foot gap also carries the radial
+    /// offset of `at` from each axis, which a tilt turns into axial
+    /// travel between the feet, so this lever reaches at least that far.
+    /// The plane×cylinder row ([`Self::lever_from`]) moves its section by
+    /// the tilt times the AXIAL distance from the foot alone, which the
+    /// length already bounds; floored there it levered a face shorter
+    /// than the radius past what the caller measured, and served a tilt
+    /// the length leaves in the band.
     #[must_use]
     pub fn lever_between(&self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
-        let lever = |(origin, axis)| self.lever_from(self.foot_on(origin, axis));
+        let lever = |(origin, axis)| {
+            let pivot = self.foot_on(origin, axis);
+            let bare = self.lever_from(pivot);
+            match self {
+                Self::Measured { at, .. } => bare.max((*at - pivot).norm()),
+                Self::Ball(_) | Self::Span { .. } => bare,
+            }
+        };
         lever(line1).min(lever(line2))
     }
 }
@@ -366,7 +375,15 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<
         for &(sj, qj) in &sq[i + 1..] {
             let d = (si - sj).abs();
             let delta = (qi - qj).abs();
-            let crossing = qi.min(qj) + ((d.powi(2) + delta) / (two * d)).powi(2);
+            // `a = (d² + Δ)/(2d)` is at most `d` wherever the crossing is
+            // the one taken (`d² > Δ`), so the crossing is clamped at
+            // `q + d²` and the divisor floored: neither moves a definite
+            // reading, and an enclosure whose `d` holds zero (coincident
+            // or near-coincident points) stays bounded instead of
+            // dividing by zero.
+            let a = (d.powi(2) + delta) / (two * d).max(T::from_f64(f64::MIN_POSITIVE));
+            let q = qi.min(qj);
+            let crossing = (q + a.powi(2)).min(q + d.powi(2));
             r_star = r_star.max((d.powi(2) - delta).select_le_zero(qi.max(qj), crossing));
         }
     }
@@ -379,6 +396,81 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **A conic span's lever reaches every point of it** from any pivot:
+    /// centre distance plus the radius (or the larger semi-axis), round
+    /// the whole turn.
+    #[test]
+    fn a_conic_spans_lever_reaches_every_point() {
+        let pivot = Point3::new(0.3, -0.2, 0.7);
+        for carrier in [
+            Curve3::Circle {
+                center: Point3::new(1.0, 2.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 1.5,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Curve3::Ellipse {
+                center: Point3::new(-1.0, 0.5, 0.2),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major: 0.6,
+                minor: 1.4,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+        ] {
+            let lever = Reach::Span {
+                carrier: carrier.clone(),
+                t0: 0.0,
+                t1: 1.0,
+            }
+            .lever_from(pivot);
+            for k in 0..=720 {
+                let t = core::f64::consts::TAU * f64::from(k) / 720.0;
+                let far = (carrier.eval(t) - pivot).norm();
+                assert!(
+                    lever >= far,
+                    "{carrier:?}: {lever} falls short of {far} at {t}"
+                );
+            }
+        }
+    }
+
+    /// **The minimax stays bounded at the certified scalar** where two
+    /// points coincide or nearly do along the axis: duplicate control
+    /// points, a zero-length segment, and two points an enclosure's width
+    /// apart. Dividing by an axial gap that holds zero widened the pivot
+    /// to an infinite enclosure and the lever with it.
+    #[test]
+    fn the_minimax_stays_bounded_at_the_certified_scalar() {
+        use geom_core::{Bounds, Interval};
+        let iv = Interval::from_f64;
+        // Each coordinate an enclosure a few ulp wide, as a computed one is.
+        let w = |v: f64| Interval::from_bounds(v - 4.0 * f64::EPSILON, v + 4.0 * f64::EPSILON);
+        let p = |x: f64, z: f64| Point3::new(w(x), iv(0.0), w(z));
+        let axis = Vec3::new(iv(0.0), iv(0.0), iv(1.0));
+        let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
+        let near = 0.3 + f64::EPSILON;
+        for (label, pts) in [
+            ("duplicates", vec![p(0.5, 0.3), p(0.5, 0.3)]),
+            ("zero-length", vec![p(1.0, 0.3), p(1.0, 0.3)]),
+            ("near", vec![p(0.5, 0.3), p(0.7, near)]),
+            (
+                "net",
+                vec![p(1.0, -1.0), p(0.5, 0.3), p(0.5, 0.3), p(1.0, 1.0)],
+            ),
+        ] {
+            let foot = minimax_on_axis(&pts, origin, axis);
+            let lever = pts.iter().fold(iv(0.0), |m, q| m.max((*q - foot).norm()));
+            for (what, v) in [("foot", foot.z), ("lever", lever)] {
+                assert!(
+                    v.lo().is_finite() && v.hi().is_finite() && v.hi() - v.lo() < 1e-3,
+                    "{label}: the {what} is a bounded enclosure, got [{}, {}]",
+                    v.lo(),
+                    v.hi()
+                );
+            }
+        }
+    }
 
     /// **The span's pivot is the axis point whose lever is least**, to
     /// rounding: brute force over a fine axial grid never finds a pivot

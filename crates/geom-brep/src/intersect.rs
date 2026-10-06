@@ -1599,6 +1599,14 @@ fn axes_feet<T: Real>(
 /// `d_vec`, which is ⊥ the first axis so a ruling laid across it lies on
 /// the first wall. They differ by the feet's axial offset, which the
 /// band's tilt allows.
+///
+/// A [`Reach::Span`] picks its pivot per axis, so the two feet are each
+/// axis's least-lever point rather than the feet of one point. "The same
+/// in either order" holds for the edges that reach this arm: an edge on
+/// two parallel walls of equal radius is a ruling, so it stands at one
+/// distance from both axes and its least-lever points are the feet of
+/// one axial station. Geometry that would split them (an edge on
+/// neither wall) does not come through a consumer.
 pub(crate) struct ParallelAxes<T: Real> {
     /// The first axis's foot.
     pub(crate) foot1: Point3<T>,

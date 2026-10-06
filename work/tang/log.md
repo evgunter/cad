@@ -523,7 +523,7 @@ lane reads its gap between the feet. The frame asks the table's own
 
 **Fix pass 2** (the second full review: three MAJORs, one class). Every
 caller's ball lever had decided an in-band tilt as served. The
-classifiers now take a `Reach`, a reading point and a lever that is an
+classifiers now take a `Reach`, a reading point and a lever that is a
 distance to consumed points or the length the caller levered by
 before, never a ball around them. `germ_reach` and its unlogged F21 check are gone. The
 frame's coplanarity row is the table's `cc_axes_coplanar`. Rows A, B and
@@ -537,6 +537,13 @@ farthest distance to it is least, and that distance is exact
 (`minimax_on_axis`, 1-D Helly). A measured lever is floored at the
 pivot's distance from where it was measured. Stored-origin rows pin
 both topo callers. Filed: `germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`.
+
+**Fix pass 4** (the fourth full review: one MAJOR). The measured lever's
+floor over-levered chord_join's plane×cylinder row past main on a face
+shorter than the radius. It moves to `Reach::lever_between`, the
+cylinder pair's foot-to-foot gap, which is the one reading that needs
+it. A short-face row pins the lane. The interval minimax stays bounded
+where axial points coincide.
 
 ## 2026-10-06 — in-face rings pair along the wall: fixed upstream by PR 4008; the sweep row lands (TANG implementer)
 

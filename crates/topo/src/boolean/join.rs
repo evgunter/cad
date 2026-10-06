@@ -3002,6 +3002,43 @@ mod frame_dispatch_tests {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
     }
 
+    /// **The germ frame levers a cylinder pair at its walls' span.** Two
+    /// unit cylinders with parallel axes 2 apart along `x`, the second
+    /// tilted half the zero band, their walls' boundary vertices 10 m
+    /// long. At the radius the tilt reads Zero; across the walls' span
+    /// ([`super::frame_reading`]: the diameter of their vertices' ball)
+    /// it reads about `5·zero`, in the band, and the frame escalates on
+    /// the table's `cc_axes_parallel` in both orders.
+    #[test]
+    fn the_germ_frame_levers_a_cylinder_pair_at_its_walls_span() {
+        let theta = 0.5 * Tol::witness().eps();
+        let c1 = cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 1.0);
+        let c2 = cylinder_at(
+            Point3::new(0.0, 2.0, 0.0),
+            Vec3::new(theta.cos(), theta.sin(), 0.0),
+            1.0,
+        );
+        let wall = |y: f64| vec![Point3::new(-5.0, y, 0.0), Point3::new(5.0, y, 0.0)];
+        for (label, a, b, on_a, on_b) in [
+            ("c1, c2", &c1, &c2, wall(1.0), wall(1.0)),
+            ("c2, c1", &c2, &c1, wall(1.0), wall(1.0)),
+        ] {
+            let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
+            let got = pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, span, band());
+            assert!(
+                matches!(
+                    got,
+                    Err(FrameError::Escalated(ref d)) if d.predicate == Some("cc_axes_parallel")
+                ),
+                "({label}): the tilt across the walls is in band, got {:?}",
+                got.as_ref().map_err(|e| match e {
+                    FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                    _ => "a refusal",
+                })
+            );
+        }
+    }
+
     /// **The germ frame reads at the curved face, wherever the wall's
     /// origin is stored.** The plane `z = 0` and a unit cylinder along
     /// `x` resting on it, tilted half the zero band, its face's boundary
@@ -3890,9 +3927,7 @@ mod frame_dispatch_tests {
 
 /// **The cylinder×cylinder coplanarity split at the CERTIFIED scalar**
 /// — the two-arm pin for the frame's coplanarity row, the section
-/// table's `cc_axes_coplanar` (`geom_brep::cylinder_axes_coplanar`; it
-/// was the frame's own `bool_germ_frame_axes_coplanar` when this unit
-/// added it).
+/// table's `cc_axes_coplanar` (`geom_brep::cylinder_axes_coplanar`).
 ///
 /// **Why it lives HERE and not in a body-level suite.** The predicate
 /// sits in a dispatch that a body-level fixture only reaches after the

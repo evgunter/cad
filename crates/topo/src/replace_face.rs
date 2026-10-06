@@ -2866,6 +2866,16 @@ mod pose_reach_rows {
                 "nurbs4",
                 ruling(&[-1.0, 0.9, 0.95, 1.0], vec![0.0, 0.0, 0.9, 0.95, 1.0, 1.0]),
             ),
+            // Clustered at one end with uniform knots: the curve's
+            // mid-parameter point stands at `z = 0.98`, whose lever to
+            // `z = −1` is 2.2 against the least lever's √2.
+            (
+                "nurbs5",
+                ruling(
+                    &[-1.0, 0.97, 0.98, 0.99, 1.0],
+                    vec![0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0],
+                ),
+            ),
         ];
         for (name, edge) in &edges {
             for k in [1.2, 8.0, 9.0, 9.9] {

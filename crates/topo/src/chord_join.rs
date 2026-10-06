@@ -547,24 +547,20 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
     }
 }
 
-/// The reach the section table reads a wall's pose at: the base vertex
-/// `at`, levered by [`face_extent`], the farthest boundary vertex of
-/// `face` from it — the lever this lane metered the table at before the
-/// table read its gap at an axis foot. A lever is an exact distance to
-/// consumed points, never a ball around them
-/// ([`geom_brep::Reach`]'s module docs): levered at a ball about `at`,
-/// a vertex on a wall `r` from the axis read `r + face_extent` from the
-/// foot, and an in-band tilt decided as an ellipse.
+/// Where the section table reads a wall's pose, and the lever: the base
+/// vertex `at`'s point, and [`face_extent`], the farthest boundary vertex
+/// of `face` from it — the length this lane metered the table at before
+/// the table read its gap at an axis foot. No ball around the vertex is
+/// a lever ([`geom_brep::Reach`]'s module docs): levered at one, a vertex
+/// on a wall `r` from the axis read `r + face_extent` from the foot, and
+/// an in-band tilt decided as an ellipse.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
-) -> Result<geom_brep::Reach<T>, SplitJoinError> {
-    let lever = face_extent(body, at, face).map_err(unbounded)?;
-    Ok(geom_brep::Reach::Measured {
-        at: body.resolve_vertex_point(at, Proven),
-        lever,
-    })
+) -> Result<(Point3<T>, T), SplitJoinError> {
+    let extent = face_extent(body, at, face).map_err(unbounded)?;
+    Ok((body.resolve_vertex_point(at, Proven), extent))
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -865,7 +861,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    reach: &geom_brep::Reach<T>,
+    (at, extent): (Point3<T>, T),
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -949,14 +945,7 @@ fn section_case<T: Decide>(
     // generator pair is the ruling case, its tangent generator the
     // tangent one — the cylinder's parallel-axis lane, one kind over.
     if let geom::Surface::Cone { .. } = wall {
-        return match geom_brep::plane_cone_section(
-            plane_s,
-            wall,
-            reach.lever_from(reach.at()),
-            band,
-        )
-        .map_err(table)?
-        {
+        return match geom_brep::plane_cone_section(plane_s, wall, extent, band).map_err(table)? {
             geom_brep::PlaneConeSection::TiltedEllipse(c)
             | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
             geom_brep::PlaneConeSection::ApexLinePair { .. } => Ok(SectionCase::Straight),
@@ -967,7 +956,8 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let sec = geom_brep::plane_cylinder_section(plane_s, wall, reach, band).map_err(table)?;
+    let reach = geom_brep::Reach::Measured { at, lever: extent };
+    let sec = geom_brep::plane_cylinder_section(plane_s, wall, &reach, band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
         | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
@@ -1423,7 +1413,7 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let case = section_case(face, band, &plane_s, &wall, &section_reach(body, at, face)?)?;
+    let case = section_case(face, band, &plane_s, &wall, section_reach(body, at, face)?)?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1535,7 +1525,7 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let conic = match section_case(face, band, &plane_s, wall, &section_reach(body, u1, face)?)? {
+    let conic = match section_case(face, band, &plane_s, wall, section_reach(body, u1, face)?)? {
         // Ruling seams are straight chords on the plane too.
         SectionCase::Straight => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
@@ -3534,6 +3524,70 @@ mod tests {
         }
     }
 
+    /// **A face shorter than the radius is levered at its face extent,
+    /// not the radius.** Row C's wall and plane with the second vertex at
+    /// `(1, 0, h)`, `h < r`, the plane tilted so the axis meets it at
+    /// `sin β = k·ε/h`. A tilt moves the section by the tilt times the
+    /// AXIAL distance from the base vertex's foot, at most `h`, so
+    /// `pc_axis_plane_parallel` reads `k·ε`: in the band, and the table
+    /// escalates. Floored at the foot's distance from the vertex (the
+    /// radius), the lever read `k·ε·r/h`, definite from `k = 6` at
+    /// `h = 0.5` and from `k = 3` at `h = 0.2`, and served a tilted
+    /// ellipse. `k = 1.2` reads Zero if the lever is cut below `h`.
+    #[test]
+    fn a_short_faces_pose_is_levered_at_its_face_extent_not_the_radius() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let base = Point3::new(1.0, 0.0, 0.0);
+        for h in [0.5, 0.2] {
+            let mut body = crate::Body::<f64>::new();
+            let seed = body.mvfs(base, true).unwrap();
+            body.set_face_surface(
+                seed.face,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Cylinder {
+                        origin: Point3::origin(),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+            body.mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(1.0, 0.0, h),
+                Tol::witness(),
+            )
+            .unwrap();
+            for k in [1.2, 3.0, 6.0, 8.0, 9.0, 9.9] {
+                let sin_beta: f64 = k * band.zero() / h;
+                let normal = UnitVec3::new(
+                    Vec3::new((1.0 - sin_beta * sin_beta).sqrt(), 0.0, sin_beta),
+                    "short-face row",
+                    band,
+                )
+                .unwrap();
+                let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+                assert!(
+                    matches!(
+                        got,
+                        Err(SplitJoinError::Escalated { ref diag, .. })
+                            if diag.predicate == Some("pc_axis_plane_parallel")
+                    ),
+                    "h = {h}, k = {k}: an in-band tilt must escalate, got {:?}",
+                    got.map(|w| w.map(|w| match w.case {
+                        SectionCase::Straight => "straight",
+                        SectionCase::Tangent(_) => "tangent",
+                        SectionCase::Conic(_) => "conic",
+                    }))
+                );
+            }
+        }
+    }
+
     /// **A wall's pose is levered at its face extent, not a ball about
     /// the base vertex** (row C). A unit cylinder face about `z` whose
     /// base vertex `(1, 0, 0)` lies on the ruling the plane `x = 1`
@@ -3817,11 +3871,8 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> geom_brep::Reach<f64> {
-        geom_brep::Reach::Measured {
-            at: Point3::origin(),
-            lever: 4.0,
-        }
+    fn reach() -> (Point3<f64>, f64) {
+        (Point3::origin(), 4.0)
     }
 
     fn plane() -> geom::Surface<f64> {
@@ -3857,7 +3908,7 @@ mod section_case_pair_tests {
     fn the_pair_is_order_free() {
         let f = FaceKey::default();
         for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
-            let got = section_case(f, band(), &a, &b, &reach()).expect("the rim arm is wired");
+            let got = section_case(f, band(), &a, &b, reach()).expect("the rim arm is wired");
             let SectionCase::Conic(c) = got else {
                 panic!("a square cut names a rim circle");
             };
@@ -3875,13 +3926,13 @@ mod section_case_pair_tests {
             (cylinder(), sphere()),
             (sphere(), sphere()),
         ] {
-            match section_case(f, band(), &a, &b, &reach()) {
+            match section_case(f, band(), &a, &b, reach()) {
                 Err(SplitJoinError::SectionInvariant { .. }) => {}
                 Err(e) => panic!("a curved pair must refuse SectionInvariant, got {e:?}"),
                 Ok(_) => panic!("a curved pair must refuse typed, never classify"),
             }
         }
-        match section_case(f, band(), &plane(), &plane(), &reach()) {
+        match section_case(f, band(), &plane(), &plane(), reach()) {
             Err(SplitJoinError::SectionInvariant { .. }) => {}
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),
