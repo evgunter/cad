@@ -23,7 +23,7 @@ use editor_core::{
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
-/// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
+/// A Count literal — `Formula::count`, because `Formula::literal` REFUSES
 /// `Dimension::Count` on purpose (Count literals are integers).
 fn count(v: i64) -> Formula {
     Formula::count(v)

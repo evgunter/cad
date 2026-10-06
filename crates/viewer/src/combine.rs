@@ -415,7 +415,7 @@ fn pattern_op(
 /// Lower one pattern spec to its node, placing the authored
 /// expressions and minting the STRUCTURAL count.
 ///
-/// The count is [`Expr::count`] — an exact integer — and not a
+/// The count is `Formula::count` — an exact integer — and not a
 /// continuous literal, because `SlotId::Count` is Count-dimensioned and
 /// the structural/continuous split is typed rather than emergent (spec
 /// D3). That is the same reason it is authored as an `i64` all the way
@@ -911,7 +911,7 @@ pub const DUPLICATE_COUNT: i64 = 2;
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.
 ///
-/// The index is [`Expr::count`] — an exact integer — for the reason
+/// The index is `Formula::count` — an exact integer — for the reason
 /// [`pattern_node`]'s count is: `SlotId::Instance` is Count-dimensioned
 /// and the structural/continuous split is typed rather than emergent
 /// (spec D3).

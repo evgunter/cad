@@ -29,7 +29,7 @@ not read as coverage.
 - **A parameter driving the frame's carrier.** "Raise the body and the
   sketch rides up with it" is the derived frame's headline, and the
   only mutation Python can aim at a continuous slot today is
-  re-authoring: no node constructor takes an `Formula`, and
+  re-authoring: no node constructor takes a `Formula`, and
   `DocEdit.bind_count_param` is narrowed to structural counts on
   purpose. So `TestTheFrameIsRead` shows the dependence by building
   two plates rather than by moving one, and the DAG edge itself is

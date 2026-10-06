@@ -1678,7 +1678,7 @@ fn declare_error_tags_are_stable() {
     assert_eq!(declare_error_tag(&empty), "no_findings");
 }
 
-/// The binding matches `Expr::literal`'s OWN refusals rather than
+/// The binding matches `Formula::literal`'s OWN refusals rather than
 /// pre-checking them, and the tags Python sees are stable.
 ///
 /// **Scope: the literal-construction door only.** It is one of TWO

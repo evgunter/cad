@@ -346,9 +346,9 @@ fn every_dimension_error_reaches_through_the_parser() {
     assert_eq!(dim_err("1e999"), DimensionError::NonFiniteLiteral);
     assert_eq!(dim_err("1e400 mm"), DimensionError::NonFiniteLiteral);
     // DEVIATION (reported): `LiteralCountIsInteger` is STRUCTURALLY
-    // unreachable through text — bare integers route to `Expr::count`
+    // unreachable through text — bare integers route to `Formula::count`
     // and a unit suffix always makes a continuous dimension, so no
-    // source string can ask for a Count-dimension `Expr::literal`.
+    // source string can ask for a Count-dimension `Formula::literal`.
     // Pinned at the constructor door instead, so the variant's refusal
     // stays exercised from this suite.
     assert_eq!(
@@ -676,7 +676,7 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
             Some(symbol)
         );
     }
-    // A literal authored through `Expr::literal` NAMES the canonical
+    // A literal authored through `Formula::literal` NAMES the canonical
     // row rather than remembering nothing — there is no unmarked state
     // — so it writes its suffix like any other and the round trip is a
     // fixed point rather than a normalisation.

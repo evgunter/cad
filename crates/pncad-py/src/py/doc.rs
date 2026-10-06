@@ -875,7 +875,7 @@ impl Doc {
     fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Expr> {
         self.inner
             .lowered(formula)
-            .map_err(|fault| super::expr::name_fault_err(py, &fault, Some(&self.inner)))
+            .map_err(|fault| super::expr::name_fault_err(py, &fault))
     }
 
     /// A single edit's door onto **the swap point**, [`Doc::take_up`],
@@ -1644,10 +1644,12 @@ impl Doc {
     /// and promotion to a continuous value is explicit in the
     /// expression language or not at all, so this refuses
     /// `count_expr_in_continuous_eval` and `eval_count` is the door.
-    /// The expression's names are read against this document. Refuses
-    /// typed on `EvalError` otherwise — `unlowered_name` names a name
-    /// no variable holds at the dimension it is read at,
-    /// `unresolved_var` a variable the document no longer holds, and
+    /// The expression's names are read against this document by the
+    /// edit door's lowering, whose refusals ride `EvalError` too:
+    /// `unlowered_name` names a name no variable holds at the dimension
+    /// it is read at, and `var_kind_mismatch` one held at another.
+    /// Refuses typed on `EvalError` otherwise — `unresolved_var` a
+    /// variable the document no longer holds, and
     /// `non_finite_result` is the arithmetic having overflowed or hit
     /// a pole.
     fn eval(&self, py: Python<'_>, expr: &super::expr::Formula) -> PyResult<Py<PyAny>> {
@@ -1829,7 +1831,7 @@ impl PartSelect {
     /// The `index`-th instance of a `Node.pattern` value, counting
     /// from zero.
     ///
-    /// `index` is a count `Expr` — `Expr.count(3)` — because a Count
+    /// `index` is a count `Formula` — `Formula.count(3)` — because a Count
     /// is an integer in the kernel's own expression language, not a
     /// measurement, and every slot on this surface takes the
     /// expression its kernel slot holds. It is the node's `Instance`
@@ -2097,7 +2099,7 @@ impl Node {
     /// `elevation=` is the xy sugar — the world xy-plane, that far up
     /// z. The default is the xy-plane itself.
     ///
-    /// Coordinates arrive as length `Expr`s — the profile program's
+    /// Coordinates arrive as length `Formula`s — the profile program's
     /// own slot type — so a vertex can be a written `25 mm`, a
     /// canonical literal or a parameter reference, and a bare number
     /// is a boundary refusal rather than an ambiguous unit. They are
@@ -2358,7 +2360,7 @@ impl Node {
     /// data, and reversing it reverses the produced surface's
     /// v-direction. `v_degree` is the v-direction interpolation
     /// degree, a COUNT (structural material, D3), so it crosses as
-    /// `Expr.count` and not as a continuous literal.
+    /// `Formula.count` and not as a continuous literal.
     ///
     /// There is no placement argument, and that is the document
     /// design rather than a missing one: each section rides its OWN
@@ -2515,7 +2517,7 @@ impl Node {
     /// the carrier's own u-reference, right-handed. It has no default:
     /// which way a sketch faces on a face is an authoring decision,
     /// and a door that quietly chose zero would put a convention where
-    /// the document should carry one. Pass `Expr.literal(0 * rad)` to take
+    /// the document should carry one. Pass `Formula.literal(0 * rad)` to take
     /// u-reference unturned.
     ///
     /// The outward normal is the face's orientation sense times the
@@ -2965,7 +2967,7 @@ impl Node {
     /// list. Reach for `placed_union` when the family IS the shape,
     /// and for `pattern` + `part` when one copy of it is.
     ///
-    /// `count` is a count `Expr` — `Expr.count(4)` — and it is the
+    /// `count` is a count `Formula` — `Formula.count(4)` — and it is the
     /// node's `Count` slot, so `DocEdit.bind_count_param` is what
     /// makes it a named, editable number. A count below one refuses
     /// at `evaluate` (`non_positive_count`).
@@ -3039,7 +3041,7 @@ impl Node {
     /// naming is the `Instance(i)` qualifier, ONE segment deep
     /// whatever the count.
     ///
-    /// `count` is a count `Expr` — `Expr.count(4)`, the `Node.loft`
+    /// `count` is a count `Formula` — `Formula.count(4)`, the `Node.loft`
     /// `v_degree` precedent: a Count is an integer in the kernel's own
     /// expression language, not a dimensioned measurement, and there
     /// is no `Count` quantity to wrap it in.
@@ -3279,7 +3281,7 @@ impl Node {
     /// DAG edge, so a failed or poisoned measure poisons the assertion
     /// rather than producing a verdict about nothing. `dir` is which
     /// side of `bound` the measurement must fall on, and `bound` is an
-    /// `Expr` from `Doc.parse_formula`.
+    /// `Formula` from `Doc.parse_formula`.
     ///
     /// **The bound is an expression and not a quantity, because its
     /// DIMENSION is the measure's.** Every other node door takes a
@@ -3412,7 +3414,7 @@ impl VarArg {
 }
 
 /// **A variable's definition as an edit carries it** — a free value, or
-/// an `Expr` over other variables that the edit door lowers (its names
+/// a `Formula` over other variables that the edit door lowers (its names
 /// resolved against the document's) and stores as the variable's
 /// definition (VARIABLES-DESIGN VR3).
 #[pyclass(frozen, module = "pncad", from_py_object)]
@@ -4048,7 +4050,7 @@ impl DocEdit {
     /// `Distribution` constructors, which run the same check at the
     /// value; both are reachable through a file.
     ///
-    /// An `Expr` (or `VarDecl.defined`) declares a DEFINED variable,
+    /// A `Formula` (or `VarDecl.defined`) declares a DEFINED variable,
     /// whose value is the expression's over the variables it reads.
     /// It refuses `definition_unknown_var_name`,
     /// `definition_unresolved_var` and `definition_var_kind` for a read
@@ -4074,7 +4076,7 @@ impl DocEdit {
     /// the old one carried is gone. `set_var_value` is the door for
     /// moving a number, because it cannot drop what it never takes.
     ///
-    /// An `Expr` (or `VarDecl.defined`) makes the variable a DEFINED
+    /// A `Formula` (or `VarDecl.defined`) makes the variable a DEFINED
     /// one, keeping its identity; a `FreeVar` makes it free again.
     ///
     /// Refuses typed on a name the document does not hold
@@ -4725,7 +4727,7 @@ impl TubeWindow {
     /// the reference direction, right-handed. Wedge caps close the
     /// ends.
     ///
-    /// Both angles cross as angle `Expr`s, the same seat
+    /// Both angles cross as angle `Formula`s, the same seat
     /// `Node.revolve` takes its sweep angle at — a slot is never a
     /// bare float on this surface.
     ///

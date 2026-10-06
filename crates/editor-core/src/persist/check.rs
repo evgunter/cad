@@ -150,7 +150,7 @@ pub(crate) enum Walk {
     /// and the edit log — every float the format would write, checked
     /// finite, with a typed site name.
     ///
-    /// Expression literals are finite BY CONSTRUCTION (`Expr::literal`
+    /// Expression literals are finite BY CONSTRUCTION (`Formula::literal`
     /// refuses non-finite — ruled door 1; the load side re-runs the
     /// same constructors), so this walk covers the float carriers
     /// outside that door: profile PLANE PLACEMENTS (program args are
@@ -169,7 +169,7 @@ pub(crate) enum Walk {
     /// [`first_display_unit_fault`] over the variable table: every
     /// document parameter's authored display unit measures the
     /// dimension it was declared with. A literal needs no twin walk
-    /// (`Expr::literal_with_unit` makes the pairing at construction and
+    /// (`Formula::literal_with_unit` makes the pairing at construction and
     /// the load side re-runs it); a `FreeVar` does, because its
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
@@ -428,10 +428,8 @@ fn read_refusal(
             declared,
             referenced,
         },
-        (_, VarReadFault::Name { .. } | VarReadFault::Dead { .. }) => {
-            unreachable!(
-                "a stored expression holds no name, and the read walks pass on a dead reader"
-            )
+        (_, VarReadFault::Dead { .. }) => {
+            unreachable!("the read walks pass on a dead reader")
         }
     })
 }
@@ -456,7 +454,7 @@ fn refused_read(snapshot: &ProfileDoc, expr: &Expr) -> Option<VarReadFault> {
 /// `apply` on replay, and a replayed document is a snapshot this same
 /// validator sees.
 ///
-/// Expression literals need no twin walk — `Expr::literal_with_unit`
+/// Expression literals need no twin walk — `Formula::literal_with_unit`
 /// checks the pairing at construction and the load side re-runs that
 /// same constructor, so a literal cannot reach a document mismatched.
 /// A `FreeVar` has no such door to make total: its payload is `pub`
@@ -564,7 +562,7 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 }),
                 // Answered above, and a deleted variable's reader is
                 // legal (VR7).
-                VarReadFault::Name { .. } | VarReadFault::Dead { .. } => None,
+                VarReadFault::Dead { .. } => None,
             })
     })
 }

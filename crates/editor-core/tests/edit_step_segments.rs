@@ -3260,7 +3260,6 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
             len: len(1.5),
         },
     ];
-    let env = ProfileDoc::empty_derived("mode-vocabularies", tol()).var_env::<f64>();
     for spec in modes {
         let carries = match &spec {
             ProgramArcData::Radius { .. }

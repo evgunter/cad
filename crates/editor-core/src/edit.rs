@@ -715,23 +715,33 @@ enum ExprSite {
     Payload,
 }
 
-/// **A name the lowering left**, as the read fault the doors refuse: an
-/// unheld name, or a variable the name holds at another kind.
-fn name_fault(fault: NameFault) -> VarReadFault {
+/// **A name the lowering left, as the door refuses it** at its
+/// address: a name no variable holds is an unknown name; a name a
+/// variable holds at another kind is that variable's kind fault, in the
+/// words [`check_reads`] gives a stored reader of it.
+fn name_refusal<P>(doc: &Doc<P>, node: SpokenNode, site: ExprSite, fault: NameFault) -> EditError {
     let NameFault { name, dim, why } = fault;
-    match why {
-        Unlowered::Unheld => VarReadFault::Name { name },
-        Unlowered::Kind { var, declared } => VarReadFault::Kind {
-            var,
-            declared,
-            referenced: dim,
-        },
+    match (site, why) {
+        (ExprSite::Slot(slot), Unlowered::Unheld) => {
+            EditError::SlotUnknownVarName { name, node, slot }
+        }
+        (ExprSite::Payload, Unlowered::Unheld) => EditError::PayloadUnknownVarName { name, node },
+        (site, Unlowered::Kind { var, declared }) => read_refusal(
+            doc,
+            node,
+            site,
+            VarReadFault::Kind {
+                var,
+                declared,
+                referenced: dim,
+            },
+        ),
     }
 }
 
 /// **A formula that does not lower, as this door refuses it**, at its
-/// address: a name in the vocabulary every faulty read shares
-/// ([`read_refusal`]), a fresh-table read in its own.
+/// address: a name in [`name_refusal`]'s words, a fresh-table read in
+/// its own.
 fn lower_refusal<P>(
     doc: &Doc<P>,
     node: SpokenNode,
@@ -739,7 +749,7 @@ fn lower_refusal<P>(
     fault: LowerFault,
 ) -> EditError {
     match fault {
-        LowerFault::Name(fault) => read_refusal(doc, node, site, name_fault(fault)),
+        LowerFault::Name(fault) => name_refusal(doc, node, site, fault),
         LowerFault::Fresh(fault) => fresh_refusal(fault),
     }
 }
@@ -756,6 +766,30 @@ fn fresh_refusal(FreshFault { index, dim, held }: FreshFault) -> EditError {
             held,
             referenced: dim,
         },
+    }
+}
+
+/// **Why one slot formula did not lower**, as the walk that lowers it
+/// answers ([`Lowering::slot`]). The address is not the walk's to know:
+/// [`lower_value`] finds it.
+#[derive(Debug)]
+enum SlotFault {
+    /// A name or a fresh read that does not lower.
+    Lower(LowerFault),
+    /// A lowered read the document cannot answer.
+    Read(VarReadFault),
+    /// The mint's own refusal, which names a variable, not an address.
+    Mint(EditError),
+}
+
+impl SlotFault {
+    /// This fault refused at `site`.
+    fn at<P>(self, doc: &Doc<P>, node: SpokenNode, site: ExprSite) -> EditError {
+        match self {
+            Self::Lower(fault) => lower_refusal(doc, node, site, fault),
+            Self::Read(fault) => read_refusal(doc, node, site, fault),
+            Self::Mint(refusal) => refusal,
+        }
     }
 }
 
@@ -821,20 +855,19 @@ impl Lowering {
             })
     }
 
-    /// **The refusal a slot formula would draw**, asked before anything
-    /// of the edit is written: a name or a fresh read that does not
-    /// lower, or a lowered read the document cannot answer, at the
-    /// formula's address. `None` where it lowers and every read holds.
-    fn check<P>(
-        &self,
-        doc: &Doc<P>,
-        node: impl FnOnce() -> SpokenNode,
-        site: ExprSite,
-        formula: &Formula,
-    ) -> Result<(), EditError> {
+    /// **Why a slot formula would not lower**, asked of nothing but the
+    /// formula and the document: a name or a fresh read that does not
+    /// lower, or a lowered read the document cannot answer. `None`
+    /// where it lowers and every read holds. What [`lower_value`] asks
+    /// of each addressed formula to find the one a walk refused.
+    fn fault<P>(&self, doc: &Doc<P>, formula: &Formula) -> Option<SlotFault> {
         match formula.lower_with(&|name| doc.lowering_scope(name), &self.fresh) {
-            Ok(expr) => check_reads(doc, &node(), site, &expr),
-            Err(fault) => Err(lower_refusal(doc, node(), site, fault)),
+            Ok(expr) => doc
+                .var_read_faults(&expr)
+                .into_iter()
+                .next()
+                .map(SlotFault::Read),
+            Err(fault) => Some(SlotFault::Lower(fault)),
         }
     }
 
@@ -842,30 +875,30 @@ impl Lowering {
     /// table): a lone variable, by id, name or fresh entry, is itself;
     /// a lone written value mints an anonymous free variable holding
     /// it; anything else mints an anonymous variable defined by the
-    /// formula, lowered.
-    ///
-    /// The doors ask [`Lowering::check`] of every formula first, which
-    /// refuses one that does not lower at its address; what is left to
-    /// refuse here is the mint's.
-    fn slot<P>(&self, new: &mut Doc<P>, formula: &Formula) -> Result<VarId, EditError> {
-        let lowered = |new: &Doc<P>| {
-            formula
-                .lower_with(&|name| new.lowering_scope(name), &self.fresh)
-                .unwrap_or_else(|fault| {
-                    unreachable!("the door checked every formula it lowers, yet {fault} remains")
-                })
-        };
-        match formula.slot_root() {
-            SlotRoot::Var(var) => Ok(var),
-            SlotRoot::Name(..) | SlotRoot::Fresh(..) => match lowered(new).as_var() {
-                Some(var) => Ok(var),
-                None => unreachable!("a lone variable leaf lowers to a lone variable leaf"),
-            },
-            SlotRoot::Value(free) => mint_anonymous(new, VarDef::Free(free)),
-            SlotRoot::Formula => {
-                let expr = lowered(new);
+    /// formula, lowered. A formula that does not lower, or reads what
+    /// the document cannot answer, is refused before anything is
+    /// minted for it.
+    fn slot<P>(&self, new: &mut Doc<P>, formula: &Formula) -> Result<VarId, SlotFault> {
+        let expr = formula
+            .lower_with(&|name| new.lowering_scope(name), &self.fresh)
+            .map_err(SlotFault::Lower)?;
+        if let Some(fault) = new.var_read_faults(&expr).into_iter().next() {
+            return Err(SlotFault::Read(fault));
+        }
+        match (formula.slot_root(), expr.as_var()) {
+            (SlotRoot::Value(free), _) => {
+                mint_anonymous(new, VarDef::Free(free)).map_err(SlotFault::Mint)
+            }
+            (SlotRoot::Formula, _) => {
                 self.defined.set(true);
-                mint_anonymous(new, VarDef::Defined(expr))
+                mint_anonymous(new, VarDef::Defined(expr)).map_err(SlotFault::Mint)
+            }
+            // A lone variable leaf, by id, name or fresh entry, lowers
+            // to a lone reader: the variable itself.
+            (SlotRoot::Var(_) | SlotRoot::Name(..) | SlotRoot::Fresh(..), Some(var)) => Ok(var),
+            (SlotRoot::Var(_) | SlotRoot::Name(..) | SlotRoot::Fresh(..), None) => {
+                self.defined.set(true);
+                mint_anonymous(new, VarDef::Defined(expr)).map_err(SlotFault::Mint)
             }
         }
     }
@@ -910,25 +943,109 @@ fn mint_anonymous<P>(new: &mut Doc<P>, def: VarDef) -> Result<VarId, EditError> 
     Ok(id)
 }
 
-/// **An authored node as the door writes it**: every slot and every
-/// payload expression lowered to the variable it stores
-/// ([`Lowering::slot`]), the first that does not lower refusing at its
-/// address, slots before payload in their table order. `spoken` speaks
-/// the node a refusal names.
+/// **An authored value lowered in one walk**: `walk` maps every formula
+/// the value holds to the variable its slot stores
+/// ([`Lowering::slot`]), and its answer is the stored value. Where a
+/// formula does not lower, the fault the refusal names is the first of
+/// `rows` — the value's addressed formulas, in table order — that does
+/// not ([`Lowering::fault`]), with its address; `None` for the address
+/// where no row holds a fault, a formula the walk maps and the table
+/// does not address (a count beside a listed placement rule, the one
+/// such field: [`Node::exprs`]' edge), and the walk's own fault is
+/// handed back for the caller to refuse typed. A refusal of the mint's
+/// names a variable, not an address, and is the refusal as it stands.
+fn lower_value<P, K: Copy, U>(
+    new: &mut Doc<P>,
+    lowering: &Lowering,
+    rows: &[(K, &Formula)],
+    walk: impl FnOnce(&mut dyn FnMut(&Formula) -> Result<VarId, SlotFault>) -> Result<U, SlotFault>,
+) -> Result<U, WalkFault<K>> {
+    match walk(&mut |formula| lowering.slot(new, formula)) {
+        Ok(value) => Ok(value),
+        Err(SlotFault::Mint(refusal)) => Err(WalkFault::Refused(refusal)),
+        Err(fault) => Err(rows
+            .iter()
+            .find_map(|&(key, formula)| Some((key, lowering.fault(new, formula)?)))
+            .map_or(WalkFault::Unaddressed(fault), |(key, fault)| {
+                WalkFault::At(key, fault)
+            })),
+    }
+}
+
+/// **Why [`lower_value`] did not lower a value**, with the address
+/// where it has one.
+enum WalkFault<K> {
+    /// The first addressed formula that does not lower, and why.
+    At(K, SlotFault),
+    /// A fault in a formula no row addresses.
+    Unaddressed(SlotFault),
+    /// The mint's refusal, as it stands.
+    Refused(EditError),
+}
+
+impl<K> WalkFault<K> {
+    /// This refusal, an addressed fault refused at `site(key)` and an
+    /// unaddressed one by `unaddressed`.
+    fn refuse<P>(
+        self,
+        doc: &Doc<P>,
+        node: impl FnOnce() -> SpokenNode,
+        site: impl FnOnce(K) -> ExprSite,
+        unaddressed: impl FnOnce(SlotFault) -> EditError,
+    ) -> EditError {
+        match self {
+            Self::At(key, fault) => fault.at(doc, node(), site(key)),
+            Self::Unaddressed(fault) => unaddressed(fault),
+            Self::Refused(refusal) => refusal,
+        }
+    }
+}
+
+/// **An authored node as the door writes it**: every slot, every payload
+/// expression and every other formula field lowered to the variable it
+/// stores in one walk ([`lower_value`]), a fault refusing at its
+/// address, slots before payload in their table order. A formula no
+/// address names is the count of a node whose placement rule takes
+/// none, and the refusal is the rule's own
+/// ([`EditError::PlacementRuleMismatch`]), the one the door gives that
+/// node whatever its count holds. `spoken` speaks the node a refusal
+/// names.
 fn lower_node<P: crate::ProfilePayload>(
     new: &mut Doc<P>,
     lowering: &Lowering,
     node: &Node<P::Authored, Formula>,
+    tol: Tol,
     spoken: impl Fn() -> SpokenNode,
 ) -> Result<Node<P>, EditError> {
-    for (slot, formula) in node.rows() {
-        lowering.check(new, &spoken, ExprSite::Slot(slot), formula)?;
-    }
-    for formula in crate::node::payload_exprs(node).into_iter().flatten() {
-        lowering.check(new, &spoken, ExprSite::Payload, formula)?;
-    }
-    node.try_map_slots(|p, f| P::lower(p, f), &mut |formula| {
-        lowering.slot(new, formula)
+    let rows: Vec<(ExprSite, &Formula)> = node
+        .rows()
+        .into_iter()
+        .map(|(slot, formula)| (ExprSite::Slot(slot), formula))
+        .chain(
+            crate::node::payload_exprs(node)
+                .into_iter()
+                .flatten()
+                .map(|formula| (ExprSite::Payload, formula)),
+        )
+        .collect();
+    lower_value(new, lowering, &rows, |f| {
+        node.try_map_slots(|p, g| P::lower(p, g), &mut |e| f(e))
+    })
+    .map_err(|unlowered| {
+        unlowered.refuse(
+            new,
+            &spoken,
+            |site| site,
+            |fault| match node.placement_rule_fault(tol) {
+                Some(PlacementRuleFault::CountSpelling { shape }) => {
+                    EditError::PlacementRuleMismatch {
+                        node: spoken(),
+                        shape,
+                    }
+                }
+                _ => fault.at(new, spoken(), ExprSite::Payload),
+            },
+        )
     })
 }
 
@@ -943,37 +1060,32 @@ fn lower_node<P: crate::ProfilePayload>(
 /// A formula that does not lower, or reads what `doc` cannot answer.
 #[doc(hidden)]
 pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, EditError> {
-    let lowering = Lowering::none();
-    lowering.check(
-        doc,
-        || SpokenNode::absent(RecipeNodeId(0)),
-        ExprSite::Payload,
-        formula,
-    )?;
-    lowering.slot(doc, formula)
+    Lowering::none()
+        .slot(doc, formula)
+        .map_err(|fault| fault.at(doc, SpokenNode::absent(RecipeNodeId(0)), ExprSite::Payload))
 }
 
 /// **A name a definition reads that does not lower**, as the doors
 /// refuse it of `var`'s definition.
-fn definition_name_refusal<P>(doc: &Doc<P>, var: &SpokenVar, fault: NameFault) -> EditError {
-    match name_fault(fault) {
-        VarReadFault::Name { name } => EditError::DefinitionUnknownVarName {
+fn definition_name_refusal<P>(
+    doc: &Doc<P>,
+    var: &SpokenVar,
+    NameFault { name, dim, why }: NameFault,
+) -> EditError {
+    match why {
+        Unlowered::Unheld => EditError::DefinitionUnknownVarName {
             var: var.clone(),
             name,
         },
-        VarReadFault::Kind {
+        Unlowered::Kind {
             var: read,
             declared,
-            referenced,
         } => EditError::DefinitionVarKind {
             var: var.clone(),
             read: doc.spoken_var(read),
             declared,
-            referenced,
+            referenced: dim,
         },
-        fault @ (VarReadFault::Unminted { .. } | VarReadFault::Dead { .. }) => {
-            unreachable!("a lowering refuses only a name, not {fault:?}")
-        }
     }
 }
 
@@ -995,6 +1107,42 @@ fn lower_decl<P>(
     }
 }
 
+/// **A `SetProgram`'s loops as the door writes them**, each lowered in
+/// one walk ([`lower_value`]); the first that does not lower refuses
+/// at the profile's address of its first argument, in program order,
+/// that does not. An argument no row addresses refuses at the
+/// profile's payload.
+fn lower_loops<P>(
+    new: &mut Doc<P>,
+    lowering: &Lowering,
+    node: SpokenNode,
+    loops: &[crate::LoopProgram<Formula>],
+) -> Result<Vec<crate::LoopProgram>, EditError> {
+    let mut lowered = Vec::with_capacity(loops.len());
+    for (li, lp) in loops.iter().enumerate() {
+        let rows: Vec<(SlotId, &Formula)> = lp
+            .rows()
+            .into_iter()
+            .map(|((step, arg), formula)| {
+                let loop_ = crate::program::program_index(li);
+                (SlotId::Profile { loop_, step, arg }, formula)
+            })
+            .collect();
+        let lp = lower_value(new, lowering, &rows, |f| lp.try_map_slots(&mut |e| f(e))).map_err(
+            |unlowered| {
+                unlowered.refuse(
+                    new,
+                    || node.clone(),
+                    ExprSite::Slot,
+                    |fault| fault.at(new, node.clone(), ExprSite::Payload),
+                )
+            },
+        )?;
+        lowered.push(lp);
+    }
+    Ok(lowered)
+}
+
 /// **The reads of one expression an edit writes**, against the
 /// document's table, in this door's vocabulary: every leaf must read a
 /// live variable at its kind. The rule is `Doc::var_read_faults`, which
@@ -1012,7 +1160,8 @@ fn check_reads<P>(
 }
 
 /// **A faulty read as this door refuses it**, at its address: the one
-/// vocabulary [`check_reads`] and the lowering ([`Lowering::check`]) share.
+/// vocabulary [`check_reads`] and the lowering's kind faults
+/// ([`name_refusal`]) share.
 fn read_refusal<P>(
     doc: &Doc<P>,
     node: SpokenNode,
@@ -1020,12 +1169,6 @@ fn read_refusal<P>(
     fault: VarReadFault,
 ) -> EditError {
     match (site, fault) {
-        (ExprSite::Slot(slot), VarReadFault::Name { name }) => {
-            EditError::SlotUnknownVarName { name, node, slot }
-        }
-        (ExprSite::Payload, VarReadFault::Name { name }) => {
-            EditError::PayloadUnknownVarName { name, node }
-        }
         (ExprSite::Slot(slot), VarReadFault::Unminted { var } | VarReadFault::Dead { var }) => {
             EditError::SlotUnresolvedVar {
                 var: doc.spoken_var(var),
@@ -4680,7 +4823,6 @@ fn check_definition<P>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
     let var = new.spoken_var(id);
     if let Some(fault) = new.var_read_faults(expr).into_iter().next() {
         return Err(match fault {
-            VarReadFault::Name { name } => EditError::DefinitionUnknownVarName { var, name },
             VarReadFault::Unminted { var: read } | VarReadFault::Dead { var: read } => {
                 EditError::DefinitionUnresolvedVar {
                     var,
@@ -5286,15 +5428,21 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: Option<&dyn MateReach>,
 ) -> Result<(RecipeNodeId, Vec<VarId>), EditError> {
-    // A refusal before the node is lowered speaks it by the id its
-    // authored form would mint.
+    // A refusal speaks the node by the id drawn from it with every name
+    // the document holds lowered, so a node authored by name and the
+    // same node authored by id speak one id even where some other name
+    // does not lower.
     let before_lowering = new.mint.clone();
     let would = || {
+        let mut held = authored.clone();
+        for formula in held.exprs_mut() {
+            *formula = formula.lower_held(&|name| doc.lowering_scope(name));
+        }
         let would = before_lowering
             .clone()
-            .insert(authored)
+            .insert(&held)
             .unwrap_or_else(|crate::NodeIdCollides { id }| id);
-        SpokenNode::entering(would, authored)
+        SpokenNode::entering(would, &held)
     };
     // D6's slot rule, of the formulas as written: each carries the
     // dimension its address fixes (`Node::formula_dimension_fault`).
@@ -5316,7 +5464,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     // node authored by name and the same node authored by id mint one
     // id.
     let lowering = Lowering::start(new, fresh)?;
-    let node = &lower_node(new, &lowering, authored, would)?;
+    let node = &lower_node(new, &lowering, authored, tol, would)?;
     // Liveness, and it stays spelled here rather than moving to
     // a shared home: the rule IS the node map's own lookup, so
     // the load door's `DanglingInput` walk and this loop share
@@ -5616,13 +5764,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             let lowering = Lowering::start(new, fresh)?;
-            for &(slot, formula) in &rows {
-                lowering.check(new, || doc.spoken(*node), ExprSite::Slot(slot), formula)?;
-            }
-            let loops = loops
-                .iter()
-                .map(|lp| lp.try_map_slots(&mut |formula| lowering.slot(new, formula)))
-                .collect::<Result<Vec<_>, _>>()?;
+            let loops = lower_loops(new, &lowering, doc.spoken(*node), loops)?;
+            // The ids FIRST: ids the door could not honour make the
+            // replay below moot, and the caller mends the field named
+            // rather than the program. Minting extends a mint held
+            // aside, so a refusal further down leaves the document's
+            // untouched.
             let mut mint = new.mint.clone();
             let (minted, dropped) =
                 settle_step_ids(&doc.spoken(*node), old_ids, &loops, ids, &mut mint)?;
@@ -5767,21 +5914,19 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     holder: doc.spoken_var(holder),
                 });
             }
-            let def = lower_decl(
-                doc,
-                &Lowering::none(),
-                &SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone())),
-                def,
-            )?;
-            // The definition is checked BEFORE anything is minted: a
+            // A free definition is checked BEFORE anything is minted: a
             // definition fault outranks a collision, and a refused
-            // declare speaks the id it would have minted.
-            let would = new.mint.would_declare(def.kind());
-            check_var_def(&SpokenVar::new(would, Some(name.clone())), &def)?;
+            // declare speaks the id it would have minted. What a defined
+            // one reads is asked after, with the rest of its checks.
+            let spoken = SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone()));
+            if let VarDecl::Free(free) = def {
+                check_var_def(&spoken, &VarDef::Free(free.clone()))?;
+            }
             let mut mint = new.mint.clone();
             let id = mint
                 .declare(def.kind())
                 .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
+            let def = lower_decl(doc, &Lowering::none(), &spoken, def)?;
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());
@@ -5802,8 +5947,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = doc.spoken_var(id);
-            let lowering = Lowering::start(new, fresh)?;
-            let def = lower_decl(new, &lowering, &spoken, def)?;
+            // The kind first: a definition of another kind is refused
+            // whatever it reads, and what it reads is asked after.
             let kind = doc.var(id).map_or(def.kind(), Var::kind);
             if def.kind() != kind {
                 return Err(EditError::VarKindFixed {
@@ -5812,6 +5957,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     offered: def.kind(),
                 });
             }
+            let lowering = Lowering::start(new, fresh)?;
+            let def = lower_decl(new, &lowering, &spoken, def)?;
             let record = match def {
                 VarDef::Free(value) => write_free(new, id, &spoken, value)?,
                 VarDef::Defined(_) => {
@@ -6260,15 +6407,16 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                             found,
                         });
                     }
-                    for &(slot, formula) in &rows {
-                        lowering.check(
-                            new,
-                            || doc.spoken(*instance),
-                            ExprSite::Slot(slot),
-                            formula,
-                        )?;
-                    }
-                    Some(offset.try_map_slots(&mut |formula| lowering.slot(new, formula))?)
+                    let spoken = || doc.spoken(*instance);
+                    let lowered = lower_value(new, &lowering, &rows, |f| {
+                        offset.try_map_slots(&mut |e| f(e))
+                    })
+                    .map_err(|unlowered| {
+                        unlowered.refuse(new, spoken, ExprSite::Slot, |fault| {
+                            fault.at(new, spoken(), ExprSite::Payload)
+                        })
+                    })?;
+                    Some(lowered)
                 }
             };
             if let Some(Node::InstantiatePart { offset: held, .. }) = new.nodes.get_mut(instance) {
@@ -6795,8 +6943,9 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
         });
     }
     let lowering = Lowering::start(new, fresh)?;
-    lowering.check(new, || spoken.clone(), ExprSite::Slot(slot), formula)?;
-    let var = lowering.slot(new, formula)?;
+    let var = lowering
+        .slot(new, formula)
+        .map_err(|fault| fault.at(new, spoken.clone(), ExprSite::Slot(slot)))?;
     let reader = Expr::var(var, slot.dimension());
     check_reads(new, &spoken, ExprSite::Slot(slot), &reader)?;
     let Some(target) = new.nodes.get_mut(&id).and_then(|n| n.expr_mut(slot)) else {

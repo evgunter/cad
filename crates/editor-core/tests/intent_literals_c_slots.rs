@@ -120,7 +120,8 @@ fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
 }
 
 fn radius(doc: &ProfileDoc, blend: RecipeNodeId) -> VarId {
-    doc.slot(blend, SlotId::Radius).expect("a blend reads its radius")
+    doc.slot(blend, SlotId::Radius)
+        .expect("a blend reads its radius")
 }
 
 // --------------------------------------------------------------- row 5
@@ -132,10 +133,17 @@ fn radius(doc: &ProfileDoc, blend: RecipeNodeId) -> VarId {
 #[test]
 fn two_typed_values_are_two_variables() {
     let typed = || Formula::length_in(R_MM, quantity::MM).unwrap();
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-c-typed"), Tol::witness());
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-c-typed"),
+        Tol::witness(),
+    );
     let (doc, _, a) = filleted(doc, 0.0, typed());
     let (doc, _, b) = filleted(doc, 4.0, typed());
-    assert_ne!(radius(&doc, a), radius(&doc, b), "two writings, two variables");
+    assert_ne!(
+        radius(&doc, a),
+        radius(&doc, b),
+        "two writings, two variables"
+    );
     let ev = eval(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let (ba, bb) = (body_of(&ev, a), body_of(&ev, b));
@@ -144,7 +152,11 @@ fn two_typed_values_are_two_variables() {
 
     let shared = radius(&doc, a);
     let (doc, _, c) = filleted(doc, 8.0, Formula::var(shared, Dimension::Length));
-    assert_eq!(radius(&doc, c), shared, "a variable passed is the variable read");
+    assert_eq!(
+        radius(&doc, c),
+        shared,
+        "a variable passed is the variable read"
+    );
     let ev = eval(&doc);
     let (ba, bc) = (body_of(&ev, a), body_of(&ev, c));
     assert_eq!(radius_token(ba), radius_token(bc));
@@ -160,7 +172,10 @@ fn two_typed_values_are_two_variables() {
 /// id.
 #[test]
 fn a_token_is_the_expansions_shape() {
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-c-shape"), Tol::witness());
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-c-shape"),
+        Tol::witness(),
+    );
     let doc = declare(&doc, "w", length(0.0625));
     let times = |k: f64| Formula::mul(named("w"), crate::fixture::scl(k)).unwrap();
     let doc = declare(&doc, "h", VarDecl::defined(times(2.0)));
@@ -168,7 +183,11 @@ fn a_token_is_the_expansions_shape() {
     let (doc, _, b) = filleted(doc, 4.0, times(2.0));
     let (doc, _, c) = filleted(doc, 8.0, named("h"));
     let (doc, _, d) = filleted(doc, 12.0, times(3.0));
-    assert_ne!(radius(&doc, a), radius(&doc, b), "each formula mints its variable");
+    assert_ne!(
+        radius(&doc, a),
+        radius(&doc, b),
+        "each formula mints its variable"
+    );
     let ev = eval(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let token = |blend| radius_token(body_of(&ev, blend));
@@ -189,7 +208,10 @@ fn a_rewritten_slot_retires_the_variable_its_formula_minted() {
     let plus = Formula::add(named("w"), Formula::length_in(5.0, quantity::MM).unwrap()).unwrap();
     let (doc, _, blend) = filleted(doc, 0.0, plus);
     let formula = radius(&doc, blend);
-    assert!(doc.var(formula).is_some_and(|v| v.def().defined().is_some()));
+    assert!(
+        doc.var(formula)
+            .is_some_and(|v| v.def().defined().is_some())
+    );
     let applied = step(
         &doc,
         DocEdit::SetParam {
@@ -215,7 +237,10 @@ fn a_rewritten_slot_retires_the_variable_its_formula_minted() {
 /// `AnonymousVarUnread` — liveness is through a reader.
 #[test]
 fn an_anonymous_variable_read_only_by_an_unread_definition_refuses_at_load() {
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-c-unread"), Tol::witness());
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-c-unread"),
+        Tol::witness(),
+    );
     let doc = declare(&doc, "w", length(0.0625));
     let plus = Formula::add(named("w"), Formula::length_in(5.0, quantity::MM).unwrap()).unwrap();
     let (doc, _, blend) = filleted(doc, 0.0, plus);
@@ -225,9 +250,8 @@ fn an_anonymous_variable_read_only_by_an_unread_definition_refuses_at_load() {
     // The blend re-pointed at `w`, by hand: the formula's variable is
     // left read by nothing.
     let w = doc.var_named("w").expect("declared");
-    let corrupt = crate::fixture::doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][blend.0.to_string()]["Fillet"]["radius"] =
-            serde_json::json!(w.0);
+    let corrupt = crate::wire::doctored(&text, |wire| {
+        wire["snapshot"]["nodes"][blend.0.to_string()]["Fillet"]["radius"] = serde_json::json!(w.0);
     });
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AnonymousVarUnread { var })) => {
@@ -254,7 +278,10 @@ fn corner_x() -> SlotId {
 /// if either path re-lowers the argument's written value.
 #[test]
 fn a_sketch_arguments_identity_survives_a_gesture_and_a_reshaping() {
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-c-gesture"), Tol::witness());
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-c-gesture"),
+        Tol::witness(),
+    );
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -301,13 +328,21 @@ fn a_sketch_arguments_identity_survives_a_gesture_and_a_reshaping() {
         DocEdit::SetProgram {
             node: profile,
             loops: authored.loops,
-            ids: program.ids.iter().map(|l| l.iter().copied().map(Some).collect()).collect(),
+            ids: program
+                .ids
+                .iter()
+                .map(|l| l.iter().copied().map(Some).collect())
+                .collect(),
             fresh: Vec::new(),
         },
     );
     assert_eq!(reshaped.doc.slot(profile, corner_x()), Some(var));
     let after = held(&reshaped.doc).expect("still free");
-    assert_eq!(after.distribution(), before.distribution(), "the spread, bit for bit");
+    assert_eq!(
+        after.distribution(),
+        before.distribution(),
+        "the spread, bit for bit"
+    );
     assert!(
         reshaped.maintenance.is_empty(),
         "a reshaping that re-authors every argument retires nothing: {:?}",
@@ -349,7 +384,9 @@ fn monte_carlo_draws_only_what_varies() {
         "the premise: written dimensions are variables too"
     );
     assert!(
-        sheet.iter().all(|d| d.keys().copied().collect::<Vec<_>>() == vec![w]),
+        sheet
+            .iter()
+            .all(|d| d.keys().copied().collect::<Vec<_>>() == vec![w]),
         "only w draws: {sheet:?}"
     );
     let (more, _, _) = filleted(doc, 4.0, len(0.125));
@@ -452,7 +489,12 @@ fn a_split_carries_an_anonymous_variable_read_twice_as_one() {
         "its definition, spread included, bit for bit"
     );
     let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
-    assert!(load(&text, Tol::witness()).expect("and loads").doc.bit_eq(&out.part));
+    assert!(
+        load(&text, Tol::witness())
+            .expect("and loads")
+            .doc
+            .bit_eq(&out.part)
+    );
 }
 
 /// Row 10's refusal: an anonymous variable read on both sides of the
@@ -477,9 +519,7 @@ fn an_anonymous_variable_read_on_both_sides_refuses_the_cut() {
         Tol::witness(),
         None,
     ) {
-        Err(SplitError::UncutVarReference {
-            var, kept_node, ..
-        }) => {
+        Err(SplitError::UncutVarReference { var, kept_node, .. }) => {
             assert_eq!((var.id(), kept_node.id()), (source, kept));
         }
         other => panic!("a variable read on both sides refuses, got {other:?}"),
@@ -575,8 +615,20 @@ fn an_entry_reads_the_entries_before_it() {
         panic!("two entries minted: {:?}", applied.record.fresh)
     };
     let point = applied.record.minted.expect("the point");
-    assert_eq!(applied.doc.slot(point, SlotId::Origin(editor_core::Axis3::X)), Some(double));
-    assert_eq!(applied.doc.definition_reads(double), vec![base]);
+    assert_eq!(
+        applied
+            .doc
+            .slot(point, SlotId::Origin(editor_core::Axis3::X)),
+        Some(double)
+    );
+    let definition = applied
+        .doc
+        .var(double)
+        .and_then(|v| v.def().defined())
+        .expect("the second entry is defined");
+    let mut reads = Vec::new();
+    definition.var_reads(&mut reads);
+    assert_eq!(reads, vec![(base, Dimension::Length)]);
 }
 
 // -------------------------------------------------- row 14's C half
@@ -599,7 +651,7 @@ fn the_load_door_reads_every_slots_variable() {
         wire["snapshot"]["nodes"][point.0.to_string()]["Datum"]["Point"]["position"][1] =
             serde_json::json!(var);
     };
-    let unminted = crate::fixture::doctored(&text, |wire| at(wire, 1));
+    let unminted = crate::wire::doctored(&text, |wire| at(wire, 1));
     match load(&unminted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
             assert_eq!((node.id(), var), (point, VarId(1)));
@@ -607,7 +659,7 @@ fn the_load_door_reads_every_slots_variable() {
         other => panic!("a slot of an unminted id refuses, got {other:?}"),
     }
     let count = doc.var_named("n").expect("declared");
-    let counted = crate::fixture::doctored(&text, |wire| at(wire, count.0));
+    let counted = crate::wire::doctored(&text, |wire| at(wire, count.0));
     match load(&counted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,

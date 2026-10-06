@@ -34,7 +34,7 @@ two arms, the off-table symbol refusing earlier and differently. The
 static half of the unrepresentability claim is `ty_fixtures/illegal.py`.
 
 NODE SLOTS RECORD IT TOO, and through the same two doors one
-vocabulary over: every dimensioned slot takes an `Formula`, and
+vocabulary over: every dimensioned slot takes a `Formula`, and
 `Formula.written_length` is what puts the notation in the slot where
 `Formula.literal` records the canonical row.
 `TestANodeSlotRecordsTheAuthoredNotation` is the pair of bytes, and
@@ -410,7 +410,7 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
 
 
 class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
-    """A slot takes an `Formula`, and which constructor built it is what
+    """A slot takes a `Formula`, and which constructor built it is what
     decides whether the document remembers the unit.
 
     The parameter family's two rows, one vocabulary over: the written

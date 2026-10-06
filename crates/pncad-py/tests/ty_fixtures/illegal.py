@@ -155,15 +155,15 @@ Node.fillet(solid, 1 * mm, [])  # ty: error
 # never node ids.
 Node.fillet(solid, Formula.length_in(1, m), [solid])  # ty: error
 
-# A blend radius is an `Formula`, not a bare number.
+# A blend radius is a `Formula`, not a bare number.
 Node.fillet(solid, 1.0, [])  # ty: error
 
-# The chamfer's setback is an `Formula` as well, and its selection is
+# The chamfer's setback is a `Formula` as well, and its selection is
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, Formula.length_in(1, m), [solid])  # ty: error
 
-# The shell's wall is an `Formula` too, and its open list is names as text.
+# The shell's wall is a `Formula` too, and its open list is names as text.
 Node.shell(solid, 1.0, [])  # ty: error
 Node.shell(solid, Formula.length_in(0.01, m), [solid])  # ty: error
 
@@ -175,7 +175,7 @@ Node.tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.
 Node.tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), (0 * rad, 1 * rad), Formula.length_in(0.05, m))  # ty: error
 Node.hollow_tube(solid, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))  # ty: error
 
-# Every one of a transform's slots is an `Formula` — the translation, the
+# Every one of a transform's slots is a `Formula` — the translation, the
 # axis and the angle alike — so a quantity handed over raw is refused
 # whichever of them it was meant for. WHICH dimension each slot wants
 # is checked at the door and not by the type: one seat, one type.
@@ -207,7 +207,7 @@ SketchPlane.xy().origin = (0 * m, 0 * m, 0 * m)  # ty: error
 GeomPred.curve_kind(SurfaceKind.Plane)  # ty: error
 GeomPred.adjacent_kinds(CurveKind.Line, SurfaceKind.Sphere)  # ty: error
 
-# A datum-distance comparand is an `Formula`: not a bare float, and not a
+# A datum-distance comparand is a `Formula`: not a bare float, and not a
 # quantity either. That it must be a LENGTH is the kernel's check at
 # `select_where`, not the stub's.
 GeomPred.datum_distance(solid, Cmp.Approx, 1.0)  # ty: error
@@ -252,7 +252,7 @@ Node.union([solid, solid], declare=[("a", "b")])  # ty: error
 DocEdit.set_declare(solid, ["name-text"])  # ty: error
 evaluate(doc).find_flush_candidates(solid, "not-a-node")  # ty: error
 
-# LIB-PYPU. A spacing is an `Formula`, not a bare number: the slot's own
+# LIB-PYPU. A spacing is a `Formula`, not a bare number: the slot's own
 # type is the whole point of the boundary.
 PatternKind.linear((1.0, 0.0, 0.0), 0.5)  # ty: error
 

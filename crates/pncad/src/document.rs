@@ -209,7 +209,7 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // an edit addresses a variable, by id or by name. Recipe vocabulary,
 // plain values, no arena key anywhere: they complete doors this module
 // already carries — `DocEdit::DeclareVar` takes a name and a
-// `VarDecl`, the variable edits take a `VarRef`, and `Expr::named`
+// `VarDecl`, the variable edits take a `VarRef`, and `Formula::named`
 // takes a `VarName` — so without them the parametric flagship
 // (`plate_param`, guide §3.2) could not be authored façade-only.
 // `SpokenVar` is a variable as a refusal speaks it.

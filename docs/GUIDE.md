@@ -140,7 +140,7 @@ assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
 mm + 90 * deg` is a `QuantityOpMismatch`, not a number.
 
-A dimensioned slot takes an `Formula`, and `Formula.length_in(8, mm)` is how
+A dimensioned slot takes a `Formula`, and `Formula.length_in(8, mm)` is how
 an authored number reaches one: the value and the unit it was written
 in, so the recipe reads back `8 mm` rather than the canonical
 `0.008 m`. It is exactly

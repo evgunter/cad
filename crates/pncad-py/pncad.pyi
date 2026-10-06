@@ -443,6 +443,14 @@ class EvalError(PncadError):
     dimension tags, `count` the offending integer; each is None where
     the arm does not carry it.
 
+    Two words come from the edit door's lowering of a formula's names,
+    before anything is evaluated: `unlowered_name`, a name no variable
+    holds at the dimension it is read at (the lowering's own refusal,
+    which no evaluation step speaks), and `var_kind_mismatch` where a
+    variable holds it at another kind (the same word the evaluator
+    gives a stored reader of the wrong kind). `GeomPred.datum_distance`
+    raises them too, lowering its comparand with no document in scope.
+
     Numeric domain is deliberately NOT here. Division by zero and
     out-of-domain trig are not refusals in the expression layer — the
     evaluator has no branches to hide them behind — so they follow the
@@ -2737,7 +2745,7 @@ class Node:
         recipe edge, so a failed or poisoned measure poisons the
         assertion rather than producing a verdict about nothing.
 
-        The bound is an `Formula` and not a typed quantity, because its
+        The bound is a `Formula` and not a typed quantity, because its
         DIMENSION is the measure's. Every other node door takes a
         `Length` or an `Angle` because a slot's address fixes what it
         holds; this one's is fixed by the node it points at, and may be
@@ -3225,7 +3233,7 @@ definitions it reads may hold: a definition past it refuses
 
 class VarDecl:
     """A variable's definition as an edit carries it: a free value, or
-    an `Formula` over other variables, which the edit door lowers (its
+    a `Formula` over other variables, which the edit door lowers (its
     names resolved against the document's) and stores."""
 
     @staticmethod
@@ -3415,7 +3423,7 @@ class DocEdit:
         `non_finite_var` for a NaN or infinite nominal or
         offset.
 
-        An `Formula` (or `VarDecl.defined`) declares a DEFINED variable,
+        A `Formula` (or `VarDecl.defined`) declares a DEFINED variable,
         whose value is the expression's over the variables it reads. It
         refuses `definition_unknown_var_name`,
         `definition_unresolved_var` and `definition_var_kind` for a read
@@ -3425,7 +3433,7 @@ class DocEdit:
     @staticmethod
     def define_var(var: Var | VarName, value: FreeVar | Formula | VarDecl) -> DocEdit:
         """Replace a variable's definition, keeping its identity, its
-        name and its kind. An `Formula` (or `VarDecl.defined`) makes it a
+        name and its kind. A `Formula` (or `VarDecl.defined`) makes it a
         defined variable; a `FreeVar` makes it free again.
 
         The whole definition is replaced, so a `FreeVar` rebuilt from
@@ -4048,10 +4056,11 @@ class Doc:
         A `count` expression does not evaluate here — counts are exact
         and promotion is explicit or nothing — so it raises EvalError
         (`count_expr_in_continuous_eval`) and `eval_count` is the
-        door. The names are read against this document. Other
-        refusals: `unlowered_name` (a name no variable holds at the
-        dimension it is read at), `var_kind_mismatch` (one held at
-        another), `unresolved_var`, `non_finite_result`."""
+        door. The names are read against this document, by the edit
+        door's lowering: `unlowered_name` (a name no variable holds at
+        the dimension it is read at) and `var_kind_mismatch` (one held
+        at another) are that lowering's refusals. Other refusals:
+        `unresolved_var`, `non_finite_result`."""
 
     def eval_count(self, expr: Formula) -> int:
         """This count expression's exact value (`eval_count`).

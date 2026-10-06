@@ -265,7 +265,7 @@ enum Binop {
 /// language's, and whatever [`DimensionError`] comes out is this
 /// language's refusal, in the same words a document expression would
 /// have earned. Probe construction is total for every `Dimension` —
-/// `Expr::literal` refuses only `Count` (which takes `Expr::count`)
+/// `Formula::literal` refuses only `Count` (which takes `Formula::count`)
 /// and non-finite values (1.0 is finite) — so the impossible branch is
 /// announced as the kernel bug it would be rather than carried as a
 /// refusal a caller could believe in.
@@ -476,6 +476,25 @@ impl<S: Slot> MeasureExpr<S> {
             | MeasureKind::Max(a, b) => {
                 a.value_leaves(out);
                 b.value_leaves(out);
+            }
+        }
+    }
+
+    /// [`Self::value_leaves`], exclusive: the same leaves in the same
+    /// order.
+    pub(crate) fn value_leaves_mut<'e>(&'e mut self, out: &mut Vec<&'e mut S>) {
+        match &mut self.kind {
+            MeasureKind::Primitive(_) => {}
+            MeasureKind::Value(e) => out.push(e),
+            MeasureKind::Neg(a) => a.value_leaves_mut(out),
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => {
+                a.value_leaves_mut(out);
+                b.value_leaves_mut(out);
             }
         }
     }

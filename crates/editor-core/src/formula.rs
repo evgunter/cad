@@ -263,14 +263,34 @@ impl Formula {
     /// The names this formula reads, with the dimension each is read
     /// at, in pre-order.
     pub fn named_reads(&self, out: &mut Vec<(VarName, Dimension)>) {
-        // The lowering rule's own walk, asked of a scope that holds
-        // nothing: every name leaf is reported, none rewritten.
-        let _ = self.try_map_leaves(&mut |leaf, dim| {
+        self.visit_leaves(&mut |leaf, dim| {
             if let AuthoredLeaf::Name(name) = leaf {
                 out.push((name.clone(), dim));
             }
-            Ok::<_, core::convert::Infallible>(Expr::var(VarId(0), dim))
         });
+    }
+
+    /// **This formula with every name `scope` lowers lowered**, the
+    /// rest left as written: a name read at the kind of the variable
+    /// `scope` names so is that variable's reader, and any other name
+    /// stays ([`Formula::lower`]'s rule, partial). What a refusal
+    /// speaks a node by, so a node authored by name and the same node
+    /// authored by id speak one id however much of it lowers. A fresh
+    /// leaf stays as written: nothing is minted yet.
+    pub(crate) fn lower_held(
+        &self,
+        scope: &impl Fn(&VarName) -> Option<(VarId, Dimension)>,
+    ) -> Formula {
+        let Ok(held) = self.try_map_leaves(&mut |leaf, dim| {
+            Ok::<_, core::convert::Infallible>(match leaf {
+                AuthoredLeaf::Name(name) => match scope(name) {
+                    Some((var, declared)) if declared == dim => Formula::var(var, dim),
+                    _ => Formula::named(name.clone(), dim),
+                },
+                AuthoredLeaf::Fresh(index) => Formula::fresh(*index, dim),
+            })
+        });
+        held
     }
 
     /// **The stored expression this formula lowers to** in `scope`: every

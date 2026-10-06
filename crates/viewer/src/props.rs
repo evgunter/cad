@@ -15,7 +15,7 @@
 //!
 //! The reason it is a change worth making rather than a convenience:
 //! the display unit is already stored per literal and already round-
-//! trips through persistence — `Expr::literal_with_unit` exists
+//! trips through persistence — `Formula::literal_with_unit` exists
 //! precisely so that "25 mm" comes back as `25 mm` and not as `0.025`.
 //! A panel that showed `0.025` was throwing away information the
 //! document was carrying for it. The conversion is the parser's own
@@ -169,18 +169,18 @@ impl SlotValue {
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value in
     /// a `Count` dimension — **the same refusal, by name, that
-    /// `Expr::literal` raises for the continuous half**, which is what
+    /// `Formula::literal` raises for the continuous half**, which is what
     /// makes [`field_edit`]'s promise true. That door admits `inf` and
     /// `NaN` as Numbers on the stated ground that the refusal
     /// downstream names the problem; downstream of a `Count` dimension
-    /// there is no literal to refuse, because `Expr::count` takes an
+    /// there is no literal to refuse, because `Formula::count` takes an
     /// integer. `f64 as i64` is a SATURATING cast, not a conversion —
     /// `NaN` is `0` and `inf` is `i64::MAX` — so without this the word
     /// the user typed leaves as an ordinary count that no one asked
     /// for, and every guard downstream of it sees a number.
     ///
     /// The continuous arm refuses nothing here: its value reaches
-    /// `Expr::literal` intact and is refused there, which is the
+    /// `Formula::literal` intact and is refused there, which is the
     /// arrangement this arm is being brought into line with rather
     /// than a second one.
     pub fn of(dimension: Dimension, value: f64) -> Result<Self, DimensionError> {
@@ -832,7 +832,7 @@ pub enum FieldEdit {
 /// line exactly where the user sees it — `25` is a number, `25 in` is
 /// not, `w * 2` is not — and it inherits `1e-3` and `-4` for free.
 /// A non-finite spelling (`inf`, `NaN`) reads as a Number here on
-/// purpose: `Expr::literal`'s refusal names the problem ("a literal
+/// purpose: `Formula::literal`'s refusal names the problem ("a literal
 /// value must be finite"), where the parser would only say the word
 /// is not a parameter.
 pub fn field_edit(text: &str) -> FieldEdit {
@@ -1009,8 +1009,8 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
 ///
 /// # Errors
 ///
-/// The dimension refusal `Expr::literal` raises for a value that is
-/// not finite, and `Expr::literal_with_unit`'s
+/// The dimension refusal `Formula::literal` raises for a value that is
+/// not finite, and `Formula::literal_with_unit`'s
 /// `DisplayUnitMismatch` for a unit that does not measure the slot's
 /// dimension — reported rather than silently dropped, because a
 /// mismatched unit means the caller's idea of the slot disagrees with

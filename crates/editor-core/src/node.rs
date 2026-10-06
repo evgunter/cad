@@ -3313,6 +3313,16 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
             .map(|(_, e)| e)
             .collect())
     }
+
+    /// [`Node::exprs`], exclusive: the same expressions in the same
+    /// order.
+    pub(crate) fn exprs_mut(&mut self) -> Vec<&mut S> {
+        expr_table!(self, value_leaves_mut, core::convert::identity, rest => rest
+            .rows_mut()
+            .into_iter()
+            .map(|(_, e)| e)
+            .collect())
+    }
 }
 
 /// **THE slot table of a placement**: every rigid step's components at

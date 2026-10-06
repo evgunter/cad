@@ -1635,7 +1635,7 @@ fn param_row(session: &DocSession, name: &VarName) -> props::ParamRow {
 /// the props module promises names it.**
 ///
 /// `props::field_edit` reads `inf` and `NaN` as Numbers deliberately,
-/// and says what pays for it: `Expr::literal`'s refusal names the
+/// and says what pays for it: `Formula::literal`'s refusal names the
 /// problem where the parser would only say the word is not a
 /// parameter. That promise had a hole exactly one dimension wide.
 /// `SlotValue::of` splits on the dimension BEFORE any expression is

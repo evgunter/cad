@@ -2250,7 +2250,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
 }
 
 /// The stable tag for an expression-constructor refusal
-/// (`Expr::literal`'s own error type, matched rather than
+/// (`Formula::literal`'s own error type, matched rather than
 /// pre-checked).
 pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
     match err {

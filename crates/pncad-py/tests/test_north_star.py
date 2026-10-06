@@ -4450,7 +4450,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # `inner_variant`.
             #
             # What is left of G1 is the AUTHORING half, and it is a
-            # SIGNATURE rather than a name — no door takes an `Formula`
+            # SIGNATURE rather than a name — no door takes a `Formula`
             # INTO a document — so it is pinned below the loop with
             # the other signature gaps rather than here.
             # G18 LEFT this list at LIB-G18b, the series' second half:
@@ -4513,7 +4513,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # expression TYPE crosses now (LIB-B-EXPR-READ), so its
         # absence is no longer the measurement; what the row records
         # is that a profile step's argument cannot BE one, and that is
-        # about which doors accept an `Formula`, not about whether the
+        # about which doors accept a `Formula`, not about whether the
         # word exists. The arc verbs take quantities, so a parametric
         # radius is still unsayable and the read side cannot make it
         # sayable.
@@ -4521,7 +4521,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # "An expression goes in through no door at all" was the
         # sentence here, and LIB-B-MEASURES made it false without
         # touching this row's claim: `MeasureExpr.value` and
-        # `Node.assertion`'s bound both take an `Formula` INTO a document,
+        # `Node.assertion`'s bound both take a `Formula` INTO a document,
         # because the measurement sublanguage's leaves and an
         # assertion's bound are the two slots whose dimension an
         # ADDRESS cannot fix. What this row is about is the profile
@@ -4530,7 +4530,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         #
         # Executed at the verb the row names, and at the parameter
         # door beside it, because those are the two the row's sentence
-        # is about. Both refuse at the boundary: an `Formula` is not a
+        # is about. Both refuse at the boundary: a `Formula` is not a
         # `Length`, and `declare_var` writes a NUMBER, so a
         # parameter defined in terms of another is unsayable too.
         radius = Doc().parse_formula("3 mm")

@@ -174,7 +174,7 @@ pub enum DimensionError {
         found: Dimension,
     },
     /// A literal constructed with [`Dimension::Count`] — Count literals
-    /// are integers, made by [`Expr::count`].
+    /// are integers, made by [`crate::Formula::count`].
     LiteralCountIsInteger,
     /// A non-finite (NaN/±inf) literal — refused at construction (the
     /// M4 PR 1 review's ruled "door 1": the kernel never produces
@@ -618,7 +618,7 @@ impl UnitSym {
     ///
     /// **The one place that reading is spelled**, and every caller that
     /// needs it asks here rather than re-laddering it: the expression
-    /// TEXT door (`parse`, on a suffix), [`Expr::literal_with_unit`] at
+    /// TEXT door (`parse`, on a suffix), [`crate::Formula::literal_with_unit`] at
     /// construction, [`crate::FreeVar::with_display_unit`] at the
     /// variable's notation door, the declare and define doors' definition
     /// check (`edit.rs`'s `check_var_def`), and the save/load
@@ -649,7 +649,7 @@ impl UnitSym {
     /// becomes a stored fact.
     ///
     /// **Total, including `Count`** — deliberately, though a count has
-    /// no notation and the table no row for one. [`Expr::literal`]
+    /// no notation and the table no row for one. [`crate::Formula::literal`]
     /// refuses `Count` before ever reaching here, so no LITERAL takes
     /// that arm; what can is [`crate::FreeVar::continuous`], whose
     /// `dim` is a caller's argument and whose `Count` spelling is a
@@ -672,7 +672,7 @@ impl UnitSym {
     ///
     /// The one home of "a unit measures what its value holds". Every
     /// door that attaches a notation a caller CHOSE — the literal
-    /// constructor [`Expr::literal_with_unit`] and
+    /// constructor [`crate::Formula::literal_with_unit`] and
     /// [`crate::RecordedNotation::set`], which writes one down before
     /// any literal exists — asks this, so the two cannot come to
     /// disagree about which pairings are legal. [`Self::canonical_for`]
@@ -1388,6 +1388,33 @@ impl<L: LeafSet> ExprTree<L> {
 }
 
 impl<L: LeafSet> ExprTree<L> {
+    /// **Every leaf of this form's own set**, with the dimension it is
+    /// read at, in pre-order: what a reader of the leaves asks, where
+    /// [`Self::try_map_leaves`] rewrites them.
+    ///
+    /// Recursion is bounded by [`MAX_NESTING`], as every walk over a
+    /// constructed tree is.
+    pub(crate) fn visit_leaves(&self, visit: &mut impl FnMut(&L, Dimension)) {
+        use ExprKind as K;
+        match &self.kind {
+            K::Leaf(leaf) => visit(leaf, self.dim),
+            K::Literal(_) | K::CountLiteral(_) | K::Var(_) => {}
+            K::Add(a, b)
+            | K::Sub(a, b)
+            | K::Mul(a, b)
+            | K::Div(a, b)
+            | K::Atan2(a, b)
+            | K::Min(a, b)
+            | K::Max(a, b) => {
+                a.visit_leaves(visit);
+                b.visit_leaves(visit);
+            }
+            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
+                a.visit_leaves(visit);
+            }
+        }
+    }
+
     /// **This tree in another form**: every leaf of this form's own
     /// vocabulary rewritten by `own` (handed the dimension it reads at),
     /// every shared leaf and operator kept, with its dimension and
@@ -2032,7 +2059,7 @@ fn write_literal(lit: &Lit, dim: Dimension) -> String {
     let remembered = lit.unit_def();
     let formatted = match dim {
         // The stored unit and the dimension agree by construction —
-        // `Expr::literal_with_unit` checks the pairing and `literal`
+        // `Formula::literal_with_unit` checks the pairing and `literal`
         // supplies the canonical row — so the typed view is there, and
         // its absence is D2 addendum row 4 rather than a default: a
         // quiet fallback here would render a corrupt literal as if it
@@ -2065,7 +2092,7 @@ fn write_literal(lit: &Lit, dim: Dimension) -> String {
         // the same bits and always carries a `.` or an `e`, so it
         // settles the round trip and the dimension together.
         Dimension::Scalar => return format!("{:?}", lit.value),
-        // Unconstructable (D2 addendum row 4): `Expr::literal` refuses
+        // Unconstructable (D2 addendum row 4): `Formula::literal` refuses
         // `Count`, and `ExprKind::Literal` is minted nowhere else.
         Dimension::Count => {
             unreachable!("a Count literal is an integer (ExprKind::CountLiteral), never a Lit")

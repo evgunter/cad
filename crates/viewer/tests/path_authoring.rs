@@ -668,7 +668,7 @@ fn a_non_finite_field_refuses_at_the_lowering() {
 /// **An arc whose radius is not a number refuses, rather than being
 /// drawn at coordinates that are not numbers.**
 ///
-/// A bulge of `1e-320` is a finite literal — `Expr::literal` accepts
+/// A bulge of `1e-320` is a finite literal — `Formula::literal` accepts
 /// it, and `widgets::named_scalar` is an ordinary field a person types
 /// it into — so nothing upstream of the flattener has a reason to
 /// refuse. What it makes is `theta = 4e-320`, `sin(theta/2)` of the
