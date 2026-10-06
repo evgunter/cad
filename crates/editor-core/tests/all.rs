@@ -142,6 +142,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_bore_two_rims.rs"]
+mod edit_bore_two_rims;
 #[path = "edit_doc_param_distribution.rs"]
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
@@ -150,8 +152,6 @@ mod edit_doc_param_unit;
 mod edit_has_minted;
 #[path = "edit_instance_crossing_names.rs"]
 mod edit_instance_crossing_names;
-#[path = "edit_bore_two_rims.rs"]
-mod edit_bore_two_rims;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
 #[path = "edit_one_predicate.rs"]
