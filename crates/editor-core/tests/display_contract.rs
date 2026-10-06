@@ -2322,6 +2322,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                     name: Box::new(face_name()),
                     why: RefusedRef::Vanished { by: None },
                 },
+                held: Default::default(),
             },
             CarriedRefusal {
                 route,
@@ -2330,6 +2331,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                     class: ContactClass::Tangent,
                     why,
                 },
+                held: Default::default(),
             },
         ],
     };

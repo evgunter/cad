@@ -2,8 +2,11 @@
 id: a-torus-seam-graze-needs-the-rim-root-deflated
 kind: issue
 title: A G1 torus chain declared a Seam stops at the graze of an edge leaving the rim: a torus×torus seam certifies no side
-status: open
+status: parked
 opened: 2026-10-02
+priority: P1
+cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
