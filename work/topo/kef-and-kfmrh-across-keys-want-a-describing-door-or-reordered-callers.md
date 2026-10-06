@@ -121,7 +121,7 @@ The split is on the kills themselves:
 
 ## Ruled (PR 3970, 2026-10-06)
 
-Ev ruled over five design rounds; each round is recorded in `docs/DESIGN-FORK-LOG.md` row 75. The rulings in Ev's words:
+Ev ruled over five design rounds; each round is recorded in `docs/DESIGN-FORK-LOG.md` row 76. The rulings in Ev's words:
 
 1. **The kills' final state is B, built directly.** `kef` and `kfmrh` refuse a strand or an unvouched move keys-only, through `Body::vouch_move`. Describing twins take the move with its re-descriptions. `Loop.face`, `HalfEdge.parent_loop`, `Face.surface` and `Edge.curve` become private to one module that owns the vouch, so the compiler confines writes. There is no interim gate. (2026-10-04: "the final state should be B, and i also think it'd be best to go directly there rather than by way of A".)
 2. **The naming check is in tier 1**: a certified edge's description names surfaces its faces wear. (2026-10-06: "i agree with the recommendation on choice 2".)
