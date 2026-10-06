@@ -141,6 +141,7 @@ fn carried(relation: Relation) -> Attribution {
         },
         declaration: minted(),
         relation,
+        held: Default::default(),
     }
 }
 
