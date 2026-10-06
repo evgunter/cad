@@ -1691,3 +1691,57 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — PR 3839 ([ev]): a part's nodes are said by label, carried on the fault from the seam
+
+Designer pair (fork-log row 71, A = Fable, B = Opus) converged on option
+(d): the fault records the part's nodes while the pinned part is in hand
+and carries them, and the uncalled doors go. Ev approved the mechanism
+but asked for the Band 1 bullet to state the general principle instead
+of a part exception. It now reads "a value the evaluation memo reuses
+holds a label only when its memo key fixes that label", with host and
+part as its two consequences. The row
+`a-frame-that-speaks-a-parts-refusal-holds-no-resolved-part` stays open
+for the build, with a Ruled section naming it. Fork-log row renumbered
+from 45 to 71 on merging main (main had taken 45–70).
+
+## 2026-10-06 — PR 3841: a carried row's route says this document's instance by label
+
+`Route::say` reads `route.through` off the speaking document (kind,
+label and tag) when the sentence is made. The `via` hops belong to
+deeper documents and stay said by tag. The same goes for the mate, the
+group and the cause, which are spelled in the part (that is the separate
+part-at-the-seam row). Covered: `AssemblyError::CarriedMintRefusal`,
+`Attribution::Carried`, `ExportError::UnplacedBelow`, and Python
+`CarriedRefusal.__str__`. The viewer badge and Python `export_err`
+already spoke through `spoken(doc)`. The review found nothing blocking.
+Two twin-id tests were folded in, each mutation-checked:
+- a four-document route whose `via` hop shares an id with an outer node
+  labelled "spare seat";
+- an unplaced group whose id the outer document holds as "twin group".
+The two-nouns-per-route reading (kind noun for the first hop,
+"instance" for later ones) stays as `NodeAs` makes it.
+
+## 2026-10-06 — PR 4086: a deleted selection says the last label its node had
+
+The selection keeps its nodes as they were said (`Derived::said`,
+written by `Select`). After every operation, `DocSession::perform`
+re-speaks them from the shown document under the `respoken` keep rule.
+`Speaker::or_held` says a node from the document while the document
+holds it, then from the kept nodes, then by tag. Picks are spoken from
+the shown document first and the landed run's second (`spoken_now`).
+The row asked each door to name its document instead. The review judged
+this better: it picks up a rename made after the landing.
+
+The datum face form keeps its own kept nodes (`Drafts::datum_face_said`),
+so it no longer reads a snapshot that belongs to a later selection. That
+fault was filed and folded in the same PR.
+
+Review folds, each mutation-checked:
+- the per-op re-speak;
+- the shown-first test;
+- the datum face test.
+
+Filed:
+- `a-verdicts-other-nodes-are-said-by-tag-once-deleted`;
+- `the-tools-pick-time-snapshots-never-follow-a-rename`.

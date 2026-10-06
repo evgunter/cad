@@ -15,14 +15,19 @@
 //! - same loop ⇒ `mef(Chords { he1: h1, he2: next(h2) })` (the book's
 //!   `lmef(h1, h2->nxt)`; our [`MefSite::Chords`] documents the same
 //!   run association, so the argument pair ports literally — and the
-//!   mirror test pins the outcome, not the citation, tol), guarded by
-//!   `prev(prev(h1)) != h2` (adjacent ⇒ the chord already exists);
+//!   mirror test pins the outcome, not the citation, tol), skipped
+//!   where `prev(prev(h1)) == h2` AND the one edge between them is the
+//!   section segment ([`SegmentEdge`]) — any other edge between needs
+//!   its chord;
 //! - different loops ⇒ `mekr` with the **ring chosen structurally**
 //!   (the loop that is not the face's outer; the book's fixed
 //!   `lmekr(h1, h2->nxt)` argument order assumes GWB's list layout —
 //!   ours is explicit outer/ring data);
-//! - then the second chord `mef(Chords { he1: h2, he2: next(h1) })`
-//!   guarded by `next(next(h1)) != h2`; if the first `mef` split a
+//! - then the second chord `mef(Chords { he1: h2, he2: next(h1) })`,
+//!   skipped where `next(next(h1)) == h2` and the edge between is the
+//!   segment; both chords are planned before either is minted
+//!   ([`JoinPlan`]) and minted on the segment's one curve
+//!   ([`SegmentCurve`]); if the first `mef` split a
 //!   face that still owns rings, the rings are re-homed by trilean
 //!   containment ([`crate::splitting::containment`] on a plane,
 //!   [`chart_ring_side`] on a cylinder wall's chart) +
@@ -1427,14 +1432,13 @@ fn bool_planar_chord_spec<T: Decide>(
     }))
 }
 
-/// **A matched section segment's chord curve**: the curve both of its
-/// chords are minted on, computed ONCE when the boolean join matches the
-/// segment ([`ChordJoiner::segment_curve`]) and read by everything that
-/// needs the chord's geometry — the joiner's `mef`/`mekr`
-/// ([`Chords::Segment`]) and the join's role resolution, whose ring lane
-/// winds the run the first chord closes
-/// (`boolean::join::ring_run_ccw`). A curve read in one place and assumed
-/// in another is two answers to one question.
+/// **A section segment's chord curve**: the curve both of its chords
+/// are minted on, computed ONCE per join ([`ChordJoiner::segment_curve`])
+/// and read by everything that needs the chord's geometry — the joiner's
+/// `mef`/`mekr` ([`ChordJoiner::join`]) and the boolean join's role
+/// resolution, whose ring lane winds the run the first chord closes
+/// (`boolean::join::ring_run_ccw`). A curve read in one place and
+/// assumed in another is two answers to one question.
 ///
 /// `spec` runs from the site of `halves.0` to the site of `halves.1` (the
 /// two matched null halves, whose null edges tie each site's copies);
@@ -1538,59 +1542,55 @@ impl<T: Decide> SegmentCurve<T> {
     }
 }
 
-/// Where a [`ChordJoiner::join`]'s chords get their geometry, and how it
-/// knows the section segment it chords is an edge the face already has.
-pub(crate) enum Chords<'a, T: Real> {
-    /// The split lane: each chord is the section's arc leaving its first
-    /// site along `leave` ([`chord_spec`]), and an edge between the two
-    /// halves that lies in the section plane is the segment
-    /// ([`between_edge_is_section`]).
-    Split {
-        /// The section plane and its aux surface.
-        ctx: &'a mut SectionCtx<T>,
-        /// The section's departure at each half's site.
-        leave: Leave<T>,
-    },
-    /// A boolean match: every chord is the segment's curve, and the
-    /// segment is `edge`, named by the matched germs' locus on this
-    /// solid, or lies inside a face (`None`).
-    Segment {
-        /// The segment's curve.
-        curve: &'a SegmentCurve<T>,
-        /// The edge the segment is, if any.
-        edge: Option<EdgeKey>,
-    },
+/// How a join knows the section segment it chords is an edge the face
+/// already has: the adjacency skip's question, asked of the one edge
+/// between two halves when a join is planned ([`JoinPlan::of`]).
+#[derive(Clone, Copy)]
+pub(crate) enum SegmentEdge<'a, T: Real> {
+    /// A boolean match: the edge the matched germs' locus names on this
+    /// solid, or `None` where the segment lies inside a face. The skip
+    /// is structural ([`between_is_segment`]).
+    Locus(Option<EdgeKey>),
+    /// The plane split: an edge lying in the section plane
+    /// ([`between_edge_is_section`]) — the plane the split's chords are
+    /// curved against ([`JoinLane::Split`]). An escalated verdict refuses
+    /// typed rather than guessing either way; a belly conic between the
+    /// halves is no section segment, and its chord is minted.
+    InPlane(&'a SectionCtx<T>),
 }
 
-/// The adjacency skip, for both chords of a `join`: an already-adjacent
-/// pair whose between edge IS the section segment needs no chord. On
-/// the split lane that is an edge lying in the plane
-/// ([`between_edge_is_section`]); any other between edge needs its chord
-/// minted, and an escalated verdict refuses typed rather than guessing
-/// either way. On a boolean match it is structural: the between edge
-/// is the edge the segment's locus names.
-fn skip_adjacent_chord<T: Decide>(
-    body: &Body<T>,
-    chords: &Chords<'_, T>,
-    between: HalfEdgeKey,
-    face: FaceKey,
-    band: Band,
-) -> Result<bool, SplitJoinError> {
-    match chords {
-        Chords::Segment { edge, .. } => between_is_segment(body, *edge, between),
-        Chords::Split { ctx, .. } => match between_edge_is_section(body, ctx, between, band)? {
-            Some(in_plane) => Ok(in_plane),
-            None => Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "section classification of the join-adjacent edge escalated",
-            }),
-        },
+impl<T: Decide> SegmentEdge<'_, T> {
+    /// The edge this segment is, where a locus names one.
+    fn locus(self) -> Option<EdgeKey> {
+        match self {
+            Self::Locus(edge) => edge,
+            Self::InPlane(_) => None,
+        }
+    }
+
+    /// Whether the edge under `between` IS the section segment.
+    fn is(
+        self,
+        body: &Body<T>,
+        between: HalfEdgeKey,
+        face: FaceKey,
+        band: Band,
+    ) -> Result<bool, SplitJoinError> {
+        match self {
+            Self::Locus(edge) => between_is_segment(body, edge, between),
+            Self::InPlane(ctx) => between_edge_is_section(body, ctx, between, band)?.ok_or(
+                SplitJoinError::SectionInvariant {
+                    face,
+                    what: "section classification of the join-adjacent edge escalated",
+                },
+            ),
+        }
     }
 }
 
 /// Whether the (real) edge under `he` IS the section segment over its
 /// whole span, the split lane's adjacency-skip question
-/// ([`Chords::Split`]): `None` = escalated. Null scaffolding
+/// ([`SegmentEdge::InPlane`]): `None` = escalated. Null scaffolding
 /// answers `true`. A line answers `true` with NO predicate evaluation,
 /// since a line between two ON copies lies in the plane. A conic asks
 /// the trilean `split_conic_inplane_mid`, margin its mid-parameter plane
@@ -1599,7 +1599,7 @@ fn skip_adjacent_chord<T: Decide>(
 /// sign-constant. Zero pins the whole arc in-plane; a definite midpoint
 /// is a belly arc, whose chord MUST be minted or the section face
 /// inherits an off-plane boundary edge. A boolean match reads the
-/// segment's locus instead ([`Chords::Segment`]).
+/// segment's locus instead ([`SegmentEdge::Locus`]).
 fn between_edge_is_section<T: Decide>(
     body: &Body<T>,
     ctx: &SectionCtx<T>,
@@ -2438,9 +2438,7 @@ impl StaleSite {
 
 /// Where one of [`ChordJoiner::join`]'s two chords is minted: the
 /// `mef` or `mekr` site, the matched half whose site its spec runs
-/// from, and its two end vertices as that site names them — the one
-/// statement of each, read by `join` and by
-/// [`ChordJoiner::segment_curve`] alike.
+/// from, and its two end vertices as that site names them.
 struct ChordPlan {
     site: ChordSite,
     from: HalfEdgeKey,
@@ -2456,7 +2454,7 @@ pub(crate) enum ChordSite {
     Mekr(MekrSite),
 }
 
-/// What [`ChordJoiner::join`] reads of `(h1, h2)` before any surgery:
+/// What a [`JoinPlan`] reads of `(h1, h2)`:
 /// whether they share a loop, and whether `h2 → between → h1` holds.
 struct JoinShape {
     same_loop: bool,
@@ -2464,7 +2462,7 @@ struct JoinShape {
 }
 
 /// Whether the edge under a half IS the section segment: the adjacency
-/// skip's question ([`skip_adjacent_chord`]).
+/// skip's question ([`SegmentEdge::is`]).
 type SkipTest<'s, T> = &'s mut dyn FnMut(&Body<T>, HalfEdgeKey) -> Result<bool, SplitJoinError>;
 
 fn join_shape<T: Decide>(
@@ -2548,22 +2546,61 @@ fn second_chord<T: Decide>(
     }))
 }
 
-/// The sites of the chords [`ChordJoiner::join`] mints for a boolean
-/// match `(h1, h2)` whose segment is `segment` (or lies in a face), read
-/// on the body before any surgery: `(first, second)`, each `None` where
-/// the adjacency skip drops it. The second is read pre-surgery too, which
-/// is the body `join` reads it on only where the first is skipped.
-pub(crate) fn segment_chord_sites<T: Decide>(
-    body: &Body<T>,
+/// **A join's two chords, planned once** — each one's site, end
+/// vertices and the half its curve runs from, or `None` where the
+/// adjacency skip drops it — read by everything that curves or mints
+/// them: [`ChordJoiner::segment_curve`], [`ChordJoiner::join`] and the
+/// boolean's role order ([`Self::sites`]).
+///
+/// Both chords are planned on the body before any surgery. The first
+/// chord's surgery rewires only `prev(h1)` and `next(h2)`; the second's
+/// plan reads `next(h1)`, the edge under it, and the half after it,
+/// which is `next(h2)` only where `next(h1)` is `h2` itself — not
+/// adjacent before the surgery or after it.
+pub(crate) struct JoinPlan {
     halves: (HalfEdgeKey, HalfEdgeKey),
-    segment: Option<EdgeKey>,
-) -> Result<(Option<ChordSite>, Option<ChordSite>), SplitJoinError> {
-    let shape = join_shape(body, halves)?;
-    let mut skip = |b: &Body<T>, he| between_is_segment(b, segment, he);
-    Ok((
-        first_chord(body, halves, &shape, &mut skip)?.map(|p| p.site),
-        second_chord(body, halves, &mut skip)?.map(|p| p.site),
-    ))
+    first: Option<ChordPlan>,
+    second: Option<ChordPlan>,
+    /// The edge the segment is, where a locus names one.
+    locus: Option<EdgeKey>,
+}
+
+impl JoinPlan {
+    /// The plan for joining `halves` in that order, `segment` answering
+    /// the adjacency skip.
+    pub(crate) fn of<T: Decide>(
+        body: &Body<T>,
+        halves: (HalfEdgeKey, HalfEdgeKey),
+        segment: SegmentEdge<'_, T>,
+        band: Band,
+    ) -> Result<Self, SplitJoinError> {
+        let l1 = body
+            .get_half_edge(halves.0)
+            .ok_or_else(|| corrupt_he(halves.0))?
+            .parent_loop;
+        let face = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
+        let shape = join_shape(body, halves)?;
+        let mut skip = |b: &Body<T>, he| segment.is(b, he, face, band);
+        Ok(Self {
+            halves,
+            first: first_chord(body, halves, &shape, &mut skip)?,
+            second: second_chord(body, halves, &mut skip)?,
+            locus: segment.locus(),
+        })
+    }
+
+    /// The halves joined, in the plan's order.
+    pub(crate) fn halves(&self) -> (HalfEdgeKey, HalfEdgeKey) {
+        self.halves
+    }
+
+    /// The chords' sites, `(first, second)`.
+    pub(crate) fn sites(&self) -> (Option<ChordSite>, Option<ChordSite>) {
+        (
+            self.first.as_ref().map(|p| p.site),
+            self.second.as_ref().map(|p| p.site),
+        )
+    }
 }
 
 /// A boolean match's adjacency skip: the between edge is the edge the
@@ -2580,52 +2617,51 @@ fn between_is_segment<T: Real>(
 }
 
 impl ChordJoiner {
-    /// **The segment's chord curve** ([`SegmentCurve`]) for the matched
-    /// null halves `(h1, h2)`, computed once, in the lane the germ pair
-    /// selects: the edge's own copy on [`JoinLane::AlongEdge`]
-    /// ([`along_edge_spec`]), else the section chord [`chord_spec`] mints
-    /// in the face the halves sit in.
+    /// The [`JoinPlan`] for joining `halves` in that order.
+    pub(crate) fn plan<T: Decide>(
+        &self,
+        body: &Body<T>,
+        halves: (HalfEdgeKey, HalfEdgeKey),
+        segment: SegmentEdge<'_, T>,
+    ) -> Result<JoinPlan, SplitJoinError> {
+        JoinPlan::of(body, halves, segment, self.band)
+    }
+
+    /// **The segment's chord curve** ([`SegmentCurve`]) for a planned
+    /// join, computed once, in the lane the caller selects: the edge's
+    /// own copy on [`JoinLane::AlongEdge`] ([`along_edge_spec`]), else
+    /// the section chord [`chord_spec`] mints in the face the halves sit
+    /// in. Both lanes that join — a boolean match and the plane split —
+    /// take their chords' geometry here.
     ///
-    /// It is computed for the chord [`Self::join`] mints first in this
-    /// order, from its plan ([`first_chord`], or [`second_chord`] where
-    /// the adjacency skip drops the first): from the same end, leaving
-    /// it along the matched germ's direction there (`leave`). The curve is
-    /// computed only for a chord that is minted, so an aux surface it
-    /// mints is always referenced. A match whose two chords are both
-    /// skipped — a loop holding both halves of the segment's edge — is
-    /// refused.
+    /// It is computed for the chord the plan mints first: from that
+    /// chord's end, leaving it along `leave`. The curve is computed only
+    /// for a chord that is minted, so an aux surface it mints is always
+    /// referenced; `None` is a join whose two chords are both skipped,
+    /// which mints nothing.
     pub(crate) fn segment_curve<T: Decide>(
         &self,
         body: &mut Body<T>,
-        halves: (HalfEdgeKey, HalfEdgeKey),
+        plan: &JoinPlan,
         lane: JoinLane<'_, T>,
-        segment: Option<EdgeKey>,
         leave: Leave<T>,
-    ) -> Result<SegmentCurve<T>, SplitJoinError> {
+    ) -> Result<Option<SegmentCurve<T>>, SplitJoinError> {
+        let halves = plan.halves;
         let l1 = body
             .get_half_edge(halves.0)
             .ok_or_else(|| corrupt_he(halves.0))?
             .parent_loop;
         let face = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
-        let shape = join_shape(body, halves)?;
-        let mut skip = |b: &Body<T>, he| between_is_segment(b, segment, he);
-        let plan = match first_chord(body, halves, &shape, &mut skip)? {
-            Some(plan) => plan,
-            None => {
-                second_chord(body, halves, &mut skip)?.ok_or(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "both chords of a matched segment are its own edge (a loop holding \
-                           both halves of that edge)",
-                })?
-            }
+        let Some(chord) = plan.first.as_ref().or(plan.second.as_ref()) else {
+            return Ok(None);
         };
-        let to = if plan.from == halves.0 {
+        let to = if chord.from == halves.0 {
             halves.1
         } else {
             halves.0
         };
-        let (u1, u2) = plan.ends;
-        let spec = match along_edge_spec(body, &lane, segment, face, u1, u2)? {
+        let (u1, u2) = chord.ends;
+        let spec = match along_edge_spec(body, &lane, plan.locus, face, u1, u2)? {
             Some(spec) => Some(spec),
             None => chord_spec(
                 body,
@@ -2634,70 +2670,38 @@ impl ChordJoiner {
                 face,
                 u1,
                 u2,
-                leave.from(plan.from, face)?,
+                leave.from(chord.from, face)?,
             )?,
         };
-        Ok(SegmentCurve {
-            halves: (plan.from, to),
+        Ok(Some(SegmentCurve {
+            halves: (chord.from, to),
             spec,
-        })
+        }))
     }
 
     /// `join` (module docs): connect the old loose end `h1` and the
-    /// new half `h2` with up to two chord edges, their geometry from
-    /// `chords`; the minted chord edges come back (the boolean joining
-    /// records their germ — M3 PR 5).
+    /// new half `h2` — `plan`'s halves — with the chords `plan` mints,
+    /// both on `curve` (the segment's, [`Self::segment_curve`]); the
+    /// minted chord edges come back (the boolean joining records their
+    /// germ — M3 PR 5).
     pub(crate) fn join<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
-        h1: HalfEdgeKey,
-        h2: HalfEdgeKey,
-        mut chords: Chords<'_, T>,
+        plan: &JoinPlan,
+        curve: &SegmentCurve<T>,
         tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
+        let h2 = plan.halves.1;
         let l1 = body
-            .get_half_edge(h1)
-            .ok_or_else(|| corrupt_he(h1))?
+            .get_half_edge(plan.halves.0)
+            .ok_or_else(|| corrupt_he(plan.halves.0))?
             .parent_loop;
         let oldf = body.get_loop(l1).ok_or_else(|| corrupt_loop(l1))?.face;
-        let band = self.band;
-        // One chord's spec: on the split lane the section's arc through
-        // the run it co-bounds; on a boolean match the segment's curve,
-        // run from the site of the plan's matched half.
-        let spec_of = |body: &mut Body<T>,
-                       chords: &mut Chords<'_, T>,
-                       face: FaceKey,
-                       plan: &ChordPlan|
-         -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
-            let (u1, u2) = plan.ends;
-            match chords {
-                Chords::Split { ctx, leave } => chord_spec(
-                    body,
-                    band,
-                    JoinLane::Split(&mut **ctx),
-                    face,
-                    u1,
-                    u2,
-                    leave.from(plan.from, face)?,
-                ),
-                Chords::Segment { curve, .. } => curve.running_from(plan.from, face),
-            }
-        };
-
         let mut minted = Vec::new();
         let mut newf = None;
-        let shape = join_shape(body, (h1, h2))?;
-        // Adjacency skip (M3): when exactly one edge sits between the
-        // halves AND it IS the section segment, no chord is needed there.
-        // A belly conic between them (M1 fix) is NOT a section segment:
-        // the chord must be minted or the section face inherits an
-        // off-plane boundary; an escalated in-plane verdict refuses typed.
-        let first = first_chord(body, (h1, h2), &shape, &mut |b, he| {
-            skip_adjacent_chord(b, &chords, he, oldf, band)
-        })?;
-        if let Some(plan) = first {
-            let spec = spec_of(body, &mut chords, oldf, &plan)?;
-            match plan.site {
+        if let Some(chord) = &plan.first {
+            let spec = curve.running_from(chord.from, oldf)?;
+            match chord.site {
                 ChordSite::Mef(site) => {
                     // `outside` is the first half past the run; after the
                     // mef its parent loop is the split's REMAINDER — the
@@ -2736,10 +2740,7 @@ impl ChordJoiner {
         // first mef that is not necessarily `oldf` (`h2` may have landed
         // in the new face). Capture the owner at call time, BEFORE the
         // surgery moves loops.
-        let second = second_chord(body, (h1, h2), &mut |b, he| {
-            skip_adjacent_chord(b, &chords, he, oldf, band)
-        })?;
-        if let Some(plan) = second {
+        if let Some(chord) = &plan.second {
             let l2_now = body
                 .get_half_edge(h2)
                 .ok_or_else(|| corrupt_he(h2))?
@@ -2748,13 +2749,13 @@ impl ChordJoiner {
                 .get_loop(l2_now)
                 .ok_or_else(|| corrupt_loop(l2_now))?
                 .face;
-            let ChordSite::Mef(site) = plan.site else {
+            let ChordSite::Mef(site) = chord.site else {
                 return Err(SplitJoinError::SectionInvariant {
                     face: owner,
                     what: "a second chord planned as a mekr",
                 });
             };
-            let spec = spec_of(body, &mut chords, owner, &plan)?;
+            let spec = curve.running_from(chord.from, owner)?;
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
                 Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,

@@ -2,11 +2,11 @@
 id: closest-crossing-and-graze-abandon-have-three-homes
 kind: issue
 title: The ray-walk driver (schedule, graze, set-aside, exhaustion) and the closest-crossing fold have six homes
-status: open
+status: dispatched
 opened: 2026-10-05
 priority: P1
-cost: M
-design: true
+cost: H
+branch: cleave/ray-walk
 ---
 
 Found by the dual review of PR 4046 (both lanes, style Q1). PR 4046 added

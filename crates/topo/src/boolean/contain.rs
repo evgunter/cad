@@ -107,11 +107,7 @@ impl core::fmt::Display for ContainError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Escalated(diag) => write!(f, "contfp: {diag}"),
-            Self::RayExhausted => write!(
-                f,
-                "contfp: the point is off the face's boundary, but {}",
-                crate::ray_walk::RaysGrazed
-            ),
+            Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::RaysGrazed),
             Self::StaleFace(face) => {
                 write!(f, "contfp: face {face:?} does not resolve in this body")
             }

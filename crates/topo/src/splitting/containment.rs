@@ -160,6 +160,12 @@ pub enum LoopContainment {
 
 /// Typed failure of [`point_in_loop`].
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PointInLoopErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PointInLoopError {
     /// A predicate escalated (in-band margin).
     Escalated {

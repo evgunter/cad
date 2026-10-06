@@ -2890,7 +2890,7 @@ fn op_noun(op: BooleanOp) -> &'static str {
 /// A surface kind as the person holding the mouse reads it. The
 /// spline kinds get one spelling everywhere a Boolean refusal names
 /// them; every other kind is its own name.
-fn kind_word(kind: geom::SurfaceKind) -> &'static str {
+pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
     match kind {
         geom::SurfaceKind::Nurbs => "spline (NURBS)",
         geom::SurfaceKind::Approx => "approximated spline",
@@ -3032,11 +3032,9 @@ impl core::fmt::Display for BooleanError {
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    ContainError::RayExhausted => write!(
-                        f,
-                        "{preamble}: the point is off the face's boundary, but {}",
-                        crate::ray_walk::RaysGrazed
-                    ),
+                    ContainError::RayExhausted => {
+                        write!(f, "{preamble}: {}", crate::ray_walk::RaysGrazed)
+                    }
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
                     ContainError::Escalated(_)
                     | ContainError::StaleFace(_)

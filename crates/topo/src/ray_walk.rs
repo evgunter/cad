@@ -161,9 +161,10 @@ pub(crate) fn walk<R, V, E>(
 
 /// **The one sentence for a schedule every ray of which grazed**, and
 /// its one recourse, which each reader's exhaustion variant renders
-/// after its own subject. The rays are the kernel's, so no declaration
-/// reaches them, and a graze carries no margin to size a tolerance by:
-/// the geometry is the lever.
+/// after its own subject. Every walk asks it only of a point its
+/// boundary pre-pass placed off the boundary. The rays are the kernel's,
+/// so no declaration reaches them, and a graze carries no margin to size
+/// a tolerance by: the geometry is the lever.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RaysGrazed;
 
@@ -171,9 +172,9 @@ impl core::fmt::Display for RaysGrazed {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "every test ray grazed the boundary, at a vertex, along an edge or at a \
-             tangency, so where the point lies is ill-conditioned at this tolerance. \
-             Recourse: {NO_DECLARATION_RECOURSE}"
+            "the point is off its boundary, but every test ray grazed it, at a vertex, \
+             along an edge or at a tangency, so where the point lies is ill-conditioned \
+             at this tolerance. Recourse: {NO_DECLARATION_RECOURSE}"
         )
     }
 }
