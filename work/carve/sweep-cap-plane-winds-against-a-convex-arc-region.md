@@ -58,3 +58,15 @@ units off the axis and revolved a quarter turn mints both wedge caps
 inside out, and tier 3 refuses exactly those two
 (`a_convex_arc_c_shape_partial_revolve_mints_both_caps_inside_out`,
 same file).
+
+## Built (2026-10-06)
+
+`sweep::swept::cap_plane` is the one home of a cap's plane for
+`extrude`, `loft_body` and the partial `revolve`: Newell over
+`cap_points` gives its position and residual certification, and its
+normal is the placed sketch normal signed by the region's validated
+winding (an outer loop is canonical counterclockwise), the verb's
+traversal reversal and which end the cap closes. Newell's own normal
+is not read. The two C-shape rows in
+`crates/sweep/tests/m5_s10_face_sense.rs` assert the caps point out of
+the material and the bodies certify at tier 3.

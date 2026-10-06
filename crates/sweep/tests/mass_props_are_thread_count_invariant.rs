@@ -419,6 +419,15 @@ fn digest() -> String {
 /// 568 → 539 / 638 → 606 and `sym_thin_strip` 708 → 704 / 673 → 674 /
 /// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
 /// hash are unchanged.
+///
+/// **Re-cut at all three ε when the sweep caps took their normal from
+/// the placed sketch normal** (`sweep::swept::cap_plane`) instead of
+/// Newell's cross-sum. Only the `frozen` column of the two
+/// `validate_geometric` rows moves, and down by 2: `sym_arc_loft`
+/// 607 → 605 / 539 → 537 / 606 → 604 and `sym_thin_strip`
+/// 704 → 702 / 674 → 672 / 699 → 697 at ε = 1e-6 / 1e-9 / 1e-12, one
+/// per cap. Decisions, discharges, shapes, every f64 reading and every
+/// verdict hash are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
