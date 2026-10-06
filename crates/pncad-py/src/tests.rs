@@ -3532,6 +3532,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ContactSecondOrder,
         BlendDecision::CornerIndependence,
         BlendDecision::CapTransverse,
+        BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
     ] {
         let refused = BlendError::Escalated {
@@ -5259,6 +5260,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "degenerate_stacking",
             "euler",
+            "far_section_not_forward",
+            "far_stacking_escalated",
             "one_segment_loop",
             "pcurve",
             "reversed_stacking",
@@ -5914,6 +5917,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "domain_not_unit",
             "fit",
             "knot_algebra",
+            "no_parameter_step",
             "path_tangent_reversal",
             "section_profile",
             "section_shape_mismatch",

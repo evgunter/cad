@@ -1242,7 +1242,24 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
                 source: diag(),
             },
         ),
-        ("CapPlane", E::CapPlane { source: newell() }),
+        (
+            "CapPlane",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Newell(newell()),
+            },
+        ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
+            },
+        ),
+        (
+            "CapPlaneEdgeOn",
+            E::CapPlane {
+                source: sweep::CapPlaneError::EdgeOn,
+            },
+        ),
         (
             "SidePlane",
             E::SidePlane {
@@ -1349,7 +1366,24 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
                 source: diag(),
             },
         ),
-        ("CapPlane", E::CapPlane { source: newell() }),
+        (
+            "CapPlane",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Newell(newell()),
+            },
+        ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane {
+                source: sweep::CapPlaneError::Orientation(named("cap_plane_orientation")),
+            },
+        ),
+        (
+            "CapPlaneEdgeOn",
+            E::CapPlane {
+                source: sweep::CapPlaneError::EdgeOn,
+            },
+        ),
         ("Op", E::Op { source: euler() }),
         ("Pcurve", E::Pcurve(pcurve())),
     ]
@@ -1556,7 +1590,9 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "Section(Carrier)",
                 J::Section {
                     face,
-                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes),
+                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes(
+                        payloads::named("ellipse_axes_distinct"),
+                    )),
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
@@ -2097,6 +2133,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
             "Fit",
             E::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 }),
@@ -2129,7 +2166,17 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
         ),
         ("Euler", E::Euler(euler())),
-        ("CapPlane", E::CapPlane(newell())),
+        (
+            "CapPlane",
+            E::CapPlane(sweep::CapPlaneError::Newell(newell())),
+        ),
+        (
+            "CapPlaneOrientation",
+            E::CapPlane(sweep::CapPlaneError::Orientation(named(
+                "cap_plane_orientation",
+            ))),
+        ),
+        ("CapPlaneEdgeOn", E::CapPlane(sweep::CapPlaneError::EdgeOn)),
         ("Pcurve", E::Pcurve(pcurve())),
         (
             "SeamStructure",
@@ -2140,6 +2187,14 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         ("SectionStructure", E::SectionStructure),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
+        ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
+        (
+            "FarStackingEscalated",
+            E::FarStackingEscalated {
+                slab: 1,
+                source: diag(),
+            },
+        ),
         (
             "StackingEscalated",
             E::StackingEscalated {
