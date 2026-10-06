@@ -588,3 +588,20 @@ piece-by-piece ring readers. Filed: TESS
 `mesh-slit-annulus-rows-no-longer-build-a-slit`, CLEAVE
 `revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6` (main's red,
 merged over); SHELL `offset-door-declared-transport-has-no-built-witness`.
+
+## 2026-10-06 — run-out step 3 landed (PR #4173): an oblique plane end face cuts a round band off in an ellipse
+
+A fillet whose plane end face is oblique to its edge ends in the end plane's
+elliptic section of its cylinder, for the planar and the ruled band on both
+convexities: built through `Curve3::ellipse`'s deciding door, the sliver
+enclosed exactly (the disc to the sliver's reach less the ellipse, cut to
+the half-plane and the section's box). `cap_transverse` picks the kind; the
+near-perpendicular window where the ellipse is not distinct from a circle
+escalates as its own `BlendDecision::CapEllipse` with a followable recourse.
+The bracket's fillet walls retired; the tour rocker's wall 2 (the same
+over-refusal on a circle end) retired into builds. Full review
+(APPROVE-WITH-FIXES; every arc on both faces to 1e-16) taken in full. Filed:
+`second-order-cap-window-escalates-small-drafts` (P3); witnesses on CONTACT's
+`at-infinity-probe-measures-in-closed-form-only` and QUAD's
+`quadrature-convergence-test-escalates-instead-of-refining`. The run-out row
+stays open for step 4 (the mitre) and the overrun.
