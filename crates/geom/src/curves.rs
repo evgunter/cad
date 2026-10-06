@@ -328,8 +328,10 @@ impl CurveKind {
 pub enum EllipseInvalid {
     /// The semi-axes coincide (|major − minor| ≤ ε): this configuration
     /// is a `Circle`, and D3's one-kind-per-configuration discipline
-    /// refuses to mint it as a degenerate `Ellipse`.
-    CircularAxes,
+    /// refuses to mint it as a degenerate `Ellipse`. It carries the
+    /// funnel's rejection of the decided zero, so a caller that meant
+    /// the axes to differ can escalate with the margin it was refused on.
+    CircularAxes(Indeterminate),
     /// `major` is definitely smaller than `minor`: the caller swapped
     /// the axes (the frame convention is major-first; swap `u_ref` to
     /// the true major direction and reorder).
@@ -363,7 +365,7 @@ impl EllipseInvalid {
 impl core::fmt::Display for EllipseInvalid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::CircularAxes => write!(
+            Self::CircularAxes(_) => write!(
                 f,
                 "ellipse construction: the semi-axes coincide — this configuration is a \
                  Circle, one kind per configuration (D3); construct the Circle carrier, or {}",
@@ -736,11 +738,14 @@ impl<T: Decide> Curve3<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
         }
-        match geom_core::k_stats::decide("ellipse_axes_distinct", Margin::of(major - minor), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => return Err(EllipseInvalid::CircularAxes),
-            Ok(Sign::Negative) => return Err(EllipseInvalid::AxesSwapped),
-            Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
+        let axes = Margin::of(major - minor);
+        if let Err(diag) = geom_core::k_stats::decide_positive("ellipse_axes_distinct", axes, band)
+        {
+            return Err(match diag.margin.rejected_sign() {
+                Some(Sign::Zero) => EllipseInvalid::CircularAxes(diag),
+                Some(Sign::Negative) => EllipseInvalid::AxesSwapped,
+                Some(Sign::Positive) | None => EllipseInvalid::Escalated(diag),
+            });
         }
         Ok(Curve3::Ellipse {
             center,
@@ -883,6 +888,63 @@ impl<T: Real> Curve3<T> {
                 major_radius,
                 minor_radius,
                 offset: T::zero() - offset,
+            },
+            Curve3::Nurbs(_) => return None,
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// **The same carrier moved by `by`**: every point shifted, every
+    /// size and direction kept. What a deciding door decides is sizes
+    /// and directions alone, so the moved carrier is one the door that
+    /// built this one admits. `None` for a NURBS, whose control points
+    /// a move would rewrite.
+    #[must_use]
+    pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
+        Some(match self.clone() {
+            Curve3::Line { origin, dir } => Curve3::Line {
+                origin: origin + by,
+                dir,
+            },
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Curve3::Circle {
+                center: center + by,
+                axis,
+                radius,
+                u_ref,
+            },
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => Curve3::Ellipse {
+                center: center + by,
+                axis,
+                major,
+                minor,
+                u_ref,
+            },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                center: center + by,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
             },
             Curve3::Nurbs(_) => return None,
         })
@@ -1458,7 +1520,8 @@ mod tests {
     /// **A reversed carrier is the same locus run back**: its point at
     /// `t` is the original's at `−t`, on every kind it reverses — a
     /// carrier that flipped the wrong vector would meet the original at
-    /// most at isolated parameters.
+    /// most at isolated parameters. A translated one's point at `t` is
+    /// the original's, moved.
     #[test]
     fn a_reversed_carrier_runs_the_same_locus_back() {
         let n = Vec3::new(2.0, 2.0, 1.0) / 3.0;
@@ -1490,9 +1553,13 @@ mod tests {
         ];
         for curve in curves {
             let back = curve.reversed().expect("a closed-form carrier reverses");
+            let by = Vec3::new(-1.25, 0.5, 3.0);
+            let moved = curve.translated(by).expect("a closed-form carrier moves");
             for t in [-2.5, -0.3, 0.0, 0.7, 1.9, 4.0] {
                 let d = (back.eval(t) - curve.eval(-t)).norm();
                 assert!(d < 1e-14, "{curve:?} at {t}: {d}");
+                let d = (moved.eval(t) - (curve.eval(t) + by)).norm();
+                assert!(d < 1e-14, "{curve:?} moved, at {t}: {d}");
             }
         }
     }
@@ -1751,12 +1818,15 @@ mod tests {
         assert!(mk(2.0, 1.0).is_ok());
         // … exactly-degenerate (major = minor, margin 0) refuses as the
         // circular coincidence …
-        assert_eq!(mk(1.0, 1.0).unwrap_err(), EllipseInvalid::CircularAxes);
+        let err = mk(1.0, 1.0).unwrap_err();
+        assert!(matches!(err, EllipseInvalid::CircularAxes(_)), "{err:?}");
         // … a sub-ε separation (dyadic 2⁻³¹ ≈ 4.7e-10, exact under
         // subtraction) still refuses as the coincidence …
-        assert_eq!(
-            mk(1.0 + 2.0f64.powi(-31), 1.0).unwrap_err(),
-            EllipseInvalid::CircularAxes
+        let err = mk(1.0 + 2.0f64.powi(-31), 1.0).unwrap_err();
+        let zero = |d: &Indeterminate| d.margin.rejected_sign() == Some(Sign::Zero);
+        assert!(
+            matches!(err, EllipseInvalid::CircularAxes(ref d) if zero(d)),
+            "{err:?}"
         );
         // … in-band escalates typed …
         let err = mk(1.0 + 5e-9, 1.0).unwrap_err();
