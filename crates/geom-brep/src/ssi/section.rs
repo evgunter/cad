@@ -297,6 +297,8 @@ fn refined_sign(
     let mut reads = 0usize;
     while let Some((hc, wc)) = stack.pop() {
         reads += 1;
+        #[cfg(test)]
+        probe::READS.with(|r| r.set(r.get() + 1));
         if reads > super::SSI_MAX_CELLS {
             return Err(SsiError::CellBudget {
                 budget: super::SSI_MAX_CELLS,
@@ -316,6 +318,10 @@ fn refined_sign(
             ratio_hull(core::iter::once((&hr, &wr))),
         );
         let (before, after) = (Certification::width(phi), Certification::width(split));
+        #[cfg(test)]
+        if std::env::var("R1_TRACE").is_ok() {
+            eprintln!("read {reads} depth {} phi [{:e}, {:e}] before {before:e} after {after:e} h {:?}", stack.len(), phi.lo(), phi.hi(), hc.iter().map(|i| (i.lo(), i.hi())).collect::<Vec<_>>());
+        }
         if before.is_nan() || after.is_nan() || after >= before {
             return Ok(None);
         }
@@ -753,5 +759,220 @@ mod tests {
         let e = 1e-9;
         let got = read(vec![piece(&[e, e]), piece(&[-e, -e])]);
         assert_eq!(got.ok(), Some(None));
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod probe {
+    use std::cell::Cell;
+    thread_local! { pub(crate) static READS: Cell<usize> = const { Cell::new(0) }; }
+}
+
+#[cfg(test)]
+mod r1_probes {
+    use geom_core::Interval;
+    use std::io::Write;
+
+    use super::{SsiError, probe::READS, refined_sign};
+    use geom_core::interval::certification::Certification;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn unit(&mut self) -> f64 {
+            (self.next() >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn range(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.unit()
+        }
+    }
+
+    type Piece = (Vec<Interval>, Vec<Interval>);
+
+    fn mk(xs: &[f64], ws: &[f64], big: f64) -> Piece {
+        (
+            xs.iter()
+                .zip(ws)
+                .map(|(&x, &w)| Interval::point(w) * (Interval::point(x) - Interval::point(big)))
+                .collect(),
+            ws.iter().map(|&w| Interval::point(w)).collect(),
+        )
+    }
+
+    fn run(pieces: Vec<Piece>) -> (Result<Option<bool>, SsiError>, usize) {
+        READS.with(|r| r.set(0));
+        let got = refined_sign(pieces.into_iter());
+        (got, READS.with(|r| r.get()))
+    }
+
+    fn elevate(c: &[f64]) -> Vec<f64> {
+        let n = c.len() as f64;
+        let mut out = vec![c[0]];
+        for i in 1..c.len() {
+            let a = i as f64 / n;
+            out.push(a * c[i - 1] + (1.0 - a) * c[i]);
+        }
+        out.push(*c.last().unwrap());
+        out
+    }
+
+    /// Fuzz: writes every case and its reading to `R1_OUT` for an exact
+    /// check in rationals.
+    #[test]
+    fn r1_fuzz_dump() {
+        let path = std::env::var("R1_OUT").unwrap_or_else(|_| "/dev/null".into());
+        let mut f = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let bigs = [0.0, 1.0, 1e3, 1e6, 1e9];
+        let mut max_reads = 0;
+        for case in 0..60_000u32 {
+            let kind = case % 5;
+            let npieces = if rng.unit() < 0.8 { 1 } else { 2 + (rng.next() % 3) as usize };
+            let big = bigs[(rng.next() % 5) as usize];
+            let s = 10f64.powf(rng.range(-14.0, 0.0));
+            let rational = rng.unit() < 0.5;
+            let mut pieces_desc = Vec::new();
+            let mut pieces = Vec::new();
+            let mut prev_end: Option<f64> = None;
+            for _ in 0..npieces {
+                let d = 1 + (rng.next() % 6) as usize;
+                let mut v: Vec<f64> = match kind {
+                    0 => (0..=d).map(|_| s * rng.range(-1.0, 1.0)).collect(),
+                    1 => (0..=d)
+                        .map(|i| {
+                            if i == 0 || i == d {
+                                s * rng.range(0.0, 1.0)
+                            } else {
+                                s * rng.range(-1.0, 1.0)
+                            }
+                        })
+                        .collect(),
+                    2 => {
+                        let r = rng.range(-0.2, 1.2);
+                        let dl = [0.0, 1e-16, -1e-16, 1e-12, -1e-12, 1e-8, -1e-8, 1e-4, -1e-4]
+                            [(rng.next() % 9) as usize];
+                        let mut c = vec![r * r + dl, r * r - r + dl, (1.0 - r) * (1.0 - r) + dl];
+                        while c.len() < d + 1 {
+                            c = elevate(&c);
+                        }
+                        c.iter().map(|x| s * x).collect()
+                    }
+                    3 => {
+                        let mut c: Vec<f64> = (0..=d).map(|_| s * rng.range(0.0, 1.0)).collect();
+                        let e = [0.0, 1e-17 * s, -1e-17 * s][(rng.next() % 3) as usize];
+                        if rng.unit() < 0.5 { c[0] = e } else { c[d] = e }
+                        c
+                    }
+                    _ => {
+                        // phantom: (P, -N, P) like, P > N or not
+                        let p = s * rng.range(0.0, 1.0);
+                        let n = p * rng.range(0.5, 1.5);
+                        (0..=d).map(|i| if i == 0 || i == d { p } else { -n * rng.range(0.5, 1.5) }).collect()
+                    }
+                };
+                if let Some(e) = prev_end {
+                    if rng.unit() < 0.7 {
+                        v[0] = e;
+                    }
+                }
+                prev_end = Some(*v.last().unwrap());
+                let ws: Vec<f64> = (0..=d)
+                    .map(|_| if rational { rng.range(0.25, 4.0) } else { 1.0 })
+                    .collect();
+                let xs: Vec<f64> = v.iter().map(|&x| big + x).collect();
+                pieces.push(mk(&xs, &ws, big));
+                pieces_desc.push((xs, ws));
+            }
+            let (got, reads) = run(pieces);
+            max_reads = max_reads.max(reads);
+            let res = match got {
+                Ok(Some(true)) => "P",
+                Ok(Some(false)) => "N",
+                Ok(None) => "0",
+                Err(_) => "B",
+            };
+            write!(f, "{case} {kind} {res} {reads} {big:?}").unwrap();
+            for (xs, ws) in pieces_desc {
+                write!(f, " |").unwrap();
+                for (x, w) in xs.iter().zip(&ws) {
+                    write!(f, " {x:?}:{w:?}").unwrap();
+                }
+            }
+            writeln!(f).unwrap();
+        }
+        eprintln!("max reads {max_reads}");
+    }
+
+    #[test]
+    fn r1_trace_case() {
+        let xs = [1000000000.0000076, 999999999.999999, 1000000000.0000001];
+        let (got, reads) = run(vec![mk(&xs, &[1.0; 3], 1e9)]);
+        eprintln!("{got:?} {reads}");
+    }
+
+    #[test]
+    fn r1_exact_double_roots() {
+        let one = |c: &[f64]| mk(c, &vec![1.0; c.len()], 0.0);
+        let s = 2f64.powi(-30);
+        let (got, reads) = run(vec![one(&[4.0 * s, -2.0 * s, s])]);
+        eprintln!("one exact double root (4,-2,1)*2^-30: {got:?} reads {reads}");
+        let (got, reads) = run(vec![one(&[4.0, -2.0, 1.0])]);
+        eprintln!("one exact double root (4,-2,1): {got:?} reads {reads}");
+        let (got, reads) = run(vec![one(&[4e-9, -2e-9, 1e-9])]);
+        eprintln!("decimal (4,-2,1)e-9: {got:?} reads {reads}");
+        let r = 1.0 / 3.0;
+        let e = 1e-9;
+        let t = [r * r * e, (r * r - r) * e, (1.0 - r) * (1.0 - r) * e];
+        for m in [1024usize, 3636, 3700, 4096] {
+            let started = std::time::Instant::now();
+            let (got, reads) = run(vec![one(&t); m]);
+            eprintln!("{m} near-touching positive spans: {got:?} reads {reads} in {:?}", started.elapsed());
+        }
+        for m in [100usize, 200, 266, 268, 300, 1000] {
+            let pieces: Vec<Piece> = (0..m)
+                .map(|i| if i % 2 == 0 { one(&[4.0 * s, -2.0 * s, s]) } else { one(&[s, -2.0 * s, 4.0 * s]) })
+                .collect();
+            let (got, reads) = run(pieces);
+            eprintln!("{m} touching spans: {got:?} reads {reads}");
+        }
+    }
+
+    /// Reads per shape.
+    #[test]
+    fn r1_reads_by_shape() {
+        let one = |c: &[f64]| mk(c, &vec![1.0; c.len()], 0.0);
+        let e = 1e-9;
+        let r = 1.0 / 3.0;
+        let rows: Vec<(&str, Vec<Piece>)> = vec![
+            ("phantom", vec![one(&[0.6 * e, -0.2 * e, 0.6 * e])]),
+            ("phantom close P=N+tiny", vec![one(&[0.5 * e + 1e-24, -0.5 * e, 0.5 * e + 1e-24])]),
+            ("phantom deg6", vec![one(&[e, -3.0 * e, -3.0 * e, -3.0 * e, -3.0 * e, -3.0 * e, e])]),
+            ("linear crossing", vec![one(&[-0.5 * e, 0.5 * e])]),
+            ("quad crossing at irrational", vec![one(&[-e, 0.3 * e, 2.0 * e])]),
+            ("touch at 1/3", vec![one(&[r * r * e, (r * r - r) * e, (1.0 - r) * (1.0 - r) * e])]),
+            ("touch at 1/3 lifted 1e-20", vec![one(&[r * r * e + 1e-20, (r * r - r) * e + 1e-20, (1.0 - r) * (1.0 - r) * e + 1e-20])]),
+            ("touch at 1/3 lifted 1e-24", vec![one(&[r * r * e + 1e-24, (r * r - r) * e + 1e-24, (1.0 - r) * (1.0 - r) * e + 1e-24])]),
+            ("flush", vec![one(&[0.0; 3])]),
+            ("zero at end", vec![one(&[0.0, -e, e])]),
+            ("mid near zero big coord", vec![mk(&[1e6 + 1e-9, 1e6 - 1e-9, 1e6 + 1e-9], &[1.0; 3], 1e6)]),
+        ];
+        for (name, p) in rows {
+            let (got, reads) = run(p);
+            eprintln!("{name:40} {got:?} reads {reads}");
+        }
+        // Many one-signed pieces past the budget.
+        for m in [199_999usize, 200_001] {
+            let (got, reads) = run(vec![one(&[e, e]); m]);
+            eprintln!("{m} tight one-signed pieces: {got:?} reads {reads}");
+        }
+        for m in [66_666usize, 66_667, 70_000] {
+            let (got, reads) = run(vec![one(&[0.6 * e, -0.2 * e, 0.6 * e]); m]);
+            eprintln!("{m} phantom pieces: {got:?} reads {reads}");
+        }
     }
 }

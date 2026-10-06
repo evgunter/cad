@@ -859,3 +859,44 @@ fn a_side_whose_hull_is_loose_reads_clear_at_both_doors() {
         );
     }
 }
+
+/// r1 probe: a dense side whose spans each come within rounding of a
+/// touch, positive, at the search door.
+#[test]
+fn r1_probe_dense_near_touching_side() {
+    let e = eps();
+    let (plane, _) = ground();
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let r = 1.0 / 3.0;
+    let (a, b, c) = (r * r * e, (r * r - r) * e, (1.0 - r) * (1.0 - r) * e);
+    for m in [2048usize, 3000, 3400, 3600, 3650] {
+        let hs: Vec<f64> = (0..=2 * m)
+            .map(|j| {
+                if j % 2 == 1 {
+                    b
+                } else if (j / 2) % 2 == 0 {
+                    a
+                } else {
+                    c
+                }
+            })
+            .collect();
+        let wall = c0_wall(10.0, &hs);
+        let started = std::time::Instant::now();
+        let out = ssi::plane_nurbs_ssi(&plane, &wall, domain, band());
+        match out {
+            Ok(o) => eprintln!(
+                "m {m}: ok branches {} contacts {:?} in {:?}",
+                o.branches.len(),
+                o.boundary,
+                started.elapsed()
+            ),
+            Err(err) => eprintln!("m {m}: refused {err} in {:?}", started.elapsed()),
+        }
+    }
+}
