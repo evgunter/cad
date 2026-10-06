@@ -419,3 +419,58 @@ fn r2_twice_split_rim_at_coincidence() {
         }
     }
 }
+
+/// Arm (d) witness hunt: notches predicate 2 may not read.
+#[test]
+fn r2_arm_d_witness_hunt() {
+    let shapes: Vec<(&str, Vec<(f64, f64)>)> = vec![
+        (
+            "v-notch",
+            vec![(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (1.5, 0.05), (0.0, 1.0)],
+        ),
+        (
+            "spike",
+            vec![
+                (0.0, 0.0),
+                (3.0, 0.0),
+                (3.0, 1.0),
+                (2.95, 1.0),
+                (2.9, 0.05),
+                (2.85, 1.0),
+                (0.0, 1.0),
+            ],
+        ),
+        (
+            "slot",
+            vec![
+                (0.0, 0.0),
+                (3.0, 0.0),
+                (3.0, 1.0),
+                (2.0, 1.0),
+                (2.0, 0.05),
+                (1.9, 0.05),
+                (1.9, 1.0),
+                (0.0, 1.0),
+            ],
+        ),
+    ];
+    for (name, pts) in shapes {
+        let b = prism(
+            pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect(),
+            1.0,
+            tol(),
+        );
+        let f = edge(&b, [0.0, 0.0, 1.0], [3.0, 0.0, 1.0]);
+        for verb in [Verb::Chamfer, Verb::Fillet] {
+            let r = run(verb, &b, &[f], 0.1);
+            let tier3 = r
+                .as_ref()
+                .map(|o| validate_geometric(&o.body, tol()).is_ok());
+            println!(
+                "R2D {name} {verb:?} mut={}: {:?}",
+                std::env::var("R2MUT").is_ok(),
+                tier3.map_err(|e| format!("{e:?}").chars().take(160).collect::<String>())
+            );
+        }
+    }
+}
