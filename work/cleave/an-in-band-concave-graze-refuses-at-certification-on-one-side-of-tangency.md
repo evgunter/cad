@@ -2,10 +2,11 @@
 id: an-in-band-concave-graze-refuses-at-certification-on-one-side-of-tangency
 kind: issue
 title: a plane within the band of a hole's wall refuses its knife edge on one side of tangency and a chord certification on the other
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P2
 cost: M
+branch: cleave/inband-graze
 ---
 
 

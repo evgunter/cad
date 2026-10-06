@@ -1201,3 +1201,9 @@ Correspondence pre-note:
 - **Tally candidates:** none, since no unilateral MAJOR was raised.
 
 Fix list of ten items sent to the lane. Both pre-existing wrong bodies are to be filed P1 on SHELF.
+- 2026-10-06 — From FUSE: demo-tour's Klein pin (`klein.rs:876`,
+  findings entry 10) fires on main at every `eps_regression` row since
+  PR 3774 (PATHS 5b). The FUSE 3953 lane bisected it. Filed as
+  `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
+  (P0): the pin's own text says the entry has retired. Every PR that
+  merges main is red on the `demos` job until it is resolved.

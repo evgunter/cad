@@ -57,9 +57,7 @@ fn a_ball_inside_a_ball_of_its_own_solid_refuses() {
 #[test]
 fn a_ball_cavity_outside_its_solids_ball_refuses() {
     let big = ball_poled_z(2.0, Vec3::new(0.0, 0.0, 0.0), tol());
-    let cavity = ball_poled_z(0.5, Vec3::new(5.0, -0.125, 0.375), tol())
-        .revert()
-        .expect("the small ball reverts");
+    let cavity = ball_poled_z(0.5, Vec3::new(5.0, -0.125, 0.375), tol()).revert();
     let body = merged(&big, &cavity);
     let solid = only_solid(&body);
     let classes = topo::classify_shells(&body, tol()).expect("both balls classify");
