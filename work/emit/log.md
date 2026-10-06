@@ -1918,3 +1918,24 @@ whether a pair boolean should name a declared covered pair the way the
 union now does. Declared pairs are on the D10 hold's ground, and stage 4
 retires them. Parked on `d10-one-way-to-say-intent-is-unbuilt`, beside
 the union member-order row (PR 4141).
+
+## 2026-10-06 — PR 4134 ([ev]): a crossing is named by its sense
+
+The designer pair (fork-log row 73; byte 120, A = Opus, B = Fable)
+converged after three rounds. They agreed on:
+- every crossing carries its sense, read against the partner's closed
+  body;
+- a `Crossing { edge, face, sense }` head;
+- `Ends` on every edge piece, after a run showed the lone-piece rule
+  renames an untouched piece whatever the crossing is named.
+
+They split on the same-sense residue: A ranked it, B tied it. Ev first
+asked whether a tie was viable as a permanent state. The answer: it loses
+no geometry, but leaves same-sense crossings, and the pieces between
+them, unreferenceable one at a time, and it departs from N4's own rule.
+Ev then took the ordinal (A). The row stays open for the build, with a
+Ruled section.
+
+The runs also found:
+- the pinned locality test is vacuous (two documents, two Split ids);
+- an in-face union case that neither first reading of the sense covered.
