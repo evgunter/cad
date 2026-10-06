@@ -2,8 +2,10 @@
 id: which-fragment-of-a-divided-face-holds-a-segment-is-spelled-three-ways
 kind: issue
 title: Which fragment of a divided face holds a segment is spelled three ways: the shared lineage, finish's descendants, and segment_curve's first half
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-10-06
+pr: 4131
 ---
 
 Found by PR 4008's fix pass (JOIN), on review r2's style finding that
@@ -67,3 +69,13 @@ arc its pairing names. `rest::fragment_holding` and
   `work/join/a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share.md`.
 - The one-pass mint-order lineage and the fixpoint agreed on every call
   measured; every caller hands rows in mint order.
+
+## Closed (PR 4131, 2026-10-06)
+
+`boolean::fragments` is the one home for a face's lineage: `Lineage`, with rows in any order and
+pinned by unit rows, plus `holding_both` and `sole_common_face`. `chord_join::he_face` / `he_loop` are
+the one half-edge-to-face reader. `JoinPlan::face` is read once, and every chord reader reads it.
+Review tier: single FULL (APPROVE-WITH-FIXES, no MAJOR). By the orchestrator's ruling, the
+two-face case keeps its existing refusals rather than a new, less specific one. The half-selection
+defect behind 22 of its 82 hits is now JOIN's row
+`a-boolean-match-takes-a-half-from-a-sector-on-a-face-its-ends-do-not-share`.
