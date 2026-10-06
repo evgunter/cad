@@ -71,8 +71,17 @@ meridian cut needs none of them.
 Rows (`snowman.rs`): `a_tilted_slab_against_the_lens_builds_off_the_seam`
 (was `…_builds_or_refuses_the_trimmed_escape`), the z pose
 `a_slab_tilted_across_the_lens_seams_builds`, a second carve
-`a_slab_cutting_a_cap_off_a_banded_ball_builds`, and the pole strut
-`a_slab_cutting_a_cap_off_a_pole_strut_carve_refuses_the_unplaced_witness`,
-which flips with `carved-sphere-body-cannot-be-classified-or-reused-as-an-operand`.
+`a_slab_cutting_a_cap_off_a_banded_ball_builds`, the pole strut
+`a_slab_cutting_a_cap_off_a_pole_strut_carve_builds` (a refusal until PR
+4046 let the certificate read its face), the pole-to-pole wedge cut
+`a_pole_to_pole_cut_of_a_ball_wedge_builds`, two cut-ins on one face in
+either order `two_cut_ins_on_one_face_build_in_either_order` and
+`a_circle_across_an_earlier_cut_takes_none_of_its_own`, and the
+nearest of several boundary hits
+`a_cut_ends_at_the_nearest_of_several_boundary_hits`; the R-loop gate is
+`ops::cut_holder_rows`.
 Filed from the sweep: `sphere-pair-meeting-inside-both-faces-refuses-spheres-meet`,
 `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`.
+Filed from the dual review: `circle-plane-first-harmonic-has-three-hand-built-copies`,
+`apply-cut-ins-walks-its-loops-twice-and-overloads-its-predicate-names`,
+`cut-in-refusals-no-probe-reaches`.
