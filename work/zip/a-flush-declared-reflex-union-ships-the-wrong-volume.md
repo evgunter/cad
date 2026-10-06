@@ -2,10 +2,11 @@
 id: a-flush-declared-reflex-union-ships-the-wrong-volume
 kind: issue
 title: A flush-declared union on the reflex-corner probe returns volume 16 against the closed form 15.979, sound at every tier
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P0
 cost: M
+branch: zip/rest-admission
 ---
 
 

@@ -161,3 +161,22 @@ FUSE's `fuse/cell-pair-contacts` (PR 3955, open) edits `rest.rs` and
   style**. Both are small, and they can be read and believed: one
   closes a debug-only guard, the other checks prose against
   `RestZipFrontier`'s endings, which postdate the row.
+
+## 2026-10-06 — the reflex row measured: the REST zip's admission
+
+`zip/rest-admission` measured on main `3f1e3b0d03`. The reflex
+batteries ship no wrong body, and none of their runs enters the REST
+zip, so the row's original bar is met. Its second cause is live,
+though. `try_rest_union` assumes the interiors are disjoint and never
+checks that the seam bounds the contact patch. A join refusal with a
+lever (a post resting on `a`, beside the reflex pose) lets the zip
+admit a transverse contact, and 16 of 16 runs ship `vol a + vol b`.
+Two of them pass every gate. The fix is in the same lane, phase 2: the
+zip declines unless every matched segment bounds a patch face on both
+solids. The rabbet's fold-order shape builds SOUND in all six orders.
+That row closes with a pin. Two things are filed or checked at
+phase 2: the edge-in-face dip that the segment check cannot see (the
+gate refuses it, in the wrong words), and whether the boolean gate's
+omission of tier 3′ is ratified. Review tier for phase 2: **single,
+full**. The claim to falsify is that the check declines no pure REST
+union.
