@@ -7371,3 +7371,4 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Merging once `gate ok` reports; the rest of CI is green.
 - **For PCERT:** PR 4105 changes only doc text and string literals in `crates/topo/src/pcurves.rs`: the module doc's "Completes the map" paragraph, `staleness_posture::Completes` and its `kev_describing` note, and two `unreachable!` strings in `site_rows`. Its reviewer found no overlap with `pcert/chart-angle-integers`' hunks.
 - PR 4099 fix lane: pushed `f2c43f5f` (CI green); batteries still running.
+- **PR 4105 merged** at `f49b81e3` (head `48f15d7d`, `gate ok` success). Unsubscribed. PR 4099 shares no files with it.
