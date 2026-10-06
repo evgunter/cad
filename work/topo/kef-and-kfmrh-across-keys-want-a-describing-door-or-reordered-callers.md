@@ -6,7 +6,6 @@ status: dispatched
 opened: 2026-10-01
 priority: P3
 cost: M
-design: false
 refs: [mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move, boundary-on-the-new-chart-has-two-homes-in-the-attach-doors, kevs-fan-merge-needs-a-re-describing-kill-door]
 ---
 
