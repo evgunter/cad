@@ -275,7 +275,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 1002 → 1004, verdicts unchanged: six registered decisions
             // go numeric where the reversed chord's re-lowered centre
             // used to freeze to an atom the rim registration reached
-            // (`work/sym/registrations-sealed-inside-frozen-compounds`),
+            // (`work/rules/registrations-sealed-inside-frozen-compounds`),
             // and four numeric ones reach the door at the schedule's
             // assigned end sample (`geom_brep::schedule_param`), as the
             // bracket's two above do.
@@ -630,7 +630,7 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// into the door. The arc carrier's span is now the stored sweep signed
 /// by the decided turn rather than `4·atan|b|`, the axis-order basis
 /// mints no `copysign`, and the two dials read the same receipt
-/// (`work/sym/the-negative-arm-lost-its-document-consumer`).
+/// (`work/rules/the-negative-arm-lost-its-document-consumer`).
 /// At this scale the pad refuses at `pcurve_envelope` under both dials
 /// (`Study::refused_by`), so the receipt is over the decisions taken
 /// before that refusal; the claim is that the two dials still read the

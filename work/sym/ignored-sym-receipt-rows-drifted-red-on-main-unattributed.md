@@ -265,7 +265,7 @@ deltas, `symbolic_zero` +4 and `numeric` +6, leave it red.
 - **#3455 (−15) and #3594 (+15), the pad's `frozen` only: the merges
   are right; the receipt's dependence on them is a finding.** Both
   change how ids are minted and no arithmetic, yet the pad's frozen
-  set moves at both. Filed on SYM's slate as
+  set moves at both. Filed on RULES' slate (SYM's sibling) as
   `the-pads-frozen-set-moves-with-the-documents-id-mint`.
 - **#3254's `frozen` −130 on the pad and its rule-F convergence:
   right.** The carrier's span became the stored sweep signed by the
@@ -306,4 +306,4 @@ from the credited ones only because the scale differs:
   ceiling, where `certifies_at` is unmoved.
 
 **No move since the window is a defect in code SYM does not own**, so
-the stop rule does not apply. The one finding is on SYM's own slate.
+the stop rule does not apply. The one finding is on RULES' slate, inside SYM's tier.

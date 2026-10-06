@@ -244,6 +244,7 @@ fn the_split_orphan_sweep_drops_every_side_table() {
         Vec3::new(1.0, 0.0, 0.0),
         geom_core::Tol::witness(),
     );
+    let body = sweep::test_support::finished("the body", body, tol);
     let halves = topo::split(&body, &plane, tol).expect("the square splits");
     let near = halves.below.body().expect("the flat side is below");
     assert!(

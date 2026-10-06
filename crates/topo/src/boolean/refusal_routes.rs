@@ -890,6 +890,12 @@ pub enum SphereQuestion {
     /// axes' cross levered at the radius): a definite lean passes, and a
     /// decided zero refuses with its decided margin.
     RecutAlign,
+    /// Where the meridian cut through a trimmed sphere face's section
+    /// circle meets the face's boundary (`bool_sphere_cut_*`): the
+    /// meridian's placement, its roots on each boundary arc, and their
+    /// order along it. Its arms pass on different sets (a root at an
+    /// arc's end is a vertex of the cut, one inside it splits the arc).
+    CutIn,
 }
 
 impl SphereQuestion {
@@ -907,6 +913,10 @@ impl SphereQuestion {
             Self::RecutAlign => {
                 "whether a sphere's polar axis leans away from the face it pokes through"
             }
+            Self::CutIn => {
+                "where a cut through the circle a plane cuts on a sphere face meets that face's \
+                 boundary"
+            }
         }
     }
 
@@ -922,6 +932,7 @@ impl SphereQuestion {
                 passes: SizedPass::Positive,
                 ..SPHERE_AGAINST_PLANE
             }),
+            Self::CutIn => Ending::Lever(CUT_LEVER, LeverPass::ByArm),
         }
     }
 }
@@ -950,6 +961,12 @@ pub(crate) const SPHERES: SizedDecision = SizedDecision {
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
+
+/// The lever of [`SphereQuestion::CutIn`]: the circle's place on the
+/// face, and the plane's lean off the face's meridian through it.
+const CUT_LEVER: &str = "move the parts so the plane's circle on the sphere lies well away from \
+                         that face's edges and poles, or turn the plane off the face's meridian \
+                         through the circle";
 
 /// The curved-extent scan's lever where its enclosures cannot certify
 /// the operands (`BooleanError::FallbackExtentUnsupported`, and the
@@ -2307,6 +2324,16 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::Sphere(SphereQuestion::RecutAlign) => (
                 "whether a sphere's polar axis leans away from the face it pokes through",
                 Ending::Sized(AGAINST, SizedPass::Positive),
+            ),
+            BooleanDecision::Sphere(SphereQuestion::CutIn) => (
+                "where a cut through the circle a plane cuts on a sphere face meets that face's \
+                 boundary",
+                Ending::Lever(
+                    "Recourse: move the parts so the plane's circle on the sphere lies well away \
+                     from that face's edges and poles, or turn the plane off the face's meridian \
+                     through the circle",
+                    LeverPass::ByArm,
+                ),
             ),
             BooleanDecision::SelfCheck(SelfCheck::GermLine) => (
                 "whether two faces meeting at a corner cross along a line",

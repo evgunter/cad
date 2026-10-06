@@ -2,10 +2,11 @@
 id: a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms
 kind: issue
 title: A boolean result ships contact records its geometry no longer confirms, so the tier-3′ pass refuses it StaleContactDeclaration
-status: open
+status: parked
 opened: 2026-10-02
 priority: P2
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

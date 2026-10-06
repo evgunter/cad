@@ -2,13 +2,14 @@
 id: torus-declared-rest-lane-banked
 kind: issue
 title: Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966
-status: open
+status: parked
 opened: 2026-08-23
 github: 968
 refs: [966, 1477, 1488, 1489]
 priority: P3
 cost: H
 design: true
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## From GitHub issue 968

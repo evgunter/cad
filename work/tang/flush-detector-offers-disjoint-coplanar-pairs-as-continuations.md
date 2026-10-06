@@ -2,8 +2,11 @@
 id: flush-detector-offers-disjoint-coplanar-pairs-as-continuations
 kind: issue
 title: find_flush_candidates offers disjoint coplanar face pairs — as Continuation, and opposite-facing as Rest — though neither abuts nor overlaps
-status: open
+status: parked
 opened: 2026-10-02
+priority: P1
+cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 

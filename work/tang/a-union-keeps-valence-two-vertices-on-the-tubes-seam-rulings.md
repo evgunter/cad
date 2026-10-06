@@ -4,6 +4,8 @@ kind: issue
 title: A dome rim lying on a tube's wall leaves valence-2 vertices on the tube's seam rulings in the union
 status: open
 opened: 2026-10-02
+priority: P3
+cost: M
 ---
 
 ## What

@@ -151,8 +151,8 @@ use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
 use super::BooleanError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary};
-use crate::live::{linked, proven};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey};
+use crate::live::{BoundaryMember, linked, proven};
 
 /// The sweep's box pad in meters — what candidate generation must add
 /// so pruning can never lose an accepted pair. Derivation (each term
@@ -1110,9 +1110,10 @@ pub(crate) fn harmonic_travel<T: Real>(
     Some((exit.0 - entry.0, exit.1 - entry.1))
 }
 
-/// **The face's loops, as [`WindowStep`]s** — the one ARENA walk, so
-/// the boolean lane, the census lane and the construction rows read
-/// one traversal rather than three that can drift.
+/// **The face's loops, as [`WindowStep`]s**, read a loop at a time
+/// through [`crate::body::Body::face_boundary_by_loop`]: the window
+/// steps the boolean lane, the census lane and the construction rows
+/// all read.
 ///
 /// A lone-vertex loop yields an EMPTY loop, which [`torus_chart_window`]
 /// abandons the window on: it carries no chart image.
@@ -1129,31 +1130,28 @@ pub(crate) fn face_window_steps<T: Decide>(
     face: FaceKey,
 ) -> Vec<Vec<WindowStep<'_, T>>> {
     let f = proven(&body.faces, face, EntityId::Face);
-    let mut out = Vec::new();
-    for (_, l) in body.face_loops_linked(face, f) {
-        let mut steps = Vec::new();
-        if let LoopBoundary::Cycle { first } = l.boundary {
-            let cycle = body.loop_walk(first).closed("loop", first);
-            let lifted = crate::pcurves::lifted_images(body, &cycle);
-            for (he, image) in cycle.into_iter().zip(lifted) {
-                let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-                let edge = linked(
-                    &body.edges,
-                    ek,
-                    EntityId::Edge,
-                    EntityId::HalfEdge(he),
-                    "edge",
-                );
-                steps.push(
+    body.face_boundary_by_loop(face, f)
+        .map(|(_, members)| {
+            let cycle: Vec<(HalfEdgeKey, &Edge)> = members
+                .into_iter()
+                .filter_map(|member| match member {
+                    BoundaryMember::Edge { he, edge, .. } => Some((he, edge)),
+                    BoundaryMember::Isolated { .. } => None,
+                })
+                .collect();
+            let halves: Vec<HalfEdgeKey> = cycle.iter().map(|&(he, _)| he).collect();
+            let lifted = crate::pcurves::lifted_images(body, &halves);
+            cycle
+                .into_iter()
+                .zip(lifted)
+                .map(|((he, edge), image)| {
                     body.pcurve(he)
                         .zip(image)
-                        .map(|(c, image)| (c, image, edge.he_plus == he)),
-                );
-            }
-        }
-        out.push(steps);
-    }
-    out
+                        .map(|(c, image)| (c, image, edge.he_plus == he))
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// **The ONE walk**, over a face's loops of [`WindowStep`]s — see
@@ -1480,14 +1478,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
         let mut acc: Option<Span<f64>> = None;
         let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
-        for (lk, l) in body.face_loops_linked(face, f) {
-            match l.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    let p = bracket_point(body.linked_vertex_point(
-                        vertex,
-                        EntityId::Loop(lk),
-                        "vertex",
-                    ));
+        for member in body.face_boundary_linked(face, f) {
+            match member {
+                BoundaryMember::Isolated { point: p, .. } => {
+                    let p = bracket_point(p);
                     grow(edge_axial_span(
                         &origin,
                         &axis,
@@ -1495,51 +1489,39 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                         (&p, &p),
                     ));
                 }
-                LoopBoundary::Cycle { first } => {
-                    for he in body.loop_walk(first).closed("loop", first) {
-                        let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-                        let e = linked(
-                            &body.edges,
-                            ek,
-                            EntityId::Edge,
-                            EntityId::HalfEdge(he),
-                            "edge",
-                        );
-                        let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
-                        let certified = body.edge_curve_linked(ek, e).certified();
-                        let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-                        let axial = match edge_box_rule(carrier) {
-                            // No axial-span closed form is written
-                            // for the spiric; a box that cannot
-                            // claim is the honest answer.
-                            EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
-                                AxialCarrier::Unclaimable
-                            }
-                            EdgeBoxRule::Chord => AxialCarrier::Chord,
-                            EdgeBoxRule::ConicAmplitude {
-                                center,
-                                axis: c_axis,
-                                semi_u,
-                                semi_v,
-                                u_ref,
-                            } => AxialCarrier::Conic {
-                                center: bracket_point(center),
-                                u_ref: bracket_vector(u_ref),
-                                v_ref: bracket_vector(c_axis.cross(u_ref)),
-                                semi_u: semi_u.hi(),
-                                semi_v: semi_v.hi(),
-                                params: certified
-                                    .map(geom_brep::EdgeCurve::params)
-                                    .map(|(a, b)| (a.lo(), b.hi())),
-                            },
-                        };
-                        grow(edge_axial_span(
-                            &origin,
-                            &axis,
-                            &axial,
-                            (&end(e.he_plus, "he_plus"), &end(e.he_minus, "he_minus")),
-                        ));
-                    }
+                BoundaryMember::Edge { ek, edge: e, .. } => {
+                    let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
+                    let certified = body.edge_curve_linked(ek, e).certified();
+                    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
+                    let axial = match edge_box_rule(carrier) {
+                        // No axial-span closed form is written
+                        // for the spiric; a box that cannot
+                        // claim is the honest answer.
+                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                        EdgeBoxRule::Chord => AxialCarrier::Chord,
+                        EdgeBoxRule::ConicAmplitude {
+                            center,
+                            axis: c_axis,
+                            semi_u,
+                            semi_v,
+                            u_ref,
+                        } => AxialCarrier::Conic {
+                            center: bracket_point(center),
+                            u_ref: bracket_vector(u_ref),
+                            v_ref: bracket_vector(c_axis.cross(u_ref)),
+                            semi_u: semi_u.hi(),
+                            semi_v: semi_v.hi(),
+                            params: certified
+                                .map(geom_brep::EdgeCurve::params)
+                                .map(|(a, b)| (a.lo(), b.hi())),
+                        },
+                    };
+                    grow(edge_axial_span(
+                        &origin,
+                        &axis,
+                        &axial,
+                        (&end(e.he_plus, "he_plus"), &end(e.he_minus, "he_minus")),
+                    ));
                 }
             }
         }
@@ -1758,19 +1740,13 @@ fn boundary_hull<T: Decide + Bounds>(
 ) -> Option<Aabb> {
     let mut acc: Option<Aabb> = None;
     let mut grow = |x: Aabb| acc = Some(acc.map_or(x, |a: Aabb| a.hull(&x)));
-    for (lk, l) in body.face_loops_linked(face, f) {
-        match l.boundary {
-            LoopBoundary::Empty { vertex } => {
-                let p = body.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex");
-                grow(Aabb::from_points([p]).unwrap_or_else(Aabb::poison));
+    for member in body.face_boundary_linked(face, f) {
+        grow(match member {
+            BoundaryMember::Isolated { point: p, .. } => {
+                Aabb::from_points([p]).unwrap_or_else(Aabb::poison)
             }
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_walk(first).closed("loop", first) {
-                    let ek = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-                    grow(edge_box(body, ek, 0.0));
-                }
-            }
-        }
+            BoundaryMember::Edge { ek, .. } => edge_box(body, ek, 0.0),
+        });
     }
     acc
 }
@@ -2104,7 +2080,7 @@ pub(crate) fn arc_extent<X: Real>(
 /// The start point of `edge`'s half `he`, which `edge`'s field `field`
 /// names: every hop is a link.
 #[track_caller]
-fn edge_end_point<T: Real>(
+pub(crate) fn edge_end_point<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
     he: HalfEdgeKey,
@@ -2156,6 +2132,7 @@ pub(crate) mod tests {
     //! list rather than any box.
 
     use super::*;
+    use crate::entity::LoopBoundary;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
     use geom::Surface;

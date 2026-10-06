@@ -274,7 +274,7 @@ The profiled replay after the memo (release pad, shipped) puts
 22.00 s in the per-node reduction against 4.53 s shut. 10.62 s of it
 is 100 first-time refusals at the quotient's product on the term
 pre-bound. That residue is filed on the sym slate as
-`work/sym/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`.
+`work/rules/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`.
 
 The reading that rule G's magnitude door never reaches rule C is
 filed as `work/decide/rule-gs-magnitude-door-never-asks-rule-c`.
@@ -295,6 +295,6 @@ unchanged.
 against 11.09 s shut), all of it first-time reductions over the larger
 forms rule G leaves.
 - **10.6 s** is refusals at the quotient's product. It is filed as
-  `work/sym/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`.
+  `work/rules/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`.
 - **The rest** is rule G's price as the spec's stop rule records it.
   No cheaper spelling of the same atoms was named, so none is filed.

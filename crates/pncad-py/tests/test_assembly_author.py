@@ -1926,6 +1926,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
             "carried-unmintable", class_=ContactClass.Tangent
         )
         outer, instance = self.instantiated("carried-unmintable-outer", ref)
+        outer.apply(DocEdit.set_label(instance, "left bracket"))
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
@@ -1942,6 +1943,73 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         self.assertEqual(row.of, str(inner.id))
         self.assertEqual(row.via, [instance])
         self.assertIn("at rest", str(err))
+        # The route's first instance is the outer document's, so the
+        # row says it as that document holds it; the inner mate is
+        # said as the inner document holds it.
+        through = f'through InstantiatePart "left bracket" ({tag(instance)})'
+        self.assertIn(through, str(row))
+        self.assertIn(f"Mate {tag(inner_mate)}", str(row))
+        self.assertIn(through, str(err))
+
+    def test_a_carried_row_says_the_parts_label_where_the_outer_holds_its_id(self):
+        # The outer document is the same stand, so it mints the same
+        # ids: it holds the inner mate's id as its own mate, labelled
+        # apart. Every spelling of the carried row says the inner
+        # document's label, and the outer's never.
+        inner, inner_mate, _ = self.stand_doc(
+            "carried-twin", class_=ContactClass.Tangent
+        )
+        inner.apply(DocEdit.set_label(inner_mate, "inner seat"))
+        self.ws.resave(inner)
+        ref = DocRef(inner.id, content_pin(inner))
+        outer, outer_mate, _ = self.stand_doc(
+            "carried-twin-outer", class_=ContactClass.Tangent
+        )
+        self.assertEqual(outer_mate, inner_mate, "both stands mint from the zero chain")
+        outer.apply(DocEdit.set_label(outer_mate, "outer seat"))
+        instance = outer.insert(Node.instantiate_part(ref))
+        outer.apply(DocEdit.set_label(instance, "left bracket"))
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(outer, evaluate(outer, resolver=self.ws))
+        err = caught.exception
+        self.assertEqual(err.variant, "carried_mint_refusal")
+        (row,) = err.refusals
+        self.assertEqual(row.refusal.mate, inner_mate)
+        labelled = f'Mate "inner seat" ({tag(inner_mate)})\'s class'
+        for said in (str(err), str(row), str(row.refusal)):
+            self.assertIn(labelled, said)
+            self.assertNotIn("outer seat", said)
+        self.assertTrue(str(row.refusal).startswith(labelled), str(row.refusal))
+
+    def test_a_carried_finding_says_the_parts_label_where_the_outer_holds_its_id(self):
+        # Both stands tilted, so both declared rests are refuted; the
+        # outer document holds the inner mate's id as its own mate.
+        axis = (0.0, 0.5, 0.8660254037844386)
+        inner, inner_mate, _ = self.stand_doc("carried-twin-refuted", axis=axis)
+        inner.apply(DocEdit.set_label(inner_mate, "inner seat"))
+        self.ws.resave(inner)
+        ref = DocRef(inner.id, content_pin(inner))
+        outer, outer_mate, _ = self.stand_doc("carried-twin-refuted-outer", axis=axis)
+        self.assertEqual(outer_mate, inner_mate, "both stands mint from the zero chain")
+        outer.apply(DocEdit.set_label(outer_mate, "outer seat"))
+        instance = outer.insert(Node.instantiate_part(ref))
+        outer.apply(
+            DocEdit.set_offset(
+                instance, Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m)))
+            )
+        )
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(outer, evaluate(outer, resolver=self.ws))
+        refuted = self.carried(caught.exception.findings, "carried_refuted")
+        self.assertTrue(refuted, [str(f) for f in caught.exception.findings])
+        for finding in refuted:
+            self.assertEqual(finding.attribution.declaration.mate, inner_mate)
+            for said in (str(finding), str(finding.attribution)):
+                self.assertTrue(
+                    said.startswith(f'Mate "inner seat" ({tag(inner_mate)})\'s declared'),
+                    said,
+                )
+                self.assertNotIn("outer seat", said)
 
     def test_a_certified_assembly_names_the_carried_mates_it_certified_over(self):
         # Two stands side by side, each certifying: the assembly keeps

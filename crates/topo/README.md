@@ -50,9 +50,9 @@ operands. Three objects carry the design:
   cross-entity coincidence;
 - a **declaration** is recipe data asserting a contact class on a named
   face pair;
-- a **record** (`ContactRecords`: `VvContact`, `VfContact`,
-  `CurveContact`, `PatchContact`) is the verified form a result body
-  carries.
+- a **record** (`ContactRecords`: `VvContact`, `VeContact`,
+  `VfContact`, `EeContact`, `CurveContact`, `PatchContact`) is the
+  verified form a result body carries.
 
 The coincidence ladder: structural (shared key or same `GeomSource`) is
 intent by construction; declared is intent plus non-contradiction; value
@@ -359,14 +359,17 @@ geometric; mate solving is not here).
 
 ## At-rest census identity (CENSUS-REST-CLOSURE)
 
-**Face rung at rest.** The boolean lane refines every vertex-on-edge
+**Vertex-on-edge at rest.** The boolean lane refines every vertex-on-edge
 event to vertex-vertex before records exist; at rest nothing refines. So
-`sweep_vertex_edge` and the asymmetric arm of `ee_bound_backed` read
-`Declared::ve_face_backed`: a declared face pair that holds the vertex on
-one boundary and names a face the edge bounds backs the event. With no
-such pair the event is an undeclarable defect
-(`CensusContact::VertexOnEdge` as `UndeclaredContact`). The rung consults
-declarations, never the geometry's agreement with itself.
+`sweep_vertex_edge`, the asymmetric arm of `ee_bound_backed` and the
+edge-on-face bounds read two backings: the event's own `(vertex, edge)`
+record (`VeContact`, which a join writes from the v-v record whose
+vertex it joined away), and `Declared::ve_face_backed`, a declared face
+pair that holds the vertex on one boundary and names a face the edge
+bounds. With neither, the event is a defect
+(`CensusContact::VertexOnEdge` as `UndeclaredContact`). Both are written
+before the census runs, never read off the geometry's agreement with
+itself.
 
 **World-carrier Door 2 for declared planar pairs.** Two instances of one
 part carry `Placed { node, instance, .. }` sources that never equalize,

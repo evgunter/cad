@@ -37,3 +37,15 @@ circular edge that also cuts elsewhere, and whether that reaches
 ## Found by
 
 PR 3133's review (m1).
+
+## Evidence (CLEAVE, PR 4098, 2026-10-06)
+
+The guard has no producer left. PR 3726 (rule (b)'s convex edge) and
+PR 4098 (rule (a) refusing a wall that bends away from its material,
+`SplitReduceError::KnifeEdge`) removed the two contacts known to mint a
+null edge of their own. An instrumented run over topo's and sweep's
+suites, CLEAVE DR-4098's probes and 22 mirrored reruns reached it 0
+times. PR 4098 turned the straight-tip check into an invariant
+(`Sweep::assert_no_spur`, which panics on an exact spur) and retired
+`SplitJoinError::SectionSpur`. The curved blind spot this row names is
+now a blind spot of that invariant check, not of a refusal.

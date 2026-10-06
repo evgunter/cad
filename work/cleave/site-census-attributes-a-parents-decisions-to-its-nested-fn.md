@@ -4,6 +4,8 @@ kind: issue
 title: every_site_names_the_decision_it_raises reads a nested fn as top level, so a nested fn steals its parent's later decision rows
 status: open
 opened: 2026-10-04
+priority: P4
+cost: E
 ---
 
 Found by both reviews of PR 4008 (r1 NOTE 6, r2 Q4) and passed on by

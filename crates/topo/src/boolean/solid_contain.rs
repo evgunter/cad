@@ -182,7 +182,10 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{
+    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3,
+    Sign, Vec3,
+};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
@@ -217,6 +220,12 @@ pub enum SolidContainment {
 
 /// Typed failure of [`point_in_solid`].
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PointInSolidErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PointInSolidError {
     /// A predicate escalated (in-band margin).
     Escalated {
@@ -225,8 +234,8 @@ pub enum PointInSolidError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
-    /// Every schedule ray grazed — the query is ill-conditioned at
-    /// this ε.
+    /// Every schedule ray grazed, for a point the boundary pre-pass
+    /// placed off every face.
     RayExhausted,
     /// The at-infinity orientation probe found a (near-)zero signed
     /// volume — the body bounds no material to be inside of.
@@ -482,11 +491,13 @@ impl core::fmt::Display for PointInSolidError {
                  to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
+            // The boundary pre-pass has placed the point off every face,
+            // so there is no coincidence to declare.
             Self::RayExhausted => write!(
                 f,
-                "cannot tell what is inside the solid: every test ray grazed its \
-                 boundary, so the question is ill-conditioned at this tolerance. \
-                 Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: the point is off its boundary, but \
+                 every test ray grazed one of its edges or vertices, or ran tangent to a \
+                 face's surface. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             // `PointInLoopError` is shared with the split, whose wrapper
             // states its own recourse; so the ray-exhausted arm carries
@@ -495,7 +506,7 @@ impl core::fmt::Display for PointInSolidError {
             // margin already ends in the shared recourse.
             Self::Loop(e @ crate::splitting::PointInLoopError::RayExhausted { .. }) => write!(
                 f,
-                "cannot tell what is inside the solid: {e}. Recourse: {COINCIDENCE_RECOURSE}"
+                "cannot tell what is inside the solid: {e}. Recourse: {NO_DECLARATION_RECOURSE}"
             ),
             Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
@@ -1199,10 +1210,11 @@ enum WallEdge<T: geom_core::Real> {
 ///
 /// # Panics
 ///
-/// Where a boundary half-edge's edge or that edge's curve does not
-/// resolve (D2 row 4): a torn curve is not a carrier the outline has no
-/// piece for. The bodies are at rest (the solid door) or the
-/// reduction's working copies, whose links hold by
+/// Where the outer loop, its walk, a boundary half-edge's edge or that
+/// edge's curve does not resolve (D2 row 4), in the image walk
+/// ([`crate::chord_join::face_azimuth_images`]): a torn curve is not a
+/// carrier the outline has no piece for. The bodies are at rest (the
+/// solid door) or the reduction's working copies, whose links hold by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 #[allow(clippy::too_many_arguments)] // one chart datum, each argument named
 pub(super) fn wall_outline<T: Decide>(
@@ -1263,27 +1275,14 @@ pub(super) fn wall_outline<T: Decide>(
             .copied()
             .ok_or_else(corrupt)
     };
-    // A record miss past `face` answers `CorruptFace` and a torn edge
-    // or curve panics: the walk's `CorruptFace` raises are
+    // A record miss past `face` answers `CorruptFace`, and a torn edge
+    // or curve panicked in the image walk, which read each carrier: the
+    // walk's `CorruptFace` raises are
     // `torn-body-refusal-families-beyond-the-six-doors`' to split.
     let mut edges = Vec::with_capacity(images.len());
     for (i, image) in images.iter().enumerate() {
-        let edge = body.get_half_edge(image.he).ok_or_else(corrupt)?.edge;
-        let carrier = body
-            .edge_curve_linked(
-                edge,
-                linked(
-                    &body.edges,
-                    edge,
-                    EntityId::Edge,
-                    EntityId::HalfEdge(image.he),
-                    "edge",
-                ),
-            )
-            .certified()
-            .map(|c| c.carrier().clone());
-        let (point, normal, rim) = match carrier {
-            Some(geom::Curve3::Line { dir, .. }) => {
+        let (point, normal, rim) = match image.carrier {
+            geom::Curve3::Line { dir, .. } => {
                 if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
                     return unsupported();
                 }
@@ -1294,12 +1293,12 @@ pub(super) fn wall_outline<T: Decide>(
                 });
                 continue;
             }
-            Some(geom::Curve3::Circle {
+            geom::Curve3::Circle {
                 center,
                 axis: c_axis,
                 radius: c_radius,
                 u_ref: c_ref,
-            }) => {
+            } => {
                 let rim = Rim {
                     center,
                     axis: c_axis,
@@ -1311,13 +1310,13 @@ pub(super) fn wall_outline<T: Decide>(
                 }
                 (center, c_axis, true)
             }
-            Some(geom::Curve3::Ellipse {
+            geom::Curve3::Ellipse {
                 center,
                 axis: n,
                 major,
                 minor,
                 u_ref: major_dir,
-            }) => {
+            } => {
                 let cos = n.dot(axis);
                 if zero("bool_wall_section_tilt", sine(cos))?
                     || !zero(

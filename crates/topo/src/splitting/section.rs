@@ -21,10 +21,11 @@
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 
 use super::section_loops::{self, NestFault, SenseFault};
-use super::{PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
+use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{LoopBoundary, LoopKey};
 use crate::loop_winding::{ConicFrame, chord_bulge};
+use crate::validate::AtRestBody;
 use geom_core::Tol;
 
 /// One section polygon: the closed boundary the plane cuts, by its
@@ -137,8 +138,8 @@ pub struct Section<T: Real> {
     /// The sectioning plane, as given.
     pub plane: SplitPlane<T>,
     /// The in-plane u axis (unit; derived from the first polygon's
-    /// first chord — deterministic data; zero polygons ⇒ a default
-    /// axis is impossible, so `u_ref`/`v_ref` are `None`).
+    /// below loop by `section_loops::chord_u_ref` — deterministic data;
+    /// zero polygons ⇒ `u_ref`/`v_ref` are `None`).
     pub u_ref: Option<Vec3<T>>,
     /// The in-plane v axis (`normal × u_ref`).
     pub v_ref: Option<Vec3<T>>,
@@ -151,8 +152,14 @@ pub struct Section<T: Real> {
 #[derive(Debug)]
 pub enum SectionError<T: Real> {
     /// The reduce or join stage refused, exactly as it does for
-    /// [`super::split`] (a curved face's zero-area graze included).
+    /// [`super::split`].
     Split(SplitError),
+    /// The plane is tangent to a curved wall that bends away from its
+    /// material ([`KnifeEdge`]): the wall touches the section along a
+    /// line, a contact of zero width that a region list cannot state.
+    /// The split refuses the same contact as the knife edge it would
+    /// mint.
+    KnifeEdge(KnifeEdge),
     /// Whether a section polygon is an outline or a hole cannot be
     /// read: its winding is in the band (`diag`), or (`None`) zero, or
     /// unread because the polygon carries a spiric or NURBS edge.
@@ -184,7 +191,10 @@ pub enum SectionError<T: Real> {
 
 impl<T: Real> From<SplitError> for SectionError<T> {
     fn from(e: SplitError) -> Self {
-        Self::Split(e)
+        match e.knife_edge() {
+            Some(&knife) => Self::KnifeEdge(knife),
+            None => Self::Split(e),
+        }
     }
 }
 
@@ -192,6 +202,12 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Split(e) => write!(f, "{e}"),
+            Self::KnifeEdge(_) => write!(
+                f,
+                "the section plane is tangent to a curved face from inside the material, so \
+                 the face only touches the section along a line. Recourse: move the section \
+                 plane off the tangency"
+            ),
             Self::WindingUndecided {
                 diag: Some(diag), ..
             } => write!(
@@ -246,26 +262,31 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// # Frame semantics
 ///
 /// `u_ref` is the normalized first chord of the first polygon's
-/// below loop (deterministic data, not an arbitrary axis);
-/// `v_ref = normal × u_ref`. Both are `None` iff `regions` is empty
+/// below loop, or, when that loop has one corner (a whole section
+/// conic), the first axis of the plane normal's own basis
+/// (deterministic data either way); `v_ref = normal × u_ref`. Both are `None` iff `regions` is empty
 /// (the plane misses the body — a typed success). `uv` coordinates
 /// are `((p − origin)·u_ref, (p − origin)·v_ref)`.
 ///
 /// # Errors
 ///
 /// [`SectionError`]: [`SectionError::Split`] passes the reduce and join
-/// stages' refusals through unchanged — in particular a zero-area
-/// section (a curved face's concave graze) REFUSES (`DegenerateSection`,
-/// exactly as [`super::split`] does) rather than reporting a
-/// degenerate trace.
+/// stages' refusals through unchanged, save a curved wall's knife-edge
+/// contact, which refuses as [`SectionError::KnifeEdge`] rather than
+/// reporting a trace with the contact in it; an operand that carries
+/// no verdict and is not what a finished body
+/// promises refuses as [`super::split`]'s does
+/// ([`SplitReduceError::ScaffoldingOperand`],
+/// [`SplitReduceError::InsideOutOperand`]).
 pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
+    operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Section<T>, SectionError<T>> {
-    let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
+    super::gate_finished(operand, tol).map_err(|e| SectionError::from(SplitError::Reduce(e)))?;
     let band = geom_core::Band::linear(tol)
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
+    let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
     let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
@@ -277,20 +298,13 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     for section in &completed {
         let halves = section_walk(&red.body, section.below_loop)?;
         let points: Vec<_> = halves.iter().map(|h| h.corner).collect();
-        if u_ref.is_none() {
-            u_ref = section_loops::chord_u_ref(&points);
-            v_ref = u_ref.map(|u| normal.cross(u));
-        }
-        let (Some(u), Some(v)) = (u_ref, v_ref) else {
-            return Err(
-                SplitError::Join(crate::chord_join::SplitJoinError::SectionInvariant {
-                    face: section.face,
-                    what: "the section polygon has fewer than two points, so the in-plane \
-                           frame it is reported in was never established",
-                })
-                .into(),
-            );
-        };
+        // The caller's plane, which the frame is reported on; this
+        // run is never the split's mirrored rerun, so it is also the
+        // run's.
+        let u = *u_ref.get_or_insert_with(|| {
+            section_loops::chord_u_ref(&red.body, section.below_loop, &points, plane.normal)
+        });
+        let v = *v_ref.get_or_insert_with(|| normal.cross(u));
         let corner = points[0];
         let outline = match section_loops::loop_sense(&red.body, section.below_loop, normal, band) {
             Ok(outline) => outline,

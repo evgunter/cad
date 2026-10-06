@@ -43,7 +43,7 @@ use crate::m10_9_pins_interval::measured_studies;
 /// - #3254, the arc carrier's span from the stored sweep;
 /// - #3266, the run outs read against their arrival carriers;
 /// - #3455 and #3594, the id mints
-///   (`work/sym/the-pads-frozen-set-moves-with-the-documents-id-mint`);
+///   (`work/rules/the-pads-frozen-set-moves-with-the-documents-id-mint`);
 /// - #3612 and #3697, the schedule assigning its ends and its middle;
 /// - #3645, one `mid_point`;
 /// - #2468, DECIDE-3's fold, rule G and the decision read;

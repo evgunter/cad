@@ -10,9 +10,10 @@
 //!
 //! The above body's section face carries **m = −n_SP**, the below
 //! body's **m = +n_SP** (derived at [`section_loops`]). Both faces
-//! carry the SAME split plane (same origin, same in-plane `u_ref`, the
-//! below loop's first chord) with opposite normals; the mirror test
-//! pins both signs bitwise.
+//! carry the SAME split plane (same origin, same in-plane `u_ref`: the
+//! below loop's first chord, or for a loop of one corner — a whole
+//! section conic — the first axis of the run plane's normal basis) with
+//! opposite normals; the mirror test pins both signs bitwise.
 //!
 //! That is each face's CHART normal. Its sense is its loop's winding
 //! about it, the reading tier 3's check 6 makes: a section's outer
@@ -59,11 +60,11 @@
 //! restatement meters the section chart's containment and refuses
 //! typed through certification when the band cannot decide it.
 
-use geom_core::{Decide, Real, Vec3};
+use geom_core::{Decide, Real, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
-use super::{PlaneSide, SplitReduction, section_loops};
+use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
@@ -185,7 +186,7 @@ pub enum SplitFinishError {
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
     /// (`diag`), or (`None`) zero, or unread because the loop carries a
-    /// spiric or NURBS edge. The split's operand gate admits only line,
+    /// spiric or NURBS edge. The split's carrier gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {
@@ -194,19 +195,16 @@ pub enum SplitFinishError {
         /// The winding's diagnostic, when it escalated.
         diag: Option<geom_core::Indeterminate>,
     },
-    /// The split plane is tangent to a curved face along the section's
-    /// boundary with the two faces' materials OPPOSED: the cut would
-    /// leave a wedge end — a knife edge no input declared, which D1
-    /// makes the minting op's refusal. (A cut piece lies on one side
-    /// of the plane, so the end it can reach is the cusp, wedge 0.) A
-    /// split has no declaration channel, so every such edge refuses; a
-    /// π seam (materials aligned) cuts.
-    SectionCusp {
-        /// The section-boundary edge the knife edge would be.
-        edge: EdgeKey,
-        /// The operand's curved face the plane is tangent to.
-        face: FaceKey,
-    },
+    /// The plane is tangent to a curved face along the section's
+    /// boundary with the two faces' materials OPPOSED: a wedge end the
+    /// cut would leave, [`KnifeEdge`]. (A cut piece lies on one side of
+    /// the plane, so the end it can reach is the cusp, wedge 0.) A π
+    /// seam (materials aligned) cuts. The reduction refuses the same
+    /// contact first wherever it reads the wall tangent at an ON vertex
+    /// ([`super::SplitReduceError::KnifeEdge`]); this read, of the
+    /// dihedral along the edge over the edge's own arm, is the one left
+    /// where the two arms decide differently in the band.
+    KnifeEdge(KnifeEdge),
     /// Two section faces each read as enclosing the other around a
     /// hole: their outlines were decided disjoint, and disjoint
     /// outlines cannot (kernel bug, loudly).
@@ -286,12 +284,7 @@ impl core::fmt::Display for SplitFinishError {
                 "two cut faces each read as enclosing the other around hole {hole:?}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::SectionCusp { .. } => write!(
-                f,
-                "the split plane is tangent to a curved face where it cuts, so a piece \
-                 would taper to a knife edge nobody asked for. Recourse: move the split \
-                 plane off the tangency"
-            ),
+            Self::KnifeEdge(k) => write!(f, "{k}"),
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
                     f,
@@ -386,7 +379,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         } else {
             return Err(SplitFinishError::Corrupt);
         };
-        let u_ref = below_chord_u_ref(&body, section)?;
+        let u_ref = below_chord_u_ref(&body, section, red.plane.normal)?;
         let normal_of =
             |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
         let plane_for = |side: PlaneSide| Surface::Plane {
@@ -408,27 +401,23 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // taken before the re-chart and stated with it.
         let ring_sense = section_sense(&body, section.face, ring, normal_of(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, normal_of(other_side), band)?;
+        // Both faces of the null pair move onto their section planes in
+        // one re-chart, with the edges still described against the chart
+        // they leave restated in their plane, which every section
+        // boundary edge lies in; the boundary pass below gives each its
+        // honest class. One re-chart reads both faces' edges before
+        // either moves, so neither restatement depends on the other, and
+        // the two lists are disjoint: an edge between the two faces
+        // would have both faces wearing the one inherited chart, which
+        // `section_plane_restatements` skips.
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        let mut restated = section_plane_restatements(&body, promoted.face)?;
+        restated.extend(section_plane_restatements(&body, section.face)?);
         body.set_face_surfaces_describing(
-            vec![Rechart::new(
-                plane_for(ring_side),
-                promoted.face,
-                ring_sense,
-            )],
-            &[],
-            tol,
-        )?;
-        // The face the null pair leaves on its old chart moves last, and
-        // the edges still described against that chart move with it,
-        // restated in the section plane every section boundary edge lies
-        // in; the boundary pass below gives each its honest class.
-        let restated = section_plane_restatements(&body, section.face)?;
-        body.set_face_surfaces_describing(
-            vec![Rechart::new(
-                plane_for(other_side),
-                section.face,
-                outer_sense,
-            )],
+            vec![
+                Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
+                Rechart::new(plane_for(other_side), section.face, outer_sense),
+            ],
             &restated,
             tol,
         )?;
@@ -676,8 +665,14 @@ fn section_plane_restatements<T: Decide>(
 /// A curved wall smooth against the section is judged by its material
 /// pairing: aligned is a π seam and takes the conventional path,
 /// opposed is a wedge end nothing declared and refuses
-/// ([`SplitFinishError::SectionCusp`]).
+/// ([`SplitFinishError::KnifeEdge`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
+///
+/// The body is mid-operation, past the carve; each edge is read after
+/// the writes to the edges before it. Its curve is a link
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]; a rewritten edge's old curve
+/// goes only once orphaned, [`Body::remove_curve_if_orphaned`]): a torn
+/// one panics, and is not an edge with no description.
 fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -722,8 +717,8 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 return Err(corrupt());
             };
             let existing = body
-                .get_curve_geom(edge_data.curve)
-                .and_then(crate::null::CurveGeom::certified)
+                .edge_curve_linked(edge, &edge_data)
+                .certified()
                 .cloned();
             let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
             let (witness, arm) = (draft.witness, draft.extent);
@@ -771,10 +766,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         )
                         .map_err(|diag| SplitFinishError::DescribeEscalated { edge, diag })?;
                         if pairing == geom_brep::MaterialPairing::Opposed {
-                            return Err(SplitFinishError::SectionCusp {
-                                edge,
-                                face: other_face,
-                            });
+                            return Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                                wall: other_face,
+                                at: KnifeEdgeSite::Edge(edge),
+                            }));
                         }
                     }
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
@@ -811,10 +806,10 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         let mut spec = match &existing {
                             Some(c) => c.restated_spec(),
                             // Unreachable, not a licence to rebuild:
-                            // the operand gate refuses uncertified
-                            // edges (`ScaffoldingOperand`) and every
-                            // split-minted edge certifies at its mint,
-                            // so a section-boundary edge always has a
+                            // a finished operand has no uncertified
+                            // edge and every split-minted edge
+                            // certifies at its mint, so a
+                            // section-boundary edge always has a
                             // carrier to restate.
                             None => geom_brep::EdgeCurveSpec::line_between(p0, p1),
                         };
@@ -894,17 +889,24 @@ fn whole_body_side<T: Decide>(
 }
 
 /// The section's in-plane u axis ([`section_loops::chord_u_ref`] of
-/// the below loop; two adjacent section corners are distinct certified
-/// endpoints, so the chord is nonzero).
+/// the below loop, on the plane of this run: under the split's
+/// mirrored rerun, `normal` is the mirrored one). Two adjacent corners
+/// of a loop are distinct certified endpoints, so a chord is nonzero.
 fn below_chord_u_ref<T: Decide>(
     body: &Body<T>,
     section: &CompletedSection,
+    normal: UnitVec3<T>,
 ) -> Result<Vec3<T>, SplitFinishError> {
     let points = loop_points_of(body, section.below_loop).map_err(|e| match e {
         SplitJoinError::Euler(err) => SplitFinishError::Euler(err),
         _ => SplitFinishError::Corrupt,
     })?;
-    section_loops::chord_u_ref(&points).ok_or(SplitFinishError::Corrupt)
+    Ok(section_loops::chord_u_ref(
+        body,
+        section.below_loop,
+        &points,
+        normal,
+    ))
 }
 
 /// The sense of the section face `face`'s loop `l` will bound, on a
@@ -1145,4 +1147,70 @@ pub(crate) fn carve<T: Decide>(
         body.drop_surface_rows(k);
     }
     Ok(body)
+}
+
+/// **A torn section curve panics before the description writes**: on a
+/// split cube's lower half, a torn curve on the section face's first
+/// boundary edge panics naming the link, with the body unchanged. Two
+/// reads name that link: the description's own, and
+/// [`crate::Body::set_edge_curve`]'s plan, which every arm that
+/// describes the edge reaches before its write. The row holds whichever
+/// panics first, so it cannot tell the two apart.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::entity::{EntityId, GeomRef, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    #[test]
+    fn a_torn_section_curve_panics_before_any_write() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
+        let plane = crate::test_support_fixtures::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::unit_z(),
+            tol,
+        );
+        let mut cube = cube;
+        crate::test_support_fixtures::describe_as_intersections(&mut cube, tol);
+        let cube = crate::test_support::finished("the cube", cube, tol);
+        let split = crate::splitting::split(&cube, &plane, tol).unwrap();
+        let mut body = split.below.body().unwrap().clone();
+        let face = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.5).abs() < 1e-12
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        assert!(
+            super::describe_section_boundary(&mut body.clone(), face, band, tol).is_ok(),
+            "the sound section face's boundary is described"
+        );
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the section face's outer loop is a cycle");
+        };
+        let edge = body.get_half_edge(first).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        let named = format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        );
+        assert_torn_op_panics(
+            "describe_section_boundary",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| super::describe_section_boundary(b, face, band, tol),
+        );
+    }
 }

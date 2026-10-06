@@ -979,3 +979,150 @@ both doors. The convergent answer is that `transform_rigid` reads the
 NURBS lane from `AtRestPolicy`. That needs no compound-bound
 ratification; the row's premise that it did was the row author's.
 — (CLEAVE orchestrator)
+
+## Third session opens; triage and the priority-seam cut (2026-10-06)
+
+The track carried 66 points against 30, with six unpriced rows and
+four on legacy `D`. Three read-only triage lanes checked all 27 live
+rows against today's tree; the orchestrator re-verified each closure
+before acting on it.
+
+- **Closed, already fixed or duplicated:** `no-approx-faced-body-…`
+  (legs 1–3 lifted; leg 4 is EXPORT's `approx-face-has-no-step-printer`),
+  `shell-mouth-chart-designated-in-full` (8c9e6968 builds the mouth as
+  one face), `void-insertion-refuses-…-latitude-seam` (both halves
+  landed), `shell-offset-three-followups` (item 1 re-filed as
+  `shell-open-refuses-a-curved-designated-face`, item 2 dissolved into
+  `loop_winding.rs`, item 3 rides SHELF's door re-shape).
+- **Re-banded:** `shell-launders-a-stale-operand-row` P0 → P1/M,
+  re-scoped to the shell door, riding the inside-out-operand row (one
+  `AtRestBody` unit); `shelled-result-does-not-name-the-wall-it-built`
+  P0 → P3/E (`ShellNaming::inner_of` and `thickened` now name the wall);
+  the clearance-footprint, lofted-wall-seam and replace-face-refusal
+  rows priced P1; the antiparallel row P2/E.
+- **Moved:** to CLEAR, `shell-curved-wall-clearance-window` (SHELL-4
+  closes it) and `violated-witness-can-sit-off-the-trimmed-face`
+  (P3/E; mostly fixed). To a new sibling **SHELF** (22 points, P2
+  spine), the offset-door re-shape, the three `transform.rs` rows, the
+  `replace_face.rs` hygiene rows, the E test/walk rows, the corpus
+  hold-out (TCOST's ground; TCOST is at its ceiling), and the parked
+  cone frustum. OFFSET was told its conic-carrier row is an Ev fork
+  with no `design` flag.
+- **Filed:** `shell-open-refuses-a-curved-designated-face` (P1/H,
+  design), `shelf/replace-face-reads-an-approx-iso-as-u-fixed` (P3/E).
+
+SHELL now carries 28 points, as the seven units in `plan.md`.
+Pole-touching ball: the premise drifted with f28c201d, so its lane
+measures before it fixes.
+
+## Dispatch (2026-10-06, ~05:57 UTC)
+
+The cut merged as PR 4109. Four implementer lanes run as their own
+cloud sessions (this container holds one heavy build at a time), each
+on its own `shell/` branch, each a **single full review** at review
+time — every one of them carries a meaningful chance of a correctness
+bug (a P0 measurement, a door type change, a gate's soundness, a
+certified projection):
+
+- unit 1 `shell/pole-ball` — the pole-touching ball, measure first;
+- unit 2 `shell/operand-at-rest` — `AtRestBody` operand (two rows);
+- unit 3 `shell/planar-gate-misses` — footprint arcs + antiparallel lever;
+- unit 4 `shell/lofted-wall-seam` — certified NURBS/ellipse re-anchor.
+
+Unit 7's designer pair (`shell-open-refuses-a-curved-designated-face`)
+runs locally; blinding byte on `analysis/design-fork/shell-curved-designation`.
+Units 5 and 6 wait for a lane: 5 follows 4 in `replace_face.rs`.
+
+## Unit 7 weighed (2026-10-06)
+
+The designer pair on `shell-open-refuses-a-curved-designated-face`
+converged in round 1 on the main question: no kind gate, and the rim
+takes its chart's form (a seamed band on a wrapping periodic chart, a
+ring on a window). The decision and the spec basis are in the item. A
+reporting sub-question crossed twice and then converged on its root
+(the tier-3 verdict carries the violates/undecided class), which is
+RESTFRONT's ground; the evidence went onto that program's row. No
+ratified text moves and no `[ev]` PR: the recommendation is clear and
+is an elaboration of D1's seam convention. Design-fork log: no row,
+because nothing went to Ev. The blinding byte stays on its analysis
+branch. Unit 7 dispatches after units 2 and 3 land, since all three
+edit `shell.rs`.
+
+## Reviews dispatched (2026-10-06, ~07:42 UTC)
+
+Units 1 (PR 4111) and 2 (PR 4112) have delivered. Both are red only on
+the inherited `pinch_faces_tessellate` ε = 1e-6 row, which is JOIN's,
+was noted on its log, and does not block merge (annotated at merge).
+Each gets a single full review as its own cloud session, posting to
+its PR. Units 3 (PR 4115) and 4 (PR 4117) are still in their lanes;
+4117's first red was its own (a `NurbsLane` field the census helper
+did not compare).
+
+## Unit 1 MERGED (2026-10-06, PR 4111)
+
+The pole-touching ball no longer refuses. The item closes on asserting
+rows; the PR has no kernel change. Single full review:
+APPROVE-WITH-FIXES, no MAJOR. The fix pass:
+- builds the ball from `test_support::ball_poled_y`;
+- drops the decorative seam axis;
+- corrects the stale two-arc prose;
+- uses one tolerance rule;
+- corrects the pinch item's cause to `ci.yml`'s `eps_extra` path rule.
+The CI gap that rule leaves was already CIW's
+(`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`),
+so the lane added evidence there instead of filing a duplicate. Merged
+over the inherited `pinch_faces_tessellate` ε = 1e-6 red, which is
+JOIN's `pinch-tessellate-row-escalates-at-eps-1e-6` (filed here), as
+the merge rules allow.
+
+## Unit 2 MERGED (2026-10-06, PR 4112)
+
+The shell doors take an `AtRestBody`. Single full review:
+NOT-MERGEABLE-AS-IS on one MAJOR. `AtRestBody` derefs to `Body`, so
+reverting the doors still compiled, and every "refused at the gate"
+row tested `validate`, not the door. The fix pass:
+- pins the three doors' operand types at compile time, verified by
+  planting the revert (E0308 at all three);
+- rewrites the gate rows' docs to say what they prove;
+- records that no document reaches `UnfinishedOperand` through a Shell
+  node;
+- corrects the stale docs;
+- files S7 as `shelf/shelled-result-discards-its-own-closing-verdict`.
+S6 (finished fixtures) was skipped because it grows. Merged over the
+inherited pinch ε = 1e-6 red.
+
+## Unit 6 measured; the klein elbow is a design fork (2026-10-06, PR 4138)
+
+The lane measured the decline and stopped at the design question, as
+briefed. The lift's scope holds the cavity's meridian caps, translated
+one wall off the axis, and `offset_axial::classify` refuses "a plane
+parallel to the axis but not through it". So the scope is not axial
+under the gate's definition, and this is not a gap in it. The together
+door would need two new arms:
+- the gate admits such a plane, either roster-wide or lift-only;
+- the torus × meridian edge arm accepts a spiric old rim. An
+  experiment showed it refuses `TogetherAxialEdge` one stage later.
+PR 4138 records the measurement and the probe and merged on the
+orchestrator's read (comments and item prose only, no kernel change,
+CI green). The item stays open, re-priced H with `design: true`, for a
+designer pair. `offset_axial.rs` is OFFSET's and CURVED's shared ground
+too.
+
+Reviews of PRs 4115 and 4117 were both APPROVE-WITH-FIXES; fix passes
+are out.
+
+## Unit 6 weighed (2026-10-06)
+
+The designer pair on the klein-elbow lift converged in round 1, and
+both rejected the item's framing. The together door's domain is
+"revolves at rest", so it is not closed under its own output, and the
+lift is that door applied to its output. They agreed on the fix:
+- widen "axial" to every axis-parallel plane, everywhere;
+- `classify` reads one surface;
+- rim carriers come from the moved pair, with one plane×torus section
+  home in `geom_brep::plane_torus_section`;
+- a zero-offset spiric is unrepresentable.
+No ratified text moves, so there is no `[ev]` PR. The spec basis is in
+the item. Unit 6 now runs BEFORE unit 7, whose partial-revolve lift
+depends on it. Its review tier is DUAL: the gate change re-routes many
+bodies and is hard to reverse once rows are rebuilt on it.
