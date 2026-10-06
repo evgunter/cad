@@ -617,9 +617,10 @@ pub enum RunOutPolicy {
     /// policy of a [`CornerConfig::EndFace`]: the end where one edge of
     /// the vertex is requested. A plane band's section is a chord; a
     /// cylinder band's is a circle where the end face is perpendicular
-    /// to the spine. The end face gains the curve and loses (convex) or
-    /// gains (concave) the sliver between it and the old vertex, which
-    /// dies with the band's supports' strips.
+    /// to the spine. The end face gains the curve and loses the sliver
+    /// between it and the old vertex on either side — cut away on the
+    /// convex side, covered by the fill on the concave side — and the
+    /// old vertex dies with the band's supports' strips.
     CutOffAtEndFace,
     /// **Each band is cut off by the other's support and the two meet
     /// along their intersection** — the policy of a
