@@ -87,7 +87,17 @@
 //! Sphere × plane, sphere × sphere (outside or inside one another),
 //! sphere × cylinder at its nearest ruling, and skew cylinders outside
 //! one another touch at one point `at` when their reach margin decides
-//! `Zero`. The arm does not count the section there. In the exact pose
+//! `Zero`. So does a torus whose plane, sphere or parallel-axis wall is
+//! tangent to the tube at an elliptic point (the tube's outer half) that
+//! is the strict extreme, over the torus, of the partner's level
+//! function (the plane's height, the distance from the sphere's centre
+//! or the wall's axis), clear of its next critical value by a decided
+//! margin: in every pose the band admits, the torus's side of the
+//! partner near that level is then one disc about `at` or empty. A
+//! tangency at a hyperbolic point, along a whole parallel (a coaxial
+//! partner, a plane normal to the axis, a sphere centred on it), or
+//! where the elliptic or extreme reading is undecided, is a pinch. The
+//! arm does not count the section there. In the exact pose
 //! the carriers share `at` alone. In a pose the decided margin admits
 //! where they cross, they share one small loop `γ` about `at`, inside
 //! which they stand within the margin of each other. On a pair with no
@@ -720,19 +730,48 @@ fn torus_plane<T: Decide>(
     n: Vec3<T>,
     band: Band,
 ) -> Section<T> {
+    const NEAR: &str = "section_torus_plane_near_tube";
+    const FAR: &str = "section_torus_plane_far_tube";
     let h = n.dot(p0 - c);
     let na = n.dot(a);
     let n_perp = n - a * na;
     let s = n_perp.norm();
+    // In Π, with x along ê = n⊥/s and y along a: the tube circle T_σ is
+    // centred (σR, 0), radius r, and the plane is the line
+    // s·x + n_a·y = h, whose unit normal is (s, n_a); `d` is the
+    // plane's offset from T_σ's centre and `(σR + d·s, d·n_a)` its foot.
+    let in_pi = |x: T, y: T| c + n_perp / s * x + a * y;
+    let offset = |sigma: T| h - sigma * s * big_r;
     let [near, far] = match signs(
         [
-            ("section_torus_plane_near_tube", r - (h - s * big_r).abs()),
-            ("section_torus_plane_far_tube", r - (h + s * big_r).abs()),
+            (NEAR, r - (h - s * big_r).abs()),
+            (FAR, r - (h + s * big_r).abs()),
         ],
         band,
     ) {
         Ok(x) => x,
-        Err(tan) => return tan.into(),
+        // Tangent to T_σ at the foot, an elliptic point when the foot
+        // stands on the tube's outer half: the extreme `σ(sR + r)` of
+        // the height `n·(x − c)`, whose other critical values `±(sR − r)`
+        // stand `2·min(sR, r) ≥ 2·σ·d·s` away.
+        Err(tan) => {
+            let sigma = if tan.name == NEAR {
+                T::one()
+            } else {
+                -T::one()
+            };
+            let d = offset(sigma);
+            if !tan.zero
+                || sign(
+                    "section_torus_plane_touch_elliptic",
+                    Margin::of(sigma * d * s),
+                    band,
+                ) != Some(Sign::Positive)
+            {
+                return tan.into();
+            }
+            return tan.touch(&[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na));
+        }
     };
     match (near, far) {
         (true, true) => essential_pair(true, false),
@@ -750,15 +789,10 @@ fn torus_plane<T: Decide>(
         }
         (true, false) | (false, true) => {
             let sigma = if near { T::one() } else { -T::one() };
-            // In Π, with x along ê = n⊥/s and y along a: the tube circle
-            // T_σ is centred (σR, 0), radius r, and the plane is the line
-            // s·x + n_a·y = h, whose unit normal is (s, n_a).
-            let e_hat = n_perp / s;
-            let d = h - sigma * s * big_r;
+            let d = offset(sigma);
             let (fx, fy) = (sigma * big_r + d * s, d * na);
             let half = ((r - d.abs()) * (r + d.abs())).sqrt();
-            let (x, y) = (fx - na * half, fy + s * half);
-            lone(c + e_hat * x + a * y)
+            lone(in_pi(fx - na * half, fy + s * half))
         }
     }
 }
@@ -773,22 +807,28 @@ fn torus_sphere<T: Decide>(
     rho: T,
     band: Band,
 ) -> Section<T> {
+    const NEAR: &str = "section_torus_sphere_near_tube";
+    const FAR: &str = "section_torus_sphere_far_tube";
     let w = cs - c;
     let ca = w.dot(a);
     let w_perp = w - a * ca;
     let s = w_perp.norm();
+    let in_pi = |x: T, y: T| c + w_perp / s * x + a * y;
     let dist = |x: T| Vec3::new(x, ca, T::zero()).norm();
     let (d_near, d_far) = (dist(s - big_r), dist(s + big_r));
     let cuts = |d: T| (d + r - rho).min(rho - (d - r).abs());
-    let [near, far] = match signs(
-        [
-            ("section_torus_sphere_near_tube", cuts(d_near)),
-            ("section_torus_sphere_far_tube", cuts(d_far)),
-        ],
-        band,
-    ) {
+    let [near, far] = match signs([(NEAR, cuts(d_near)), (FAR, cuts(d_far))], band) {
         Ok(x) => x,
-        Err(tan) => return tan.into(),
+        Err(tan) => {
+            if !tan.zero {
+                return tan.into();
+            }
+            return torus_sphere_touch(tan, big_r, r, s, ca, rho, [d_near, d_far], band)
+                .map_or_else(
+                    || tan.into(),
+                    |(x, y)| tan.touch(&[NEAR, FAR], || in_pi(x, y)),
+                );
+        }
     };
     match (near, far) {
         (true, true) => essential_pair(true, false),
@@ -808,17 +848,71 @@ fn torus_sphere<T: Decide>(
             let d = if near { d_near } else { d_far };
             // Circle against circle in Π: T_σ centred (σR, 0) radius r,
             // the sphere's great circle centred (s, c_a) radius ρ.
-            let e_hat = w_perp / s;
             let (ex, ey) = ((s - sigma * big_r) / d, ca / d);
             let along = (d.powi(2) + r.powi(2) - rho.powi(2)) / (d + d);
             let half = ((r - along) * (r + along)).sqrt();
-            let (x, y) = (
+            lone(in_pi(
                 sigma * big_r + ex * along - ey * half,
                 ey * along + ex * half,
-            );
-            lone(c + e_hat * x + a * y)
+            ))
         }
     }
+}
+
+/// **Where a sphere tangent to the tube circle `T_σ` the pinch names
+/// touches the torus, if at one point**: `(x, y)` in `Π`.
+///
+/// The section is the level `ρ` of `f = |x − cs|` on the torus. With
+/// `cs` off the axis (`s > 0`), `f`'s critical points are the four
+/// points of `T₊` and `T₋` on their normals through `cs`: on `T_σ`, its
+/// nearest point to `cs` at `|d_σ − r|` and its farthest at `d_σ + r`.
+/// The sphere is tangent at whichever of the two stands nearer `ρ`. That
+/// point is a touch when its value is `f`'s strict minimum or maximum
+/// over the torus, clear of the other three by a decided margin: in
+/// every pose the band admits, `{f ≤ ρ}` (or `{f ≥ ρ}`) is then one disc
+/// about it or empty, on which the carriers stand within the band of
+/// each other. It must also stand on the tube's outer half, where the
+/// torus is elliptic.
+///
+/// Which of the two is a choice, not a decision: `ρ` stands within the
+/// band of one of them and they are `2·min(d_σ, r)` apart, so wherever
+/// the choice is in doubt the other stands within the band too and the
+/// extreme margin refuses.
+#[allow(clippy::too_many_arguments)]
+fn torus_sphere_touch<T: Decide>(
+    tan: Pinch,
+    big_r: T,
+    r: T,
+    s: T,
+    ca: T,
+    rho: T,
+    [d_near, d_far]: [T; 2],
+    band: Band,
+) -> Option<(T, T)> {
+    let (sigma, d, d_other) = if tan.name == "section_torus_sphere_near_tube" {
+        (T::one(), d_near, d_far)
+    } else {
+        (-T::one(), d_far, d_near)
+    };
+    let positive = |name, m: T| sign(name, Margin::of(m), band) == Some(Sign::Positive);
+    // The midpoint of T_σ's two values is max(d_σ, r); `kappa` is +1 at
+    // the nearest point, −1 at the farthest.
+    let split = rho - d.max(r);
+    let (nearest, farthest) = ((d - r).abs(), d + r);
+    let kappa = split.select_le_zero(T::one(), -T::one());
+    let value = split.select_le_zero(nearest, farthest);
+    let [o1, o2, o3] = [
+        split.select_le_zero(farthest, nearest),
+        (d_other - r).abs(),
+        d_other + r,
+    ]
+    .map(|v| kappa * (v - value));
+    // T_σ's point along ±(cs − C_σ), C_σ = (σR, 0).
+    let (ux, uy) = ((s - sigma * big_r) / d, ca / d);
+    let (x, y) = (sigma * big_r + kappa * r * ux, kappa * r * uy);
+    (positive("section_torus_sphere_touch_extreme", o1.min(o2).min(o3))
+        && positive("section_torus_sphere_touch_elliptic", sigma * x - big_r))
+    .then_some((x, y))
 }
 
 /// **Torus × a cylinder whose axis is parallel to the torus's**, at
@@ -835,17 +929,27 @@ fn torus_parallel_cylinder<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let (rho_min, rho_max) = ((e - rc).abs(), e + rc);
+    const NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
     let (lo, hi) = (big_r - r, big_r + r);
     let [min_over_lo, min_under_hi, max_over_lo, max_under_hi] = match signs(
         [
             ("section_torus_offset_wall_near_inner", rho_min - lo),
-            ("section_torus_offset_wall_near_outer", hi - rho_min),
+            (NEAR_OUTER, hi - rho_min),
             ("section_torus_offset_wall_far_inner", rho_max - lo),
             ("section_torus_offset_wall_far_outer", hi - rho_max),
         ],
         band,
     ) {
         Ok(x) => x,
+        // The wall's nearest ruling on the outer equator, the rest of
+        // the wall beyond it: the extreme of the distance from the wall's
+        // axis over the torus (its minimum beside the torus, its maximum
+        // about it), at an elliptic point, clear of the next critical
+        // value by `2r` beside the torus and by `min(2r, 2e)` about it,
+        // both decided.
+        Err(tan) if tan.name == NEAR_OUTER => {
+            return tan.touch(&[NEAR_OUTER], || c + toward * (e - rc));
+        }
         Err(tan) => return tan.into(),
     };
     let height = |rho: T| {

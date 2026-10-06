@@ -684,6 +684,8 @@ mod pi_seam_and_kiss_through_the_boolean;
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]
 mod tang_circle_cylinder;
+#[path = "torus_touch_off_faces.rs"]
+mod torus_touch_off_faces;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

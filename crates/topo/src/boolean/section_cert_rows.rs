@@ -213,13 +213,17 @@ fn a_scrape_oval_is_one_null_component_witnessed_on_its_own_side() {
     on_both(witness(&classify(&donut(), &pl)), &donut(), &pl);
 }
 
-/// **Tangency refuses (R-tan)**: a plane on the outer equator and a
-/// plane on the top circle. Read as `Positive`, the first would be a
-/// scrape and the second two parallels.
+/// **A pinch refuses (R-tan)**: a plane on the inner equator, a saddle
+/// point, where the section is a figure eight; and a plane on the top
+/// circle, tangent along it. Read as `Positive`, the first would be a
+/// scrape and the second two parallels; read as a touch, either would
+/// clear on one point of a section that is not a small loop about it.
 #[test]
-fn a_plane_tangent_to_the_tube_refuses_as_a_tangency() {
-    let s = classify(&donut(), &plane(p(2.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
+fn a_plane_tangent_to_the_tube_off_its_outer_half_refuses_as_a_tangency() {
+    let s = classify(&donut(), &plane(p(1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
     assert_eq!(tangent(&s), "section_torus_plane_near_tube");
+    let s = classify(&donut(), &plane(p(-1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
+    assert_eq!(tangent(&s), "section_torus_plane_far_tube");
     let s = classify(&donut(), &plane(p(0.0, 0.0, 0.5), v(0.0, 0.0, 1.0)));
     assert!(tangent(&s).starts_with("section_torus_plane_"));
 }
@@ -279,8 +283,9 @@ fn torus_and_ball_every_class() {
         shape(&classify(&donut(), &sphere(p(2.0, 0.0, 0.0), 0.2))).0,
         0
     );
-    // A ball tangent to the tube: R-tan.
-    let s = classify(&donut(), &sphere(p(3.0, 0.0, 0.0), 0.5));
+    // A ball in the hole tangent to the inner equator, a saddle point:
+    // R-tan.
+    let s = classify(&donut(), &sphere(p(1.0, 0.0, 0.0), 0.5));
     assert_eq!(tangent(&s), "section_torus_sphere_near_tube");
 }
 
@@ -806,6 +811,187 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     assert_eq!(
         tangent(&classify(&fat, &same)),
         "section_cylinder_pair_coincident"
+    );
+}
+
+/// The rows' donut at `(u, v)`.
+fn donut_at(u: f64, v: f64) -> Point3<f64> {
+    let rho = 2.0 + 0.5 * v.cos();
+    p(rho * u.cos(), rho * u.sin(), 0.5 * v.sin())
+}
+
+/// The donut's section with `partner` about `at`, on 64 rays out of
+/// `at`'s parameters, evenly in angle at unit speed: each ray's first
+/// change of the partner's residual from its sign at `at`, by bisection.
+fn donut_loop(partner: &Surface<f64>, at: Point3<f64>) -> Vec<Point3<f64>> {
+    let (u0, v0) = (at.y.atan2(at.x), at.z.atan2(at.x.hypot(at.y) - 2.0));
+    let g = |q| geom_brep::implicit_residual(partner, q).signum();
+    let deep = g(donut_at(u0, v0));
+    turns(64)
+        .map(|phi| {
+            let at_t = |t: f64| {
+                donut_at(
+                    u0 + t * phi.cos() / (2.0 + 0.5 * v0.cos()),
+                    v0 + t * phi.sin() / 0.5,
+                )
+            };
+            let (mut lo, mut hi) = (0.0, 1e-10);
+            while g(at_t(hi)) == deep {
+                (lo, hi) = (hi, 2.0 * hi);
+                assert!(hi < 0.5, "no crossing on the ray at {phi} from {at:?}");
+            }
+            for _ in 0..100 {
+                let mid = 0.5 * (lo + hi);
+                if g(at_t(mid)) == deep {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            at_t(0.5 * (lo + hi))
+        })
+        .collect()
+}
+
+/// **A torus touch is at the elliptic extreme, and at the centre of
+/// every loop its margin admits**: a plane on the outer equator on
+/// either tube circle and tilted onto the tube's outer half, a ball
+/// outside the tube, one about the whole torus and one inside the tube,
+/// and a wall parallel to the axis beside the torus and about it. In
+/// the exact pose `at` is the tangent point; pushed `0.9·zero` across,
+/// it centres the section loop, sampled on the torus. Mutants: the foot
+/// on the other side of the tube circle, the farthest point for the
+/// nearest, the wall's far ruling.
+#[test]
+fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
+    let push = 0.9 * band().zero();
+    let x = Vec3::unit_x();
+    let z = Vec3::unit_z();
+    let k = v(0.6f64.cos(), 0.0, 0.6f64.sin());
+    let foot = p(2.0, 0.0, 0.0) + k * 0.5;
+    let about = p(0.5, 0.0, 0.3);
+    let d_far = 2.5f64.hypot(0.3);
+    let in_tube = p(2.2, 0.0, 0.1);
+    let d_near = 0.2f64.hypot(0.1);
+    const PLANE_NEAR: &str = "section_torus_plane_near_tube";
+    const SPHERE_NEAR: &str = "section_torus_sphere_near_tube";
+    const WALL: &str = "section_torus_offset_wall_near_outer";
+    // (label, the margin, the exact pose, the pose pushed across, the
+    // tangent point)
+    type Row = (
+        &'static str,
+        &'static str,
+        Surface<f64>,
+        Surface<f64>,
+        Point3<f64>,
+    );
+    let rows: [Row; 8] = [
+        (
+            "plane on the outer equator",
+            PLANE_NEAR,
+            plane(p(2.5, 0.0, 0.0), x),
+            plane(p(2.5 - push, 0.0, 0.0), x),
+            p(2.5, 0.0, 0.0),
+        ),
+        (
+            "plane on the far tube's outer equator",
+            "section_torus_plane_far_tube",
+            plane(p(-2.5, 0.0, 0.0), x),
+            plane(p(-2.5 + push, 0.0, 0.0), x),
+            p(-2.5, 0.0, 0.0),
+        ),
+        (
+            "tilted plane",
+            PLANE_NEAR,
+            plane(foot, k),
+            plane(foot - k * push, k),
+            foot,
+        ),
+        (
+            "ball outside the tube",
+            SPHERE_NEAR,
+            sphere(foot + k * 0.7, 0.7),
+            sphere(foot + k * 0.7, 0.7 + push),
+            foot,
+        ),
+        (
+            "ball about the torus",
+            "section_torus_sphere_far_tube",
+            sphere(about, d_far + 0.5),
+            sphere(about, d_far + 0.5 - push),
+            p(-2.0 - 0.5 * 2.5 / d_far, 0.0, -0.5 * 0.3 / d_far),
+        ),
+        (
+            "ball inside the tube",
+            SPHERE_NEAR,
+            sphere(in_tube, 0.5 - d_near),
+            sphere(in_tube, 0.5 - d_near + push),
+            p(2.0 + 0.5 * 0.2 / d_near, 0.0, 0.5 * 0.1 / d_near),
+        ),
+        (
+            "wall beside the torus",
+            WALL,
+            cylinder(p(3.0, 0.0, -1.0), z, 0.5),
+            cylinder(p(3.0, 0.0, -1.0), z, 0.5 + push),
+            p(2.5, 0.0, 0.0),
+        ),
+        (
+            "wall about the torus",
+            WALL,
+            cylinder(p(0.3, 0.0, -1.0), z, 2.8),
+            cylinder(p(0.3, 0.0, -1.0), z, 2.8 - push),
+            p(-2.5, 0.0, 0.0),
+        ),
+    ];
+    for (label, name, exact, pushed, tangent_at) in rows {
+        let t = touch_both_ways(&donut(), &exact, name);
+        assert!(
+            (t.at - tangent_at).norm() < 1e-12,
+            "{label}: tangent at {:?}",
+            t.at
+        );
+        let t = touch_both_ways(&donut(), &pushed, name);
+        centres(label, &t, &donut_loop(&pushed, t.at));
+    }
+}
+
+/// **A torus tangency that is not an elliptic extreme stays R-tan**: a
+/// plane touching the tube near its top circle with the elliptic margin
+/// undecided and decided `Zero`; a ball centred on the axis on the outer
+/// equator all round; a ball centred on the core circle, on a whole
+/// meridian; a wall in the hole on the inner equator; a wall crossing
+/// the tube on the outer equator. Mutants: the elliptic margin, the
+/// extreme margin, or the nearest-end margin dropped; any wall pinch
+/// read as a touch.
+#[test]
+fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
+    for (label, s) in [
+        ("undecided", in_sliver() / 0.5),
+        ("zero", 0.5 * band().zero() / 0.5),
+    ] {
+        let n = v(s, 0.0, (1.0 - s * s).sqrt());
+        let pl = plane(p(0.0, 0.0, 0.0) + n * (2.0 * s + 0.5), n);
+        assert_eq!(
+            tangent(&classify(&donut(), &pl)),
+            "section_torus_plane_near_tube",
+            "{label}"
+        );
+    }
+    for ball in [sphere(p(0.0, 0.0, 0.0), 2.5), sphere(p(2.0, 0.0, 0.0), 0.5)] {
+        assert_eq!(
+            tangent(&classify(&donut(), &ball)),
+            "section_torus_sphere_near_tube",
+            "{ball:?}"
+        );
+    }
+    let z = Vec3::unit_z();
+    assert_eq!(
+        tangent(&classify(&donut(), &cylinder(p(1.0, 0.0, -1.0), z, 0.5))),
+        "section_torus_offset_wall_far_inner"
+    );
+    assert_eq!(
+        tangent(&classify(&donut(), &cylinder(p(2.2, 0.0, -1.0), z, 0.3))),
+        "section_torus_offset_wall_far_outer"
     );
 }
 
