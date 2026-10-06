@@ -105,7 +105,7 @@ use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::live::{Proven, linked, proven};
+use crate::live::{BoundaryMember, Proven, linked, proven};
 use crate::splitting::finish::single_solid;
 use geom_core::Tol;
 
@@ -652,22 +652,16 @@ fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<Ext
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
 pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Point3<T>>> {
     let f = body.get_face(face)?;
-    let mut out = Vec::new();
-    let loops = core::iter::once((f.outer, "outer")).chain(f.rings.iter().map(|&l| (l, "rings")));
-    for (lk, field) in loops {
-        match loop_boundary(body, lk, EntityId::Face(face), field) {
-            LoopBoundary::Empty { vertex } => {
-                out.push(body.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary"));
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in cycle(body, first) {
-                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-                    out.push(body.linked_vertex_point(start, EntityId::HalfEdge(he), "start"));
+    Some(
+        body.face_boundary_linked(face, f)
+            .map(|member| match member {
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
                 }
-            }
-        }
-    }
-    Some(out)
+            })
+            .collect(),
+    )
 }
 
 /// **A face pair's consumed extent**, as the carrier doors read it:
@@ -1408,19 +1402,13 @@ fn halves_at<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or_else(|| desync("REST lane: chord host face vanished"))?;
-    let mut out = Vec::new();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = loop_boundary(body, l, EntityId::Face(face), "loops")
-        else {
-            continue;
-        };
-        for he in cycle(body, first) {
-            if proven(&body.half_edges, he, EntityId::HalfEdge).start == u {
-                out.push(he);
-            }
-        }
-    }
-    Ok(out)
+    Ok(body
+        .face_boundary_linked(face, f)
+        .filter_map(|member| match member {
+            BoundaryMember::Edge { he, half, .. } if half.start == u => Some(he),
+            _ => None,
+        })
+        .collect())
 }
 
 // ---------------------------------------------------------------
@@ -2115,6 +2103,25 @@ fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **The witnesses and the chord halves panic on a ring link that
+    /// does not resolve**, where they stepped over it.
+    #[test]
+    fn the_boundary_walks_panic_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        let u = body.vertices().next().map(|(k, _)| k).unwrap();
+        assert!(face_witnesses(&body, face).is_some(), "the live face reads");
+        assert!(halves_at(&body, face, u).is_ok(), "the live face walks");
+        let named = tear_ring(&mut body, face);
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("face_witnesses", &mut body, &premise, |b| {
+            face_witnesses(b, face)
+        });
+        assert_torn_op_panics("halves_at", &mut body, &premise, |b| halves_at(b, face, u));
+    }
 
     /// **A glue's deaths settle against the seam, one glue at a time.**
     /// A seam edge that died and was reported interior leaves the seam;

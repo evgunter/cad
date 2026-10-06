@@ -399,7 +399,7 @@ impl<T: Real> Body<T> {
     pub(crate) fn loop_members_linked(&self, lk: LoopKey, l: &Loop) -> Vec<BoundaryMember<'_, T>> {
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
-                let point = self.linked_vertex_point(vertex, EntityId::Loop(lk), "vertex");
+                let point = self.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary");
                 vec![BoundaryMember::Isolated { vertex, point }]
             }
             LoopBoundary::Cycle { first } => self

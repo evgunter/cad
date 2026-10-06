@@ -209,15 +209,7 @@ mod torn_hop_rows {
         let (apex, axis) = (Point3::new(0.0, 0.0, -1.0), Vec3::unit_z());
         let (lo, hi) = corner_stations(&body, face, &data, apex, axis);
         assert!(lo <= hi, "ordered stations");
-        let record = body.get_loop(data.outer).unwrap().clone();
-        let ring = body.loops.insert(record);
-        body.loops.remove(ring);
-        body.faces.get_mut(face).unwrap().rings.push(ring);
-        let named = format!(
-            "{}'s rings names {}",
-            EntityId::Face(face),
-            EntityId::Loop(ring)
-        );
+        let named = crate::review_d18::tear_ring(&mut body, face);
         assert_torn_op_panics(
             "corner_stations",
             &mut body,

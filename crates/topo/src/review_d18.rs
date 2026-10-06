@@ -257,6 +257,20 @@ impl Drop for PanicCapture {
     }
 }
 
+/// Gives `face` a ring link that does not resolve, and names it.
+pub(crate) fn tear_ring(body: &mut Body<f64>, face: FaceKey) -> String {
+    let outer = body.get_face(face).unwrap().outer;
+    let record = body.get_loop(outer).unwrap().clone();
+    let ring = body.loops.insert(record);
+    body.loops.remove(ring);
+    body.faces.get_mut(face).unwrap().rings.push(ring);
+    format!(
+        "{}'s rings names {}",
+        EntityId::Face(face),
+        EntityId::Loop(ring)
+    )
+}
+
 /// Runs `op` on the torn `body` and asserts it panics with a report
 /// containing every fragment of `premise`, in its plan phase: the body
 /// is deep-equal afterwards. Returns the report. It runs inside a

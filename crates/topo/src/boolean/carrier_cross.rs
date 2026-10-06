@@ -648,7 +648,7 @@ mod crossing_rows {
             "a face the caller passed that does not resolve refuses typed"
         );
         let mut torn = body.clone();
-        let named = crate::boolean::torn_hop_rows::tear_ring(&mut torn, face);
+        let named = crate::review_d18::tear_ring(&mut torn, face);
         assert_torn_op_panics(
             "boundary_crossing (ring)",
             &mut torn,

@@ -2930,16 +2930,7 @@ mod tests {
         let face = body.faces().next().map(|(k, _)| k).expect("a face");
         assert_eq!(body.outermost_survivor(face, Vec::new()).0, face, "no nest");
         assert_eq!(body.boundary_points(face).len(), 4, "four corners");
-        let outer = body.get_face(face).expect("live").outer;
-        let record = body.get_loop(outer).expect("live").clone();
-        let ring = body.loops.insert(record);
-        body.loops.remove(ring);
-        body.faces.get_mut(face).expect("live").rings.push(ring);
-        let named = format!(
-            "{}'s rings names {}",
-            EntityId::Face(face),
-            EntityId::Loop(ring)
-        );
+        let named = crate::review_d18::tear_ring(&mut body, face);
         let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
         assert_torn_op_panics("outermost_survivor", &mut body, &premise, |b| {
             b.outermost_survivor(face, Vec::new())

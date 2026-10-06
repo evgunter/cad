@@ -10,7 +10,7 @@
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
 use crate::live::OPERATORS_KEEP_LINKS;
-use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, geometric_cube};
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -61,24 +61,10 @@ fn drop_curve(body: &mut Body<f64>, he: HalfEdgeKey) -> String {
 }
 
 /// Drops `face`'s outer loop, and names the link that now dangles.
-pub(super) fn drop_outer(body: &mut Body<f64>, face: FaceKey) -> String {
+fn drop_outer(body: &mut Body<f64>, face: FaceKey) -> String {
     let outer = body.get_face(face).unwrap().outer;
     body.loops.remove(outer);
     format!("'s outer names {}", EntityId::Loop(outer))
-}
-
-/// Gives `face` a ring link that does not resolve, and names it.
-pub(super) fn tear_ring(body: &mut Body<f64>, face: FaceKey) -> String {
-    let outer = body.get_face(face).unwrap().outer;
-    let record = body.get_loop(outer).unwrap().clone();
-    let ring = body.loops.insert(record);
-    body.loops.remove(ring);
-    body.faces.get_mut(face).unwrap().rings.push(ring);
-    format!(
-        "{}'s rings names {}",
-        EntityId::Face(face),
-        EntityId::Loop(ring)
-    )
 }
 
 /// Drops `face`'s surface, and names the link that now dangles.

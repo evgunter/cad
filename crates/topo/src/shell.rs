@@ -322,7 +322,7 @@ use crate::entity::{
 };
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
-use crate::live::{NAMES_ONLY_LIVE, linked, proven};
+use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
@@ -1997,26 +1997,17 @@ fn duplicate_in_loop<T: Real>(
     face: FaceKey,
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
     let data = proven(&body.faces, face, EntityId::Face);
-    let loops =
-        core::iter::once(("outer", data.outer)).chain(data.rings.iter().map(|&l| ("rings", l)));
-    for (field, r#loop) in loops {
-        let LoopBoundary::Cycle { first } = linked(
-            &body.loops,
-            r#loop,
-            EntityId::Loop,
-            EntityId::Face(face),
-            field,
-        )
-        .boundary
-        else {
-            continue;
-        };
-        let cycle = body.loop_walk(first).closed("loop", first);
-        let edge_of = |he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        for (i, &he1) in cycle.iter().enumerate() {
-            let e1 = edge_of(he1);
-            for &he2 in &cycle[i + 1..] {
-                if edge_of(he2) == e1 {
+    for (r#loop, members) in body.face_boundary_by_loop(face, data) {
+        let cycle: Vec<(HeKey, crate::entity::EdgeKey)> = members
+            .into_iter()
+            .filter_map(|member| match member {
+                BoundaryMember::Edge { he, ek, .. } => Some((he, ek)),
+                BoundaryMember::Isolated { .. } => None,
+            })
+            .collect();
+        for (i, &(he1, e1)) in cycle.iter().enumerate() {
+            for &(he2, e2) in &cycle[i + 1..] {
+                if e2 == e1 {
                     return Some((r#loop, he1, he2));
                 }
             }
@@ -2681,6 +2672,27 @@ fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// **The duplicate scan panics on a ring link that does not
+    /// resolve**, where it stepped over it.
+    #[test]
+    fn the_duplicate_scan_panics_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics, tear_ring};
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        assert!(
+            duplicate_in_loop(&body, face).is_none(),
+            "a cube face has no slit"
+        );
+        let named = tear_ring(&mut body, face);
+        assert_torn_op_panics(
+            "duplicate_in_loop",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| duplicate_in_loop(b, face),
+        );
+    }
 
     /// A vertex whose orbit does not walk has no valence to answer, so
     /// the read panics naming the walk rather than answer zero, which

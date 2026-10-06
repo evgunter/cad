@@ -5359,7 +5359,7 @@ mod torn_hop_rows {
         assert!(!face_boundary_meets(&body, face, &far, 0.0), "a far box");
         assert!(!has_lone_vertex(&body, face), "a cube face has none");
         assert_eq!(faces_by_vertex(&body).len(), 8, "eight corners");
-        let named = crate::boolean::torn_hop_rows::tear_ring(&mut body, face);
+        let named = crate::review_d18::tear_ring(&mut body, face);
         let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
         assert_torn_op_panics("face_boundary_meets", &mut body, &premise, |b| {
             face_boundary_meets(b, face, &far, 0.0)
