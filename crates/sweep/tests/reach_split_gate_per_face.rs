@@ -1,4 +1,4 @@
-//! The split's operand gate is per face: a body carrying a face of a
+//! The split's carrier gate is per face: a body carrying a face of a
 //! kind the split has no arm for splits wherever the plane cannot reach
 //! that face, and refuses naming it wherever the plane may.
 
@@ -10,24 +10,26 @@ use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, SplitResult, split};
-use topo::{Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
+use topo::{AtRestBody, Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
 
-fn revolved(chain: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
     revolved_with(chain, Vec::new())
 }
 
-/// [`revolved`] with the profile's tangent joints declared.
-fn revolved_with(chain: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> Body<f64> {
-    revolve(
+/// [`revolved`] with the profile's tangent joints declared, finished.
+fn revolved_with(chain: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
+    let body = revolve(
         &validated(vec![bulge_loop(chain).with_tangent_joints(tangent_joints)]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the revolved body", body, Tol::witness())
 }
 
 /// A cut normal minted the way a caller holding a direction mints one.
@@ -46,7 +48,7 @@ fn plane(phi: f64, qy: f64) -> SplitPlane<f64> {
 
 /// The unit cylinder `y ∈ [0, 1]` under a spherical cap: the arc
 /// `(1, 1) → (0, 1.5)` about `(0, 0.25)` (radius 5/4), revolved about `y`.
-fn capped_cylinder() -> Body<f64> {
+fn capped_cylinder() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(1.0, 1.0), Point2::new(0.0, 1.5));
     let bulge = bulge_from_center(a, b, Point2::new(0.0, 0.25), ArcSweep::Ccw);
     revolved(vec![
@@ -60,7 +62,7 @@ fn capped_cylinder() -> Body<f64> {
 /// The same sphere below `y = 1`, flat on top: the arc `(0, −1) → (1, 1)`
 /// about `(0, 0.25)`. Its sphere face is the complement of
 /// [`capped_cylinder`]'s cap.
-fn truncated_ball() -> Body<f64> {
+fn truncated_ball() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(0.0, -1.0), Point2::new(1.0, 1.0));
     let bulge = bulge_from_center(a, b, Point2::new(0.0, 0.25), ArcSweep::Ccw);
     revolved(vec![(a, bulge), (b, 0.0), (Point2::new(0.0, 1.0), 0.0)])
@@ -86,7 +88,7 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
 /// The unit cylinder `y ∈ [0, 1]` with its top rim rounded: the quarter
 /// arc `(1, 1) → (3/4, 5/4)` about `(3/4, 1)`, a torus of radii 3/4 and
 /// 1/4.
-fn rounded_cylinder() -> Body<f64> {
+fn rounded_cylinder() -> AtRestBody<f64> {
     let (a, b) = (Point2::new(1.0, 1.0), Point2::new(0.75, 1.25));
     let bulge = bulge_from_center(a, b, Point2::new(0.75, 1.0), ArcSweep::Ccw);
     revolved_with(
@@ -252,7 +254,12 @@ fn a_plane_missing_a_spline_body_returns_it_whole() {
         origin: Point3::new(0.0, 0.0, 3.0),
         normal: unit(Vec3::new(0.2f64.sin(), 0.0, 0.2f64.cos())),
     };
-    let result = split(&loft, &over, Tol::witness()).unwrap_or_else(|e| panic!("{e}"));
+    let result = split(
+        &finished("the loft", loft, Tol::witness()),
+        &over,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     let (SplitPart::Empty, SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("the plane over the loft leaves it all below");
     };
@@ -369,14 +376,26 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// plane and its belly across it, refuses at the gate. Nothing else
 /// reads it: no crossing lane serves a spline, so passing it would
 /// leave the edge uncut while the plane crosses the faces beside it.
+///
+/// The re-described edge's pcurves do not certify, so the body is not
+/// a finished body and no split door takes it; the row reads the
+/// carrier gate past the door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
     for part in [validate(&body), validate_closed(&body)] {
         assert_eq!(part, Ok(()), "the re-described body is well formed");
     }
-    match split(&body, &plane(0.0, 0.4), Tol::witness()) {
-        Err(SplitError::Reduce(SplitReduceError::CurvedEdgeUnsupported { edge: e })) => {
+    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body.clone(), Tol::witness())
+        .expect_err("the spline's pcurves do not certify");
+    assert!(
+        errors
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::Pcurve { .. })),
+        "the at-rest gate refuses the spline's pcurves alone: {errors:?}"
+    );
+    match topo::test_support::split_carrier_gate(&body, &plane(0.0, 0.4), Tol::witness()) {
+        Err(SplitReduceError::CurvedEdgeUnsupported { edge: e }) => {
             assert_eq!(e, edge, "the refusal names the spline edge");
         }
         other => panic!("the plane through the spline's belly refuses, got {other:?}"),
@@ -395,11 +414,20 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
 /// of an imported face whose loop bounds the outside of its rectangle.
 /// A level plane above the zone clears the zone's box and meets the
 /// ball's, and nothing else in the body: the gate is the only refusal.
+///
+/// Such a face is not a finished body's (the at-rest gate refuses its
+/// sense, naming the zone), so no split door takes it; the row reads the
+/// carrier gate past the door.
 #[test]
 fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
     let wedge = sweep::test_support::sphere_zone(0.5, Revolution::Partial(1.0), Tol::witness());
     let above = plane(0.0, 1.5);
-    let whole = split(&wedge, &above, Tol::witness()).expect("the zone's box clears the cut");
+    let whole = split(
+        &finished("the wedge", wedge.clone(), Tol::witness()),
+        &above,
+        Tol::witness(),
+    )
+    .expect("the zone's box clears the cut");
     assert!(
         matches!(
             (&whole.above, &whole.below),
@@ -424,11 +452,19 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
             },
         )
         .unwrap();
-    match split(&reverted, &above, Tol::witness()) {
-        Err(SplitError::Reduce(SplitReduceError::CurvedBooleanUnsupported {
+    let errors = <f64 as topo::AtRestPolicy>::gate_at_rest_kept(reverted.clone(), Tol::witness())
+        .expect_err("a zone bounding its complement is not a finished body's");
+    assert!(
+        errors.iter().any(
+            |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == zone)
+        ),
+        "the at-rest gate names the zone's sense: {errors:?}"
+    );
+    match topo::test_support::split_carrier_gate(&reverted, &above, Tol::witness()) {
+        Err(SplitReduceError::CurvedBooleanUnsupported {
             face,
             kind: SurfaceKind::Sphere,
-        })) => assert_eq!(face, zone, "the refusal names the zone"),
+        }) => assert_eq!(face, zone, "the refusal names the zone"),
         other => panic!("an uncertified side keeps the ball, got {other:?}"),
     }
 }

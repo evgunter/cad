@@ -46,6 +46,7 @@ fn halves() -> (Body<f64>, Body<f64>) {
     )
     .unwrap()
     .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, H / 2.0),
         Vec3::new(PHI.sin(), 0.0, PHI.cos()),
@@ -248,6 +249,7 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     )
     .unwrap()
     .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(d(0.0), d(0.0), d(H / 2.0)),
         Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),

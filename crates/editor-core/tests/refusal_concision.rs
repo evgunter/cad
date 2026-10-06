@@ -331,7 +331,9 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "InsideOutOperand",
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
-                solid: topo::SolidKey::default(),
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
             },
         ),
         (

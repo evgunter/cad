@@ -16,9 +16,10 @@ use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
-use topo::{Body, DATUM_UNIT_NORM, transform_rigid};
+use topo::{AtRestBody, Body, DATUM_UNIT_NORM, transform_rigid};
 
 /// One fixture: the revolved profile about `y`, its radius at height
 /// `y` (the slice integral's integrand), and the unarmed face's
@@ -284,7 +285,11 @@ fn probe() {
         for f in [capped(s), truncated(s), rounded(s)] {
             let body = build(&f);
             for (pose, map) in poses(s) {
-                let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
+                let posed = finished(
+                    "the posed body",
+                    transform_rigid(&body, &map, Tol::witness()).unwrap(),
+                    Tol::witness(),
+                );
                 let mut t = Tally::default();
                 for (n, q) in planes(&f, s) {
                     let n = n * (1.0 / (n.x * n.x + n.y * n.y + n.z * n.z).sqrt());
@@ -365,7 +370,7 @@ fn probe() {
 fn split_posed(
     f: &Fixture,
     s: f64,
-    posed: &Body<f64>,
+    posed: &AtRestBody<f64>,
     map: Affine3<f64>,
     (n, q): (Vec3<f64>, Point3<f64>),
     what: &str,
@@ -431,7 +436,7 @@ fn a_cut_clear_of_the_face_splits_in_every_pose() {
             for (pose, map) in &poses(s)[pose_set.clone()] {
                 let tol = Tol::witness();
                 let posed = match transform_rigid(&body, map, tol) {
-                    Ok(posed) => posed,
+                    Ok(posed) => finished("the posed body", posed, tol),
                     Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {
                         test_utils::vacuity::stood_down(
                             &format!("{} at scale {s}, {pose}, eps = {:e}", f.name, tol.eps()),
@@ -505,7 +510,11 @@ fn a_cut_into_the_face_refuses_in_every_pose() {
             }
         }
         for (pose, map) in poses(s) {
-            let posed = transform_rigid(&body, &map, Tol::witness()).unwrap();
+            let posed = finished(
+                "the posed body",
+                transform_rigid(&body, &map, Tol::witness()).unwrap(),
+                Tol::witness(),
+            );
             for &(cut, plane) in &cuts {
                 let what = format!("{}, {pose}, {cut}", f.name);
                 match split_posed(&f, s, &posed, map, plane, &what) {

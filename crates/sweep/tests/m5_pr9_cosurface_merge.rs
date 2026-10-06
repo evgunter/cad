@@ -60,6 +60,7 @@ fn sub_period_wall_pieces_remerge_structurally() {
     // below part's wall is TWO same-key fragments meeting across one
     // original meridian strut (the C12.5 through-cut shape).
     let body = disc_cylinder();
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let plane = topo::test_support::split_plane(
         Point3::new(0.2, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),

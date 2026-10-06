@@ -344,6 +344,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
 pub fn stop(tol: Tol) -> Stop {
     let (acc, vol) = build::<f64>(tol);
     let (spring, spring_gap) = standing_spring(tol);
+    let spring = finished("the spring", spring, tol);
     let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, &spring, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
@@ -409,7 +410,7 @@ pub fn stop(tol: Tol) -> Stop {
         .chain(core::iter::once(SceneBody::plain(
             "spring",
             SPRING_COLOR,
-            spring,
+            spring.into_body(),
         )))
         .chain(section_bodies)
         .collect(),
