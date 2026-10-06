@@ -2990,14 +2990,8 @@ const OFF_BOUNDARY: &str = "Recourse: move the geometry clear of the boundary";
 
 fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
     match e {
-        ContainError::Escalated(diag) => (
-            "a point of it lies too close to a boundary to place at this tolerance".into(),
-            own_close(&diag.margin, OFF_BOUNDARY),
-        ),
-        ContainError::RayExhausted => (
-            "a point of it lies too close to a boundary to place at this tolerance".into(),
-            OFF_BOUNDARY,
-        ),
+        ContainError::Escalated(diag) => close_to_boundary(diag),
+        ContainError::RayExhausted => (GRAZED.into(), MOVE_GEOMETRY),
         ContainError::StaleFace(_) => (
             "a face the check asked about does not resolve in the body".into(),
             DEFECT,
@@ -3006,21 +3000,111 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, &'static str) {
             "a loop of its boundary is a lone vertex, which bounds no region".into(),
             DEFECT,
         ),
-        ContainError::LoopUnreadable(_) => ("its boundary could not be walked".into(), DEFECT),
-        ContainError::Curved(_) => (
-            "a curved face's trim is one the check cannot yet read".into(),
+        ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT),
+        ContainError::Curved(e) => classify_point_in_solid(e),
+        ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET),
+    }
+}
+
+const CLOSE_TO_BOUNDARY: &str =
+    "a point of it lies too close to a boundary to place at this tolerance";
+
+const UNWALKABLE: &str = "its boundary could not be walked";
+
+/// Every ray parity cast grazed, for a point a pre-pass had already
+/// placed off the boundary.
+const GRAZED: &str =
+    "a point the check read is off the boundary, but every test ray from it grazed the boundary";
+
+/// The lever for a point with nothing to declare a coincidence with.
+const MOVE_GEOMETRY: &str = concat!("Recourse: ", geom_core::coincidence_move_arm!());
+
+fn close_to_boundary(diag: &Indeterminate) -> (Cow<'static, str>, &'static str) {
+    (
+        CLOSE_TO_BOUNDARY.into(),
+        own_close(&diag.margin, OFF_BOUNDARY),
+    )
+}
+
+// The edge is whatever the body's producer made — a shell's or a
+// revolve's section of a torus as readily as a drawn spline — so the
+// cause is the check's, and no redrawing is prescribed.
+fn uncrossable(u: &crate::splitting::Uncrossable) -> Cow<'static, str> {
+    format!(
+        "every test ray from a point the check asked about could meet a {} edge of the \
+         boundary, which the check cannot yet cross",
+        u.carrier.word()
+    )
+    .into()
+}
+
+/// A curved face's read, carried whole from the solid door. An arm whose
+/// kind the face door also raises at its top level (`Escalated`,
+/// `RayExhausted`, a corrupt loop, an uncrossable edge) reads as that
+/// arm does; the rest have texts of their own. At rest the body has
+/// passed tier 2, so an arena claim (`CorruptFace`, `NoSuchSolid`, a
+/// corrupt or off-plane loop) is the producer's defect.
+fn classify_point_in_solid(
+    e: &crate::boolean::PointInSolidError,
+) -> (Cow<'static, str>, &'static str) {
+    use crate::boolean::PointInSolidError as S;
+    use crate::splitting::{OffPlaneCause, PointInLoopError as L};
+    match e {
+        S::Escalated { diag, .. } | S::Loop(L::Escalated { diag, .. }) => close_to_boundary(diag),
+        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => (GRAZED.into(), MOVE_GEOMETRY),
+        S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT),
+        S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
+            (uncrossable(u), NOT_YET)
+        }
+        S::Loop(L::OffPlane(o)) => (
+            match o.cause {
+                OffPlaneCause::Loop { .. } => "a flat face's boundary does not lie in its plane",
+                OffPlaneCause::Query => {
+                    "a point the check read does not lie in the plane of the flat face it tested"
+                }
+                OffPlaneCause::NormalNotUnit => {
+                    "the normal the check read for a flat face's plane is not of unit length"
+                }
+            }
+            .into(),
+            DEFECT,
+        ),
+        S::CorruptFace { .. } => (
+            "a face the check read is broken: it cannot be walked, or names something that is \
+             gone"
+                .into(),
+            DEFECT,
+        ),
+        S::NoSuchSolid { .. } => (
+            "a solid the check asked about does not resolve in the body".into(),
+            DEFECT,
+        ),
+        // Check 7 passes a volume in band of zero, so the body may carry
+        // such a solid at rest; it is the model's to fix, as the census
+        // says (`Undecided::ZeroVolume`).
+        S::ZeroVolumeBody => (
+            "a solid the check read encloses no measurable volume, so nothing can be inside it"
+                .into(),
+            "Recourse: fix that solid so it encloses a volume",
+        ),
+        S::VolumeUncertified => (
+            "a solid's volume cannot be certified, so which side of it is inside cannot be read"
+                .into(),
             NOT_YET,
         ),
-        // The edge is whatever the body's producer made — a shell's or a
-        // revolve's section of a torus as readily as a drawn spline — so
-        // the cause is the check's, and no redrawing is prescribed.
-        ContainError::Uncrossable(u) => (
+        S::KindUnsupported { kind, .. } => (
             format!(
-                "every test ray from a point the check asked about could meet a {} edge \
-                 of the boundary, which the check cannot yet cross",
-                u.carrier.word()
+                "a face the check read is a {} surface, which it has no way yet to cross",
+                crate::boolean::kind_word(*kind)
             )
             .into(),
+            NOT_YET,
+        ),
+        S::PartialSphereFace { .. }
+        | S::PartialConeFace { .. }
+        | S::PartialTorusFace { .. }
+        | S::WallOutlineUnsupported { .. } => (
+            "a curved face's trim is one the check cannot yet read".into(),
             NOT_YET,
         ),
     }
@@ -3063,10 +3147,7 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "their overlap is too close to call at this tolerance",
             too_close(Some(&diag.margin)),
         ),
-        ChartRegionError::RayExhausted => (
-            "a point lies too close to a boundary to place at this tolerance",
-            too_close(None),
-        ),
+        ChartRegionError::RayExhausted => (GRAZED, too_close(None)),
         ChartRegionError::WitnessBudgetExhausted { .. } => (
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
@@ -10058,6 +10139,145 @@ mod tests {
                 },
             ])
         );
+    }
+
+    /// A curved face's refusal, carried whole, reads as its own kind:
+    /// an arena claim is a defect, a point at a boundary or one every
+    /// ray grazed is the geometry's to move, and only a read the door
+    /// has no arm for is not yet.
+    #[test]
+    fn carried_curved_refusals_read_by_their_own_kind() {
+        use crate::boolean::PointInSolidError as S;
+        use crate::splitting::{PointInLoopError as L, Uncrossable, UncrossableCarrier};
+        use geom_core::MarginDiag;
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
+            predicate: Some("bool_curved_contain_carrier"),
+            terminal_sliver: false,
+        };
+        let face = FaceKey::default();
+        let r#loop = LoopKey::default();
+        let u = Uncrossable {
+            r#loop,
+            edge: crate::entity::EdgeKey::default(),
+            carrier: UncrossableCarrier::Spline,
+        };
+        let read = |e: S| super::classify_contain(&ContainError::Curved(e));
+        let top = |e: ContainError| super::classify_contain(&e);
+        // The arms the face door also raises at its top level read as
+        // that top-level arm does.
+        for (carried, own) in [
+            (S::Escalated { face, diag }, ContainError::Escalated(diag)),
+            (
+                S::Loop(L::Escalated { r#loop, diag }),
+                ContainError::Escalated(diag),
+            ),
+            (S::RayExhausted, ContainError::RayExhausted),
+            (
+                S::Loop(L::RayExhausted { r#loop }),
+                ContainError::RayExhausted,
+            ),
+            (
+                S::Loop(L::CorruptLoop { r#loop }),
+                ContainError::LoopUnreadable(r#loop),
+            ),
+            (S::Loop(L::Uncrossable(u)), ContainError::Uncrossable(u)),
+            (
+                S::EdgeCarrierUnsupported { face, cause: u },
+                ContainError::Uncrossable(u),
+            ),
+        ] {
+            assert_eq!(read(carried.clone()), top(own), "{carried:?}");
+        }
+        assert_eq!(read(S::Escalated { face, diag }).1, super::OFF_BOUNDARY);
+        // A poisoned margin is a defect on the carried path as on the
+        // top-level one (`own_close`).
+        let poisoned = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..diag
+        };
+        for carried in [
+            S::Escalated {
+                face,
+                diag: poisoned,
+            },
+            S::Loop(L::Escalated {
+                r#loop,
+                diag: poisoned,
+            }),
+        ] {
+            assert_eq!(read(carried.clone()).1, super::DEFECT, "{carried:?}");
+        }
+        // Every ray grazed a point the pre-pass placed off the boundary:
+        // nothing about it is close, at either level.
+        assert_eq!(
+            top(ContainError::RayExhausted),
+            (super::GRAZED.into(), super::MOVE_GEOMETRY)
+        );
+        assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);
+        // The solid door's own arena claims: defects at rest.
+        for e in [
+            S::CorruptFace { face },
+            S::NoSuchSolid {
+                solid: crate::entity::SolidKey::default(),
+            },
+        ] {
+            assert_eq!(read(e.clone()).1, super::DEFECT, "{e:?}");
+        }
+        assert!(read(S::CorruptFace { face }).0.contains("broken"));
+        // Each off-plane cause names what lies off the plane, and all
+        // three are the kernel's or the file's.
+        let off_plane = |cause| {
+            read(S::Loop(L::OffPlane(crate::splitting::OffPlane {
+                r#loop,
+                cause,
+            })))
+        };
+        let [lp, query, normal] = [
+            crate::splitting::OffPlaneCause::Loop {
+                edge: crate::entity::EdgeKey::default(),
+            },
+            crate::splitting::OffPlaneCause::Query,
+            crate::splitting::OffPlaneCause::NormalNotUnit,
+        ]
+        .map(off_plane);
+        for (cause, (why, recourse), names) in [
+            ("Loop", &lp, "boundary"),
+            ("Query", &query, "a point"),
+            ("NormalNotUnit", &normal, "normal"),
+        ] {
+            assert_eq!(*recourse, super::DEFECT, "{cause}");
+            assert!(why.contains(names), "{cause}: {why}");
+        }
+        // A solid in band of zero volume passes check 7, so it is the
+        // model's to fix, not a defect.
+        let zero = read(S::ZeroVolumeBody);
+        assert_ne!(zero.1, super::DEFECT);
+        assert!(zero.1.contains("encloses a volume"), "{}", zero.1);
+        // What the door has no arm for yet.
+        let spline = read(S::KindUnsupported {
+            face,
+            kind: geom::SurfaceKind::Nurbs,
+        });
+        assert_eq!(spline.1, super::NOT_YET);
+        assert!(spline.0.contains("spline (NURBS) surface"), "{}", spline.0);
+        assert_eq!(read(S::VolumeUncertified).1, super::NOT_YET);
+        for e in [
+            S::PartialSphereFace { face },
+            S::PartialConeFace { face },
+            S::PartialTorusFace { face },
+            S::WallOutlineUnsupported { face },
+        ] {
+            assert_eq!(
+                read(e.clone()),
+                (
+                    "a curved face's trim is one the check cannot yet read".into(),
+                    super::NOT_YET
+                ),
+                "{e:?}"
+            );
+        }
     }
 
     /// `too_close`'s two sentences are the shared coincidence menu,

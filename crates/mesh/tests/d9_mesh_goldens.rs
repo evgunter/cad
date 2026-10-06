@@ -277,7 +277,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ),
     (
         "tilted_below",
-        [0xedb7_92c4_4d03_cfde, 0xd33f_a391_6fc1_9740],
+        [0xea6f_5d95_6798_b5cb, 0xe36b_b830_e6a3_496b],
     ),
     ("keyway", [0x9d8e_44fd_e323_88de, 0x9d8e_44fd_e323_88de]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),

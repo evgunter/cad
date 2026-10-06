@@ -906,7 +906,14 @@ since no later document holds it.
 `DocSession::standing` asks a picked entity's resolution of the landed
 run every frame, so `pane::properties::standing_verdict` says its
 `ResolveError`, and its `ResolveIndeterminate` through
-`app::indeterminate_wording`, from that run's document.
+`app::indeterminate_wording`, from that run's document. A node that
+document no longer holds is said as the last document that held it
+spoke it (`DocSession::selection_said`, through `Speaker::or_held`),
+and so is a selected node deleted since, in the pane's heading: the
+selection speaks its nodes when it is made and again from the shown
+document after every operation, so a deleted node keeps the last label
+it had. The face-frame form's held face keeps its own
+(`Drafts::datum_face_said`), since it outlives the selection.
 So is the Checks window: its report is the landed run's, and
 `ViewerApp::checks_window` hands `frame::check_rows` that run's
 document, from which each finding's root is said on its button and in

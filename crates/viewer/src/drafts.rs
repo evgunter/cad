@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Formula, Label, LabelFault, LoopProgram,
+    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
 };
 use pncad::geom_core::Point2;
@@ -156,6 +156,12 @@ pub(crate) struct Drafts {
     /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
     /// carries them.
     pub(crate) datum_face: Option<FaceSelection>,
+    /// The nodes [`Self::datum_face`] names, as the last document that
+    /// held them spoke them: the selection's when the face was copied
+    /// from it (`DocSession::selection_said`), spoken again from each
+    /// later document ([`Self::respeak`]). The form holds its face
+    /// after the selection moves on, so it keeps its own.
+    datum_face_said: HeldNodes,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
     /// about the face's outward normal. Opens at zero, the
     /// carrier's own u-reference.
@@ -631,6 +637,7 @@ impl Default for Drafts {
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
+            datum_face_said: HeldNodes::default(),
             datum_spin: 0.0,
             profile_shape: None,
             profile_path: vec![
@@ -928,6 +935,28 @@ impl Drafts {
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
         self.datum_face = None;
+        self.datum_face_said = HeldNodes::default();
+    }
+
+    /// **The face-frame form takes the selection's face**, with its
+    /// nodes as the session has them spoken (`DocSession::selection_said`).
+    pub(crate) fn hold_datum_face(&mut self, face: FaceSelection, said: &HeldNodes) {
+        self.datum_face = Some(face);
+        self.datum_face_said = said.clone();
+    }
+
+    /// The held face's nodes as the last document that held them spoke
+    /// them; empty with no face held.
+    pub(crate) fn datum_face_said(&self) -> &HeldNodes {
+        &self.datum_face_said
+    }
+
+    /// **The held picks' nodes, spoken again from `doc`**, the session's
+    /// shown document after an operation (`SpokenNode::respoken`'s
+    /// rule): a node `doc` holds takes its label now, and one it no
+    /// longer holds keeps the last it had.
+    pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.datum_face_said = self.datum_face_said.respoken(doc);
     }
 
     /// **The face this form holds**: [`Self::datum_face`] while the

@@ -2901,7 +2901,7 @@ fn op_noun(op: BooleanOp) -> &'static str {
 /// A surface kind as the person holding the mouse reads it. The
 /// spline kinds get one spelling everywhere a Boolean refusal names
 /// them; every other kind is its own name.
-fn kind_word(kind: geom::SurfaceKind) -> &'static str {
+pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
     match kind {
         geom::SurfaceKind::Nurbs => "spline (NURBS)",
         geom::SurfaceKind::Approx => "approximated spline",
