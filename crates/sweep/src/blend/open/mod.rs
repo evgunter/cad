@@ -1,6 +1,6 @@
 //! **The open bands** — the two carves of a link that ENDS: the planar
 //! band ([`planar`]), ending in corner patches or cut off at plane end
-//! faces, and the ruled band cut off at transverse caps ([`ruled`]). The
+//! faces, and the ruled band cut off at plane caps ([`ruled`]). The
 //! cut-off both take is [`end_face`]'s. Each carves one blend face — of
 //! one link, or, on the planar band, of several joined on one support
 //! pair — its births recorded in the open-band rows of

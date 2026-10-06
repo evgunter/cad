@@ -31,12 +31,12 @@
 //! wall of its leg, cut off in that wall's plane in a chord at 45° to
 //! it, and the corner piece loses `4·(d²/2)·√2`, which the scene
 //! asserts and renders; the offcuts' chords chamfer the same way, each
-//! inside its own solid. Three walls pin the cells the cut-off does not
-//! build at this plane and setback: the chords filleted, on the corner
-//! piece and on the offcuts (an oblique end face under a round band,
-//! `UnsupportedRunOut`), and both section faces' whole rims chamfered
-//! (the turn, two of each corner's three edges requested —
-//! `CornerConfig::Turn`)
+//! inside its own solid. The fillet builds too, each band cut off in an
+//! arc of the side wall's elliptic section of its cylinder, at
+//! `4·(1 − π/4)·r²·√2` on either half. One wall pins the cell the
+//! cut-off does not build at this plane and setback: both section
+//! faces' whole rims chamfered (the turn, two of each corner's three
+//! edges requested — `CornerConfig::Turn`)
 //! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`).
 //!
 //! The outline's decimal-via ancestor lives on as the large-K lint's
@@ -231,7 +231,7 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
 
 fn volume(body: &Body<f64>, tol: Tol) -> f64 {
     mass_properties(body, tol)
-        .expect("a planar-and-cylinder body has closed-form mass properties")
+        .expect("certified mass properties")
         .volume
 }
 
@@ -335,35 +335,35 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let off_broken = volume(&body_at(&eval(&off_doc, tol), off_chamfer), tol);
     assert_volume("the chamfered offcuts", off_broken, off - delta_v);
 
+    // Filleted, each band's section is the region between a right
+    // dihedral and its ball, over the same √2 between parallel walls;
+    // each end is an arc of the wall's ellipse, `r / cos 45°` long.
+    let delta_f = 4.0 * (1.0 - PI / 4.0) * SETBACK * SETBACK * SQRT_2;
+    let rounded = |doc: &Doc<ProfileProgram>, of: RecipeNodeId, chords: Vec<StableName>| {
+        let mut doc = doc.clone();
+        let fillet = insert(&mut doc, Node::fillet(of, len(SETBACK), chords), tol);
+        volume(&body_at(&eval(&doc, tol), fillet), tol)
+    };
+    let filleted = rounded(&doc, corner, chords.clone());
+    assert_volume("the filleted corner piece", filleted, kept - delta_f);
+    let off_filleted = rounded(&doc, offcuts, off_chords);
+    assert_volume("the filleted offcuts", off_filleted, off - delta_f);
+
     let retire = "retire the probe, and render what the kernel now builds";
-    let probes: [WallProbe; 3] = [
-        WallProbe {
-            n: 2,
-            what: "the same four chords, filleted by name",
-            node: Node::fillet(corner, len(SETBACK), chords.clone()),
-            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
+    let probes: [WallProbe; 1] = [WallProbe {
+        n: 3,
+        what: "both section faces' whole rims, chamfered by name",
+        node: Node::chamfer(corner, len(SETBACK), rim),
+        pinned: |e| {
+            matches!(
+                e,
+                BlendError::UnsupportedCorner {
+                    corner: CornerConfig::Turn,
+                    ..
+                }
+            )
         },
-        WallProbe {
-            n: 3,
-            what: "both section faces' whole rims, chamfered by name",
-            node: Node::chamfer(corner, len(SETBACK), rim),
-            pinned: |e| {
-                matches!(
-                    e,
-                    BlendError::UnsupportedCorner {
-                        corner: CornerConfig::Turn,
-                        ..
-                    }
-                )
-            },
-        },
-        WallProbe {
-            n: 5,
-            what: "the offcuts' cap chords, filleted by name",
-            node: Node::fillet(offcuts, len(SETBACK), off_chords),
-            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
-        },
-    ];
+    }];
     for WallProbe {
         n,
         what,
@@ -391,8 +391,10 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     format!(
         "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = whole; \
          its four cap chords, named by their ends, chamfer at d = {SETBACK} to V = {broken:.6} \
-         (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}, and filleting them, or \
-         breaking the section faces' whole rims, refuses (walls 2, 3, 5)"
+         (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}; filleted at r = \
+         {SETBACK}, each band cut off in an elliptic arc, they reach V = {filleted:.6} and \
+         {off_filleted:.6} (less 4·(1 − π/4)·r²·√2), and breaking the section faces' whole \
+         rims refuses (wall 3)"
     )
 }
 

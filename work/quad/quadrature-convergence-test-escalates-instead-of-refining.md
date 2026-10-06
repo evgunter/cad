@@ -131,3 +131,17 @@ pass tiers 1, 3 and 3′. `mass_properties` of the lower half refuses
 `Face { face 11v1, Escalated { margin −2.936e-9, band (1e-9, 1e-8),
 predicate "props_quad_converged" } }`. The other 59 poses of that sweep
 measure.
+
+## 2026-10-06 — an obliquely cut-off fillet band at ε = 1e-12 (BAND)
+
+A cylinder band trimmed by elliptic end arcs (PR 4173). The
+plane–plane fillet on the parallelogram leaning `s = 3`
+(`band_planar_oblique_fillet.rs`), with a brick crossing its end arc:
+subtract and union refuse `VolumeUnmeasured` on this arm at ε = 1e-12
+and build at 1e-9 and 1e-6; pinned by
+`a_brick_through_a_steep_elliptic_end_builds_in_every_op`. And the
+D-profile rod of `fillet_h7_transverse_cap.rs` cut by the plane through
+`(0, 0, 0.7)` with normal `(0.6 sin 0.4, 0.8 sin 0.4, cos 0.4)`, both
+creases filleted: `mass_properties` of the result refuses
+`props_quad_converged` (margin 5.6e-12, band `(1e-12, 1e-11)`) at
+ε = 1e-12; not pinned.
