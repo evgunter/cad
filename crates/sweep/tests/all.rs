@@ -507,6 +507,8 @@ mod seam_vertex_sites;
 mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_across_a_revolve_seam.rs"]
+mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]
 mod split_along_a_face_plane;
 #[path = "split_cylindrical_feature_box.rs"]
@@ -755,6 +757,8 @@ mod review_blend3_r3_probes;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+#[path = "ring_carry_through_by_piece.rs"]
+mod ring_carry_through_by_piece;
 
 #[path = "review_h4_r1_probes.rs"]
 mod review_h4_r1_probes;

@@ -88,6 +88,7 @@ use slotmap::SecondaryMap;
 use super::RestZipFrontier;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
+use super::fragments::{Lineage, sole_common_face};
 use super::ops::{
     Descendants, KeyView, carry, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
     merge_rows, of_merge, split_lineage,
@@ -1080,13 +1081,8 @@ fn fragment_holding<T: Decide>(
     v: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
 ) -> Result<Option<FaceKey>, BooleanError> {
-    let lineage = crate::chord_join::lineage(face, fragments);
-    let at_u: Vec<FaceKey> = incident_faces(body, u, rings)?
-        .into_iter()
-        .filter(|f| lineage.contains(f))
-        .collect();
-    Ok(super::sectors::sole_common_face(
-        &at_u,
+    Ok(Lineage::of(face, fragments).holding_both(
+        &incident_faces(body, u, rings)?,
         &incident_faces(body, v, rings)?,
     ))
 }
@@ -1162,7 +1158,7 @@ fn mirror_edges<T: Decide + crate::props::AtRestPolicy>(
         if joined(body, u, v)? {
             continue;
         }
-        let Some(host) = super::sectors::sole_common_face(
+        let Some(host) = sole_common_face(
             &incident_faces(body, u, rings)?,
             &incident_faces(body, v, rings)?,
         ) else {
