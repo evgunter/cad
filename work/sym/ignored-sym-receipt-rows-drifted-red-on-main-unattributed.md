@@ -2,10 +2,11 @@
 id: ignored-sym-receipt-rows-drifted-red-on-main-unattributed
 kind: issue
 title: The ignored SYM receipt rows (pad's rule-F differential, SYM-11 past the ceiling) were red on main with the drift unattributed
-status: dispatched
+status: closed
 opened: 2026-09-26
 priority: P1
 cost: D
+closed: 2026-10-06
 ---
 
 **Found by ENCL's must-carry-gate re-baseline, and pre-existing.** Two
@@ -407,3 +408,12 @@ annulus `[588,0,451,804]`, link `[373,9,284,484]`, bracket
 35 / 0). The pad's rule-F row is `(1340,2,54,1272,3138)` at both
 dials, so it is pinned as one tuple again. `Study::symbolic_zero` is
 `[x,x,x]` for all five.
+
+## Closed (SYM-16, PR #4155, 2026-10-06)
+
+Attributed, re-taken at `main`, and scheduled: the rule-F row runs on
+the slow set, the past-the-ceiling row on the per-PR fast set, both at
+the default ε per PR and at every ε nightly. Successors:
+`the-pads-frozen-set-moves-with-the-documents-id-mint` (RULES) and
+`the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`
+(SYM, P3).
