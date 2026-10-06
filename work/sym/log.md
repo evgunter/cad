@@ -1473,3 +1473,15 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-06 — the second priority-seam cut: RULES opened
+
+Ev said yes in chat (2026-10-06) to the split put on 2026-10-02: SYM
+measured 45 budget points against 30. SYM keeps its P0 and P1 rows (20
+points); its four P2, three P3 and three unbanded rows moved by
+`git mv`, ids kept, to a new sibling, RULES (`work/rules/`, band
+10900-10999, `ready`). TIER, the 2026-09-20 sibling, stood at 25/30 and
+could not take them. Citations of the moved rows' paths in code
+comments and live items were updated in the same commit; logs keep
+their history. `plan.md`'s slate and order are re-written from the
+2026-10-02 triage.
