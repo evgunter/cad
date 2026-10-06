@@ -824,6 +824,9 @@ impl Lowering {
             let def = match decl {
                 VarDecl::Free(free) => VarDef::Free(free.clone()),
                 VarDecl::Defined(formula) => {
+                    // A definition that does not lower draws no id (the
+                    // anonymous draw reads what it holds), so a refusal
+                    // of it speaks the entry by its kind's draw.
                     let spoken = SpokenVar::new(new.mint.would_declare(decl.kind()), None);
                     VarDef::Defined(minted.lower_definition(new, &spoken, formula)?)
                 }
@@ -927,16 +930,17 @@ impl Lowering {
 }
 
 /// **An anonymous variable minted into `new`** (VR6): the id drawn
-/// from the mint chain by its kind, the definition checked as a
+/// from the mint chain by its kind and what it holds
+/// ([`crate::Mint`]'s anonymous draw), the definition checked as a
 /// declare's is.
 fn mint_anonymous<P>(new: &mut Doc<P>, def: VarDef) -> Result<VarId, EditError> {
     check_var_def(
-        &SpokenVar::new(new.mint.would_declare(def.kind()), None),
+        &SpokenVar::new(new.mint.would_declare_anonymous(&def), None),
         &def,
     )?;
     let id = new
         .mint
-        .declare(def.kind())
+        .declare_anonymous(&def)
         .map_err(|collides| EditError::VarIdCollides { id: collides.id })?;
     new.vars.insert(id, Var::new(def));
     new.var_order.push(id);

@@ -142,6 +142,48 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
         /// The kind.
         kind: VarKind,
     },
+    /// An anonymous variable minted by the edit door for a value or a
+    /// formula written at a slot, or for a fresh-table entry: its kind
+    /// and what it holds. Unlike a declare's, the value is in the
+    /// preimage: an anonymous variable IS the value a slot was written
+    /// as, so two inserts applied to one base that write different
+    /// values mint two variables, and so two nodes
+    /// (`work/emit/sibling-branches-mint-one-node-id-for-different-nodes.md`),
+    /// as they did when the value sat in the node's own bytes. Not its
+    /// distribution or its notation, which enter no evaluation. A value
+    /// edit afterwards mints nothing: the identity drawn here stays.
+    DeclareAnonymous {
+        /// The kind.
+        kind: VarKind,
+        /// What it holds.
+        held: Held<'a>,
+    },
+}
+
+/// **What an anonymous variable holds, as its mint reads it**
+/// ([`MintingEdit::DeclareAnonymous`]): a continuous value's bits, a
+/// count, or a definition.
+#[derive(Serialize)]
+pub(crate) enum Held<'a> {
+    /// A continuous value, by its bits.
+    Value(u64),
+    /// A count.
+    Count(i64),
+    /// A definition.
+    Defined(&'a crate::Expr),
+}
+
+impl<'a> Held<'a> {
+    /// What `def` holds.
+    pub(crate) fn of(def: &'a crate::var::VarDef) -> Self {
+        match def {
+            crate::var::VarDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
+                Self::Value(value.to_bits())
+            }
+            crate::var::VarDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
+            crate::var::VarDef::Defined(expr) => Self::Defined(expr),
+        }
+    }
 }
 
 impl<'a, P: Serialize + Clone + crate::program::SlotPayload<S>, S: crate::Slot>
@@ -271,9 +313,49 @@ impl Mint {
     /// bytes (its kind alone, [`MintingEdit::DeclareVar`]), then once
     /// for the variable. Reads; mints nothing.
     fn draw_var(&self, kind: VarKind) -> ([u8; 32], VarId) {
-        let edit = MintingEdit::<()>::DeclareVar { kind };
-        let (chain, bits) = Self::draw(VAR_TAG, self.extended(&edit));
+        self.draw_var_of(&MintingEdit::<()>::DeclareVar { kind })
+    }
+
+    /// The id the minting statement `edit` draws for its variable here,
+    /// and the chain it leaves.
+    fn draw_var_of(&self, edit: &MintingEdit<'_, ()>) -> ([u8; 32], VarId) {
+        let (chain, bits) = Self::draw(VAR_TAG, self.extended(edit));
         (chain, VarId(bits))
+    }
+
+    /// **The id an anonymous variable holding `def` draws here**: the
+    /// chain extended by its kind and what it holds
+    /// ([`MintingEdit::DeclareAnonymous`]), then once for the variable.
+    fn draw_anonymous(&self, def: &crate::var::VarDef) -> ([u8; 32], VarId) {
+        self.draw_var_of(&MintingEdit::DeclareAnonymous {
+            kind: def.kind(),
+            held: Held::of(def),
+        })
+    }
+
+    /// The id an anonymous variable holding `def` would mint here —
+    /// what a refusal of it speaks. Reads; mints nothing.
+    #[must_use]
+    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::VarDef) -> VarId {
+        self.draw_anonymous(def).1
+    }
+
+    /// **Mint the id of an anonymous variable holding `def`**
+    /// ([`Self::draw_anonymous`]). On a refusal `self` is untouched.
+    ///
+    /// # Errors
+    ///
+    /// [`VarIdCollides`] where the log already holds the id.
+    pub(crate) fn declare_anonymous(
+        &mut self,
+        def: &crate::var::VarDef,
+    ) -> Result<VarId, VarIdCollides> {
+        let (chain, id) = self.draw_anonymous(def);
+        let mut log = self.log.clone();
+        Self::log_new(&mut log, Minted::Var(id)).map_err(|_| VarIdCollides { id })?;
+        self.chain = chain;
+        self.log = log;
+        Ok(id)
     }
 
     /// The id a declare of a `kind` variable would mint here — what a
