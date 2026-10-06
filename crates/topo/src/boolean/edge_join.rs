@@ -1,9 +1,11 @@
 //! **The join**: a vertex of valence 2 whose two edges lie between the
 //! same two planar faces is no corner, so the two edges are one edge
 //! cut for no reason (`docs/DESIGN.md`, maximal edges). The join kills
-//! the vertex and makes the two edges one, and carries every contact
-//! record naming the three cells it replaces onto the edge it makes,
-//! through the substitution door ([`super::ops::carry_in_place`]).
+//! the vertex and makes the two edges one. Every boolean output stage
+//! runs it after the merge ([`join_stage`]) and writes, per join, the
+//! substitution rows that carry every contact record naming the three
+//! cells it replaces onto the edge it makes, through the op's one
+//! substitution door ([`super::ops::carry`]).
 //!
 //! Joinable is decided by structure alone, no value compared: the two
 //! edges' face pairs are one pair of distinct faces, both on `Plane`
@@ -19,8 +21,8 @@ use std::collections::BTreeMap;
 
 use geom_core::{Band, Decide, Real, Tol};
 
-use super::ops::{Descendants, carry_in_place, describe_minted_edges, structural_gate};
-use super::{BooleanBody, BooleanError, Cell};
+use super::ops::{Descendants, describe_minted_edges};
+use super::{BooleanError, Cell};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
 use crate::live::{linked, proven};
@@ -35,8 +37,8 @@ struct Join {
     kept: EdgeKey,
 }
 
-/// One join [`BooleanBody::join_edges`] made: `vertex` and `gone` are
-/// dead, and `kept` holds both their interiors and its own.
+/// One join an output stage made ([`join_stage`]): `vertex` and `gone`
+/// are dead, and `kept` holds both their interiors and its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EdgeJoin {
     /// The joined-away vertex.
@@ -45,6 +47,19 @@ pub struct EdgeJoin {
     pub gone: EdgeKey,
     /// The edge that is the two edges now.
     pub kept: EdgeKey,
+}
+
+/// `e`'s certified curve, where it is a line: the one home of "a
+/// certified line edge", read by the join and by the carried-record
+/// door, whose edge-edge lineage reads an edge as its two ends.
+pub(super) fn certified_line<'a, T: Real>(
+    body: &'a Body<T>,
+    e: EdgeKey,
+    d: &crate::entity::Edge,
+) -> Option<&'a geom_brep::EdgeCurve<T>> {
+    body.edge_curve_linked(e, d)
+        .certified()
+        .filter(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
 }
 
 /// Every half-edge starting at each vertex.
@@ -109,13 +124,12 @@ fn joinable<T: Real>(
     // intersection of these two planes, which is one line (planes that
     // do not cross certify no intersection).
     let on_the_pair = |e: EdgeKey, d| {
-        body.edge_curve_linked(e, d).certified().is_some_and(|c| {
-            matches!(c.carrier(), geom::Curve3::Line { .. })
-                && matches!(
-                    c.description(),
-                    geom_brep::EdgeDescription::Intersection { pair, .. }
-                        if *pair == geom_brep::SurfacePair::new(sf, sg)
-                )
+        certified_line(body, e, d).is_some_and(|c| {
+            matches!(
+                c.description(),
+                geom_brep::EdgeDescription::Intersection { pair, .. }
+                    if *pair == geom_brep::SurfacePair::new(sf, sg)
+            )
         })
     };
     if !on_the_pair(e1, d1) || !on_the_pair(e2, d2) {
@@ -129,7 +143,9 @@ fn joinable<T: Real>(
 }
 
 /// Every joinable vertex of `body`, in vertex-arena order: the vertices
-/// an op's output must not hold (maximal edges).
+/// an op's output must not hold (maximal edges). Planar only today: a
+/// valence-2 vertex between curved faces is neither listed nor joined
+/// (`work/fuse/curved-joinable-vertices-are-left-unjoined.md`).
 pub fn joinable_vertices<T: Real>(body: &Body<T>) -> Vec<VertexKey> {
     let starts = starts(body);
     body.vertices()
@@ -138,68 +154,47 @@ pub fn joinable_vertices<T: Real>(body: &Body<T>) -> Vec<VertexKey> {
         .collect()
 }
 
-impl<T: Decide + crate::props::AtRestPolicy> BooleanBody<T> {
-    /// Joins every joinable vertex ([`joinable_vertices`]), one at a
-    /// time in vertex-arena order, and carries the contact records by
-    /// substitution: a record naming a joined vertex or a killed edge
-    /// names the joined edge. The joined edge is described from its two
-    /// faces, as the boolean describes the edges it mints, the pcurve
-    /// map is re-minted, and the joined body passes the at-rest gate the
-    /// boolean's result gate ends in. Returns the result and the joins in the order made,
-    /// a later one's `gone` or `kept` possibly an earlier one's `kept`.
-    ///
-    /// # Errors
-    ///
-    /// The kill's own refusal ([`BooleanError::Euler`]), the
-    /// description's, the pcurve mint's, the door's, or the gate's.
-    pub fn join_edges(self, tol: Tol) -> Result<(Self, Vec<EdgeJoin>), BooleanError> {
-        let band = Band::linear(tol)?;
-        let mut joined = Vec::new();
-        let mut desc = Descendants::default();
-        let mut finished = self.body.into_body();
-        let mut body = finished.begin_surgery();
-        loop {
-            let starts = starts(&body);
-            let Some((w, join)) = body
-                .vertices()
-                .map(|(k, _)| k)
-                .find_map(|w| joinable(&body, w, &starts).map(|j| (w, j)))
-            else {
-                break;
-            };
-            join_one(&mut body, w, &join, band, tol)?;
-            desc.substitute(Cell::Vertex(w), Cell::Edge(join.kept));
-            desc.substitute(Cell::Edge(join.gone), Cell::Edge(join.kept));
-            joined.push(EdgeJoin {
-                vertex: w,
-                gone: join.gone,
-                kept: join.kept,
-            });
-        }
-        if !joined.is_empty() {
-            crate::pcurves::mint_pcurves(&mut body, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
-        }
-        body.sweep_and_close();
-        let contacts = if joined.is_empty() {
-            self.contacts
-        } else {
-            carry_in_place(&finished, &self.contacts, &desc)?
+/// **The output stage's join**: joins every joinable vertex
+/// ([`joinable_vertices`]) of `body`, one at a time in vertex-arena
+/// order until none is left, and writes each join's substitution rows
+/// into `desc` (`w → kept`, `gone → kept`), so the op's one
+/// [`super::ops::carry`] takes every record through its zips, its merge
+/// and its joins together. Runs after the merge and its re-description,
+/// before the records are carried. Returns the joins in the order made,
+/// a later one's `gone` or `kept` possibly an earlier one's `kept`. A
+/// join touches only planar faces, which store no pcurve rows
+/// (`pcurves::chart_mints`), so it leaves nothing to re-mint; a curved
+/// join (`work/fuse/curved-joinable-vertices-are-left-unjoined.md`)
+/// brings what it needs.
+///
+/// # Errors
+///
+/// The kill's own refusal ([`BooleanError::Euler`]) or the
+/// description's.
+pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    desc: &mut Descendants,
+    band: Band,
+    tol: Tol,
+) -> Result<Vec<EdgeJoin>, BooleanError> {
+    let mut joined = Vec::new();
+    loop {
+        let starts = starts(body);
+        let Some((w, join)) = body
+            .vertices()
+            .map(|(k, _)| k)
+            .find_map(|w| joinable(body, w, &starts).map(|j| (w, j)))
+        else {
+            return Ok(joined);
         };
-        // The join kills no material, so the result's pieces stand; the
-        // body passes the at-rest gate the boolean's own result gate ends
-        // in.
-        let body = T::gate_at_rest_kept(finished, tol)
-            .map_err(|errors| BooleanError::ResultInvalid { errors })?;
-        if body.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
-            structural_gate(&body)?;
-        }
-        let out = Self {
-            body,
-            contacts,
-            ..self
-        };
-        Ok((out, joined))
+        join_one(body, w, &join, band, tol)?;
+        desc.substitute(Cell::Vertex(w), Cell::Edge(join.kept));
+        desc.substitute(Cell::Edge(join.gone), Cell::Edge(join.kept));
+        joined.push(EdgeJoin {
+            vertex: w,
+            gone: join.gone,
+            kept: join.kept,
+        });
     }
 }
 

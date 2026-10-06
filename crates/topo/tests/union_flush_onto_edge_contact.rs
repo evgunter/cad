@@ -36,7 +36,7 @@ fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
 }
 
 /// Folds `order`, each step declaring its flush pairs and, when
-/// `carry`, carrying the accumulator's own v-v records in as `Rest`.
+/// `carry`, carrying the accumulator's own records in ([`carried_rows`]).
 /// Every step's result, or the refusal and the step it came at.
 fn fold(
     bodies: &[AtRestBody<f64>; 3],
@@ -49,7 +49,7 @@ fn fold(
         let acc = steps.last().map_or(&bodies[order[0]], |s| &s.body);
         let mut decls = flush_declarations(acc, &bodies[next], tol);
         if carry && let Some(prev) = steps.last() {
-            decls.carried_a.vv = rest_rows(&prev.contacts);
+            decls.carried_a = carried_rows(&prev.contacts);
         }
         match union_with(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, Box::new(e)))? {
             BooleanResult::Body(out) => steps.push(out),
@@ -116,28 +116,29 @@ fn carried_records_certify_every_order_of_the_fold() {
     }
 }
 
-/// Every row of `records` carried in as `Rest`: the v-v rows and the
-/// `(vertex, edge)` rows a join leaves.
+/// Every row of `records` carried in as `Rest`: the v-v rows, and the
+/// `(vertex, edge)` and edge-edge rows a join leaves.
 fn carried_rows(records: &topo::ContactRecords) -> topo::CarriedContacts {
     topo::CarriedContacts {
         vv: rest_rows(records),
         ve: records.ve.clone(),
+        ee: records.ee.clone(),
         ..topo::CarriedContacts::default()
     }
 }
 
-/// **Joined after every step, with the records carried, every order
-/// certifies and builds one body.** The fold of [`fold`], each step's
-/// result joined ([`BooleanBody::join_edges`]) before the next step
-/// reads it, as maximal edges asks of every output (`docs/DESIGN.md`,
-/// the merge stage): every step passes 3′, and the finished bodies of
-/// all six orders have one vertex, edge and face count, for each span
-/// (16, 24 and 12). Red when the join drops the v-v record whose vertex
-/// it joined away: the touching corner then rests on the joined rim
-/// unrecorded (`UndeclaredContact` `VertexOnEdge` and the overlap it
-/// bounds). Red on the counts when a step's join is skipped: the orders
-/// that cut the rim before the flush pair merges keep a vertex the
-/// others never mint.
+/// **With the records carried, every order certifies and builds one
+/// body.** The fold of [`fold`], each step's output joined by its own
+/// output stage, as maximal edges asks of every output
+/// (`docs/DESIGN.md`, the merge stage): every step passes 3′ and holds
+/// no joinable vertex, and the finished bodies of all six orders have
+/// one vertex, edge and face count, for each span (16, 24 and 12). Red
+/// when the join drops the v-v record whose vertex it joined away: the
+/// touching corner then rests on the joined rim unrecorded
+/// (`UndeclaredContact` `VertexOnEdge` and the overlap it bounds). Red
+/// when a step's output stage skips the join: the step holds a
+/// joinable vertex, and the orders that cut the rim before the flush
+/// pair merges keep a vertex the others never mint.
 #[test]
 fn joined_folds_certify_and_build_one_body_in_every_order() {
     let tol = Tol::witness();
@@ -156,9 +157,10 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
                     Ok(BooleanResult::Body(out)) => out,
                     other => panic!("c over {span:?}, order {order:?}: {other:?}"),
                 };
-                let (out, _) = out
-                    .join_edges(tol)
-                    .unwrap_or_else(|e| panic!("c over {span:?}, order {order:?}: join {e:?}"));
+                assert!(
+                    topo::joinable_vertices(&out.body).is_empty(),
+                    "c over {span:?}, order {order:?}, at {next}: a joinable vertex is left"
+                );
                 let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
                 assert!(
                     verdict.is_ok(),
@@ -424,7 +426,7 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &AtRestBody<f64>| {
         let mut decls = flush_declarations(&acc.body, next, tol);
-        decls.carried_a.vv = rest_rows(&acc.contacts);
+        decls.carried_a = carried_rows(&acc.contacts);
         match union_with(&acc.body, next, &decls, tol).expect("a touching wedge folds in") {
             BooleanResult::Body(out) => out,
             BooleanResult::Empty => panic!("a union of wedges came back empty"),
@@ -957,7 +959,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     };
     let mut decls = flush_declarations(&pinch_a.body, &pinch_b.body, tol);
     decls.carried_a.vv = carried_a;
-    decls.carried_b.vv = rest_rows(&pinch_b.contacts);
+    decls.carried_b = carried_rows(&pinch_b.contacts);
     let BooleanResult::Body(out) =
         subtract_with(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
     else {
@@ -994,7 +996,7 @@ pub(crate) fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestB
 /// both operand orders, with `carried` as `y`'s records.
 fn against_the_cube(
     y: &AtRestBody<f64>,
-    carried: &[CarriedVv],
+    carried: &topo::CarriedContacts,
     tol: Tol,
 ) -> [(&'static str, BooleanOutcome); 6] {
     let cube = finished(
@@ -1003,9 +1005,9 @@ fn against_the_cube(
         tol,
     );
     let mut ab = flush_declarations(y, &cube, tol);
-    ab.carried_a.vv = carried.to_vec();
+    ab.carried_a = carried.clone();
     let mut ba = flush_declarations(&cube, y, tol);
-    ba.carried_b.vv = carried.to_vec();
+    ba.carried_b = carried.clone();
     topo::test_support::ops_under_test(|| {
         [
             ("y ∪ cube", union_with(y, &cube, &ab, tol)),
@@ -1295,11 +1297,11 @@ fn pit_holding_spikes_built(
         let spike = corner_prism(rays, scale, tol);
         let got = if spike_first {
             let mut decls = flush_declarations(&spike, &y.body, tol);
-            decls.carried_b.vv = rest_rows(&y.contacts);
+            decls.carried_b = carried_rows(&y.contacts);
             union_with(&spike, &y.body, &decls, tol)
         } else {
             let mut decls = flush_declarations(&y.body, &spike, tol);
-            decls.carried_a.vv = rest_rows(&y.contacts);
+            decls.carried_a = carried_rows(&y.contacts);
             union_with(&y.body, &spike, &decls, tol)
         };
         let BooleanResult::Body(next) = got.expect("the spike touches the pit's apex") else {
@@ -1328,7 +1330,7 @@ fn pit_holding_spikes_built(
         1 + spikes.len(),
         "the pit's apex and each spike's corner"
     );
-    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1448,9 +1450,9 @@ fn lens_ys(
     };
     let piece = lens(inner, scale, tol);
     let mut cut_first = flush_declarations(&cut.body, &piece.body, tol);
-    cut_first.carried_a.vv = rest_rows(&cut.contacts);
+    cut_first.carried_a = carried_rows(&cut.contacts);
     let mut piece_first = flush_declarations(&piece.body, &cut.body, tol);
-    piece_first.carried_b.vv = rest_rows(&cut.contacts);
+    piece_first.carried_b = carried_rows(&cut.contacts);
     [
         (
             "cut ∪ lens",
@@ -1577,7 +1579,7 @@ fn lens_against_the_cube(
         (got - y_volume).abs() < 1e-9,
         "y = {order}: volume {got}, want {y_volume}"
     );
-    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
         let volume = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1693,7 +1695,7 @@ fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_ev
 fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> BooleanBody<f64> {
     let notch = lens(notch.0, notch.1, tol);
     let mut decls = flush_declarations(&y.body, &notch.body, tol);
-    decls.carried_a.vv = rest_rows(&y.contacts);
+    decls.carried_a = carried_rows(&y.contacts);
     let BooleanResult::Body(mut y) =
         subtract_with(&y.body, &notch.body, &decls, tol).expect("the notch is cut")
     else {
@@ -1702,7 +1704,7 @@ fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> B
     if let Some((rays, scale)) = fill {
         let fill = lens(rays, scale, tol);
         let mut decls = flush_declarations(&y.body, &fill.body, tol);
-        decls.carried_a.vv = rest_rows(&y.contacts);
+        decls.carried_a = carried_rows(&y.contacts);
         let BooleanResult::Body(next) = union_with(&y.body, &fill.body, &decls, tol)
             .expect("the fill touches the notch's apex")
         else {
@@ -1721,7 +1723,10 @@ fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> B
 /// `SharedVertexCrossings`. Red in `y ∖ cube` when a carried row's ends
 /// do not reach their null-edge copies: the pinch line's far end lies
 /// inside the cube's face, and the copies the result keeps there are
-/// unrecorded.
+/// unrecorded. Red in `y ∪ cube` (3′ `VertexOnEdge`, `EdgeEdgeOverlap`)
+/// when the join's chord along `y`'s pinch-line edge writes no
+/// substitution row: the op drops the edge and keeps the chord, and a
+/// carried row on the edge has nowhere to land.
 #[test]
 fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
     lens_in_a_lens(
@@ -1820,7 +1825,7 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
         common > 0.0 && common < y_volume,
         "the corner crosses the cube"
     );
-    for (op, got) in against_the_cube(&band, &[], tol) {
+    for (op, got) in against_the_cube(&band, &topo::CarriedContacts::default(), tol) {
         let want = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
@@ -1888,13 +1893,13 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
         panic!("i ∪ j came back empty");
     };
     let mut decls = flush_declarations(&two.body, &k, tol);
-    decls.carried_a.vv = rest_rows(&two.contacts);
+    decls.carried_a = carried_rows(&two.contacts);
     let BooleanResult::Body(y) = union_with(&two.body, &k, &decls, tol).expect("∪ k") else {
         panic!("∪ k came back empty");
     };
     let y_volume = mass_properties(&y.body, tol).expect("mass").volume;
     let mut volumes = std::collections::BTreeMap::new();
-    for (op, got) in against_the_cube(&y.body, &rest_rows(&y.contacts), tol) {
+    for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
         match (op, got) {
             (
                 "y ∩ cube" | "cube ∪ y" | "cube ∖ y",

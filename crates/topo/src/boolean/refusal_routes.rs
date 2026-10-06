@@ -1007,6 +1007,13 @@ pub enum SelfCheck {
     /// The carrier ladder's contradiction arm, which its detector
     /// posture (nothing declared) cannot reach.
     CarrierLadder,
+    /// Where a carried contact record lands on the pieces of an edge the
+    /// op split (`ops::split_lineage`): whether a point lies on a piece's
+    /// interior, or two pieces' interiors meet, asked as the census
+    /// confirms the record. The record certified at rest, so an
+    /// undecided answer is a contact the census could not confirm
+    /// either.
+    CarriedLineage,
 }
 
 impl SelfCheck {
@@ -1020,6 +1027,7 @@ impl SelfCheck {
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
             Self::CarrierLadder => "whether a face of each solid lies on one surface",
+            Self::CarriedLineage => "where a carried contact lands on the pieces of a split edge",
         }
     }
 }
@@ -2352,6 +2360,10 @@ pub(in crate::boolean) mod tests {
             }
             BooleanDecision::SelfCheck(SelfCheck::CarrierLadder) => (
                 "whether a face of each solid lies on one surface",
+                Ending::Defect,
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::CarriedLineage) => (
+                "where a carried contact lands on the pieces of a split edge",
                 Ending::Defect,
             ),
             BooleanDecision::PierceCurvature => (
