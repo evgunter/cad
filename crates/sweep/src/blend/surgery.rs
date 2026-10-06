@@ -1284,7 +1284,8 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// reads incidence and NOTHING else — no convexity, no support
 /// resolution, so it is strictly weaker than this), by
 /// [`resolve_annulus`]/[`wall_seam`] (the same shape on a rim of ONE
-/// self-closed edge and its doubly-traversed wall seams), and by
+/// self-closed edge and its walls' doubly-traversed seams — none on a
+/// plane host, whose crossing is trivalent), and by
 /// [`refresh_annulus_seams`] (the CARVE-time re-read of these keys on
 /// a body carrying earlier bands — a reader adding a fifth reading
 /// starts from this list). They are not
@@ -1299,8 +1300,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// [`resolve_annulus`] (one self-closed edge) and this one (several
 /// arcs) resolve the SAME band onto the same two surfaces, and a
 /// unified resolver is structurally available: the one-edge case is
-/// this one with a single crossing whose two seams are its wall's
-/// doubly-traversed ones. It is deliberately NOT taken here, and the
+/// this one with a single crossing whose seams are its walls'
+/// doubly-traversed ones (the mate's always, the host's where the host
+/// is a wall). It is deliberately NOT taken here, and the
 /// cost is stated so it is a decision rather than an oversight:
 ///
 /// - the one-edge path's gates are load-bearing in a way this one's are
