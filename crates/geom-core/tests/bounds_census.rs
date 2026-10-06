@@ -357,6 +357,17 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Selection(
+            "the worse of two margins of one ring cycle: the margin is `min`, value \
+             arithmetic, and the one bracket read (the `lo()` comparison) only SELECTS \
+             which input's `bounded` flag rides with it. Both go to `ring_clearance`, \
+             which decides the margin, so it inherits that door's DL5(b) disposition \
+             and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
         subject: "piece_along",
         why: Selection(
             "an edge's extent along a direction over its own window: a segment's ends \
@@ -387,15 +398,6 @@ const ROSTER: &[Site] = &[
              decides, whose passing branch builds nothing from the margin and whose \
              refusing branch carries it as a payload, so it inherits that door's DL5(b) \
              disposition and no other",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
-        subject: "worse",
-        why: Payload(
-            "the ring meter's least margin of a cycle carries the `bounded` flag of the \
-             margin it took: the margin itself is the lattice `min`, and the bracket read \
-             only chooses which flag rides into the `RingClearance` payload's prose",
         ),
     },
     Site {
