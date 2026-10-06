@@ -201,7 +201,7 @@ fn teapot_lid() -> Body<f64> {
 /// The lid's three rims the scene fillets — flange, dome foot, knob top
 /// — are ONE closed edge each at `1e-12` and at `1e-9` alike, and the
 /// same edge: widening the scene's window moved no selection. The lid's
-/// census is the scene's own `(6, 12, 6)`.
+/// census is the scene's own `(6, 10, 6)`.
 #[test]
 fn the_teapot_lids_rims_select_the_same_edge_at_1e_12_and_1e_9() {
     let lid = teapot_lid();
@@ -211,8 +211,8 @@ fn the_teapot_lids_rims_select_the_same_edge_at_1e_12_and_1e_9() {
             lid.edges().count(),
             lid.faces().count()
         ),
-        (6, 12, 6),
-        "an annular profile mints one full wall per segment"
+        (6, 10, 6),
+        "an annular profile mints one full wall per segment, its two plane walls unslit"
     );
     for (name, y, r) in [
         ("flange", LID_BASE, R_FLANGE),
