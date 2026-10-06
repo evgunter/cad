@@ -253,8 +253,15 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert!(loaded.bit_eq(&doc), "the round trip is exact");
 
     // A reader of an id the document never minted is a file fault.
-    let forged = text.replace(&format!("\"var\": {}", old.0), "\"var\": 1");
-    assert_ne!(forged, text, "the surgery is aimed at the reader");
+    let forged = crate::wire::doctored(&text, |wire| {
+        let radius = &mut wire["snapshot"]["nodes"][blend.0.to_string()]["Fillet"]["radius"];
+        assert_eq!(
+            *radius,
+            serde_json::json!(old.0),
+            "the surgery is aimed at the reader"
+        );
+        *radius = serde_json::json!(1);
+    });
     match load(&forged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
             assert_eq!((node.id(), var), (blend, VarId(1)));
@@ -341,13 +348,22 @@ fn equal_values_are_not_one_variable() {
 
 // --------------------------------------------------------------- row 6
 
-/// Row 6's rename half: the symbol a variable binds to in the symbolic
-/// tier is its id's, so the binding before a rename and the one after
-/// subtract to a theorem.
+/// Row 6's rename half: the symbol a toleranced variable binds to in
+/// the symbolic tier is its id's, so the binding before a rename and the
+/// one after subtract to a theorem. (An untoleranced one binds its
+/// nominal, VR8.)
 #[test]
 fn the_symbol_survives_a_rename() {
     let (doc, _, _) = blended_by_w();
     let w = id(&doc, "w");
+    let doc = step(
+        &doc,
+        DocEdit::SetVarDistribution {
+            var: w.into(),
+            distribution: Some(Distribution::Normal { sigma: 1e-4 }),
+        },
+    )
+    .doc;
     let renamed = step(
         &doc,
         DocEdit::RenameVar {
@@ -560,8 +576,9 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
     .doc;
     assert_eq!(anonymous.var_name(w), None);
     assert!(anonymous.var(w).is_some(), "read, so it stays");
+    assert_eq!(anonymous.slot(blend, SlotId::Radius), Some(w));
     assert_eq!(
-        anonymous.unparse(&slot(&anonymous, blend, SlotId::Radius)),
+        anonymous.unparse(&editor_core::Expr::var(w, Dimension::Length)),
         format!("#{}", w.full()),
         "an anonymous reader writes its full id"
     );
@@ -585,7 +602,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
             var: anonymous.spoken_var(w),
         }]
     );
-    assert!(replaced.doc.var(w).is_none() && replaced.doc.var_order().is_empty());
+    assert!(replaced.doc.var(w).is_none() && !replaced.doc.var_order().contains(&w));
     assert!(replaced.doc.has_minted_var(w), "the log keeps the id");
 }
 
@@ -593,7 +610,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
 
 /// Row 10's reader half: a document holding a named variable, an
 /// anonymous one and an unresolved reader saves and loads bit for bit;
-/// a snapshot holding a name leaf refuses.
+/// a snapshot holding a name in a slot refuses.
 #[test]
 fn readers_round_trip_and_a_stored_name_refuses() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-wire"), Tol::witness());
@@ -622,27 +639,28 @@ fn readers_round_trip_and_a_stored_name_refuses() {
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc));
     assert_eq!(loaded.var_names().len(), 1);
-    assert_eq!(loaded.vars().len(), 2);
+    assert_eq!(loaded.vars().len(), doc.vars().len());
 
     let nameless = doc
-        .vars()
-        .keys()
-        .copied()
-        .find(|v| doc.var_name(*v).is_none())
-        .expect("the anonymous variable");
+        .slot(by_nameless, SlotId::Radius)
+        .expect("the blend reads the once-named variable");
     let corrupt = crate::wire::doctored(&text, |wire| {
         let radius = &mut wire["snapshot"]["nodes"][by_nameless.0.to_string()]["Fillet"]["radius"];
         assert_eq!(
-            radius["Var"]["var"],
+            *radius,
             serde_json::json!(nameless.0),
             "the surgery is aimed at the anonymous reader"
         );
         *radius = serde_json::json!({ "Name": { "name": "nameless", "dim": "Length" } });
     });
-    // A stored expression has no name leaf: the wire refuses the variant.
+    // A stored slot holds a variable's id, so a name there is no slot
+    // the wire can read.
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
-            assert!(detail.contains("unknown variant `Name`"), "{detail}");
+            assert!(
+                detail.contains("invalid type: map, expected u64"),
+                "{detail}"
+            );
         }
         other => panic!("a stored name refuses, got {other:?}"),
     }
@@ -815,7 +833,9 @@ fn split_and_inline_carry_readers_by_id() {
         Tol::witness(),
     )
     .expect("an anonymous variable crosses an inline");
-    let source = *part.vars().keys().next().expect("one variable");
+    let [source] = extrude_reads(&part).into_iter().collect::<Vec<_>>()[..] else {
+        panic!("one extrude depth in the part")
+    };
     let landed: Vec<VarId> = extrude_reads(&inlined.doc).into_iter().collect();
     let [landed] = landed[..] else {
         panic!("one extrude depth, got {landed:?}")
@@ -834,11 +854,12 @@ fn split_and_inline_carry_readers_by_id() {
 // ---- The review's rows (PR 3's dual review: each pins a mechanism a
 // mutant of the shipped suite survived, or a refusal the review drove).
 
-/// `names`, in the order `doc` declares them.
+/// The NAMED variables' names, in the order `doc` declares them (the
+/// typed values' anonymous variables have none).
 fn declared_names(doc: &ProfileDoc) -> Vec<String> {
     doc.var_order()
         .iter()
-        .map(|&var| doc.var_name(var).expect("named").as_str().to_owned())
+        .filter_map(|&var| Some(doc.var_name(var)?.as_str().to_owned()))
         .collect()
 }
 

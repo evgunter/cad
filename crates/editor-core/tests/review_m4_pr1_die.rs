@@ -396,11 +396,20 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
         .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
     let depth = |a: &Authored| a.doc.var_named("pip_depth").expect("declared");
-    // `self`'s as `self` declared them, then `other`'s added ones.
-    assert_eq!(
-        d.vars,
-        vec![depth(&theirs), depth(&mine)],
-        "one variable under two minted ids"
+    // `self`'s as `self` declared them, then `other`'s added ones: the
+    // two chains share no id, so every variable — the one named one
+    // and each typed value's own — is one of each side's.
+    let expected: Vec<editor_core::VarId> = theirs
+        .doc
+        .var_order()
+        .iter()
+        .chain(mine.doc.var_order())
+        .copied()
+        .collect();
+    assert_eq!(d.vars, expected, "every variable under two minted ids");
+    assert!(
+        d.vars.contains(&depth(&theirs)) && d.vars.contains(&depth(&mine)),
+        "the one named variable under two minted ids"
     );
     assert_eq!(
         theirs.doc.var_scope(),

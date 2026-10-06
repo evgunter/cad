@@ -280,12 +280,15 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
     let (doc, second) = pick(doc);
     let ev = run(&doc);
     let err = product(&doc, &ev, Tol::witness()).expect_err("instance 000000000001 twice");
+    // Said by the document, so the index reads as written: the two
+    // picks' typed `1`s are two variables, one selection.
+    let said = err.spoken(&doc);
     assert!(
-        err.to_string().contains(&format!(
-            "instance `1` of node {}",
+        said.contains(&format!(
+            "instance `1` of Pattern {}",
             test_utils::refusal::tag(pattern.0)
         )),
-        "{err}"
+        "{said}"
     );
     let (placed, select, at_first, at_second) = placed_twice(&doc, &ev);
     assert_eq!((placed, at_first, at_second), (pattern, first, second));

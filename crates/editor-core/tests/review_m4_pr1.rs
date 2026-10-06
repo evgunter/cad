@@ -153,15 +153,16 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[point_edit(len(0.0))],
     );
-    // The signed zero written by a value edit, so the point keeps its
-    // id (an insert of -0.0 mints another id: the mint reads bits).
+    // The signed zero written by a value edit on the slot's own
+    // variable, so the point keeps its id and its slot its variable.
+    let x = pos
+        .slot(pos.order()[0], SlotId::Origin(editor_core::Axis3::X))
+        .expect("the point reads its x");
     let (neg, _) = apply_all(
         pos.clone(),
-        &[DocEdit::SetParam {
-            node: pos.order()[0],
-            slot: SlotId::Origin(editor_core::Axis3::X),
-            expr: len(-0.0),
-            fresh: Vec::new(),
+        &[DocEdit::SetVarValue {
+            var: x.into(),
+            value: editor_core::FreeValue::Continuous(-0.0),
         }],
     );
     // Bitwise the docs DIFFER…
@@ -181,14 +182,10 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
     // PartialEq stays IEEE-semantic (documented)…
     assert_eq!(pos, neg, "PartialEq conflates -0.0/0.0 (by design)");
     // …but the fix pass made diff and bit_eq BIT-semantic: the
-    // 0.0→-0.0 payload change is DETECTED (diff is the future
+    // 0.0→-0.0 value change is DETECTED (diff is the future
     // SetTolerance-audit substrate and must not be bit-blind).
     let d = pos.diff(&neg);
-    assert_eq!(
-        d.nodes,
-        vec![editor_core::NodeChange::Changed(pos.order()[0])],
-        "diff detects the signed-zero change"
-    );
+    assert_eq!(d.vars, vec![x], "diff detects the signed-zero change");
     assert!(!pos.bit_eq(&neg), "bit_eq distinguishes -0.0/0.0");
     // NaN can no longer enter a document at all (door 1): the
     // conflation hazard for NaN is gone at the source.

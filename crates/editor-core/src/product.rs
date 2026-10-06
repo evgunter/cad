@@ -1244,13 +1244,19 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
 /// is the one nearest both: below a meeting point the two chains are
 /// one chain.
 ///
-/// Selections are compared as written. Two `Instance` selections whose
-/// expressions differ but evaluate to one index are not seen here and
-/// refuse later, as [`ProductError::Naming`].
+/// Selections are compared as written ([`Doc::written`]): two
+/// `Instance` selections each typed `1` read two variables, and are one
+/// selection written twice. Two whose formulas differ but evaluate to
+/// one index are not seen here and refuse later, as
+/// [`ProductError::Naming`].
 fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
     use crate::names::VerbatimEdge;
     use crate::node::PartSelect;
+    let written = |var: crate::VarId| doc.written(&crate::Expr::var(var, crate::Dimension::Count));
     let overlaps = |a: Option<&PartSelect>, b: Option<&PartSelect>| match (a, b) {
+        (Some(PartSelect::Instance(a)), Some(PartSelect::Instance(b))) => {
+            a == b || written(*a).bit_eq(&written(*b))
+        }
         (Some(a), Some(b)) => a == b,
         _ => true,
     };

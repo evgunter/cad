@@ -255,7 +255,19 @@ fn die_authors_replays_and_diffs() {
         d.nodes,
         vec![editor_core::NodeChange::Changed(die.pip_extrude)]
     );
-    assert!(d.vars.is_empty() && !d.order_changed && !d.epsilon_changed);
+    // The typed value is a variable of its own, minted by the edit.
+    let typed = variant
+        .doc
+        .slot(die.pip_extrude, SlotId::Distance)
+        .expect("the extrude reads its distance");
+    let retired: Vec<_> = die
+        .doc
+        .slot(die.pip_extrude, SlotId::Distance)
+        .filter(|old| variant.doc.var(*old).is_none())
+        .into_iter()
+        .collect();
+    assert_eq!(d.vars, [retired, vec![typed]].concat());
+    assert!(!d.order_changed && !d.epsilon_changed);
 
     // Variant 2: pip depth changed through the DOC PARAM the pip
     // extrude references — node payloads identical, param diff only.

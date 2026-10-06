@@ -176,6 +176,15 @@
 //! declares nothing), the persistence round trip — held across the
 //! change without being touched.
 //!
+//! RE-BLESSED FOR SLOTS THAT HOLD A VARIABLE (INTENT-LITERALS PR C),
+//! all three rows, a structural move of the same kind: every slot of
+//! every node now holds the id of the variable it reads, a typed value
+//! minting an anonymous one on the document's chain, so every node is
+//! minted from other bytes and renumbered, and this digest feeds `id.0`.
+//! No document was added or removed and no outcome or point moved:
+//! [`the_corpus_geometry_is_bit_identical_with_ids_masked`], which
+//! masks every id, held its number across the change untouched.
+//!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
 //! out here rather than folded in with the roster moves.
@@ -748,7 +757,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x2c56_e0d4_0e39_6a57, 0x4c5d_4880_8e19_843b),
+        (0xb6ad_3ac9_6eec_e963, 0x70c5_3c70_7021_b207),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -774,7 +783,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x10a8_6624_bf17_b15e, 0x454c_5202_c57e_03ba),
+        (0xf00a_839e_b0bb_cb42, 0x53ef_c166_ad2a_b7de),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -798,7 +807,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x2c56_e0d4_0e39_6a57, 0x4c5d_4880_8e19_843b),
+        (0xb6ad_3ac9_6eec_e963, 0x70c5_3c70_7021_b207),
         "the corpus's Probe evaluation moved"
     );
 }

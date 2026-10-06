@@ -2030,7 +2030,13 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let want = structure(&doc, &f);
         assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
         assert_interval_structure(&doc, &f, &i, label);
-        let params: Vec<editor_core::VarId> = doc.vars().keys().copied().collect();
+        // Every free continuous variable is a seed; a defined one takes
+        // none (its derivative is its inputs').
+        let params: Vec<editor_core::VarId> = doc
+            .free_vars()
+            .filter(|(_, free)| matches!(free, editor_core::FreeVar::Continuous { .. }))
+            .map(|(id, _)| id)
+            .collect();
         let seeds = std::iter::once(None).chain(params.into_iter().map(Some));
         for seed in seeds {
             let o = EvalOptions {
@@ -2103,14 +2109,19 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
     let fd = -2.0 * d[0] / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
     assert!(fd.abs() > 0.1, "the measure moves with the spacing: {fd}");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
+    // The spacing toleranced, so the driver varies it (VR8: an
+    // untoleranced variable is a constant of the analysis).
+    let spacing = doc.var_named("s").expect("the spacing parameter");
+    let (doc, _) = crate::fixture::step(
+        doc,
+        editor_core::DocEdit::SetVarDistribution {
+            var: spacing.into(),
+            distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
+        },
+    );
     let entries = sensitivities(&doc, m, None, None, false, Some(&resolver), Tol::witness())
         .expect("the driver runs");
-    assert_eq!(
-        entries.len(),
-        crate::fixture::continuous_vars(&doc),
-        "one entry per continuous variable"
-    );
-    let spacing = doc.var_named("s").expect("the spacing parameter");
+    assert_eq!(entries.len(), 1, "one entry, the toleranced spacing's");
     let entry = entries
         .iter()
         .find(|e| e.param == spacing)

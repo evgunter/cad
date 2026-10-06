@@ -1140,7 +1140,9 @@ fn the_driver_and_the_report_are_schedule_independent() {
 /// the driver's own typed refusal.
 #[test]
 fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
-    let (doc, _, _) = plate(None, None);
+    // Both parameters toleranced, so both are entries (VR8).
+    let law = Some(Distribution::Normal { sigma: 1e-5 });
+    let (doc, _, _) = plate(law, law);
     // A pair the v1 table has no closed form for: a cylinder wall
     // against a plane cap.
     let ev = eval(&doc);

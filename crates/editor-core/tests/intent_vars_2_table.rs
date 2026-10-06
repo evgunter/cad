@@ -496,7 +496,10 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
     let (doc, measure) = measured_twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
     assert!(w > v, "the fixture's ids sort against its declarations");
-    assert_eq!(doc.var_order(), &[w, v]);
+    // The measure's own variable, the anonymous definition its value
+    // lowers to, is declared after the twins.
+    assert_eq!(doc.var_order()[..2], [w, v]);
+    assert_eq!(doc.var_order().len(), 3);
     assert_eq!(
         doc.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
         vec![w, v]
@@ -522,5 +525,5 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
     // And the order survives a save.
     let text = save(&doc, &[], Tol::witness()).unwrap();
     let back = load(&text, Tol::witness()).unwrap().doc;
-    assert_eq!(back.var_order(), &[w, v]);
+    assert_eq!(back.var_order(), doc.var_order());
 }

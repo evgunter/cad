@@ -331,7 +331,8 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
 /// and the schedule does not leak (rayon vs sequential, bit for bit).
 #[test]
 fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
-    let (doc, m) = stepped_shaft(1.0, 0.5, None, None);
+    // Toleranced, so the driver's entries are the two steps (VR8).
+    let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
     let f = eval_f64(&doc);
     let Some(editor_core::NodeResult::Ok(v)) = f.result(m) else {
         panic!("the shaft measures at f64")
@@ -1041,6 +1042,15 @@ fn r1_seed_env_refuses_a_foreign_name() {
             }
         }
     }
+    let continuous = env
+        .bindings
+        .values()
+        .filter(|v| matches!(v, ParamValue::Continuous { .. }))
+        .count();
     assert_eq!(ones, 1, "exactly one seeded lift");
-    assert_eq!(zeros, 1, "every other lift is exactly zero");
+    assert_eq!(
+        zeros,
+        continuous - 1,
+        "every other lift, the typed values' included, is exactly zero"
+    );
 }

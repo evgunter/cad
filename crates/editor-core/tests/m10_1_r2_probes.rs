@@ -716,15 +716,15 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         None,
         "the annotation is gone, silently"
     );
-    // And the analysis agrees the parameter is now FIXED — the
-    // modelling statement changed without anyone saying so.
+    // And the analysis agrees the parameter is now FIXED — no axis at
+    // all, a constant (VR8) — the modelling statement changed without
+    // anyone saying so.
     let axis = analyzed_box(&after, &AnalysisPolicy::default())
         .get(v(&after, "hole_r"))
-        .copied()
-        .expect("axis");
+        .copied();
     assert!(
-        axis.offsets.is_fixed(),
-        "a value edit turned a varying parameter into a fixed one"
+        axis.is_none(),
+        "a value edit turned a varying parameter into a constant: {axis:?}"
     );
 }
 

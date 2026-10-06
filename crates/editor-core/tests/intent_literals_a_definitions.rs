@@ -232,6 +232,16 @@ fn a_file_holding_a_definition_cycle_refuses_at_load() {
 fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
     let doc = w_and_h("intent-literals-a-pushforward");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
+    // A tolerance on `w`, so the stackup varies it (VR8: an untoleranced
+    // variable is a constant of the analysis).
+    let doc = step(
+        &doc,
+        DocEdit::SetVarDistribution {
+            var: w.into(),
+            distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
+        },
+    )
+    .doc;
     let applied = step(
         &doc,
         DocEdit::InsertNode {
@@ -576,7 +586,7 @@ fn the_anonymous_lifecycle_cascades_through_definitions() {
     let doc = unname(&doc, h);
     // `w` is read by `h`'s definition, and `h` by a slot: both live.
     let doc = unname(&doc, w);
-    assert_eq!(doc.vars().len(), 2);
+    assert!(doc.var(w).is_some() && doc.var(h).is_some());
     assert_eq!(doc.var_readers(w), vec![extrude], "a reader of h reads w");
     let applied = step(
         &doc,
@@ -596,7 +606,7 @@ fn the_anonymous_lifecycle_cascades_through_definitions() {
         })
         .collect();
     assert_eq!(removed, vec![h, w], "the definition, then its input");
-    assert!(applied.doc.vars().is_empty());
+    assert!(applied.doc.var(h).is_none() && applied.doc.var(w).is_none());
     assert!(applied.doc.has_minted_var(h) && applied.doc.has_minted_var(w));
 }
 
@@ -1052,11 +1062,14 @@ fn inline_shares_a_definition_the_host_already_holds() {
         Tol::witness(),
     )
     .expect("the host's w and h are the part's");
+    // The block's typed values cross as anonymous variables of their
+    // own; every NAMED variable is the host's.
     assert_eq!(
-        inlined.doc.var_order(),
-        host.var_order(),
+        inlined.doc.var_names(),
+        host.var_names(),
         "nothing declared twice"
     );
+    assert_eq!(inlined.doc.var_order()[..3], host.var_order()[..]);
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
 
