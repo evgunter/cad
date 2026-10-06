@@ -2,12 +2,11 @@
 id: a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made
 kind: issue
 title: A declared coplanar merge leaves a collinear valence-2 vertex that an earlier fold step's cut made, so a union's finished body depends on member order
-status: dispatched
+status: open
 priority: P1
 cost: M
 opened: 2026-09-24
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
-branch: fuse/cell-pair-contacts
 ---
 
 
@@ -134,3 +133,38 @@ Build order, each step its own unit:
 3. The tier-2 check that no joinable vertex remains.
 4. Naming: a union edge spanning several member edges is named for the
    set (EMIT's ground).
+
+## Step 1 landed (FUSE, PR 3955, 2026-10-06)
+
+Contact records are cell pairs, recorded coincidences under D10:
+- **Record kinds:** `VeContact (vertex, edge)`, and `EeContact` for
+  two edge interiors that meet (crossing or overlapping). The census
+  certifies both kinds in both directions.
+- **Carriage:** one substitution door (`ops::carry`) replaces
+  `remap_contacts` and `remap_carried`, and routes through main's link
+  doors. Zip, merge and join rows are substitution sources.
+- **Edge-split lineage** places a `(vertex, edge)` record on the
+  piece of the split edge the vertex lies on.
+- **The join:** `boolean/edge_join.rs` (`joinable_vertices`,
+  `join_edges`) exists but is not wired into any output stage yet. On
+  PR 3881's three documents it certifies 18 of 18 orders at V16 E24.
+- **DESIGN.md tier 3′** restates the ruled structure in D10 terms.
+- **Folded in and closed:** the P1
+  `a-carried-row-whose-ends-split-into-null-edge-copies-is-dropped`.
+- **Review:** dual. Lane 2's three MAJORs (zip pairing off by one; the
+  join dropping a crossing point contact; lineage's stay-on-parent arm
+  untested) were fixed and re-checked. Lane 1 found D10 conformance
+  held.
+- **Residue:**
+  - `an-edge-edge-record-has-no-carriage-into-a-later-op` (P2, step 2);
+  - ZIP's re-filed `a-rest-lane-slit-zip-kills-seam-edges-with-no-substitution-row`
+    (P3);
+  - INTENT stage 4 retires `StaleDeclaration::VertexOnEdge` / `EdgeEdge`
+    and their tags (list in the PR body).
+
+**Next:**
+- step 2, the join at every output stage, with sweeps building one rim
+  per run;
+- step 3, the tier-2 no-joinable-vertex check;
+- step 4, merged-set edge names (EMIT).
+
