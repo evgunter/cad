@@ -1603,8 +1603,13 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 /// every decision in it is still right. Per sharing pair:
 ///
 /// - **Two LADDER rims** carve freely: each carve is confined to its
-///   own ring and the caps that ring bounds, so two of them never
-///   meet (the composed die's 21 pip rims on six planes).
+///   own ring, its mate's strip inside its own trimline, and the
+///   mate's seams up to that trimline (the composed die's 21 pip rims
+///   on six planes). Two such carves can share a mate — a through-bore's
+///   two rims share its wall, whose seams run rim to rim — and the later
+///   band then splits the piece of each seam the earlier one left, which
+///   [`split_fragment`] names after the source seam
+///   (`blend_bore_two_rims`).
 /// - **Two ANNULUS rims** carve too — sharing a revolution WALL or a
 ///   full-revolve PLANE CAP; a cap is one more wall of the same shape,
 ///   its radial seam the meridian (the annulus resolution never asked
@@ -3447,21 +3452,18 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         // The UPPER remnant is the piece still touching the rim vertex;
         // the LOWER one survives as a fragment of the source. Which of
         // the two keeps the source key is `split_edge`'s to say, so
-        // both the fragment row and step (6)'s retirement read the
-        // source off [`split_fragment`] rather than off `m`.
+        // every row here reads the source off [`split_fragment`] rather
+        // than off `m`.
         //
-        // The split vertex is named after the edge that was SPLIT, not
-        // after that edge's own source. The two differ only where `m`
-        // is itself a fragment — which for a rim vertex's meridian
-        // means an earlier band in this call split the same cap seam,
-        // an arm `split_fragment` handles and no body in the tree
-        // reaches — so naming the original there would be an unpinned
-        // choice, while a minted key in this row refuses loudly at the
-        // document layer rather than resolving to another entity's
-        // name.
+        // `m` is itself a fragment wherever an earlier band of this call
+        // split the same meridian — a through-bore's wall seam runs from
+        // one rim to the other, so both of its rims' bands split it — and
+        // the split vertex is then named after the ORIGINAL source, the
+        // way the annulus phase names its seam splits; the band in the
+        // row is what tells the two splits of one meridian apart.
         let frag = split_fragment(body, m, v, t_split, None, rec, "meridian split", tol)?;
         rec.meridian_splits
-            .push((frag.vertex, m, band_named.clone()));
+            .push((frag.vertex, frag.source, band_named.clone()));
         remnants.push((v, frag.near, frag.source));
     }
 

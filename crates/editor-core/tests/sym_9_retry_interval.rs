@@ -3,7 +3,7 @@
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s unit,
 //! taken at the nominal on five of the six measured documents (R2's
 //! rounded pad does not return a nominal replay on a four-core box:
-//! `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
+//! `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
 //! the leaf instrument in `m10_10_evidence_interval` takes it).
 //!
 //! The instrument is the RETRY LADDER itself (`geom_core::sym::SymRetry`)
@@ -187,7 +187,7 @@ fn document(name: &str, scale: f64, tol: Tol) -> ProfileDoc {
 /// report the unit's dispatch recorded as exhausting a four-core box's
 /// memory (this lane's own two pad runs did not return a first replay
 /// with the report on or off:
-/// `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
+/// `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
 /// The counts are the same either way: the report is a recorder, the
 /// receipt is the session's own.
 fn replay(
