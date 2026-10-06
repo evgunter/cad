@@ -1,5 +1,6 @@
 """The six role-name doors — `band`, `band_pi`, `band_rim`,
-`band_rim_pi`, `meridian_vertex` and `carried`, mirroring `pncad::select`'s builders.
+`band_rim_pi`, `meridian_vertex` and `carried`, mirroring
+`pncad::select`'s builders.
 
 `Evaluation.select` and the whole-body materializers answer names FROM
 an evaluation. A selection that is AUTHORED — `Node.fillet`'s frozen
@@ -32,9 +33,10 @@ profile that CLEARS the axis sweeps to one face per meridian segment,
 so its bands stand alone and its latitude rims are whole circles. A
 profile that TOUCHES the axis sweeps to a pole, and the kernel splits
 every band into its `[0, pi)` and `[pi, 2pi)` halves, and every rim
-into two half-arcs — which is what `band_pi` and `band_rim_pi` exist for, and why the second scene is here at all. The
-third carries a HOLE, so the emitter mints a second loop's worth of
-bands, rims and meridian vertices on its second loop.
+into two half-arcs — which is what `band_pi` and `band_rim_pi` exist
+for, and why the second scene is here at all. The third carries a
+HOLE, so the emitter mints a second loop's worth of bands, rims and
+meridian vertices on its second loop.
 """
 
 import json

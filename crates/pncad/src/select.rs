@@ -47,9 +47,9 @@
 //! fillet's frozen selection — is written before any evaluation of
 //! the minting node exists, so there is nothing to select against and
 //! the name has to be spelled. [`band`], [`band_pi`], [`band_rim`],
-//! [`band_rim_pi`], [`meridian_vertex`] and [`carried`] are that direction of the
-//! vocabulary [`SegPat::tag`] matches in: each mints one
-//! [`StableName`](editor_core::StableName) with the
+//! [`band_rim_pi`], [`meridian_vertex`] and [`carried`] are that
+//! direction of the vocabulary [`SegPat::tag`] matches in: each
+//! mints one [`StableName`](editor_core::StableName) with the
 //! [`EntityKind`] its role denotes already fixed.
 //!
 //! **A name also says which node MADE the entity.** [`attribute`]

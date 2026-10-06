@@ -265,14 +265,7 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
     }
     for s in 0..4 {
         assert!(t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some());
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Edge,
-                rev,
-                RoleSeg::BandRim(pv(&doc, rev, 0, s))
-            ))
-            .is_some()
-        );
+        assert!(t.lookup(&band_rim(rev, pv(&doc, rev, 0, s))).is_some());
         for m in [MeridianEnd::Start, MeridianEnd::End] {
             assert!(
                 t.lookup(&minted(
@@ -350,14 +343,7 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
     assert_eq!(t.len(), 17);
     for s in 0..4 {
         assert!(t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some());
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Edge,
-                rev,
-                RoleSeg::BandRim(pv(&doc, rev, 0, s))
-            ))
-            .is_some()
-        );
+        assert!(t.lookup(&band_rim(rev, pv(&doc, rev, 0, s))).is_some());
         assert!(
             t.lookup(&minted(
                 EntityKind::Edge,
@@ -545,14 +531,7 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
         );
     }
     // The on-axis diameter sweeps to nothing: no segment-1 roles.
-    assert!(
-        t.lookup(&minted(
-            EntityKind::Face,
-            rev,
-            RoleSeg::Band(pe(&doc, rev, 0, 1).into())
-        ))
-        .is_none()
-    );
+    assert!(t.lookup(&band(rev, pe(&doc, rev, 0, 1))).is_none());
 }
 
 /// M9-D1: the same all-on-axis meridian, partially revolved — the
@@ -586,14 +565,7 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
         .is_some(),
         "the on-axis diameter is the caps' shared axis edge"
     );
-    assert!(
-        t.lookup(&minted(
-            EntityKind::Face,
-            rev,
-            RoleSeg::Band(pe(&doc, rev, 0, 0).into())
-        ))
-        .is_some()
-    );
+    assert!(t.lookup(&band(rev, pe(&doc, rev, 0, 0))).is_some());
 }
 
 // ---- Split: sections, fragments, crossings, pass-through. ----

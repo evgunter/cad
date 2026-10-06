@@ -23,12 +23,26 @@ authoring a selection over one hand-spells
 
 Met at `demos/tour/tests/teapot_document.rs`, `seam_of`; found by the
 sweep for hand-spelled revolve role names in the PR that added
-`band_rim_pi` (`band-rim-pi-has-no-minting-builder`).
+`band_rim_pi` (`band-rim-pi-has-no-minting-builder`). The other
+single-piece hand spellings a builder would replace:
+
+- `crates/editor-core/tests/m4_pr3_names.rs` — the wedge-cap meridians
+  of the partial revolve (`:274`), the seam meridians of the full
+  revolve (`:351`) and of the holed one (`:411`), and the seam and `Pi`
+  meridians of the wire case's segment 0 (`:521`, `:522`);
+- `crates/editor-core/tests/ring_r1_names_probe.rs` (`:86`), the seam
+  meridians of the ring's second loop;
+- `crates/editor-core/tests/corpus/die_composed.rs` (`:203`).
+
+The multi-piece run sites in `crates/editor-core/tests/band_run_wall_names.rs`
+(`:201`, `:216`, `RoleSeg::Meridian(.., run_of(..))`) are out of a
+single-piece builder's reach, as the run sites of `band` are.
 
 ## Fix shape
 
 `meridian(end, node, piece: ProfileEdgeRef) -> StableName` beside
 `meridian_vertex`, through `pncad::select` and the python `select`
-module, with its census entry. Not a design question: the role and
+module, declared in `pncad.pyi` (which is how the binding census
+accounts it). Not a design question: the role and
 its kind (`Edge`) are fixed; only the argument order wants to match
 `meridian_vertex`'s.

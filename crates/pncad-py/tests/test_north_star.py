@@ -4405,9 +4405,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # runs the same detector to the naming wall).
         # `StableName` stays, and for a sharper reason than "nothing
         # spells it": a name is `str` on this side, so there is no
-        # name TYPE and no grammar to half-parse. The five role-name
-        # doors — `band`, `band_pi`, `band_rim`, `meridian_vertex`,
-        # `carried` — do not change that: each MINTS a name by naming
+        # name TYPE and no grammar to half-parse. The six role-name
+        # doors — `band`, `band_pi`, `band_rim`, `band_rim_pi`,
+        # `meridian_vertex`, `carried` — do not change that: each MINTS a name by naming
         # a ROLE and answers the same opaque text a materializer
         # answers, which is why they are module doors and not methods
         # on a name class. A `FlushFinding`'s pair crosses as the same
