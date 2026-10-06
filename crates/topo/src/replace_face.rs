@@ -1882,19 +1882,8 @@ fn plan_edge<T: Decide>(
     // at its new home silently destroyed it for every edge the fence
     // had converted.
     //
-    // Measured, not reasoned: offsetting the tube's `y = 0.6` cap by
-    // `d = 0.05` and reading the moved cap seam's authority back —
-    //
-    //   as `Chart { declared: … }`, dropped → `Derived` (destroyed)
-    //   as `Scaffold(mc)`, what `main` stores → `Declared`, placement
-    //                                           translated by `(0, d, 0)`
-    //
-    // — same body, same door, same offset, differing only in which arm
-    // the description sends it down. So the branch CHANGED this lane
-    // rather than inheriting a defect, which is what puts it in scope
-    // here. Dropping it also flips `EdgeAuthority::is_declared`, which
-    // tier 3's prefer-intrinsic rules read — a verdict change, which
-    // this unit does not make.
+    // Dropping it also flips `EdgeAuthority::is_declared`, which tier
+    // 3's prefer-intrinsic rules read — a verdict change.
     //
     // The `delta` requirement is the pre-collapse one, unchanged and
     // for the pre-collapse reason: a pushforward can only be carried
