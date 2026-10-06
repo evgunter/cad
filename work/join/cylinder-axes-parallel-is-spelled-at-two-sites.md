@@ -2,11 +2,12 @@
 id: cylinder-axes-parallel-is-spelled-at-two-sites
 kind: issue
 title: Whether two cylinder axes are parallel is decided at two sites with two names (bool_germ_frame_axes_parallel, cc_axes_parallel)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P4
 cost: E
 refs: [parallel-cylinder-germ-pair-has-no-join-arm]
+closed: 2026-10-06
 ---
 
 
@@ -44,3 +45,19 @@ no axis parallelism. Neither is a duplicate of this one.
 Export `cylinder_axes_parallel` from geom-brep (it is `pub(crate)`) and
 have the frame call it with its lever, under one predicate name; the
 audit row and the census follow the name.
+
+## Review tier
+
+SINGLE, FULL: rides PR 4118's fix pass, whose full review asked for it
+(Q2); the second Opus review of that unit covers it.
+
+## Closed
+
+Closed by TANG's `classifiers-read-at-the-reach` fix pass (PR 4118).
+`geom_brep::cylinder_axes_parallel` is exported and takes the reach and
+the two axes; it levers the sine by `ExtentBall::lever_between` under
+the one name `cc_axes_parallel`. The section table's step 3, the
+tangent-locus lane and `pair_section_frame`'s cylinder pair all ask it,
+so `bool_germ_frame_axes_parallel` is retired: its audit row is
+re-pointed, and the sweep interval guard that refused that name now
+refuses `cc_axes_parallel`.

@@ -17,11 +17,23 @@
 //!
 //! An extent that UNDER-states the consumed region makes a tilt read
 //! smaller than it is, which is the wrong-answer direction, so every
-//! constructor here encloses: a looser ball only escalates more. The
-//! converse does not hold — a ball says nothing about where the
-//! consumed region actually reaches, so a displacement read at its far
-//! side is an upper bound only, and never evidence that a consumed
-//! point stands that far off.
+//! constructor here encloses the region it is handed. That is a claim
+//! about the constructor, not the caller: a ball built from a face's
+//! boundary vertices encloses those vertices, and a curved edge between
+//! them can bulge past it.
+//!
+//! **An OVER-stated extent is not safe either.** It reads a tilt as
+//! larger than it is, which on a one-sided row only escalates more —
+//! but on a two-sided row whose definite side is a SERVED class (a
+//! tilt that names an ellipse, a sine that names crossing axes) it
+//! decides a reading that is in the band at the consumed extent, and
+//! serves a class the arm could not tell from its neighbour. The
+//! policy every row holds: a reading in the band at the consumed
+//! extent answers Zero or escalates, never a definite sign. So a ball
+//! is to be as tight as its caller can make it, and a ball says
+//! nothing about where the consumed region actually reaches: a
+//! displacement read at its far side is an upper bound only, never
+//! evidence that a consumed point stands that far off.
 //!
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
@@ -102,6 +114,15 @@ impl<T: Real> ExtentBall<T> {
     /// either line and turning the other about its own foot bounds the
     /// same displacement across the ball, so the lesser bound holds as
     /// well, and it does not depend on which line is named first.
+    ///
+    /// **Why a foot's lever, and not the ball's radius alone.** Axial
+    /// travel along parallel lines does not move their gap, which
+    /// suggests the radius would do. But the gap is read between the
+    /// two FEET, and while the lines are parallel only within the band
+    /// the feet stand apart along the axis as well: the foot-to-foot
+    /// distance carries an axial part of up to `min(ρ)·θ`, `ρ` a foot's
+    /// lever. A lever shorter than a foot's would let that part and the
+    /// tilt together exceed what the gap row was told it bridges.
     #[must_use]
     pub fn lever_between(self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
         let lever = |(origin, axis)| self.lever_from(self.foot_on(origin, axis));

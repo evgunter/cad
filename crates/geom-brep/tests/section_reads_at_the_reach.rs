@@ -151,3 +151,52 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
         }
     }
 }
+
+/// **Crossing axes, wherever the origins are stored.** Two unit
+/// cylinders crossing about the origin, the second lifted `g`
+/// along `a1×a2`, `g` swept across the zero band's edge. Whether the
+/// axes meet (`cc_axes_coplanar`) is one verdict for each `g` at every
+/// stored origin, in both operand orders: the gap is read between the
+/// axes' feet at the reach, not between the stored origins, whose
+/// difference at 1e6 m rounds by more than the band's width.
+#[test]
+fn crossing_axes_read_one_verdict_at_every_stored_origin() {
+    let reach = ExtentBall::new(Point3::origin(), 1.0);
+    // Off every coordinate plane, so a stored origin's slide rounds in
+    // the component the gap reads.
+    let a1 = Vec3::new(1.0, 0.3, 0.7).normalize();
+    let a2 = Vec3::new(0.2, 1.0, -0.5).normalize();
+    let lift = a1.cross(a2).normalize();
+    let class = |r: Result<EqualCylinderSection<f64>, geom_brep::SectionError>| match r {
+        Ok(EqualCylinderSection::TwoEllipses { .. }) => "meet",
+        Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => "skew",
+        Err(geom_brep::SectionError::Escalated(_)) => "escalate",
+        other => panic!("crossing equal cylinders answer only meet, skew or escalate: {other:?}"),
+    };
+    for frac in [0.5, 0.9, 0.99, 1.01, 1.1, 2.0] {
+        let g = frac * band().zero();
+        let mut seen: Option<&str> = None;
+        for s1 in [0.0, 1e3, -1e3, 1e6, -1e6] {
+            for s2 in [0.0, 1e3, -1e3, 1e6, -1e6] {
+                let c1 = cylinder(Point3::origin(), a1, s1);
+                let c2 = cylinder(Point3::origin() + lift * g, a2, s2);
+                for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
+                    let got = class(cylinder_cylinder_section(
+                        a,
+                        b,
+                        RadiusEvidence::Declared,
+                        reach,
+                        band(),
+                    ));
+                    match seen {
+                        None => seen = Some(got),
+                        Some(first) => assert_eq!(
+                            got, first,
+                            "g = {frac}·zero, stored ({s1}, {s2}), ({label}): one verdict"
+                        ),
+                    }
+                }
+            }
+        }
+    }
+}

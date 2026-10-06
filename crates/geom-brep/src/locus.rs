@@ -191,8 +191,7 @@ pub fn tangent_locus<T: Decide>(
                 ..
             },
         ) => {
-            let lever = reach.lever_between((*o1, *a1), (*o2, *a2));
-            match cylinder_axes_parallel(a1.cross(*a2).norm(), lever, band).map_err(escalate)? {
+            match cylinder_axes_parallel(reach, (*o1, *a1), (*o2, *a2), band).map_err(escalate)? {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
                     return Err(TangentLocusError::Unsupported {

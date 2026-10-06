@@ -99,8 +99,8 @@ fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
 /// `route_pose` in both argument orders: the table is symmetric and so
 /// must its pose reading be.
 fn served(a: &Surface<f64>, b: &Surface<f64>) -> bool {
-    let ab = route_pose(a, b, at_apex(4.0), band()).expect("the pose decides");
-    let ba = route_pose(b, a, at_apex(4.0), band()).expect("the pose decides");
+    let ab = route_pose(a, b, 4.0, at_apex(4.0), band()).expect("the pose decides");
+    let ba = route_pose(b, a, 4.0, at_apex(4.0), band()).expect("the pose decides");
     assert_eq!(ab.implemented, ba.implemented, "asymmetric: {a:?} / {b:?}");
     assert_eq!(ab.rung, route(a.kind(), b.kind()).rung);
     ab.implemented
@@ -206,7 +206,7 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
 fn a_refused_pose_carries_the_arms_own_grounds() {
     let cone = cone_z(PI_6);
     let hyperbola = plane(Point3::new(0.05, 0.0, 0.0), Vec3::unit_x());
-    let posed = route_pose(&hyperbola, &cone, at_apex(4.0), band()).unwrap();
+    let posed = route_pose(&hyperbola, &cone, 4.0, at_apex(4.0), band()).unwrap();
     let kind = route(SurfaceKind::Plane, SurfaceKind::Cone);
     assert!(!posed.implemented);
     assert_ne!(posed.note, kind.note);
@@ -271,7 +271,7 @@ fn unscoped_pairs_answer_the_kind_table() {
 fn an_in_band_pose_escalates() {
     let cone = cone_z(PI_6);
     let near = plane(Point3::new(3.0 * eps(), 0.0, 0.0), Vec3::unit_x());
-    let err = route_pose(&near, &cone, at_apex(4.0), band()).expect_err("in band");
+    let err = route_pose(&near, &cone, 4.0, at_apex(4.0), band()).expect_err("in band");
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
 
@@ -333,8 +333,8 @@ fn the_pose_is_read_over_the_callers_reach() {
     let cone = cone_z(PI_6);
     let tilt = 0.1 * eps();
     let c = cyl(Point3::new(0.0, 0.0, 1.0), Vec3::new(tilt, 0.0, 1.0), 0.5);
-    let near = route_pose(&cone, &c, at_apex(1.0), band()).expect("decides at a unit reach");
-    let far = route_pose(&cone, &c, at_apex(1e3), band()).expect("decides at a long reach");
+    let near = route_pose(&cone, &c, 1.0, at_apex(1.0), band()).expect("decides at a unit reach");
+    let far = route_pose(&cone, &c, 1e3, at_apex(1e3), band()).expect("decides at a long reach");
     assert!(near.implemented, "within the band over a unit reach");
     assert!(!far.implemented, "definitely tilted over a long reach");
 }
@@ -348,9 +348,9 @@ fn the_pose_is_read_over_the_callers_reach() {
 fn an_unclassified_pose_is_not_served() {
     let cone = cone_z((0.2 * eps()).acos());
     let tilted = plane(Point3::new(0.0, 0.0, 3.0), Vec3::new(0.3, 0.0, 1.0));
-    let p = route_pose(&tilted, &cone, at_apex(1.0), band()).unwrap();
+    let p = route_pose(&tilted, &cone, 1.0, at_apex(1.0), band()).unwrap();
     assert!(!p.implemented, "an operand guard classified no pose");
-    let control = route_pose(&tilted, &cone_z(0.5), at_apex(1.0), band()).unwrap();
+    let control = route_pose(&tilted, &cone_z(0.5), 1.0, at_apex(1.0), band()).unwrap();
     assert!(control.implemented, "the classifiable twin is the ellipse");
 }
 

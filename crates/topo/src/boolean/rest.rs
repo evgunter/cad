@@ -630,7 +630,11 @@ pub enum PairUnread {
 /// claim to make, or where the ball does not read. The face's surface
 /// is a link, and its miss panics (on an at-rest operand by tier 1,
 /// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
-fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
+pub(super) fn face_ball<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Option<ExtentBall<T>> {
     let f = body.get_face(face)?;
     let ball = match ExtentBall::of_carrier(body.face_surface_linked(face, f)) {
         Some(ball) => ball,

@@ -496,6 +496,17 @@ issue filed: three sibling offset rows that read a cylinder's stored
 origin against another carrier's axis.
 
 **Closed in the PR.** `plane-cylinder-section-reads-its-gap-at-the-stored-origin`.
+
+**Fix pass 1** (the single FULL review: two MAJORs). `route_pose` takes
+the exact scalar reach back for its scalar arms and the ball for the
+cylinder pair only. The germ frame reads the smaller face's ball. Each
+fix comes with its probe row, red before and green after. The crossing
+lane reads its gap between the feet. The frame asks the table's own
+`cc_axes_parallel`, which closes JOIN's
+`cylinder-axes-parallel-is-spelled-at-two-sites`. Two issues filed:
+`chord-join-face-reach-misses-a-curved-edges-bulge` and
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+
 ## 2026-10-06 — the D10 hold reaches TANG; triage; the next slate
 
 The weekly limit stopped every lane on 2026-10-03, before TANG parked

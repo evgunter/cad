@@ -469,13 +469,25 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
 ///
-/// `reach` encloses what the consumer needs the pose read over. The
-/// cylinder pair reads it as a ball ([`cylinder_cylinder_section`]);
-/// the arms that take a scalar extent get its lever from the pair's
-/// anchors (a cone's apex, a sphere's or torus's centre, a cylinder's
-/// origin), the farthest it reaches from any of them, which is what
-/// their angular trileans are metered at (a tilt `θ` displaces the
-/// locus by `θ·extent` there).
+/// The consumer states what it needs the pose read over twice, and
+/// each arm reads the statement it is metered at:
+///
+/// - `extent` — an upper bound on how far the consumed region stands
+///   from either operand's ANCHOR (a cone's apex, a sphere's or
+///   torus's centre, a cylinder's origin). The arms that take a scalar
+///   extent meter their angular trileans at it (a tilt `θ` displaces
+///   the locus by `θ·extent` there).
+/// - `reach` — a ball enclosing the consumed region, which the
+///   cylinder pair reads its axis rows across
+///   ([`cylinder_cylinder_section`]).
+///
+/// Neither is derived from the other here: a ball's lever from an
+/// anchor can stand well past the region's farthest point (a segment's
+/// ball by up to `√2`, a control-point ball by up to `2×`), and on a
+/// two-sided trilean whose definite side is the SERVED class, a looser
+/// lever decides an in-band reading as served (a near-parabola read as
+/// an ellipse). Each statement is to be as tight as the consumer can
+/// make it.
 ///
 /// # Errors
 ///
@@ -490,17 +502,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 pub fn route_pose<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
+    extent: T,
     reach: ExtentBall<T>,
     band: Band,
 ) -> Result<PairRoute, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-    let extent = [a, b].into_iter().fold(T::zero(), |lever, s| match *s {
-        Surface::Cone { apex: anchor, .. }
-        | Surface::Sphere { center: anchor, .. }
-        | Surface::Torus { center: anchor, .. }
-        | Surface::Cylinder { origin: anchor, .. } => lever.max(reach.lever_from(anchor)),
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => lever,
-    });
     let (ka, kb) = (a.kind(), b.kind());
     let arm = route(ka, kb);
     let verdict = match (ka, kb) {
@@ -1374,7 +1380,8 @@ pub enum EqualCylinderSection<T: Real> {
 ///    [`SectionError::CoincidentSurfaces`]; then margin `r₁ + r₂ − d`:
 ///    Positive ⇒ two rulings, Zero ⇒ tangent ruling, Negative ⇒ empty.
 /// 5. `cc_axes_coplanar` — margin the signed axis-to-axis gap
-///    `(o2−o1)·(a1×a2)/‖a1×a2‖` (meters): Zero ⇒ intersecting axes ⇒
+///    `w·(a1×a2)/‖a1×a2‖` (meters), `w` between the axes' feet at
+///    `reach` ([`ExtentBall::foot_on`]): Zero ⇒ intersecting axes ⇒
 ///    the two bisector-plane ellipses; definite ⇒ skew ⇒ typed rung-3
 ///    refusal.
 ///
@@ -1430,10 +1437,9 @@ pub fn cylinder_cylinder_section<T: Decide>(
         }
     }
 
-    let cross = a1.cross(a2);
-    let cross_norm = cross.norm();
-    let lever = reach.lever_between((o1, a1), (o2, a2));
-    match cylinder_axes_parallel(cross_norm, lever, band).map_err(SectionError::Escalated)? {
+    match cylinder_axes_parallel(reach, (o1, a1), (o2, a2), band)
+        .map_err(SectionError::Escalated)?
+    {
         Sign::Zero => {
             // Parallel axes: the cross-section is two equal circles at
             // center distance d.
@@ -1446,7 +1452,12 @@ pub fn cylinder_cylinder_section<T: Decide>(
             let mid = foot1 + d_vec * T::from_f64(0.5);
             match parallel_cylinder_gap(r1, r2, d, band).map_err(SectionError::Escalated)? {
                 Sign::Positive => {
-                    let half = (r1.powi(2) - (d / two).powi(2)).sqrt();
+                    // The rulings stand `±half` off `mid` along `h`, both
+                    // ⊥ `a1`, so `half` is read from the perpendicular gap
+                    // `|d_vec|` as `mid` and `h` are: then each ruling lies
+                    // on the first wall exactly. `|d_vec| ≤ d < 2·r1`
+                    // here, so the root is real.
+                    let half = (r1.powi(2) - (d_vec.norm() / two).powi(2)).sqrt();
                     let h = a1.cross(d_vec).normalize();
                     Ok(EqualCylinderSection::ParallelLines {
                         l1: Curve3::Line {
@@ -1467,8 +1478,15 @@ pub fn cylinder_cylinder_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            // Crossing lane: coplanarity (intersecting vs skew).
-            let w0 = o2 - o1;
+            // Crossing lane: coplanarity (intersecting vs skew), the gap
+            // read between the axes' feet at the reach. Sliding either
+            // point along its axis leaves `w0·(a1×a2)` unchanged, so the
+            // feet name the same gap as any stored origins, without the
+            // rounding a far-stored origin's coordinates carry into it.
+            let cross = a1.cross(a2);
+            let cross_norm = cross.norm();
+            let foot1 = reach.foot_on(o1, a1);
+            let w0 = reach.foot_on(o2, a2) - foot1;
             let gap = w0.dot(cross) / cross_norm;
             match decide("cc_axes_coplanar", Margin::of(gap), band)
                 .map_err(SectionError::Escalated)?
@@ -1486,7 +1504,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             // The axes' intersection point (closest point on axis 1;
             // the coplanarity verdict bounds the residual by ε).
             let t1 = w0.cross(a2).dot(cross) / cross_norm.powi(2);
-            let p = o1 + a1 * t1;
+            let p = foot1 + a1 * t1;
             // The two bisector planes through p. Each ellipse is the
             // tilted plane×cylinder cut of cylinder 1 (by symmetry it
             // lies on cylinder 2 as well).
@@ -1507,26 +1525,53 @@ pub fn cylinder_cylinder_section<T: Decide>(
     }
 }
 
-/// `cc_axes_parallel`: whether two cylinder axes are parallel, their
-/// sine `‖a1×a2‖` levered at `lever`. Zero ⇒ parallel. Shared with the
-/// tangent-locus lane.
-pub(crate) fn cylinder_axes_parallel<T: Decide>(
-    sin: T,
-    lever: T,
+/// `cc_axes_parallel`: whether the cylinder axes `oᵢ + s·aᵢ` (`aᵢ`
+/// unit) are parallel across `reach`, their sine `‖a1×a2‖` levered at
+/// [`ExtentBall::lever_between`]. Zero ⇒ parallel.
+///
+/// The ONE reading of the fact: the section table's step 3, the
+/// tangent-locus lane and topo's germ frame all ask it here, so the
+/// frame and the table it re-enters cannot disagree.
+///
+/// # Errors
+///
+/// The trilean's diagnostics where it lands in the band or poisons.
+pub fn cylinder_axes_parallel<T: Decide>(
+    reach: ExtentBall<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide("cc_axes_parallel", Margin::levered(sin, lever), band)
+    let sin = line1.1.cross(line2.1).norm();
+    decide(
+        "cc_axes_parallel",
+        Margin::levered(sin, reach.lever_between(line1, line2)),
+        band,
+    )
 }
 
 /// Two parallel axes read where a consumed extent is: the first axis's
-/// foot nearest its centre, and the offset to the second's.
+/// foot nearest its centre, and the offset to the second's, spelled
+/// twice because the decisions and the construction need different
+/// things of it.
+///
+/// The feet's offset `w` carries an axial part as well as the gap: the
+/// axes are parallel only within the band, so the two feet can stand
+/// up to `min(ρ)·θ` apart along the axis (`ρ` the feet's lever). Its
+/// length `d` reads the same in either operand order, which is what a
+/// verdict needs; its part ⊥ the first axis, `d_vec`, is the gap the
+/// construction lays rulings across, which is what a locus on the
+/// first wall needs. The two differ by that axial part only.
 pub(crate) struct ParallelAxes<T: Real> {
     /// The first axis's foot ([`ExtentBall::foot_on`]).
     pub(crate) foot1: Point3<T>,
-    /// The feet's offset, its component along the first axis removed.
+    /// The feet's offset, its component along the first axis removed:
+    /// what every CONSTRUCTION reads (the rulings' mid-point, their
+    /// direction across, their half-separation, the tangent ruling).
     pub(crate) d_vec: Vec3<T>,
-    /// The distance between the feet: what `cc_coaxial` and
-    /// `cc_parallel_gap` decide. It reads the same in either order.
+    /// The distance between the feet: what every DECISION reads
+    /// (`cc_coaxial`, `cc_parallel_gap`, the internal gap). It reads
+    /// the same in either order.
     pub(crate) d: T,
 }
 

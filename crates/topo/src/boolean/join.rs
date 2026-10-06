@@ -1433,25 +1433,44 @@ fn germ_section_frame<T: Decide>(
         germ.b_face,
         crate::param_source::SurfaceField::CylinderRadius,
     );
-    // The pair's section is consumed on both faces: the reach is the
-    // ball of their boundary vertices, which a wall's axial extent ends
-    // at. `surf` resolved both faces above, and nothing writes between,
-    // so `face_witnesses` reads each.
-    let witnesses = |body: &Body<T>, f: FaceKey| {
-        super::rest::face_witnesses(body, f).unwrap_or_else(|| {
-            unreachable!(
-                "{}, which `surf` resolved, does not resolve",
-                crate::entity::EntityId::Face(f)
-            )
-        })
+    // **The reach is the SMALLER face's ball.** The pair's section is
+    // consumed where it lies on BOTH faces, so either face's ball
+    // encloses it, and the lesser is the tighter. Their union is not a
+    // safe overstatement: on a two-sided row whose definite side is a
+    // served class (plane×cylinder's tilt: `TangentLine` against
+    // `TiltedEllipse`), a lever past the consumed extent decides an
+    // in-band reading definite — a 1 cm pin touching a 100 m plate,
+    // levered at the plate, reads its tangent as a 200 km ellipse. The
+    // policy the rows hold: a reading in the band at the consumed
+    // extent answers Zero or escalates, never a definite sign.
+    //
+    // Each face's ball is its certified box's ([`super::rest::face_ball`]:
+    // a curved boundary edge's bulge included), and where that box has
+    // no claim to make, the ball of its boundary vertices. `surf`
+    // resolved both faces above, and nothing writes between, so each
+    // read resolves.
+    let ball_of = |body: &Body<T>, f: FaceKey| -> Result<geom_brep::ExtentBall<T>, BooleanError> {
+        if let Some(ball) = super::rest::face_ball(body, f, band) {
+            return Ok(ball);
+        }
+        let points: Vec<geom_brep::ExtentBall<T>> = super::rest::face_witnesses(body, f)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "{}, which `surf` resolved, does not resolve",
+                    crate::entity::EntityId::Face(f)
+                )
+            })
+            .into_iter()
+            .map(geom_brep::ExtentBall::point)
+            .collect();
+        geom_brep::ExtentBall::enclosing(&points)
+            .ok_or(desync("a germ face has no boundary vertices"))
     };
-    let points: Vec<geom_brep::ExtentBall<T>> = witnesses(&red.a, germ.a_face)
-        .into_iter()
-        .chain(witnesses(&red.b, germ.b_face))
-        .map(geom_brep::ExtentBall::point)
-        .collect();
-    let reach = geom_brep::ExtentBall::enclosing(&points)
-        .ok_or(desync("a germ face pair has no boundary vertices"))?;
+    let reach = germ_reach(
+        ball_of(&red.a, germ.a_face)?,
+        ball_of(&red.b, germ.b_face)?,
+        band,
+    );
     pair_section_frame(&sa, &sb, evidence, reach, band)
         .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
 }
@@ -1757,11 +1776,11 @@ pub(super) fn pair_section_frame<T: Decide>(
         // (below): skew keeps the general rung's `NoArm`, intersecting
         // axes take their own named door.
         //
-        // Metered at the section table's own lever across `reach`
-        // ([`geom_brep::ExtentBall::lever_between`]): the axes drift
-        // apart by the sine times the length they run together, and the
-        // table re-decides this margin on the intersecting half below,
-        // so the two read one lever.
+        // Asked of the section table's own row
+        // ([`geom_brep::cylinder_axes_parallel`], `cc_axes_parallel`):
+        // the axes drift apart by the sine times the length they run
+        // together across `reach`, and the table re-decides this margin
+        // on the intersecting half below, so the two are one reading.
         (
             Sf::Cylinder {
                 origin: o1,
@@ -1774,12 +1793,7 @@ pub(super) fn pair_section_frame<T: Decide>(
                 ..
             },
         ) => {
-            let lever = reach.lever_between((*o1, *a1), (*o2, *a2));
-            match decide(
-                "bool_germ_frame_axes_parallel",
-                Margin::levered(a1.cross(*a2).norm(), lever),
-                band,
-            ) {
+            match geom_brep::cylinder_axes_parallel(reach, (*o1, *a1), (*o2, *a2), band) {
                 Ok(Sign::Zero) => return Ok(None),
                 Ok(Sign::Positive | Sign::Negative) => {}
                 Err(diag) => return Err(FrameError::Escalated(diag)),
@@ -1810,7 +1824,11 @@ pub(super) fn pair_section_frame<T: Decide>(
             // `skew_axes_keep_the_general_rung_at_the_certified_scalar`,
             // which reds the moment the gap is measured along an axis
             // instead of along `a1×a2`.
-            let w0 = *o2 - *o1;
+            //
+            // Read between the axes' feet at `reach`, as the table's
+            // `cc_axes_coplanar` reads it: the same gap as any stored
+            // origins, without a far origin's rounding.
+            let w0 = reach.foot_on(*o2, *a2) - reach.foot_on(*o1, *a1);
             let cross = a1.cross(*a2);
             return match decide(
                 "bool_germ_frame_axes_coplanar",
@@ -1842,6 +1860,25 @@ pub(super) fn pair_section_frame<T: Decide>(
         Err(_) => Err(FrameError::Desync(
             "germ pair's section refused at match time",
         )),
+    }
+}
+
+/// The reach a germ pair's section frame is read across: the smaller
+/// of the two faces' balls ([`germ_section_frame`]). Each encloses the
+/// section, so the choice is free where the radii are in the band, and
+/// the first is kept.
+fn germ_reach<T: Decide>(
+    a: geom_brep::ExtentBall<T>,
+    b: geom_brep::ExtentBall<T>,
+    band: Band,
+) -> geom_brep::ExtentBall<T> {
+    match decide(
+        "bool_germ_reach_smaller",
+        Margin::of(a.radius() - b.radius()),
+        band,
+    ) {
+        Ok(Sign::Positive) => b,
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => a,
     }
 }
 
@@ -2928,6 +2965,59 @@ mod frame_dispatch_tests {
 
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    /// **A pin touching a plate is levered at the pin, not the plate.**
+    /// The plane `z = 0` and a 1 cm pin (`r = 0.01`) along `x`, resting
+    /// on it at the origin and tilted so that across the pin's own ball
+    /// (lever 0.02) the tilt displaces the locus by `ε/4`: the tangent,
+    /// and the straight chord's frame. Across a 100 m plate's ball,
+    /// which the union of the two faces reached, the same tilt reads
+    /// definite and names a tilted ellipse centred far off (the review's
+    /// probe: 200 km at a 5e-8 tilt). The germ reads the smaller ball,
+    /// in either face order.
+    #[test]
+    fn a_pin_on_a_plate_is_read_across_the_pin() {
+        let plane = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let tilt = 0.25 * Tol::witness().eps() / 0.02;
+        let pin = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.01),
+            axis: Vec3::new(1.0, 0.0, tilt).normalize(),
+            radius: 0.01,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let pin_ball = geom_brep::ExtentBall::new(Point3::new(0.005, 0.0, 0.01), 0.02);
+        let plate_ball = geom_brep::ExtentBall::new(Point3::new(50.0, 50.0, 0.0), 71.0);
+        for (first, second) in [(pin_ball, plate_ball), (plate_ball, pin_ball)] {
+            let reach = super::germ_reach(first, second, band());
+            for (a, b) in [(&plane, &pin), (&pin, &plane)] {
+                let got = pair_section_frame(a, b, geom_brep::RadiusEvidence::None, reach, band());
+                assert!(
+                    matches!(got, Ok(None)),
+                    "the pin's tangent is the straight chord's frame, got {:?}",
+                    got.as_ref().map_err(|e| match e {
+                        FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                        _ => "a refusal",
+                    })
+                );
+            }
+        }
+        let union = pair_section_frame(
+            &plane,
+            &pin,
+            geom_brep::RadiusEvidence::None,
+            plate_ball,
+            band(),
+        );
+        assert!(
+            matches!(union, Ok(Some(_))),
+            "levered at the plate the tilt reads definite: {:?}",
+            union.as_ref().map_err(|_| "a refusal")
+        );
     }
 
     /// **An operand's radius guard escalates as the radius's own

@@ -165,7 +165,9 @@ fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &
     assert!(
         !matches!(
             cause.predicate,
-            Some("bool_germ_frame_axes_coplanar" | "bool_germ_frame_axes_parallel")
+            // The frame's parallelism is the section table's own row,
+            // `cc_axes_parallel` (`geom_brep::cylinder_axes_parallel`).
+            Some("bool_germ_frame_axes_coplanar" | "cc_axes_parallel")
         ),
         "{what}: a germ-frame predicate going indeterminate is the defect this unit \
          pins, never an accepted escape; direct {d}, re-posed {r}"
