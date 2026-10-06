@@ -546,9 +546,12 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
             .edge;
         report.seam_edges.push(edge);
     }
+    // `rs[j]` runs between the correspondents of `ob[j]`'s start and
+    // `ob[j - 1]`'s (`align`), so it lies on `ob[j - 1]`'s segment.
     report.edge_merges = ring_edges
         .into_iter()
-        .zip(report.seam_edges.iter().copied())
+        .enumerate()
+        .map(|(j, dead)| (dead, report.seam_edges[(j + n - 1) % n]))
         .collect();
     Ok(report)
 }

@@ -5,12 +5,15 @@
 //! record naming the three cells it replaces onto the edge it makes,
 //! through the substitution door ([`super::ops::carry_in_place`]).
 //!
-//! Joinable is decided by topology alone: the two edges' face pairs
-//! are one pair of distinct faces, both on `Plane` carriers of distinct
-//! keys, so both edges lie on the one line the two planes meet in. A
-//! valence-2 vertex between curved faces is outside this door: whether
-//! its two edges share a carrier is a question of the intersection
-//! branch, which no key answers yet.
+//! Joinable is decided by structure alone, no value compared: the two
+//! edges' face pairs are one pair of distinct faces, both on `Plane`
+//! carriers of distinct keys, and both edges are certified as the
+//! `Intersection` of those two surface keys. Two planes that cross meet
+//! in one line, so the two edges lie on it; two that do not cross
+//! certify no intersection, so coplanar faces sharing a bent boundary
+//! are never joined. A valence-2 vertex between curved faces is outside
+//! this door: whether its two edges share a carrier is a question of
+//! the intersection branch, which no key answers yet.
 
 use std::collections::BTreeMap;
 
@@ -102,12 +105,20 @@ fn joinable<T: Real>(
     if sf == sg || !planar(s1.plus) || !planar(s1.minus) {
         return None;
     }
-    let line = |e: EdgeKey, d| {
-        body.edge_curve_linked(e, d)
-            .certified()
-            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
+    // One carrier by structure: both edges certified as the
+    // intersection of these two planes, which is one line (planes that
+    // do not cross certify no intersection).
+    let on_the_pair = |e: EdgeKey, d| {
+        body.edge_curve_linked(e, d).certified().is_some_and(|c| {
+            matches!(c.carrier(), geom::Curve3::Line { .. })
+                && matches!(
+                    c.description(),
+                    geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+                        if Body::<T>::cites_pair((*s1, *s2), sf, sg)
+                )
+        })
     };
-    if !line(e1, d1) || !line(e2, d2) {
+    if !on_the_pair(e1, d1) || !on_the_pair(e2, d2) {
         return None;
     }
     Some(Join {

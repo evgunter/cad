@@ -233,10 +233,12 @@
 //!   ([`crate::boolean::VeContact`]): a coincidence an op decided Zero
 //!   and recorded (D10). The reduction never mints one: it
 //!   splits the *other* edge at every on-edge event
-//!   (`split_other_at_point`) and records a v-v pair instead. A join
-//!   mints one, from the v-v record whose vertex it joined away, and an
-//!   edge split moves it onto the piece the vertex rests on; carried
-//!   into a later op, it backs the event there.
+//!   (`split_other_at_point`) and records a v-v pair instead. The join
+//!   (`BooleanBody::join_edges`) mints one, from the v-v record whose
+//!   vertex it joined away; it is a door of its own, and no op's output
+//!   stage calls it yet. An edge split moves the record onto the piece
+//!   the vertex rests on; carried into a later op, it backs the event
+//!   there.
 //! - **The face rung**: a declared face pair holding the vertex on one
 //!   boundary and naming a face the edge bounds (`ve_face_backed`) holds
 //!   the whole event — the vertex on one side of the interface, the
@@ -798,6 +800,8 @@ struct Declared {
     vv: BTreeSet<(VertexKey, VertexKey)>,
     vf: BTreeSet<(VertexKey, FaceKey)>,
     ve: BTreeSet<(VertexKey, EdgeKey)>,
+    /// Recorded edge-edge pairs, both orientations.
+    ee: BTreeSet<(EdgeKey, EdgeKey)>,
     /// Face-granularity keys (M9-2): the face pairs the body's
     /// curve/patch records name, both orientations. A face-pair
     /// record backs the vertex-granular events SUBORDINATE to it —
@@ -811,27 +815,48 @@ struct Declared {
 
 impl Declared {
     fn index(contacts: &ContactRecords) -> Self {
+        // Every field, by name: a new record kind fails to compile here
+        // until the census says what it backs.
+        let ContactRecords {
+            vv: vv_rows,
+            a_on_b,
+            b_on_a,
+            ve: ve_rows,
+            ee: ee_rows,
+            curves,
+            patches,
+        } = contacts;
         let mut vv = BTreeSet::new();
-        for c in &contacts.vv {
+        for c in vv_rows {
             vv.insert((c.a, c.b));
             vv.insert((c.b, c.a));
         }
         let mut vf = BTreeSet::new();
-        for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
+        for c in a_on_b.iter().chain(b_on_a) {
             vf.insert((c.vertex, c.face));
         }
-        let ve = contacts.ve.iter().map(|c| (c.vertex, c.edge)).collect();
+        let ve = ve_rows.iter().map(|c| (c.vertex, c.edge)).collect();
+        let mut ee = BTreeSet::new();
+        for c in ee_rows {
+            ee.insert((c.a, c.b));
+            ee.insert((c.b, c.a));
+        }
         let mut faces = BTreeSet::new();
-        for (a, b) in contacts
-            .curves
+        for (a, b) in curves
             .iter()
             .map(|c| (c.face_a, c.face_b))
-            .chain(contacts.patches.iter().map(|c| (c.face_a, c.face_b)))
+            .chain(patches.iter().map(|c| (c.face_a, c.face_b)))
         {
             faces.insert((a, b));
             faces.insert((b, a));
         }
-        Self { vv, vf, ve, faces }
+        Self {
+            vv,
+            vf,
+            ve,
+            ee,
+            faces,
+        }
     }
 
     /// The face rung for a v-v event: some declared face pair holds
@@ -879,6 +904,12 @@ impl Declared {
     /// coincidence it decided Zero (D10), as a `(vertex, edge)` record.
     fn ve_recorded(&self, v: VertexKey, e: EdgeKey) -> bool {
         self.ve.contains(&(v, e))
+    }
+
+    /// Whether an op recorded the interiors of `a` and `b` meeting: the
+    /// coincidence it decided Zero (D10), as an edge-edge record.
+    fn ee_recorded(&self, a: EdgeKey, b: EdgeKey) -> bool {
+        self.ee.contains(&(a, b))
     }
 }
 
@@ -1362,28 +1393,10 @@ fn pair_vertex_edge<T: Decide>(
     e: &EdgeGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
-    let off = Margin::norm3((q - e.p0).cross(e.dir));
-    let Some(on_line) = gap_is_zero("pm_census_ve_line_gap", off, band, errors) else {
-        return;
-    };
-    if !on_line {
-        return;
-    }
-    let s = (q - e.p0).dot(e.dir);
-    // Span Zero ⇒ endpoint territory (pass 1's finding); a span
-    // escalation on an on-line vertex is a genuine sliver.
-    let mut interior = true;
-    for m in [s, e.len - s] {
-        match decide("pm_census_ve_span", Margin::of(m), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => interior = false,
-            Err(cause) => {
-                errors.push(ValidationError::CensusEscalated { cause });
-                interior = false;
-            }
-        }
-    }
-    if interior && !declared.ve_recorded(vk, e.key) && !declared.ve_face_backed(geo, vk, e) {
+    if on_edge_interior(q, e, band, errors) == Some(true)
+        && !declared.ve_recorded(vk, e.key)
+        && !declared.ve_face_backed(geo, vk, e)
+    {
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::VertexOnEdge {
                 vertex: vk,
@@ -1392,6 +1405,36 @@ fn pair_vertex_edge<T: Decide>(
             witness: witness(q),
         });
     }
+}
+
+/// Whether `q` lies on `e`'s interior: on its line, and strictly inside
+/// its span at both ends. `None` where a decision escalated (pushed): a
+/// span escalation on an on-line point is a genuine sliver, and a span
+/// Zero is endpoint territory (pass 1's). Pass 2 and the confirm pass of
+/// a `(vertex, edge)` record ask this one question.
+fn on_edge_interior<T: Decide>(
+    q: Point3<T>,
+    e: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let off = Margin::norm3((q - e.p0).cross(e.dir));
+    if !gap_is_zero("pm_census_ve_line_gap", off, band, errors)? {
+        return Some(false);
+    }
+    let s = (q - e.p0).dot(e.dir);
+    let mut interior = Some(true);
+    for m in [s, e.len - s] {
+        match decide("pm_census_ve_span", Margin::of(m), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => interior = interior.map(|_| false),
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                interior = None;
+            }
+        }
+    }
+    interior
 }
 
 /// A signed residual as a trilean on-verdict: `Some(true)` on,
@@ -2160,10 +2203,43 @@ fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
     ea.p0 + ea.dir * geom::mid_param(lo, hi)
 }
 
+/// Whether two non-parallel edges cross at a point inside both their
+/// spans: their lines meet (`pm_census_ee_gap`) and the crossing is
+/// strictly interior to each (`pm_census_ee_span`). `None` where a
+/// decision escalated (pushed). The crossing lane and the confirm pass
+/// of an edge-edge record ask this one question.
+fn crossing_in_both_interiors<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    ncross: Vec3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let d = eb.p0 - ea.p0;
+    let gap = Margin::levered_inv(d.dot(ncross).abs(), ncross.norm());
+    if !gap_is_zero("pm_census_ee_gap", gap, band, errors)? {
+        return Some(false);
+    }
+    let (sa, sb) = ee_cross_spans(ea, eb);
+    let mut interior = Some(true);
+    for m in [sa, ea.len - sa, sb, eb.len - sb] {
+        match decide("pm_census_ee_span", Margin::of(m), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => interior = interior.map(|_| false),
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                interior = None;
+            }
+        }
+    }
+    interior
+}
+
 /// Non-parallel pair: the lines meet (gap zero) strictly inside both
 /// spans (endpoint events are pass-1/2 findings) — then the crossing
-/// is either backed by a declared pair at the unified strength
-/// ([`ee_cross_backed`]) or a hard finding, with the side verdict
+/// is backed by its edge-edge record, or by a declared pair at the
+/// unified strength ([`ee_cross_backed`]), or is a hard finding, with
+/// the side verdict
 /// NAMED in the witness when a region-holding pair refused it.
 #[allow(clippy::too_many_arguments)] // the lane's whole state, no less
 fn ee_crossing_lane<T: Decide>(
@@ -2177,24 +2253,10 @@ fn ee_crossing_lane<T: Decide>(
     region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
-    let d = eb.p0 - ea.p0;
-    let gap = Margin::levered_inv(d.dot(ncross).abs(), ncross.norm());
-    if gap_is_zero("pm_census_ee_gap", gap, band, errors) != Some(true) {
+    if crossing_in_both_interiors(ea, eb, ncross, band, errors) != Some(true) {
         return;
     }
-    let (sa, sb) = ee_cross_spans(ea, eb);
-    let mut interior = true;
-    for m in [sa, ea.len - sa, sb, eb.len - sb] {
-        match decide("pm_census_ee_span", Margin::of(m), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => interior = false,
-            Err(cause) => {
-                errors.push(ValidationError::CensusEscalated { cause });
-                interior = false;
-            }
-        }
-    }
-    if !interior {
+    if declared.ee_recorded(ea.key, eb.key) {
         return;
     }
     let q = ee_cross_point(ea, eb);
@@ -2236,6 +2298,45 @@ fn ee_crossing_lane<T: Decide>(
 /// axis is a finding when positive-length; certified iff both bounds
 /// carry a coincident vertex pair that is v-v-declared, one vertex, or
 /// two on one point (structural) — the D3 rule.
+/// The positive-length overlap `[lo, hi]` of two parallel edges on
+/// `ea`'s axis, where they are collinear: `None` where they are not, the
+/// overlap is a point or empty (pass 1's territory), or a decision
+/// escalated (pushed). The collinear lane and the confirm pass of an
+/// edge-edge record ask this one question.
+fn collinear_overlap<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<(T, T)> {
+    let off = Margin::norm3((eb.p0 - ea.p0).cross(ea.dir));
+    if gap_is_zero("pm_census_ee_line_gap", off, band, errors) != Some(true) {
+        return None;
+    }
+    let t0 = (eb.p0 - ea.p0).dot(ea.dir);
+    let t1 = t0 + eb.len * eb.dir.dot(ea.dir);
+    let (blo, bhi) = match tri_cmp(t0, t1, band, errors)? {
+        core::cmp::Ordering::Greater => (t1, t0),
+        _ => (t0, t1),
+    };
+    let lo = match tri_cmp(blo, T::zero(), band, errors)? {
+        core::cmp::Ordering::Greater => blo,
+        _ => T::zero(),
+    };
+    let hi = match tri_cmp(bhi, ea.len, band, errors)? {
+        core::cmp::Ordering::Less => bhi,
+        _ => ea.len,
+    };
+    match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
+        Ok(Sign::Positive) => Some((lo, hi)),
+        Ok(_) => None,
+        Err(cause) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            None
+        }
+    }
+}
+
 fn ee_collinear_lane<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -2244,35 +2345,9 @@ fn ee_collinear_lane<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
-    let off = Margin::norm3((eb.p0 - ea.p0).cross(ea.dir));
-    if gap_is_zero("pm_census_ee_line_gap", off, band, errors) != Some(true) {
+    let Some((lo, hi)) = collinear_overlap(ea, eb, band, errors) else {
         return;
-    }
-    let t0 = (eb.p0 - ea.p0).dot(ea.dir);
-    let t1 = t0 + eb.len * eb.dir.dot(ea.dir);
-    let (blo, bhi) = match tri_cmp(t0, t1, band, errors) {
-        Some(core::cmp::Ordering::Greater) => (t1, t0),
-        Some(_) => (t0, t1),
-        None => return,
     };
-    let lo = match tri_cmp(blo, T::zero(), band, errors) {
-        Some(core::cmp::Ordering::Greater) => blo,
-        Some(_) => T::zero(),
-        None => return,
-    };
-    let hi = match tri_cmp(bhi, ea.len, band, errors) {
-        Some(core::cmp::Ordering::Less) => bhi,
-        Some(_) => ea.len,
-        None => return,
-    };
-    match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
-        Ok(Sign::Positive) => {}
-        Ok(_) => return, // point/empty overlap: pass-1 territory
-        Err(cause) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            return;
-        }
-    }
     let backed = ee_bound_backed(ea, eb, lo, geo, declared, band, errors)
         && ee_bound_backed(ea, eb, hi, geo, declared, band, errors);
     if !backed {
@@ -5576,6 +5651,9 @@ fn confirm_declarations<T: Decide>(
     for c in &contacts.ve {
         confirm_vertex_on_edge(body, geo, *c, band, errors);
     }
+    for c in &contacts.ee {
+        confirm_edge_edge(body, geo, *c, band, errors);
+    }
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
         let stale = ValidationError::StaleContactDeclaration {
             declaration: StaleDeclaration::VertexOnFace {
@@ -5648,32 +5726,61 @@ fn confirm_vertex_on_edge<T: Decide>(
         }
         return;
     };
-    if c.vertex == e.v0 || c.vertex == e.v1 {
+    if c.vertex == e.v0 || c.vertex == e.v1 || on_edge_interior(q, e, band, errors) == Some(false) {
+        errors.push(stale);
+    }
+}
+
+/// One edge-edge record's witness: both edges live and distinct, and
+/// their interiors meet — crossing inside both spans, or overlapping
+/// along a positive length — by the edge-edge lanes' own decisions. A
+/// record on a live non-line edge refuses typed, as a `(vertex, edge)`
+/// record's does.
+fn confirm_edge_edge<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    c: crate::boolean::EeContact,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::EdgeEdge { a: c.a, b: c.b },
+    };
+    let lookup = |k: EdgeKey| geo.edges.iter().find(|e| e.key == k);
+    let (Some(ea), Some(eb)) = (lookup(c.a), lookup(c.b)) else {
+        match [c.a, c.b]
+            .into_iter()
+            .find(|&k| lookup(k).is_none() && body.get_edge(k).is_some())
+        {
+            Some(curved) => errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Edge(curved)),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "an edge-edge record is certified on line edges only",
+                    },
+                ),
+            }),
+            None => errors.push(stale),
+        }
+        return;
+    };
+    if c.a == c.b {
         errors.push(stale);
         return;
     }
-    let off = Margin::norm3((q - e.p0).cross(e.dir));
-    match gap_is_zero("pm_census_ve_line_gap", off, band, errors) {
-        Some(true) => {}
-        Some(false) => {
-            errors.push(stale);
-            return;
-        }
-        None => return,
-    }
-    let s = (q - e.p0).dot(e.dir);
-    for m in [s, e.len - s] {
-        match decide("pm_census_ve_span", Margin::of(m), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => {
-                errors.push(stale);
-                return;
-            }
-            Err(cause) => {
-                errors.push(ValidationError::CensusEscalated { cause });
-                return;
-            }
-        }
+    let ncross = ea.dir.cross(eb.dir);
+    let meet = match gap_is_zero(
+        "pm_census_ee_parallel",
+        Margin::levered(ncross.norm(), ea.len.min(eb.len)),
+        band,
+        errors,
+    ) {
+        Some(false) => crossing_in_both_interiors(ea, eb, ncross, band, errors),
+        Some(true) => Some(collinear_overlap(ea, eb, band, errors).is_some()),
+        None => None,
+    };
+    if meet == Some(false) {
+        errors.push(stale);
     }
 }
 

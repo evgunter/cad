@@ -452,6 +452,11 @@ fn stale_declaration_and_ring_contact_are_matchable(
             named::<EdgeKey>(edge);
             "vertex_on_edge"
         }
+        StaleDeclaration::EdgeEdge { a, b } => {
+            named::<EdgeKey>(a);
+            named::<EdgeKey>(b);
+            "edge_edge"
+        }
         StaleDeclaration::CurveLocus {
             face_a,
             face_b,

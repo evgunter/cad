@@ -59,11 +59,13 @@
 //!
 //! # Carried contacts
 //!
-//! Result bodies carry the declared-contact records whose entities
-//! survive into the result, remapped to result keys (B-side keys
-//! through the combine door's graft map). Records referencing
-//! discarded entities are dropped — a contact between A and B is only
-//! meaningful in a result containing both sides.
+//! Result bodies carry the contact records, discovered and carried, in
+//! result keys, through one substitution door ([`carry`]): B-side keys
+//! cross by the combine door's graft map, and a record whose cell an op
+//! replaced names the replacement. A record leaves only where its cell
+//! left the result (a contact between A and B is only meaningful in a
+//! result holding both sides), or where its two cells became one or
+//! incident, which is structure.
 //!
 //! # Known limitations (PR 5.5 — the honest envelope)
 //!
@@ -122,8 +124,8 @@ use super::voids;
 use super::zip::{SeamCorrespondence, survivor, survivor_checked, zip_seam};
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts, Cell,
-    ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SweepStrategy,
-    VeContact, VfContact, VvContact,
+    ContactRecords, CurveContact, EeContact, FacePairDeclaration, Operand, PatchContact,
+    SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
@@ -2483,7 +2485,7 @@ pub(super) struct Descendants {
     vertices: Vec<(VertexKey, VertexKey)>,
     /// Merge absorption, absorbed face → the group's kept face: an
     /// acyclic relation, since a kept face is never absorbed. A cycle
-    /// is a corrupt record, and [`Self::live_face`] refuses it typed.
+    /// is a corrupt record, and [`Self::live`] refuses it typed.
     faces: std::collections::BTreeMap<FaceKey, FaceKey>,
     /// Every vertex that participated in a zip fusion (dead OR kept):
     /// its point rests were consumed into seam structure.
@@ -2739,10 +2741,11 @@ pub(super) struct Rows {
 
 impl Rows {
     pub(super) fn of(carried: &CarriedContacts) -> Self {
+        let CarriedContacts { vv, vf, ve } = carried;
         Self {
-            vv: carried.vv.iter().map(|c| c.pair).collect(),
-            vf: carried.vf.iter().map(|c| c.rest).collect(),
-            ve: carried.ve.clone(),
+            vv: vv.iter().map(|c| c.pair).collect(),
+            vf: vf.iter().map(|c| c.rest).collect(),
+            ve: ve.clone(),
         }
     }
 }
@@ -2770,18 +2773,21 @@ type End = (Operand, Cell);
 /// Every two distinct, non-incident cells the group's ends map to are
 /// recorded, though no single record named that pair: what the ops'
 /// own coincidences imply, read from keys and never from positions.
-/// A pair landing on two edges, or an edge and a face, is the overlap
-/// the census reconstructs from its bounds, so it has no stored kind.
+/// A pair landing on two edges is an edge-edge record (two joined
+/// vertices that coincided: the edges cross or overlap there). A pair
+/// landing on an edge and a face has no stored kind: an edge resting in
+/// a face overlaps it, which the census certifies from its bounds.
 ///
-/// **Vertex-on-face records keep the vertex's own key.** A vertex a zip
-/// fused now bounds the faces it rested on: the substituted pair is an
-/// incidence, and it collapses as one.
+/// **A vertex a zip fused** sits on the seam, on the boundary of the
+/// face a vertex-on-face record named: the substituted pair is an
+/// incidence, and it collapses as one, read off the fusion rather than
+/// the face, whose fragment holding the vertex has no lineage.
 ///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] on a corrupt fusion list or cycling
 /// substitution rows ([`Descendants::live`]), and on a reduction that
-/// handed a `(vertex, edge)` record it never mints.
+/// handed a `(vertex, edge)` or edge-edge record, which it never mints.
 pub(super) fn carry<T: Real>(
     body: &Body<T>,
     discovered: &ContactRecords,
@@ -2789,9 +2795,9 @@ pub(super) fn carry<T: Real>(
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
 ) -> Result<ContactRecords, BooleanError> {
-    if !discovered.ve.is_empty() {
+    if !discovered.ve.is_empty() || !discovered.ee.is_empty() {
         return Err(BooleanError::JoinDesync {
-            what: "a reduction handed a vertex-on-edge record, which it never mints",
+            what: "a reduction handed a vertex-on-edge or edge-edge record, which it never mints",
         });
     }
     carry_rows(body, discovered, carried, views, desc, false)
@@ -2940,14 +2946,23 @@ fn carry_rows<T: Real>(
                 .map(move |c| ((side, c.vertex), (side, c.face)))
         }));
     for ((vs, v), (fs, f)) in vf_rows {
-        let Some(k) = view(vs).vertex(v) else {
-            continue;
-        };
-        if desc.fused.contains(&k) || body.get_vertex(k).is_none() {
+        // A vertex a zip fused sits on the seam, on the boundary of the
+        // face it rested on: the substituted pair is an incidence.
+        if view(vs).vertex(v).is_some_and(|k| desc.fused.contains(&k)) {
             continue;
         }
-        if let Some(c) = desc.live(body, fs, view(fs), Cell::Face(f))? {
-            record(body, &mut out, (vs, Cell::Vertex(k)), (fs, c));
+        if let (Some(x), Some(y)) = (
+            desc.live(body, vs, view(vs), Cell::Vertex(v))?,
+            desc.live(body, fs, view(fs), Cell::Face(f))?,
+        ) {
+            record(body, &mut out, (vs, x), (fs, y));
+        }
+    }
+    // Edge-edge records, in one arena (no reduction mints one).
+    for c in &discovered.ee {
+        let edge = |e| desc.live(body, Operand::A, view(Operand::A), Cell::Edge(e));
+        if let (Some(x), Some(y)) = (edge(c.a)?, edge(c.b)?) {
+            record(body, &mut out, (Operand::A, x), (Operand::A, y));
         }
     }
     // The face-granularity records: the faces chase, and so does the
@@ -3019,6 +3034,15 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End) {
                 });
             if !incident && !out.ve.iter().any(|r| (r.vertex, r.edge) == (vertex, edge)) {
                 out.ve.push(VeContact { vertex, edge });
+            }
+        }
+        (Cell::Edge(a), Cell::Edge(b)) if a != b => {
+            if !out
+                .ee
+                .iter()
+                .any(|r| (r.a, r.b) == (a, b) || (r.a, r.b) == (b, a))
+            {
+                out.ee.push(EeContact { a, b });
             }
         }
         (Cell::Vertex(vertex), Cell::Face(face)) | (Cell::Face(face), Cell::Vertex(vertex)) => {
@@ -5011,6 +5035,31 @@ mod tests {
             .unwrap();
         let kept = merged.groups[0].kept;
         let face = body.faces().map(|(k, _)| k).find(|&f| f != kept).unwrap();
+        // The seam edges the glue killed land on the kept face too: a
+        // `(vertex, edge)` record naming one becomes the vertex resting
+        // on that face. Red when the merge's killed edges get no
+        // substitution row (the record drops).
+        let killed_edges = &merged.groups[0].killed_edges;
+        assert!(!killed_edges.is_empty(), "the glue killed the seam's edges");
+        for &edge in killed_edges {
+            let on_edge = ContactRecords {
+                ve: vec![crate::boolean::VeContact {
+                    vertex: survivor,
+                    edge,
+                }],
+                ..ContactRecords::default()
+            };
+            assert_eq!(
+                super::carry_in_place(&body, &on_edge, &desc)
+                    .unwrap()
+                    .a_on_b,
+                vec![VfContact {
+                    vertex: survivor,
+                    face: kept
+                }],
+                "{edge:?}: the record lands on the kept face"
+            );
+        }
         desc.vertices.push((fused_in, bend));
         desc.fused.insert(bend);
         let lands = |v| desc.live(&body, Operand::A, &KeyView::Direct, Cell::Vertex(v));
@@ -5069,6 +5118,91 @@ mod tests {
                 vertex: other,
                 face
             }]
+        );
+    }
+
+    /// **Each zip edge row pairs a ring edge with the seam edge it lies
+    /// on.** The real pipeline up to the zips, on a pierce and on a
+    /// flush overlap: before each zip, every row's two edges span one
+    /// segment (the same two end points). Red when a ring edge is
+    /// paired with the seam edge of its own index: `align` runs `rs[j]`
+    /// between the correspondents of `ob[j]`'s start and `ob[j − 1]`'s,
+    /// so its segment is `ob[j − 1]`'s, and a record naming the ring
+    /// edge would land on a neighbouring edge.
+    #[test]
+    fn every_zip_edge_row_pairs_a_ring_edge_with_the_seam_edge_it_lies_on() {
+        use super::{Joined, SweepStrategy, fused_through, through_the_join, zip_seam};
+        use crate::boolean::BooleanOp;
+        use crate::test_support_fixtures::brick;
+        let tol = Tol::witness();
+        let ends = |body: &crate::Body<f64>, e: crate::entity::EdgeKey| {
+            let d = body.get_edge(e).unwrap();
+            let mut ps = [d.he_plus, d.he_minus].map(|h| {
+                let v = body.get_half_edge(h).unwrap().start;
+                let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                [p.x, p.y, p.z]
+            });
+            ps.sort_by(|p, q| p.partial_cmp(q).unwrap());
+            ps
+        };
+        let near = |p: [[f64; 3]; 2], q: [[f64; 3]; 2]| {
+            p.iter()
+                .flatten()
+                .zip(q.iter().flatten())
+                .all(|(x, y)| (x - y).abs() < 1e-9)
+        };
+        let mut rows = 0;
+        for (label, a, b) in [
+            (
+                "pierce",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((0.5, 1.5), (0.2, 0.8), (0.2, 0.8), tol),
+            ),
+            (
+                "corner",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol),
+            ),
+        ] {
+            let decls = super::BooleanDeclarations::none();
+            let Joined::Connected { red, connected, .. } = through_the_join(
+                BooleanOp::Union,
+                &a,
+                &b,
+                &decls,
+                SweepStrategy::Realized,
+                true,
+                tol,
+            )
+            .unwrap() else {
+                panic!("{label}: the union joins");
+            };
+            let fin = super::setopfinish(BooleanOp::Union, *red, &connected, &a, &b, band(), tol)
+                .unwrap();
+            let mut body = fin.body;
+            let mut vertex_map = fin.vertex_map.clone();
+            for &(a_face, b_face) in &fin.seams {
+                let before = body.clone();
+                let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol).unwrap();
+                assert!(
+                    !rep.edge_merges.is_empty(),
+                    "{label}: the zip kills ring edges"
+                );
+                for &(dead, kept) in &rep.edge_merges {
+                    assert!(
+                        near(ends(&before, dead), ends(&before, kept)),
+                        "{label}: ring edge {dead:?} {:?} paired with seam edge {kept:?} {:?}",
+                        ends(&before, dead),
+                        ends(&before, kept)
+                    );
+                    rows += 1;
+                }
+                vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
+            }
+        }
+        assert!(
+            rows >= 8,
+            "two section polygons of four edges each at least: {rows}"
         );
     }
 

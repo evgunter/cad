@@ -174,16 +174,17 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// The id-free body rows (`m4_pr8_corpus`'s exact mass pins,
 /// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
 /// declares nothing held its word.
-/// Re-blessed when contact records gained the `(vertex, edge)` kind:
-/// the digest feeds the records' `Debug`, which now prints an empty
-/// `ve` list; with that field stripped every constant here held.
+/// Re-blessed when contact records gained the `(vertex, edge)` and
+/// edge-edge kinds: the digest feeds the records' `Debug`, which now
+/// prints empty `ve` and `ee` lists; with those fields stripped every
+/// constant here held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xcea6_3bbf_f0ce_47adu64),
-        ("part_select", 0x36f5_742d_377e_8fd3),
-        ("kitchen_sink", 0xaa9e_23cf_952c_1b53),
+        ("part_select", 0x7273_52cb_0266_c56f),
+        ("kitchen_sink", 0xadb2_1e39_d9af_1747),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

@@ -415,8 +415,7 @@ pub struct VfContact {
 }
 
 /// A vertex-on-edge record: `vertex` rests on the interior of `edge`,
-/// a cell of another shell (or of the same shell's other side of a
-/// pinch). It is what a join leaves of a v-v record whose partner it
+/// a cell of the other touching side ([`Cell`]). It is what a join leaves of a v-v record whose partner it
 /// joined away, and what an edge split hands the piece the vertex lies
 /// on: the cell pair `(vertex, edge)`, never a point or a parameter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -425,6 +424,21 @@ pub struct VeContact {
     pub vertex: VertexKey,
     /// The edge whose interior holds it.
     pub edge: crate::entity::EdgeKey,
+}
+
+/// An edge-edge record: the interiors of edges `a` and `b`, of the two
+/// touching sides ([`Cell`]), meet — at a point where they cross, or along a
+/// segment where they overlap. A crossing has no bound a vertex record
+/// can hold, so this record is what backs it; an overlap is certified
+/// from its bounds whether or not it is held. The cell pair `(a, b)`,
+/// unordered: what a substitution leaves of a v-v record whose two
+/// vertices were both joined into edges.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EeContact {
+    /// One edge.
+    pub a: crate::entity::EdgeKey,
+    /// The other.
+    pub b: crate::entity::EdgeKey,
 }
 
 /// One edge split a boolean's reduction made in an operand clone:
@@ -446,13 +460,18 @@ pub(crate) struct EdgeSplit {
 
 /// One cell of a body: what a contact record names, two at a time.
 ///
-/// A record is a pair of cells whose interiors meet. Its kind is the
-/// pair's dimensions: vertex/vertex ([`VvContact`]), vertex/edge
-/// ([`VeContact`]), vertex/face ([`VfContact`]), face/face
-/// ([`CurveContact`], [`PatchContact`]). Edge/edge and edge/face
-/// contacts are certified from their bounds, each a vertex event of one
-/// of the kinds above (`topo::census`, the D3 rule), so they have no
-/// stored kind.
+/// A record is a pair of cells, one from each touching side, whose
+/// interiors meet. Its kind is the pair's dimensions: vertex/vertex
+/// ([`VvContact`]), vertex/edge ([`VeContact`]), vertex/face
+/// ([`VfContact`]), edge/edge ([`EeContact`]), face/face
+/// ([`CurveContact`], [`PatchContact`]). Edge/face contacts are
+/// certified from their bounds, each a vertex event of one of the kinds
+/// above (`topo::census`, the D3 rule): an edge resting in a face
+/// overlaps it, and a transverse pierce is never contact, so the kind
+/// is not stored.
+///
+/// A side is a shell, or one side of a shell's pinch: a pinch's two
+/// sides touch within one shell, and their records name its cells.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Cell {
     /// A vertex.
@@ -530,8 +549,10 @@ pub struct ContactRecords {
     pub a_on_b: Vec<VfContact>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<VfContact>,
-    /// Vertices resting on another shell's edge interior.
+    /// Vertices resting on the other side's edge interiors.
     pub ve: Vec<VeContact>,
+    /// Edges whose interiors meet the other side's.
+    pub ee: Vec<EeContact>,
     /// Curve-granularity contacts (C3).
     pub curves: Vec<CurveContact>,
     /// Patch-granularity contacts (C3) — see [`PatchContact`] for the
@@ -544,26 +565,32 @@ impl ContactRecords {
     /// order. A face/face record's witness edge is not a cell of the
     /// pair: it is where the pair's contact is certified.
     pub fn cell_pairs(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
-        let vv = self
-            .vv
+        // Every field, by name: a new kind fails to compile here until
+        // it says which pair it is.
+        let Self {
+            vv,
+            a_on_b,
+            b_on_a,
+            ve,
+            ee,
+            curves,
+            patches,
+        } = self;
+        let vv = vv.iter().map(|c| (Cell::Vertex(c.a), Cell::Vertex(c.b)));
+        let vf = a_on_b
             .iter()
-            .map(|c| (Cell::Vertex(c.a), Cell::Vertex(c.b)));
-        let vf = self
-            .a_on_b
-            .iter()
-            .chain(&self.b_on_a)
+            .chain(b_on_a)
             .map(|c| (Cell::Vertex(c.vertex), Cell::Face(c.face)));
-        let ve = self
-            .ve
+        let ve = ve
             .iter()
             .map(|c| (Cell::Vertex(c.vertex), Cell::Edge(c.edge)));
-        let ff = self
-            .curves
+        let ee = ee.iter().map(|c| (Cell::Edge(c.a), Cell::Edge(c.b)));
+        let ff = curves
             .iter()
             .map(|c| (c.face_a, c.face_b))
-            .chain(self.patches.iter().map(|c| (c.face_a, c.face_b)))
+            .chain(patches.iter().map(|c| (c.face_a, c.face_b)))
             .map(|(a, b)| (Cell::Face(a), Cell::Face(b)));
-        vv.chain(vf).chain(ve).chain(ff)
+        vv.chain(vf).chain(ve).chain(ee).chain(ff)
     }
 
     /// The same records with every cell re-keyed through `key`, a map
@@ -592,9 +619,17 @@ impl ContactRecords {
                 face: face(c.face)?,
             })
         };
+        let Self {
+            vv,
+            a_on_b,
+            b_on_a,
+            ve,
+            ee,
+            curves,
+            patches,
+        } = self;
         Ok(Self {
-            vv: self
-                .vv
+            vv: vv
                 .iter()
                 .map(|c| {
                     Ok(VvContact {
@@ -603,10 +638,9 @@ impl ContactRecords {
                     })
                 })
                 .collect::<Result<_, _>>()?,
-            a_on_b: self.a_on_b.iter().map(vf).collect::<Result<_, _>>()?,
-            b_on_a: self.b_on_a.iter().map(vf).collect::<Result<_, _>>()?,
-            ve: self
-                .ve
+            a_on_b: a_on_b.iter().map(vf).collect::<Result<_, _>>()?,
+            b_on_a: b_on_a.iter().map(vf).collect::<Result<_, _>>()?,
+            ve: ve
                 .iter()
                 .map(|c| {
                     Ok(VeContact {
@@ -615,8 +649,16 @@ impl ContactRecords {
                     })
                 })
                 .collect::<Result<_, _>>()?,
-            curves: self
-                .curves
+            ee: ee
+                .iter()
+                .map(|c| {
+                    Ok(EeContact {
+                        a: edge(c.a)?,
+                        b: edge(c.b)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            curves: curves
                 .iter()
                 .map(|c| {
                     Ok(CurveContact {
@@ -626,8 +668,7 @@ impl ContactRecords {
                     })
                 })
                 .collect::<Result<_, _>>()?,
-            patches: self
-                .patches
+            patches: patches
                 .iter()
                 .map(|c| {
                     Ok(PatchContact {
@@ -687,7 +728,8 @@ pub struct CarriedVf {
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        self.vv.is_empty() && self.vf.is_empty() && self.ve.is_empty()
+        let Self { vv, vf, ve } = self;
+        vv.is_empty() && vf.is_empty() && ve.is_empty()
     }
 }
 
@@ -5143,6 +5185,14 @@ fn validate_declarations<T: Decide>(
             }
             if body.get_face(rest.face).is_none() {
                 return Err(bad(operand, "carried v-on-f face key does not resolve"));
+            }
+        }
+        for rest in &c.ve {
+            if body.get_vertex(rest.vertex).is_none() {
+                return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
+            }
+            if body.get_edge(rest.edge).is_none() {
+                return Err(bad(operand, "carried v-on-e edge key does not resolve"));
             }
         }
         Ok(())

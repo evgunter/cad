@@ -971,7 +971,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
 /// (a right-handed triple), scaled by `scale`: the linear image of the
 /// unit right prism, so its faces stay planar and its corner cone is
 /// the rays' own.
-fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestBody<f64> {
+pub(crate) fn corner_prism(rays: [[f64; 3]; 3], scale: f64, tol: Tol) -> AtRestBody<f64> {
     let mut body = Body::<f64>::new();
     common::prism_ops(
         &mut body,

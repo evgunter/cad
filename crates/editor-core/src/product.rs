@@ -1420,12 +1420,24 @@ fn carry_contacts(
             Cell::Edge(_) => "edge",
             Cell::Face(_) => "face",
         })?;
-    into.vv.extend(moved.vv);
-    into.a_on_b.extend(moved.a_on_b);
-    into.b_on_a.extend(moved.b_on_a);
-    into.ve.extend(moved.ve);
-    into.curves.extend(moved.curves);
-    into.patches.extend(moved.patches);
+    // Every field, by name: a new record kind fails to compile here
+    // until it is carried.
+    let ContactRecords {
+        vv,
+        a_on_b,
+        b_on_a,
+        ve,
+        ee,
+        curves,
+        patches,
+    } = moved;
+    into.vv.extend(vv);
+    into.a_on_b.extend(a_on_b);
+    into.b_on_a.extend(b_on_a);
+    into.ve.extend(ve);
+    into.ee.extend(ee);
+    into.curves.extend(curves);
+    into.patches.extend(patches);
     Ok(())
 }
 
