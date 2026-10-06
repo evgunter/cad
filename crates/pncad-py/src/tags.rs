@@ -199,6 +199,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
         PathErrorKind::Structure => "guided_structure",
         PathErrorKind::DegenerateArcSpec => "degenerate_arc_spec",
+        PathErrorKind::ArcSweepNotShortOfFullTurn => "arc_sweep_not_short_of_full_turn",
         PathErrorKind::NonpositiveLeg => "nonpositive_leg",
         PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
         PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
@@ -1553,7 +1554,6 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::Escalated { .. } => "escalated",
         BlendError::RepeatedEdge { .. } => "repeated_edge",
         BlendError::NonpositiveSize { .. } => "nonpositive_size",
-        BlendError::UnsupportedBody { .. } => "unsupported_body",
         BlendError::UnsupportedChain { .. } => "unsupported_chain",
         BlendError::UnsupportedRunOut { .. } => "unsupported_run_out",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
@@ -3200,6 +3200,8 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
     match declaration {
         StaleDeclaration::VertexVertex { .. } => "vertex_vertex",
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::VertexOnEdge { .. } => "vertex_on_edge",
+        StaleDeclaration::EdgeEdge { .. } => "edge_edge",
         StaleDeclaration::CurveLocus { .. } => "curve_locus",
         StaleDeclaration::Patch { .. } => "patch",
     }

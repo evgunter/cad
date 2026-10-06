@@ -444,3 +444,64 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   row stays, because #3955 (started before the hold) folds it in.
   Dispatched `one-home-for-where-a-shell-stands` (P2, off the held
   ground) on `fuse/one-home-shell-stands`.
+
+- 2026-10-06 — PR 3955 (step 1 of the 3881 build), dual review:
+  - Lane 1 (records, census, D10): mergeable.
+  - Lane 2 (carriage, lineage, join): not mergeable, on three MAJORs:
+    - **M1:** zip `edge_merges` pairs each ring edge one seam edge off.
+    - **M2:** the join collapses a transverse crossing's v-v pair onto
+      (edge, edge) and drops it. The orchestrator rules this within
+      Ev's PR 3881 text, so not a fork: a cell-pair record of two edge
+      interiors meeting is a contact record. Add a stored edge/edge
+      *crossing* record, which the census uses to back
+      `EdgeEdgeCross`. Excluding contact vertices from the join would
+      break maximal edges.
+    - **M3:** edge-split lineage's stay-on-parent branch is unreached.
+  - Sent as one fix pass, with lane 1's minors: stale premises, the two
+    DESIGN.md definitions of a contact record made to agree, and D10
+    wording in the pyi.
+  - PR 3953 lands first, then 3955 flips its lens pins to clean.
+- 2026-10-06 — PR 3953: FULL review, mergeable. The fix pass is out:
+  stale variant doc, the equal-codes arm made an invariant, the hook
+  reverses within-plan record order and counts only the op under test,
+  and the pins assert locations.
+- 2026-10-06 — PR 3955 lands as step 1 of the PR 3881 build: cell-pair
+  records (`VeContact`, `EeContact`), census both ways, one substitution
+  door, edge-split lineage, and the unwired join. The dual review's
+  MAJORs were fixed and re-checked. Lane 2's n2: the fix pass deleted
+  ZIP's slit-zip row although it still holds in part, so the
+  orchestrator re-filed it with the corrected premise and folded in n1
+  (the REST lane's new edge rows are untested). The unit row returns to
+  `open` for step 2.
+
+- 2026-10-06 — Dispatched step 2 of the PR 3881 build (the join at
+  every output stage; sweeps build one rim per run; `ee` carriage) on
+  `fuse/join-every-stage`. It is topology, outside the D10 hold.
+- 2026-10-06 — Main is red at eps 1e-6 on `sweep::all
+  pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates`.
+  The orchestrator reproduced it on main alone. It is JOIN's
+  (`bool_join_nearest` in `join::nearer`), filed by the 3953 lane as
+  `work/join/a-pinch-face-tessellation-witness-refuses-bool-join-nearest-at-eps-1e-6.md`.
+  PR 3953 is held on it rather than merged on red. PR 3955 landed
+  first.
+
+- 2026-10-06 — PR 4140 (step 2a of the 3881 build) is open on
+  `fuse/join-every-stage`. The join runs at every boolean output stage,
+  and `ee` records carry into a later op. The kernel is green. 33
+  editor-core naming rows are red: a joined flush rim is one edge
+  across two members' rims, which only step 4's set names can name.
+  The orchestrator's ruling: step 4 is built now, by a new lane on
+  `fuse/set-names` branched from 4140, with its PR based on
+  `fuse/join-every-stage`. Steps 2 and 4 then land on main together
+  in 4140, so main never carries the red rows. Ev's "each step its own
+  unit" holds as rows, and only the landing is shared. Step 4 is on
+  EMIT's ground, so a seam note is posted on EMIT's log.
+- The parts of step 2 that are not built yet, (b) sweeps building one
+  rim per run and (c) curved joinable vertices, are being filed as P1
+  rows ahead of step 3. Step 3's check stays planar-only until (c)
+  lands.
+- The 4140 dual review is dispatched: lane 1 covers design
+  conformance and carriage, including the new `held_by_ends` door
+  fallback; lane 2 covers correctness, readers, mutants and timing.
+- PR 3953 and PR 4108 are still held on JOIN's eps-1e-6 red on main
+  (`work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md`, open P0).

@@ -43,8 +43,8 @@
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
-use crate::entity::{EntityId, FaceKey, LoopBoundary};
-use crate::live::linked;
+use crate::entity::FaceKey;
+use crate::live::BoundaryMember;
 use crate::validate::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -123,8 +123,9 @@ type Unmated<T> = Vec<(FaceKey, Rim<T>)>;
 /// # Panics
 ///
 /// Where a record past a resolved member does not resolve or its loop
-/// walk does not close (D2 row 4): its outer loop, each member's mate
-/// and that mate's face, and each edge's curve. The links hold at rest
+/// walk does not close (D2 row 4): its outer loop, a lone vertex's
+/// point, each member's edge, its mate and that mate's face, and each
+/// edge's curve. The links hold at rest
 /// and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 fn unmated_boundary<T: Decide>(
@@ -137,18 +138,10 @@ fn unmated_boundary<T: Decide>(
         if !f.rings.is_empty() {
             return Ok(None);
         }
-        let LoopBoundary::Cycle { first } = linked(
-            &body.loops,
-            f.outer,
-            EntityId::Loop,
-            EntityId::Face(member),
-            "outer",
-        )
-        .boundary
-        else {
-            return Ok(None);
-        };
-        for he in body.loop_walk(first).closed("loop", first) {
+        for boundary in body.face_boundary_linked(member, f) {
+            let BoundaryMember::Edge { he, .. } = boundary else {
+                return Ok(None);
+            };
             let hop = body.proven_mate(he, crate::live::Proven);
             if members.contains(&body.face_of_linked(hop.mate)) {
                 continue;

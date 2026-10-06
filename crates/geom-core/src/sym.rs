@@ -134,10 +134,10 @@
 //! registrant states the identities ITS construction guarantees about
 //! nodes it builds identically to the consumer's, and the registry's
 //! alias is transitive, so facts stated at two constructions chain. A
-//! profile arc's lowering (`profile::lower_arc`, through
-//! `Arc2::register_endpoints`) states its endpoint facts in the sketch:
-//! the rim at each end is the radius, and the carrier's end is the far
-//! vertex. The sweep that places the arc states only rigidity
+//! profile arc's construction (the path door's, through
+//! `Arc2::register_endpoints`) states the endpoint facts its algebra
+//! proves in the sketch: the rim at each end is the radius, and the
+//! carrier's end is the far vertex. The sweep that places the arc states only rigidity
 //! (`sweep::swept::register_rigidity`, `register_placed_carrier_end`):
 //! the placed rim is the sketch rim, and the placed carrier at its span
 //! is the sketch carrier's end, placed — the latter same-object because

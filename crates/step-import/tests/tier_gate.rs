@@ -829,7 +829,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "../step-export/tests/fixtures/washer.step",
-        Pass(1, 1, 4, 8, 4),
+        Pass(1, 1, 4, 6, 4),
     ),
 ];
 

@@ -3532,6 +3532,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ContactSecondOrder,
         BlendDecision::CornerIndependence,
         BlendDecision::CapTransverse,
+        BlendDecision::CutOffFeet,
     ] {
         let refused = BlendError::Escalated {
             site: BlendSite::Link {
@@ -4121,6 +4122,20 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
             face: FaceKey::default(),
         }),
         Some("vertex_on_face")
+    );
+    assert_eq!(
+        word(StaleDeclaration::VertexOnEdge {
+            vertex: VertexKey::default(),
+            edge: Default::default(),
+        }),
+        Some("vertex_on_edge")
+    );
+    assert_eq!(
+        word(StaleDeclaration::EdgeEdge {
+            a: Default::default(),
+            b: Default::default(),
+        }),
+        Some("edge_edge")
     );
     assert_eq!(
         word(StaleDeclaration::CurveLocus {
@@ -4730,7 +4745,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
-            "unsupported_body",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",
@@ -5572,6 +5586,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_center_not_equidistant",
             "arc_leg_on_open_fillet",
+            "arc_sweep_not_short_of_full_turn",
             "arc_via_collinear",
             "band",
             "circle_split_count",
@@ -6038,7 +6053,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "stale_declaration_tag",
-        values: &["curve_locus", "patch", "vertex_on_face", "vertex_vertex"],
+        values: &[
+            "curve_locus",
+            "edge_edge",
+            "patch",
+            "vertex_on_edge",
+            "vertex_on_face",
+            "vertex_vertex",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -6501,7 +6523,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `expression_evaluation_tags_are_stable` pins both.
     ("var_kind_mismatch", 2),
     ("vertex", 2),
-    ("vertex_on_edge", 2),
+    // One fact: the census's finding and the stale record name one
+    // contact kind, the cell pair (vertex, edge); the ring word is the
+    // same shape on a face's own loop.
+    ("vertex_on_edge", 3),
     ("vertex_on_face", 2),
     ("vertex_vertex", 3),
     // One fact (A4, A11 (2)): a declaring mate a re-gauge would turn

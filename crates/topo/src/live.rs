@@ -302,10 +302,16 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
 
 /// One member of a face's boundary ([`Body::face_boundary_linked`]).
 pub(crate) enum BoundaryMember<'a, T: Real> {
-    /// An isolated-vertex loop's point.
-    Isolated(Point3<T>),
-    /// A loop cycle member's edge `ek`, whose record is `edge`.
-    Edge { ek: EdgeKey, edge: &'a Edge },
+    /// An isolated-vertex loop's `vertex`, at `point`.
+    Isolated { vertex: VertexKey, point: Point3<T> },
+    /// A loop cycle member `he`, whose record is `half`, and its edge
+    /// `ek`, whose record is `edge`.
+    Edge {
+        he: HalfEdgeKey,
+        half: &'a HalfEdge,
+        ek: EdgeKey,
+        edge: &'a Edge,
+    },
 }
 
 impl<T: Real> Body<T> {
@@ -365,40 +371,55 @@ impl<T: Real> Body<T> {
     }
 
     /// `face`'s boundary, member by member, in [`Body::face_loops_linked`]'s
-    /// order: each isolated-vertex loop's point, and each closed loop
-    /// cycle member's edge. Every hop is a link, and a loop
-    /// walk that does not close panics ([`crate::body::Walk::closed`]).
+    /// order: each isolated-vertex loop's vertex and point, and each
+    /// closed loop cycle member with its edge. Every hop is a link, and a
+    /// loop walk that does not close panics ([`crate::body::Walk::closed`]).
     pub(crate) fn face_boundary_linked<'a>(
         &'a self,
         face: FaceKey,
         data: &'a Face,
     ) -> impl Iterator<Item = BoundaryMember<'a, T>> + 'a {
+        self.face_boundary_by_loop(face, data)
+            .flat_map(|(_, members)| members)
+    }
+
+    /// [`Body::face_boundary_linked`] a loop at a time: each loop's key
+    /// and its members, so a reader that needs a cycle whole has it.
+    pub(crate) fn face_boundary_by_loop<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = (LoopKey, Vec<BoundaryMember<'a, T>>)> + 'a {
         self.face_loops_linked(face, data)
-            .flat_map(move |(lk, l)| match l.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    vec![BoundaryMember::Isolated(self.linked_vertex_point(
-                        vertex,
-                        EntityId::Loop(lk),
-                        "vertex",
-                    ))]
-                }
-                LoopBoundary::Cycle { first } => self
-                    .loop_walk(first)
-                    .closed("loop", first)
-                    .into_iter()
-                    .map(|he| {
-                        let ek = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
-                        let edge = linked(
-                            &self.edges,
-                            ek,
-                            EntityId::Edge,
-                            EntityId::HalfEdge(he),
-                            "edge",
-                        );
-                        BoundaryMember::Edge { ek, edge }
-                    })
-                    .collect(),
-            })
+            .map(move |(lk, l)| (lk, self.loop_members_linked(lk, l)))
+    }
+
+    /// Loop `lk`'s members (its record is `l`), as
+    /// [`Body::face_boundary_linked`] yields them.
+    pub(crate) fn loop_members_linked(&self, lk: LoopKey, l: &Loop) -> Vec<BoundaryMember<'_, T>> {
+        match l.boundary {
+            LoopBoundary::Empty { vertex } => {
+                let point = self.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary");
+                vec![BoundaryMember::Isolated { vertex, point }]
+            }
+            LoopBoundary::Cycle { first } => self
+                .loop_walk(first)
+                .closed("loop", first)
+                .into_iter()
+                .map(|he| {
+                    let half = proven(&self.half_edges, he, EntityId::HalfEdge);
+                    let ek = half.edge;
+                    let edge = linked(
+                        &self.edges,
+                        ek,
+                        EntityId::Edge,
+                        EntityId::HalfEdge(he),
+                        "edge",
+                    );
+                    BoundaryMember::Edge { he, half, ek, edge }
+                })
+                .collect(),
+        }
     }
 
     /// [`Body::resolve_vertex_point`] for a vertex `holder`'s field `link`
@@ -521,9 +542,11 @@ impl<T: Real> Body<T> {
 // Test-support code: panicking is a test's failure mechanism (L5).
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Arg, Live};
+    use super::{Arg, BoundaryMember, Live};
     use crate::body::Body;
-    use crate::entity::{EdgeKey, EntityId, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
+    use crate::entity::{
+        EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
+    };
     use crate::euler::{BadArgument, EulerOpError};
     use crate::fixtures::pillow;
     use crate::source_walk::{CodeOnly, crate_sources, src_root, tokens};
@@ -984,6 +1007,164 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             vec!["new", "of", "deeper", "point_free", "resolved", "wrong_key"],
             "a construction site was credited to an item other than the innermost one \
              holding it"
+        );
+    }
+
+    /// [`crate::fixtures::ops_two_ring_face`]'s face given a third ring,
+    /// a triangle planted beside the hole: an outer cycle, then rings
+    /// `[hole, tip, pocket]` — a cycle, a lone vertex, a cycle — so the
+    /// lone-vertex ring sits between two cycle rings. Returns the body,
+    /// the face, its loops in that order and the tip's point.
+    fn three_ring_face() -> (Body<f64>, FaceKey, [LoopKey; 4], geom_core::Point3<f64>) {
+        let tol = Tol::witness();
+        let t = crate::fixtures::ops_two_ring_face(tol);
+        let mut body = t.body;
+        let LoopBoundary::Cycle { first } = body.get_loop(t.outer).unwrap().boundary else {
+            panic!("the ringed face's outer loop is a cycle")
+        };
+        let z = body
+            .get_point(
+                body.get_vertex(body.get_half_edge(first).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap()
+            .z;
+        let rim =
+            [(0.85, 0.4), (0.95, 0.5), (0.85, 0.6)].map(|(x, y)| geom_core::Point3::new(x, y, z));
+        let pocket = crate::test_support_fixtures::plant_ring_face(&mut body, first, &rim, tol)
+            .kill
+            .ring;
+        let rings = &body.get_face(t.face).unwrap().rings;
+        assert_eq!(
+            rings[..],
+            [t.hole, t.tip, pocket],
+            "fixture: the ring order"
+        );
+        assert_eq!(crate::validate::validate(&body), Ok(()), "fixture: valid");
+        let LoopBoundary::Empty { vertex } = body.get_loop(t.tip).unwrap().boundary else {
+            panic!("fixture: the tip is a lone-vertex ring")
+        };
+        let tip = *body
+            .get_point(body.get_vertex(vertex).unwrap().point)
+            .unwrap();
+        (body, t.face, [t.outer, t.hole, t.tip, pocket], tip)
+    }
+
+    /// The face boundary iterator yields the outer loop, then the rings
+    /// in `face.rings` order; each cycle loop's members are its own
+    /// half-edges with their edges, and the lone-vertex ring yields
+    /// exactly one `Isolated` member, its vertex at its point.
+    #[test]
+    fn the_face_boundary_yields_outer_then_rings_and_one_member_per_lone_vertex() {
+        let (body, face, order, tip) = three_ring_face();
+        let data = body.get_face(face).unwrap();
+        let by_loop: Vec<_> = body.face_boundary_by_loop(face, data).collect();
+        let keys: Vec<LoopKey> = by_loop.iter().map(|(lk, _)| *lk).collect();
+        assert_eq!(keys, order, "outer, then the rings in `face.rings` order");
+        for (lk, members) in &by_loop {
+            match body.get_loop(*lk).unwrap().boundary {
+                LoopBoundary::Empty { vertex } => match members[..] {
+                    [BoundaryMember::Isolated { vertex: v, point }] => {
+                        assert_eq!(v, vertex, "the lone vertex");
+                        assert_eq!(
+                            [point.x, point.y, point.z],
+                            [tip.x, tip.y, tip.z],
+                            "the lone vertex at its point"
+                        );
+                    }
+                    _ => panic!("{lk:?}: a lone-vertex loop yields exactly one `Isolated`"),
+                },
+                LoopBoundary::Cycle { first } => {
+                    let walk = body.loop_walk(first).closed("loop", first);
+                    let hes: Vec<HalfEdgeKey> = members
+                        .iter()
+                        .map(|m| match *m {
+                            BoundaryMember::Edge { he, half, ek, .. } => {
+                                assert_eq!(half.edge, ek, "{he:?}: its own edge");
+                                he
+                            }
+                            BoundaryMember::Isolated { .. } => {
+                                panic!("{lk:?}: a cycle yields no `Isolated`")
+                            }
+                        })
+                        .collect();
+                    assert_eq!(hes, walk, "{lk:?}: the members are the loop's walk");
+                }
+            }
+        }
+        let flat: Vec<Option<VertexKey>> = body
+            .face_boundary_linked(face, data)
+            .map(|m| match m {
+                BoundaryMember::Isolated { vertex, .. } => Some(vertex),
+                BoundaryMember::Edge { .. } => None,
+            })
+            .collect();
+        let per_loop: Vec<Option<VertexKey>> = by_loop
+            .iter()
+            .flat_map(|(_, ms)| ms.iter())
+            .map(|m| match m {
+                BoundaryMember::Isolated { vertex, .. } => Some(*vertex),
+                BoundaryMember::Edge { .. } => None,
+            })
+            .collect();
+        assert_eq!(
+            flat, per_loop,
+            "the flat view is the by-loop view flattened"
+        );
+        assert_eq!(
+            flat.iter().flatten().count(),
+            1,
+            "one lone vertex on the face"
+        );
+    }
+
+    /// A member half-edge whose edge record is gone panics naming the
+    /// half-edge's `edge` link and its premises, rather than skipping
+    /// the member.
+    #[test]
+    fn the_face_boundary_panics_on_a_member_whose_edge_is_gone() {
+        let (mut body, face, [outer, ..], _) = three_ring_face();
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("fixture: a cycle outer loop")
+        };
+        let ek = body.get_half_edge(first).unwrap().edge;
+        body.edges.remove(ek);
+        let named = format!(
+            "{}'s edge names {}, which does not resolve",
+            EntityId::HalfEdge(first),
+            EntityId::Edge(ek)
+        );
+        crate::review_d18::assert_torn_op_panics(
+            "face_boundary_linked, a dead edge",
+            &mut body,
+            &[&named, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
+            |b| {
+                let data = b.get_face(face).unwrap().clone();
+                b.face_boundary_linked(face, &data).count()
+            },
+        );
+    }
+
+    /// A lone vertex whose point is gone panics naming the vertex's
+    /// `point` link and its premises, rather than skipping the loop.
+    #[test]
+    fn the_face_boundary_panics_on_a_lone_vertex_whose_point_is_gone() {
+        let (mut body, face, [_, _, tip, _], _) = three_ring_face();
+        let LoopBoundary::Empty { vertex } = body.get_loop(tip).unwrap().boundary else {
+            panic!("fixture: a lone-vertex ring")
+        };
+        let pk = body.get_vertex(vertex).unwrap().point;
+        body.points.remove(pk);
+        let named = format!("{}'s point names", EntityId::Vertex(vertex));
+        crate::review_d18::assert_torn_op_panics(
+            "face_boundary_linked, a dead point",
+            &mut body,
+            &[&named, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
+            |b| {
+                let data = b.get_face(face).unwrap().clone();
+                b.face_boundary_linked(face, &data).count()
+            },
         );
     }
 }
