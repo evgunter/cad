@@ -267,10 +267,9 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Section<T>, SectionError<T>> {
+    super::gate_finished(operand, tol).map_err(|e| SectionError::Split(SplitError::Reduce(e)))?;
     let band = geom_core::Band::linear(tol)
         .map_err(|e| SectionError::Split(SplitError::Reduce(SplitReduceError::from(e))))?;
-    super::gate_finished(operand, band, tol)
-        .map_err(|e| SectionError::Split(SplitError::Reduce(e)))?;
     let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.

@@ -74,7 +74,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
-use crate::validate::{Unfinished, decide};
+use crate::validate::decide;
 use geom_core::Tol;
 
 /// Which candidate-generation path the reduction sweep runs — the
@@ -439,7 +439,7 @@ pub(super) fn gate_operand<T: Decide>(
 /// same), refused as [`BooleanError::ScaffoldingOperand`] or
 /// [`BooleanError::InsideOutOperand`]. It runs before the pipeline reads
 /// a several-solid operand as one solid (`ops::one_solid`), since the
-/// orientation read's subject is the solid.
+/// orientation read's subjects are the solid and, within it, the shell.
 pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
     body: &crate::AtRestBody<T>,
     operand: Operand,
@@ -447,10 +447,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     body.gate_unverdicted(format_args!("operand {operand:?}"), band, tol)
-        .map_err(|unfinished| match unfinished {
-            Unfinished::Scaffolding(errors) => BooleanError::ScaffoldingOperand { operand, errors },
-            Unfinished::InsideOut(solid) => BooleanError::InsideOutOperand { operand, solid },
-        })
+        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))
 }
 
 /// [`gate_operand`]'s edge carriers.

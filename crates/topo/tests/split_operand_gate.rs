@@ -2,8 +2,9 @@
 //! `split_reduce`, `plane_section`, `vertex_sides`) take an
 //! `AtRestBody`, so an operand tier 3 refuses never reaches them at a
 //! certifying scalar. At a dual, whose policy runs no at-rest gate, the
-//! door reads what the type promises itself, per solid and before a
-//! several-solid operand is read as one: tier 2, then check 7.
+//! door reads what the type promises itself before a several-solid
+//! operand is read as one: tier 2, then orientation as tier 3 reads it
+//! (check 7 per solid, then check 10 per shell).
 //!
 //! The inside-out wedge is a prism over a clockwise profile, closed and
 //! tier-2 clean with its faces pointing inward (volume −0.2349). Taken,
@@ -15,9 +16,10 @@ use crate::common;
 
 use geom_core::{Decide, Dual64, Interval, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, AtRestOutcome, AtRestPolicy, Body, SectionError, SolidKey, SplitError, SplitPart,
-    SplitPlane, SplitReduceError, ValidationError, mass_properties, mass_properties_structural,
-    plane_section, split, split_reduce, vertex_sides,
+    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, Operand, SectionError, ShellKey,
+    SolidKey, SplitError, SplitPart, SplitPlane, SplitReduceError, ValidationError,
+    classify_neighborhood, mass_properties, mass_properties_structural, plane_section, split,
+    split_reduce, vertex_sides,
 };
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
@@ -116,20 +118,19 @@ fn every_split_door_refuses_an_inside_out_operand_at_a_dual() {
     let (solid, _) = operand.solids().next().expect("the wedge is one solid");
     for (door, refusal) in every_door(&operand) {
         match refusal {
-            Some(SplitReduceError::InsideOutOperand { solid: named }) => {
-                assert_eq!(named, solid, "{door}: the refusal names the wedge's solid");
-            }
-            other => panic!("{door}: want InsideOutOperand, got {other:?}"),
+            Some(SplitReduceError::InsideOutOperand { errors }) => assert_eq!(
+                errors,
+                vec![ValidationError::NegativeVolume { solid }],
+                "{door}: the refusal names the wedge's solid"
+            ),
+            other => panic!("{door}: want InsideOutOperand on check 7, got {other:?}"),
         }
     }
 }
 
-/// **A small inside-out part beside a larger ordinary one**, in one
-/// body: its total volume is positive, so a reading of the merged solid
-/// the split cuts sees nothing. The door reads check 7 per solid before
-/// the merge, and names the wedge's solid. Red if it read the merge.
-#[test]
-fn an_inside_out_part_beside_an_ordinary_one_refuses_at_a_dual() {
+/// An outward 2×2×2 brick and the inside-out wedge beside it, as two
+/// solids, every face described: the body's total is positive.
+fn brick_beside_inside_out_wedge() -> Body<Dual64> {
     let tol = Tol::witness();
     let mut parts = Body::<Dual64>::new();
     for (profile, z) in [
@@ -163,6 +164,17 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses_at_a_dual() {
             > 0.0,
         "the body's total is positive, so it hides the part's sign"
     );
+    parts
+}
+
+/// **A small inside-out part beside a larger ordinary one**, in one
+/// body: its total volume is positive, so a reading of the merged solid
+/// the split cuts sees nothing. The door reads check 7 per solid before
+/// the merge, and names the wedge's solid. Red if it read the merge.
+#[test]
+fn an_inside_out_part_beside_an_ordinary_one_refuses_at_a_dual() {
+    let tol = Tol::witness();
+    let parts = brick_beside_inside_out_wedge();
     let wedge_solid: Vec<SolidKey> = parts
         .solids()
         .map(|(k, _)| k)
@@ -171,11 +183,114 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses_at_a_dual() {
     assert_eq!(wedge_solid.len(), 1, "one solid is the five-faced wedge");
     let operand = unverdicted(parts);
     match split(&operand, &mid_height(), tol) {
-        Err(SplitError::Reduce(SplitReduceError::InsideOutOperand { solid })) => {
-            assert_eq!(solid, wedge_solid[0], "the refusal names the wedge's solid");
-        }
+        Err(SplitError::Reduce(SplitReduceError::InsideOutOperand { errors })) => assert_eq!(
+            errors,
+            vec![ValidationError::NegativeVolume {
+                solid: wedge_solid[0]
+            }],
+            "the refusal names the wedge's solid"
+        ),
         other => panic!("want InsideOutOperand, got {:?}", other.map(|_| ())),
     }
+}
+
+/// **The same two parts as two shells of ONE solid**: the solid's total
+/// is positive too, so check 7 passes it, and the wedge's shell is a
+/// `Void` standing outside the brick's `Outer`, bounding winding −1.
+/// Tier 3 refuses it on check 10 (`ShellWinding`), and the no-verdict
+/// gate reads check 10 as tier 3 does, so every split door and the
+/// Boolean refuse it at a dual and name the wedge's shell. Red without
+/// that read: `split` at z = 0.75 answered two sides, each carrying the
+/// wedge's inside-out half as a stray void.
+#[test]
+fn an_inside_out_shell_under_one_solid_refuses_at_a_dual() {
+    let tol = Tol::witness();
+    let one_solid = brick_beside_inside_out_wedge().with_solids_merged_for_tests();
+    let solids: Vec<SolidKey> = one_solid.solids().map(|(k, _)| k).collect();
+    assert_eq!(solids.len(), 1, "the merge leaves one solid");
+    let wedge_shell: Vec<ShellKey> = one_solid
+        .shells_of_solid(solids[0])
+        .unwrap()
+        .iter()
+        .copied()
+        .filter(|&sh| one_solid.get_shell(sh).map(|s| s.faces.len()) == Some(5))
+        .collect();
+    assert_eq!(wedge_shell.len(), 1, "one shell is the five-faced wedge");
+    let named = |errors: &[ValidationError]| {
+        matches!(
+            errors,
+            [ValidationError::ShellWinding { solid, shell, winding: 0, bounded: -1 }]
+                if *solid == solids[0] && *shell == wedge_shell[0]
+        )
+    };
+    let operand = unverdicted(one_solid);
+    for (door, refusal) in every_door(&operand) {
+        match refusal {
+            Some(SplitReduceError::InsideOutOperand { errors }) if named(&errors) => {}
+            other => panic!("{door}: want InsideOutOperand on the wedge's shell, got {other:?}"),
+        }
+    }
+    let far = unverdicted(common::brick::<Dual64>(
+        (20.0, 21.0),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        tol,
+    ));
+    match topo::union(&operand, &far, tol) {
+        Err(BooleanError::InsideOutOperand {
+            operand: Operand::A,
+            errors,
+        }) if named(&errors) => {}
+        other => panic!(
+            "the Boolean: want InsideOutOperand on operand A's wedge shell, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+}
+
+/// **At `f64` the at-rest gate refuses the one-solid body on check 10**,
+/// the verdict the no-verdict gate reads at a dual.
+#[test]
+fn an_inside_out_shell_under_one_solid_does_not_finish_at_f64() {
+    let tol = Tol::witness();
+    let mut parts = Body::<f64>::new();
+    for (profile, z) in [
+        (
+            [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)].to_vec(),
+            (0.0, 2.0),
+        ),
+        (
+            wedge_profile(false)
+                .iter()
+                .map(|&(x, y)| (x + 5.0, y))
+                .collect(),
+            (0.5, 1.0),
+        ),
+    ] {
+        common::prism_ops(
+            &mut parts,
+            &profile,
+            z,
+            common::identity_map,
+            common::FaceGeometry::Certified,
+            tol,
+        );
+    }
+    common::describe_as_intersections(&mut parts, tol);
+    let errors = f64::gate_at_rest_kept(parts.with_solids_merged_for_tests(), tol)
+        .map(|_| ())
+        .expect_err("an inside-out shell is not a finished body");
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [ValidationError::ShellWinding {
+                winding: 0,
+                bounded: -1,
+                ..
+            }]
+        ),
+        "the gate refuses the wedge's shell on check 10, got {errors:?}"
+    );
 }
 
 /// **A body carrying null edges refuses at every door with tier 2's
@@ -204,6 +319,39 @@ fn a_reduced_body_refuses_at_every_door_with_its_null_edges_at_a_dual() {
             ),
             other => panic!("{door}: want ScaffoldingOperand, got {other:?}"),
         }
+    }
+}
+
+/// **The public neighbourhood read refuses a null edge by name**: over
+/// the reduction's scratch body, an ON vertex the reduction minted a
+/// null edge at reads [`SplitReduceError::NullEdgeAtVertex`], naming the
+/// vertex and one of the reduction's null edges.
+#[test]
+fn the_neighbourhood_read_names_a_null_edge_at_its_vertex() {
+    let tol = Tol::witness();
+    let red = split_reduce(
+        &unverdicted(wedge::<Dual64>(true)),
+        &mid_height::<Dual64>(),
+        tol,
+    )
+    .expect("the outward wedge reduces");
+    let record = red
+        .null_edges
+        .first()
+        .expect("the reduction mints null edges");
+    let band = geom_core::Band::linear(tol).unwrap();
+    match classify_neighborhood(&red.body, &red.plane, &red.sides, record.at_vertex, band) {
+        Err(SplitReduceError::NullEdgeAtVertex { vertex, edge }) => {
+            assert_eq!(
+                vertex, record.at_vertex,
+                "the refusal names the vertex asked about"
+            );
+            assert!(
+                red.null_edges.iter().any(|r| r.edge == edge),
+                "the refusal names one of the reduction's null edges, got {edge:?}"
+            );
+        }
+        other => panic!("want NullEdgeAtVertex, got {:?}", other.map(|_| ())),
     }
 }
 

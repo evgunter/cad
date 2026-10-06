@@ -46,6 +46,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
     "Split/Reduce/CrossingInsertion",
@@ -358,6 +359,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
+    "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
     // work/carve/carve-refusals-short-of-the-shape-guard.md
@@ -1464,7 +1466,9 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "InsideOutOperand",
             R::InsideOutOperand {
-                solid: topo::SolidKey::default(),
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
             },
         ),
         (
@@ -1493,6 +1497,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),
+        (
+            "NullEdgeAtVertex",
+            R::NullEdgeAtVertex {
+                vertex,
+                edge: topo::EdgeKey::default(),
+            },
+        ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
         ("UnboundedFace", R::UnboundedFace { face, vertex }),
         (

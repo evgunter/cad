@@ -12,15 +12,20 @@
 //! [`plane_section`], [`vertex_sides`]) take a finished one
 //! ([`crate::AtRestBody`]): a body tier 3 passed, or one whose scalar runs
 //! no at-rest gate (a dual). Over the latter the door reads what the type
-//! promises itself, before anything else and per solid: tier 2 (a strut,
-//! an empty loop, a null edge, a split shell refuse
-//! [`SplitReduceError::ScaffoldingOperand`]) and tier 3's check 7 (an
-//! inside-out solid refuses [`SplitReduceError::InsideOutOperand`]).
+//! promises itself before anything else, with the Boolean's read
+//! ([`crate::AtRestBody::gate_unverdicted`]):
+//!
+//! - tier 2, over the whole body: a strut, an empty loop, a null edge or
+//!   a shell in pieces refuses [`SplitReduceError::ScaffoldingOperand`];
+//! - orientation, as tier 3 reads it: check 7 per solid, then check 10
+//!   per shell. A solid whose total is negative, or a shell bounding
+//!   negative material inside a solid whose total is positive, refuses
+//!   [`SplitReduceError::InsideOutOperand`].
 //!
 //! Pipeline of [`split_reduce`] (functional: operates on a clone, the
 //! operand is untouched):
 //!
-//! 1. **Operand gate (the C5 table, scoped to the plane's reach)**:
+//! 1. **Carrier gate (the C5 table, scoped to the plane's reach)**:
 //!    a face of a kind the pipeline has no `(kind × plane)` arm for
 //!    (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`]) only when the
@@ -85,7 +90,7 @@ pub(crate) mod spiric_arc;
 use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
 use crate::validate::{AtRestBody, Unfinished, ValidationError};
@@ -279,14 +284,17 @@ pub enum SplitReduceError {
         /// The validator's tier-2 findings, each naming its entity.
         errors: Vec<ValidationError>,
     },
-    /// The operand holds an inside-out solid: tier 3's check 7 decides
-    /// its signed volume definitely negative
-    /// ([`ValidationError::NegativeVolume`]), so its faces bound the
-    /// complement of the region they enclose, and each side would be
-    /// the complement of the half it bounds.
+    /// The operand holds material wound negative: a solid whose signed
+    /// volume tier 3's check 7 decides definitely negative
+    /// ([`ValidationError::NegativeVolume`]), or a shell check 10 finds
+    /// bounding a region of winding −1 inside a solid whose total is
+    /// positive ([`ValidationError::ShellWinding`]). Its faces bound the
+    /// complement of the region they enclose, and each side would carry
+    /// that complement's half.
     InsideOutOperand {
-        /// Its first inside-out solid, in arena order.
-        solid: SolidKey,
+        /// The validator's findings, each naming its solid (and, for a
+        /// shell, the shell).
+        errors: Vec<ValidationError>,
     },
     /// A vertex landed in the sliver band of the plane (F6): the
     /// operand/plane pair is ill-conditioned at this ε. No snapping —
@@ -358,6 +366,17 @@ pub enum SplitReduceError {
         /// The lone vertex.
         vertex: VertexKey,
     },
+    /// An edge leaving the vertex [`classify_neighborhood`] was asked
+    /// about is a null edge: a sector is read off its edge's carrier, and
+    /// a null edge has none. The pipeline never hands it one (the
+    /// finished-body gate runs tier 2 first); a caller of the public read
+    /// over a mid-surgery body can.
+    NullEdgeAtVertex {
+        /// The caller's vertex.
+        vertex: VertexKey,
+        /// The null edge leaving it.
+        edge: EdgeKey,
+    },
     /// The side map [`classify_neighborhood`] was handed holds no
     /// verdict for a vertex its neighborhood reaches.
     UnrecordedSide {
@@ -397,11 +416,13 @@ impl From<BandError> for SplitReduceError {
     }
 }
 
-impl From<Unfinished> for SplitReduceError {
-    fn from(unfinished: Unfinished) -> Self {
+impl SplitReduceError {
+    /// The operand gate's refusal ([`AtRestBody::gate_unverdicted`]),
+    /// typed for the split.
+    pub(crate) fn unfinished(unfinished: Unfinished) -> Self {
         match unfinished {
             Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
-            Unfinished::InsideOut(solid) => Self::InsideOutOperand { solid },
+            Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
         }
     }
 }
@@ -509,6 +530,11 @@ impl core::fmt::Display for SplitReduceError {
                 f,
                 "vertex {vertex:?} is a lone vertex, with no neighborhood to classify"
             ),
+            Self::NullEdgeAtVertex { vertex, edge } => write!(
+                f,
+                "null edge {edge:?} leaves vertex {vertex:?}, and a neighborhood is read off \
+                 carriers a null edge does not have"
+            ),
             Self::UnrecordedSide { vertex } => write!(
                 f,
                 "the side map holds no verdict for vertex {vertex:?}, which the neighborhood \
@@ -535,8 +561,8 @@ impl core::fmt::Display for SplitReduceError {
 
 impl std::error::Error for SplitReduceError {}
 
-/// The non-mutating prefix of the reduction — the operand gate plus
-/// the cached vertex sweep — exposed so classification
+/// The non-mutating prefix of the reduction — the finished-body gate,
+/// the carrier gate and the cached vertex sweep — exposed so classification
 /// ([`classify_neighborhood`]) can be inspected/reviewed independently
 /// of surgery. Returns the per-vertex side cache and the ON set of the
 /// body **as given** (crossing vertices only exist after
@@ -550,7 +576,7 @@ pub fn vertex_sides<T: geom_core::Decide + crate::props::AtRestPolicy>(
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
-    gate_finished(body, geom_core::Band::linear(tol)?, tol)?;
+    gate_finished(body, tol)?;
     carrier_gate_and_sides(body, plane, tol)
 }
 
@@ -561,7 +587,7 @@ pub(crate) fn carrier_gate_and_sides<T: geom_core::Decide>(
     tol: Tol,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
-    classify::gate_operand(body, plane, band)?;
+    classify::carrier_gate(body, plane, band)?;
     classify::classify_vertices(body, plane, band)
 }
 
@@ -583,19 +609,22 @@ pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<SplitReduction<T>, SplitReduceError> {
-    gate_finished(operand, geom_core::Band::linear(tol)?, tol)?;
+    gate_finished(operand, tol)?;
     reduce(operand, plane, tol)
 }
 
-/// **The split's operand gate**: what a finished body promises, read
-/// where no verdict rides the operand ([`AtRestBody::gate_unverdicted`],
-/// the Boolean's read too), refused typed.
-fn gate_finished<T: geom_core::Decide + crate::props::AtRestPolicy>(
+/// **The split's finished-body gate**, every door's first read: what a
+/// finished body promises, read where no verdict rides the operand
+/// ([`AtRestBody::gate_unverdicted`], the Boolean's read too), refused
+/// typed. The carrier gate (`classify::carrier_gate`) runs after it,
+/// inside the pipeline.
+pub(super) fn gate_finished<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
-    band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitReduceError> {
-    Ok(operand.gate_unverdicted("the split's operand", band, tol)?)
+    operand
+        .gate_unverdicted("the split's operand", geom_core::Band::linear(tol)?, tol)
+        .map_err(SplitReduceError::unfinished)
 }
 
 /// [`split_reduce`] behind the finished-body gate.
@@ -613,7 +642,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut reduced = operand.clone();
     let mut body = reduced.begin_surgery();
 
-    classify::gate_operand(&body, plane, band)?;
+    classify::carrier_gate(&body, plane, band)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
     classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
@@ -751,8 +780,7 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<Body<T>, SplitError> {
-    let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
-    gate_finished(operand, band, tol)?;
+    gate_finished(operand, tol)?;
     Ok(split_scratch(operand, plane, tol)?.0.body)
 }
 
@@ -848,8 +876,8 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     plane: &SplitPlane<T>,
     tol: Tol,
 ) -> Result<SplitResult<T>, SplitError> {
+    gate_finished(operand, tol)?;
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
-    gate_finished(operand, band, tol)?;
     let flat;
     let operand: &Body<T> = if operand.solids().nth(1).is_some() {
         let mut body = Body::clone(operand);

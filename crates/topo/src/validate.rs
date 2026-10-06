@@ -4525,25 +4525,38 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
-/// **The solids of `body` that check 7 refuses as inside-out** — its
-/// [`ValidationError::NegativeVolume`] verdicts and nothing else, at the
-/// lane `quad` gives. A solid whose sign the lane leaves undecided, or
-/// cannot measure, is not named: this reads only what check 7 decides
-/// definitely. Premise: tier 1 is clean ([`check7_subjects`]).
-pub(crate) fn inside_out_solids<T: geom_core::Decide>(
+/// **Where `body` holds material wound negative, read as tier 3 reads
+/// it**, at the lane `quad` gives: check 7's
+/// [`ValidationError::NegativeVolume`] verdicts, a solid at a time; then,
+/// behind a clean check 7 as tier 3 runs it, check 10's
+/// [`ValidationError::ShellWinding`] verdicts, a shell at a time
+/// ([`shell_winding_errors`]). The first is a solid whose total is
+/// negative. The second is a shell inside a solid whose total is
+/// positive that bounds a region of winding −1: check 10 reads winding
+/// only where a solid holds at most one decided `Outer` shell, and there
+/// a misplaced shell is a `Void` outside the `Outer` or inside another
+/// `Void`, each an inside-out shell.
+///
+/// Nothing else is named. A sign the lane leaves undecided, or cannot
+/// measure, passes, and check 10 is then not run, as tier 3 runs it
+/// behind a clean check 7 only. A solid with two decided `Outer` shells
+/// ([`ValidationError::SolidOuterShells`]) is a piece count, not an
+/// orientation, and its winding is not read. Premise: tier 1 is clean
+/// ([`check7_subjects`]).
+pub(crate) fn wound_negative<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Vec<SolidKey> {
+) -> Vec<ValidationError> {
     match plus_v_by_sign(body, band, tol, quad) {
-        Ok(_) => Vec::new(),
+        Ok(_) => shell_winding_errors(body, band, tol, quad)
+            .into_iter()
+            .filter(|e| matches!(e, ValidationError::ShellWinding { .. }))
+            .collect(),
         Err(errors) => errors
             .into_iter()
-            .filter_map(|e| match e {
-                ValidationError::NegativeVolume { solid } => Some(solid),
-                _ => None,
-            })
+            .filter(|e| matches!(e, ValidationError::NegativeVolume { .. }))
             .collect(),
     }
 }
@@ -8146,8 +8159,10 @@ impl<T: Real> AtRestBody<T> {
 pub(crate) enum Unfinished {
     /// Tier 2's findings: scaffolding at rest.
     Scaffolding(Vec<ValidationError>),
-    /// The first solid, in arena order, that check 7 decides inside-out.
-    InsideOut(SolidKey),
+    /// [`wound_negative`]'s findings: solids check 7 decides inside-out
+    /// ([`ValidationError::NegativeVolume`]), or shells check 10 finds
+    /// bounding negative material ([`ValidationError::ShellWinding`]).
+    InsideOut(Vec<ValidationError>),
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -8157,16 +8172,20 @@ impl<T: Real> AtRestBody<T> {
     /// [`AtRestOutcome::Validated`] operand passes untouched: tier 3's
     /// verdict holds both reads. Otherwise, in order:
     ///
-    /// 1. tier 2 ([`operand_scaffolding`], whose tier-1 panic names
-    ///    `subject`);
-    /// 2. orientation: tier 3's check 7, per solid, at the scalar's lane
-    ///    ([`crate::AtRestPolicy::quad_lane`]). A solid it decides
-    ///    definitely negative refuses; one whose sign it leaves open
-    ///    passes, as check 7 passes it.
+    /// 1. tier 2 over the whole body ([`operand_scaffolding`], whose
+    ///    tier-1 panic names `subject`);
+    /// 2. orientation, at the scalar's lane
+    ///    ([`crate::AtRestPolicy::quad_lane`]), read as tier 3 reads it
+    ///    ([`wound_negative`]): check 7 per solid, then, behind a clean
+    ///    check 7, check 10 per shell. A solid whose total it decides
+    ///    definitely negative refuses, and so does a shell bounding
+    ///    negative material inside a solid whose total is positive; a
+    ///    sign it leaves open passes, as tier 3 passes it.
     ///
-    /// The subject of the orientation read is the solid, since a body's
-    /// total hides a sign: a door that reads a several-solid operand as
-    /// one solid runs this before it merges.
+    /// A total hides a sign at both levels: a body's total hides an
+    /// inside-out solid, and a solid's hides an inside-out shell. So a
+    /// door that reads a several-solid operand as one solid runs this
+    /// before it merges.
     pub(crate) fn gate_unverdicted(
         &self,
         subject: impl fmt::Display,
@@ -8183,9 +8202,11 @@ impl<T: Real> AtRestBody<T> {
         if !scaffolding.is_empty() {
             return Err(Unfinished::Scaffolding(scaffolding));
         }
-        match inside_out_solids(&self.body, band, tol, T::quad_lane()).first() {
-            Some(&solid) => Err(Unfinished::InsideOut(solid)),
-            None => Ok(()),
+        let wound = wound_negative(&self.body, band, tol, T::quad_lane());
+        if wound.is_empty() {
+            Ok(())
+        } else {
+            Err(Unfinished::InsideOut(wound))
         }
     }
 }

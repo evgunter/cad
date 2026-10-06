@@ -90,7 +90,13 @@ on `z = 0.5 − 0.2y` and then finishes the lower piece to split it again.
 At `CAD_TOLERANCE_EPS=1e-6` the at-rest gate refuses that piece
 `VolumeUncomputable { source: Face { face 3v3, Escalated { margin
 8.454e-6, band (1e-6, 1e-5), predicate "props_quad_converged" } } }`; at
-the default ε and at 1e-12 it finishes. The row now stands down by name
-for exactly that refusal off the default ε, so it reads green again when
-this lands. The refusing pieces' second split is not asserted at 1e-6
-until then.
+the default ε and at 1e-12 it finishes. All three bore poses refuse
+there.
+
+That is a regression in what the split answers. On main the second split
+of that piece answered at 1e-6, and now it refuses, because the split
+serves finished bodies and the piece does not finish. The row pins the
+refusal by type at exactly 1e-6 (`QUAD_ESCALATES_AT`;
+`PropsError::Escalated { check: PropsCheck::Converged }`). At that ε it
+asserts nothing past "the lower piece is non-empty". The pin goes red
+when this lands, and the row's assertions then come back at 1e-6.

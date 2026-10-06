@@ -465,9 +465,10 @@ fn wall_graze<T: Decide>(
 ///   outer boundary at all, so its locus is unbounded and no finite
 ///   arm over-estimates anything. That is refused, not measured.
 ///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
-///   validated operand cannot carry one; the boolean's operand gate
-///   (`gate_operand_pairs`) runs it, but the split's operand gate does
-///   not, which is why the refusal is here rather than assumed.
+///   validated operand cannot carry one. The split's doors run tier 2
+///   on an operand that carries no verdict, but this read does not
+///   assume its caller's gate (a test-support door reaches it past
+///   that gate), which is why the refusal is here rather than assumed.
 ///
 /// The refusal is [`UnboundedFace`], naming the face
 /// and the loop's lone vertex. Every caller resolves `vertex` and

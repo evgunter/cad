@@ -772,9 +772,9 @@ fn no_split_refusal_names_a_stage() {
     }
 }
 
-/// `body`'s tier-2 findings, where no split door takes it: the at-rest
-/// gate refuses to finish it at `f64`, and at a dual, whose gate runs
-/// nothing, `split` reads tier 2 itself and refuses it as
+/// `body`'s tier-2 findings, where no split door takes it: a scalar
+/// whose at-rest gate runs refuses to finish it, and at one whose gate
+/// runs nothing (a dual), `split` reads tier 2 itself and refuses it as
 /// [`SplitReduceError::ScaffoldingOperand`] with the same findings.
 fn refused_at_the_door<T: geom_core::Decide + topo::AtRestPolicy>(
     what: &str,
@@ -782,9 +782,9 @@ fn refused_at_the_door<T: geom_core::Decide + topo::AtRestPolicy>(
     plane: &SplitPlane<T>,
 ) -> Vec<topo::ValidationError> {
     let kept = T::gate_at_rest_kept(body.clone(), Tol::witness());
-    let errors = match (T::NAME, kept) {
-        ("f64", Err(errors)) => errors,
-        (_, Ok(operand)) if operand.outcome() == topo::AtRestOutcome::NotRunAtThisScalar => {
+    let errors = match kept {
+        Err(errors) => errors,
+        Ok(operand) if operand.outcome() == topo::AtRestOutcome::NotRunAtThisScalar => {
             match split(&operand, plane, Tol::witness()) {
                 Err(SplitError::Reduce(SplitReduceError::ScaffoldingOperand { errors })) => errors,
                 other => panic!(
@@ -793,7 +793,7 @@ fn refused_at_the_door<T: geom_core::Decide + topo::AtRestPolicy>(
                 ),
             }
         }
-        (scalar, other) => panic!("{what} at {scalar}: unexpected gate outcome {other:?}"),
+        Ok(_) => panic!("{what}: the at-rest gate ran and finished a body tier 2 refuses"),
     };
     assert_eq!(
         Err(errors.clone()),
@@ -890,6 +890,48 @@ fn a_strut_bearing_operand_refuses_at_the_door() {
             ),
             "the strut tip is the one finding: {errors:?}"
         );
+    }
+}
+
+/// **The other doors refuse the strut at a dual too**: `split_reduce`,
+/// `vertex_sides` and `plane_section` read tier 2 first, as `split` does,
+/// so none reaches its carrier gate or vertex sweep with the strut tip.
+#[test]
+fn a_strut_bearing_operand_refuses_at_every_door_at_a_dual() {
+    let tol = Tol::witness();
+    let operand = <geom_core::Dual64 as topo::AtRestPolicy>::gate_at_rest_kept(
+        strutted_brick::<geom_core::Dual64>(),
+        tol,
+    )
+    .expect("a dual's gate runs nothing");
+    let plane = plane_y(0.5);
+    for (door, refusal) in [
+        (
+            "split_reduce",
+            topo::split_reduce(&operand, &plane, tol).err(),
+        ),
+        (
+            "vertex_sides",
+            topo::vertex_sides(&operand, &plane, tol).err(),
+        ),
+        (
+            "plane_section",
+            match topo::plane_section(&operand, &plane, tol) {
+                Err(topo::SectionError::Split(SplitError::Reduce(e))) => Some(e),
+                _ => None,
+            },
+        ),
+    ] {
+        match refusal {
+            Some(SplitReduceError::ScaffoldingOperand { errors }) => assert!(
+                matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::ScaffoldingStrutVertex { .. }]
+                ),
+                "{door}: the strut tip is the one finding: {errors:?}"
+            ),
+            other => panic!("{door}: want ScaffoldingOperand, got {other:?}"),
+        }
     }
 }
 

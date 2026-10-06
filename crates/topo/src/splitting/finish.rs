@@ -185,7 +185,7 @@ pub enum SplitFinishError {
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
     /// (`diag`), or (`None`) zero, or unread because the loop carries a
-    /// spiric or NURBS edge. The split's operand gate admits only line,
+    /// spiric or NURBS edge. The split's carrier gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {

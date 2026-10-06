@@ -81,7 +81,7 @@ use crate::validate::decide;
 /// rather than left to the gate.
 ///
 /// It is worth being exact about WHY the arm is unreachable, because
-/// the obvious answer is wrong: it is not that the F5 operand gate
+/// the obvious answer is wrong: it is not that the F5 carrier gate
 /// ([`super::classify`]) runs first. [`super::classify_neighborhood`]
 /// is public, deliberately, so tests and the joining step can inspect
 /// classification on their own, and on that path no gate runs at all.
@@ -157,12 +157,12 @@ pub(super) fn chord<T: Decide>(
         EntityId::HalfEdge(he),
         "edge",
     );
-    let curve = body
-        .edge_curve_linked(edge_key, edge)
-        .certified()
-        .ok_or_else(|| SplitReduceError::ScaffoldingOperand {
-            errors: vec![crate::ValidationError::NullEdgeAtRest { edge: edge_key }],
-        })?;
+    let curve = body.edge_curve_linked(edge_key, edge).certified().ok_or(
+        SplitReduceError::NullEdgeAtVertex {
+            vertex,
+            edge: edge_key,
+        },
+    )?;
     match curve.carrier() {
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
@@ -199,7 +199,7 @@ pub(super) fn chord<T: Decide>(
 /// [`SplitReduceError`] — sliver escalations, the consecutive-ON
 /// invariant, a `vertex` that does not resolve or is a lone vertex, a
 /// far vertex `sides` holds no verdict for, or a null edge at `vertex`
-/// ([`SplitReduceError::ScaffoldingOperand`], with tier 2's finding).
+/// ([`SplitReduceError::NullEdgeAtVertex`]).
 pub fn classify_neighborhood<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,

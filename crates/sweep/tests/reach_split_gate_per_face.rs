@@ -1,4 +1,4 @@
-//! The split's operand gate is per face: a body carrying a face of a
+//! The split's carrier gate is per face: a body carrying a face of a
 //! kind the split has no arm for splits wherever the plane cannot reach
 //! that face, and refuses naming it wherever the plane may.
 

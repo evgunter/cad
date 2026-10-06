@@ -32,8 +32,9 @@ whose fix refuses an inside-out Boolean operand typed
 
 ## Owed
 
-Refuse an inside-out operand at `shell`'s door, typed, per solid
-(`validate::inside_out_solids` reads tier 3's check 7 at the scalar's
+Refuse an inside-out operand at `shell`'s door, typed
+(`AtRestBody::gate_unverdicted`, through `validate::wound_negative`,
+reads tier 3's check 7 per solid and check 10 per shell at the scalar's
 lane), before any offset reads it. The finished-body adoption
 (`work/reach/boolean-door-adopts-the-finished-body-type.md`) subsumes it
 once `shell` takes `AtRestBody`. The blend and offset doors' posture is

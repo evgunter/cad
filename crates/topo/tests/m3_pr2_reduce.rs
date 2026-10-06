@@ -372,8 +372,7 @@ fn orbit_sector_adjacency_mirror() {
 /// side).
 #[test]
 fn cube_coplanar_top_both_senses() {
-    let cube = common::geometric_cube::<f64>(Tol::witness());
-    let mut described = cube.body.clone();
+    let mut described = common::geometric_cube::<f64>(Tol::witness()).body;
     common::describe_as_intersections(&mut described, Tol::witness());
     let operand = common::finished("the cube", described, Tol::witness());
     for (nz, expect) in [(1.0, PlaneSide::Below), (-1.0, PlaneSide::Above)] {
@@ -386,7 +385,7 @@ fn cube_coplanar_top_both_senses() {
         assert_eq!(red.on_vertices.len(), 4);
         assert!(red.null_edges.is_empty(), "one-sided: no separation");
         // Every non-ON vertex is on the material side.
-        for (v, _) in cube.body.vertices() {
+        for (v, _) in operand.vertices() {
             if !red.on_vertices.contains(&v) {
                 assert_eq!(red.sides[v], expect);
             }
@@ -395,7 +394,7 @@ fn cube_coplanar_top_both_senses() {
         // sense; convex corners mint no bisector duplicates.
         let (sides, on) = topo::vertex_sides(&operand, &plane, Tol::witness()).unwrap();
         let entries = classify_neighborhood(
-            &cube.body,
+            &operand,
             &plane,
             &sides,
             on[0],
@@ -409,7 +408,7 @@ fn cube_coplanar_top_both_senses() {
                 .all(|e| e.kind == topo::SectorEntryKind::Edge)
         );
         for e in &entries {
-            let end_side = sides[cube.body.half_edge_end(e.he).unwrap()];
+            let end_side = sides[operand.half_edge_end(e.he).unwrap()];
             if end_side == PlaneSide::On {
                 assert_eq!(e.class, expect, "rule (a) sense for n_z = {nz}");
             }
