@@ -270,3 +270,80 @@ self-closed edge once, against the walk's ends) and
 the cube's top loop plus one vertical).
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `skin-coincident-section-check-is-an-unbanded-f64-compare` closed (PR 4186)
+
+Whether two adjacent loft sections are apart is one banded decision at
+the loft door. `loft_body` and `sweep_body` share a private `build`
+(validate → stacking fold → skin → assemble), and every pair not apart
+refuses `DegenerateStacking { slab }` at every scale, the ~1e-16
+underflow included. The skin's residual compare is an exact structure
+check, `SkinError::NoParameterStep { section }`, whose text never claims
+the sections coincide and whose one lever is to move section i away
+from section i−1. `loft_parameters` now goes through `validate_loft`.
+
+Review: single FULL (Opus). It found no MAJOR. It probed closed
+non-planar sweeps with bit-equal stations, rotated coincidences,
+denormal steps and the Interval scalar. Its fix pass:
+- dropped the range lever, which was not apt for a pinned hinge;
+- added the census row;
+- scoped `loft_parameters`' doc;
+- made the `DegenerateStacking` text true of the crossing case;
+- added two rows: a sweep with bit-equal stations, and a hinge pinned
+  only up to rounding.
+
+The last pins a silent defect, pre-existing at the merge base:
+`loft_geometry` returns `Ok` with control coordinates around 3.5e15 for
+a 2-unit section. Filed on CARVE:
+- `a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door`
+  (P1, H, design);
+- `sweep-places-vanishing-tangent-is-a-bare-f64-compare` (P3, M,
+  design);
+- `loft-doors-take-a-non-finite-placement` (P3, M).
+
+The fold-retirement note is on the certificate unit's row. Steered
+mid-unit: the orchestrator first asked for the decision in `skin.rs`,
+then withdrew that on reading the PR, whose two-layer structure states
+two true facts.
+
+**On the gate's 1e-6 row.** The fix-pass head was red only on
+`rest_zip_admission::the_tangent_lever_keeps_building_pure_contacts`.
+That row failed identically on a clean `origin/main` (`a9c038c37`): ZIP's
+admission fix pass `290d95a31` added it, and the per-PR gate runs the
+1e-6 row only for a diff touching `sweep`. A later main reportedly fixes
+it; a note is on ZIP's log. Main is now red at 1e-6 on PATHS'
+`one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does`
+(from PR 4169); a note is on PATHS' log. This PR merges once its own
+rows are green, with any red confined to rows that are red on main.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `two-section-loft-with-an-inverted-top-normal-builds` closed (PR 4188)
+
+The stacking fold also decides section k+1's normal against slab k's
+displacement, under the same `loft_stacking` band. A far section that
+does not face along the stack refuses `FarSectionNotForward { slab }`,
+and an in-band far reading escalates as its own
+`FarStackingEscalated`. The downward-facing top section and an interior
+section facing back (z = 0, 1, 0.5 with normals +z, −z, −z) now refuse
+at the door; before, one built and validated and the other refused
+opaquely at an Euler certification.
+
+Review: single FULL (Opus). It found one MAJOR, which matters beyond
+this PR: **the designers' argument for the interim was false.** The
+check refuses embedded, correctly oriented bodies (a hood whose top
+turns 100°; an oblique arc sweep), because 3-D rings can turn edge-on
+to the stack and stay simple. The orchestrator ruled to keep it as a
+DISCLOSED CONSERVATIVE interim. Today the inverted-top loft builds
+silently, and a false refusal is the cheaper failure in a charter whose
+subject is bodies that should refuse. The old near check already
+over-refuses the mirror case. Every sentence that claimed "every
+refusal is a fold" was corrected. The over-refused bodies are pinned as
+rows that should build once the certificate lands, and that cost is
+recorded on the certificate unit's row. Filed on CARVE:
+`a-reflected-loft-placement-evades-both-normal-checks` (P1, M).
+**A class finding:** an argument a designer pair agrees on is still a
+claim to falsify. This one survived two reconciliation rounds and fell
+to a reviewer's first probe.
+
+Signed: (CARVE orchestrator)

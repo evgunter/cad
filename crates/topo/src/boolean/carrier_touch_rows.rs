@@ -19,10 +19,11 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::{clusters, edge_clear_of_ball, reach, speed_bound};
+use super::{ball_off_face, clusters, edge_clear_of_ball, reach, speed_bound};
 use crate::body::Body;
 use crate::entity::EdgeKey;
 use crate::euler::MevSite;
+use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -238,5 +239,42 @@ fn an_elliptic_edge_is_not_cleared_of_a_ball_on_it_in_either_storage() {
                 "b_in_major = {b_in_major}: the ball 0.05 above the plane is not cleared"
             );
         }
+    }
+}
+
+/// **A ball holding a vertex of the face is not off it, wherever the
+/// band puts the vertex against the foot.** The quarter sheet of the
+/// unit cylinder about z over azimuths `[0, π/2]` and heights `[0, 1]`;
+/// the foot sits on the carrier just past the sheet's corner `(1, 0, 0)`,
+/// midway through the band from it, so the face's placement door cannot
+/// tell the foot from that vertex. The ball (radius 1e-3) holds the
+/// vertex, so it is not off the face, and the answer is `false`, not
+/// the placement's escalation. Controls: the same ball half a radian
+/// past the sheet is off it, and one in the sheet's middle is not.
+#[test]
+fn a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face() {
+    let tol = Tol::witness();
+    let band = band();
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, FRAC_PI_2),
+        (0.0, 1.0),
+        tol,
+    );
+    let on = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
+    let in_band = -0.5 * (band.zero() + band.escalate());
+    for (what, foot, off) in [
+        ("in the band of the corner vertex", on(in_band, 0.0), false),
+        ("half a radian past the sheet", on(-0.5, 0.5), true),
+        ("in the sheet's middle", on(0.7, 0.5), false),
+    ] {
+        let got = ball_off_face(&body, face, foot, 1e-3, 1.0, band);
+        assert!(
+            matches!(got, Ok(b) if b == off),
+            "a ball about a foot {what}: {got:?}"
+        );
     }
 }

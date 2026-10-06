@@ -1335,7 +1335,7 @@ pub enum RoleSeg {
     /// A blend foot: where a support's two trimlines meet, retracted
     /// from the source vertex where the band ends. One such vertex
     /// yields one foot per incident support, whether the band ends at
-    /// a corner or at a transverse cap.
+    /// a corner or at a cut-off.
     FootVertex {
         /// The source vertex the band ends at.
         vertex: NameRef,

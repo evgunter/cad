@@ -3115,7 +3115,8 @@ NOT_BOUND = {
     # `str`: `Doc.label` answers one, and `DocEdit.set_label` and
     # `label=` at insert call the constructor at the boundary and
     # publish its refusal as `EditError.variant` (`label_blank`,
-    # `label_line_break`, `label_control_character`); neither type
+    # `label_line_break`, `label_control_character`,
+    # `label_direction_control`); neither type
     # crosses, for `NotAFaceName`'s reason.
     "Label": SHAPE,
     "LabelFault": SHAPE,

@@ -3357,10 +3357,10 @@ class DocEdit:
         nothing; it does move the content pin, as a recolour does.
 
         Raises EditError at this call for a text that is not a label
-        (`label_blank`, `label_line_break`, `label_control_character`),
-        and at `apply` for a node the document does not hold
-        (`unknown_node`) or an edit that would leave the label as it is
-        (`label_unchanged`)."""
+        (`label_blank`, `label_line_break`, `label_control_character`,
+        `label_direction_control`), and at `apply` for a node the
+        document does not hold (`unknown_node`) or an edit that would
+        leave the label as it is (`label_unchanged`)."""
     @staticmethod
     def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s
