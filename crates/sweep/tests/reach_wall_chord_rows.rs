@@ -351,8 +351,8 @@ fn vf_reading(
 /// the wall from inside, the corner's record injected onto each face it
 /// could name: its own wall face confirms it; the other wall face, a
 /// vertex on the wall's boundary, and the corner of a cube set `δ` in
-/// from the wall beyond the band read it stale; a cube set in by less
-/// than the band confirms it. A record on a face whose trim the door
+/// from the wall past the band's escalation edge read it stale; a cube
+/// set in by half the band confirms it. A record on a face whose trim the door
 /// does not read (a swept elbow's NURBS wall) refuses typed.
 #[test]
 fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
@@ -367,7 +367,9 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
             Err([topo::ValidationError::StaleContactDeclaration { .. }])
         )
     };
-    for delta in [0.0, 5e-10, 2e-8, 1e-4] {
+    let eps = tol.eps();
+    // In the band (half of it), past its escalation edge (`10ε`), far.
+    for delta in [0.0, 0.5 * eps, 20.0 * eps, 1e-4] {
         let corner_at = p - n * delta;
         let Ok(BooleanResult::Body(b)) =
             topo::subtract(&drum, &cube_at(corner_at, -n, 0.0, 0.65), tol)
@@ -402,7 +404,7 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
                 )
             })
             .collect();
-        if delta <= 5e-10 {
+        if delta < eps {
             assert_eq!(
                 reads.iter().filter(|r| r.is_ok()).count(),
                 1,

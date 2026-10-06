@@ -2368,8 +2368,9 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
 /// disc, so `a ∩ d` is the rod between its top and the plane `z = H`,
 /// which cuts clean across its wall: `π·0.09·(h₀ − 1/cos α)`, `h₀` the
 /// top's distance from the centre. Every op in both member orders, at
-/// tiers 3 and 3′; the volumes are read to `1e-8`, the quadrature's
-/// reach on the tilted pieces. The rim's split vertices stay valence-2
+/// tiers 3 and 3′; the volumes are read to `max(1e-9, ε)`: the
+/// quadrature's reach on the tilted pieces, and at a coarse `ε` the
+/// band's positional slack over less than a unit of surface. The rim's split vertices stay valence-2
 /// in the intersections
 /// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
 #[test]
@@ -2382,6 +2383,7 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
     let h0 = (rho * rho - r * r).sqrt();
     let vd = cap_volume(rho, rho - R);
     let va = PI * r * r * l;
+    let reach = 1e-9_f64.max(tol.eps());
     for (alpha, theta, own) in [
         (15.0_f64, 31.0_f64, 0.0_f64),
         (20.0, 20.0, 0.0),
@@ -2445,7 +2447,7 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
             let label = format!("α {alpha}°, θ {theta}°, own {own}°: {op}");
             let (v, c, k) = built(&label, res);
             assert!(
-                (v - want).abs() <= 1e-8 * want,
+                (v - want).abs() <= reach,
                 "{label}: the closed form: {v} vs {want}"
             );
             assert_eq!(c, census, "{label}: F, E, V, shells");
