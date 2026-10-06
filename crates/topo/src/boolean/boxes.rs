@@ -30,9 +30,9 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **three** of the nine doors that read a box from
-//! here; at four of the other six, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the other two it is
+//! PRUNES. That is **three** of the ten doors that read a box from
+//! here; at four of the other seven, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the other three it is
 //! more exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
@@ -98,9 +98,16 @@
 //!   against each other, and where each shell stands is decided by the
 //!   point-in-solid walk through `Decide`. A bigger box costs a probe
 //!   (and a recorded verdict), never an answer.
+//! - `boolean::carrier_touch`'s ball reading (`edge_clear_of_ball`)
+//!   PRUNES: an edge whose box clears a touch's ball is clear of it,
+//!   and any other is decided on a lower bound on its distance through
+//!   `Decide`. A bigger box costs that bound, never an answer — except
+//!   for an edge with no bound (a spline or a spiric), which is not
+//!   clear, so there a bigger box REFUSES a touch the edge stays clear
+//!   of: the crossing layer keeps its typed door.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The nine are not
+//! about a door, and the door has to be named. The ten are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
 //! a tenth door cannot land unargued. **It pins WHERE the doors are
@@ -3148,7 +3155,8 @@ pub(crate) mod tests {
         // sort's screen calls. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 7] = [
+        const PINNED: [(&str, usize); 8] = [
+            ("boolean/carrier_touch.rs", 1),
             ("boolean/mod.rs", 2),
             ("boolean/ops.rs", 3),
             ("boolean/reduce.rs", 8),
