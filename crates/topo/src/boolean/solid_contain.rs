@@ -217,6 +217,12 @@ pub enum SolidContainment {
 
 /// Typed failure of [`point_in_solid`].
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PointInSolidErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PointInSolidError {
     /// A predicate escalated (in-band margin).
     Escalated {

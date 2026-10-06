@@ -3119,8 +3119,11 @@ impl Undecided {
     /// undecided. Exhaustive, so a new refusal is placed here by hand.
     pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
         use crate::boolean::PointInSolidError as E;
+        use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. } | E::RayExhausted | E::Loop(_) => Self::WitnessTooClose,
+            E::Escalated { .. }
+            | E::RayExhausted
+            | E::Loop(L::Escalated { .. } | L::RayExhausted { .. }) => Self::WitnessTooClose,
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }
@@ -3128,8 +3131,11 @@ impl Undecided {
             | E::PartialConeFace { .. }
             | E::PartialTorusFace { .. }
             | E::EdgeCarrierUnsupported { .. }
-            | E::WallOutlineUnsupported { .. } => Self::FaceKindUnsupported,
-            E::CorruptFace { .. } | E::NoSuchSolid { .. } => Self::CorruptInstance,
+            | E::WallOutlineUnsupported { .. }
+            | E::Loop(L::Uncrossable(_)) => Self::FaceKindUnsupported,
+            E::CorruptFace { .. }
+            | E::NoSuchSolid { .. }
+            | E::Loop(L::CorruptLoop { .. } | L::OffPlane(_)) => Self::CorruptInstance,
         }
     }
 }
@@ -5800,6 +5806,41 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// A loop refusal the solid door carries reads by its own kind: only
+    /// an in-band or exhausted walk is a witness too close to call.
+    #[test]
+    fn a_carried_loop_refusal_is_placed_by_its_kind() {
+        use crate::boolean::PointInSolidError as E;
+        use crate::splitting::{
+            OffPlane, OffPlaneCause, PointInLoopError as L, Uncrossable, UncrossableCarrier,
+        };
+        let r#loop = crate::entity::LoopKey::default();
+        let read = |e: L| Undecided::of_point_in_solid(&E::Loop(e)).what();
+        assert_eq!(
+            read(L::RayExhausted { r#loop }),
+            Undecided::WitnessTooClose.what()
+        );
+        assert_eq!(
+            read(L::CorruptLoop { r#loop }),
+            Undecided::CorruptInstance.what()
+        );
+        assert_eq!(
+            read(L::OffPlane(OffPlane {
+                r#loop,
+                cause: OffPlaneCause::Query,
+            })),
+            Undecided::CorruptInstance.what()
+        );
+        assert_eq!(
+            read(L::Uncrossable(Uncrossable {
+                r#loop,
+                edge: crate::entity::EdgeKey::default(),
+                carrier: UncrossableCarrier::Spline,
+            })),
+            Undecided::FaceKindUnsupported.what()
+        );
     }
 
     /// **The backstop writes no sentence of its own**: every `what` it
