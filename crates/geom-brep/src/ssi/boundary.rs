@@ -500,7 +500,7 @@ impl Pass<'_> {
                 // across the side, levered as the march's transversality
                 // is.
                 let sine = div_down(inf, speed.get());
-                let lever = if super::system::lever_variant() == Some("geo") {
+                let lever = if super::system::lever_variant() == Some("geo") && std::env::var("LEVER_REGION").is_err() {
                     self.extent.min(super::system::sampled_wall_arm(self.wall, strip.u, strip.v))
                 } else {
                     self.extent

@@ -1,0 +1,50 @@
+### region=E descend=no
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 704 filtered out; finished in 9.26s
+LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=12ε δ=7.20e-20 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=16ε δ=1.28e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=24ε δ=2.88e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=40ε δ=8.00e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=100ε δ=5.00e-18 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999889769242e-1 and 5.000000110230758e-1: the intersection meets it tangentially (slope margin 0e0 m)
+### region=E descend=yes
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 704 filtered out; finished in 9.48s
+LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=12ε δ=7.20e-20 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=16ε δ=1.28e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=24ε δ=2.88e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=40ε δ=8.00e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=100ε δ=5.00e-18 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999889769242e-1 and 5.000000110230758e-1: the intersection meets it tangentially (slope margin 0e0 m)
+### region=rho descend=no
+thread 'm5_pr7_ssi::a_hyperbola_along_its_asymptote_pairs_its_branches_right' (31760) panicked at crates/geom-brep/tests/m5_pr7_ssi.rs:5892:44:
+c = 1e-4 on the near-degenerate chart at ε 1e-6: TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(1.9206991595564365e-7, None)), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 27 }
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 704 filtered out; finished in 3.65s
+LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 4.472353006935759e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: over its 1-box chain the uniqueness tube cannot certify the surfaces crossing clear of the tolerance band (certified clearance 8.326821155490215e-10 m), so a second branch may lie inside the tube
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 8.879352808214889e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 9.642111547146097e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=12ε δ=7.20e-20 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=16ε δ=1.28e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=24ε δ=2.88e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=40ε δ=8.00e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=100ε δ=5.00e-18 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999889769242e-1 and 5.000000110230758e-1: the intersection meets it tangentially (slope margin 0e0 m)
+### region=rho descend=yes
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 704 filtered out; finished in 10.13s
+LEVERB2 d=12ε δ=7.20e-14 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=None eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=12ε δ=7.20e-20 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=16ε δ=1.28e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=24ε δ=2.88e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=40ε δ=8.00e-19 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=100ε δ=5.00e-18 tube_arm=None eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999889769242e-1 and 5.000000110230758e-1: the intersection meets it tangentially (slope margin 0e0 m)

@@ -1454,7 +1454,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            let arm = if super::system::lever_variant() == Some("geo") {
+            let arm = if super::system::lever_variant() == Some("geo") && std::env::var("LEVER_REGION").is_err() {
                 let w = n.surface();
                 let wa = super::system::sampled_wall_arm(w, w.knots_u().domain(), w.knots_v().domain());
                 if std::env::var("LEVER_DEBUG").is_ok() {
