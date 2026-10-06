@@ -397,6 +397,46 @@ fn the_clearance_gate_reads_across_shells() {
     );
 }
 
+/// **The clearance gate reads a footprint off its arcs, not its
+/// vertices.** Two cylindrical voids, each rim two semicircles meeting
+/// at azimuths 0 and π, stacked with `0.4` of material between the
+/// lower one's roof and the upper one's floor and their axes `1.0`
+/// apart in `y`: the discs (radius 1) overlap in plan, so `t = 0.3`
+/// cannot fit two walls. Every vertex of both caps lies on the line
+/// through its own centre along `x`, so the vertex boxes — grown by
+/// `t` — stand `0.4` apart in `y`; only the arcs carry the overlap.
+#[test]
+fn the_clearance_gate_reads_arc_bounded_footprints() {
+    let tol = Tol::witness();
+    let void = |cy: f64, z0: f64| {
+        sweep::test_support::cylinder_of_arcs_at(2, 1.0, Point2::new(3.0, cy), z0, 1.8, tol)
+    };
+    let one = crate::common::cavity::cut(
+        "lower void",
+        &block(6.0, 6.0, 6.0, tol),
+        &void(2.5, 1.0),
+    );
+    let body = crate::common::cavity::cut("upper void", &one, &void(3.5, 3.2));
+    assert_eq!(body.shells().count(), 3, "outer plus two voids");
+    let e = topo::shell(&body, 0.3, tol).expect_err("0.4 < 0.6 under overlapping caps refuses");
+    let ShellError::WallClearance {
+        face,
+        other,
+        gap,
+        needed,
+    } = e
+    else {
+        panic!("expected the wall-clearance gate, got {e}");
+    };
+    assert!((gap - 0.4).abs() < 1e-12, "the wall is 0.4, got {gap}");
+    assert!((needed - 0.6).abs() < 1e-12, "two walls need 0.6, got {needed}");
+    let mut named = [face, other];
+    named.sort();
+    let mut caps = [plane_face_at(&body, 2.8), plane_face_at(&body, 3.2)];
+    caps.sort();
+    assert_eq!(named, caps, "the lower void's roof and the upper void's floor");
+}
+
 /// **Two voids.** With material `g = 0.4` between them, `t > g/2`
 /// refuses naming two VOID faces, and `t < g/2` builds three solids
 /// with the closed-form volume.
