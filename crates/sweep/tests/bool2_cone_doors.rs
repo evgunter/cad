@@ -393,9 +393,15 @@ fn every_ray_from_the_virtual_apex_grazes_and_the_door_escalates() {
     let PointInSolidError::RayExhausted = err else {
         panic!("expected the grazing escalation, got {err:?}");
     };
+    // Free space has no coincidence to declare: the recourse is the
+    // one without a declaration in it.
     let msg = err.to_string();
+    assert!(msg.contains("off its boundary"), "{msg}");
     assert!(msg.contains("grazed"), "{msg}");
-    assert!(msg.contains("ill-conditioned"), "{msg}");
+    assert!(
+        msg.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        "{msg}"
+    );
 }
 
 /// **The azimuth-trimmed class.** A partial revolve's cone face has a

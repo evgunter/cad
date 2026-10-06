@@ -360,7 +360,7 @@ const SLAB_LEDGER: [&str; 3] = [
 /// COEFFICIENT bound (`2^186`-scale coefficients). Folding `tan` the way
 /// rule D folds `sin`/`cos` takes both lines back to 0, measured on a
 /// probe and reverted
-/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
+/// (`work/rules/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
 /// The plate's receipt is `[811, 0, 140, 462]` either way, and the
 /// `*/Report` rows stay absent.
 ///

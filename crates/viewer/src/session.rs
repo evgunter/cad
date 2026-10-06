@@ -59,9 +59,10 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Formula, FreeValue,
-    FreeVar, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
-    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
+    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver,
+    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
+    VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
+    product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -465,6 +466,9 @@ pub struct DocSession {
 ///   genuinely differs: `Open` sets both, `NewDocument` clears both.
 struct Derived {
     selection: Selection,
+    /// The nodes [`Derived::selection`] names, as the last document that
+    /// held them spoke them ([`DocSession::selection_said`]).
+    said: HeldNodes,
     /// What the cursor is over: transient, never persisted, and its
     /// ONE home. A widget that kept its own copy would be the
     /// per-widget shadow the panels' inventory discipline forbids.
@@ -504,6 +508,7 @@ impl Derived {
     fn none() -> Self {
         Self {
             selection: Selection::None,
+            said: HeldNodes::default(),
             hover: None,
             scratch: None,
             landed: None,
@@ -528,6 +533,7 @@ impl core::fmt::Debug for Derived {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             selection,
+            said,
             hover,
             scratch,
             landed,
@@ -535,6 +541,7 @@ impl core::fmt::Debug for Derived {
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
+            .field("said", said)
             .field("hover", hover)
             .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
             .field("landed", landed)
@@ -889,6 +896,17 @@ impl DocSession {
         &self.derived.selection
     }
 
+    /// **The selection's nodes as the last document that held them
+    /// spoke them** ([`Selection::nodes`]): what a sentence about the
+    /// selection says a node by once the document it is spoken from no
+    /// longer holds it (`Speaker::or_held`). Spoken when the selection
+    /// is made, and again from the shown document after every
+    /// operation (`SpokenNode::respoken`'s rule), so a deleted node
+    /// is said by the last label it had.
+    pub fn selection_said(&self) -> &HeldNodes {
+        &self.derived.said
+    }
+
     /// What the cursor is over, if anything.
     pub fn hover(&self) -> Option<&Hovered> {
         self.derived.hover.as_ref()
@@ -923,6 +941,30 @@ impl DocSession {
                 resolution: self.entity_resolution(&edge.name),
             },
         }
+    }
+
+    /// **The nodes `selection` names, as the session speaks them now**:
+    /// each as the shown document holds it, or as the landed run's
+    /// document does where the shown one no longer holds it. A selection
+    /// is picked in one of the two: the feature tree draws the shown
+    /// document, and the viewport and the Checks window the landed run.
+    /// Both are versions of this session's one document, so an id
+    /// names one node in each (`SpokenNode::respoken`'s soundness
+    /// paragraph); a replaced document drops the landed run with the
+    /// selection.
+    fn spoken_now(&self, selection: &Selection) -> HeldNodes {
+        let landed = self.landed_pair().map(|(doc, _)| doc);
+        selection
+            .nodes()
+            .into_iter()
+            .map(|id| {
+                let shown = self.doc().spoken(id);
+                match landed {
+                    Some(landed) if shown.kind().is_none() => landed.spoken(id),
+                    Some(_) | None => shown,
+                }
+            })
+            .collect()
     }
 
     /// One picked name's verdict against the landed run — the shipped
@@ -1393,6 +1435,18 @@ impl DocSession {
     /// table plus that one rule, held once for both drags rather than
     /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
+        let outcome = self.perform_op(op);
+        // Every document change is an operation, so this is the one
+        // place the kept nodes follow the newest document that holds
+        // them. A landing changes only the landed run, an earlier
+        // version of the shown document.
+        self.derived.said = self.derived.said.respoken(self.doc());
+        outcome
+    }
+
+    /// [`DocSession::perform`]'s operation, before the selection's kept
+    /// nodes are spoken again.
+    fn perform_op(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.held().is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
@@ -1401,6 +1455,7 @@ impl DocSession {
         }
         match op {
             SessionOp::Select(selection) => {
+                self.derived.said = self.spoken_now(&selection);
                 self.derived.selection = selection;
                 OpOutcome::default()
             }
