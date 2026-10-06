@@ -2370,6 +2370,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
+        TessellateError::PinchWedge { .. } => "pinch_wedge",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
@@ -3199,6 +3200,8 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
     match declaration {
         StaleDeclaration::VertexVertex { .. } => "vertex_vertex",
         StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::VertexOnEdge { .. } => "vertex_on_edge",
+        StaleDeclaration::EdgeEdge { .. } => "edge_edge",
         StaleDeclaration::CurveLocus { .. } => "curve_locus",
         StaleDeclaration::Patch { .. } => "patch",
     }
