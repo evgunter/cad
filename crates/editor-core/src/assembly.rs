@@ -211,7 +211,11 @@ impl<B: crate::spoken::Say> PartRow<B> {
     /// `doc`'s own row, reached through no instance of `doc`'s, its
     /// nodes as `doc` holds them: the ones the body's own sentence
     /// names, the sentence every carrier says it by.
-    pub(crate) fn own<P>(doc: &Doc<P>, of: crate::ident::DocumentId, body: B) -> Self {
+    pub(crate) fn own<P: crate::program::ProfilePayload>(
+        doc: &Doc<P>,
+        of: crate::ident::DocumentId,
+        body: B,
+    ) -> Self {
         let held = Arc::new(crate::spoken::held_by(&body, doc));
         Self {
             of,

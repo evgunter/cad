@@ -115,3 +115,21 @@ The fourth review's findings. The probes it named are rows of `editor-core/tests
 - **A table's first saying is no longer quadratic in renderings.** `table_details` says each name of an alike group once per detail the group's searches ask, shared between them (`words::Alike`); what stays quadratic is string comparison. 1,000 names alike at no citation: 1.3 s in release, was 15.5 s (`a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time`). The details found are the same as before.
 - **The census checks a table's mixed rows.** The scoped uniqueness check now covers the names a node passes through beside its own (a Split's intact upstream names and its halves); none read alike.
 - **Filed:** CHROME `the-tree-calls-a-boolean-boolean-where-a-join-says-subtract` (one node, two nouns on one screen) and `a-face-frames-tree-label-could-say-which-face`.
+
+## Built (2026-10-06, PR 3886, fifth fix pass)
+
+The fifth review's findings.
+
+- **Wraps and joins are said in the order the path takes them.** A join beneath a wrap (a split's half, a copy, a band cut, a part) is said inside it, bracketed: "instance 1's copy of (the start cap of Extrude e548, cut in at Subtract 1669)" is a copy of a cut-in cap; without the bracket it is a cut-in copy. The same for a part: "the part of (the side wall …, cut in at Subtract …) bordering …". Static row `a_join_beneath_a_wrap_reads_apart_from_one_above_it`. The full-form fuzzer now draws the review's richer names (every wrap, join and list-bearing role, nested up to four deep) next to the old shapes, and the table fuzzer draws them too. 105 corpus names moved, all of them a join beneath a wrap; `SAID_DIGEST` moved, word counts did not.
+- **The full form's claim is scoped.** Two names read alike in full only where they differ in a node the words never say: a primary carry's node, or the node of a split, copy, band cut or part. The module docs, `Detail::Full` and `table_details` now say this. `table_details` asserts in debug (and release keeps debug assertions) when its loop ends with names still alike. The fuzzer counts these pairs separately. Filed as `two-names-differing-only-in-an-unsaid-carry-node-read-alike` (P3).
+- **The rows run where they can break.** The `name_words_rows` marker also names `names/attribute.rs`, `eval/wire.rs`, `eval/mod.rs`, `resolve/`, `node.rs` and `edit.rs`. The two fuzz rows left the slow set.
+- New rows:
+  - A fillet's edge and a shell's open face above slot 0, through evaluation (`a_resolve_row_names_a_payload_slot_above_zero`). The fillet row asserts its slot is above 0, so a reference that lost its slot turns it red.
+  - A union's declared pair's second side (`a_union_resolve_row_names_its_declared_pairs_second_side`).
+  - The strand row after deleting a union (`a_strand_row_names_a_deleted_union`).
+- **Python reads a real in-band pair.** `test_document.TestDetectDeclareDoors.test_an_in_band_pair_refuses_naming_both_faces_and_their_nodes` floats one slab by the band's midpoint and reads `reason`, `at`, `other_at`, `name`, `other`, `predicate` and the kernel's sentence.
+- **Style.**
+  - `Took` has one spelling, `Took::said(name)`, which names the deleted node. Its `Display` is gone.
+  - `FaceFrameResolve` stays without `reference`, since a frame's payload is one name. The call site now says so.
+  - The viewer's minter/feature lines are reworded.
+  - PairInBand reads "X and Y may coincide (margin … ) — …" (74 words at p90). To say the payload in its own place, `geom_core::IndeterminateUnder::tail` was added.
