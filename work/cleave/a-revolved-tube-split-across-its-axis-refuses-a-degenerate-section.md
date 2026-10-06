@@ -2,11 +2,13 @@
 id: a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section
 kind: issue
 title: a revolved tube split across its axis refuses DegenerateSection: its bore's section is a one-vertex loop
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: M
 branch: cleave/tube-across-axis
+closed: 2026-10-06
+pr: 4120
 ---
 
 
@@ -62,3 +64,12 @@ reached.
 The "reversed-sense wall" hypothesis above is disproved, as PR 4120 measured. The outer wall of a
 full-revolve profile that does not touch the axis is a single-seam face too. The cause was
 `chord_spec` leaving every curved self-loop chord on a placeholder circle. The fix rides PR 4120.
+
+## Closed (PR 4120, 2026-10-06)
+
+A full-revolve wall cut across its single seam now gets its whole conic as the self-loop chord, where
+it used to get a placeholder circle. Tubes, counterbores and cone sockets about two axes went from
+refusing on main to building at their closed forms. Review tier: single FULL (APPROVE-WITH-FIXES, no
+MAJOR). Filed: `a-lone-site-placeholder-has-no-type-of-its-own` (TOPO, P2) and
+`a-rim-touching-split-escalates-on-the-side-of-plane-band` (P3). The status flip was dropped from
+PR 4120's state-sync commit and is made here.

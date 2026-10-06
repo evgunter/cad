@@ -2,10 +2,12 @@
 id: split-seam-closed-form-rows-fail-at-eps-1e-6
 kind: issue
 title: four split-across-a-revolve-seam closed-form rows fail at eps 1e-6 on main: their comparison is tighter than the 1e-6 band
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: E
+closed: 2026-10-06
+pr: 4083
 ---
 
 
@@ -32,3 +34,11 @@ so it could not see them. The closest existing row,
 different symptom. Owed: the tolerance each row compares at should be
 the band's, or the row says why it is tighter, and every sweep PR's
 1e-6 row goes green. Filed by the SHELL orchestrator.
+
+## Closed (PR 4083, 2026-10-06)
+
+Fixed in PR 4083. Its merge with main ran these rows at the 1e-6 row, which main had never done. The
+four `split_across_a_revolve_seam` rows and
+`m5_pr6_pcurves::a_seam_closed_tube_split_mints_clean_halves` now hold each volume to 1e-8 plus its
+own certified quadrature pad, and pass at 1e-6, 1e-9 and 1e-12. The two rows filed for this red are
+closed together.

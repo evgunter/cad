@@ -202,6 +202,80 @@ fn a_void_inside_a_void_refuses() {
     );
 }
 
+/// One solid of `boxes`, each `(x, y, z, inside_out)`: an outward
+/// brick is an `Outer` shell, an inside-out one a `Void`.
+fn filed(boxes: &[[(f64, f64); 3]], inside_out: &[bool]) -> Body<f64> {
+    let mut body = Body::<f64>::new();
+    for (&[x, y, z], &flip) in boxes.iter().zip(inside_out) {
+        let b = brick(x, y, z, tol());
+        let b = if flip {
+            b.revert().expect("reverts")
+        } else {
+            b
+        };
+        topo::graft_disjoint_all_keyed(&mut body, &b).expect("the graft");
+    }
+    body.with_solids_merged_for_tests()
+}
+
+/// **Check 10 reads a shell every corner of which touches another, at
+/// an edge midpoint**: in a hollow cube, a smaller cavity spanning the
+/// larger one's full height hangs inside it, so its eight corners lie
+/// on the larger cavity's floor and ceiling, and only the midpoints of
+/// its upright edges say where it stands — inside that cavity, winding
+/// `1 - 1 = 0`.
+#[test]
+fn a_void_in_a_void_touching_at_every_corner_refuses() {
+    let body = filed(
+        &[
+            [(0.0, 4.0), (0.0, 4.0), (0.0, 4.0)],
+            [(1.0, 3.0), (1.0, 3.0), (1.0, 3.0)],
+            [(1.5, 2.5), (1.5, 2.5), (1.0, 3.0)],
+        ],
+        &[false, true, true],
+    );
+    let solid = only_solid(&body);
+    let inner = body.shells().nth(2).expect("three shells").0;
+    positive_total(&body);
+    assert_eq!(
+        topo::validate_geometric(&body, tol()),
+        Err(vec![ValidationError::ShellWinding {
+            solid,
+            shell: inner,
+            winding: 0,
+            bounded: -1,
+        }])
+    );
+}
+
+/// **Check 10 reads a shell every corner and edge of which touches
+/// another, at a face interior**: the inner cavity is the larger one's
+/// lower half, so five of its faces lie on the larger cavity's and only
+/// its top face's interior is off every other shell.
+#[test]
+fn a_void_in_a_void_touching_at_every_edge_refuses() {
+    let body = filed(
+        &[
+            [(0.0, 4.0), (0.0, 4.0), (0.0, 4.0)],
+            [(1.0, 3.0), (1.0, 3.0), (1.0, 3.0)],
+            [(1.0, 3.0), (1.0, 3.0), (1.0, 2.0)],
+        ],
+        &[false, true, true],
+    );
+    let solid = only_solid(&body);
+    let inner = body.shells().nth(2).expect("three shells").0;
+    positive_total(&body);
+    assert_eq!(
+        topo::validate_geometric(&body, tol()),
+        Err(vec![ValidationError::ShellWinding {
+            solid,
+            shell: inner,
+            winding: 0,
+            bounded: -1,
+        }])
+    );
+}
+
 /// The shell of `candidates` with the smaller enclosed volume.
 fn small(body: &Body<f64>, candidates: &[ShellKey]) -> ShellKey {
     let classes = topo::classify_shells_of(body, candidates, tol()).expect("classifies");
