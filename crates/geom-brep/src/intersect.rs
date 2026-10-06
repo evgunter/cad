@@ -1369,7 +1369,8 @@ pub enum EqualCylinderSection<T: Real> {
 ///    parallel lane (step 4); definite ⇒ the crossing lane (step 5).
 /// 4. `cc_coaxial` / `cc_parallel_gap` — axis-to-axis distance `d`,
 ///    read between the feet of `reach`'s centre on the two axes
-///    ([`parallel_axes_at`]): coincident-with-zero ⇒
+///    ([`ExtentBall::foot_on`]), the same in either order:
+///    coincident-with-zero ⇒
 ///    [`SectionError::CoincidentSurfaces`]; then margin `r₁ + r₂ − d`:
 ///    Positive ⇒ two rulings, Zero ⇒ tangent ruling, Negative ⇒ empty.
 /// 5. `cc_axes_coplanar` — margin the signed axis-to-axis gap
