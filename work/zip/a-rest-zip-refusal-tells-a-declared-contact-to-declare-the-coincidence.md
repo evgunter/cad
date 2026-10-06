@@ -2,11 +2,12 @@
 id: a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence
 kind: issue
 title: Every declared-REST zip refusal ends on 'declare the coincidence', a lane reached only after a declaration
-status: open
+status: dispatched
 opened: 2026-09-30
 priority: P2
 cost: E
 refs: [a-boss-flush-with-a-block-edge-refuses-its-declared-union, a-refusal-offers-no-action-in-the-viewer]
+branch: zip/survivor-and-recourse
 ---
 
 
