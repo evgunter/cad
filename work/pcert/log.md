@@ -596,3 +596,21 @@ coincidence is now a margined verdict (no declarations), checked by the
 - Main meanwhile landed TOPO's R build (Ev's ruling on PR 4024: a stored per-half-edge joint element, `loop_lift`). That re-architected the code 3945 changes: 45 conflict hunks in `pcurves.rs`.
 - TOPO filed the coordination row on my slate. My call: 3945 lands second and re-ports onto R, with one decider and R's storage, not identity-at-every-joint.
 - The re-ported head gets a fresh dual pair. Most of the code under review will be new against 78e55c70, so a delta review would not cover it.
+
+## 2026-10-06 — PR 3945 round-2 dual review adjudicated (the re-port onto R)
+
+- Frozen head da1afd1f, a fresh pair because most of the code is new against 78e55c70. The later commit bbee7652 changes only a `work/` item.
+- Both reviews delivered: R1 (comment 6015903724) and R2 (comment 6014803528). Both verdicts are APPROVE-WITH-FIXES with no MAJOR. Isolation held: R1 read no comments, and R2 read only those before the cutoff. Both reproduced the `pinch_faces` ε=1e-6 red on main 62bdd557.
+- **Correspondence pre-note (rule 7), before the blinded coding returns.**
+  - Bilateral MINORs:
+    - `split_cache` turns a `decide_joint` refusal into a stored identity;
+    - near-pole orbit-point mutants survive (R1 MB/…, R2 m1);
+    - the README's C4 closure sentence is narrower than `Winding::closes`.
+  - Unilateral, R1 only:
+    - the further survivors: a Reset/Shift swap with the same deck, and the site mint's new-half vertex;
+    - `chart_boundary`'s `is_zero` leans on a winding the decider's docs concede can be off by one orbit step near a pole or a narrow cone apex;
+    - the unit's closure note is stale;
+    - NOTEs: claim 1 is overstated (kills, revert and graft write elements by algebra or copy), and `chaintol`'s rows 3–4 moved without being listed, with a guard that can't tell the predicate names apart.
+  - Unilateral, R2 only: `Reset` is written on an undecided reading on spline charts. That corrects my brief's premise; no code change.
+  - Tally candidates: none, since neither review raised a MAJOR.
+- The fix list (the union) has gone to the implementer. The blinded coder is session_01TeTFymE7xDPjooubHwkkPD; the byte is recorded privately.
