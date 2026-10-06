@@ -867,3 +867,59 @@ fn leverb_warp_chart_path() {
         }
     }
 }
+
+/// Lever B, round 2: the parabolic wall `z = x²/(2ρ)`, `ρ` 1 mm, over
+/// `x ∈ [−1, 1] cm`, `y ∈ [0, 2] cm`, cut by the plane `z = δ` with
+/// `δ = d²/(2ρ)` so the two intersection lines lie at `x = ±d`: the
+/// surfaces are tangent to within `δ ≪ ε`, and `d` is the point rule's
+/// margin `sin θ · ρ` at each line. The region rule's lever on the tube
+/// is the extent (B) or the wall's curvature radius (A, `LEVER_TUBE_ARM`).
+#[test]
+fn leverb_near_tangent_parabola() {
+    let rho = 1e-3;
+    let w = 0.01;
+    for dk in [12.0, 16.0, 24.0, 40.0, 100.0] {
+        let d = dk * eps();
+        let delta = d * d / (2.0 * rho);
+        let xp = lin(-w, 2.0 * w, 0.0);
+        let zp = xp.mul(&xp).scale(1.0 / (2.0 * rho));
+        let (n, m) = (2, 1);
+        let xn = bernstein(&xp, n, m);
+        let zn = bernstein(&zp, n, m);
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for i in 0..=n {
+            for j in 0..=m {
+                control.push(Point3::new(xn[i][j], 0.02 * j as f64, zn[i][j]));
+            }
+        }
+        let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, delta),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let domain = SsiDomain {
+            center: Point3::new(0.0, 0.01, 0.0),
+            half_extent: 1.0,
+            extent: 0.02,
+            floor_scale: 1.0,
+        };
+        let tag = format!("d={dk}ε δ={delta:.2e} tube_arm={:?} eps={:e}", std::env::var("LEVER_TUBE_ARM").ok(), eps());
+        match ssi::plane_nurbs_ssi(&plane, &wall, domain, band()) {
+            Ok(out) => {
+                let desc: Vec<String> = out
+                    .branches
+                    .iter()
+                    .map(|b| {
+                        let (p, q) = (b.carrier.eval(b.params.0), b.carrier.eval(b.params.1));
+                        format!("x {:.2e}->{:.2e} y {:.2e}->{:.2e} tube {:?}", p.x, q.x, p.y, q.y, b.certificate.tube)
+                    })
+                    .collect();
+                eprintln!("LEVERB2 {tag}: Ok {} branches {desc:?} exhaustiveness {:?}", out.branches.len(), out.exhaustiveness);
+            }
+            Err(e) => eprintln!("LEVERB2 {tag}: Err {e}"),
+        }
+    }
+}

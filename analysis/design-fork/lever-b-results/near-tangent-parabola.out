@@ -1,0 +1,24 @@
+== eps=1e-9 LEVER_TUBE_ARM=
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-14 tube_arm=Some("") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=Some("") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=Some("") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=Some("") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=Some("") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+== eps=1e-9 LEVER_TUBE_ARM=1e-3
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-14 tube_arm=Some("1e-3") eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 4.47235300693576e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB2 d=16ε δ=1.28e-13 tube_arm=Some("1e-3") eps=1e-9: Err ssi: over its 1-box chain the uniqueness tube cannot certify the surfaces crossing clear of the tolerance band (certified clearance 8.326821155490217e-10 m), so a second branch may lie inside the tube
+LEVERB2 d=24ε δ=2.88e-13 tube_arm=Some("1e-3") eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 8.879352808214892e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB2 d=40ε δ=8.00e-13 tube_arm=Some("1e-3") eps=1e-9: Err ssi: whether the fitted carrier passes limb 3 (uniqueness tube) is too close to call: margin 9.642111547146099e-9 lies inside the ambiguity band (1e-9, 1e-8)
+LEVERB2 d=100ε δ=5.00e-12 tube_arm=Some("1e-3") eps=1e-9: Err ssi: the exhaustiveness subdivision exceeded its 200000-cell budget — refused rather than truncated
+== eps=1e-12 LEVER_TUBE_ARM=
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-20 tube_arm=Some("") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=16ε δ=1.28e-19 tube_arm=Some("") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=24ε δ=2.88e-19 tube_arm=Some("") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=40ε δ=8.00e-19 tube_arm=Some("") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=100ε δ=5.00e-18 tube_arm=Some("") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999889769242e-1 and 5.000000110230758e-1: the intersection meets it tangentially (slope margin 0e0 m)
+== eps=1e-12 LEVER_TUBE_ARM=1e-3
+test rev3983_probes::leverb_near_tangent_parabola ... LEVERB2 d=12ε δ=7.20e-20 tube_arm=Some("1e-3") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=16ε δ=1.28e-19 tube_arm=Some("1e-3") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=24ε δ=2.88e-19 tube_arm=Some("1e-3") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=40ε δ=8.00e-19 tube_arm=Some("1e-3") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999906831363e-1 and 5.000000093168637e-1: the intersection meets it tangentially (slope margin 0e0 m)
+LEVERB2 d=100ε δ=5.00e-18 tube_arm=Some("1e-3") eps=1e-12: Err ssi: the plane grazes the wall's v = low side between parameters 4.999999889769242e-1 and 5.000000110230758e-1: the intersection meets it tangentially (slope margin 0e0 m)

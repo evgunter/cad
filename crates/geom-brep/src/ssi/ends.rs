@@ -51,6 +51,17 @@ use super::{
     seam_tol,
 };
 
+/// ANALYSIS BRANCH ONLY (lever B, round 2): `LEVER_TUBE_ARM=<metres>`
+/// levers the chart tube's clearance by that arm (designer A's region
+/// rule, the wall's least curvature radius handed in) instead of the
+/// extent alone.
+fn probe_tube_scale(extent: f64) -> TubeScale<f64> {
+    match std::env::var("LEVER_TUBE_ARM").ok().and_then(|v| v.parse::<f64>().ok()) {
+        Some(arm) => TubeScale::split(arm.min(extent), extent),
+        None => TubeScale::uniform(extent),
+    }
+}
+
 /// What the branches between known ends read, minted once per call.
 pub(crate) struct Ends<'a> {
     /// The ℝ⁴ system.
@@ -473,7 +484,7 @@ impl<'a> Ends<'a> {
                         wall: *wall,
                         pcurve,
                     },
-                    TubeScale::uniform(self.ctx.extent),
+                    probe_tube_scale(self.ctx.extent),
                     self.band,
                     limbs,
                 )?;
@@ -504,7 +515,7 @@ impl<'a> Ends<'a> {
                 wall: *wall,
                 pcurve,
             },
-            TubeScale::uniform(self.ctx.extent),
+            probe_tube_scale(self.ctx.extent),
             self.band,
             certify::Limbs::All,
             &mut Vec::new(),
