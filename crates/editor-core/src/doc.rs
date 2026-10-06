@@ -1224,6 +1224,47 @@ impl<P> Doc<P> {
     /// the anonymous variables read by no node and by no definition of
     /// a variable still standing — so a defined variable comes before
     /// the variables only its definition read.
+    /// **The anonymous variables [`Node::written`] would not reproduce**:
+    /// one read more than once — by two slots, as a fresh entry shared
+    /// within one edit, or by a slot and a definition — which a written
+    /// re-insert splits into one per reader, and one that carries a
+    /// distribution, which a value written at a slot cannot carry.
+    /// Rebuilding a document by re-inserting its nodes as written is
+    /// the document only where this is empty and no anonymous variable
+    /// was value-edited after its insert (whose mint read the old
+    /// value); the last is the caller's to check, by the ids.
+    ///
+    /// [`Node::written`]: crate::Node::written
+    pub fn written_would_not_reproduce(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut reads: BTreeMap<VarId, usize> = BTreeMap::new();
+        for node in self.nodes.values() {
+            for &var in node.exprs() {
+                *reads.entry(var).or_default() += 1;
+            }
+        }
+        for held in self.vars.values() {
+            if let crate::VarDef::Defined(defined) = held.def() {
+                let mut read = Vec::new();
+                defined.var_reads(&mut read);
+                for (var, _) in read {
+                    *reads.entry(var).or_default() += 1;
+                }
+            }
+        }
+        self.var_order
+            .iter()
+            .copied()
+            .filter(|var| !self.var_names.contains_key(var))
+            .filter(|var| {
+                reads.get(var).copied().unwrap_or(0) > 1
+                    || self.free(*var).and_then(FreeVar::distribution).is_some()
+            })
+            .collect()
+    }
+
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,

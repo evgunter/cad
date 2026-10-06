@@ -97,7 +97,25 @@ pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileP
 /// variable's value or definition, a named one's reader — for a row
 /// that rebuilds a document by re-inserting its nodes, minting their
 /// anonymous variables afresh, as the original inserts did.
+///
+/// # Panics
+///
+/// If `node` reads an anonymous variable a written re-insert would not
+/// reproduce ([`crate::Doc::written_would_not_reproduce`]): the rebuilt
+/// document would not be this one. A value edited after its insert is
+/// the caller's to rule out, by comparing the rebuilt ids.
 pub fn as_written(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> crate::AuthoredNode {
+    let lost = doc.written_would_not_reproduce();
+    let read: Vec<crate::VarId> = node
+        .exprs()
+        .into_iter()
+        .copied()
+        .filter(|var| lost.contains(var))
+        .collect();
+    assert!(
+        read.is_empty(),
+        "a written re-insert would not reproduce {read:?}: shared, or toleranced"
+    );
     node.written(doc)
 }
 

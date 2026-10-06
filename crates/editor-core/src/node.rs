@@ -4356,8 +4356,16 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// variable was written as ([`crate::Doc::written`]) — an anonymous
     /// variable's value or definition, a named one's reader. Inserting
     /// it mints its anonymous variables afresh, as the insert that
-    /// wrote it did, so a document rebuilt by re-inserting its nodes in
-    /// order is the document, ids included.
+    /// wrote it did. RE-MINTS: where identity must survive, re-author
+    /// with [`Self::authored`].
+    ///
+    /// A document rebuilt by re-inserting its nodes in order is the
+    /// document, ids included, ONLY where no anonymous variable is read
+    /// more than once or carries a distribution
+    /// ([`crate::Doc::written_would_not_reproduce`]) and none was
+    /// value-edited after its insert (its mint read the old value). A
+    /// caller rebuilding a document checks the first and compares the
+    /// ids for the second.
     #[must_use]
     pub fn written(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
         self.authored_with(doc, &mut |var, dim| {

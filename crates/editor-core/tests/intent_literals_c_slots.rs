@@ -988,3 +988,41 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
         "one draw, w's"
     );
 }
+
+// ------------------------------------- re-inserting as written (r1 m2)
+
+/// **What a written re-insert would not reproduce is named**: a point
+/// whose x and y read one toleranced fresh entry is, re-inserted from
+/// `Node::written`, two untoleranced variables under a new id, so the
+/// document names that entry, and `as_written` refuses the node rather
+/// than rebuild another document. One read once and untoleranced is
+/// not named. Breaks if the precondition stops seeing sharing or a
+/// distribution.
+#[test]
+fn a_shared_or_toleranced_anonymous_variable_is_not_rewritten() {
+    let doc = empty("intent-literals-c-written");
+    let spread = VarDecl::Free(
+        FreeVar::continuous(Dimension::Length, 0.5)
+            .with_distribution(Some(Distribution::Normal { sigma: 0.001 }))
+            .expect("a length takes a normal"),
+    );
+    let fresh = || Formula::fresh(0, Dimension::Length);
+    let applied = step(&doc, point([fresh(), fresh(), len(0.0)], vec![spread]));
+    let [entry] = applied.record.fresh[..] else {
+        panic!("one entry: {:?}", applied.record.fresh)
+    };
+    let shared = applied.record.minted.expect("the point");
+    assert_eq!(applied.doc.written_would_not_reproduce(), vec![entry]);
+    let lone = step(
+        &empty("intent-literals-c-written-lone"),
+        point([len(0.5), len(0.0), len(0.0)], Vec::new()),
+    );
+    assert_eq!(lone.doc.written_would_not_reproduce(), Vec::new());
+    let node = applied.doc.node(shared).expect("held").clone();
+    let refused =
+        std::panic::catch_unwind(|| editor_core::test_support::as_written(&applied.doc, &node));
+    assert!(
+        refused.is_err(),
+        "as_written refuses a node it cannot reproduce"
+    );
+}

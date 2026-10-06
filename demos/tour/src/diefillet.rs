@@ -494,6 +494,15 @@ const DOC_LABEL: &str = "die";
 /// exporting a document that is not the one the scene renders.
 pub fn corpus_text(tol: Tol) -> String {
     let die = build(tol);
+    // Re-inserting as written reproduces the document only where no
+    // anonymous variable is shared or toleranced
+    // (`Node::written`'s precondition); the replay's ids, compared
+    // below, rule out a value edited after its insert.
+    assert_eq!(
+        die.doc.written_would_not_reproduce(),
+        Vec::new(),
+        "the die's anonymous variables are each read once and untoleranced"
+    );
     let empty: Doc<ProfileProgram> = Doc::empty_derived(DOC_LABEL, tol);
     let mut edits: Vec<DocEdit<ProfileProgram>> = die
         .doc
@@ -523,6 +532,18 @@ pub fn corpus_text(tol: Tol) -> String {
             .expect("the derived log replays")
             .doc;
     }
+    let built: Vec<_> = die
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| id != die.blank)
+        .collect();
+    assert_eq!(
+        replay.order(),
+        &built[..],
+        "the replay re-mints every node id `build` minted, the blank deleted"
+    );
     // The ids were cleared on the strength of the insert door minting
     // them again in the same order; that precondition is checked
     // profile by profile, so a `build` that mints a step any other way
