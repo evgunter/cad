@@ -616,11 +616,12 @@ residual bound against the described locus (D4). The type is
 
 ```text
 EdgeDescription =
-  | Intersection        { s1, s2, witness }  -- transverse surface–surface
+  | Intersection        { pair, witness }    -- transverse surface–surface
                                              -- intersection: the connected
                                              -- component of S₁∩S₂ selected by
-                                             -- the witness (also the marching seed)
-  | TangentIntersection { s1, s2, witness }  -- tangential contact locus; same
+                                             -- the witness (also the marching seed);
+                                             -- `pair` is the set {S₁, S₂}, unordered
+  | TangentIntersection { pair, witness }    -- tangential contact locus; same
                                              -- shape, margin one order up
   | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
                                              -- (surface, Pcurve) with a `seam` flag
@@ -928,7 +929,7 @@ convention, adopted directly. Pipeline:
    bodies.
 2. **Edge adoption**: verify the imported curve lies within ε of the
    intersection of its adjacent surfaces with adequate transversality
-   margin, then rebuild it as `Intersection { s1, s2, witness }` — the
+   margin, then rebuild it as `Intersection { pair, witness }` — the
    imported curve demoted to witness + initial cache. Seams and
    tangency loci are recognized likewise.
 3. **Healing**: where no description is satisfied within ε, repair

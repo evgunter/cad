@@ -687,7 +687,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         // Refuses in EVERY ambient-ε cell, but the refusal SITE and
-        // sub-reason shift with ε (edge #170 Surface2Residual at
+        // sub-reason shift with ε (edge #170 SurfaceResidual at
         // default/1e-12; edge #177 tangent-planes at 1e-6). This row's
         // fragment is the shared adoption-ladder preamble, so the shift
         // is invisible here BY DESIGN: pinning it would cost 9 more
