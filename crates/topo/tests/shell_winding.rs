@@ -208,11 +208,7 @@ fn filed(boxes: &[[(f64, f64); 3]], inside_out: &[bool]) -> Body<f64> {
     let mut body = Body::<f64>::new();
     for (&[x, y, z], &flip) in boxes.iter().zip(inside_out) {
         let b = brick(x, y, z, tol());
-        let b = if flip {
-            b.revert().expect("reverts")
-        } else {
-            b
-        };
+        let b = if flip { b.revert() } else { b };
         topo::graft_disjoint_all_keyed(&mut body, &b).expect("the graft");
     }
     body.with_solids_merged_for_tests()
