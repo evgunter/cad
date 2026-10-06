@@ -7591,3 +7591,28 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
     4. field privacy plus tier 1 plus D1 (waits, because tier 1 and privacy need every move vouched).
   - Orchestrator lean: option (b), keep `_minting` until the restater exists, per Ev's hold. The reviewer is asked whether privacy and tier 1 could land with `_minting` behind a named unvouched constructor, as the whole-body maps have.
 - This changes the close-out plan. Item 1 lands only in part (series 1–2) unless that route holds. Told Ev.
+
+## 23:26 (2026-10-06)
+
+- **PR 4204 review: fix first.** The code is sound:
+  - no production keys-only kill across keys refuses (12198-test instrumented run);
+  - the rim glue is arena-identical in 202 of 202 calls;
+  - the batteries are line-identical to `origin/main` (13 `rc_wide` shards plus every `join*`).
+- **Blocking: witness coverage.** Seven refusal paths have no row that reds when removed: the twin's stale, duplicate, null-edge, adjacency, `RechartFalsifies` and curved-unvouched refusals, plus `slot_chartless`'s `Kept` arm.
+- Fix lane `session_01RGiTJvpVQBcg2onoBUEQqs` will:
+  - lift the reviewer's probes;
+  - fix the `unreachable!` render on the public `RechartDoor` variants (a panic on public input);
+  - add `CrossSolid` to `kfmrh_carried_redescriptions`, and share one plan function between each door and its restater;
+  - move the band build after the per-entry checks;
+  - use `kef_minting` in the `emit_topo` fixture;
+  - correct the PR body: the rim glue now *records* the reaped guest surface in `ShellRetired.surfaces`.
+- Not folded in:
+  - the two-restaters consolidation (choice 3, held on D10);
+  - the quadratic `contains` (matters at step 3);
+  - the off-plane error rebuild (unsure).
+- **The reviewer's fork measurements change the series' premise:**
+  - `merge_faces.rs:2603` (9,910/9,910) and `rest.rs:2081` (73/73) certify under the twin with the carried restatement. They are absorbable now.
+  - The blocked residue is three seam kills (`zip.rs:568/571`, `rest.rs:2123`), and within them a minority of calls.
+  - Privacy is not forced to wait, if `_minting` gets a named unvouched token (Ev's call).
+  - Tier 1 is forced to wait: the per-op scalpel reds on `_minting`'s mid-op strands.
+- Collisions: PR 4191 (shell, calls the deleted `rename_loop_surface`) and PR 3945 (pcert test file) will conflict after this merges.
