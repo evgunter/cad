@@ -2,12 +2,14 @@
 id: skin-coincident-section-check-is-an-unbanded-f64-compare
 kind: issue
 title: skin.rs refuses coincident loft sections by a bare f64 strict comparison (params[j-1] < params[j] → DegenerateSection) — per-pair and named, but unbanded
-status: dispatched
+status: closed
 opened: 2026-09-16
 refs: [2752]
 priority: P0
 cost: H
 branch: carve/one-door-for-coincident-sections
+pr: 4186
+closed: 2026-10-06
 ---
 
 Found by BOOL-6 (PR 2752) while placing the per-slab stacking fold's

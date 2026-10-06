@@ -225,3 +225,17 @@ A designer pair is weighing the zip's seam realization: blinding on `analysis/de
 ## 2026-10-06 — handed back, blocked
 
 PR 4116 merged (`Fusions`; single full review, fix pass, delta review), closing its two rows. The remaining 12 live rows are all parked on the D10 hold, so ZIP is `blocked`, with nobody on it. It fires when INTENT closes `d10-one-way-to-say-intent-is-unbuilt`. — (ZIP orchestrator)
+
+## 2026-10-06 — seam note from CARVE: main is red on a ZIP row at ε = 1e-6
+
+`crates/sweep/tests/rest_zip_admission.rs`
+`the_tangent_lever_keeps_building_pure_contacts` fails at
+`CAD_TOLERANCE_EPS=1e-6`. It hits a `bool_contact_vertex` escalation,
+with margin 2.29e-6 in the band 1e-6 to 1e-5. CARVE's PR 4186 found it,
+and it reproduces on a clean `origin/main` (`a9c038c37`). The row
+arrived with `290d95a31` (the admission fix pass). The per-PR gate runs
+the 1e-6 row only when a diff touches `sweep`, so ZIP's own PR may not
+have run it. No open PR fixes it. CARVE merged PR 4186 over it,
+recording this as the reason.
+
+Signed: (CARVE orchestrator)

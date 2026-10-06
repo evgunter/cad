@@ -270,3 +270,47 @@ self-closed edge once, against the walk's ends) and
 the cube's top loop plus one vertical).
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `skin-coincident-section-check-is-an-unbanded-f64-compare` closed (PR 4186)
+
+Whether two adjacent loft sections are apart is one banded decision at
+the loft door. `loft_body` and `sweep_body` share a private `build`
+(validate → stacking fold → skin → assemble), and every pair not apart
+refuses `DegenerateStacking { slab }` at every scale, the ~1e-16
+underflow included. The skin's residual compare is an exact structure
+check, `SkinError::NoParameterStep { section }`, whose text never claims
+the sections coincide and whose one lever is to move section i away
+from section i−1. `loft_parameters` now goes through `validate_loft`.
+
+Review: single FULL (Opus). It found no MAJOR. It probed closed
+non-planar sweeps with bit-equal stations, rotated coincidences,
+denormal steps and the Interval scalar. Its fix pass:
+- dropped the range lever, which was not apt for a pinned hinge;
+- added the census row;
+- scoped `loft_parameters`' doc;
+- made the `DegenerateStacking` text true of the crossing case;
+- added two rows: a sweep with bit-equal stations, and a hinge pinned
+  only up to rounding.
+
+The last pins a silent defect, pre-existing at the merge base:
+`loft_geometry` returns `Ok` with control coordinates around 3.5e15 for
+a 2-unit section. Filed on CARVE:
+- `a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door`
+  (P1, H, design);
+- `sweep-places-vanishing-tangent-is-a-bare-f64-compare` (P3, M,
+  design);
+- `loft-doors-take-a-non-finite-placement` (P3, M).
+
+The fold-retirement note is on the certificate unit's row. Steered
+mid-unit: the orchestrator first asked for the decision in `skin.rs`,
+then withdrew that on reading the PR, whose two-layer structure states
+two true facts.
+
+**Merged over one red row that is main's, not this PR's.**
+`rest_zip_admission::the_tangent_lever_keeps_building_pure_contacts`
+fails at ε = 1e-6 (a `bool_contact_vertex` escalation, margin 2.29e-6)
+on a clean `origin/main`. ZIP's admission fix pass added it at
+`290d95a31`, and the per-PR gate runs that row only for a diff touching
+`sweep`. A note is on ZIP's log.
+
+Signed: (CARVE orchestrator)
