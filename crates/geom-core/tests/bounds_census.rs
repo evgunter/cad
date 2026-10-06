@@ -357,6 +357,17 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
+        subject: "worse",
+        why: Selection(
+            "the worse of two margins of one ring cycle: the margin is `min`, value \
+             arithmetic, and the one bracket read (the `lo()` comparison) only SELECTS \
+             which input's `bounded` flag rides with it. Both go to `ring_clearance`, \
+             which decides the margin, so it inherits that door's DL5(b) disposition \
+             and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
         subject: "piece_along",
         why: Selection(
             "an edge's extent along a direction over its own window: a segment's ends \
