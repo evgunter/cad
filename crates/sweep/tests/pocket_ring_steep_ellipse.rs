@@ -518,6 +518,12 @@ fn miss(
     }
 }
 
+/// At ε 1e-6 the θ = 70° mirrored pose reads its pierce-sector margin
+/// (≈ 3.5e-6) inside the band: every run escalates on this predicate, typed,
+/// rather than building. The same shape as `pinch_faces_tessellate`'s
+/// `REFUSES_AT_1E6`.
+const REFUSES_AT_1E6: (f64, &str) = (70.0, "bool_pierce_sector_side_curved");
+
 /// **The poses the chord order paired wrongly build sound or refuse
 /// typed.** The quad prism poses are review r1's: at `k = 6`,
 /// `[200, 230, 300, 120]`, `ψ = 1.75`, ∩ AB, the chord paired a germ
@@ -530,13 +536,6 @@ fn miss(
 /// The plate's bodies are not asked to unite with a far brick (the
 /// differential `outcome`'s operand check), which every plate body of
 /// this shape refuses on main too.
-
-/// At ε 1e-6 the θ = 70° mirrored pose reads its pierce-sector margin
-/// (≈ 3.5e-6) inside the band: every run escalates on this predicate, typed,
-/// rather than building. The same shape as `pinch_faces_tessellate`'s
-/// `REFUSES_AT_1E6`.
-const REFUSES_AT_1E6: (f64, &str) = (70.0, "bool_pierce_sector_side_curved");
-
 #[test]
 fn steep_ellipse_poses_build_sound_or_refuse_typed() {
     use Want::{Sound, SoundOrRefused};
