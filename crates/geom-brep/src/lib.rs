@@ -129,7 +129,7 @@ pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
 pub use mapped::{MappedCurve, SketchSegment};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
-    IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
+    IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row, reversed_column,
 };
 pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
 pub use offset_fit::{

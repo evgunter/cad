@@ -550,34 +550,73 @@ fn one_segment_circles_revolve_at_interval() {
     }
 }
 
-/// **A one-segment section skins but does not loft yet, and says
-/// so.** The section curve converts (`segment_curve` reads a full turn
-/// from its start), so the geometry door builds one wall per
-/// one-segment loop; the body would be that one spline face closing on
-/// itself, its strut both its `u = 0` and `u = 1` edges, which a
-/// non-periodic chart cannot image twice (built, the pcurve mint
-/// refuses the second half). The assembly refuses `OneSegmentLoop`.
+/// **A lofted one-segment section is one spline wall** (D1's wrap
+/// edge, #4175): the strut through the vertex is both the `u = 0` and
+/// the `u = 1` column of the one wall, its wrap edge in `u`, laid top
+/// to bottom and carried by the column run back. A circle, and a square
+/// with a round hole, each lofted between two stacked copies: one wall
+/// per one-segment loop with its strut the body's one wrap edge, all
+/// three tiers at `f64`, and at `Interval` tiers 1–2 and the two-arc
+/// circle's tier-3 verdict (a rational wall's volume is not measured
+/// at either scalar: `work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`
+/// for the mesh, the quadrature lane for the volume).
 #[test]
-fn a_one_segment_section_skins_and_the_loft_refuses_typed() {
+fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
     let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
-    let cases: Vec<(&str, Vec<ProfileLoop<f64>>, usize)> = vec![
-        ("a circle", vec![circle(0.0, 0.0, 1.0, TAU)], 0),
+    type Case = (&'static str, Vec<ProfileLoop<f64>>, Vec<ProfileLoop<f64>>, usize);
+    let cases: Vec<Case> = vec![
+        (
+            "a circle",
+            vec![circle(0.0, 0.0, 1.0, TAU)],
+            vec![two_arcs_at(0.0, 0.0, 1.0, 0.0, TAU)],
+            0,
+        ),
         (
             "a square with a round hole",
             vec![rect(-2.0, -2.0, 2.0, 2.0), circle(0.25, 0.0, 1.0, TAU)],
+            vec![rect(-2.0, -2.0, 2.0, 2.0), two_arcs_at(0.25, 0.0, 1.0, 0.0, TAU)],
             1,
         ),
     ];
-    for (what, section, want) in cases {
-        let sections = vec![section.clone(), section];
-        let geometry = sweep::loft_geometry(&sections, &places, 1, tol())
-            .unwrap_or_else(|e| panic!("{what}: the sections skin: {e}"));
-        assert_eq!(geometry.walls[want].len(), 1, "{what}: one wall");
-        let got = sweep::loft_body::<f64>(&sections, &places, 1, tol());
-        assert!(
-            matches!(got, Err(sweep::LoftError::OneSegmentLoop { loop_index }) if loop_index == want),
-            "{what}: {:?}",
-            got.err()
+    for (what, section, two_arcs, li) in cases {
+        let one = sweep::loft_body::<f64>(&[section.clone(), section.clone()], &places, 1, tol())
+            .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
+        tiers(&one.body, what);
+        let [wall] = one.side_faces[li][..] else {
+            panic!("{what}: one wall, got {:?}", one.side_faces[li]);
+        };
+        let [strut] = one.seam_edges[li][..] else {
+            panic!("{what}: one strut, got {:?}", one.seam_edges[li]);
+        };
+        assert_eq!(
+            wrap_edges(&one.body),
+            vec![(wall, strut)],
+            "{what}: the strut is the body's one wrap edge"
+        );
+        let at_i = |loops: Vec<ProfileLoop<f64>>| {
+            let lofted = sweep::loft_body::<Interval>(&[loops.clone(), loops], &places, 1, tol())
+                .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
+            assert_eq!(validate(&lofted.body), Ok(()), "{what} at Interval: tier 1");
+            assert_eq!(validate_closed(&lofted.body), Ok(()), "{what} at Interval: tier 2");
+            // The face a refusal names differs between the two bodies;
+            // what it says about that face is compared.
+            match validate_geometric(&lofted.body, tol()) {
+                Ok(()) => None,
+                Err(errors) => match &errors[..] {
+                    [
+                        topo::ValidationError::VolumeUncomputable {
+                            source: topo::MassPropsError::Face { source, .. },
+                            ..
+                        },
+                    ] => Some(source.clone()),
+                    other => panic!("{what} at Interval: tier 3 refused otherwise: {other:?}"),
+                },
+            }
+        };
+        assert_eq!(
+            at_i(section),
+            at_i(two_arcs),
+            "{what} at Interval: tier 3 reads the one-segment wall as the two-arc walls"
         );
     }
 }

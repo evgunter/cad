@@ -436,9 +436,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     {
         return Err(LoftError::SectionStructure);
     }
-    if let Some(loop_index) = bloops.iter().position(|segs| profile::is_full_turn(segs)) {
-        return Err(LoftError::OneSegmentLoop { loop_index });
-    }
     let bq: Vec<Vec<Point3<T>>> = bloops
         .iter()
         .map(|segs| segs.iter().map(|s| world(&bplace, s.a)).collect())
@@ -479,31 +476,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // (`topo::surgery`), and the tier-2 check below subsumes it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0], true)?;
-    let mut hes = Vec::with_capacity(n);
-    let first = body.mev(
-        MevSite::Lone {
-            r#loop: seed.r#loop,
-        },
-        qs[1 % n],
-        placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n], tol),
-        tol,
-    )?;
-    hes.push(first.he_plus);
-    let mut prev = first;
-    for j in 2..n {
-        let m = body.mev(
-            MevSite::Fan {
-                he1: prev.he_minus,
-                he2: prev.he_minus,
-            },
-            qs[j],
-            placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j], tol),
-            tol,
-        )?;
-        hes.push(m.he_plus);
-        prev = m;
-    }
     let forward = cap_points(outer, qs, bplace);
     let mut bottom_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
     if let Some(&p0) = forward.first() {
@@ -513,46 +485,118 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         bottom_order.push(p);
     }
     let bottom_plane = newell_plane(&bottom_order, band).map_err(LoftError::CapPlane)?;
-    let close = body.mef(
-        MefSite::Chords {
-            he1: prev.he_minus,
-            he2: first.he_plus,
-        },
-        placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
-        // Newell over the loop the cap runs: outward, as extrude's.
-        FaceSurface::New {
-            surface: bottom_plane,
-            sense: true,
-        },
-        tol,
-    )?;
-    hes.push(close.he_plus);
-    let top_face = seed.face;
-    let bottom_face = close.face;
-    let bottom_surface = face_surface_key(&body, bottom_face);
+    // Newell over the loop the cap runs: outward, as extrude's.
+    let bottom_cap = FaceSurface::New {
+        surface: bottom_plane,
+        sense: true,
+    };
+    // A one-segment loop (D1's full turn) is swept whole in phases 1–2,
+    // far (top) rim first (`full_turn`); phases 3–4 skip it.
+    let ends = |li: usize| (bq[li][0], tq[li][0]);
+    let full_turn = |body: &mut Body<T>, li: usize, r#loop, near_cap| {
+        let (near, far) = ends(li);
+        let turn = crate::swept::build_full_turn(
+            body,
+            r#loop,
+            near,
+            placed_segment_spec(&tloops[li][0], tplace, n_top, far, far, tol),
+            FaceSurface::New {
+                surface: Surface::Nurbs(Arc::clone(&walls_t[li][0])),
+                sense: true,
+            },
+            EdgeCurveSpec::line_between(far, near),
+            placed_segment_spec(&bloops[li][0], bplace, n_bottom, near, near, tol),
+            near_cap,
+            tol,
+        )?;
+        Ok::<_, LoftError>(turn)
+    };
+    let mut early: Vec<Option<crate::swept::FullTurn>> = (0..bloops.len()).map(|_| None).collect();
     let mut bases: Vec<Vec<topo::HalfEdgeKey>> = Vec::with_capacity(bloops.len());
-    bases.push(hes);
+    let (seed, bottom_face, anchor) = if profile::is_full_turn(outer) {
+        let seed = body.mvfs(tq[0][0], true)?;
+        let turn = full_turn(&mut body, 0, seed.r#loop, bottom_cap)?;
+        bases.push(vec![turn.near_in_wall]);
+        let (bottom_face, anchor) = (turn.near_face, turn.far_kept);
+        early[0] = Some(turn);
+        (seed, bottom_face, anchor)
+    } else {
+        let seed = body.mvfs(qs[0], true)?;
+        let mut hes = Vec::with_capacity(n);
+        let first = body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            qs[1],
+            placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1], tol),
+            tol,
+        )?;
+        hes.push(first.he_plus);
+        let mut prev = first;
+        for j in 2..n {
+            let m = body.mev(
+                MevSite::Fan {
+                    he1: prev.he_minus,
+                    he2: prev.he_minus,
+                },
+                qs[j],
+                placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j], tol),
+                tol,
+            )?;
+            hes.push(m.he_plus);
+            prev = m;
+        }
+        let close = body.mef(
+            MefSite::Chords {
+                he1: prev.he_minus,
+                he2: first.he_plus,
+            },
+            placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
+            bottom_cap,
+            tol,
+        )?;
+        hes.push(close.he_plus);
+        let anchor = hes[0];
+        bases.push(hes);
+        (seed, close.face, anchor)
+    };
+    let top_face = seed.face;
+    let bottom_surface = face_surface_key(&body, bottom_face);
 
     // ---- Phase 2: holes (rings in the seed face + kfmrh into the
     // bottom cap) — extrude's phase verbatim, loft rim specs. ----
-    let anchor = bases[0][0];
     for (li, segs) in bloops.iter().enumerate().skip(1) {
         let hq = &bq[li];
         let m = segs.len();
+        let one = profile::is_full_turn(segs);
+        // A full turn's anchor is its FAR vertex: it is swept whole
+        // there, far rim first, so the ring keeps the far rim.
         let bridge = body.mev_line(
             MevSite::Fan {
                 he1: anchor,
                 he2: anchor,
             },
-            hq[0],
+            if one { tq[li][0] } else { hq[0] },
             tol,
         )?;
         let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
+        if one {
+            // The transient disc, as the chain's below.
+            let disc = FaceSurface::Shared {
+                key: bottom_surface,
+                sense: false,
+            };
+            let turn = full_turn(&mut body, li, ring, disc)?;
+            body.kfmrh(bottom_face, turn.near_face)?;
+            bases.push(vec![turn.near_in_wall]);
+            early[li] = Some(turn);
+            continue;
+        }
         let mut hole_hes = Vec::with_capacity(m);
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
-            hq[1 % m],
-            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m], tol),
+            hq[1],
+            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -596,6 +640,12 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     let mut seam_edges: Vec<Vec<EdgeKey>> = Vec::with_capacity(bloops.len());
     let mut top_rims: Vec<Vec<EdgeKey>> = Vec::with_capacity(bloops.len());
     for (li, base) in bases.iter().enumerate() {
+        if let Some(turn) = early[li].take() {
+            side_faces.push(vec![turn.wall]);
+            seam_edges.push(vec![turn.strut]);
+            top_rims.push(vec![turn.far]);
+            continue;
+        }
         let tsegs = &tloops[li];
         let n = base.len();
         let mut struts: Vec<MevCreated> = Vec::with_capacity(n);
@@ -674,6 +724,28 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             let wall_key = face_surface_key(&body, side_faces[li][j]);
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
                 .map_err(|source| LoftError::SeamStructure { source })?;
+            if n == 1 && profile::is_full_turn(&bloops[li]) {
+                // A one-segment loop's strut is its wall's wrap edge in
+                // `u` (D1: a closed spline net's boundary column wraps
+                // `u`), run top to bottom as the turn laid it.
+                let carrier = geom_brep::reversed_column(&carrier)
+                    .map_err(|source| LoftError::SeamStructure { source })?;
+                let spec = EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::wrap_iso(
+                        wall_key,
+                        T::zero(),
+                        T::one(),
+                        T::zero(),
+                        T::zero(),
+                        T::one(),
+                    ),
+                    carrier: Curve3::Nurbs(Arc::new(carrier)),
+                    param_start: T::zero(),
+                    param_end: T::one(),
+                };
+                body.set_edge_curve(seams[j], spec, tol)?;
+                continue;
+            }
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::iso(
                     wall_key,
