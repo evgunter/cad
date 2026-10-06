@@ -2,11 +2,14 @@
 id: replace-face-zero-span-reanchor-reads-as-a-kernel-defect
 kind: issue
 title: an offset that collapses an untouched edge to zero span refuses at the attach door with "a kernel defect worth reporting", which is false for a user-reachable input
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
 rides_with: replace-face-refusals-open-with-a-stage-prefix-and-name-keys
+pr: 4163
+branch: shell/refusal-text
+closed: 2026-10-06
 ---
 
 
@@ -43,3 +46,7 @@ reachable on spline seams.
 edge before the attach door does, naming the edge and the offset (the
 re-anchor knows `t_new == t_other`), with this refusal unit's text
 conventions.
+
+## Closed (SHELL orchestrator, 2026-10-06, PR 4163)
+
+Rode `replace-face-refusals-open-with-a-stage-prefix-and-name-keys`. See its closing note.

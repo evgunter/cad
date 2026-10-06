@@ -1995,3 +1995,18 @@ on `Label::is_blank`, the same predicate, so a field that shows nothing
 clears rather than refusing. Review folds: ALM and control-order rows, a
 full-range direction scan, narrowed docs, and the range test's stated
 re-derivation rule.
+## 2026-10-06 — the strict-tolerance reds, traced
+
+Several PRs failed CI's strict-tolerance step today (#4164 among them).
+#4083 had already fixed the cause on main: sweep rows from #4120 and
+#4074 used fixed tolerances. On main at c1199a2a56 the workspace passes
+12078/12078 with `--profile ci` at 1e-6 and 1e-12, at CI's opt-level.
+
+Two nightly-only reds remain, both stale test pins, fixed on
+`emit/nightly-eps-stale-pins`:
+- `pocket_ring_steep_ellipse` at 1e-6 (join row closed);
+- `arc_loft` and `r1_dm1_probe`, which pinned prose that #3942 reworded,
+  at 1e-12 (exch row closed).
+
+Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
+with `return_content=false` returns a signed URL that `curl` fetches.
