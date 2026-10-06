@@ -183,7 +183,7 @@ pub use names::{
     PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
     RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
     Side, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
+    all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, declare, declare_all,
     declared_pairs, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
     find_flush_candidates, leaf_role, meridian_vertex, role_leaf, select, select_where,
     vertex_position,

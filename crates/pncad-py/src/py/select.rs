@@ -1052,14 +1052,14 @@ mod growth_tripwire {
 }
 
 // ---------------------------------------------------------------
-// Minting a revolve's role name: the five doors that ANSWER a name
+// Minting a revolve's role name: the six doors that ANSWER a name
 // rather than selecting one.
 //
 // `Evaluation.select` and the whole-body materializers answer names
 // FROM an evaluation. A selection that is AUTHORED — `Node.fillet`'s
 // frozen selection, `Node.shell`'s open list — is written before any
 // evaluation of the minting node exists, so its names are spelled;
-// these five spell them. Each mints the kernel's own `StableName`
+// these six spell them. Each mints the kernel's own `StableName`
 // through `pncad::select`'s builder and hands back `name_text`'s
 // output, so the answer is BYTE-IDENTICAL to what a materializer
 // would answer for the same entity: one alphabet, minted on either
@@ -1097,6 +1097,15 @@ pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<
 #[pyfunction]
 pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
     name_text(py, &s::band_rim(node.0, piece.edge().start()))
+}
+
+/// **The `[pi, 2pi)` latitude rim at the vertex the profile piece
+/// `piece` starts at** — [`band_rim`]'s twin, where a full revolve of
+/// a profile touching the axis emits each rim as two half-arcs between
+/// the seam vertices. An edge, as [`band_rim`] is.
+#[pyfunction]
+pub(crate) fn band_rim_pi(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band_rim_pi(node.0, piece.edge().start()))
 }
 
 /// **The meridian vertex at `end`**: the copy of the vertex the
@@ -1150,6 +1159,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(band, m)?)?;
     m.add_function(wrap_pyfunction!(band_pi, m)?)?;
     m.add_function(wrap_pyfunction!(band_rim, m)?)?;
+    m.add_function(wrap_pyfunction!(band_rim_pi, m)?)?;
     m.add_function(wrap_pyfunction!(meridian_vertex, m)?)?;
     m.add_function(wrap_pyfunction!(carried, m)?)?;
     Ok(())

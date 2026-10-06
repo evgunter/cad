@@ -28,6 +28,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::half_round_end;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -288,10 +289,11 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
+    let (round, end) = half_round_end();
     out.push((
         "fillet run-out",
-        fillet_edges(&body, &edges[..1], D, t)
-            .expect_err("a partially-requested corner is a run-out")
+        fillet_edges(&round, &[end], D, t)
+            .expect_err("a curved end face is a run-out")
             .error,
     ));
     out.push((
@@ -301,9 +303,9 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
             .error,
     ));
     out.push((
-        "fillet chain-break",
+        "fillet turn",
         fillet_edges(&body, &top_loop(&body), D, t)
-            .expect_err("square junctions are not tangent-continuous")
+            .expect_err("square corners with two edges requested are turns")
             .error,
     ));
     out
@@ -327,16 +329,17 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
             .expect_err("a repeated edge doubles a link")
             .error,
     ));
+    let (round, end) = half_round_end();
     out.push((
         "run-out",
-        chamfer_edges(&body, &edges[..1], D, t)
-            .expect_err("a partially-requested corner is a run-out")
+        chamfer_edges(&round, &[end], D, t)
+            .expect_err("a curved end face is a run-out")
             .error,
     ));
     out.push((
-        "chain-break",
+        "turn",
         chamfer_edges(&body, &top_loop(&body), D, t)
-            .expect_err("square junctions are not tangent-continuous")
+            .expect_err("square corners with two edges requested are turns")
             .error,
     ));
     out.push((
@@ -365,11 +368,26 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let mut two = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
     topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
+    // Two edges of one corner of the first solid: a turn, refused inside
+    // the shell it lies in.
     let two_edges = query::all_edges(&two);
+    let ends = |e: EdgeKey| {
+        let he = two.get_edge(e).expect("an edge").he_plus;
+        [
+            two.get_half_edge(he).expect("a half").start,
+            two.half_edge_end(he).expect("an end"),
+        ]
+    };
+    let corner_pair = two_edges
+        .iter()
+        .skip(1)
+        .find(|&&e| ends(e).iter().any(|v| ends(two_edges[0]).contains(v)))
+        .map(|&e| [two_edges[0], e])
+        .expect("an edge meeting the first at a corner");
     out.push((
         "two-solid body",
-        chamfer_edges(&two, &two_edges[..1], D, t)
-            .expect_err("the in-place surgery is built for one solid")
+        chamfer_edges(&two, &corner_pair, D, t)
+            .expect_err("two edges of one corner turn, in either solid")
             .error,
     ));
 

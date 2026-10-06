@@ -352,11 +352,12 @@ pub(crate) const ADD_PROFILE: &str = "Add profile";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a form's proposed label counts by.
-/// `creation_nouns` (below) holds the profile's and the extrude's to
-/// the node their op mints.
+/// `creation_nouns` (below) holds the profile's, the extrude's and the
+/// part chooser's to the node their op mints.
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
 const MATE_NOUN: &str = "Mate";
+pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
 /// The heading of the section that makes a body out of nothing.
 pub(crate) const ADD_FEATURE: &str = "Add feature";
@@ -748,7 +749,9 @@ impl ViewerBehavior<'_> {
     }
 
     /// The `Add part…` door: the open document's own directory,
-    /// listed as parts, one click inserting an instance of one.
+    /// listed as parts, one click inserting an instance of one. The
+    /// label field stands above the listing because a pick commits at
+    /// once, so the label is typed first.
     ///
     /// **The listing is a snapshot the chooser holds**, not a scan per
     /// frame: opening a workspace reads every `.pncad` header, which is
@@ -782,9 +785,13 @@ impl ViewerBehavior<'_> {
         let mut chosen: Option<DocumentId> = None;
         let mut rescan = false;
         let mut close = false;
-        if let Some(chooser) = self.part_chooser.as_ref() {
+        // Taken out only so the label row can borrow `self` while the
+        // window draws: the chooser stays open, and no early return may
+        // sit between this take and the put-back below.
+        if let Some(chooser) = self.part_chooser.take() {
             part_window(ui).show(ui.ctx(), |ui| {
-                chosen = part_listing(ui, &self.theme, chooser);
+                self.creation_label_row(ui, INSTANCE_NOUN);
+                chosen = part_listing(ui, &self.theme, &chooser);
                 ui.horizontal(|ui| {
                     if ui
                         .button("Rescan")
@@ -798,11 +805,13 @@ impl ViewerBehavior<'_> {
                     }
                 });
             });
+            // The put-back the take above owes.
+            *self.part_chooser = Some(chooser);
         }
         if let Some(id) = chosen {
-            // Exactly one committed edit, and the chooser closes with
-            // it — the mate tool's shape.
-            self.ops.push(SessionOp::AddInstance { id });
+            // Exactly one committed edit (and its label), and the
+            // chooser closes with it — the mate tool's shape.
+            self.push_labelled(INSTANCE_NOUN, SessionOp::AddInstance { id });
             close = true;
         }
         if rescan && let Some(chooser) = self.part_chooser.as_mut() {
@@ -2973,10 +2982,12 @@ mod declared_union {
 mod creation_nouns {
     #![allow(clippy::expect_used)]
 
-    use pncad::document::{Doc, ProfileProgram, node_kind_noun};
+    use pncad::document::{
+        ContentPin, Doc, DocRef, DocumentId, Node, ProfileProgram, node_kind_noun,
+    };
     use pncad::geom_core::Tol;
 
-    use super::{EXTRUDE_NOUN, PROFILE_NOUN};
+    use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN};
     use crate::session::{DocSession, ProfilePlane, SessionOp};
     use crate::test_support::{framed_square, len};
 
@@ -3004,6 +3015,17 @@ mod creation_nouns {
             loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         };
         assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
+    }
+
+    /// The part chooser's noun is the kind of the node `AddInstance`
+    /// inserts, so its proposal counts the document's instances.
+    #[test]
+    fn the_part_choosers_noun_is_the_instances_kind() {
+        let instance = Node::<ProfileProgram>::instantiate_part(DocRef {
+            id: DocumentId(7),
+            pin: ContentPin([0; 32]),
+        });
+        assert_eq!(node_kind_noun(&instance), INSTANCE_NOUN);
     }
 }
 

@@ -41,7 +41,7 @@ use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
 use sweep::ExtrudeSide;
 use sweep::test_support::{block, brick, extruded, prism, sketch_at};
-use topo::Body;
+use topo::{Body, EdgeKey};
 
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
 /// row puts something else against.
@@ -226,4 +226,40 @@ pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: 
     )
     .expect("the framed bar extrudes")
     .body
+}
+
+/// **A prism whose right side is a half-round**, unit high, and the
+/// top front edge that ends there: the one plane–plane edge the blend
+/// suites reach whose end face is CURVED, a run-out both verbs refuse
+/// (`blend::battery::END_FACE_CURVED`).
+pub fn half_round_end() -> (Body<f64>, EdgeKey) {
+    let body = prism(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), 0.5),
+            (Point2::new(2.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        1.0,
+        Tol::witness(),
+    );
+    let at = |v| {
+        let p = body
+            .get_point(body.get_vertex(v).expect("a vertex").point)
+            .expect("a point");
+        (p.x, p.y, p.z)
+    };
+    let edge = topo::query::all_edges(&body)
+        .into_iter()
+        .find(|&e| {
+            let he = body.get_edge(e).expect("an edge").he_plus;
+            let mut ends = [
+                at(body.get_half_edge(he).expect("a half").start),
+                at(body.half_edge_end(he).expect("an end")),
+            ];
+            ends.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
+            ends == [(0.0, 0.0, 1.0), (2.0, 0.0, 1.0)]
+        })
+        .expect("the top front edge");
+    (body, edge)
 }

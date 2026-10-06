@@ -2212,12 +2212,7 @@ pub enum Node<P, S: Slot = Expr> {
     /// selection means re-authoring the node with a new set — a
     /// deliberate act, which is the point of freezing.
     ///
-    /// Note also that nothing today can quietly widen a selection
-    /// even if it wanted to: the kernel's assembly admits only a
-    /// fully-requested chain set (`sweep::fillet`'s front door), so a
-    /// partially-grown selection refuses typed rather than blending
-    /// something the author never picked. Freeze is enforced
-    /// structurally, and its breaks are loud.
+    /// Freeze is enforced structurally, and its breaks are loud.
     ///
     /// # Canonical form
     ///

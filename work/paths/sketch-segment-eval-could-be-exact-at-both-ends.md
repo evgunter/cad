@@ -46,3 +46,12 @@ measured it exact on all 398 of the same arcs.
 
 Measure the blend's Interval widths against the two anchor rows and its
 Sym cost on the m10 pins, then decide.
+
+## 2026-10-02 — not resolved by 5b
+
+5b's boundary change does not touch `eval`: `sweep::skin::segment_curve`
+now builds its on-arc control points from `eval`'s own points
+(`Arc2::point_from`) and its others from the spoke `a − centre`, so the
+NURBS and the certified evaluation describe one circle. The far end is
+still `a` turned through the sweep, not `b`, in both. The measurement this
+row owes is unchanged.

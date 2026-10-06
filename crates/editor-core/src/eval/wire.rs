@@ -822,7 +822,8 @@ fn body_operand<T: Decide>(
 }
 
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's and the split's): [`body_operand`]'s body through the at-rest gate
+/// (the Boolean's, the split's and the shell's): [`body_operand`]'s
+/// body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
 /// kept beside them, so the consuming node pays the gate here.
@@ -2072,7 +2073,11 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// hollow, not a refusal. Failure of the op itself is
 /// [`NodeErrorKind::Shell`]; the input body is never passed through. A
 /// scalar that cannot form the door's call at all — a dual — refuses
-/// [`NodeErrorKind::ShellLaneUnsupported`].
+/// [`NodeErrorKind::ShellLaneUnsupported`]. An operand the at-rest gate
+/// refuses is [`NodeErrorKind::UnfinishedOperand`]
+/// ([`finished_operand`]), which no document reaches (every node's door
+/// gates what it ships) and which never meets the lane refusal: a dual's
+/// gate refuses nothing, and a certifying scalar has the door.
 ///
 /// # Naming
 ///
@@ -2090,7 +2095,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, target)?;
+    let body = finished_operand(results, target, tol)?;
     let thickness = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let faces = resolve_open_faces(open, doc, &target_table)?;

@@ -20,7 +20,7 @@ the endpoints' straddle, an arc by `carrier_line_circle` plus
 second one on the B-rep side,
 `topo::splitting::containment::point_in_carrier_loop` (with
 `conic_crossings` and `ConicArc::in_window`): the straight edges through
-`ray_parity::ray_crossings`, each circle or ELLIPSE arc as a root of
+`ray_walk::ray_crossings` (`ray_parity` before CLEAVE renamed it), each circle or ELLIPSE arc as a root of
 `|P + D·s|² = 1` in the arc's unit coordinates inside a cosine window.
 Same question, two spellings, different row names
 (`ray_side`/`ray_advance` against `point_in_arc_loop_*`), different
@@ -33,7 +33,7 @@ profile one does not.
 edge-pair intersector; the two rows are one consolidation question —
 which crate homes the planar arc-aware primitives, and whether
 `profile` (2-D, `Seg`) and `topo` (3-D, loop edges) can share them
-through `ray_parity`'s `RaySpace` abstraction the way the polygon walk
+through `ray_walk`'s `RaySpace` abstraction the way the polygon walk
 already does.
 
 **Not measured:** whether the two copies disagree anywhere. Both are

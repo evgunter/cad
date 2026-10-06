@@ -518,3 +518,73 @@ Opus = A, Fable = B; both matched after round 3). The row's build order is
 in its `## Ruled` section; step 1 dispatches next. Filed
 `chamfer-ends-in-a-curved-end-face` (P3) from Ev's curved-end-face
 question.
+
+## 2026-10-06 — `a-blend-refuses-a-solid-of-several-shells` closed (PR #4113)
+
+A blend carves each chain inside the shell it lies in and leaves every other
+shell untouched, byte for byte down to the pcurve rows (the inventory gate
+that refused any body but one solid of one shell is gone). The row's premise
+was wrong: the bracket split's leg-tip half is two solids of one shell each;
+the door covers that and a solid with a void shell. A chain or corner whose
+supports lie in two shells is tier-1-invalid and refuses `BodyNotIntact`
+(the `AcrossShells` variant the lane first minted was folded in). Full
+review (APPROVE-WITH-FIXES, no MAJOR) — its N6 showed a tier-3′ backstop at
+the door would refuse a valid island round and miss one-shell overlap, so
+none was added; the overlap hole the lane found is
+`blend-material-is-never-checked-against-faces-that-are-not-its-supports`
+(P0, in flight). The fix pass also caught that an empty request on an
+empty body had begun to answer `SurgeryInvariant`. Filed JOIN's
+`pinch-tessellate-row-escalates-coincidence-at-eps-1e-6` (main red at 1e-6;
+merged over it). First BAND units run as cloud sessions.
+
+## 2026-10-06 — `fillet-support-ring-must-be-a-circle` closed (PR #4119)
+
+The ring carry-through meter reads a ring piece by piece: a polygonal ring
+(a prism unioned onto a face) is metered edge by edge against the region the
+carve sweeps, exactly, and a ring counts as one circle only when it is one
+closed circle edge. That second change also fixes three configurations
+where main builds a tier-3-INVALID body (a lens ring of two bores in one
+subtraction order, a three-arc ring, a hostless-annulus lens), each now a
+row. A multi-edge ring refuses at its least margin, independent of
+subtraction order. The duplicate whole-circle readings (`CircleMargins`,
+the `effective` widening) are retired: one home for ring reading. The heat
+sink rounds its plate after the union, gated on tier 3. Full review
+(APPROVE-WITH-FIXES, no MAJOR) taken in full. Filed:
+`a-ring-of-ellipse-edges-refuses-the-ring-meter` (P3). The lane's duplicate
+filing of main's 1e-6 pinch red was dropped for JOIN's (PR 4113).
+
+## 2026-10-06 — run-out steps 1–2 landed (PR #4121): the plane–plane band cuts off at its end face
+
+Under Ev's PR 4085 ruling: chain G1 classifies plane–plane junctions (a
+definite turn breaks the chain into two ends; `Turn` refuses until the
+mitre, step 4); predicate 6 reads the request count; the planar band carves
+locally (`blend/open/end_face.rs`, shared with the ruled band), so one edge,
+any subset ending at unrequested corners, and three edges of one corner
+(patch + cut-offs) chamfer and fillet at their closed forms; an oblique
+chamfer builds, an oblique fillet refuses until step 3. The whole-face
+planar path was deleted early (step 5), shown bit-identical by both
+reviewers' and the fix pass's base/head differentials. The bracket's chord
+walls retired. Dual review, class H (DR-89): R1 NOT-MERGEABLE-AS-IS on a
+concave cut-off swallowing end-face features unmetered (tally 1); R2
+APPROVE-WITH-FIXES. The union was taken: the concave end face LOSES the
+sliver too (the README sentence from PR 4085 corrected to say so — the
+decision unchanged, Ev told), arm (d) pinned by a witness, crossing cut-off
+feet refused at plan. Filed `a-requested-ring-edge-refuses-at-the-ring-meter`.
+The row stays open for steps 3–5 (oblique fillet, mitre, overrun).
+## 2026-10-06 — `lamina-plane-annulus-keeps-its-slit` closed (PR #4136)
+
+A lamina full revolve's plane annulus is one face with its bore as a ring:
+no seam slit and no `Meridian(Seam, s)` name, as a solid's planar wall
+already was (fork-log row 36's "construct"). The blend surgery and rim
+routing follow it: a plane annulus's one-link bore routes to the annulus
+carve, `lone_host_trim` carves a lone crossing, and the ruled band's support
+gate admits a plane support with rings, metered by the ring pass. STEP's
+washer exports 6 edges (census goldens re-blessed). Full review
+(APPROVE-WITH-FIXES, no correctness defect — every carve at its closed form)
+taken in full: a sentence-level prose sweep across blend, topo, mesh and the
+README; the check-9 outer-edge witness rebuilt through a public `mekr_chord`;
+ΔV pins; the deepest-gap reading; and 14 probe rows. Reconciled with 4119's
+piece-by-piece ring readers. Filed: TESS
+`mesh-slit-annulus-rows-no-longer-build-a-slit`, CLEAVE
+`revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6` (main's red,
+merged over); SHELL `offset-door-declared-transport-has-no-built-witness`.
