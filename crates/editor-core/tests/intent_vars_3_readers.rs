@@ -600,6 +600,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
         replaced.maintenance,
         vec![Maintenance::AnonymousVarRemoved {
             var: anonymous.spoken_var(w),
+            distribution: None,
         }]
     );
     assert!(replaced.doc.var(w).is_none() && !replaced.doc.var_order().contains(&w));

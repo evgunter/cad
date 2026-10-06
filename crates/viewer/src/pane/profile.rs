@@ -1360,7 +1360,7 @@ mod tests {
             .maintenance
             .iter()
             .cloned()
-            .partition(|row| matches!(row, Maintenance::AnonymousVarRemoved { .. }));
+            .partition(Maintenance::is_silent_retirement);
         assert_eq!(named, expected, "the door reports the strand");
         assert!(
             !anonymous.is_empty(),

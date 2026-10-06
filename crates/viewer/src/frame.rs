@@ -1510,11 +1510,14 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // gone, and nothing evaluates a label.
         Maintenance::LabelDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
-        // the slot it was written at means: the panel lists named
-        // variables, so nothing the person sees went with it, and a
-        // typed value retires one on almost every edit. It rides
-        // `OpOutcome::maintenance` for a reader of the API.
-        Maintenance::AnonymousVarRemoved { .. } => return None,
+        // the slot it was written at means, and a typed value retires
+        // one on almost every edit: one that carried no tolerance took
+        // nothing the person sees with it, and rides
+        // `OpOutcome::maintenance` for a reader of the API
+        // (`Maintenance::is_silent_retirement`). One that carried a
+        // tolerance took an analysis axis, which nothing else says.
+        Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
+        Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
         // The mate door's offset clear is what inserting the mate
         // means — the joined group stands on the one it joined — and
         // the mate the person just placed is its notice.

@@ -3993,6 +3993,11 @@ pub enum Maintenance {
     AnonymousVarRemoved {
         /// The variable, spoken from the document the edit entered.
         var: SpokenVar,
+        /// The tolerance it carried, which went with it: an analysis
+        /// axis the document no longer has (VR8). `None` for one that
+        /// carried none, whose retirement loses nothing a reader of
+        /// the document is shown ([`Maintenance::is_silent_retirement`]).
+        distribution: Option<Distribution>,
     },
     /// **A label a fold dropped** ([`DocEdit::Fold`]): the gauge went
     /// and no single unlabelled node took its place — it had several
@@ -4004,6 +4009,25 @@ pub enum Maintenance {
         /// The label it carried.
         label: crate::Label,
     },
+}
+
+impl Maintenance {
+    /// **A retirement nothing a reader of the document is shown went
+    /// with**: an anonymous variable that carried no tolerance. Its
+    /// removal is what rewriting or deleting the slot it was written at
+    /// means — a typed value retires one on almost every edit — so a
+    /// surface that tells the person what an edit cost leaves it out.
+    /// One that carried a tolerance is not silent: the analysis axis it
+    /// was went with it.
+    pub fn is_silent_retirement(&self) -> bool {
+        matches!(
+            self,
+            Self::AnonymousVarRemoved {
+                distribution: None,
+                ..
+            }
+        )
+    }
 }
 
 impl core::fmt::Display for Maintenance {
@@ -4051,11 +4075,17 @@ impl core::fmt::Display for Maintenance {
                  in for it, so its label \"{}\" went with it",
                 gauge, label
             ),
-            Self::AnonymousVarRemoved { var } => write!(
-                f,
-                "the edit left nothing reading {var}, which had no name, so it went with \
-                 its last reader"
-            ),
+            Self::AnonymousVarRemoved { var, distribution } => {
+                write!(
+                    f,
+                    "the edit left nothing reading {var}, which had no name, so it went with \
+                     its last reader"
+                )?;
+                if distribution.is_some() {
+                    f.write_str(", and the tolerance it carried went with it")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -5339,6 +5369,7 @@ fn door<P: Clone + crate::ProfilePayload, T>(
         new.var_order.retain(|&held| held != var);
         reported.push(Maintenance::AnonymousVarRemoved {
             var: doc.spoken_var(var),
+            distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
     // The D-2 backstop, on EVERY arm: the maintenance rules make the

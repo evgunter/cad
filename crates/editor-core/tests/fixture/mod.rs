@@ -1833,13 +1833,14 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// **An edit's maintenance with its anonymous-variable removals left
 /// out**: a slot or program rewrite retires the variables its old
 /// values were written in (VR7), which a row about strands does not
-/// ask about.
+/// ask about. A retirement that took a tolerance is kept
+/// (`Maintenance::is_silent_retirement`).
 pub fn without_anonymous(
     maintenance: &[editor_core::Maintenance],
 ) -> Vec<editor_core::Maintenance> {
     maintenance
         .iter()
-        .filter(|m| !matches!(m, editor_core::Maintenance::AnonymousVarRemoved { .. }))
+        .filter(|m| !m.is_silent_retirement())
         .cloned()
         .collect()
 }

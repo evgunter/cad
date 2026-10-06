@@ -2548,7 +2548,8 @@ impl DocSession {
     /// The profile editor reads it BEFORE its Apply, while the person
     /// can still keep the step; the op's outcome carries the same rows
     /// after, beside the anonymous variables the rewrite retires, which
-    /// this count leaves out.
+    /// this count leaves out unless one carried a tolerance
+    /// (`Maintenance::is_silent_retirement`).
     ///
     /// # Errors
     ///
@@ -2570,13 +2571,14 @@ impl DocSession {
         run.apply(edit).map_err(refused)?;
         // What the count says is what the person would lose: a
         // reshaping retires the variables the arguments it rewrote were
-        // written in, which is no name and no paint of theirs.
+        // written in, which is no name and no paint of theirs — unless
+        // one carried a tolerance (`Maintenance::is_silent_retirement`).
         Ok(run
             .finish()
             .map_err(refused)?
             .maintenance
             .into_iter()
-            .filter(|row| !matches!(row, Maintenance::AnonymousVarRemoved { .. }))
+            .filter(|row| !row.is_silent_retirement())
             .collect())
     }
 

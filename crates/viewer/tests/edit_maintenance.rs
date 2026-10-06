@@ -567,3 +567,74 @@ fn an_offset_clear_is_carried_but_not_worded() {
         Some(strand.to_string())
     );
 }
+
+/// `block`'s extrude with its typed depth's anonymous variable given
+/// `distribution`.
+fn toleranced_block(
+    seed: &str,
+    distribution: Option<pncad::document::Distribution>,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(seed, Tol::witness());
+    let (doc, extrude) = block(&doc, 0.0);
+    let depth = doc
+        .slot(extrude, SlotId::Distance)
+        .expect("the extrude reads its depth");
+    assert!(doc.var_name(depth).is_none(), "the premise: a typed depth");
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::SetVarDistribution {
+            var: depth.into(),
+            distribution,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("a length takes a normal")
+    .doc;
+    (doc, extrude)
+}
+
+/// **Retyping a slot whose own variable carried a tolerance says the
+/// tolerance went** (review r2 MINOR-3): the expression door re-lowers
+/// the slot, retiring its anonymous variable, and that variable was an
+/// analysis axis (VR8). One that carried none retires as quietly as
+/// every typed value does (`Maintenance::is_silent_retirement`).
+#[test]
+fn retyping_a_toleranced_slot_says_its_tolerance_went() {
+    let normal = pncad::document::Distribution::Normal { sigma: 0.001 };
+    for (seed, distribution) in [
+        ("maint-toleranced", Some(normal)),
+        ("maint-untoleranced", None),
+    ] {
+        let (doc, extrude) = toleranced_block(seed, distribution);
+        let mut session = DocSession::inline(doc, Tol::witness());
+        let op = SessionOp::SetSlotExpression {
+            node: extrude,
+            slot: SlotId::Distance,
+            text: "2 mm".to_owned(),
+        };
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let retired: Vec<&Maintenance> = outcome
+            .maintenance
+            .iter()
+            .filter(|row| matches!(row, Maintenance::AnonymousVarRemoved { .. }))
+            .collect();
+        assert!(
+            matches!(
+                retired[..],
+                [Maintenance::AnonymousVarRemoved { distribution: held, .. }] if *held == distribution
+            ),
+            "{seed}: the depth's variable retires with what it carried: {retired:?}"
+        );
+        if distribution.is_some() {
+            let line = line_after(&outcome, op);
+            assert!(
+                line.contains("the tolerance it carried went with it"),
+                "{seed}: {line}"
+            );
+        } else {
+            assert_quiet(&outcome, op);
+        }
+    }
+}

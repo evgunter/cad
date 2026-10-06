@@ -225,7 +225,8 @@ fn a_rewritten_slot_retires_the_variable_its_formula_minted() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::AnonymousVarRemoved {
-            var: doc.spoken_var(formula)
+            var: doc.spoken_var(formula),
+            distribution: None,
         }]
     );
     assert_eq!(applied.doc.slot(blend, SlotId::Radius), doc.var_named("w"));
@@ -693,7 +694,7 @@ fn an_edit_at_a_path_keeps_another_nodes_anonymous_read() {
         .maintenance
         .iter()
         .filter_map(|m| match m {
-            Maintenance::AnonymousVarRemoved { var } => Some(var.id()),
+            Maintenance::AnonymousVarRemoved { var, .. } => Some(var.id()),
             _ => None,
         })
         .collect();

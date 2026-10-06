@@ -2048,7 +2048,7 @@ fn report_matches_resolution(
             Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name } => {
                 Some(name.name().clone())
             }
-            Maintenance::AnonymousVarRemoved { var } => {
+            Maintenance::AnonymousVarRemoved { var, .. } => {
                 assert!(
                     var.name().is_none(),
                     "{label}: an anonymous variable: {var:?}"

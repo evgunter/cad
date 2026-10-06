@@ -601,7 +601,7 @@ fn the_anonymous_lifecycle_cascades_through_definitions() {
         .maintenance
         .iter()
         .map(|m| match m {
-            Maintenance::AnonymousVarRemoved { var } => var.id(),
+            Maintenance::AnonymousVarRemoved { var, .. } => var.id(),
             other => panic!("{other:?}"),
         })
         .collect();

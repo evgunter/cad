@@ -2998,10 +2998,21 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::AnonymousVarRemoved {
                 var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
+                distribution: None,
             },
             vec![
                 "nothing reading #0000000000070000",
                 "went with its last reader",
+            ],
+        ),
+        (
+            Maintenance::AnonymousVarRemoved {
+                var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
+                distribution: Some(editor_core::Distribution::Normal { sigma: 0.001 }),
+            },
+            vec![
+                "nothing reading #0000000000070000",
+                "the tolerance it carried went with it",
             ],
         ),
     ];
