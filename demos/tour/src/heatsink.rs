@@ -652,6 +652,19 @@ mod scene {
     //! refusal and recourse — run on every PR that touches the tour.
 
     #[test]
+    fn review_4119_tier3_and_counts() {
+        let tol = pncad::geom_core::Tol::witness();
+        for stop in super::stops(tol) {
+            for b in &stop.bodies {
+                let body = &b.body;
+                let t3 = pncad::topo::validate_geometric(body, tol);
+                let v = pncad::topo::mass_properties(body, tol).unwrap().volume;
+                println!("R4119 {} faces={} edges={} vol={v:.15} tier3={t3:?}", stop.name, body.faces().count(), body.edges().count());
+            }
+        }
+    }
+
+    #[test]
     fn the_scene_holds() {
         super::stops(pncad::geom_core::Tol::witness());
     }
