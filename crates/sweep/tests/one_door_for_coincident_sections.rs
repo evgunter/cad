@@ -100,7 +100,10 @@ fn below_1e_16_the_parameterization_has_no_step_on_the_same_placements() {
 fn sections_apart_whose_parameterization_cannot_step_refuse_without_claiming_coincidence() {
     let tol = Tol::witness();
     let thin = 1e-3;
-    assert!(thin > tol.k() * tol.eps(), "the thin slab is definitely apart");
+    assert!(
+        thin > tol.k() * tol.eps(),
+        "the thin slab is definitely apart"
+    );
     let tall = stacked_at(&[-1e14, 0.0, thin, 1.0]);
     let hinged = vec![
         Affine3::identity(),
