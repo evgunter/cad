@@ -2,7 +2,9 @@
 id: a-cluster-act-speaks-its-gauges-by-tag
 kind: issue
 title: A cluster act's sentence (ClusterMaintenance) names its gauges by bare tag
-status: open
+status: review
+pr: 4107
+branch: emit/cluster-gauges-spoken
 opened: 2026-10-01
 priority: P3
 cost: M
