@@ -87,6 +87,10 @@
 //! - [`stations`] — a station cut back into a rim by hand, and the
 //!   reader that finds stations on a body: body authoring plus the one
 //!   reader its rows check with, as [`cone_nappe`];
+//! - [`pinch_cones`] — a boolean's cones at a point from the operands'
+//!   convex pieces, and the vertices a built body holds there: a truth
+//!   derived without the kernel plus the check against it, so beside
+//!   [`differential`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -253,6 +257,11 @@ pub mod certificates;
 /// The differential batteries' polygon oracles, per-pose outcome line
 /// and reflex-corner pose.
 pub mod differential;
+/// The cones of a boolean's boundary at a point, read without the
+/// kernel from the operands' convex pieces, and the vertices a built
+/// body holds there: a truth plus the check of a body against it, so
+/// beside [`differential`].
+pub mod pinch_cones;
 /// The pairs of two face sets that meet along a curve, kept from a
 /// cross product of seam or `Tangent` declarations. What a suite drives
 /// a door WITH, so it routes here.

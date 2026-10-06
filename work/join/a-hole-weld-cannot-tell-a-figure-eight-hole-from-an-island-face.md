@@ -52,3 +52,21 @@ no face crosses between cones. See
 `work/join/a-pinch-no-kept-face-can-cross-refuses.md`, "The shape to
 give". This row is settled by that unit.
 Under the ruling, no loop is split and re-roled by its winding. The welds retire, so the question dissolves. The row closes when the pinch unit lands.
+
+## Measured (pinch unit, branch `join/pinch-one-vertex-per-cone-build`)
+
+The question does not dissolve yet. The pinch unit retires the post-zip
+pierce weld, but keeps the pre-zip `finish::weld_pinches`, the repair of
+an operand's coincident pierces. That keeps `pinch_site` and its
+`Joint::Hole` reachable as before. The island poses no longer reach it:
+the island stays its own face, its outer loop and the hole's ring
+passing the pinch at two vertices on one point key. The rest is
+`the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`'s.
+
+## After PR 4139
+
+PR 4139 kept the pre-zip `weld_pinches` (and so `pinch_site`'s
+`Joint::Hole`) for a pinched operand's coincident pierces. A weld now
+joins two pierces only where their corners nest. This row stays open
+until `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`
+retires the weld; it dissolves with it.
