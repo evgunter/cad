@@ -19,9 +19,9 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::{clusters, edge_clear_of_ball, reach, speed_bound};
+use super::{ball_off_face, clusters, edge_clear_of_ball, reach, speed_bound};
 use crate::body::Body;
-use crate::entity::EdgeKey;
+use crate::entity::{EdgeKey, FaceKey};
 use crate::euler::MevSite;
 
 fn band() -> Band {
@@ -169,6 +169,13 @@ fn section(b_in_major: bool) -> Curve3<f64> {
 /// `a`-in-`major` storage of [`section`], in the given storage,
 /// described as the plane against the cylinder.
 fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
+    let (body, _, edge) = elliptic_face(b_in_major);
+    (body, edge)
+}
+
+/// [`elliptic_edge`]'s body, with the face its strut bounds and the
+/// edge. The face keeps the `mvfs` placeholder surface.
+fn elliptic_face(b_in_major: bool) -> (Body<f64>, FaceKey, EdgeKey) {
     let carrier = section(b_in_major);
     let (t0, t1) = (param(0.3, b_in_major), param(1.2, b_in_major));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
@@ -208,7 +215,7 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
             Tol::witness(),
         )
         .unwrap();
-    (body, e.edge)
+    (body, seed.face, e.edge)
 }
 
 /// **A ball about a point of an elliptic edge is not cleared of it, in
@@ -239,4 +246,41 @@ fn an_elliptic_edge_is_not_cleared_of_a_ball_on_it_in_either_storage() {
             );
         }
     }
+}
+
+/// **A face vertex just past the band from a ball's foot keeps the
+/// door; it does not escalate the touch reading.** The face is the
+/// unit cylinder bounded by [`elliptic_face`]'s strut, and the foot sits
+/// on the cylinder `3·zero` above the strut's end: inside the ball of
+/// radius `2·escalate`, and between the band's zero and escalate from
+/// the vertex. The boundary already answers that the ball is not off
+/// the face; the face placement of the foot, read before it, escalated
+/// on `bool_contact_vertex` (the `rest_zip_admission` tangent lever at
+/// ε 1e-6, through PR 4128's `carrier_touch`).
+#[test]
+fn a_vertex_in_the_band_of_the_foot_keeps_the_door() {
+    let band = band();
+    let (mut body, face, _) = elliptic_face(false);
+    // Lifts `RechartUnvouched`: the strut's description names the
+    // fixture's own plane and cylinder, not the face's placeholder, and
+    // the row reads only the face's chart and its boundary.
+    body.set_face_surface_unvouched_for_tests(
+        face,
+        crate::euler::FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    let foot = section(false).eval(0.3) + Vec3::new(0.0, 0.0, 3.0 * band.zero());
+    assert!(
+        !ball_off_face(&body, face, foot, 2.0 * band.escalate(), 1.0, band)
+            .expect("the boundary answers before the placement"),
+        "a vertex inside the ball keeps the door"
+    );
 }

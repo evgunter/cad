@@ -277,24 +277,13 @@ fn ball_off_face<T: Decide + Bounds>(
     ) {
         return Ok(false);
     }
-    match super::contain::curved_face_placement(y, face, foot, band) {
-        Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => {}
-        Ok(_)
-        | Err(
-            ContainError::EmptyLoop(_)
-            | ContainError::LoopUnreadable(_)
-            | ContainError::Curved(_)
-            | ContainError::RayExhausted
-            | ContainError::Uncrossable(_),
-        ) => return Ok(false),
-        Err(ContainError::Escalated(diag)) => {
-            return Err(BooleanError::Escalated {
-                decision: BooleanDecision::Containment,
-                diag,
-            });
-        }
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
-    }
+    // The boundary first, the placement after. A face vertex or edge
+    // inside the ball already answers no; read first, the placement of a
+    // foot within `escalate` of it would escalate on the band's
+    // coincidence rows (`bool_contact_vertex`) where the touch reading
+    // only had to keep the caller's door. Past the boundary loop every
+    // member is decided farther than `radius ≥ escalate` from the foot,
+    // so the placement's boundary pre-pass decides each of them apart.
     let f = crate::live::proven(&y.faces, face, EntityId::Face);
     for member in y.face_boundary_linked(face, f) {
         let clear_of_ball = match member {
@@ -305,7 +294,22 @@ fn ball_off_face<T: Decide + Bounds>(
             return Ok(false);
         }
     }
-    Ok(true)
+    match super::contain::curved_face_placement(y, face, foot, band) {
+        Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
+        Ok(_)
+        | Err(
+            ContainError::EmptyLoop(_)
+            | ContainError::LoopUnreadable(_)
+            | ContainError::Curved(_)
+            | ContainError::RayExhausted
+            | ContainError::Uncrossable(_),
+        ) => Ok(false),
+        Err(ContainError::Escalated(diag)) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment,
+            diag,
+        }),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+    }
 }
 
 /// Whether a lower bound `gap` on a distance from a ball's centre
