@@ -306,11 +306,14 @@ mid-unit: the orchestrator first asked for the decision in `skin.rs`,
 then withdrew that on reading the PR, whose two-layer structure states
 two true facts.
 
-**Merged over one red row that is main's, not this PR's.**
-`rest_zip_admission::the_tangent_lever_keeps_building_pure_contacts`
-fails at ε = 1e-6 (a `bool_contact_vertex` escalation, margin 2.29e-6)
-on a clean `origin/main`. ZIP's admission fix pass added it at
-`290d95a31`, and the per-PR gate runs that row only for a diff touching
-`sweep`. A note is on ZIP's log.
+**On the gate's 1e-6 row.** The fix-pass head was red only on
+`rest_zip_admission::the_tangent_lever_keeps_building_pure_contacts`.
+That row failed identically on a clean `origin/main` (`a9c038c37`): ZIP's
+admission fix pass `290d95a31` added it, and the per-PR gate runs the
+1e-6 row only for a diff touching `sweep`. A later main reportedly fixes
+it; a note is on ZIP's log. Main is now red at 1e-6 on PATHS'
+`one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does`
+(from PR 4169); a note is on PATHS' log. This PR merges once its own
+rows are green, with any red confined to rows that are red on main.
 
 Signed: (CARVE orchestrator)
