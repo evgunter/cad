@@ -12,9 +12,7 @@
 //! consequences, never a compile error.
 
 use geom_core::{Arc2, Point2, Tol};
-use profile::{
-    Profile, ProfileError, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop,
-};
+use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop};
 
 /// The read surface is COMPLETE: every accessor, exercised against a
 /// door-built loop.
@@ -84,7 +82,7 @@ fn accessors_read_back_everything_the_doors_wrote() {
 /// **The canonical door writes the stored form verbatim.** Every
 /// segment it is handed reads back bit for bit. It can also write a
 /// table the bulge form cannot — a one-segment full circle — and
-/// deciding that table is `validate`'s: it refuses it by arity.
+/// deciding that table is `validate`'s: it admits it, D1's full turn.
 #[test]
 fn the_canonical_door_writes_the_stored_form_verbatim() {
     let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
@@ -114,18 +112,12 @@ fn the_canonical_door_writes_the_stored_form_verbatim() {
         }),
     )]);
     assert_eq!(circle.segments().len(), 1);
-    let refusal = Profile::new(SketchPlane::xy(), vec![circle])
-        .validate(Tol::witness())
-        .err();
+    let validated = Profile::new(SketchPlane::xy(), vec![circle]).validate(Tol::witness());
     assert!(
-        matches!(
-            refusal,
-            Some(ProfileError::TooFewVertices {
-                loop_index: 0,
-                count: 1
-            })
-        ),
-        "a one-segment circle is refused by arity, got {refusal:?}"
+        validated
+            .as_ref()
+            .is_ok_and(|v| v.loops()[0].segments().len() == 1),
+        "a one-segment circle validates as one segment (D1's full turn), got {validated:?}"
     );
 }
 
