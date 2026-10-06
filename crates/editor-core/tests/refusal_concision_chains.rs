@@ -2143,6 +2143,14 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         ("SectionStructure", E::SectionStructure),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
+        ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
+        (
+            "FarStackingEscalated",
+            E::FarStackingEscalated {
+                slab: 1,
+                source: diag(),
+            },
+        ),
         (
             "StackingEscalated",
             E::StackingEscalated {
