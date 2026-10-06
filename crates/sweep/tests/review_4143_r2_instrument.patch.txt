@@ -1,0 +1,102 @@
+diff --git a/crates/sweep/src/blend/reach.rs b/crates/sweep/src/blend/reach.rs
+index 9ba232117..be6de0abe 100644
+--- a/crates/sweep/src/blend/reach.rs
++++ b/crates/sweep/src/blend/reach.rs
+@@ -1354,6 +1354,7 @@ fn face_bound<T: Decide + Bounds>(
+     let mut queue = VecDeque::from([(lo, hi)]);
+     let mut least = Least::new();
+     while let Some((lo, hi)) = queue.pop_front() {
++        PROBE_CELLS.with(|c| c.set(c.get() + 1));
+         let cell = Cell::<T>::new(lo, hi);
+         let inner = reach
+             .bounds
+@@ -1675,6 +1676,9 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
+     let (o, a) = reach.sheet?;
+     let lever = |p: Point3<T>| corner_max(reach.lo, reach.hi, |x| (x - p).norm());
+     let (f, slack) = sheet_fn(surface, o, a, lever)?;
++    if std::env::var("PROBE_GATE").is_ok() && slack.hi() > 1e-6 {
++        return None;
++    }
+     let mut rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
+     // The face's own extent along its trace, where its boundary says it.
+     match face.and_then(|face| sheet_clip(body, face, surface, o, a, band)) {
+@@ -1695,6 +1699,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
+     let mut queue = VecDeque::from([rect]);
+     let mut least = Least::new();
+     while let Some(rect) = queue.pop_front() {
++        PROBE_SHEET.with(|c| c.set(c.get() + 1));
+         let [r0, r1, z0, z1] = rect;
+         let mut inner: Option<T> = None;
+         for (_, b) in &reach.bounds {
+@@ -1719,7 +1724,16 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
+             }
+         }
+     }
+-    Some(least.done(band))
++    let spent = least.spent;
++    let out = least.done(band);
++    if spent >= CELL_BUDGET {
++        eprintln!(
++            "PROBE sheet-exhausted face={face:?} kind={} slack=[{:e},{:e}] rect0=[{:e},{:e}]",
++            match surface { Surface::Plane{..}=>"plane", Surface::Cylinder{..}=>"cyl", Surface::Cone{..}=>"cone", Surface::Sphere{..}=>"sphere", Surface::Torus{..}=>"torus", _=>"other" },
++            slack.lo(), slack.hi(), f.range(sheet_box(o, a, &Cell::<T>::new(lo, hi))).0.lo(), f.range(sheet_box(o, a, &Cell::<T>::new(lo, hi))).1.hi()
++        );
++    }
++    Some(out)
+ }
+ 
+ /// The point of a face's boundary deepest in a reach's core: the most
+@@ -1784,12 +1798,45 @@ fn deepest_boundary_point<T: Decide>(
+ /// [`BlendError::FaceClearance`] for a face in a reach, or not certified
+ /// clear of one; [`BlendError::Escalated`] for an in-band margin;
+ /// [`BlendError::BodyNotIntact`] for a body the meter cannot read.
++thread_local! {
++    static PROBE_CELLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
++    static PROBE_SHEET: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
++    static PROBE_PAIRS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
++}
+ pub(crate) fn band_reach<T: Decide + Bounds>(
+     body: &Body<T>,
+     chains: &[Chain<T>],
+     size: T,
+     kind: BlendKind,
+     band: Band,
++) -> Result<(), BlendError> {
++    PROBE_CELLS.with(|c| c.set(0));
++    PROBE_SHEET.with(|c| c.set(0));
++    PROBE_PAIRS.with(|c| c.set(0));
++    let t0 = std::time::Instant::now();
++    let out = band_reach_inner(body, chains, size, kind, band);
++    let el = t0.elapsed().as_secs_f64();
++    if el > 0.2 {
++        eprintln!(
++            "PROBE band_reach {:.2}s links={} chains={} faces={} cells={} sheet={} pairs={} ok={}",
++            el,
++            chains.iter().map(|c| c.links().count()).sum::<usize>(),
++            chains.len(),
++            body.faces().count(),
++            PROBE_CELLS.with(|c| c.get()),
++            PROBE_SHEET.with(|c| c.get()),
++            PROBE_PAIRS.with(|c| c.get()),
++            out.is_ok()
++        );
++    }
++    out
++}
++fn band_reach_inner<T: Decide + Bounds>(
++    body: &Body<T>,
++    chains: &[Chain<T>],
++    size: T,
++    kind: BlendKind,
++    band: Band,
+ ) -> Result<(), BlendError> {
+     let all: Vec<(usize, &Link<T>)> = chains
+         .iter()
+@@ -1925,6 +1972,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
+                     .map(|h| -h)
+                     .reduce(|m, g| m.max(g))
+             };
++            PROBE_PAIRS.with(|c| c.set(c.get() + 1));
+             let bounds = clipped(fbox);
+             let bound = metered(
+                 body,
