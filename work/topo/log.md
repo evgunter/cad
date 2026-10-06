@@ -7517,3 +7517,12 @@ Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise t
   - The code exempts *derived* descriptions instead.
   - Open: whether a declared conventional description on a transverse edge is refused or exempt.
 - Filed `offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section` (P3; it depends on that ruling; PR 4080 pinned the tier-3 finding as expected).
+
+## 17:50 (2026-10-06): PR 3970 answered
+
+- Ev: "the overall idea of the final state sounds good, but the details here (incliding the ones the designers differ on) seem like they'll be changed by the `intent` refactor".
+- Recorded at `89c51b94`: 1 = B direct, 2 = tier 1, 3 = A in outline. Choice 3's details and D2's prefer-intrinsic authority question are filed as `restatement-derives-each-moved-edges-kind`, blocked on D10.
+- Fork-log row 75 is filled, with the mapping (byte 119: A = Fable, B = Opus).
+- The PR body is updated in place. Merge on green.
+- Buildable now: field privacy plus the vouch, and the tier-1 naming check. To dispatch once the usage warning clears.
+- `offset-held-neighbour-image-…` is now `blocked_on` D10.

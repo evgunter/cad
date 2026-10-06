@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
