@@ -53,9 +53,19 @@ pose from this paragraph if they are gone).
   plane, the seam edge was already incoherent before the move and the door skipped it. That is
   why some seam poses answered on main (a frustum under one normal, a tube's bore off the axis).
 
-**Fix**: `section_plane_restatements` restates an edge exactly when the face leaving its chart
-strands it (`Named::stranded_by_one_side_leaving`): coherent before the move and not after, under
-the door's own adjacency rule. Before, the test was whether the other face wears another chart. The seam edge is
+**Fix**: the restatement set is asked of the door. `Body::stranded_by(charts)` is the set that
+`set_face_surfaces_describing` refuses as `RechartUndescribed`, and the door now reads its own
+check from that query. It is asked of the actual move: both null-pair faces in one call, and in
+`nest_hole_sections` the shared target chart. `section_plane_restatements` restates the stranded
+edges that name the face's chart. Before, the test was whether the other face wears another
+chart.
+
+Edges that name the moving chart but are incoherent before the move are not stranded, so they
+are not restated. In practice that means `Pair(chart, X)` edges, with the other face on a third
+chart, on face-coplanar cuts. Main restated them; the boundary pass now does. The final
+descriptions are the same. Between the re-chart and the boundary pass, such an edge keeps the
+stored `Pair` that names the chart its face just left. The curves land at permuted `CurveKey`s.
+The review counted 56 hits across 28 tests. The seam edge is
 restated as a plain image on the chart, which the door reads as the wall that keeps it; the
 boundary pass then describes it as the plane × wall intersection.
 
@@ -64,11 +74,15 @@ counterbore outer walls, and a frustum, each through its seam ruling at t ∈ {0
 2, 3, −0.4, −1.2}, both normals. They answer at the closed-form volumes, and both halves pass
 tiers 1, 2, 3 and 3′. Every family had poses red on main; t = π/2 holds the axis, so it also
 runs along the bores' seams. A near-tangent row (t ∈ {1e-5, 1e-4, 1e-3}, on and off the seam)
-asserts that whatever answers, answers right. Green at ε 1e-6, 1e-9 and 1e-12.
+holds every pose that answers to its closed form on both sides, sliver included, to a float floor
+of 64 ulp of the operand's volume. It refuses an empty side. Answering poses: none at 1e-6, the
+four at t = 1e-3 at 1e-9, all twelve at 1e-12. Green at ε 1e-6, 1e-9 and 1e-12.
 
 **Sweep** (606 poses per ε, seam azimuth against azimuths 0.3 and 2, at ε 1e-6, 1e-9, 1e-12):
 main → fix moved 62 (1e-6), 68 (1e-9) and 80 (1e-12) poses from `RechartUndescribed` to the closed form, with no
-regressions. After the fix, every seam pose answers wherever the off-seam twin does. In the
-band (t ≤ 1e-3) both refuse, with different refusal kinds. Where the twin refuses
+regressions. After the fix, every seam pose answers wherever the off-seam twin does. Near
+tangency, seam pose and twin both refuse, with different refusal kinds, at t ≤ 1e-3 at ε 1e-6
+and at t ≤ 1e-4 at ε 1e-9. At 1e-12, every near-tangent wall pose answers, on and off the seam.
+No pose answers wrongly. Where the twin refuses
 `DegenerateSection` (frustum, t ∈ {0.05, 3}), the seam pose answers; that is filed as its own
 row.

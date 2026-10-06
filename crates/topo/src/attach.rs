@@ -384,10 +384,8 @@ impl<T: Decide> Body<T> {
 
         // ---- No unlisted edge stranded. ----
         let undescribed: Vec<EdgeKey> = self
-            .rechart_edges(self.edges.keys(), moved, Spelling::Stored)
-            .stranded
+            .stranded(&faces)
             .into_iter()
-            .map(|(e, _)| e)
             .filter(|e| !written.iter().any(|(w, ..)| w == e))
             .collect();
         if !undescribed.is_empty() {
@@ -492,6 +490,30 @@ impl<T: Decide> Body<T> {
             out.push((edge, self.carried_spec(edge, sides, charts)));
         }
         Ok(out)
+    }
+
+    /// **The edges a re-chart strands**: those whose stored description
+    /// is adjacency-coherent now and is not once `charts` have moved,
+    /// each of which [`Body::set_face_surfaces_describing`] refuses
+    /// unlisted ([`EulerOpError::RechartUndescribed`]), in edge-arena
+    /// order. Pure.
+    ///
+    /// # Errors
+    ///
+    /// `charts`' per-face preconditions, as that door checks them.
+    pub(crate) fn stranded_by(&self, charts: &[Rechart<T>]) -> Result<Vec<EdgeKey>, EulerOpError> {
+        let faces = self.plan_recharts(charts)?;
+        Ok(self.stranded(&faces))
+    }
+
+    /// [`Body::stranded_by`] over planned faces.
+    fn stranded(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(faces, f);
+        self.rechart_edges(self.edges.keys(), moved, Spelling::Stored)
+            .stranded
+            .into_iter()
+            .map(|(e, _)| e)
+            .collect()
     }
 
     /// The faces `charts` move, each resolved once with its moved sense,
@@ -1608,16 +1630,6 @@ impl Named {
             Self::Nothing => (None, None),
         };
         a.into_iter().chain(b)
-    }
-
-    /// Whether the face on one side leaving `left`, the chart it wears,
-    /// for a fresh one strands the description while the face on the
-    /// other side wears `kept`: coherent before the move and not after,
-    /// its keys read as stored ([`Body::set_face_surfaces_describing`]'s
-    /// `RechartUndescribed` question, asked of that one move).
-    pub(crate) fn stranded_by_one_side_leaving(self, left: SurfaceKey, kept: SurfaceKey) -> bool {
-        self.adjacent_to([Slot::Kept(left), Slot::Kept(kept)], Slot::Kept)
-            && !self.adjacent_to([Slot::Minted(0), Slot::Kept(kept)], Slot::Kept)
     }
 
     /// Whether the description is coherent with faces wearing `plus`

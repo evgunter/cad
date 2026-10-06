@@ -181,33 +181,69 @@ fn a_frustum_split_through_its_seam_ruling_answers() {
     }
 }
 
+/// The area of the unit disc's segment cut off by a chord subtending
+/// `theta`, `(θ − sin θ)/2`, by its series where the difference
+/// cancels.
+fn thin_segment(theta: f64) -> f64 {
+    if theta < 0.1 {
+        let t2 = theta * theta;
+        theta * t2 / 12.0 * (1.0 - t2 / 20.0 * (1.0 - t2 / 42.0 * (1.0 - t2 / 72.0)))
+    } else {
+        (theta - theta.sin()) / 2.0
+    }
+}
+
 /// Near tangency the sliver falls inside the band and a cut may refuse;
-/// through the seam ruling or off it, what answers answers right.
+/// on the seam ruling or off it, a pose that answers holds both sides
+/// at their closed forms, the sliver included. Each side is held to
+/// the float floor of a volume integrated over the whole operand's
+/// scale, so the sliver is read wherever it is above that floor
+/// (t ≥ 1e-4). Which poses answer depends on ε.
 #[test]
 fn a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly() {
+    let tol = Tol::witness();
     let cylinder = revolved(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+    let floor = 64.0 * f64::EPSILON * PI;
+    let mut answered = 0;
     for a in [0.0_f64, 0.3] {
         for t in [1e-5_f64, 1e-4, 1e-3] {
             for s in [1.0, -1.0] {
                 let label = format!("near tangent: a = {a}, t = {t}, s = {s}");
                 let n = Vec3::new(s * (a + t).cos(), 0.0, s * (a + t).sin());
                 let p = plane(Point3::new(a.cos(), 0.5, a.sin()), n);
-                let Ok(r) = split(&cylinder, &p, Tol::witness()) else {
+                let Ok(r) = split(&cylinder, &p, tol) else {
                     continue;
                 };
-                let (above, whole) = slabs_above(&[(1.0, 0.0, 1.0)], s * t.cos());
-                for (side, part, want) in [
-                    ("above", &r.above, above),
-                    ("below", &r.below, whole - above),
-                ] {
-                    match part {
-                        SplitPart::Empty => {
-                            assert!(want <= 1e-9, "{label}: {side} came back empty, want {want}")
-                        }
-                        SplitPart::Body(_) => holds(&label, side, part, want),
-                    }
+                answered += 1;
+                let sliver = thin_segment(2.0 * t);
+                let (above, below) = if s > 0.0 {
+                    (sliver, PI - sliver)
+                } else {
+                    (PI - sliver, sliver)
+                };
+                for (side, part, want) in [("above", &r.above, above), ("below", &r.below, below)] {
+                    let b = part
+                        .body()
+                        .unwrap_or_else(|| panic!("{label}: {side} came back empty, want {want}"));
+                    topo::validate(b).unwrap_or_else(|e| panic!("{label}: {side}: tier 1: {e:?}"));
+                    topo::validate_closed(b)
+                        .unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
+                    topo::validate_geometric(b, tol)
+                        .unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
+                    topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
+                        .unwrap_or_else(|e| panic!("{label}: {side}: tier 3′: {e:?}"));
+                    let m = mass_properties(b, tol)
+                        .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"));
+                    assert!(
+                        (m.volume - want).abs() <= 1e-9 * want + m.volume_pad + floor,
+                        "{label}: {side} volume {}, want {want}",
+                        m.volume
+                    );
                 }
             }
         }
+    }
+    if answered == 0 {
+        println!("SKIPPED at this ε: no near-tangent pose answers, so no volume is read");
     }
 }
