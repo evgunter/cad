@@ -39,6 +39,13 @@ pub(crate) fn volume(body: &Body<f64>) -> f64 {
     p.volume
 }
 
+/// The widest certified enclosure a row accepts as a claim: the
+/// quadrature lane's half-width follows the run's eps, `1e-6` at the
+/// default and finer rows and a thousand eps at the coarse one.
+pub(crate) fn pad_ceiling() -> f64 {
+    (1e3 * tol().eps()).max(1e-6)
+}
+
 /// A body's volume and the half-width of its certified enclosure: zero
 /// on a closed-form inventory, the quadrature lane's on a curved face
 /// trimmed by an ellipse (a fillet's band at an oblique end face).
@@ -147,7 +154,7 @@ pub(crate) fn carve(
     let ((v0, pad0), (v1, pad1)) = (volume_enclosure(body), volume_enclosure(&out.body));
     let (dv, pad) = (v0 - v1, pad0 + pad1);
     assert!(
-        pad < 1e-6 && (dv - removed).abs() < 1e-12 + pad,
+        pad < pad_ceiling() && (dv - removed).abs() < 1e-12 + pad,
         "{what} ({verb:?}): ΔV {dv} ± {pad} vs the closed form {removed}"
     );
     out

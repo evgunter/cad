@@ -19,7 +19,7 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::{Body, BooleanError, EdgeKey, mass_properties, query, validate_geometric};
 
-use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
+use crate::band_planar_cut_off::{D, Verb, carve, edge, tol, volume};
 
 /// The parallelogram prism whose top front edge ends at two parallel
 /// side walls slanted 26.6° off its normal plane.
@@ -131,14 +131,23 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
         }
         other => panic!("s = {s}: the sliver band escalates, got {other:?}"),
     }
+    // Decided Zero, the circle stands for the section to within the
+    // lean: the band's trim reads it as the spine's normal section and
+    // the end face as its own, so the volume agrees with the closed
+    // form to the order of the lean times the section.
     let s = band.zero() / 10.0;
     let body = trapezoid(s);
-    let out = carve(
-        &body,
-        &[top(&body)],
-        Verb::Fillet,
-        Verb::Fillet.section() * (2.0 - 2.0 * s * Verb::Fillet.centroid()),
-        &format!("a lean of {s}"),
+    let edges = [top(&body)];
+    let out = Verb::Fillet
+        .run(&body, &edges)
+        .unwrap_or_else(|e| panic!("a lean of {s} builds the circle, got {e}"));
+    validate_geometric(&out.body, tol()).expect("tier 3");
+    assert_naming_totality(&body, &out, &edges, "a lean inside the zero band");
+    let removed = Verb::Fillet.section() * (2.0 - 2.0 * s * Verb::Fillet.centroid());
+    let dv = volume(&body) - volume(&out.body);
+    assert!(
+        (dv - removed).abs() < 10.0 * s * Verb::Fillet.section(),
+        "a lean of {s}: ΔV {dv} vs the closed form {removed}"
     );
     for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
         let c = out.body.get_edge(*arc).unwrap().curve;

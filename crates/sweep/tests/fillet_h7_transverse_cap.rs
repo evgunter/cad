@@ -436,7 +436,8 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
             let (vol1, pad1) = enclosure(&out.body);
             let (dv, pad) = (vol0 - vol1, pad0 + pad1);
             assert!(
-                pad < 1e-6 && (dv - removed).abs() < 1e-12 + pad,
+                pad < crate::band_planar_cut_off::pad_ceiling()
+                    && (dv - removed).abs() < 1e-12 + pad,
                 "{what}: ΔV {dv} ± {pad} vs the closed form {removed}"
             );
             let rec = out.naming.as_ref().expect("births");
