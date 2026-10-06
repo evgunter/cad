@@ -7269,3 +7269,24 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - I merged main (with PR 4076; both touch `census.rs` and `solid_contain.rs`; clean, `cargo check` ok) at `537d5fe4`. CI running. Fix lane archived.
   - #4081 (cleave) still open; it collides in `chord_join.rs` with whichever lands second.
 - PR 4080: no review yet. Nothing new on PR 3970.
+
+## 03:49 check-in (2026-10-06)
+
+- **PR 4078:** my merge of main at `537d5fe4` went green, but GitHub refused the merge. #4081 (cleave's `split-segment-curve`) had landed at 03:11 and conflicts in `chord_join.rs`.
+  - The conflict was one doc hunk (`between_edge_is_section`), resolved keeping the premise text with #4081's `SegmentEdge::Locus` link. #4081's body rewrite auto-merged with the `linked` / `edge_curve_linked` / `point_of` conversions intact.
+  - 224 chord_join/torn/split tests passed; clippy clean. Pushed `650e921b`; CI running.
+- **PR 4080 review: fix first, one BLOCKING.**
+  - The widened `image: None` arm also re-derives a seam's image, and that of an edge whose planes both hold. Neither slides. A spline-carrier seam (an `mef` NURBS chord in the cube's top) then refuses `RechartFalsifies { Unimplemented }` on a zero move and on a top-only move; main takes both. The reviewer's M6 shows the seam / neither-moves half has no witness.
+  - Otherwise confirmed:
+    - the helper refactor is behaviour-identical (1170 curved lines, 0 diffs);
+    - corpus 2425 cases, 0 diffs including description bits;
+    - batteries 0 moved;
+    - the rim-lift correction is right.
+  - Style (sure): `offset_together::restate` now twins `offset_axial::restate`; `MovedPlane.moves` restates `MovedChart::rekeyed` (two homes again).
+  - Fix lane `session_01VEL8GcnJaEtuKUExA3VpDz`:
+    - derive only between distinct planes where one moves, keep otherwise, with seam witnesses;
+    - one restate and one moved/held decision;
+    - a neutral home for the shared core;
+    - precedence NIT and module doc.
+  - Reviewer archived (about $7.1).
+- Nothing new on PR 3970.
