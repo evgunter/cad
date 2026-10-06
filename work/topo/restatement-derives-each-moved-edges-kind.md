@@ -26,3 +26,17 @@ Open, for the intent refactor:
 - A tangent, second-order-determined edge stored as a chart: turn it into a `TangentIntersection`, or keep the chart.
 - A declared chart image moved onto a transverse pair: refuse, or drop the declaration.
 - D2's prefer-intrinsic authority rule. Ev's 2026-07-19 text names no authority exemption. The agent-written clause from `99cc678bfd` exempts declared descriptions. Tier 3 check 4 exempts derived ones. See also `offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section`.
+
+## What waits on it
+
+The boolean's four seam kills onto kept faces (`zip_seam`'s retiring
+kills, `zip_folded`'s two in `boolean/rest.rs`) cannot move to
+`kef_describing` with a key swap: the seam edge's stored description
+names a surface other than the survivor's, so its re-description has
+to be derived, kind included. Until this row's restater exists they
+stay on `kef_minting`, and `kef_minting` cannot be absorbed
+(`kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`,
+"Built, and what waits"). The restater plugs into the twins at
+`Body::vouch_described_move` (`crates/topo/src/attach.rs`), where a
+listed description is certified today.
+

@@ -2666,7 +2666,11 @@ mod tests {
             .into_iter()
             .find(|&he| body.mate(he).and_then(|m| body.face_of_half_edge(m)) == Some(kept))
             .unwrap();
-        assert_eq!(out.kef(he).unwrap().killed_face, absorbed);
+        // Lifts RechartStrandsDescriptions: the names a merge leaves are the row, and these faces are not coplanar.
+        let killed = out
+            .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+            .unwrap();
+        assert_eq!(killed.killed_face, absorbed);
         out
     }
 
