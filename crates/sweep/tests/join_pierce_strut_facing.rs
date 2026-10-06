@@ -24,21 +24,17 @@
 //! alone and the −z edge alone, and the plane meets the prism in two
 //! lobes that touch at `v`. The union and the intersection pinch there
 //! (two cones of boundary meet at one point); each difference does
-//! not. Every op, in both orders, builds `SOUND` with one vertex at
-//! `v`. Red if the ring struts ignore the walk (`insert::strut_order`),
-//! if a union's two copies are left unwelded (the cube's face runs
-//! through both), or if the zips fuse the pinch to itself
-//! (`zip::cross_pinches`): the intersection keeps one vertex at `v` in
-//! both operands, and only the cube face's two lobes, made one face,
-//! cross between the cones there.
+//! not. Every op, in both orders, builds `SOUND`, one vertex per cone
+//! at `v`, all on one point key, and tessellates. Red if the ring
+//! struts ignore the walk (`insert::strut_order`), or if the zips fuse
+//! the pinch to itself: the intersection keeps one vertex at `v` in
+//! both operands, and `zip::split_cones` splits each per cone.
 //!
 //! Two neighbouring families pinch too, and build in every op. A
 //! second run holding the x = 1 face's bisector as well (`WIDE_RUN`)
-//! pinches its intersection, crossed as the two-run one is. Two runs
-//! that are each a lone edge (`EDGE_RUNS`) pinch cube ∖ prism over two
-//! seams, crossed by the cube face, whose two holes meet at `v`; their
-//! prism ∖ cube keeps the two copies apart on one point, where no face
-//! meets both.
+//! pinches its intersection. Two runs that are each a lone edge
+//! (`EDGE_RUNS`) pinch cube ∖ prism over two seams, the cube face's two
+//! holes meeting at `v`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -212,23 +208,12 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
                 at_v.iter().all(|&k| point(k) == point(at_v[0])),
                 "{what}: the vertices at the pierce point share one point: {at_v:?}"
             );
-            for (face, f) in bb.body.faces() {
-                let mut met = Vec::new();
-                for &l in std::iter::once(&f.outer).chain(&f.rings) {
-                    if let LoopBoundary::Cycle { first } = bb.body.get_loop(l).unwrap().boundary {
-                        for he in bb.body.loop_cycle(first).unwrap() {
-                            let v = bb.body.get_half_edge(he).unwrap().start;
-                            if at_v.contains(&v) && !met.contains(&v) {
-                                met.push(v);
-                            }
-                        }
-                    }
-                }
-                assert!(
-                    met.len() < 2,
-                    "{what}: face {face:?} runs through two vertices at the pierce point"
-                );
-            }
+            let meshed =
+                mesh::tessellate(&bb.body, 0.05, tol()).map(|m| mesh::validate::check_mesh(&m));
+            assert!(
+                matches!(meshed, Ok(Ok(()))),
+                "{what}: the body does not mesh: {meshed:?}"
+            );
         }
     }
 }
@@ -274,13 +259,13 @@ fn two_edge_runs_build_in_every_op() {
     }
 }
 
-/// **A crossed pinch names the faces it made one.** The two-run
-/// intersection pinches at `v`, and the face that crosses between its
-/// cones there is two coplanar faces made one (`zip::cross_pinches`):
-/// the result's naming holds that absorption as a merge group, its kept
-/// face live and running through `v` twice, its absorbed face dead.
+/// **A pinch keeps one vertex per cone.** The two-run intersection
+/// pinches at `v`: the result holds two vertices there, one per cone,
+/// on one point key, and no face passes either of them twice. Red if
+/// the zips fuse the cones into one vertex, or a split leaves a cone's
+/// corners on two vertices.
 #[test]
-fn a_crossed_pinch_names_the_faces_it_merged() {
+fn a_pinch_keeps_one_vertex_per_cone() {
     let prism = finished(
         "the prism",
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
@@ -292,33 +277,33 @@ fn a_crossed_pinch_names_the_faces_it_merged() {
             panic!("{order}: the intersection did not build");
         };
         let body = &bb.body;
-        let corners_at_v = |face| {
-            let f = body.get_face(face).unwrap();
-            std::iter::once(&f.outer)
-                .chain(&f.rings)
-                .filter_map(|&l| match body.get_loop(l).unwrap().boundary {
-                    LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
-                    LoopBoundary::Empty { .. } => None,
-                })
-                .flatten()
-                .filter(|&he| {
-                    let v = body.get_half_edge(he).unwrap().start;
-                    let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-                    [p.x, p.y, p.z] == V
-                })
-                .count()
-        };
-        let crossed = bb.naming.merge_groups.iter().any(|(kept, absorbed)| {
-            body.get_face(*kept).is_some()
-                && corners_at_v(*kept) == 2
-                && !absorbed.is_empty()
-                && absorbed.iter().all(|&f| body.get_face(f).is_none())
-        });
-        assert!(
-            crossed,
-            "{order}: no merge group names the face crossing the pinch: {:?}",
-            bb.naming.merge_groups
-        );
+        let at_v: Vec<_> = body
+            .vertex_points()
+            .filter(|(_, p)| [p.x, p.y, p.z] == V)
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(at_v.len(), 2, "{order}: one vertex per cone at v");
+        for (face, f) in body.faces() {
+            for &l in std::iter::once(&f.outer).chain(&f.rings) {
+                if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
+                    let starts: Vec<_> = body
+                        .loop_cycle(first)
+                        .unwrap()
+                        .into_iter()
+                        .map(|he| body.get_half_edge(he).unwrap().start)
+                        .filter(|v| at_v.contains(v))
+                        .collect();
+                    let mut once = starts.clone();
+                    once.sort();
+                    once.dedup();
+                    assert_eq!(
+                        once.len(),
+                        starts.len(),
+                        "{order}: face {face:?} passes a vertex at v twice"
+                    );
+                }
+            }
+        }
     }
 }
 

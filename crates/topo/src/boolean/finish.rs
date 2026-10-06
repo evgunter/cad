@@ -5,9 +5,7 @@
 //! (`weld_pinches`), `revert` the B side for ∖, and drive the
 //! combine door — everything keyed by the F9 records, never by index
 //! offsets into correlated arrays (the book's `sonfa[i+inda]`
-//! bookkeeping is replaced by side data). It also hosts one pass the
-//! op stage runs after the zips, `weld_pierce_copies`, which reads the
-//! pierce copies `setopfinish` collects (`FinishOut::pierce_copies`).
+//! bookkeeping is replaced by side data).
 //!
 //! # Promotion (lmfkrh both copies)
 //!
@@ -79,9 +77,6 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     /// The B-side pinch welds' vertex fusions, B-clone keys: they ran
     /// before the graft, so a dead key has no result key.
     pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
-    /// The kept copies of each pierce several runs cut, both operands',
-    /// in result keys ([`weld_pierce_copies`]).
-    pub pierce_copies: Vec<Vec<VertexKey>>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -429,36 +424,6 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         body.get_vertex(v).is_some().then_some(v)
     };
     let b_kept = |v: VertexKey| graft.vertices.get(b_welds.kept(v)).copied();
-    // The kept copies of each pierce several runs cut.
-    let mut pierces: Vec<(super::PairSite, usize, Vec<VertexKey>)> = Vec::new();
-    for pair in &red.null_pairs {
-        if !matches!(
-            pair.site,
-            super::PairSite::VertexAOnFaceB(_) | super::PairSite::VertexBOnFaceA(_)
-        ) {
-            continue;
-        }
-        let (aa, ba) = match (a_attr.get(pair.a_edge), b_attr.get(pair.b_edge)) {
-            (Some(&aa), Some(&ba)) => (aa, ba),
-            _ => return Err(desync("pair edge without attribute")),
-        };
-        let kept = [aa.below_end, aa.above_end]
-            .into_iter()
-            .filter_map(a_kept)
-            .chain([ba.below_end, ba.above_end].into_iter().filter_map(b_kept));
-        match pierces.iter_mut().find(|(site, ..)| *site == pair.site) {
-            Some((_, runs, copies)) => {
-                *runs += 1;
-                copies.extend(kept);
-            }
-            None => pierces.push((pair.site, 1, kept.collect())),
-        }
-    }
-    let pierce_copies = pierces
-        .into_iter()
-        .filter(|&(_, runs, _)| runs > 1)
-        .map(|(.., copies)| copies)
-        .collect();
     let mut discards = discarded(
         &red,
         a_solid,
@@ -486,76 +451,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         weld_fragments_b: b_welds.fragments,
         weld_merges_a: a_welds.merges,
         weld_merges_b: b_welds.merges,
-        pierce_copies,
     })
-}
-
-/// **A pierce's copies are one vertex where a face meets them.** A
-/// vertex several runs pierce mints a null edge per run on each side,
-/// and each run's zip fuses that run's two kept copies. Where both
-/// sides keep a copy per run, the runs' vertices stay apart on one
-/// point, and two of them are joined across a face whose boundary runs
-/// through both, by [`weld_pair`], the fusion [`weld_pinches`] makes.
-/// Copies no face meets stay apart, on their one point, as unwelded
-/// pierces do. Two things differ from [`weld_pinches`], which runs
-/// before the zips: it admits only the pierced face's fragments, where
-/// this pass, after them, admits any face (the section faces are gone,
-/// and both vertices are one pierce's copies); and a weld here that
-/// would divide a face is refused, as no fragment row can record it
-/// after the graft. Copies of one pierce not on one point refuse too.
-/// `fused` is the zips' fusions `(dead, kept)` in result keys, which
-/// `groups` (from [`FinishOut::pierce_copies`]) is read through;
-/// returns this pass's fusions. It runs from the op stage after the
-/// zips (`ops::boolean_op_recut`), not from [`setopfinish`].
-pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
-    groups: &[Vec<VertexKey>],
-    fused: &[(VertexKey, VertexKey)],
-    tol: Tol,
-) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let band = Band::linear(tol)?;
-    let mut merges = fused.to_vec();
-    let mut welds = Vec::new();
-    for group in groups {
-        loop {
-            let mut live: Vec<VertexKey> = Vec::new();
-            for &v in group {
-                let k = survivor(&merges, v);
-                if body.get_vertex(k).is_some() && !live.contains(&k) {
-                    live.push(k);
-                }
-            }
-            let mut site = None;
-            'pairs: for (i, &u) in live.iter().enumerate() {
-                for &w in &live[i + 1..] {
-                    if let Some((_, joint)) = pinch_site(body, u, w, |_| true)? {
-                        site = Some((u, w, joint));
-                        break 'pairs;
-                    }
-                }
-            }
-            let Some((u, w, joint)) = site else {
-                break;
-            };
-            // Both live by the filter above, so only the point is a read.
-            let point = |v| body.resolve_vertex_point(v, crate::live::Proven);
-            let p = point(u);
-            if !one_vertex(p, point(w), band).map_err(|diag| BooleanError::Escalated {
-                decision: super::BooleanDecision::VertexOnVertex,
-                diag,
-            })? {
-                return Err(desync("a pierce's copies are not on one point"));
-            }
-            if let Joint::Chord { .. } = joint {
-                return Err(desync("a pierce's copies divide a face the zips kept"));
-            }
-            let (fusion, _) = weld_pair(body, (u, w), joint, p, tol)?;
-            merges.push(fusion);
-            welds.push(fusion);
-        }
-    }
-    Ok(welds)
 }
 
 /// Joins `u` and `w` at `joint` ([`fuse_by_joint`]) and checks that the
@@ -607,8 +503,9 @@ impl Welds {
 /// two holes meeting there; across two loops (holes touching at a
 /// corner) it joins them into one.
 ///
-/// After the zips, [`weld_pierce_copies`] joins one pierce's own copies
-/// by the same fusion ([`weld_pair`]).
+/// The weld repairs one operand's own fragment before the zips; the
+/// vertex it leaves is split per cone with the rest
+/// (`zip::split_cones`).
 ///
 /// The site is read from lineage: the pierced face's fragments
 /// (`lineage`, `(new face, divided-from face)` rows), section faces
