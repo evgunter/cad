@@ -130,3 +130,18 @@ moved to `work/join/` under JOIN-2 (`docs/JOIN-2-SPEC.md`): the REST
 zip reads the join's segments, and `enumerate_segments` and
 `fan_edge_between` go. JOIN-2 edits `boolean/rest.rs`, which is shared
 with TANG, and will announce the seam in its PR. — (JOIN orchestrator)
+
+## 2026-10-06 — picked up; cut along the priority seam
+
+An orchestrator holds the track again (`status: active`). ZIP measured
+48 budget points against its 30. Per `work/README.md` Track size it
+splits along its priority seam: the eight P3 rows moved by `git mv` to
+**ZIPTAIL** (`work/ziptail/`, 18.5 points, `ready`, nobody on it), and
+ZIP keeps its P0 to P2 rows. `a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`
+was unpriced; priced P1/M (a declared union refusing on ordinary
+blocks, its remaining shape unmeasured on main).
+
+FUSE's `fuse/cell-pair-contacts` (PR 3955, open) edits `rest.rs` and
+`zip.rs` and files `a-rest-lane-slit-zip-kills-seam-edges-with-no-substitution-row`
+(P3/E) here; it goes to ZIPTAIL once it lands. TOPO's
+`topo/face-boundary-walks-one-home` (PR 4099, open) edits `rest.rs`.
