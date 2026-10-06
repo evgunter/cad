@@ -549,3 +549,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-06 — PR 3953 lands (two dangling null edges with one
   segment). Every one-arc lens case builds in every op and passes 3′.
   The P0 row closes.
+- 2026-10-06 — Dispatched `sweeps-build-one-rim-edge-per-segment-not-per-run`
+  (P1) on `fuse/sweep-runs`. It is the extrude half and partial
+  revolve's direct construction; the lane stops on anything that needs
+  a curved-join key.
+- 2026-10-06 — `curved-joinable-vertices-are-left-unjoined` is put to
+  a designer pair (blinding byte on
+  `analysis/design-fork/fuse-curved-join-key-2026-10-06`). PR 3881's
+  ruling says curved edges join where the carrier is structurally one,
+  "keyed by the surfaces and the intersection branch". The ratified
+  `EdgeDescription::Intersection` selects its branch by a witness
+  point, so the key the ruling names does not exist yet. Giving it one
+  would change ratified text, so the orchestrator treats it as a fork,
+  not a unit.

@@ -2,7 +2,8 @@
 id: sweeps-build-one-rim-edge-per-segment-not-per-run
 kind: issue
 title: Sweeps build one rim edge per profile segment, not per collinear or cocircular run: extrude mints a station vertex on both cap rims, a partial revolve one wall per arc
-status: open
+status: dispatched
+branch: fuse/sweep-runs
 opened: 2026-10-06
 priority: P1
 cost: M
