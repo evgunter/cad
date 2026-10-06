@@ -189,7 +189,7 @@ fn together_edge_disagreement_display_is_true_at_all_three_meters() {
         // mechanisms.
         assert_f6(
             &err,
-            &["carrier", "moved surface", "endpoint", "midpoint", gap],
+            &["curve", "moved surface", "endpoint", "midpoint", gap],
             // Deliberately ONE identifier, not an enum mirror: this row
             // is about one variant's sentence being true at three
             // raising sites, so the ban list is that variant and the

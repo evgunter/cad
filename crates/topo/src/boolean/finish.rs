@@ -42,7 +42,7 @@ use super::join::CompletedPolygonPair;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
-use super::zip::{Joint, SeamCorrespondence, fuse_by_joint, survivor};
+use super::zip::{Fusions, Joint, SeamCorrespondence, fuse_by_joint};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode, one_vertex};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
@@ -74,10 +74,10 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub weld_fragments_b: Vec<(FaceKey, FaceKey)>,
     /// The A-side pinch welds' vertex fusions `(dead, kept)`, result
     /// keys.
-    pub weld_merges_a: Vec<(VertexKey, VertexKey)>,
+    pub weld_merges_a: Fusions,
     /// The B-side pinch welds' vertex fusions, B-clone keys: they ran
     /// before the graft, so a dead key has no result key.
-    pub weld_merges_b: Vec<(VertexKey, VertexKey)>,
+    pub weld_merges_b: Fusions,
     /// The kept copies of each pierce several runs cut, both operands',
     /// in result keys ([`weld_pierce_copies`]).
     pub pierce_copies: Vec<Vec<VertexKey>>,
@@ -415,7 +415,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         if bs.len() > 1
             && !shared_cut
             && !one_pierce
-            && !a_welds.merges.iter().any(|&(_, k)| k == a_survivor)
+            && !a_welds.merges.rows().iter().any(|&(_, k)| k == a_survivor)
         {
             return Err(desync("conflicting seam vertex correspondence"));
         }
@@ -502,25 +502,25 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 /// and both vertices are one pierce's copies); and a weld here that
 /// would divide a face is refused, as no fragment row can record it
 /// after the graft. Copies of one pierce not on one point refuse too.
-/// `fused` is the zips' fusions `(dead, kept)` in result keys, which
-/// `groups` (from [`FinishOut::pierce_copies`]) is read through;
-/// returns this pass's fusions. It runs from the op stage after the
-/// zips (`ops::boolean_op_recut`), not from [`setopfinish`].
+/// `fused` is the fusions `(dead, kept)` before this pass, in result
+/// keys; `groups` (from [`FinishOut::pierce_copies`]) is read through
+/// them, then through this pass's own. Returns this pass's fusions.
+/// It runs from the op stage after the zips
+/// (`ops::boolean_op_recut`), not from [`setopfinish`].
 pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     groups: &[Vec<VertexKey>],
-    fused: &[(VertexKey, VertexKey)],
+    fused: &Fusions,
     tol: Tol,
-) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
+) -> Result<Fusions, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let band = Band::linear(tol)?;
-    let mut merges = fused.to_vec();
-    let mut welds = Vec::new();
+    let mut welds = Fusions::default();
     for group in groups {
         loop {
             let mut live: Vec<VertexKey> = Vec::new();
             for &v in group {
-                let k = survivor(&merges, v);
+                let k = welds.survivor(fused.survivor(v));
                 if body.get_vertex(k).is_some() && !live.contains(&k) {
                     live.push(k);
                 }
@@ -550,8 +550,7 @@ pub(super) fn weld_pierce_copies<T: Decide + crate::props::AtRestPolicy>(
                 return Err(desync("a pierce's copies divide a face the zips kept"));
             }
             let (fusion, _) = weld_pair(body, (u, w), joint, p, tol)?;
-            merges.push(fusion);
-            welds.push(fusion);
+            welds.push(fusion)?;
         }
     }
     Ok(welds)
@@ -582,14 +581,14 @@ fn weld_pair<T: Decide + crate::props::AtRestPolicy>(
 /// face each one divided.
 #[derive(Default)]
 struct Welds {
-    merges: Vec<(VertexKey, VertexKey)>,
+    merges: Fusions,
     fragments: Vec<(FaceKey, FaceKey)>,
 }
 
 impl Welds {
     /// The vertex `v` survives as.
     fn kept(&self, v: VertexKey) -> VertexKey {
-        survivor(&self.merges, v)
+        self.merges.survivor(v)
     }
 }
 
@@ -678,7 +677,7 @@ fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
                 if let Some(made) = made {
                     welds.fragments.push((made, face));
                 }
-                welds.merges.push((dead, kept));
+                welds.merges.push((dead, kept))?;
             }
         }
     }
