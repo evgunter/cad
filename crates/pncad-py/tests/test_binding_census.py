@@ -2579,6 +2579,15 @@ NOT_BOUND = {
     "LeafRole": SHAPE,
     "leaf_role": SHAPE,
     "role_leaf": SHAPE,
+    # A resolve refusal said about a reference its sentence already
+    # names (a node's slot, a pane's "this face"). Python's resolve
+    # door has no such sentence: it raises the bare refusal, which says
+    # the name once, in full.
+    "AboutReference": SHAPE,
+    # What an edit took from a name it stranded. A maintenance row's
+    # message says it, and the row's `name` is the name it took it
+    # from.
+    "Took": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
     # A cone-delete is composed caller-side in Python: the bound door
