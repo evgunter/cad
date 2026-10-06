@@ -480,9 +480,12 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   `cap_plane_orientation` once: `Assertion` calls +6 on both walks
 ///   and `Door` +4 on each line here, +4 per walk on the slab at every
 ///   ε row. `Decision` calls hold; the plate's `Plain` and `Early`
-///   `Decision` forms fall 10 and 56 (and `Door/Decision`'s 72 on the tree that
-///   merged main at this PR's head), every digest of a
-///   line that builds forms moves, and the freezes hold.
+///   `Decision` forms fall 10 and 56, every digest of a line that
+///   builds forms moves, and the freezes hold. `Door/Decision`'s forms
+///   rise 6768 → 7465 with it alone, and to 7393 once composed with the
+///   one-segment loop (#4169): measured with this change applied at
+///   that merge's first parent and at the merge, where #4169 alone
+///   leaves the line at 6768.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1143 forms 16218 frozen 252 digest d1fe4c827d6e4234e575f397f26d102b\n\
      Plain/Assertion calls 670 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
