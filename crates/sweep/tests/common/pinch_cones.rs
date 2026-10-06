@@ -9,10 +9,12 @@
 //! the result where the op of the two operands' links holds there. The
 //! result's in-cells and out-cells fall into connected components, and
 //! the cones are `in + out − 1`, the result's boundary cycles round the
-//! point. A cone bounded by one great circle alone (a plane through the
-//! point), or by two half-circles from one direction to its opposite (a
-//! straight edge through it), is *free*: the boundary passes the point
-//! without a corner, and needs no vertex there.
+//! point. A cone is *free* where the boundary passes the point without
+//! a corner, and needs no vertex there: bounded by one great circle
+//! alone (a plane through the point), or a lune, bounded by two
+//! half-circles from one direction to its opposite (a straight edge
+//! through the point, the shape the output stage's join leaves no
+//! vertex on: `boolean::edge_join`).
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //! [`super::differential`]'s polygon oracles and `outcome` line, which

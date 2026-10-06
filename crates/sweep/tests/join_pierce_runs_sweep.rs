@@ -1649,6 +1649,106 @@ fn fibonacci(i: u32, n: u32) -> [f64; 3] {
     [r * t.cos(), r * t.sin(), z]
 }
 
+/// PR 4139's review r1's `dbl` pose `seed`, `fib`: two [`asym`] corners
+/// touching only at their corner `v` (their union, two vertices at `v`),
+/// the second turned by a seeded rotation, and the cube whose near face
+/// holds `v`, along Fibonacci direction `fib` of 600 and turned 0.4
+/// about it; with the operand's pieces and volume, the cube's planes,
+/// and the volume they share.
+struct Dbl {
+    pinched: AtRestBody<f64>,
+    pieces: Pieces,
+    cube: AtRestBody<f64>,
+    planes: Vec<Plane>,
+    volume: f64,
+    common: f64,
+}
+
+fn dbl(seed: u64, fib: u32) -> Dbl {
+    let pose = format!("seed={seed} fib{fib}");
+    let corner = asym();
+    let v = corner.v;
+    let x1 = finished(
+        "a corner",
+        fixtures::prism::<f64>(&corner.profile, 1.0, tol()).body,
+    );
+    let (x2, posed_pieces) = posed(&corner, seeded_rotation(seed * 31 + 5), v);
+    let pinched = topo::union_with(&x1, &x2, &BooleanDeclarations::default(), tol())
+        .unwrap_or_else(|e| panic!("{pose}: the corners' union: {e:?}"));
+    let pinched = pinched.body().expect("the union is not empty").body.clone();
+    assert_eq!(
+        vertices_at(&pinched, v).len(),
+        2,
+        "{pose}: the operand's pinch"
+    );
+    let mut pieces: Pieces = corner.pieces.iter().map(|p| polygon_prism(p)).collect();
+    pieces.extend(posed_pieces);
+    let f = frame(fibonacci(fib, 600), 0.4);
+    let lo = [-2.0, -2.0, 0.0];
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let planes = cube_planes_at(v, f, lo);
+    let volume: f64 = pieces.iter().map(|p| convex_volume(p)).sum();
+    let common: f64 = pieces
+        .iter()
+        .map(|p| convex_volume(&[p.clone(), planes.clone()].concat()))
+        .sum();
+    assert!(
+        common > 1e-3,
+        "{pose}: the cube holds some of the operand: {common}"
+    );
+    Dbl {
+        pinched,
+        pieces,
+        cube,
+        planes,
+        volume,
+        common,
+    }
+}
+
+/// **The output stage's join leaves a pinch's cones their vertices**
+/// (`boolean::edge_join`). The union of [`dbl`]'s seed 268, direction
+/// 11 holds two cones at `v`, one vertex each; one of them has two
+/// edges only, collinear between one pair of planes, the shape the join
+/// kills. It shares its point key with the other cone's vertex, so the
+/// join leaves it: the union builds `SOUND` at the clipped volume, with
+/// two vertices at `v` and no joinable vertex. Red if the join kills it:
+/// the joined edge runs through the other vertex, and tier 3′ refuses
+/// `UndeclaredContact { VertexOnEdge }` at `v`.
+#[test]
+fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
+    let v = asym().v;
+    let d = dbl(268, 11);
+    let want = d.volume + SIDE.powi(3) - d.common;
+    let r = topo::union_with(&d.pinched, &d.cube, &BooleanDeclarations::default(), tol());
+    let body = r
+        .as_ref()
+        .ok()
+        .and_then(|res| res.body())
+        .expect("the union builds")
+        .body
+        .clone();
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "{line}");
+    let at_v = vertices_at(&body, v);
+    assert_eq!(
+        cone_finding(
+            &body,
+            v,
+            (&d.pieces, std::slice::from_ref(&d.planes), Cones::Union)
+        ),
+        None
+    );
+    assert_eq!(at_v.len(), 2, "one vertex per cone at v");
+    let valence = |w| body.half_edges().filter(|(_, h)| h.start == w).count();
+    assert!(
+        at_v.iter().any(|&w| valence(w) == 2),
+        "a cone at v is a straight edge through it: {:?}",
+        at_v.iter().map(|&w| valence(w)).collect::<Vec<_>>()
+    );
+    assert_eq!(topo::joinable_vertices(&body), vec![], "maximal edges");
+}
+
 /// **A pinched operand's pierces weld only where their corners nest.**
 /// The operand is two [`asym`] corners touching only at `v = (1, 1, 1)`,
 /// one turned by a seeded rotation (their union, two vertices at `v`);
@@ -1670,36 +1770,15 @@ fn fibonacci(i: u32, n: u32) -> [f64; 3] {
 fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
     for (seed, fib) in [(268, 11), (15, 11), (426, 6)] {
         let pose = format!("seed={seed} fib{fib}");
-        let corner = asym();
-        let v = corner.v;
-        let x1 = finished(
-            "a corner",
-            fixtures::prism::<f64>(&corner.profile, 1.0, tol()).body,
-        );
-        let (x2, posed_pieces) = posed(&corner, seeded_rotation(seed * 31 + 5), v);
-        let pinched = topo::union_with(&x1, &x2, &BooleanDeclarations::default(), tol())
-            .unwrap_or_else(|e| panic!("{pose}: the corners' union: {e:?}"));
-        let pinched = pinched.body().expect("the union is not empty").body.clone();
-        assert_eq!(
-            vertices_at(&pinched, v).len(),
-            2,
-            "{pose}: the operand's pinch"
-        );
-        let mut pieces: Pieces = corner.pieces.iter().map(|p| polygon_prism(p)).collect();
-        pieces.extend(posed_pieces);
-        let f = frame(fibonacci(fib, 600), 0.4);
-        let lo = [-2.0, -2.0, 0.0];
-        let cube = finished("the cube", cube_at(v, f, lo));
-        let planes = cube_planes_at(v, f, lo);
-        let volume: f64 = pieces.iter().map(|p| convex_volume(p)).sum();
-        let common: f64 = pieces
-            .iter()
-            .map(|p| convex_volume(&[p.clone(), planes.clone()].concat()))
-            .sum();
-        assert!(
-            common > 1e-3,
-            "{pose}: the cube holds some of the operand: {common}"
-        );
+        let v = asym().v;
+        let Dbl {
+            pinched,
+            pieces,
+            cube,
+            planes,
+            volume,
+            common,
+        } = dbl(seed, fib);
         let runs = every_op(
             ["xy", "yx"],
             (&pinched, volume),
