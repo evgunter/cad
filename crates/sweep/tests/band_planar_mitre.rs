@@ -423,3 +423,82 @@ fn the_mitre_carves_at_the_certified_scalar() {
         );
     }
 }
+
+/// **An isosceles turn whose dihedrals are not right angles**: the top
+/// rim of a square frustum — two trapezoid prisms intersected, each
+/// side leaning in by `s` — whose every corner is symmetric about its
+/// leaning lateral edge, the two requested dihedrals both `90° + atan s`.
+/// Both verbs build four mitres; the fillet's lie on both their
+/// cylinders, the chamfer's in both their planes, and every face the
+/// carve mints is tier-3 valid with naming total.
+#[test]
+fn a_frustum_top_rim_mitres_at_leaning_walls() {
+    let s = 0.3;
+    // The trapezoid between heights `z0` and `z1` whose sides run
+    // through `(0, 0)–(s, 1)` and `(2, 0)–(2 − s, 1)`, in the plane
+    // through `origin` spanned by `u` and `z`, extruded 3 along `u × z`.
+    let trapezoid = |origin: Point3<f64>, u: Vec3<f64>, (z0, z1): (f64, f64)| {
+        let plane = sketch_from_axes(origin, u, Vec3::new(0.0, 0.0, 1.0), tol());
+        prism_on(
+            plane,
+            vec![
+                (Point2::new(s * z0, z0), 0.0),
+                (Point2::new(2.0 - s * z0, z0), 0.0),
+                (Point2::new(2.0 - s * z1, z1), 0.0),
+                (Point2::new(s * z1, z1), 0.0),
+            ],
+            3.0,
+            tol(),
+        )
+    };
+    // The second reaches past the first's top and bottom, so the two
+    // share no face plane.
+    // `x ∈ [0, 2]` across `y ∈ [−2.5, 0.5]`, and `y ∈ [−2, 0]` across
+    // `x ∈ [−0.5, 2.5]`.
+    let along_x = trapezoid(
+        Point3::new(0.0, 0.5, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        (0.0, 1.0),
+    );
+    let along_y = trapezoid(
+        Point3::new(2.5, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        (-0.5, 1.5),
+    );
+    let body = realized(BooleanOp::Intersect, &along_x, &along_y, tol());
+    validate_geometric(&body, tol()).expect("the frustum is tier-3 valid");
+    let (lo, hi) = (s, 2.0 - s);
+    let rim = [
+        edge(&body, [lo, -lo, 1.0], [hi, -lo, 1.0]),
+        edge(&body, [hi, -lo, 1.0], [hi, -hi, 1.0]),
+        edge(&body, [hi, -hi, 1.0], [lo, -hi, 1.0]),
+        edge(&body, [lo, -hi, 1.0], [lo, -lo, 1.0]),
+    ];
+    let v0 = volume(&body);
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let out = verb
+            .run(&body, &rim)
+            .unwrap_or_else(|e| panic!("{verb:?}: the frustum's rim mitres, got {e}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
+        assert_naming_totality(&body, &out, &rim, "the frustum's top rim");
+        assert_eq!(
+            out.naming.as_ref().expect("births").mitres.len(),
+            4,
+            "{verb:?}: four mitres"
+        );
+        let (_, stray) = crate::band_planar_cut_off::arc_residual(&out);
+        assert!(
+            stray < 1e-12,
+            "{verb:?}: a mitre strays {stray} from a band"
+        );
+        // Each band removes at most the triangle of its two setbacks
+        // along its whole edge.
+        let alpha = core::f64::consts::FRAC_PI_2 + s.atan();
+        let bound = 4.0 * (hi - lo) * D * D * alpha.sin() / 2.0;
+        let removed = v0 - crate::band_planar_cut_off::volume_enclosure(&out.body).0;
+        assert!(
+            removed > 0.0 && removed < bound,
+            "{verb:?}: ΔV {removed} is positive and under the bands' prisms, {bound}"
+        );
+    }
+}
