@@ -2,10 +2,12 @@
 id: support-boundary-meter-reads-a-co-requested-edge-at-its-stored-place
 kind: issue
 title: blend: the rim support-boundary meter reads an outer-boundary edge that is itself requested in the same call at its stored place, not its trimline
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
+pr: 3822
+closed: 2026-10-06
 ---
 
 
