@@ -2,8 +2,9 @@
 id: a-label-may-be-only-invisible-or-direction-override-characters
 kind: issue
 title: Label::new admits a label of only zero-width characters, and bidi overrides
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-06
 priority: P3
 cost: E
 refs: [node-labels-are-document-data]

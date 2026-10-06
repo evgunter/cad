@@ -1972,3 +1972,26 @@ The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pn
 ## 2026-10-06 — PR 4166: the part chooser proposes an editable label
 
 `add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
+
+## 2026-10-06 — PR 4183: a label refuses direction scopes and needs a character that shows
+
+A blinded designer pair (byte 192, A = Opus, B = Fable, recorded on
+`analysis/design-fork/emit-label-invisible-chars`) converged in its first
+reports. No ratified text changed: DESIGN.md has no character rule, and
+the rule lives in `label.rs`. So it was built without an `[ev]`; the PR
+body says it extends the rule approved on #3565.
+
+`Label::new` refuses, in this order:
+- a line break;
+- a control character;
+- one of the nine bidi embedding, override or isolate characters
+  (`LabelFault::Direction`, Python tag `label_direction_control`);
+- `Blank`: every character is whitespace or Unicode
+  `Default_Ignorable_Code_Point`. The 17 ranges are verified against
+  Unicode 16 and 18 (4174 code points).
+
+Joiners, bidi marks and emoji sequences pass. The viewer clears a field
+on `Label::is_blank`, the same predicate, so a field that shows nothing
+clears rather than refusing. Review folds: ALM and control-order rows, a
+full-range direction scan, narrowed docs, and the range test's stated
+re-derivation rule.
