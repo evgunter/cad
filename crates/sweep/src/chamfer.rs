@@ -32,8 +32,10 @@
 //! # Scope, and what refuses
 //!
 //! **Plane–plane support pairs only**, and open chains terminating at
-//! trivalent corners whose three edges are all requested — the same
-//! door the fillet's blank phase carves, since it is the same carve.
+//! trivalent corners whose three edges are all requested (the corner
+//! patch) or that the chain's edge alone reaches (the cut-off, at any
+//! plane end face) — the same door the fillet's blank phase carves,
+//! since it is the same carve.
 //!
 //! **Either side of the material.** A chain of concave edges ending at
 //! all-concave trihedra carves exactly as a convex one does, because

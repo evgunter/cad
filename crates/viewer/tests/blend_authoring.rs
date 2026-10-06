@@ -8,12 +8,7 @@
 //! A 10 mm cube authored through the creation vocabulary alone
 //! (`common::xy_box_in`: a rectangle profile, one extrude) — twelve edges, all
 //! straight, meeting three at a corner. Its whole-body blend is the
-//! shape a minimal instance has to take: the kernel's assembly admits
-//! only a fully-requested chain set, so a fillet of ONE box edge would
-//! terminate at a trivalent corner whose other two edges were never
-//! requested and refuse by name. That is not a limitation this unit
-//! works around — it is the freeze semantics' own consequence, and it
-//! is why the all-edges door exists.
+//! set these rows load, through the all-edges door.
 //!
 //! # Where the edge names come from
 //!
