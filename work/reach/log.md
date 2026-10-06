@@ -838,3 +838,15 @@ PR 3985 merged at `31eeed1268` after three more merges with main (JOIN #4031's r
 - **The last pass.** It went to a replacement session, because the first lane blocked three times asking to confirm mid-task instructions. The pass merged main with 4046 and 4042 and fixed each finding with a row its mutant turns red. It flipped the pole-strut row from refusal to build at the closed forms, and filed three items.
 - **Verification.** An independent verifier session found the pass VERIFIED: every mutant red as claimed, and 0 wrong bodies in about 7,800 random-pose op runs per ε. Multi-cap poses refuse 61–80%, almost all at the plane arm's pre-existing near-boundary pre-check, upstream of the cut.
 — (REACH orchestrator)
+
+## 2026-10-06 — a sphere face's box is its chart rectangle (PR 4123)
+
+- **The change.** A sphere face's box and reach are now its latitude/azimuth rectangle, with the zone or the ball as fallbacks (`boxes::sphere_window`, an enum of the three). The split gate reads the same windows, so a cut clear of a partial-azimuth cap now splits. Before this, the face box was the whole ball.
+- **Tier.** Single FULL review (M). It was not a dual pair, so there is no DR row.
+- **Review.** APPROVE-WITH-FIXES with 0 MAJOR. The strut-cap latitude window was tighter than the face on an unvalidated body; the other findings were stale prose.
+- **The last pass and the port.** The strut-cap fallback, a 16-ulp widening, the `SphereWindow` enum and the caller audit. After that, a merge with main's `face_boundary_linked` rework.
+- **First verification: NOT VERIFIED.** The zone arm read the axis's normal-plane share as `√(1 − a²)`. That cancels near a row-parallel axis, so the box was tighter than the face by up to about 800× the pad (r = 1e3, tilt 1e-8, ε 1e-9). The same spelling was already on main in `classify::zone_extent`. No wrong body was found through a public door. The merge with main also duplicated a roster line.
+- **The second fix pass.** The zone arm and `perp_room` now read `√(a_j² + a_k²)`, measured at ≤ 2.42 ulps and asserted ≤ 4, and `zone_extent` retired. The roster line follows main.
+- **Second verification: VERIFIED.** The first verifier's table holds with the whole pad to spare; no lane under-covers a near-row face at pad 0 (60-digit oracle); the merge with main is green. Its two test-only MINORs are filed as `torus-window-perp-room-charge-is-unpinned-and-box-test-oracles-cancel`.
+- **Cross-PR.** PR 4122's Approx arm now asks about the whole ball, so it stays sound against this PR's tighter sphere boxes.
+— (REACH orchestrator)

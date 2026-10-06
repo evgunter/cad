@@ -2,11 +2,12 @@
 id: split-gate-zone-ignores-the-azimuth-window
 kind: issue
 title: The split gate bounds a sphere face by its whole latitude zone, so a cut clear of a partial-azimuth cap refuses
-status: review
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 pr: 4123
+closed: 2026-10-06
 ---
 
 
@@ -41,3 +42,17 @@ window, and the latitude part is `r·√(M² + a²)·cos(v − v*)` over the
 latitude window. It is `torus_rect_extent` with `R = 0`. Fold it with
 the zone into `FaceBoxRule` (`boxes/split-gate-sphere-zone-folds-into-face-box-rule`)
 rather than adding a third gate-local spelling.
+
+## Closed (2026-10-06)
+
+Merged by PR 4123. A sphere face's box and reach are its
+latitude/azimuth rectangle (`boxes::sphere_window`, `census::sphere_reach`),
+falling back to the zone or the whole ball. A one-rim cap's latitude
+window reads only its rims and any pole vertex. The axis's share of a
+row's normal plane is read as `√(a_j² + a_k²)`, not the cancelling
+`√(1 − a²)`, and so is the slab, cone and torus `perp_room` charge.
+`classify::zone_extent` is gone: the gate reads `sphere_reach`. Verified
+twice independently (`analysis/reach-verify/4123`, NOT VERIFIED on the
+zone arm's cancellation; `analysis/reach-verify2/4123`, VERIFIED).
+Residue: `torus-window-perp-room-charge-is-unpinned-and-box-test-oracles-cancel`.
+
