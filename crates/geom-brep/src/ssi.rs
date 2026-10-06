@@ -3040,6 +3040,38 @@ mod ending_tests {
         }
     }
 
+    /// **A point's transversality refusal names the length its arm is.**
+    /// The arm is the shorter of the surfaces' curvature radius and the
+    /// extent; a tie, or a flat pair's `f64::MAX`, is the extent.
+    #[test]
+    fn a_transversality_refusal_names_its_arms_length() {
+        use crate::ssi::PointLever;
+        assert_eq!(PointLever::of(0.25, 1.0), PointLever::CurvatureRadius);
+        assert_eq!(PointLever::of(1.0, 1.0), PointLever::Extent);
+        assert_eq!(PointLever::of(f64::MAX, 1.0), PointLever::Extent);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (lever, words) in [
+            (
+                PointLever::CurvatureRadius,
+                "arm = 2.5e-1 m, the surfaces' curvature radius",
+            ),
+            (PointLever::Extent, "arm = 2.5e-1 m, the feature extent"),
+        ] {
+            let shown = SsiError::TransversalityBand {
+                sin_theta: 2e-9,
+                arm: 0.25,
+                lever,
+                sigma_min: 1e-9,
+                verdict: Refused::Zero(Classified {
+                    margin: MarginDiag::value(5e-10),
+                    band,
+                }),
+            }
+            .to_string();
+            assert!(shown.contains(words), "{lever:?}: {shown}");
+        }
+    }
+
     /// The transversality decision's one lever, read at every door.
     const CROSS: &str = "Recourse: move the geometry so the surfaces cross at a clearer angle";
 

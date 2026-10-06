@@ -616,8 +616,7 @@ mod tests {
             }
         }
         assert_eq!(
-            chart_reads_r,
-            [false; 2],
+            chart_reads_r, [false; 2],
             "FIXTURE: each cylinder chart's parameter lines miss the radius somewhere"
         );
     }
