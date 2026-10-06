@@ -25,7 +25,7 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{
     declared_union, declared_union_classed, failure, flush_pairs, run,
 };
-use crate::emit_shared_rim_several::{Bx, document, is_rim_piece, permutations, probe_corpus};
+use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus};
 use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
 
 use editor_core::{

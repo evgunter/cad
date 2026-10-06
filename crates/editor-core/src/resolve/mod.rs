@@ -500,7 +500,7 @@ impl core::fmt::Display for Cutter<'_> {
         let leaf = descent_leaf(self.0);
         write!(f, "the {} (", self.1.name(self.0))?;
         match leaf.path.first() {
-            Some(seg) => role_words(f, seg)?,
+            Some(seg) => role_words(f, leaf.kind, seg)?,
             None => write!(f, "no role")?,
         }
         if leaf.node != self.0.node {
@@ -546,9 +546,13 @@ fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
     }
 }
 
-/// A role segment in words. Exhaustive, so a new segment is given words
-/// here or the compile breaks.
-fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Result {
+/// A role segment of a name of `kind` in words. Exhaustive, so a new
+/// segment is given words here or the compile breaks.
+fn role_words(
+    f: &mut core::fmt::Formatter<'_>,
+    kind: EntityKind,
+    seg: &RoleSeg,
+) -> core::fmt::Result {
     use crate::names::{CapEnd, MeridianEnd};
     let cap = |e: &CapEnd| match e {
         CapEnd::Start => "start",
@@ -619,6 +623,7 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         }
         RoleSeg::FromMember { .. } => write!(f, "a union member's entity"),
         RoleSeg::Seam { .. } => write!(f, "a boolean seam"),
+        RoleSeg::Merged(_) if kind == EntityKind::Edge => write!(f, "a joined edge"),
         RoleSeg::Merged(_) => write!(f, "a merged face"),
         RoleSeg::Fragment(_) => write!(f, "a fragment"),
         RoleSeg::SplitBody(_) => write!(f, "a split body"),
