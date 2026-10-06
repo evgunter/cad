@@ -1808,3 +1808,29 @@ Review folds:
 - a stale `app`-gated comment.
 
 All mutation-checked.
+
+## 2026-10-06 — PR 4103: verdict-nodes issue parked on the rewiring op
+
+`a-verdicts-other-nodes-are-said-by-tag-once-deleted` cannot happen
+through the session today. A `Vanished` verdict names only derivation
+nodes and strict ancestors of a live minter. `delete_node` deletes the
+whole cascade cone, and no session op rewires a live node's inputs.
+The row is parked on `no-docedit-splices-a-deleted-node` (#1324). Its
+body records the reachability evidence and the fix for when the case
+becomes reachable: widen `Derived::said` to the nodes a verdict can
+name, merged after each op. A snapshot taken at standing time would be
+too late.
+
+## 2026-10-06 — PR 4107: cluster-act gauges row closed as overtaken
+
+`a-cluster-act-speaks-its-gauges-by-tag` named `ClusterMaintenance`,
+`Maintenance::Cluster` and `mate::solve::gauge_spoken`. #3676
+(`1441b5154d`) deleted all of them with the placement registry, hours
+before the row was filed from a branch that predated it. The one
+placement row an edit reports today, `Maintenance::OffsetCleared`,
+already speaks its instance. A sweep of every `Maintenance` arm and of
+`node {` format strings in `editor-core/src` found nothing new (the
+carried rows are already filed). The PR only removes comments left stale
+by the deletion, and re-points two citations of a renamed test. That
+re-pointing was checked by mutating `Carrier::ALL`: exactly the three
+cited rows fail.
