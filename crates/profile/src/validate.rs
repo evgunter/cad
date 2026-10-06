@@ -782,6 +782,10 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "an authored sweep angle metered against zero",
     ),
     (
+        "path_arc_sweep_full",
+        "an authored sweep's arc length short of a full turn",
+    ),
+    (
         "path_arc_via_offset",
         "a via point's lateral offset from the chord it bulges",
     ),
@@ -921,6 +925,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "path_arc_center_radius" => "whether an authored radius is zero",
         "path_arc_chord" => "whether an authored chord has any length",
         "path_arc_sweep" => "whether an authored sweep angle is zero",
+        "path_arc_sweep_full" => "whether an authored sweep is short of a full turn",
         "path_arc_via_offset" => "whether a via point lies off the chord it bulges",
         "path_carrier_identity" => "whether two arc carriers are one circle",
         "path_carrier_meet" => "whether a ray meets a circle",
