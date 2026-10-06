@@ -1448,7 +1448,7 @@ area `kernel`; prefix `fuse/`; tag `(FUSE orchestrator)`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P0 | `two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings` | issue | M | dispatched | Two dangling null edges with one segment refuse SharedVertexCrossings: which holds the other is not read off the geometry |  |  |
+| P0 | `two-dangling-null-edges-with-one-segment-refuse-shared-vertex-crossings` | issue | M | dispatched | Two dangling null edges with one segment nest by their codes |  |  |
 | P1 | `a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made` | issue | M | dispatched | A declared coplanar merge leaves a collinear valence-2 vertex that an earlier fold step's cut made, so a union's finished body depends on member order |  |  |
 | P1 | `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face` | issue | M | parked | A convex corner kissing a cube's face ships results with an undeclared vertex-on-face (8 runs, identical on main) | d10-one-way-to-say-intent-is-unbuilt |  |
 | P1 | `a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records` | issue | M | parked | A pinch line crossing a face's interior drops the pinch's records at the new pinch end | d10-one-way-to-say-intent-is-unbuilt |  |
