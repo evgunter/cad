@@ -2,10 +2,11 @@
 id: the-cone-vertices-at-a-pinch-share-the-pierce-points-key
 kind: issue
 title: A pinch's cone vertices that descend from one pierce point sit on two point keys: tier 3′ refuses VertexVertex, and the output-stage join kills one
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
+branch: join/pinch-cones-share-a-point-key
 refs: [a-pinch-no-kept-face-can-cross-refuses, the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone]
 ---
 
@@ -57,3 +58,30 @@ positions. Tier 3′'s same-point rung then clears the pinch, and the
 join decided by structure alone; a position comparison there was ruled
 out). Rows: the nine lines above, each with one vertex per cone on one
 key, `SOUND`, meshing.
+
+## Traced
+
+Both keys come from the pinched operand, not from the cube's pierce
+copy. On every line the operand (an earlier union of two corners
+touching at `v`) already held its pinch as two vertices on two keys;
+the cube's copies of `v` sit on a third key, which the zips fuse away.
+The seam correspondence (`SeamCorrespondence`, the null-pair records)
+pairs each operand vertex at `v` with the cube's copy there, so the
+two operand keys are linked through the cube's key: one class, by the
+records alone. No position is read to find it.
+
+## Built (branch `join/pinch-cones-share-a-point-key`)
+
+- `zip::point_classes` reads the correspondence before the cone split
+  and unions the point keys each pair names; the classes of two or
+  more keys are the points the seams say are one.
+- `zip::share_points`, after the zips, rebinds the live vertices of a
+  class that still span more than one key onto the class's smallest
+  key, through the new `Body::share_point`, which writes no
+  coordinate. A class whose survivors already share a key is left
+  alone, so a body with no pinch is untouched (the editor-core digests
+  hold).
+- Row: `join_pierce_runs_sweep::a_pinchs_cones_share_one_point_key`,
+  the six distinct poses of the nine lines, each union in both orders:
+  `SOUND`, one vertex per cone on one key, meshing. Red with the
+  rebinding removed.
