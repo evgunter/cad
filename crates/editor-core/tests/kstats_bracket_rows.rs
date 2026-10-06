@@ -108,7 +108,7 @@ const PRE_PASS: usize = 69;
 /// a mint that looked ahead for one.
 const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
-const EXTRUDE_LOG: usize = 713;
+const EXTRUDE_LOG: usize = 653;
 
 /// Two instances, both placed, so both ops do the same work.
 fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
