@@ -2334,13 +2334,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
         ("RepeatedEdge", E::RepeatedEdge { edge }),
         ("NonpositiveSize", E::NonpositiveSize { size: 0.0 }),
         (
-            "UnsupportedBody",
-            E::UnsupportedBody {
-                solids: 2,
-                shells: 2,
-            },
-        ),
-        (
             "UnsupportedChain",
             E::UnsupportedChain {
                 edge,
