@@ -1050,36 +1050,6 @@ fn the_open_face_designation_gates_refuse_typed() {
         matches!(e, ShellError::OpenFacesDisconnect { components: 2, .. }),
         "got {e}"
     );
-
-    // A curved designation: its rim would be a curved face with a ring.
-    let v = vessel(1.0, 2.0);
-    let wall = v
-        .faces()
-        .find(|(_, f)| {
-            matches!(
-                v.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .unwrap();
-    let e = topo::shell_open(
-        &finished("the operand", v.clone(), Tol::witness()),
-        0.2,
-        &[wall],
-        Tol::witness(),
-    )
-    .expect_err("a curved rim has no closed-form reading");
-    assert!(
-        matches!(
-            e,
-            ShellError::OpenFaceRingUnsupported {
-                kind: geom::SurfaceKind::Cylinder,
-                ..
-            }
-        ),
-        "got {e}"
-    );
 }
 
 /// **A chart with two orientations has no "inward".** `shell` reads a

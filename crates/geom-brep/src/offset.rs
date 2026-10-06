@@ -424,3 +424,89 @@ pub fn offset_surface<T: geom_core::Decide>(
         Surface::Approx(_) => Err(OffsetError::ApproxNesting),
     }
 }
+
+/// **The inverse of [`offset_surface`]**: the signed distance `d` along
+/// `from`'s chart normal whose mint lands on `onto`'s locus, read off
+/// the one field each kind's mint changes:
+///
+/// | kind | `d` |
+/// |---|---|
+/// | plane | `(onto.origin − from.origin) · from.normal` |
+/// | cylinder, sphere | `onto.radius − from.radius` |
+/// | torus | `onto.minor_radius − from.minor_radius` |
+/// | cone | `(from.apex − onto.apex) · axis · sin α`, [`ConeOffset::apex`] solved for `d` |
+///
+/// The answer is in the MINT's convention: on a cone that is the
+/// opening nappe's normal field, so a consumer holding a mirror-nappe
+/// face turns it by that face's [`Nappe`] exactly as it turns a
+/// forward distance. Every field the mint carries verbatim (axes,
+/// frames, a plane's normal, a torus's major radius) is read from
+/// `from` and not compared: that `onto` IS an offset of `from` is the
+/// caller's claim, and the door that consumes `d` certifies the moved
+/// boundary against the geometry it lands on.
+///
+/// # Errors
+///
+/// [`offset_surface`]'s own refusal of `from`'s kind, where it has one
+/// independent of `d`: [`OffsetError::NotClosedUnderOffset`] for a
+/// NURBS, [`OffsetError::ApproxNesting`] for an approximating surface.
+/// No `d` mints anything from either, so there is none to answer.
+///
+/// # Panics
+///
+/// When `onto` is an analytic kind other than `from`'s: the mint never
+/// changes kind, so two such surfaces are not an offset pair and the
+/// caller holds the wrong one.
+pub fn offset_distance<T: geom_core::Real>(
+    from: &Surface<T>,
+    onto: &Surface<T>,
+) -> Result<T, OffsetError<T>> {
+    match (from, onto) {
+        (
+            Surface::Plane { origin, normal, .. },
+            Surface::Plane {
+                origin: onto_origin,
+                ..
+            },
+        ) => Ok((*onto_origin - *origin).dot(*normal)),
+        (
+            Surface::Cylinder { radius, .. },
+            Surface::Cylinder {
+                radius: onto_radius,
+                ..
+            },
+        )
+        | (
+            Surface::Sphere { radius, .. },
+            Surface::Sphere {
+                radius: onto_radius,
+                ..
+            },
+        ) => Ok(*onto_radius - *radius),
+        (
+            Surface::Torus { minor_radius, .. },
+            Surface::Torus {
+                minor_radius: onto_minor,
+                ..
+            },
+        ) => Ok(*onto_minor - *minor_radius),
+        (
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            },
+            Surface::Cone {
+                apex: onto_apex, ..
+            },
+        ) => Ok((*apex - *onto_apex).dot(*axis) * half_angle.sin()),
+        (Surface::Nurbs(_), _) => Err(OffsetError::NotClosedUnderOffset),
+        (Surface::Approx(_), _) => Err(OffsetError::ApproxNesting),
+        (from, onto) => panic!(
+            "offset_distance: a {:?} is never the offset of a {:?}; the mint keeps its kind",
+            onto.kind(),
+            from.kind()
+        ),
+    }
+}

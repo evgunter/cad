@@ -953,3 +953,5 @@ mod rest_nested_strut;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "shell_curved_mouth.rs"]
+mod shell_curved_mouth;

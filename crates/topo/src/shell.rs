@@ -483,17 +483,6 @@ pub enum ShellError<T: Real> {
         /// How many components the remainder falls into.
         components: usize,
     },
-    /// A designated face is not planar. Its rim would be a CURVED face
-    /// carrying a ring loop, which the closed-form property inventory
-    /// has no reading for (the same kernel-wide limitation the fillet
-    /// band's ring-free annulus works around). Refused rather than
-    /// built into a body whose volume cannot be computed.
-    OpenFaceRingUnsupported {
-        /// The designated face.
-        face: FaceKey,
-        /// Its surface kind.
-        kind: geom::SurfaceKind,
-    },
     /// A designated face shares its chart with faces of its own solid
     /// that were NOT designated. The rim surgery lifts a solid's wearers
     /// of a chart as one — the group door's own contract — so a
@@ -645,12 +634,6 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "removing the designated faces splits a shell's boundary into {components} \
                  pieces, which would not make one thin solid. Recourse: designate faces whose \
                  removal leaves one connected boundary"
-            ),
-            Self::OpenFaceRingUnsupported { kind, .. } => write!(
-                f,
-                "a designated open face lies on a {}, and its rim would be a curved face with \
-                 a ring loop, which the shell op cannot build yet. There is no way through yet",
-                kind.name()
             ),
             Self::Insert { error } => write!(f, "inserting the cavity refused: {error}"),
             Self::Rim { face, error } => {
@@ -1400,7 +1383,6 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // "the way back" is not the arithmetic negation of "the way
         // in", and deriving it from geometry is shorter and sign-safe.
         let counterpart_chart = proven(&out.faces, sources[0], EntityId::Face).surface;
-        let back = lift_to(&out, sources[0], designated);
         // **The lift is the same corner problem as the cavity**, with
         // one chart moving instead of all of them: the counterpart's
         // rim has to land where the moved plane meets the cavity walls
@@ -1436,6 +1418,12 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             ChartGroups::within(&out, lift_scope.faces_in_scope()).unwrap_or_else(|face| {
                 unreachable!("{face:?}, walked out of its solid's shells, resolved in that walk")
             });
+        let back = lift_to(&out, lift_charts.of(counterpart_chart), designated, band).map_err(
+            |error| ShellError::Lift {
+                face: designated,
+                error: Box::new(error),
+            },
+        )?;
         let lift_door = offset_door(&out, &lift_scope, band).map_err(|error| ShellError::Lift {
             face: designated,
             error: Box::new(error),
@@ -1463,14 +1451,98 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             face: designated,
             error: Box::new(error),
         })?;
+        // The rim stage runs row-free: the closing mint clears the map
+        // and re-derives every row of the assembled body, so a row the
+        // lift wrote, or one a surgery op would mint here, is never
+        // read. Clearing it keeps every op below on its keys-only door.
+        out.pcurves.clear();
+        out.joints.clear();
         // One face per side, loops disjoint. Both reductions retire
         // keys through the Euler doors, and each door's own result is
         // what fills `dead` — recorded at the call, never inferred
         // afterwards from what stopped resolving.
         // The designated chart reduced to one face — the mouth — and
-        // its counterpart chart reduced to one.
-        let mouth = canonicalize_chart(&mut out, &group, band, &mut naming.dead)?;
-        let counterpart = canonicalize_chart(&mut out, &sources, band, &mut naming.dead)?;
+        // its counterpart chart reduced to one. On a PERIODIC chart the
+        // side that survives keeps every face it has: its chart
+        // branches and its seams are D1's, and the rim takes them over.
+        let periodic = matches!(
+            out.face_surface_linked(designated, proven(&out.faces, designated, EntityId::Face)),
+            geom::Surface::Cylinder { .. }
+                | geom::Surface::Cone { .. }
+                | geom::Surface::Sphere { .. }
+                | geom::Surface::Torus { .. }
+        );
+        let keeps = |which: RimShell| periodic && side == which;
+        let mouth = if keeps(RimShell::Outer) {
+            None
+        } else {
+            Some(canonicalize_chart(
+                &mut out,
+                &group,
+                band,
+                &mut naming.dead,
+            )?)
+        };
+        let counterpart = if keeps(RimShell::Void) {
+            None
+        } else {
+            Some(canonicalize_chart(
+                &mut out,
+                &sources,
+                band,
+                &mut naming.dead,
+            )?)
+        };
+        let reduced = |face: Option<FaceKey>, chart: &[FaceKey]| {
+            face.map_or_else(|| chart.to_vec(), |face| vec![face])
+        };
+        let (host_faces, guest) = match side {
+            RimShell::Void => (reduced(counterpart, &sources), mouth),
+            RimShell::Outer => (reduced(mouth, &group), counterpart),
+        };
+        let Some(guest) = guest else {
+            unreachable!("the side that dies in the glue is always reduced to one face")
+        };
+        let rows = match side {
+            RimShell::Void => RingSource::Operand(body),
+            RimShell::Outer => RingSource::Twins(&twins),
+        };
+        // **A chart whose surviving side carries interior edges wraps
+        // its period**, and its rim is a SEAMED BAND rather than a ring:
+        // a ring on a periodic chart is a face whose domain closes with
+        // no wrap edge to close it across.
+        let seams = interior_edges(&out, &host_faces);
+        if !seams.is_empty() {
+            let rim = seamed_band(
+                &mut out,
+                &host_faces,
+                guest,
+                &seams,
+                &twins,
+                &rows,
+                designated,
+                band,
+                tol,
+                &mut naming.dead,
+            )?;
+            naming.rims.push(RimNaming {
+                sources: group,
+                side,
+                rim: rim.face,
+                ring: rim.ring,
+                ring_edges: rim.ring_edges,
+                ring_vertices: rim.ring_vertices,
+                holes: Vec::new(),
+            });
+            continue;
+        }
+        let [host] = host_faces[..] else {
+            return Err(ShellError::OpenFaceRimNotExpressible {
+                face: designated,
+                what: "the designated chart's faces neither meet along a seam nor merge into one \
+                       region",
+            });
+        };
 
         // **The glue's roles.** `kfmrh(host, guest)` kills `guest` and
         // makes its outer loop a ring of `host`, so `host` must be the
@@ -1506,10 +1578,6 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // structurally: the void-ceiling row asserts the designated
         // void face DIES, and the pairing row reads each thin solid's
         // twin through the record.
-        let (host, guest) = match side {
-            RimShell::Void => (counterpart, mouth),
-            RimShell::Outer => (mouth, counterpart),
-        };
         let (host_surface, host_sense) = {
             let data = proven(&out.faces, host, EntityId::Face);
             (data.surface, data.sense)
@@ -1655,10 +1723,6 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // each entity is its own source. An entity with neither reading
         // is a mint this record cannot explain, and it says so rather
         // than leaving a gap.
-        let rows = match side {
-            RimShell::Void => RingSource::Operand(body),
-            RimShell::Outer => RingSource::Twins(&twins),
-        };
         let (ring_edges, ring_vertices) = ring_rows(&out, fused.ring, &rows);
 
         // The hole rows read the same way, off each promoted face's
@@ -1973,6 +2037,368 @@ fn canonicalize_chart<T: Decide>(
     Ok(anchor)
 }
 
+/// The edges both of whose sides bound faces of `faces` — the seams a
+/// periodic chart's branches meet along, or the one a single face
+/// walks twice — in edge-arena order.
+fn interior_edges<T: Real>(body: &Body<T>, faces: &[FaceKey]) -> Vec<EdgeKey> {
+    body.edges()
+        .filter(|&(edge, data)| {
+            let (fp, fm) = crate::readback::edge_sides_of(body, edge, data).faces();
+            faces.contains(&fp) && faces.contains(&fm)
+        })
+        .map(|(edge, _)| edge)
+        .collect()
+}
+
+/// What [`seamed_band`] built: the rim face that carries the record's
+/// identity, and the ring the glue made before the seams absorbed it.
+struct SeamedRim {
+    face: FaceKey,
+    ring: LoopKey,
+    ring_edges: Vec<(EdgeKey, EdgeKey)>,
+    ring_vertices: Vec<(VertexKey, VertexKey)>,
+}
+
+/// **The rim of a chart that wraps its period through a pole**, built
+/// as a seamed band: the surviving side's own faces, each bounded by
+/// its outer boundary, its seams cut short, and the dying side's
+/// boundary.
+///
+/// `host_faces` are the surviving chart's faces, unreduced, and `seams`
+/// the edges they meet along: one seam a single face walks twice, or
+/// two seams between two branches. Both run from the host's boundary
+/// to one POLE, a vertex nothing else reaches, and the guest — reduced
+/// to one ring-free face — lies over the pole on the same surface.
+///
+/// The surgery keeps every surviving edge: the glue (`kfmrh`) makes the
+/// guest's boundary a ring of the first host face, and each seam's pole
+/// end is then RE-ANCHORED on the ring vertex that corresponds to its
+/// boundary end, through a strut along the seam's own carrier that
+/// `kev` collapses. Two seams cannot both be re-anchored through one
+/// pole, so with two the second is first moved off it (`mev`) onto a
+/// station of its own, and the strut that would reach its ring vertex
+/// splits the first face (`mef`) along the first seam; the piece that
+/// holds the pole dies into the second face (`kef`). What is left is
+/// each host face bounded by its own boundary, its seams' boundary
+/// pieces, and its share of the ring — the convention the full revolve
+/// mints — with the pole and every scaffold edge gone. The ring's loop
+/// is absorbed into the first face's outer loop and is listed in
+/// `dead`; the scaffolding the surgery mints and kills is in no row and
+/// is not.
+#[allow(clippy::too_many_arguments)]
+fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    host_faces: &[FaceKey],
+    guest: FaceKey,
+    seams: &[EdgeKey],
+    twins: &TwinIndex,
+    rows: &RingSource<'_, T>,
+    designated: FaceKey,
+    band: Band,
+    tol: Tol,
+    dead: &mut ShellRetired,
+) -> Result<SeamedRim, ShellError<T>> {
+    let not_expressible = |what: &'static str| ShellError::OpenFaceRimNotExpressible {
+        face: designated,
+        what,
+    };
+    let rim_error = |error: EulerOpError| ShellError::Rim {
+        face: designated,
+        error: error.from_driver(),
+    };
+    let ends = |body: &Body<T>, edge: EdgeKey| {
+        let data = proven(&body.edges, edge, EntityId::Edge);
+        let start = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start;
+        (start, body.proven_half_edge_end(data.he_plus))
+    };
+    // The pole: the one vertex every seam reaches and nothing else does.
+    let pole = {
+        let (a, b) = ends(body, seams[0]);
+        [a, b].into_iter().find(|&v| {
+            valence(body, v) == seams.len()
+                && seams.iter().all(|&e| {
+                    let (s, t) = ends(body, e);
+                    s == v || t == v
+                })
+        })
+    };
+    let (Some(pole), 1 | 2) = (pole, seams.len()) else {
+        return Err(not_expressible(
+            "the designated chart wraps its period, but its seams do not meet at one pole",
+        ));
+    };
+    let host = host_faces[0];
+    let host_surface = proven(&body.faces, host, EntityId::Face).surface;
+    let guest_surface = proven(&body.faces, guest, EntityId::Face).surface;
+    // The host face's corner at the pole: `into` arrives along one seam,
+    // `out_of` leaves along the other (along the same seam, on a spur).
+    let host_cycle = cycle_of(body, proven(&body.faces, host, EntityId::Face).outer);
+    let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
+    let Some(&out_of) = host_cycle.iter().find(|&&he| at(body, he) == pole) else {
+        return Err(not_expressible(
+            "the designated chart wraps its period, but its first face does not reach the pole",
+        ));
+    };
+    let into = proven(&body.half_edges, out_of, EntityId::HalfEdge).prev;
+    let edge_of = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+    let (ea, eb) = (edge_of(body, into), edge_of(body, out_of));
+    let (ba, bb) = (at(body, into), body.proven_half_edge_end(out_of));
+    // The guest's corner standing for each boundary end: its twin on an
+    // outer designation, its source on a void's.
+    let corresponding = |body: &Body<T>, v: VertexKey| -> Option<VertexKey> {
+        let guest_outer = proven(&body.faces, guest, EntityId::Face).outer;
+        cycle_of(body, guest_outer)
+            .into_iter()
+            .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
+            .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
+    };
+    let (Some(ga), Some(gb)) = (corresponding(body, ba), corresponding(body, bb)) else {
+        return Err(not_expressible(
+            "a seam of the designated chart has no corner of the cavity counterpart to end on",
+        ));
+    };
+    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let (p_pole, p_ga, p_gb) = (point(body, pole), point(body, ga), point(body, gb));
+
+    // Two seams: the second is cut at a station between the pole and
+    // its ring vertex, so the piece that reaches the pole can die with it.
+    let second = if seams.len() == 2 {
+        let reach = along(body, eb, p_pole, p_gb, host_surface, band, designated)?;
+        let station = (reach.param_start + reach.param_end) / T::from_f64(2.0);
+        let data = proven(&body.edges, eb, EntityId::Edge);
+        let Some(curve) = body.edge_curve_linked(eb, data).certified() else {
+            unreachable!("{eb:?} is a seam of a finished wall, which has no null edge")
+        };
+        let Some(t) = curve
+            .carrier()
+            .param_near(reach.carrier.eval(station), curve.params().0)
+        else {
+            unreachable!("{eb:?}'s carrier answered the stretch it is cut inside")
+        };
+        let cut = body.split_edge(eb, t, tol).map_err(rim_error)?;
+        Some(cut.vertex)
+    } else {
+        None
+    };
+    // The host face's half-edge leaving the pole, as the cut left it.
+    let off_pole = cycle_of(body, proven(&body.faces, host, EntityId::Face).outer)
+        .into_iter()
+        .find(|&he| at(body, he) == pole && edge_of(body, he) != ea)
+        .unwrap_or(out_of);
+
+    // The glue: the guest's boundary becomes a ring of the host face.
+    let fused = body.kfmrh(host, guest).map_err(rim_error)?;
+    dead.faces.push(fused.killed_face);
+    dead.surfaces.extend(fused.killed_surface);
+    dead.shells.extend(fused.killed_shell);
+    rename_loop_surface(
+        body,
+        fused.ring,
+        guest_surface,
+        host_surface,
+        tol,
+        designated,
+    )?;
+    let (ring_edges, ring_vertices) = ring_rows(body, fused.ring, rows);
+    let ring_cycle = cycle_of(body, fused.ring);
+    let leaving = |v: VertexKey| {
+        ring_cycle
+            .iter()
+            .copied()
+            .find(|&he| proven(&body.half_edges, he, EntityId::HalfEdge).start == v)
+            .unwrap_or_else(|| unreachable!("{v:?} is a corner of the ring it was read off"))
+    };
+    let (ra, rb) = (leaving(ga), leaving(gb));
+
+    // The strut that re-anchors the first seam, and the half of it that
+    // runs from the ring vertex to the pole, which `kev` collapses.
+    let collapse = |body: &Body<T>, plus: HeKey, minus: HeKey, tip: VertexKey| {
+        if body.proven_half_edge_end(plus) == tip {
+            plus
+        } else {
+            minus
+        }
+    };
+    let to_pole = match second {
+        None => {
+            let made = body
+                .mekr(
+                    crate::euler_ring::MekrSite::Cycles {
+                        target: out_of,
+                        ring: ra,
+                    },
+                    along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
+                    tol,
+                )
+                .map_err(rim_error)?;
+            dead.loops.push(made.killed_ring);
+            collapse(body, made.he_plus, made.he_minus, pole)
+        }
+        Some(station) => {
+            let p_station = point(body, station);
+            let leaving_station = proven(&body.half_edges, off_pole, EntityId::HalfEdge).next;
+            let lower = edge_of(body, leaving_station);
+            let joined = body
+                .mekr(
+                    crate::euler_ring::MekrSite::Cycles {
+                        target: leaving_station,
+                        ring: rb,
+                    },
+                    along(body, lower, p_station, p_gb, host_surface, band, designated)?,
+                    tol,
+                )
+                .map_err(rim_error)?;
+            dead.loops.push(joined.killed_ring);
+            let split = body
+                .mef(
+                    crate::euler::MefSite::Chords {
+                        he1: off_pole,
+                        he2: ra,
+                    },
+                    along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
+                    crate::euler::FaceSurface::Inherit,
+                    tol,
+                )
+                .map_err(rim_error)?;
+            // The new face holds the pole and the scaffold between the
+            // two seams; it dies into the second host face.
+            body.kef(off_pole).map_err(rim_error)?;
+            let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
+            let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
+            let moved = re_anchored(body, lower, station, p_gb, designated)?;
+            body.kev_describing(to_station, &[(lower, moved)], tol)
+                .map_err(rim_error)?;
+            to_pole
+        }
+    };
+    let moved = re_anchored(body, ea, pole, p_ga, designated)?;
+    let killed = body
+        .kev_describing(to_pole, &[(ea, moved)], tol)
+        .map_err(rim_error)?;
+    dead.vertices.push(killed.killed_vertex);
+    Ok(SeamedRim {
+        face: host,
+        ring: fused.ring,
+        ring_edges,
+        ring_vertices,
+    })
+}
+
+/// A scaffold edge's spec: the stretch of `edge`'s own carrier from
+/// `from` to `to`, described in `surface`'s chart and oriented so its
+/// parameter runs forward from `from`.
+fn along<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    from: geom_core::Point3<T>,
+    to: geom_core::Point3<T>,
+    surface: crate::geometry::SurfaceKey,
+    band: Band,
+    designated: FaceKey,
+) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
+    let data = proven(&body.edges, edge, EntityId::Edge);
+    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+        unreachable!("{edge:?} is a seam of a finished wall, and a finished wall has no null edge")
+    };
+    let (t0, t1) = curve.params();
+    let near = (t0 + t1) / T::from_f64(2.0);
+    let stretch = |carrier: &geom::Curve3<T>, near: T| -> Option<(T, T)> {
+        let a = carrier.param_near(from, near)?;
+        let b = carrier.param_near(to, near)?;
+        matches!(
+            decide("shell_seam_stretch", Margin::of(b - a), band),
+            Ok(Sign::Positive)
+        )
+        .then_some((a, b))
+    };
+    let forward = curve.carrier().clone();
+    let found = stretch(&forward, near)
+        .map(|ab| (forward.clone(), ab))
+        .or_else(|| {
+            let reversed = forward.reversed()?;
+            let mid = reversed.param_near(forward.eval(near), T::zero())?;
+            stretch(&reversed, mid).map(|ab| (reversed, ab))
+        });
+    let Some((carrier, (param_start, param_end))) = found else {
+        return Err(ShellError::OpenFaceRimNotExpressible {
+            face: designated,
+            what: "a seam of the designated chart has no carrier stretch to the counterpart's \
+                   corner",
+        });
+    };
+    Ok(geom_brep::EdgeCurveSpec {
+        description: geom_brep::EdgeDescriptionSpec::chart(surface),
+        carrier,
+        param_start,
+        param_end,
+    })
+}
+
+/// `edge`'s own description with its end at `moved` carried to `onto`
+/// along its carrier: the spec a `kev` that merges `moved` away hands
+/// the merged seam.
+fn re_anchored<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    moved: VertexKey,
+    onto: geom_core::Point3<T>,
+    designated: FaceKey,
+) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
+    let data = proven(&body.edges, edge, EntityId::Edge);
+    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+        unreachable!("{edge:?} is a seam of a finished wall, which has no null edge")
+    };
+    let (t0, t1) = curve.params();
+    let carrier = curve.carrier();
+    let starts_there = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start == moved;
+    let landed = carrier.param_near(onto, if starts_there { t0 } else { t1 });
+    let Some(landed) = landed else {
+        return Err(ShellError::OpenFaceRimNotExpressible {
+            face: designated,
+            what: "a seam of the designated chart has no carrier stretch to the counterpart's \
+                   corner",
+        });
+    };
+    let (param_start, param_end) = if starts_there {
+        (landed, t1)
+    } else {
+        (t0, landed)
+    };
+    // A declared source is restricted with the interval, as a split
+    // restricts it; a chart image is a function of the carrier's own
+    // parameter and travels verbatim.
+    let span = t1 - t0;
+    let description = match curve.restated_description() {
+        geom_brep::EdgeDescriptionSpec::Chart {
+            surface,
+            image,
+            seam,
+            declared,
+        } => geom_brep::EdgeDescriptionSpec::Chart {
+            surface,
+            image,
+            seam,
+            declared: declared
+                .map(|mc| mc.restrict((param_start - t0) / span, (param_end - t0) / span)),
+        },
+        other => other,
+    };
+    Ok(geom_brep::EdgeCurveSpec {
+        description,
+        carrier: carrier.clone(),
+        param_start,
+        param_end,
+    })
+}
+
+/// The half-edges of `r#loop` in cycle order; empty for a lone vertex.
+fn cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Vec<HeKey> {
+    let LoopBoundary::Cycle { first } = proven(&body.loops, r#loop, EntityId::Loop).boundary else {
+        return Vec::new();
+    };
+    body.loop_walk(first).closed("loop", first)
+}
+
 /// Pair the cavity counterpart's hole with the designated face's own.
 ///
 /// A designated face's rim is one region per BOUNDARY the counterpart
@@ -2276,26 +2702,35 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
     }
 }
 
-/// The signed distance along `from`'s chart normal that lands it on
-/// `onto`'s plane. Both are planar — a curved designation is refused
-/// upstream, and `from` is its cavity twin, offset as a plane — so this
-/// is one dot product and no solve.
-#[track_caller]
-fn lift_to<T: Real>(body: &Body<T>, from: FaceKey, onto: FaceKey) -> T {
-    let plane = |face: FaceKey| -> (geom_core::Point3<T>, geom_core::Vec3<T>) {
+/// The signed distance the offset doors move `from`'s chart by to land
+/// it on `onto`'s surface, along the doors' own convention: the chart
+/// normal AT `from`'s faces ([`crate::offset_together::ChartMove`]).
+///
+/// One home: [`geom_brep::offset_distance`], the inverse of the mint,
+/// turned by the group's nappe as the doors turn every distance they
+/// are handed (only a cone has two). `from` is the cavity counterpart
+/// of `onto`'s chart, minted from it by the cavity's door and reverted
+/// by the graft, so the two are an offset pair by construction.
+fn lift_to<T: Decide>(
+    body: &Body<T>,
+    from: &[FaceKey],
+    onto: FaceKey,
+    band: Band,
+) -> Result<T, ReplaceFaceError<T>> {
+    let surface = |face: FaceKey| {
         let data = proven(&body.faces, face, EntityId::Face);
-        match body.face_surface_linked(face, data) {
-            geom::Surface::Plane { origin, normal, .. } => (*origin, *normal),
-            other => unreachable!(
-                "{face:?}, a designation or its cavity twin, carries a {:?}: the designation \
-                 gate admits only planes, and a plane offsets to a plane",
-                other.kind()
-            ),
-        }
+        body.face_surface_linked(face, data)
     };
-    let (o_from, n_from) = plane(from);
-    let (o_onto, _) = plane(onto);
-    (o_onto - o_from).dot(n_from)
+    let d = geom_brep::offset_distance(surface(from[0]), surface(onto)).map_err(|error| {
+        ReplaceFaceError::Offset {
+            face: from[0],
+            error,
+        }
+    })?;
+    if !matches!(surface(from[0]), geom::Surface::Cone { .. }) {
+        return Ok(d);
+    }
+    Ok(crate::offset_nappe::group_nappe(body, from, band)?.turn(d))
 }
 
 /// Re-points every description on `r#loop` that names `dead` at
@@ -2730,18 +3165,11 @@ fn check_designation<T: Decide>(
     open_faces: &[FaceKey],
 ) -> Result<(), ShellError<T>> {
     for (i, face) in open_faces.iter().enumerate() {
-        let Some(data) = body.get_face(*face) else {
+        if body.get_face(*face).is_none() {
             return Err(ShellError::OpenFaceStale { face: *face });
-        };
+        }
         if open_faces[..i].contains(face) {
             return Err(ShellError::OpenFaceRepeated { face: *face });
-        }
-        let surface = body.face_surface_linked(*face, data);
-        if !matches!(surface, geom::Surface::Plane { .. }) {
-            return Err(ShellError::OpenFaceRingUnsupported {
-                face: *face,
-                kind: surface.kind(),
-            });
         }
     }
     if open_faces.is_empty() {
