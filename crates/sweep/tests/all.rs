@@ -755,6 +755,8 @@ mod review_blend3_r3_probes;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+#[path = "ring_carry_through_by_piece.rs"]
+mod ring_carry_through_by_piece;
 
 #[path = "review_h4_r1_probes.rs"]
 mod review_h4_r1_probes;
