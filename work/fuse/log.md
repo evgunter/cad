@@ -546,3 +546,6 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   7330 tests. Two P3 rows were filed from its report: the zero-outer
   `OperandOuterShells` arm may be unreachable, and the two-void
   `shell` row runs about 6% slower at 4 threads.
+- 2026-10-06 — PR 3953 lands (two dangling null edges with one
+  segment). Every one-arc lens case builds in every op and passes 3′.
+  The P0 row closes.
