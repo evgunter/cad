@@ -7,7 +7,6 @@ opened: 2026-10-01
 priority: P3
 cost: M
 design: true
-needs_ev: true
 refs: [mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move, boundary-on-the-new-chart-has-two-homes-in-the-attach-doors, kevs-fan-merge-needs-a-re-describing-kill-door]
 ---
 
@@ -119,3 +118,17 @@ The split is on the kills themselves:
   of `Intersection { s1, s2, witness }`. Its reach is geom-brep's
   `EdgeDescription` and about 54 spec constructors in 21 files. Until it
   lands, the kills stay as they are, with (3) as the backstop.
+
+## Ruled (PR 3970, 2026-10-06)
+
+Ev ruled over five design rounds; each round is recorded in `docs/DESIGN-FORK-LOG.md` row 75. The rulings in Ev's words:
+
+1. **The kills' final state is B, built directly.** `kef` and `kfmrh` refuse a strand or an unvouched move keys-only, through `Body::vouch_move`. Describing twins take the move with its re-descriptions. `Loop.face`, `HalfEdge.parent_loop`, `Face.surface` and `Edge.curve` become private to one module that owns the vouch, so the compiler confines writes. There is no interim gate. (2026-10-04: "the final state should be B, and i also think it'd be best to go directly there rather than by way of A".)
+2. **The naming check is in tier 1**: a certified edge's description names surfaces its faces wear. (2026-10-06: "i agree with the recommendation on choice 2".)
+3. **Restatement is derived, in outline.** One restatement function re-expresses each moved edge's description on the keys its faces now wear. It chooses the edge's kind by one shared predicate (tier 3 check 4's reading) and re-certifies. The twins call it themselves. Callers list only what the door cannot derive. There is no debug assert in its place. (2026-10-06: "the overall idea of the final state sounds good, but the details here (incliding the ones the designers differ on) seem like they'll be changed by the `intent` refactor".)
+
+**What waits on the intent refactor** (D10, HOLD of PR 3990; row `restatement-derives-each-moved-edges-kind`):
+- choice 3's details, including whether a tangent edge stored as a chart is kept or turned intrinsic;
+- D2's prefer-intrinsic authority question. Ev's 2026-07-19 rule says every definitely-transverse edge carries `Intersection`. An agent-written clause (`99cc678bfd`) exempts a *declared* conventional description. The code exempts a *derived* one.
+
+**Buildable now:** field privacy and the vouch (1), and the tier-1 naming check (2). The three agreed parts in "The question" above stand.
