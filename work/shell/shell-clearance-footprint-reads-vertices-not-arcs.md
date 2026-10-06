@@ -2,10 +2,12 @@
 id: shell-clearance-footprint-reads-vertices-not-arcs
 kind: issue
 title: wall_clearance's planar footprint box is folded over boundary VERTICES only, so an arc bowing out of a face's vertex hull is outside its footprint and a crossing pair can read as separated
-status: open
+status: review
 opened: 2026-09-26
 priority: P1
 cost: E
+pr: 4115
+branch: shell/planar-gate-misses
 ---
 
 

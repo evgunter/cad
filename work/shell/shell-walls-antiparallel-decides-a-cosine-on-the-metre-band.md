@@ -2,11 +2,13 @@
 id: shell-walls-antiparallel-decides-a-cosine-on-the-metre-band
 kind: issue
 title: shell_walls_antiparallel decides a bare cosine against the metre band, and the dimension audit has no row for it
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: E
 rides_with: shell-clearance-footprint-reads-vertices-not-arcs
+pr: 4115
+branch: shell/planar-gate-misses
 ---
 
 
