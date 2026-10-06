@@ -107,6 +107,8 @@ mod m4_remint_sliver;
 mod m5_pr12_circle_certificate;
 #[path = "m5_pr7_ssi.rs"]
 mod m5_pr7_ssi;
+#[path = "rv4190_r2_probes.rs"]
+mod rv4190_r2_probes;
 #[path = "m5_pr9_tangent.rs"]
 mod m5_pr9_tangent;
 #[path = "m7_8_plane_nurbs_edge.rs"]

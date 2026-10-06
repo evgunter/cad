@@ -1472,3 +1472,131 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod rv4190_r2_probes {
+    use super::max_principal_curvature;
+    use geom::{NurbsSurface, Surface, SurfaceJet};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Interval, Point3, Vec3};
+
+    fn sphere_octant(r: f64) -> NurbsSurface<f64> {
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let lon = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let prof = [(r, 0.0), (r, r), (0.0, r)];
+        let w = [1.0, h, 1.0];
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..3 {
+            for j in 0..3 {
+                control.push(Point3::new(prof[j].0 * lon[i].0, prof[j].0 * lon[i].1, prof[j].1));
+                weights.push(w[i] * w[j]);
+            }
+        }
+        NurbsSurface::new(k.clone(), k, control, weights).unwrap()
+    }
+
+    fn iv(j: &SurfaceJet<f64>) -> SurfaceJet<Interval> {
+        let v = |a: Vec3<f64>| Vec3::new(<Interval as geom_core::Real>::from_f64(a.x), <Interval as geom_core::Real>::from_f64(a.y), <Interval as geom_core::Real>::from_f64(a.z));
+        SurfaceJet {
+            point: Point3::new(
+                <Interval as geom_core::Real>::from_f64(j.point.x),
+                <Interval as geom_core::Real>::from_f64(j.point.y),
+                <Interval as geom_core::Real>::from_f64(j.point.z),
+            ),
+            du: v(j.du),
+            dv: v(j.dv),
+            duu: v(j.duu),
+            duv: v(j.duv),
+            dvv: v(j.dvv),
+        }
+    }
+
+    #[test]
+    fn probe_kappa() {
+        let s = sphere_octant(2.0);
+        for v in [0.5, 0.9, 1.0 - 1e-4, 1.0 - 1e-8, 1.0 - 1e-12, 1.0] {
+            let j = s.ders(0.3, v);
+            let k = max_principal_curvature(&j);
+            let ki = max_principal_curvature(&iv(&j));
+            println!(
+                "SPHERE R=2 v={v:e}: kappa={k:.17e} (want 0.5) interval=[{:e},{:e}]",
+                geom_core::Bounds::lo(ki),
+                geom_core::Bounds::hi(ki)
+            );
+        }
+        let mut lo = f64::MAX; let mut hi = 0.0f64;
+        for k in 3..16 { for ui in 0..=20 {
+            let v = 1.0 - 10f64.powi(-k);
+            let u = f64::from(ui) / 20.0;
+            let kk = max_principal_curvature(&s.ders(u, v));
+            if kk.is_finite() { lo = lo.min(kk); hi = hi.max(kk); }
+            if k >= 6 && ui % 5 == 0 { println!("POLE k={k} u={u}: kappa={kk:e}"); }
+        }}
+        println!("POLE SWEEP kappa in [{lo:e}, {hi:e}] (true 0.5)");
+        // analytic charts: sphere, torus (fat), cone, against
+        // implicit_max_normal_curvature and curvature_lever_arm.
+        let surfs = [
+            (
+                "sphere",
+                Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 2.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+            ),
+            (
+                "fat torus",
+                Surface::Torus {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    major_radius: 1.0,
+                    minor_radius: 0.8,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+            ),
+        ];
+        for (name, s) in &surfs {
+            for (u, v) in [(0.3, 0.0), (0.3, std::f64::consts::PI), (0.3, 1.0), (0.3, 1.5)] {
+                let j = s.jet(u, v);
+                let k = max_principal_curvature(&j);
+                let km = crate::implicit_max_normal_curvature(s, j.point);
+                let arm = crate::curvature_lever_arm(s, j.point);
+                println!(
+                    "{name} ({u},{v}): shape-op 1/k={:.6e} implicit 1/k={:.6e} curvature_lever_arm={arm:.6e}",
+                    1.0 / k,
+                    1.0 / km
+                );
+            }
+        }
+        // saddle z = x y over [-1,1]^2 as bilinear: kappa at origin = 1.
+        let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let c = vec![
+            Point3::new(-1.0, -1.0, 1.0),
+            Point3::new(-1.0, 1.0, -1.0),
+            Point3::new(1.0, -1.0, -1.0),
+            Point3::new(1.0, 1.0, 1.0),
+        ];
+        let saddle = NurbsSurface::new(k.clone(), k, c, vec![1.0; 4]).unwrap();
+        let j = saddle.ders(0.5, 0.5);
+        println!("SADDLE z=xy origin kappa={:e} (want 1)", max_principal_curvature(&j));
+        // a tiny-scale wall: area underflow
+        for scale in [1e-100, 1e-160, 1e-200] {
+            let c: Vec<Point3<f64>> = [
+                Point3::new(-1.0, -1.0, 1.0),
+                Point3::new(-1.0, 1.0, -1.0),
+                Point3::new(1.0, -1.0, -1.0),
+                Point3::new(1.0, 1.0, 1.0),
+            ]
+            .iter()
+            .map(|p| Point3::new(p.x * scale, p.y * scale, p.z * scale))
+            .collect();
+            let kk = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let w = NurbsSurface::new(kk.clone(), kk, c, vec![1.0; 4]).unwrap();
+            let j = w.ders(0.5, 0.5);
+            println!("SADDLE scale={scale:e} kappa={:e} (want {:e})", max_principal_curvature(&j), 1.0 / scale);
+        }
+    }
+}
