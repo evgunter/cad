@@ -593,3 +593,35 @@ Signed (CLEAVE orchestrator).
 - **PR 4158 merged** (the seam-ruling P0, closed). **Dispatched** `cleave/frustum-apex`
   (`a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section`, P1: a plane through a
   cone's apex pairs the wall's crossings top↔top). Review tier: single FULL.
+
+## 2026-10-06 — reviews of PRs 4177, 4179 and 4181 (CLEAVE orchestrator)
+
+- **PR 4181** (frustum apex), single FULL review: APPROVE-WITH-FIXES, no code defect.
+  - The near-tangent gate left out the azimuth (5.5) where the 1→½ frustum's tier 3 escalates, and
+    the flared frustum had no gate. Ruled: no gate leaves out a pose because it goes red there. The
+    gate covers both frustums over the full reported set: a wrong number is red, and a typed tier-3
+    refusal is the open sides row's debt.
+  - Counts corrected (78 of 240; 8 poses).
+  - Fix pass also covers: the leftover-on-a-ruling question, a line-typed `SectionCase::Straight`,
+    and the dispatch, doc and naming cleanups.
+- **PR 4177** (recl flanker), single FULL review: APPROVE-WITH-FIXES, no MAJOR.
+  - Suites and a public-door probe show no answer moved. The in-band flanker is refused upstream as
+    `Coincide::Sectors`, so the user gets one story.
+  - Ruled:
+    - `bool_flank_axis`, which only a bug reaches, panics with its values (D9);
+    - the flank decisions move after the declared-Tangent short-circuit;
+    - the in-band test row pins its margin;
+    - `bool_wedge_reflex` gets its decision words;
+    - a row is filed for `UnitVec3::levered`'s margin-less `Degenerate`, which forces three
+      hand-spelled sites.
+- **PR 4179** (in-band graze), single FULL review: APPROVE-WITH-FIXES, no MAJOR.
+  - Confirmed:
+    - the cause, instrumented;
+    - the root, against bisection on five conics;
+    - "whole" is the true answer under the belly Zero decision;
+    - the sweep-crate Boolean graze roots moved onto the contact with no answer moved.
+  - Ruled:
+    - the in-band arms are three decisions' arms, so the test and row stop calling them one story;
+    - the graze root takes the decided sign directly (exact under `Interval`);
+    - one row names the three copies of the residue root solve;
+    - tests are tightened (side, landing, tiers).
