@@ -2,10 +2,12 @@
 id: topo-smooth-arms-decide-descriptions-outside-the-must-carry-rule
 kind: issue
 title: topo's two smooth-description arms (boolean D6 ladder, split finish) decide outside geom_brep::must_carry_over_edge
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+closed: 2026-10-06
+pr: 4157
 ---
 
 
@@ -115,3 +117,15 @@ demos/tour binary's full walk:
   - a coherent `TangentIntersection` on an under-determined edge is
     restated in the section chart.
   An in-band station is not pinned: no case reaching it was found.
+
+## Closed (PR 4157, 2026-10-06)
+
+The split's section-boundary smooth arm decides through `geom_brep::must_carry_over_edge`:
+- jet-determinate → `TangentIntersection`;
+- under-determined → the chart image;
+- in band → typed, with an angle reading and a curvature reading that are separate decisions with separate texts;
+- refuted → the split's own `SmoothJoinRefuted`, per the rule's contract.
+
+The boolean arm had already been routed by FUSE (PR 3889), so this row's premise was half stale. One
+body moved: the rounded-shoulder seam now stores its intrinsic tangency. Review tier: single FULL
+(APPROVE-WITH-FIXES, no MAJOR).
