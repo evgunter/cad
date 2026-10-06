@@ -307,7 +307,7 @@ fn a_reversed_extrusion_names_each_wall_by_its_own_pieces() {
 /// as a quarter arc and, across a declared tangent joint, the tangent
 /// arc that continues it (segments 0 and 1, one run), closed by its
 /// diameter.
-fn d_of_two_arcs(x0: f64) -> Vec<ProgramStep> {
+fn d_of_two_arcs(x0: f64) -> Vec<ProgramStep<Formula>> {
     vec![
         ProgramStep::At(len2([x0, -1.0])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -401,7 +401,7 @@ fn step_ids(doc: &ProfileDoc, p: RecipeNodeId) -> Vec<editor_core::StepId> {
 fn reprogrammed(
     doc: &ProfileDoc,
     p: RecipeNodeId,
-    steps: Vec<ProgramStep>,
+    steps: Vec<ProgramStep<Formula>>,
     ids: Vec<Option<editor_core::StepId>>,
 ) -> ProfileDoc {
     editor_core::apply(
@@ -446,10 +446,15 @@ fn offers_follow_an_arc_station_in_and_out() {
             },
         )
     };
-    for (label, angle, d, x0) in [
-        ("extrude +", None, 1.0, 0.0),
-        ("extrude −", None, -1.0, 0.0),
-        ("full revolve", Some(std::f64::consts::TAU), 1.0, 2.0),
+    for (label, angle, side, x0) in [
+        ("extrude +", None, ExtrudeSide::Along, 0.0),
+        ("extrude −", None, ExtrudeSide::Against, 0.0),
+        (
+            "full revolve",
+            Some(std::f64::consts::TAU),
+            ExtrudeSide::Along,
+            2.0,
+        ),
     ] {
         let plain = vec![
             ProgramStep::At(len2([x0, -1.0])),
@@ -461,7 +466,7 @@ fn offers_follow_an_arc_station_in_and_out() {
         ];
         let (doc, n) = match angle {
             Some(a) => revolved(plain, a),
-            None => extruded_by(plain, d),
+            None => extruded_by(plain, side),
         };
         let p = profile_of(&doc, n);
         let rev = angle.is_some();
@@ -527,7 +532,7 @@ fn arc_run_names_agree_across_scalars() {
     ] {
         let (doc, n) = match angle {
             Some(a) => revolved(d_of_two_arcs(x0), a),
-            None => extruded_by(d_of_two_arcs(x0), -1.0),
+            None => extruded_by(d_of_two_arcs(x0), ExtrudeSide::Against),
         };
         let ev = run(&doc, &Default::default());
         let evi = editor_core::evaluate::<Interval>(
