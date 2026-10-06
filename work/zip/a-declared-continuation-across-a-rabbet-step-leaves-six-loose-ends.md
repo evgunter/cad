@@ -2,10 +2,11 @@
 id: a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends
 kind: issue
 title: A union across a rabbet's step with every finding declared refuses Join(UnpairedLooseEnds { count: 6 })
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+closed: 2026-10-06
 ---
 
 
@@ -58,14 +59,36 @@ at every step) by a FUSE designer lane weighing
 `a` = x∈(0,1), `c` = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5),
 y∈(0,1), all z∈(0,1). Folded `[a, c, b]` or `[c, a, b]`, the step
 `(a ∪ c) ∪ b` refuses `Join(UnpairedLooseEnds { count: 6 })`: `a ∪ c`
-is an L-shaped block and `b` sits flush against both of its arms, the
-same reflex-step shape as the rabbet. The other four orders fuse. Not
+is an L-shaped block, and `b` overlaps its `a` arm (x∈(0.5,1)) and
+rests on its `c` arm, at the same reflex step as the rabbet. The other four orders fuse. Not
 pinned by a test; the probe was scratch and was removed.
 
 ## Re-opened at the merge (JOIN orchestrator, 2026-10-02)
 
 The rabbet itself builds on JOIN-1, as above. The fold-order shape above
-(`(a ∪ c) ∪ b` with `b` flush against both arms of an L) arrived on main
+(`(a ∪ c) ∪ b`, `b` overlapping one arm of an L and resting on the other) arrived on main
 while JOIN-1 was in flight and has not been measured on JOIN-1. The row
 stays open for it: if it builds now, pin it and close the row; if not, the
 row carries it.
+
+## Measured on main (zip-reflex, 2026-10-06)
+
+Main at `3f1e3b0d03`. A scratch probe (`zip_rabbet_fold_orders`, since
+replaced by the pin below) used `a` = (0,1)³, `c` = x∈(0.5,1.5), y∈(−1,0), `b` = x∈(0.5,1.5),
+y∈(0,1), all z∈(0,1). `a`'s y range is not in the text above; it is taken
+from the FUSE document this shape came from. Each order is folded by
+`union_with` with `flush_declarations` at every step. All six orders,
+`acb cab abc bac bca cba`, build `SOUND` at both steps: tiers 2 and 3′,
+the certificate, and a legal operand. Step 1 gives 2, 2, 1.5, 1.5, 2, 2;
+step 2 gives the L at 2.5. No step enters the REST zip: the join builds
+each one. The rabbet's own row, `a_declared_continuation_across_a_rabbet_step_builds_every_op`,
+passes on main.
+
+## Built (ZIP, branch `zip/rest-admission`)
+
+Nothing to fix: the fold-order shape builds on main. It is pinned by
+`crates/sweep/tests/reach_continuation.rs`
+`three_bricks_with_a_reflex_step_fold_in_every_order`, beside the
+rabbet's own row. All six orders build each step at box arithmetic,
+tiers 3 and 3′: step 1 at 2 (ten faces) or 1.5 or 2 (six faces), step 2
+the L at 2.5 with eight faces, a legal operand.

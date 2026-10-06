@@ -200,7 +200,7 @@ fn a_label_survives_save_and_load_and_replays_from_the_log() {
 /// The load door holds a file to the edit door's rules: a label's text
 /// passes `Label::new`, and its key names a live node.
 #[test]
-fn the_load_door_refuses_a_blank_label_and_a_label_on_a_dead_node() {
+fn the_load_door_refuses_a_blank_or_direction_setting_label_and_a_label_on_a_dead_node() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-load", tol);
     let (doc, [_, _, live]) = block(doc, 0.0);
@@ -216,6 +216,16 @@ fn the_load_door_refuses_a_blank_label_and_a_label_on_a_dead_node() {
     match load(&blank, tol) {
         Err(PersistError::Unreadable { .. }) => {}
         other => panic!("a blank label refuses at the parse, got {other:?}"),
+    }
+    let override_only = text.replace(&entry, &format!("{}: \"\u{202e}\"", key(live)));
+    match load(&override_only, tol) {
+        Err(PersistError::Unreadable { detail, .. }) => assert!(
+            detail.contains("label refused")
+                && detail.contains("bidi embedding, override or isolate")
+                && detail.contains("\\u{202e} at character 0"),
+            "a label of one right-to-left override refuses naming the fault and its index: {detail}"
+        ),
+        other => panic!("a direction-setting label refuses at the parse, got {other:?}"),
     }
     let dead = text.replace(&entry, &format!("{}: \"lid\"", key(gone)));
     match load(&dead, tol) {

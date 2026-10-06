@@ -3,16 +3,18 @@
 //!
 //! # The checks, in order
 //!
-//! 1. **Arity** — every loop has ≥ 2 vertices (structural; a 2-vertex
-//!    loop with two arc segments is the legal minimal circle).
-//! 2. **Degeneracy and consistency** — no zero-length segments
-//!    (chord-level vertex coincidence), via the `vertex_separation`
-//!    distance predicate, in-band ⇒ escalation (the Q1 sliver
-//!    semantics); and, for a table's arcs, the three consistency checks
-//!    of each stored carrier against its vertices, past the scene's
-//!    resolution refused as unreadable rather than inconsistent
-//!    (`seg::build_seg`). A [`ConstructedProfile`]'s arcs were verified
-//!    at their construction and skip them.
+//! 1. **Arity** — every loop has a vertex (structural; D1's full turn
+//!    is one arc segment at one vertex, so a closed carrier is one
+//!    segment).
+//! 2. **Degeneracy and consistency** — no zero-length segments, via
+//!    the `vertex_separation` distance predicate (chord-level vertex
+//!    coincidence) or `full_turn_reach` (a full turn's reach), in-band
+//!    ⇒ escalation (the Q1 sliver semantics); and, for a table's arcs,
+//!    the three consistency checks of each stored carrier against its
+//!    vertices, past the scene's resolution refused as unreadable
+//!    rather than inconsistent (`seg::build_loop_seg`). A
+//!    [`ConstructedProfile`]'s arcs were verified at their
+//!    construction and skip them.
 //! 3. **Simplicity** — pairwise closed-form segment/segment contact
 //!    classification (line/line, line/arc, arc/arc; O(n²), fine at M2).
 //!    Adjacent segments may share exactly their common vertex; any other
@@ -86,9 +88,11 @@
 //! |---|---|---|
 //! | `vertex_separation` | chord length | direct displacement |
 //! | `segment_straightness` | sagitta (L/2)·tan(Δθ/4) | half-chord (tan(Δθ/4) → meters) |
+//! | `full_turn_reach` | a full turn's reach 2r·\|Δθ\|/2π | diameter |
+//! | `full_turn_sense` | a full turn's signed reach 2r·Δθ/2π | diameter |
 //! | `arc_start_on_carrier` | ‖a − c‖ − r | direct |
 //! | `arc_landing` | ‖a turned by Δθ about c − b‖ | direct |
-//! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π | radius |
+//! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π; a full turn's r·(2π − \|Δθ\|) | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
@@ -170,7 +174,7 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
 
 use crate::path::num;
 use crate::seg::{
-    self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_seg,
+    self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
 };
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
@@ -760,6 +764,14 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "a contact point told apart from a loop vertex by their separation",
     ),
     (
+        "full_turn_reach",
+        "how far a full turn reaches from its vertex, levered by its diameter",
+    ),
+    (
+        "full_turn_sense",
+        "a full turn's signed reach from its vertex, whose sign is its turn",
+    ),
+    (
         "line_span",
         "how far inside a segment a point falls, from whichever end is nearer",
     ),
@@ -908,6 +920,8 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "arc_start_on_carrier" => "whether an arc's start lies on its carrier circle",
         "arc_sweep_range" => "whether an arc's sweep lies between zero and a full turn",
         "canonical_order_x" => "which of two points comes first along x",
+        "full_turn_reach" => "whether a full turn reaches round its carrier",
+        "full_turn_sense" => "which way a full turn runs",
         "canonical_order_y" => "which of two points comes first along y",
         "carrier_circles_external" => "whether two circles touch from outside",
         "carrier_circles_identity" => "whether two circles are one circle",
@@ -971,13 +985,11 @@ pub enum ProfileError {
     Band(BandError),
     /// The profile has no loops — there is no region to sweep.
     EmptyProfile,
-    /// A loop has fewer than two vertices (a closed carrier needs ≥ 2 —
-    /// the crate docs' minimal-circle rule).
-    TooFewVertices {
+    /// A loop has no vertex. One is enough: D1's full turn is one
+    /// segment at one vertex.
+    EmptyLoop {
         /// Index of the offending loop.
         loop_index: usize,
-        /// Its vertex count.
-        count: usize,
     },
     /// Consecutive vertices coincide at tolerance: a zero-length
     /// segment.
@@ -986,8 +998,8 @@ pub enum ProfileError {
     /// half-span chord reaches the carrier diameter at tolerance): the
     /// complement gap is a sliver and span classification would not be
     /// honest there (the `arc_diameter_clearance` predicate — M2 PR 2
-    /// review fix). Split the arc at another vertex; a full circle is
-    /// two arcs by construction.
+    /// review fix). Split the arc at another vertex, or close it as a
+    /// full circle: one arc at one vertex (D1's full turn).
     NearFullArc(SegmentRef),
     /// A stored arc disagrees with its own vertices: one of the three
     /// consistency checks ([`ArcCheck`]) decided it definitely off. The
@@ -1047,6 +1059,13 @@ pub enum ProfileError {
         joint: usize,
         /// The loop's vertex count.
         count: usize,
+    },
+    /// A one-segment loop (D1's full turn) declares its vertex a
+    /// tangent joint. Its vertex joins the carrier to itself, not two
+    /// segments, so there is no joint to declare.
+    TangentJointOnFullTurn {
+        /// Index of the offending loop.
+        loop_index: usize,
     },
     /// Adjacent segments meet tangentially at their shared vertex —
     /// the joint's distinct carriers are in definite first-order
@@ -1127,10 +1146,10 @@ impl fmt::Display for ProfileError {
         match self {
             Self::Band(e) => write!(f, "profile validation could not form a band: {e}"),
             Self::EmptyProfile => f.write_str("profile has no loops — nothing to sweep"),
-            Self::TooFewVertices { loop_index, count } => write!(
+            Self::EmptyLoop { loop_index } => write!(
                 f,
-                "loop {loop_index} has {count} vertex(es); a closed loop needs at least 2 \
-                 (two arc segments make the minimal circle)"
+                "loop {loop_index} has no vertex; a closed loop needs at least one \
+                 (a full circle is one arc at one vertex)"
             ),
             Self::DegenerateSegment(s) => write!(
                 f,
@@ -1139,7 +1158,7 @@ impl fmt::Display for ProfileError {
             Self::NearFullArc(s) => write!(
                 f,
                 "{s} is within tolerance of a full circle — split the arc at another \
-                 vertex (a full circle is two arcs by construction)"
+                 vertex, or write the full circle as one arc at one vertex"
             ),
             Self::ArcBelowSceneResolution {
                 at,
@@ -1179,6 +1198,12 @@ impl fmt::Display for ProfileError {
                 f,
                 "loop {loop_index} declares a tangent joint at vertex {joint}, but the \
                  loop has only {count} vertices"
+            ),
+            Self::TangentJointOnFullTurn { loop_index } => write!(
+                f,
+                "loop {loop_index} is one full-turn arc and declares a tangent joint at its \
+                 vertex, which joins the arc to itself rather than two segments. Recourse: \
+                 drop the declaration"
             ),
             Self::UndeclaredTangency {
                 first,
@@ -1358,6 +1383,19 @@ impl ValidatedSegment<f64> {
     }
 }
 
+/// **Whether a loop is D1's full turn**: one segment at one vertex, a
+/// closed carrier as one edge. The one home of the question, asked of
+/// a loop's segments in any form — the stored table's
+/// ([`crate::ProfileLoop::segments`], where validation then asks that
+/// the one segment be an arc), a validated loop's, or anything a
+/// builder holds one per segment. A loop of n ≥ 2 segments joins them
+/// at n joints; a full turn has no joint, as its vertex joins its
+/// carrier to itself.
+#[must_use]
+pub fn is_full_turn<S>(segments: &[S]) -> bool {
+    segments.len() == 1
+}
+
 /// A canonicalized loop: role, chain, and classified segments —
 /// read-only.
 #[derive(Debug, Clone)]
@@ -1385,6 +1423,12 @@ impl<T: Real> ValidatedLoop<T> {
     /// vertex k+1 (mod n).
     pub fn segments(&self) -> &[ValidatedSegment<T>] {
         &self.segments
+    }
+
+    /// Whether this loop is D1's full turn ([`is_full_turn`]).
+    #[must_use]
+    pub fn is_full_turn(&self) -> bool {
+        is_full_turn(&self.segments)
     }
 
     /// The declared (and verified — validation refuses otherwise)
@@ -1762,6 +1806,9 @@ fn validate_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
                     count: lp.vertices.len(),
                 });
             }
+            if is_full_turn(&lp.segments) && !lp.tangent_joints.is_empty() {
+                return Err(ProfileError::TangentJointOnFullTurn { loop_index: li });
+            }
         }
 
         // 3: simplicity — every unordered segment pair, adjacency
@@ -2110,7 +2157,9 @@ impl CanonGuide {
     }
 }
 
-/// Arity check + segment construction for one input loop.
+/// Arity check + segment construction for one input loop. One vertex
+/// is enough: D1's full turn is one segment at one vertex
+/// ([`seg::build_loop_seg`]).
 fn build_loop_segs<T: Decide>(
     lp: &ProfileLoop<T>,
     loop_index: usize,
@@ -2118,17 +2167,13 @@ fn build_loop_segs<T: Decide>(
     band: Band,
 ) -> Result<Vec<Seg<T>>, ProfileError> {
     let n = lp.vertices.len();
-    if n < 2 {
-        return Err(ProfileError::TooFewVertices {
-            loop_index,
-            count: n,
-        });
+    if n == 0 {
+        return Err(ProfileError::EmptyLoop { loop_index });
     }
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
-        let (a, b) = (lp.vertices[k], lp.vertices[(k + 1) % n]);
         segs.push(
-            build_seg(a, b, lp.segments[k], consistency, band).map_err(|issue| {
+            build_loop_seg(&lp.vertices, &lp.segments, k, consistency, band).map_err(|issue| {
                 let at = SegmentRef {
                     loop_index,
                     segment_index: k,
@@ -2152,7 +2197,9 @@ fn seg_refusal<T: Real>(
     escalated: impl FnOnce(Indeterminate) -> ProfileError,
 ) -> ProfileError {
     match issue {
-        SegIssue::Shape(ShapeIssue::Degenerate { .. }) => ProfileError::DegenerateSegment(at),
+        SegIssue::Shape(ShapeIssue::Degenerate { .. } | ShapeIssue::DegenerateTurn { .. }) => {
+            ProfileError::DegenerateSegment(at)
+        }
         SegIssue::Shape(ShapeIssue::NearFull { .. }) => ProfileError::NearFullArc(at),
         SegIssue::Shape(ShapeIssue::Escalated(source)) => escalated(source),
         SegIssue::Inconsistent { check } => ProfileError::InconsistentArc { at, check },
@@ -2281,6 +2328,12 @@ fn judge_joints<T: Decide>(
 ) -> Result<Vec<usize>, ProfileError> {
     let n = segs.len();
     let mut cusps = Vec::new();
+    if is_full_turn(segs) {
+        // A full turn has no joint: its vertex is its carrier
+        // continuing into itself, and a declaration there was refused
+        // with the loop's segments.
+        return Ok(cusps);
+    }
     for joint in 0..n {
         let prev = (joint + n - 1) % n;
         let first = SegmentRef {
@@ -2490,8 +2543,7 @@ fn canonicalize_loop<T: Decide>(
     let mut segments = Vec::with_capacity(n);
     let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
-        let (a, b) = (vertices[k], vertices[(k + 1) % n]);
-        let s = build_seg(a, b, stored[k], consistency, band).map_err(|issue| {
+        let s = build_loop_seg(&vertices, &stored, k, consistency, band).map_err(|issue| {
             let at = SegmentRef {
                 loop_index,
                 segment_index: k,

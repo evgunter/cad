@@ -109,6 +109,8 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
 mod offset_restates_a_neighbour_chart_rim;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
 #[path = "parallel_cylinder_join.rs"]
@@ -694,6 +696,8 @@ mod mate7a_r2_probes;
 mod mate7a_torus_rest;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
+#[path = "pierce_tangent_off_face.rs"]
+mod pierce_tangent_off_face;
 #[path = "snowman.rs"]
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]
@@ -952,6 +956,8 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+#[path = "rest_zip_admission.rs"]
+mod rest_zip_admission;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;

@@ -2,10 +2,11 @@
 id: unclaimed-half-edge-read-as-a-minus-half-in-zip
 kind: issue
 title: a half-edge its own edge does not claim is read as that edge's minus half: 2 site(s) on this ground
-status: open
+status: parked
 opened: 2026-09-30
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Filed by TOPO's fix pass on PR 3532 (the review's MINOR-3), which
@@ -86,3 +87,7 @@ self-pair checks, and `merge_faces.rs`' `#[cfg(test)]` tear hooks.
 | band | `unclaimed-half-edge-read-as-a-minus-half-in-band` | `crates/sweep/src/blend/surgery.rs`, the rim arc mate, ~:3651 | mate |
 | no owner | `unclaimed-half-edge-read-as-a-minus-half-unowned` | `crates/topo/src/props.rs`, the curved-face edge record, ~:1825 | direction |
 | no owner | `unclaimed-half-edge-read-as-a-minus-half-unowned` | `crates/topo/src/pcurves.rs`, `is_plus`, ~:1199 | direction |
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
