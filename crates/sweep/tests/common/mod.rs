@@ -552,6 +552,31 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
     half
 }
 
+/// **A bore tilted 0.4 rad about `x`**: a radius-0.1 disc prism of
+/// height 0.8 turned about the `x` axis and centred at `(0.5, 0.5,
+/// 0.5)`, so cut from a unit cube it pierces the top face (and the
+/// bottom) in ELLIPSES — a ring no clearance meter of the blend reads.
+pub fn tilted_bore() -> Body<f64> {
+    let tol = Tol::witness();
+    let bore = sweep::test_support::prism(
+        vec![(Point2::new(-0.1, 0.0), 1.0), (Point2::new(0.1, 0.0), 1.0)],
+        0.8,
+        tol,
+    );
+    let tilt = geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        0.4,
+    );
+    let bore = topo::transform_rigid(&bore, &tilt, tol).expect("the bore turns");
+    topo::transform_rigid(
+        &bore,
+        &geom_core::Affine3::translation(Vec3::new(0.5, 0.5, 0.5)),
+        tol,
+    )
+    .expect("the bore moves")
+}
+
 /// The bulged extrusion: an analytic cylinder wall with a CURVED trim
 /// loop — the cylinder chart's Green form.
 pub fn bulged_extrusion() -> Body<f64> {

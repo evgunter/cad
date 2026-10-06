@@ -1017,12 +1017,12 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both
 /// sampled — so a carrier outside the covered shapes refuses rather
 /// than approximating.
 ///
-/// **A caller reaches this at a support face's non-circular ring.**
-/// Cut a square pocket through a cube's top face and request the twelve
-/// OUTER edges: `ring_circle` refuses at each of the three radii the
-/// row samples, because the ring the pocket leaves is carried by
-/// lines. Witnessed by
-/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`,
+/// **A caller reaches this at a support face's ring of other
+/// carriers.** Cut a tilted bore through a cube's top face and request
+/// the twelve OUTER edges: the ring pass refuses at each radius the row
+/// samples, because the ring the bore leaves is an ellipse, and rings
+/// are read as lines and circles only. Witnessed by
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring`,
 /// and followed to its build by
 /// `blend_recourse_followability::the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
 ///
@@ -1040,8 +1040,8 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both
 /// so a sentence that only described the request endorsed exactly what
 /// the caller had already done (issue 1278's dead-recourse class).
 pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, for a fillet, spheres, cylinders and cones) \
-     whose edges are lines and circles \u{2014} a support face's own rings included, which \
-     must be circles; cut a feature that leaves any other ring AFTER the blend rather \
+     whose edges are lines and circles \u{2014} a support face's own rings included; cut a \
+     feature that leaves any other ring AFTER the blend rather \
      than before it";
 /// The recourse for a ring or edge in the part of a face the blend
 /// replaces — a support's strip between its edge and the trimline,
