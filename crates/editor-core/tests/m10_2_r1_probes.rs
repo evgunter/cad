@@ -13,16 +13,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
-    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
-    PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
-    apply, evaluate, face_frame, load, save, select_where, vertex_position,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EditError,
+    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
+    face_frame, load, save, select_where, vertex_position,
 };
 use fixture::{ang, len, len2, scl};
 use geom_core::Tol;
@@ -43,7 +44,7 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
         .doc
 }
 
-fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -56,8 +57,8 @@ fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (Profile
     (applied.doc, applied.record.minted.expect("insert mints"))
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).var_env::<f64>()
 }
 
 fn faces_of_kind(
@@ -114,14 +115,14 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-slab"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("depth"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let outer = LoopProgram::Chain(vec![
@@ -144,7 +145,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
+            distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },
     );
@@ -1099,8 +1100,8 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let [bottom, top] = caps(&ev, slab);
     let expr = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(
-            ParamName::from_static("ghost"),
+        MeasureExpr::value(Formula::named(
+            VarName::from_static("ghost"),
             Dimension::Length,
         )),
     )
@@ -1115,7 +1116,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     )
     .expect_err("an undeclared parameter refuses");
     assert!(
-        matches!(err, EditError::PayloadUnknownDocParam { .. }),
+        matches!(err, EditError::PayloadUnknownVarName { .. }),
         "got {err:?}"
     );
 }
@@ -1130,14 +1131,14 @@ fn r1_own_document_web_and_flip() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-web"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::from_static("r"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let (doc, xy) = insert(&doc, fixture::xy_frame());
@@ -1146,7 +1147,7 @@ fn r1_own_document_web_and_flip() {
             plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
+                radius: Formula::named(VarName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -1171,7 +1172,7 @@ fn r1_own_document_web_and_flip() {
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Expr::param(ParamName::from_static("r"), Dimension::Length));
+    let r = || MeasureExpr::value(Formula::named(VarName::from_static("r"), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -1197,9 +1198,9 @@ fn r1_own_document_web_and_flip() {
     // r → 0.24: web = 0.5 − 0.48 = 0.02 < 0.05: Violated, both numbers.
     let d8 = push(
         &d7,
-        &DocEdit::SetDocParamValue {
-            name: ParamName::from_static("r"),
-            value: DocParamValue::Continuous(0.24),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("r").into(),
+            value: FreeValue::Continuous(0.24),
         },
     );
     match verdict(&eval(&d8), a) {

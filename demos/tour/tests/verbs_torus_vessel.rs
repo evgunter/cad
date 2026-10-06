@@ -187,9 +187,7 @@ fn axial(p: Point3<f64>) -> (f64, f64) {
 }
 
 fn corners(body: &Body<f64>) -> Vec<(f64, f64)> {
-    body.vertices()
-        .map(|(_, v)| axial(*body.get_point(v.point).expect("a vertex carries a point")))
-        .collect()
+    body.vertex_points().map(|(_, p)| axial(p)).collect()
 }
 
 /// `1e-14` m absolute, `torax_axial::has_corner`'s bound — on bodies

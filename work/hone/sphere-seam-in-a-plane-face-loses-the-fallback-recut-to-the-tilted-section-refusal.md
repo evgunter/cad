@@ -38,7 +38,7 @@ Held, refuse-or-answer-correctly, by
 `crates/sweep/tests/germ_coplanar_conic.rs`
 `every_op_refuses_or_answers_its_closed_form` ("y-poled pip on the
 cube's top face"); `m5_pr9c_sphere_doors.rs`
-`the_die_pips_shape_stops_typed_at_its_tilted_section` pins PR 9c's
+`the_die_pips_shape_stops_typed_at_its_section_roles` pins PR 9c's
 smoke shape, the same class, at the join's refusal.
 
 ## What the taker owes
@@ -47,3 +47,15 @@ The crossings path re-charts a sphere group whose section with a plane
 face is tilted against its polar axis (as the fallback's re-cut does),
 or the join's tilted-section arm learns the section; either way the
 y-poled pip answers its closed form.
+
+## Evidence (2026-10-03, `reach/arc-from-pairing`)
+
+The join learns the section: a chord takes its arc from the germs it
+joins and reads no chart, so the tilted plane×sphere section no longer
+refuses. Every op of the y-poled pip, and of PR 9c's die-pips shape,
+now stops one step later, at the role read: the section's segments run
+along the ball's seam edges, and every witness of both hemispheres lies
+on the cube's (the slab's) face, so neither section loop reads a side
+(`Join(SectionLoopUndecided)`,
+`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+Re-pinned at that door.

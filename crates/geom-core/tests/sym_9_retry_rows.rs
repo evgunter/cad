@@ -25,7 +25,7 @@ fn band() -> Band {
 }
 
 fn p(name: &str, v: f64) -> Sym<f64> {
-    Sym::param(ParamSymbol::of(name), v)
+    Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
 }
 
 fn label(out: Result<Sign, geom_core::predicate::Indeterminate>, c: &SymCounts) -> String {

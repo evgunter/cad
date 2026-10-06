@@ -21,13 +21,13 @@
 
 use crate::common;
 use editor_core::ExtrudeSide;
+use pncad::document::Formula;
 use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, DocParam, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode,
-    StepArg,
+    Datum, Dimension, Doc, DocEdit, FreeVar, LoopProgram, Maintenance, Node, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, SpokenName, SpokenNode, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
@@ -51,7 +51,7 @@ fn wall(
         panic!("an extrude's operand is a profile");
     };
     let piece = program
-        .pieces(&doc.param_env::<f64>(), Tol::witness())
+        .pieces(&doc.var_env::<f64>(), Tol::witness())
         .expect("the profile replays")
         .edge(loop_index, segment)
         .expect("the position is the profile's");
@@ -66,7 +66,7 @@ fn wall(
 /// extrude)`.
 fn extruded(
     doc: &Doc<ProfileProgram>,
-    loops: Vec<LoopProgram>,
+    loops: Vec<LoopProgram<Formula>>,
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let tol = Tol::witness();
     let (doc, plane) = common::inserted(doc, common::xy_frame(), tol);
@@ -388,7 +388,7 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
 /// `at` stands at its tangent point, and the `line` after it runs on
 /// to `(2, 2)` along the fillet's run out. Each sharp step has a step
 /// of the same verb in the filleted program.
-fn corner(filleted: bool) -> LoopProgram {
+fn corner(filleted: bool) -> LoopProgram<Formula> {
     let toward = |dx: f64, dy: f64| ProgramStep::Toward {
         dx: common::scl(dx),
         dy: common::scl(dy),
@@ -467,24 +467,24 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
 #[test]
 fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let tol = Tol::witness();
-    let hole_r = ParamName::from_static("hole_r");
+    let hole_r = VarName::from_static("hole_r");
     let doc = common::declared(
         "maint-param-strand",
         &hole_r,
-        DocParam::continuous(Dimension::Length, 0.3),
+        FreeVar::continuous(Dimension::Length, 0.3),
         tol,
     );
     let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {
         centre: [common::len(1.0), common::len(1.0)],
-        radius: pncad::document::Expr::param(hole_r.clone(), Dimension::Length),
+        radius: pncad::document::Formula::named(hole_r.clone(), Dimension::Length),
     };
     let (doc, _, extrude) = extruded(&doc, vec![square, hole]);
     let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));
 
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::SetParam {
-        name: hole_r,
+        var: common::var_of(session.committed_doc(), hole_r.as_str()),
         value: viewer::props::SlotValue::Continuous(0.0),
     };
     let outcome = session.perform(op.clone());

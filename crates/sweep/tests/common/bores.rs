@@ -91,7 +91,12 @@ pub fn section_faces(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<FaceKey> 
 /// material and to pass tiers 1 and 3.
 pub fn halves_at_rest(what: &str, body: &Body<f64>, plane: &SplitPlane<f64>) -> [Body<f64>; 2] {
     let tol = geom_core::Tol::witness();
-    let result = split(body, plane, tol).unwrap_or_else(|e| panic!("{what}: splits: {e:?}"));
+    let result = split(
+        &sweep::test_support::finished("the operand", body.clone(), tol),
+        plane,
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{what}: splits: {e:?}"));
     [("below", result.below), ("above", result.above)].map(|(side, part)| {
         let SplitPart::Body(half) = part else {
             panic!("{what} {side}: material on both sides");

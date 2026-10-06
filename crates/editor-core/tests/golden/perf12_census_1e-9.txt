@@ -128,7 +128,7 @@ solids=1 faces=10 edges=24 vertices=16
 assemble: Ok
 census: Ok
 ## nested_islands_106_depth2
-solids=1 faces=16 edges=36 vertices=24
+solids=2 faces=16 edges=36 vertices=24
 assemble: Ok
 census: Ok
 ## declared_tangency
@@ -230,7 +230,7 @@ solids=1 faces=8 edges=16 vertices=11
 assemble: Ok
 census: Ok
 ## heat_sink_fins
-solids=1 faces=30 edges=60 vertices=40
+solids=5 faces=30 edges=60 vertices=40
 assemble: Ok
 census: Ok
 ## die_tool
@@ -262,7 +262,7 @@ solids=1 faces=16 edges=42 vertices=28
 assemble: Ok
 census: Ok
 ## kiss_carry
-solids=1 faces=18 edges=42 vertices=28
+solids=2 faces=18 edges=42 vertices=28
 assemble: Ok
 census: Ok
 ## tube_ring

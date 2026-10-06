@@ -53,14 +53,14 @@ fn probe_the_tier_on_the_slab() {
 #[test]
 #[ignore = "evidence-only probe: names the surviving indeterminacies"]
 fn probe_which_predicate_still_widens() {
-    use editor_core::analysis::{ParamBox, param_env_over};
+    use editor_core::analysis::{ParamBox, var_env_over};
     use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
     use std::sync::Arc;
 
     let doc = slab(1.0, 0.05);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
-    let _ = param_env_over::<geom_core::Interval, _>(&doc, &box_);
+    let _ = var_env_over::<geom_core::Interval, _>(&doc, &box_);
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
         profile_lift: ProfileLift::Guided,

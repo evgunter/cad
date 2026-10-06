@@ -26,6 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Expr;
 use editor_core::ExtrudeSide;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -36,19 +37,24 @@ use editor_core::range::{
     CertifiedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range, derive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, NodeResult, ParamName, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SlotId, SpokenNode, StableName, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
+    LoopProgram, Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    SpokenNode, StableName, VarName, evaluate,
 };
 
 use fixture::{Recorder, len, scl, tol, xy_frame};
 
-fn name(n: &'static str) -> ParamName {
-    ParamName::from_static(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
-fn param(n: &'static str) -> Expr {
-    Expr::param(name(n), Dimension::Length)
+/// The variable `doc` declares as `n`.
+fn var(doc: &editor_core::ProfileDoc, n: &'static str) -> editor_core::VarId {
+    doc.var_named(n).expect("the fixture declares it")
+}
+
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
 }
 
 /// The drive's budgets, both of them the caller's: the query is on
@@ -66,13 +72,13 @@ fn frame(r: &mut Recorder) -> RecipeNodeId {
 }
 
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name(n),
-        value: DocParam::continuous(Dimension::Length, value),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
     });
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
@@ -164,13 +170,13 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
 fn two_param_slab() -> ProfileDoc {
     let mut r = Recorder::new();
     declare(&mut r, "depth", 1.0);
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("side"),
-        value: DocParam::continuous_with(
+        def: editor_core::VarDecl::Free(FreeVar::continuous_with(
             Dimension::Length,
             1.0,
             Distribution::Uniform { lo: -0.1, hi: 0.1 },
-        ),
+        )),
     });
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -207,7 +213,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     });
     let pat = r.insert(Node::Pattern {
         input: e,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
@@ -240,9 +246,9 @@ fn no_new_failure(doc: &editor_core::ProfileDoc, p: &'static str, value: f64) ->
     let baseline = failing(&f64_run(doc));
     let moved = editor_core::apply(
         doc,
-        &DocEdit::SetDocParamValue {
-            name: name(p),
-            value: editor_core::DocParamValue::Continuous(value),
+        &DocEdit::SetVarValue {
+            var: name(p).into(),
+            value: editor_core::FreeValue::Continuous(value),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -291,7 +297,7 @@ fn range_of(
     seed: RangeSeed,
     config: &DriveConfig,
 ) -> CertifiedRange {
-    certified_range(doc, &RangeField::Param(name(p)), seed, config, tol())
+    certified_range(doc, &RangeField::Param(var(doc, p)), seed, config, tol())
         .expect("the fixture has an axis and a witness that builds")
 }
 
@@ -307,6 +313,108 @@ fn a_certified_side_stops_at_the_seeds_edge() {
     assert_eq!(*r.hi(), RangeSide::Certified { to: 0.25 });
     assert_eq!(r.certified_interval(), (0.75, 1.25));
     assert_eq!(r.nominal(), 1.0);
+}
+
+/// **A pattern's step stays inside its turn**: the certificate over a
+/// driven step stops short of zero, where the copies would mirror and
+/// every reference to a copy silently change sides, and short of a
+/// full turn either way, from seeds that reach past both. The claim is
+/// where the certificate cannot reach, not how near it gets, so a
+/// small budget makes it.
+#[test]
+fn a_driven_step_certifies_within_its_turn() {
+    use std::f64::consts::TAU;
+    for (step, seed) in [
+        (1.0, RangeSeed { lo: -3.0, hi: 7.0 }),
+        (3.0, RangeSeed { lo: -5.0, hi: 5.0 }),
+        (-1.0, RangeSeed { lo: -7.0, hi: 3.0 }),
+    ] {
+        let mut r = Recorder::new();
+        let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        }));
+        let f = frame(&mut r);
+        let p = r.insert(Node::Profile(ProfileProgram {
+            plane: f,
+            loops: vec![unit_square()],
+            ids: Vec::new(),
+        }));
+        let e = r.insert(Node::Extrude {
+            profile: p,
+            distance: len(0.5),
+            side: ExtrudeSide::Along,
+        });
+        let pattern = r.insert(Node::Pattern {
+            input: e,
+            count: Formula::count(3),
+            kind: PatternKind::Circular {
+                axis,
+                step: fixture::ang(step),
+            },
+        });
+        let range = certified_range(
+            &r.doc,
+            &RangeField::Slot {
+                node: pattern,
+                slot: SlotId::Step,
+            },
+            seed,
+            &budget(8, 64),
+            tol(),
+        )
+        .expect("the step boxes");
+        let (lo, hi) = range.certified_interval();
+        let inside = if step > 0.0 {
+            0.0 < lo && hi < TAU
+        } else {
+            -TAU < lo && hi < 0.0
+        };
+        assert!(
+            inside && lo < step && step < hi,
+            "step {step}: the certificate stays inside its turn: [{lo}, {hi}], sides {:?} {:?}",
+            range.lo(),
+            range.hi()
+        );
+        for side in [range.lo(), range.hi()] {
+            assert!(
+                !matches!(side, RangeSide::Certified { .. }),
+                "step {step}: each side meets a boundary before the seed's edge: {side:?}"
+            );
+        }
+    }
+}
+
+/// **A pattern's spacing has the slab's floor**: a spacing is a size,
+/// so the certificate over a driven spacing stops above zero instead
+/// of certifying through it into the mirrored pattern, where every
+/// reference to a copy would silently change sides.
+#[test]
+fn a_driven_spacing_does_not_certify_through_zero() {
+    let (doc, pattern) = patterned();
+    let r = certified_range(
+        &doc,
+        &RangeField::Slot {
+            node: pattern,
+            slot: SlotId::Spacing,
+        },
+        RangeSeed { lo: -3.0, hi: 0.5 },
+        &budget(24, 2048),
+        tol(),
+    )
+    .expect("the spacing boxes");
+    let (lo, hi) = r.certified_interval();
+    assert!(
+        0.0 < lo && lo < hi,
+        "the certificate stops above a zero spacing: [{lo}, {hi}], low side {:?}",
+        r.lo()
+    );
+    assert!(
+        !matches!(r.lo(), RangeSide::Certified { .. }),
+        "the low side meets a boundary before the seed's edge: {:?}",
+        r.lo()
+    );
+    assert_eq!(*r.hi(), RangeSide::Certified { to: 0.5 });
 }
 
 // ------------------------------------------------ the four-arm contract
@@ -609,8 +717,7 @@ fn the_slot_rewrite_is_exact() {
     )
     .expect("the slot widens");
     assert_eq!(derived.nominal.to_bits(), literal.to_bits());
-    let Some(DocParam::Continuous { value, dim, .. }) = derived.doc.params().get(&derived.axis)
-    else {
+    let Some(FreeVar::Continuous { value, dim, .. }) = derived.doc.free(derived.axis) else {
         panic!("the derived document declares the synthetic parameter");
     };
     assert_eq!(value.to_bits(), literal.to_bits());
@@ -620,12 +727,12 @@ fn the_slot_rewrite_is_exact() {
             .doc
             .node(node)
             .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&Expr::param(derived.axis.clone(), Dimension::Length))
+        Some(&editor_core::Expr::var(derived.axis, Dimension::Length))
     );
     // The input document declared no parameter at all; the derived one
     // declares exactly the query's.
-    assert!(doc.params().is_empty());
-    assert_eq!(derived.doc.params().len(), 1);
+    assert!(doc.vars().is_empty());
+    assert_eq!(derived.doc.vars().len(), 1);
 }
 
 /// **A6.** A parameter field boxes directly: no rewrite, no synthetic
@@ -635,13 +742,13 @@ fn a_parameter_field_boxes_directly() {
     let doc = slab(1.0);
     let derived = derive(
         &doc,
-        &RangeField::Param(name("depth")),
+        &RangeField::Param(var(&doc, "depth")),
         RangeSeed::symmetric(0.25),
         tol(),
     )
     .expect("the parameter boxes");
-    assert_eq!(derived.axis, name("depth"));
-    assert_eq!(derived.doc.params().len(), doc.params().len());
+    assert_eq!(derived.axis, var(&doc, "depth"));
+    assert_eq!(derived.doc.vars().len(), doc.vars().len());
     assert_eq!(derived.doc.order(), doc.order());
     assert_eq!(derived.nominal, 1.0);
     let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
@@ -721,9 +828,14 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
         })
     );
     assert_eq!(
-        derive(&driven, &RangeField::Param(name("nope")), seed, tol()),
+        derive(
+            &driven,
+            &RangeField::Param(editor_core::VarId(0)),
+            seed,
+            tol()
+        ),
         Err(RangeRefusal::NotAContinuousParam {
-            param: name("nope")
+            param: editor_core::SpokenVar::new(editor_core::VarId(0), None)
         })
     );
 }
@@ -812,7 +924,7 @@ fn a_profile_step_argument_widens() {
         })
         .expect("the square carries a literal step argument");
     assert!(
-        ParamName::new(slot.label().replace(' ', "_")).is_err(),
+        VarName::new(slot.label().replace(' ', "_")).is_err(),
         "the fixture's premise: the label {:?} is not an identifier",
         slot.label()
     );
@@ -825,7 +937,7 @@ fn a_profile_step_argument_widens() {
     .unwrap_or_else(|e| panic!("the {} slot widens: {e}", slot.label()));
     assert_eq!(
         derived.doc.node(p).and_then(|n| n.expr(slot)),
-        Some(&Expr::param(derived.axis.clone(), slot.dimension())),
+        Some(&editor_core::Expr::var(derived.axis, slot.dimension())),
         "the slot names the synthetic parameter"
     );
 }
@@ -846,9 +958,12 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
     for (i, spelled) in declared.iter().enumerate() {
         doc = editor_core::apply(
             &doc,
-            &DocEdit::SetDocParam {
-                name: ParamName::new(spelled.clone()).expect("an author can type it"),
-                value: DocParam::continuous(Dimension::Length, 3.0 + i as f64),
+            &DocEdit::DeclareVar {
+                name: VarName::new(spelled.clone()).expect("an author can type it"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(
+                    Dimension::Length,
+                    3.0 + i as f64,
+                )),
             },
             tol(),
             &editor_core::RefusingReach,
@@ -867,14 +982,14 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
     )
     .expect("the slot widens through a fresh name");
     assert_eq!(
-        derived.axis.as_str(),
+        derived.doc.var_name(derived.axis).expect("named").as_str(),
         format!("{base}_2"),
         "the first spelling the document does not declare"
     );
     for spelled in &declared {
         assert_eq!(
-            derived.doc.params().get(spelled.as_str()),
-            doc.params().get(spelled.as_str()),
+            derived.doc.free_named(spelled.as_str()),
+            doc.free_named(spelled.as_str()),
             "{spelled} is the author's and is left as declared"
         );
     }
@@ -883,7 +998,7 @@ fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
             .doc
             .node(node)
             .and_then(|n| n.expr(SlotId::Distance)),
-        Some(&Expr::param(derived.axis.clone(), Dimension::Length)),
+        Some(&editor_core::Expr::var(derived.axis, Dimension::Length)),
         "the slot reads the synthetic parameter, not an authored one"
     );
 }
@@ -926,10 +1041,10 @@ fn the_guard_refusals_render_what_they_carry() {
 fn the_answer_names_the_parameters_it_pinned() {
     let doc = two_param_slab();
     let r = range_of(&doc, "depth", RangeSeed::symmetric(0.1), &budget(24, 64));
-    assert_eq!(r.pinned(), [name("side")]);
+    assert_eq!(r.pinned(), [var(&doc, "side")]);
     // The axis itself is never pinned: it did not lose a spread, it
     // was given one.
-    assert!(!r.pinned().contains(&name("depth")));
+    assert!(!r.pinned().contains(&var(&doc, "depth")));
     // A document with no other spread to drop pins nothing, which is
     // not the same claim as "nothing was checked".
     let plain = range_of(
@@ -959,7 +1074,7 @@ fn a_seed_that_does_not_bracket_the_nominal_refuses() {
         // reason — or, here, fail for one.
         let Err(RangeRefusal::SeedNotABracket { lo: glo, hi: ghi }) = derive(
             &doc,
-            &RangeField::Param(name("depth")),
+            &RangeField::Param(var(&doc, "depth")),
             RangeSeed { lo, hi },
             tol(),
         ) else {
@@ -979,7 +1094,7 @@ fn a_symmetric_seed_of_a_bad_half_width_refuses_at_the_derivation() {
     let doc = slab(1.0);
     for w in [-1.0, 0.0, f64::NAN, f64::INFINITY] {
         let seed = RangeSeed::symmetric(w);
-        let out = derive(&doc, &RangeField::Param(name("depth")), seed, tol());
+        let out = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol());
         assert!(
             matches!(out, Err(RangeRefusal::SeedNotABracket { .. })),
             "symmetric({w}) must refuse at the door, got {out:?}"
@@ -1002,10 +1117,10 @@ fn a_symmetric_seed_of_a_bad_half_width_refuses_at_the_derivation() {
 fn the_seed_reaches_the_driver_as_the_analyzed_axis() {
     let doc = slab(1.0);
     let seed = RangeSeed { lo: -0.3, hi: 0.7 };
-    let derived =
-        derive(&doc, &RangeField::Param(name("depth")), seed, tol()).expect("the parameter boxes");
+    let derived = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol())
+        .expect("the parameter boxes");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
-    let axis = analyzed.get(&derived.axis).expect("the axis is there");
+    let axis = analyzed.get(derived.axis).expect("the axis is there");
     assert_eq!(axis.offsets.lo.to_bits(), seed.lo.to_bits());
     assert_eq!(axis.offsets.hi.to_bits(), seed.hi.to_bits());
     assert_eq!(
@@ -1032,18 +1147,18 @@ fn every_other_parameter_is_pinned() {
     );
     let derived = derive(
         &doc,
-        &RangeField::Param(name("depth")),
+        &RangeField::Param(var(&doc, "depth")),
         RangeSeed::symmetric(0.1),
         tol(),
     )
     .expect("the parameter boxes");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
-    let varying: Vec<&ParamName> = analyzed.varying().map(|(n, _)| n).collect();
-    assert_eq!(varying, vec![&name("depth")]);
+    let varying: Vec<editor_core::VarId> = analyzed.varying().map(|(n, _)| n).collect();
+    assert_eq!(varying, vec![var(&doc, "depth")]);
     assert!(
         matches!(
-            derived.doc.params().get(&name("side")),
-            Some(DocParam::Continuous {
+            derived.doc.free_named("side"),
+            Some(FreeVar::Continuous {
                 distribution: None,
                 ..
             })
@@ -1059,8 +1174,8 @@ fn every_other_parameter_is_pinned() {
 fn the_one_axis_leaves_tile_the_seed() {
     let doc = slab(1.0);
     let seed = RangeSeed { lo: -1.05, hi: 0.5 };
-    let derived =
-        derive(&doc, &RangeField::Param(name("depth")), seed, tol()).expect("the parameter boxes");
+    let derived = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol())
+        .expect("the parameter boxes");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
     let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &budget(24, 512), tol())
         .expect("the nominal builds");
@@ -1070,7 +1185,7 @@ fn the_one_axis_leaves_tile_the_seed() {
         .map(|l| l.box_.clone())
         .chain(verdict.refused().iter().map(|l| l.box_.clone()))
         .map(|b| {
-            let varying: Vec<_> = b.varying().map(|(n, lo, hi)| (n.clone(), lo, hi)).collect();
+            let varying: Vec<_> = b.varying().collect();
             assert_eq!(varying.len(), 1, "a one-axis drive varies one axis");
             assert_eq!(varying[0].0, derived.axis);
             (varying[0].1, varying[0].2)

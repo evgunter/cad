@@ -51,11 +51,17 @@ use sweep::ExtrudeSide;
 use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    topo::union(&a, &b, tol).expect_err("this family has no join arm")
 }
 
 /// Asserts that the refusal of the direct pose and of its re-posed twin
@@ -323,5 +329,36 @@ fn the_fenced_poses_keep_their_own_doors() {
         &e,
         &union_err(&repose(&a), &repose(&parallel)),
         "parallel-equal-r",
+    );
+}
+
+/// **`same_door` matches an undeclared coincidence arm for arm.** A
+/// margin just inside the zero band and one just past it into the
+/// ambiguity band lie closer than a band-width, yet one was decided
+/// zero and the other refused in band: two doors. Two margins inside
+/// the zero band are one.
+#[test]
+fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
+    let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+    let refusal = |m: f64| BooleanError::UndeclaredCoincidence {
+        diag: geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(m * band.zero()),
+            band,
+            predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
+        },
+        pair: [
+            (topo::Operand::A, topo::FaceKey::default()),
+            (topo::Operand::B, topo::FaceKey::default()),
+        ],
+        relation: topo::PlaneRelation::SameOpposite,
+    };
+    assert!(
+        !same_door(&refusal(0.9), &refusal(1.1)),
+        "a decided zero and an in-band margin are two doors"
+    );
+    assert!(
+        same_door(&refusal(0.9), &refusal(0.2)),
+        "two decided zeros a band-width apart at most are one door"
     );
 }

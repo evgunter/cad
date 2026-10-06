@@ -16,16 +16,16 @@ use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::Body;
+use topo::AtRestBody;
 
-fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
+fn cyl(r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(
+    let cyl = extrude(
         &profile,
         Extrusion::Distance {
             depth: z1 - z0,
@@ -34,7 +34,8 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
         tol,
     )
     .unwrap()
-    .body
+    .body;
+    finished("the cylinder", cyl, tol)
 }
 
 /// **The wrong answer this substrate closes.** A box driven up through
@@ -59,7 +60,11 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
 fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
+    let b = finished(
+        "the box",
+        brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
+        tol,
+    );
     let out = match topo::union(&a, &b, tol) {
         Ok(topo::BooleanResult::Body(out)) => out.body,
         other => panic!("the box-through-cap union answers one solid, got {other:?}"),
@@ -82,7 +87,11 @@ fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
 fn a_crossing_outside_the_disc_mints_no_event() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = brick((1.05, 2.0), (-0.5, 0.5), (1.0, 3.0), tol);
+    let b = finished(
+        "the box",
+        brick((1.05, 2.0), (-0.5, 0.5), (1.0, 3.0), tol),
+        tol,
+    );
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("no crossing to route")
     else {
         panic!("two clear solids union into a two-shell body");
@@ -103,7 +112,11 @@ fn a_crossing_outside_the_disc_mints_no_event() {
 fn a_box_buried_in_a_cylinder_unions_to_the_cylinder() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (0.5, 1.5), tol);
+    let b = finished(
+        "the box",
+        brick((-0.3, 0.3), (-0.3, 0.3), (0.5, 1.5), tol),
+        tol,
+    );
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("containment decides")
     else {
         panic!("a buried box unions into one solid");
@@ -154,7 +167,12 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
         .unwrap()
         .body
     };
-    let boss = brick((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), tol);
+    let plate = finished("the holed plate", plate, tol);
+    let boss = finished(
+        "the boss",
+        brick((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), tol),
+        tol,
+    );
     let topo::BooleanResult::Body(out) =
         topo::union(&plate, &boss, tol).expect("the hole is empty; nothing to route")
     else {

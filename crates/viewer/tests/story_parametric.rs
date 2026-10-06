@@ -6,8 +6,9 @@
 //! moving those numbers rather than by touching geometry again.
 //!
 //! The walk covers the whole parametric surface as one continuous
-//! session: the create/replace param partition (`CreateParam` refuses
-//! an existing name typed, `SetParam` refuses an absent one),
+//! session: the create/replace param partition (`DeclareVar` refuses
+//! a taken name, `SetParam` refuses an absent variable — both in the
+//! edit door's words),
 //! expressions driving slots (`SetSlotExpression`) and the ratified
 //! refuse-with-affordance on a numeric write to a driven slot, display
 //! units as a separate door from values (`SetSlotUnit`), slider
@@ -33,8 +34,8 @@ use core::f64::consts::PI;
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, EditError, ParamName, ProfileProgram,
-    RecipeNodeId, SlotId, StepArg,
+    Axis3, BooleanOp, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId,
+    SlotId, StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
@@ -109,12 +110,17 @@ fn radius_slot(doc: &Doc<ProfileProgram>, profile: RecipeNodeId) -> SlotId {
 }
 
 /// A declared parameter's stored value.
-fn param_of(doc: &Doc<ProfileProgram>, name: &ParamName) -> SlotValue {
+fn param_of(doc: &Doc<ProfileProgram>, name: &VarName) -> SlotValue {
     props::param_rows(doc)
         .into_iter()
-        .find(|row| row.name == *name)
+        .find(|row| row.label.name() == Some(name))
         .expect("the parameter is declared")
         .value
+}
+
+/// The variable `doc` names `name`, as the document speaks it.
+fn spoken(doc: &Doc<ProfileProgram>, name: &VarName) -> pncad::document::SpokenVar {
+    doc.spoken_var(common::var_of(doc, name.as_str()))
 }
 
 /// One drum: a circle profile on world XY driven by `radius_expr`,
@@ -168,26 +174,26 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), 1, "a fresh history: root only");
 
     // ── 2. The user declares the proportions FIRST — four parameters,
-    // each one committed `SetDocParam` edit and one undo step.
-    let base_r = ParamName::from_static("base_r");
-    let taper = ParamName::from_static("taper");
-    let height = ParamName::from_static("height");
-    let embed = ParamName::from_static("embed");
+    // each one committed `DeclareVar` edit and one undo step.
+    let base_r = VarName::from_static("base_r");
+    let taper = VarName::from_static("taper");
+    let height = VarName::from_static("height");
+    let embed = VarName::from_static("embed");
     for (name, param) in [
-        (&base_r, DocParam::continuous(Dimension::Length, BASE_R)),
-        (&taper, DocParam::continuous(Dimension::Scalar, TAPER)),
-        (&height, DocParam::continuous(Dimension::Length, HEIGHT)),
-        (&embed, DocParam::continuous(Dimension::Length, EMBED)),
+        (&base_r, FreeVar::continuous(Dimension::Length, BASE_R)),
+        (&taper, FreeVar::continuous(Dimension::Scalar, TAPER)),
+        (&height, FreeVar::continuous(Dimension::Length, HEIGHT)),
+        (&embed, FreeVar::continuous(Dimension::Length, EMBED)),
     ] {
         let before = session.history().len();
-        let outcome = session.perform(SessionOp::CreateParam {
+        let outcome = session.perform(SessionOp::DeclareVar {
             name: name.clone(),
             value: param,
         });
         assert!(outcome.refusal.is_none(), "{name:?}: {:?}", outcome.refusal);
         assert_eq!(outcome.committed.len(), 1);
         assert!(
-            matches!(outcome.committed.first(), Some(DocEdit::SetDocParam { .. })),
+            matches!(outcome.committed.first(), Some(DocEdit::DeclareVar { .. })),
             "the create door authors a declaration"
         );
         assert_eq!(session.history().len(), before + 1, "one undo step");
@@ -198,45 +204,52 @@ fn the_parametric_living_walk() {
         SlotValue::Continuous(TAPER)
     );
 
-    // ── 3. The two doors partition the edit's semantics, typed.
-    // Create over a declared name refuses `ParamExists` carrying what
-    // already stands there — a layer-3 narrowing of an edit that is
-    // create-or-replace, so no door below refuses it. A value write to
-    // an undeclared name — here a typo — is refused by the EDIT door
-    // instead: `DocEdit::SetDocParamValue` carries an existing
-    // declaration forward and says so, `EditError::DocParamNotDeclared`
-    // naming the parameter and the one recourse both doors render
-    // (`editor_core::edit::UNDECLARED_PARAM_RECOURSE`).
+    // ── 3. The two doors partition the edit's semantics, typed, and
+    // both refusals are the edit door's own, forwarded through
+    // `Refusal::Edit`. Create over a declared name is refused by the
+    // declare (`VarNameTaken`, naming the variable holding it). A
+    // value write to a variable the document does not hold is refused
+    // by `DocEdit::SetVarValue`, which carries an existing
+    // declaration forward and says so: `EditError::UnknownVar`, naming
+    // the variable and the one recourse both doors render
+    // (`editor_core::edit::UNKNOWN_VAR_RECOURSE`).
     // Neither commits or mints history.
     let before = session.history().len();
-    let outcome = session.perform(SessionOp::CreateParam {
+    let taper_var = common::var_of(session.committed_doc(), taper.as_str());
+    let outcome = session.perform(SessionOp::DeclareVar {
         name: taper.clone(),
-        value: DocParam::continuous(Dimension::Length, 1.0),
+        value: FreeVar::continuous(Dimension::Length, 1.0),
     });
     match outcome.refusal {
-        Some(Refusal::ParamExists {
-            ref name,
-            dimension,
-        }) => {
-            assert_eq!(name, &taper);
-            assert_eq!(
-                dimension,
-                Dimension::Scalar,
-                "the payload carries the EXISTING declaration's dimension"
-            );
-        }
-        ref other => panic!("expected ParamExists, got {other:?}"),
+        Some(Refusal::Edit(ref error)) => match **error {
+            EditError::VarNameTaken {
+                ref name,
+                ref holder,
+            } => {
+                assert_eq!(name, &taper);
+                assert_eq!(
+                    holder.id(),
+                    taper_var,
+                    "the holder is the standing variable"
+                );
+            }
+            ref other => panic!("expected VarNameTaken, got {other:?}"),
+        },
+        ref other => panic!("expected the declare door's refusal, got {other:?}"),
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
+    let absent = pncad::document::VarId(0x7461_7070_6572);
     let outcome = session.perform(SessionOp::SetParam {
-        name: ParamName::from_static("tapper"),
+        var: absent,
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
         Some(Refusal::Edit(ref error)) => match **error {
-            // The door rides along now; this row is about the NAME.
-            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.as_str(), "tapper"),
-            ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
+            // The door rides along; this row is about the ADDRESS.
+            EditError::UnknownVar { ref var, .. } => {
+                assert_eq!(*var, absent.into());
+            }
+            ref other => panic!("expected UnknownVar, got {other:?}"),
         },
         ref other => panic!("expected the edit door's refusal, got {other:?}"),
     }
@@ -260,7 +273,7 @@ fn the_parametric_living_walk() {
     assert_eq!(
         radius_row.driver,
         SlotDriver::Expression {
-            params: vec![base_r.clone()]
+            params: vec![spoken(session.committed_doc(), &base_r)]
         },
         "the radius names its driving parameter"
     );
@@ -414,7 +427,11 @@ fn the_parametric_living_walk() {
         }) => {
             assert_eq!(node, tower);
             assert_eq!(slot, SlotId::Distance);
-            assert_eq!(params, &vec![height.clone()], "the affordance's target");
+            assert_eq!(
+                params,
+                &vec![spoken(session.committed_doc(), &height)],
+                "the affordance's target"
+            );
             assert_eq!(
                 current,
                 Some(SlotValue::Continuous(HEIGHT * 2.0)),
@@ -446,7 +463,11 @@ fn the_parametric_living_walk() {
     });
     match outcome.refusal {
         Some(Refusal::DrivenByExpression { ref params, .. }) => {
-            assert_eq!(params, &vec![height.clone()], "probe THAT instead");
+            assert_eq!(
+                params,
+                &vec![spoken(session.committed_doc(), &height)],
+                "probe THAT instead"
+            );
         }
         ref other => panic!("expected the driven refusal on the probe, got {other:?}"),
     }
@@ -456,14 +477,14 @@ fn the_parametric_living_walk() {
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: ParamName::from_static("tapper"),
+            var: pncad::document::VarId(0x7461_7070_6572),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     let before = session.history().len();
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: taper.clone(),
+            var: common::var_of(session.committed_doc(), taper.as_str()),
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -474,7 +495,7 @@ fn the_parametric_living_walk() {
     assert_eq!(
         reading.target,
         BoundsTarget::Param {
-            name: taper.clone()
+            var: common::var_of(session.committed_doc(), taper.as_str())
         }
     );
     assert_eq!(bounds.origin, TAPER, "searched from where the field is");
@@ -505,13 +526,13 @@ fn the_parametric_living_walk() {
     // one undo restores the old geometry exactly; redo returns.
     let v_before = body_volume(&mut session, lighthouse, tol);
     let outcome = session.perform(SessionOp::SetParam {
-        name: taper.clone(),
+        var: common::var_of(session.committed_doc(), taper.as_str()),
         value: SlotValue::Continuous(0.7),
     });
     assert_eq!(outcome.committed.len(), 1);
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert!(
         session.bounds().is_none(),
@@ -629,19 +650,19 @@ fn the_parametric_living_walk() {
     // spot, and the same gesture machinery through its own door. Mid-
     // drag the preview drives the EVALUATION (the picture follows the
     // scratch document), the document is locked against other edits,
-    // and the release commits one `SetDocParamValue`.
+    // and the release commits one `SetVarValue`.
     let before = session.history().len();
     assert!(
         session
             .perform(SessionOp::BeginParamGesture {
-                name: height.clone()
+                var: common::var_of(session.committed_doc(), height.as_str())
             })
             .refusal
             .is_none()
     );
     for value in [0.032, 0.04, 0.036] {
         let outcome = session.perform(SessionOp::PreviewParamGesture {
-            name: height.clone(),
+            var: common::var_of(session.committed_doc(), height.as_str()),
             value,
         });
         assert!(outcome.committed.is_empty());
@@ -667,7 +688,7 @@ fn the_parametric_living_walk() {
         matches!(
             session
                 .perform(SessionOp::SetParam {
-                    name: embed.clone(),
+                    var: common::var_of(session.committed_doc(), embed.as_str()),
                     value: SlotValue::Continuous(0.004),
                 })
                 .refusal,
@@ -676,12 +697,12 @@ fn the_parametric_living_walk() {
         "other edits refuse typed while the drag holds the document"
     );
     let outcome = session.perform(SessionOp::CommitParamGesture {
-        name: height.clone(),
+        var: common::var_of(session.committed_doc(), height.as_str()),
     });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParamValue { .. })
+        Some(DocEdit::SetVarValue { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
     assert_eq!(
@@ -778,7 +799,7 @@ fn the_parametric_living_walk() {
     assert_eq!(
         distance.driver,
         SlotDriver::Expression {
-            params: vec![height.clone()]
+            params: vec![spoken(session.committed_doc(), &height)]
         },
         "the tower's distance is still height-driven"
     );

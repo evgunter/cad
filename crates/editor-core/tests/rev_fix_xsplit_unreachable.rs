@@ -15,12 +15,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Expr, MateFrame,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Formula, MateFrame,
     MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, content_pin,
     derivation_nodes, split,
 };
@@ -55,11 +56,17 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
     (DocRef { id: doc.id(), pin }, body)
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
+        origin,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
-fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
+fn seat(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -74,7 +81,7 @@ fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     }
 }
 
-fn linear(spacing: f64) -> PatternKind {
+fn linear(spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
         direction: [scl(1.0), scl(0.0), scl(0.0)],
         spacing: len(spacing),
@@ -172,7 +179,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );
@@ -184,7 +191,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: c,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(3.0),
         },
     );
@@ -192,7 +199,7 @@ fn three_shapes() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: pc,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: linear(7.0),
         },
     );
@@ -239,7 +246,7 @@ fn foreign_master() -> ProfileDoc {
         doc,
         Node::Pattern {
             input: a,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: linear(2.0),
         },
     );

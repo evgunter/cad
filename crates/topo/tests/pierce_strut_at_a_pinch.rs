@@ -22,11 +22,11 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanDeclarations, BooleanResult, intersect, intersect_with, subtract, subtract_with,
-    union, union_with, validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanDeclarations, BooleanResult, intersect, intersect_with, subtract,
+    subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
 };
 
 /// An op on the pair.
@@ -99,7 +99,7 @@ fn shape(body: &Body<f64>) -> (Vec<Vec<Point>>, Vec<[Point; 2]>) {
 /// Runs every row on `(x, y)` (`swap` puts `y` first) and asserts the
 /// result's counts, volume, tier-3 validity and tier-3′ verdict, and
 /// that the two orders of a union, and of an intersection, are one body.
-fn every_op(label: &str, x: &Body<f64>, y: &Body<f64>, rows: &[Row]) {
+fn every_op(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, rows: &[Row]) {
     type Shape = (Vec<Vec<Point>>, Vec<[Point; 2]>);
     let mut by_kind: Vec<(Kind, bool, Shape)> = Vec::new();
     for &(name, kind, swap, counts, volume, verdict) in rows {
@@ -148,12 +148,12 @@ fn every_op(label: &str, x: &Body<f64>, y: &Body<f64>, rows: &[Row]) {
     }
 }
 
-fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    brick::<f64>(x, y, z, t())
+fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
+    finished("a brick", brick::<f64>(x, y, z, t()), t())
 }
 
 /// `base` less `cut`, the two flush where they share a plane.
-fn less(base: &Body<f64>, cut: &Body<f64>) -> Body<f64> {
+fn less(base: &AtRestBody<f64>, cut: &AtRestBody<f64>) -> AtRestBody<f64> {
     match subtract_with(base, cut, &flush_declarations(base, cut, t()), t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the cut leaves material"),
@@ -298,8 +298,16 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
         (-1.0, 0.0),
     ];
     let wedge = [(0.0, 0.0), (-0.32, -0.12), (-0.12, -0.32)];
-    let l = common::prism_z::<f64>(&ell, 0.5, 1.5, t()).body;
-    let w = common::prism_z::<f64>(&wedge, 0.5, 1.5, t()).body;
+    let l = finished(
+        "the L",
+        common::prism_z::<f64>(&ell, 0.5, 1.5, t()).body,
+        t(),
+    );
+    let w = finished(
+        "the wedge",
+        common::prism_z::<f64>(&wedge, 0.5, 1.5, t()).body,
+        t(),
+    );
     let pinch = match union_with(&l, &w, &BooleanDeclarations::default(), t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the pinch is two prisms"),
@@ -370,8 +378,8 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
 #[test]
 fn a_pinch_standing_on_a_face_builds_in_every_op() {
     type DeclaredOp = fn(
-        &Body<f64>,
-        &Body<f64>,
+        &AtRestBody<f64>,
+        &AtRestBody<f64>,
         &BooleanDeclarations,
         Tol,
     ) -> Result<BooleanResult<f64>, topo::BooleanError>;

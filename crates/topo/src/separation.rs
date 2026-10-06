@@ -670,10 +670,10 @@ mod owner_index {
     fn solid_owners_and_the_scope_walk_place_every_entity_alike() {
         let (body, solids, lone) = lone_vertices();
         let owners = SolidOwners::of(&body);
-        let whole = Scope::whole(&body).expect("a tier-1 body scopes");
+        let whole = Scope::whole(&body);
         let each: Vec<Scope> = solids
             .iter()
-            .map(|&s| Scope::of_solids(&body, &[s]).expect("a tier-1 body scopes"))
+            .map(|&s| Scope::of_solids(&body, &[s]))
             .collect();
 
         assert_eq!(

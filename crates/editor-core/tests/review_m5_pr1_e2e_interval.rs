@@ -174,15 +174,15 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
 /// and the reason the evaluation pipeline never has to carry a NaN.
 #[test]
 fn a_non_finite_dimension_cannot_enter_the_document() {
-    use editor_core::{Dimension, DimensionError, Expr};
+    use editor_core::{Dimension, DimensionError, Formula};
     for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert_eq!(
-            Expr::literal(bad, Dimension::Length).unwrap_err(),
+            Formula::literal(bad, Dimension::Length).unwrap_err(),
             DimensionError::NonFiniteLiteral,
             "{bad} must be refused as a length literal"
         );
-        assert!(Expr::literal(bad, Dimension::Angle).is_err());
-        assert!(Expr::literal(bad, Dimension::Scalar).is_err());
+        assert!(Formula::literal(bad, Dimension::Angle).is_err());
+        assert!(Formula::literal(bad, Dimension::Scalar).is_err());
     }
 }
 

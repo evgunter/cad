@@ -188,6 +188,33 @@ impl<T: Real> Traversed<T> {
         Self(SegmentKind::Arc { arc, turn })
     }
 
+    /// The run this traversal continues into `next` on one carrier
+    /// (the full revolve's collapsed run, `revolve::full::Collapsed`):
+    /// a line stays a line; an arc keeps ITS centre, radius and turn —
+    /// `next`'s carrier is the same one only within the cosurface
+    /// margin — and its sweep is the two summed (same turn, so same
+    /// sign). The end the summed sweep implies therefore differs from
+    /// the run's stored last endpoint by at most that margin plus
+    /// rounding; the collapsed segment keeps the stored endpoint, and
+    /// certification meters the carrier against it. A pair of
+    /// different kinds is no run: the cosurface verdict never joins
+    /// one.
+    pub(crate) fn continued(self, next: Self) -> Self {
+        Self(match (self.0, next.0) {
+            (SegmentKind::Line, SegmentKind::Line) => SegmentKind::Line,
+            (SegmentKind::Arc { arc, turn }, SegmentKind::Arc { arc: more, .. }) => {
+                SegmentKind::Arc {
+                    arc: Arc2 {
+                        sweep: arc.sweep + more.sweep,
+                        ..arc
+                    },
+                    turn,
+                }
+            }
+            _ => unreachable!("a run never joins a line and an arc"),
+        })
+    }
+
     /// The carrier class, in this traversal's orientation.
     pub(crate) fn get(self) -> SegmentKind<T> {
         self.0
@@ -663,31 +690,85 @@ impl Run {
     }
 }
 
-/// The wall runs of one swept loop, in ascending order of their first
-/// segment, read off the loop's cosurface verdicts: `pair[j]` says
-/// segment `j` continues segment `j − 1`'s carrier (`pair[0]` is the
-/// wrap join), and `walled(j)` whether segment `j` sweeps a wall.
-///
-/// A run joins LINE segments only. Cocircular arcs keep one wall each on
-/// one shared surface key (a curved same-key pair is the maximal-faces
-/// gate's canonical form) until curved runs are built whole
-/// (`work/band/swept-cocircular-arc-runs-build-one-wall.md`). So no run
-/// is the whole closed loop: collinear lines cannot close a simple
-/// profile loop.
-pub(crate) fn wall_runs<T: Real, S: SweptChord<T>>(
+/// How segment `j`'s wall meets segment `j − 1 mod n`'s, by swept
+/// position (`joins[0]` is the wrap join): which joins a run crosses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Join {
+    /// Two carriers, or a side that sweeps no wall: the joint is a
+    /// corner between walls on their own surfaces.
+    Corner,
+    /// One carrier, inside a run: one wall crosses the joint, and the
+    /// station has no strut.
+    Run,
+    /// One carrier, two walls: a strut between walls that share one
+    /// surface key — a circle's canonical cut (C12.5), or the arcs of a
+    /// verb that splits a curved run ([`CurvedRuns::Split`]).
+    Cut,
+}
+
+/// Whether a verb builds a run of cocircular arcs as one wall.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CurvedRuns {
+    /// A run of cocircular arcs is one wall.
+    Whole,
+    /// Each arc keeps its own wall, on the run's one surface key.
+    Split,
+}
+
+/// A loop's [`Join`]s, read off its cosurface verdicts `pair`
+/// ([`cosurface_pairs`], which is false across a side that sweeps no
+/// wall). A one-carrier join is a [`Join::Run`] for lines, and for arcs
+/// where `arcs` is [`CurvedRuns::Whole`]; otherwise a [`Join::Cut`]. A
+/// loop whose every join continues one carrier is a circle cut into
+/// arcs — collinear lines cannot close a simple loop — and it keeps its
+/// canonical cut (C12.5): every join a `Cut`.
+pub(crate) fn joins<T: Real, S: SweptChord<T>>(
     segs: &[S],
     pair: &[bool],
-    walled: impl Fn(usize) -> bool,
-) -> Vec<Run> {
-    let n = segs.len();
+    arcs: CurvedRuns,
+) -> Vec<Join> {
     let is_line = |j: usize| matches!(segs[j].kind().get(), SegmentKind::Line);
-    let joined = |j: usize| {
-        let p = (j + n - 1) % n;
-        pair[j] && walled(p) && walled(j) && is_line(p) && is_line(j)
-    };
-    let starts: Vec<usize> = (0..n).filter(|&j| !joined(j)).collect();
-    if starts.is_empty() {
-        unreachable!("a run of collinear lines closes the whole loop, which validation refuses");
+    if pair.iter().all(|&p| p) {
+        // A cosurface pair never mixes kinds, so the loop is all lines
+        // or all arcs.
+        if is_line(0) {
+            unreachable!(
+                "a run of collinear lines closes the whole loop, which validation refuses"
+            );
+        }
+        return vec![Join::Cut; pair.len()];
+    }
+    (0..pair.len())
+        .map(|j| match (pair[j], arcs) {
+            (false, _) => Join::Corner,
+            (true, CurvedRuns::Whole) => Join::Run,
+            (true, CurvedRuns::Split) if is_line(j) => Join::Run,
+            (true, CurvedRuns::Split) => Join::Cut,
+        })
+        .collect()
+}
+
+/// The wall runs of one swept loop, in ascending order of their first
+/// segment: a run starts at every join that is not a [`Join::Run`]
+/// (crate README, "Walls: one per run").
+///
+/// No run is the whole loop. That needs every join but one to continue
+/// one carrier while the last does not, and the carrier closes through
+/// it: a circle's arcs all lie on it, a line's collinear pieces cannot
+/// close. The verdicts at the joins only part from the geometry inside
+/// the cosurface band, and profile validation escalates a carrier pair
+/// that near-coincides before any sweep sees it, so such a loop is a
+/// kernel defect, refused here rather than built as one full-period
+/// wall with one strut.
+pub(crate) fn wall_runs(joins: &[Join]) -> Vec<Run> {
+    let n = joins.len();
+    let starts: Vec<usize> = (0..n).filter(|&j| joins[j] != Join::Run).collect();
+    if starts.len() == 1 {
+        unreachable!(
+            "joint {} is the loop's one corner and every other joint continues one carrier: \
+             profile validation escalates the carrier pair this needs",
+            starts[0]
+        );
     }
     starts
         .iter()
@@ -739,25 +820,25 @@ pub(crate) fn run_leads(runs: &[Run], n: usize) -> Vec<bool> {
     lead
 }
 
-/// The wall whose SURFACE KEY segment `j`'s wall shares, when `j`
-/// leads a run that continues an earlier wall's carrier: `pair[j]`
-/// shares the previous wall's key, and a run reaching `origin` (the
-/// first run's lead) through the wrap shares the first wall's key. The
-/// first run (rank 0) shares nothing. `faces` holds the walls minted so
-/// far, by swept position.
+/// The wall whose SURFACE KEY the wall leading at `j` shares, across a
+/// [`Join::Cut`]: the previous wall's, and for a chain of cuts reaching
+/// `origin` (the first run's lead) through the wrap, the first wall's.
+/// The first run shares nothing. `faces` holds the walls minted so far,
+/// by swept position.
 pub(crate) fn shared_wall(
-    pair: &[bool],
+    joins: &[Join],
     faces: &[Option<FaceKey>],
     j: usize,
     origin: usize,
 ) -> Option<FaceKey> {
-    let n = pair.len();
+    let n = joins.len();
+    let cut = |k: usize| joins[k] == Join::Cut;
     let rank = |k: usize| (k + n - origin) % n;
     if rank(j) == 0 {
         None
-    } else if pair[j] {
+    } else if cut(j) {
         faces[(j + n - 1) % n]
-    } else if pair[origin] && ((rank(j) + 1)..n).all(|r| pair[(origin + r) % n]) {
+    } else if cut(origin) && ((rank(j) + 1)..n).all(|r| cut((origin + r) % n)) {
         faces[origin]
     } else {
         None
@@ -836,19 +917,21 @@ pub(crate) fn build_run_walls<T: Decide + topo::AtRestPolicy, E: From<EulerOpErr
     Ok(RunWalls { faces, tops })
 }
 
-/// Resolves a face's surface key (total: a stale key surfaces as the
-/// operator-layer typed error, which every sweep verb's error enum
-/// absorbs through its `From<EulerOpError>`).
-pub(crate) fn face_surface_key<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<SurfaceKey, EulerOpError> {
-    Ok(body
-        .get_face(face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(face),
-        })?
-        .surface)
+/// The surface key of `face`, a face the calling driver minted.
+///
+/// # Panics
+///
+/// If `face` is not live: every caller passes a face its own driver
+/// minted and never killed, so a miss is a kernel bug.
+#[track_caller]
+pub(crate) fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> SurfaceKey {
+    body.get_face(face)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "face {face:?} was minted by this driver and no step kills it before this read"
+            )
+        })
+        .surface
 }
 
 /// Every edge of `face` still described through the **scaffolding
@@ -875,27 +958,41 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     face: FaceKey,
     tol: Tol,
 ) -> Result<(), EulerOpError> {
-    let chart = face_surface_key(body, face)?;
-    let stale = || EulerOpError::StaleKey {
-        key: topo::EntityId::Face(face),
-    };
-    let face_data = body.get_face(face).ok_or_else(stale)?.clone();
+    let chart = face_surface_key(body, face);
+    let face_data = body
+        .get_face(face)
+        .unwrap_or_else(|| unreachable!("face {face:?} resolved just above"))
+        .clone();
     let mut edges: Vec<topo::EdgeKey> = Vec::new();
     for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
-        let topo::LoopBoundary::Cycle { first } = body.get_loop(*lk).ok_or_else(stale)?.boundary
+        let topo::LoopBoundary::Cycle { first } = body
+            .get_loop(*lk)
+            .unwrap_or_else(|| {
+                unreachable!("loop {lk:?} is listed by live face {face:?} on a tier-1-valid body")
+            })
+            .boundary
         else {
             continue;
         };
-        for he in body.loop_cycle(first).ok_or_else(stale)? {
-            edges.push(body.get_half_edge(he).ok_or_else(stale)?.edge);
+        let cycle = body.loop_cycle(first).unwrap_or_else(|| {
+            unreachable!("loop {lk:?}'s cycle from {first:?} closes on a tier-1-valid body")
+        });
+        for he in cycle {
+            edges.push(
+                body.get_half_edge(he)
+                    .unwrap_or_else(|| {
+                        unreachable!("half-edge {he:?} is on loop {lk:?}'s closed cycle")
+                    })
+                    .edge,
+            );
         }
     }
     for edge in edges {
         let curve_key = body
             .get_edge(edge)
-            .ok_or(EulerOpError::StaleKey {
-                key: topo::EntityId::Edge(edge),
-            })?
+            .unwrap_or_else(|| {
+                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
+            })
             .curve;
         let scaffolded = body
             .get_curve_geom(curve_key)
@@ -916,6 +1013,34 @@ mod tests {
     use super::*;
     use geom_core::sym::{session_counts, with_session};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
+
+    /// A run starts at every join that is not [`Join::Run`]; a loop of
+    /// cuts is one run per segment.
+    #[test]
+    fn runs_start_at_every_join_a_run_does_not_cross() {
+        use Join::{Corner, Cut, Run as R};
+        let runs = |j: &[Join]| {
+            wall_runs(j)
+                .iter()
+                .map(|r| (r.first, r.len))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(runs(&[Corner, R, Corner, R]), vec![(0, 2), (2, 2)]);
+        assert_eq!(
+            runs(&[R, Corner, Cut, R]),
+            vec![(1, 1), (2, 3)],
+            "a run wraps the start"
+        );
+        assert_eq!(runs(&[Cut, Cut, Cut]), vec![(0, 1), (1, 1), (2, 1)]);
+    }
+
+    /// One corner and every other join a run would be one full-period
+    /// wall with one strut; it is a kernel defect and panics.
+    #[test]
+    #[should_panic(expected = "the loop's one corner")]
+    fn a_loop_with_one_corner_is_refused() {
+        wall_runs(&[Join::Run, Join::Corner, Join::Run]);
+    }
 
     /// **The cap apex stays at the chord's scale at `Interval`.** Over
     /// the shallow-arc grid (chord `L` ∈ {1e-3, 1, 50}, bulge down to
@@ -991,7 +1116,10 @@ mod tests {
                     // A clockwise arc bowing up off the top of a unit
                     // square, over a bulge box wide enough that the
                     // numeric channel cannot decide the rim.
-                    let b = S::param(ParamSymbol::of("b"), Interval::from_bounds(-0.55, -0.45));
+                    let b = S::param(
+                        ParamSymbol::new(test_utils::symbol_id("b")),
+                        Interval::from_bounds(-0.55, -0.45),
+                    );
                     let closed = Open
                         .at(Point2::new(lit(0.0), lit(0.0)))
                         .arc_to(
@@ -1268,7 +1396,8 @@ mod tests {
         for (name, negative, reversed, turn) in cases {
             let at = |b: f64| if negative { -b } else { b };
             let (rows, counts) = with_session(budget(), || {
-                let b = Sym::<f64>::param(ParamSymbol::of("bulge"), at(0.7));
+                let b =
+                    Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("bulge")), at(0.7));
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });
@@ -1283,8 +1412,10 @@ mod tests {
                 (0.63, 0.77)
             };
             let (rows, counts) = with_session(budget(), || {
-                let b =
-                    Sym::<Interval>::param(ParamSymbol::of("bulge"), Interval::from_bounds(lo, hi));
+                let b = Sym::<Interval>::param(
+                    ParamSymbol::new(test_utils::symbol_id("bulge")),
+                    Interval::from_bounds(lo, hi),
+                );
                 let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });

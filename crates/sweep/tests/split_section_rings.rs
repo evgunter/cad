@@ -20,7 +20,7 @@ use crate::common::bores::{
 };
 use crate::common::cavity::{brick, cut, prism, rod};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use sweep::test_support::bored_cylinder;
+use sweep::test_support::{bored_cylinder, finished};
 use topo::splitting::{SplitError, SplitPlane, split};
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{Body, mass_properties};
@@ -277,8 +277,16 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
 #[test]
 fn a_hole_in_an_island_in_a_hole_goes_to_the_island() {
     let block = brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 4.0));
-    let grooved = cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0));
-    let island = rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5);
+    let grooved = finished(
+        "the grooved block",
+        cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0)),
+        tol(),
+    );
+    let island = finished(
+        "the island",
+        rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5),
+        tol(),
+    );
     let islanded = match topo::union(&grooved, &island, tol()) {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the island unites: {:?}", other.err()),
@@ -395,6 +403,7 @@ fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     for d in [0.0, 26.0, -26.0, 30.0, -30.0].map(|k| k * eps * t.sin()) {
         let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), d);
         let posed = topo::transform_rigid(&body, &map, tol()).unwrap();
+        let posed = sweep::test_support::finished("the posed", posed, tol());
         for flip in [true, false] {
             let what = format!("lean {d:e}, flipped {flip}");
             let plane = tilted(1.25, t, flip);
@@ -626,7 +635,12 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
             let plane =
                 topo::test_support::split_plane(o, n.normalize(), geom_core::Tol::witness());
             let what = format!("{name}, plane through {o:?}");
-            let r = split(body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let r = split(
+                &sweep::test_support::finished("the operand", body.clone(), tol()),
+                &plane,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: {e:?}"));
             let below_want = 4.0 * (4.0 - 2.0 * tilt);
             for (part, want, side) in [
                 (&r.below, below_want, "below"),
@@ -663,7 +677,11 @@ fn a_plane_touching_a_pockets_tip_splits_exactly() {
     let diamond = [(2.0, 1.0), (3.0, 2.0), (2.0, 3.0), (1.0, 2.0)].map(|(x, y)| Point2::new(x, y));
     // The diamond's area is 2: a pocket one deep, a hole two.
     for (z0, label, cut_volume, ring) in [(1.0, "pocket", 2.0, 0), (-1.0, "hole", 4.0, 1)] {
-        let body = cut(label, &block, &prism(&diamond, z0, 3.0));
+        let body = sweep::test_support::finished(
+            "the cut body",
+            cut(label, &block, &prism(&diamond, z0, 3.0)),
+            tol(),
+        );
         let rest = 32.0 - cut_volume - 5.6;
         for (tip, n, below_want) in [
             (3.0, Vec3::new(1.0, 0.0, 0.3), rest),
@@ -721,6 +739,7 @@ fn twice_area(polygon: &topo::SectionPolygon<f64>) -> f64 {
 #[test]
 fn plane_section_of_the_u_cutter_is_one_region_with_two_holes() {
     let body = u_cut();
+    let body = sweep::test_support::finished("the body", body, tol());
     for x in [3.0, 3.9] {
         let s = topo::plane_section(&body, &at_x(x), tol()).unwrap();
         assert_eq!(s.regions.len(), 1, "x = {x}: one region");
@@ -774,7 +793,12 @@ fn plane_section_of_a_bored_body_is_one_region_with_the_bore_its_hole() {
         ),
     ];
     for (what, body, (cx, cy, r), plane) in cases {
-        let s = topo::plane_section(&body, &plane, tol()).unwrap();
+        let s = topo::plane_section(
+            &sweep::test_support::finished("the operand", body.clone(), tol()),
+            &plane,
+            tol(),
+        )
+        .unwrap();
         assert_eq!(s.regions.len(), 1, "{what}: one region");
         let region = &s.regions[0];
         assert_eq!(region.holes.len(), 1, "{what}: the bore is the one hole");
@@ -800,8 +824,16 @@ fn plane_section_of_a_bored_body_is_one_region_with_the_bore_its_hole() {
 #[test]
 fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
     let block = brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 4.0));
-    let grooved = cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0));
-    let island = rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5);
+    let grooved = finished(
+        "the grooved block",
+        cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0)),
+        tol(),
+    );
+    let island = finished(
+        "the island",
+        rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5),
+        tol(),
+    );
     let islanded = match topo::union(&grooved, &island, tol()) {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the island unites: {:?}", other.err()),
@@ -811,6 +843,7 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
         &islanded,
         &rod(Point2::new(0.0, 0.0), 0.5, -1.0, 5.0),
     );
+    let body = sweep::test_support::finished("the body", body, tol());
     let s = topo::plane_section(&body, &tilted(2.0, 0.0, false), tol()).unwrap();
     let radius = |p: &Point3<f64>| p.x.hypot(p.y);
     let mut regions: Vec<(usize, Vec<f64>)> = s
@@ -845,6 +878,7 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
 #[test]
 fn plane_section_of_the_steep_cut_through_both_seams_is_one_region() {
     let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol());
     for flip in [false, true] {
         let s = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol())
             .unwrap_or_else(|e| panic!("flipped {flip}: {e:?}"));
@@ -886,7 +920,12 @@ fn plane_section_areas_read_the_arcs() {
     ];
     for (what, body, t, outline, r) in cases {
         let z = if what.starts_with("brick") { 1.25 } else { 0.5 };
-        let s = topo::plane_section(&body, &tilted(z, t, false), tol()).unwrap();
+        let s = topo::plane_section(
+            &sweep::test_support::finished("the operand", body.clone(), tol()),
+            &tilted(z, t, false),
+            tol(),
+        )
+        .unwrap();
         assert_eq!(s.regions.len(), 1, "{what}: one region");
         let region = &s.regions[0];
         assert_eq!(region.holes.len(), 1, "{what}: one hole");
@@ -949,6 +988,7 @@ fn plane_section_area_of_the_steep_cut_reads_segments_and_arcs() {
     let a = 1.25 / t.tan();
     let want = 2.0 * (a * (1.0 - a * a).sqrt() + a.asin()) / t.cos();
     let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, tol());
     for flip in [false, true] {
         let s = topo::plane_section(&cylinder, &tilted(1.25, t, flip), tol()).unwrap();
         let [region] = &s.regions[..] else {
@@ -997,6 +1037,7 @@ fn plane_section_areas_enclose_the_closed_form_at_interval() {
         iv(1.0),
         tol(),
     );
+    let body = sweep::test_support::finished("the body", body, tol());
     let plane = topo::test_support::split_plane(
         p3(0.0, 0.0, 0.5),
         v3(t.sin(), 0.0, t.cos()),
@@ -1051,6 +1092,7 @@ fn tilted_cut_of_a_d_prism<T: geom_core::Decide + topo::AtRestPolicy>() -> (T, u
         T::from_f64(1.0),
         tol(),
     );
+    let prism = sweep::test_support::finished("the prism", prism, tol());
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.5).map(T::from_f64),
         Vec3::new(t.sin(), 0.0, t.cos()).map(T::from_f64),
@@ -1104,4 +1146,135 @@ fn plane_section_area_of_an_uncancelled_arc_at_f64_and_interval() {
         got.lo(),
         got.hi()
     );
+}
+
+/// Each ellipse edge of `half` as its carrier and parameter window,
+/// written out bit for bit.
+fn ellipse_arcs(half: &Body<f64>) -> Vec<(String, (f64, f64), Option<String>)> {
+    half.edges()
+        .filter_map(|(_, e)| half.get_curve_geom(e.curve)?.certified())
+        .filter(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))
+        .map(|c| {
+            let back = c.carrier().reversed().map(|r| format!("{r:?}"));
+            (format!("{:?}", c.carrier()), c.params(), back)
+        })
+        .collect()
+}
+
+/// **A section segment across a ringed wall is one curve on both
+/// sides.** The drum of radius 1 about the y axis, pocketed by the bar
+/// `[−0.3, 0.3]² × [0.5, 2]` through its wall at `+z`: the wall's band
+/// there carries the pocket's mouth as a ring. A tilted plane crosses
+/// that band from seam to mouth and from mouth to seam, so the join
+/// reaches the ring across loops (`mekr`) on a cylinder face: the
+/// section passes through the mouth, and neither half's wall keeps a
+/// ring. Each of the section's wall arcs the below half keeps is, bit
+/// for bit, the arc the above half keeps run back: the two chords of
+/// one segment are minted on the one curve its join computed. The
+/// halves hold the drum less the pocket, `∫√(1 − x²) − ½` over the
+/// bar's section, within their certified volume pads — a check on the
+/// halves, not on the chords: a second chord decided apart from the
+/// first misses it by far less than the pads.
+#[test]
+fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
+    use core::f64::consts::PI;
+    let drum = finished(
+        "the drum",
+        sweep::test_support::revolved_about_y(
+            vec![
+                (Point2::new(0.0, -1.0), 0.0),
+                (Point2::new(1.0, -1.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ],
+            sweep::Revolution::Full,
+            tol(),
+        ),
+        tol(),
+    );
+    let half = 0.3;
+    let bar = finished(
+        "the bar",
+        topo::test_support::brick::<f64>((-half, half), (-half, half), (0.5, 2.0), tol()),
+        tol(),
+    );
+    let body = topo::boolean::subtract(&drum, &bar, tol())
+        .unwrap()
+        .body()
+        .expect("the pocketed drum holds material")
+        .body
+        .clone();
+    let ringed_walls = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .filter(|(_, f)| !f.rings.is_empty())
+        .count();
+    assert_eq!(
+        ringed_walls, 1,
+        "the pocket's mouth is a ring of one wall band"
+    );
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.1, 0.0),
+        Vec3::new(0.2, 1.0, 0.1),
+        tol(),
+    );
+    let [below, above] = halves_at_rest("the pocketed drum", &body, &plane);
+    for (side, h) in [("below", &below), ("above", &above)] {
+        let ringed = h
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    h.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { .. })
+                ) && !f.rings.is_empty()
+            })
+            .count();
+        assert_eq!(
+            ringed, 0,
+            "{side}: the join took the mouth into a wall's outer loop"
+        );
+        let on_mouth = h
+            .vertices()
+            .filter_map(|(_, v)| h.get_point(v.point))
+            .filter(|p| {
+                ((p.x.abs() - half).abs() < 1e-9)
+                    && (p.x * p.x + p.z * p.z - 1.0).abs() < 1e-9
+                    && (**p - plane.origin).dot(plane.normal.get()).abs() < 1e-9
+            })
+            .count();
+        assert_eq!(
+            on_mouth, 2,
+            "{side}: the section crosses the mouth's two rulings"
+        );
+    }
+    let pocket =
+        2.0 * half * ((half * (1.0 - half * half).sqrt() + half.asin()) - 2.0 * half * 0.5);
+    let [pb, pa] = [&below, &above].map(|h| mass_properties(h, tol()).unwrap());
+    let total = pb.volume + pa.volume;
+    assert!(
+        (total - (2.0 * PI - pocket)).abs() <= pb.volume_pad + pa.volume_pad,
+        "the halves hold {total} ± {}, the drum less the pocket {}",
+        pb.volume_pad + pa.volume_pad,
+        2.0 * PI - pocket
+    );
+    let (lower, upper) = (ellipse_arcs(&below), ellipse_arcs(&above));
+    assert_eq!(
+        (lower.len(), upper.len()),
+        (3, 3),
+        "the section crosses the wall in three arcs: seam to seam, seam to mouth, mouth to seam"
+    );
+    for (carrier, (t0, t1), back) in &lower {
+        let back = back.as_ref().expect("an ellipse runs back");
+        assert!(
+            upper.iter().any(|(c, (s0, s1), _)| c == back
+                && s0.to_bits() == (-t1).to_bits()
+                && s1.to_bits() == (-t0).to_bits()),
+            "the below arc {carrier} on [{t0}, {t1}] has no above arc that is it run back: {upper:?}"
+        );
+    }
 }

@@ -758,17 +758,11 @@ fn adjacent_surface(
         })
 }
 
-/// An edge's two sides, each lookup's miss named as the tessellator
-/// names it.
+/// An edge's two sides, the edge's miss named as the tessellator names
+/// it.
 fn sides_of(body: &Body<f64>, ek: EdgeKey) -> Result<topo::EdgeSides, TessellateError> {
-    topo::readback::edge_sides(body, ek).map_err(|what| TessellateError::MissingEntity {
-        what: match what {
-            topo::DanglingRef::Entity(topo::EntityId::Edge(_)) => "edge",
-            topo::DanglingRef::Entity(topo::EntityId::HalfEdge(_)) => "half-edge",
-            topo::DanglingRef::Entity(topo::EntityId::Loop(_)) => "parent loop",
-            _ => "face",
-        },
-    })
+    topo::readback::edge_sides(body, ek)
+        .map_err(|_| TessellateError::MissingEntity { what: "edge" })
 }
 
 /// The (≤ 2 distinct) faces adjacent to an edge.

@@ -57,148 +57,243 @@
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::doc::ParamName;
-use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
+use crate::doc::VarName;
+use crate::expr::{AuthoredLeaf, Dimension, DimensionError, Expr, ExprKind, Slot};
+use crate::formula::Formula;
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
 
 use super::nesting::Child;
 
-/// The persisted expression tree (spec D1: the recipe is the save; an
-/// expression is its constructor calls).
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) enum WireExpr {
-    /// A continuous literal with its dimension and (optionally) the
-    /// display unit it was authored in (LIB-SWITCH §4g — presentation
-    /// metadata; the value stays canonical meters/radians).
-    Literal {
-        /// The exact value (D2: bit-exact round-trip), canonical units.
-        value: f64,
-        /// The literal's dimension.
-        dim: Dimension,
-        /// The display-unit symbol (quantity's closed table). Always
-        /// written, because every literal names the notation it was
-        /// authored in — the dimensionless row's symbol is the empty
-        /// string, which is what a `Scalar` literal carries. An unknown
-        /// symbol refuses typed at rebuild.
-        unit: String,
-    },
-    /// An exact integer Count literal.
-    Count(i64),
-    /// A parameter reference with its declared dimension.
-    Param {
-        /// The referenced document parameter.
-        name: ParamName,
-        /// The dimension declared at construction.
-        dim: Dimension,
-    },
-    /// Same-dimension addition.
-    Add(Child<WireExpr>, Child<WireExpr>),
-    /// Same-dimension subtraction.
-    Sub(Child<WireExpr>, Child<WireExpr>),
-    /// Negation.
-    Neg(Child<WireExpr>),
-    /// Product.
-    Mul(Child<WireExpr>, Child<WireExpr>),
-    /// Quotient.
-    Div(Child<WireExpr>, Child<WireExpr>),
-    /// Sine.
-    Sin(Child<WireExpr>),
-    /// Cosine.
-    Cos(Child<WireExpr>),
-    /// Tangent.
-    Tan(Child<WireExpr>),
-    /// Four-quadrant arctangent (y, x).
-    Atan2(Child<WireExpr>, Child<WireExpr>),
-    /// Lattice minimum.
-    Min(Child<WireExpr>, Child<WireExpr>),
-    /// Lattice maximum.
-    Max(Child<WireExpr>, Child<WireExpr>),
-    /// Explicit Count→Scalar promotion.
-    CountToScalar(Child<WireExpr>),
+/// **One persisted expression form, minted from its own leaves.** The
+/// stored [`Expr`] and the authored [`Formula`] are one tree with
+/// different leaf sets, and persist as one wire vocabulary with
+/// different leaf sets: the shared variants are written here once, and
+/// each invocation adds its form's own variants and their two
+/// conversions. A variant name the forms share is spelled once, so a
+/// formula in an edit log and the expression a snapshot stores from it
+/// write the same words.
+macro_rules! wire_tree {
+    (
+        $(#[$meta:meta])*
+        $wire:ident for $form:ty {
+            $(
+                $(#[$vmeta:meta])*
+                $variant:ident { $( $(#[$fmeta:meta])* $field:ident : $fty:ty ),* $(,)? }
+            )*
+        }
+        to_wire($leaf:ident, $dim:ident) => $to:expr;
+        rebuild { $($rebuild:tt)* }
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub(crate) enum $wire {
+            /// A continuous literal with its dimension and the display
+            /// unit it was authored in (LIB-SWITCH §4g — presentation
+            /// metadata; the value stays canonical meters/radians).
+            Literal {
+                /// The exact value (D2: bit-exact round-trip), canonical units.
+                value: f64,
+                /// The literal's dimension.
+                dim: Dimension,
+                /// The display-unit symbol (quantity's closed table).
+                /// Always written, because every literal names the
+                /// notation it was authored in — the dimensionless
+                /// row's symbol is the empty string, which is what a
+                /// `Scalar` literal carries. An unknown symbol refuses
+                /// typed at rebuild.
+                unit: String,
+            },
+            /// An exact integer Count literal.
+            Count(i64),
+            /// A reader of a variable, by id, with the kind it caches.
+            Var {
+                /// The variable read.
+                var: crate::var::VarId,
+                /// The dimension the reader reads at.
+                dim: Dimension,
+            },
+            $(
+                $(#[$vmeta])*
+                $variant { $( $(#[$fmeta])* $field: $fty ),* },
+            )*
+            /// Same-dimension addition.
+            Add(Child<$wire>, Child<$wire>),
+            /// Same-dimension subtraction.
+            Sub(Child<$wire>, Child<$wire>),
+            /// Negation.
+            Neg(Child<$wire>),
+            /// Product.
+            Mul(Child<$wire>, Child<$wire>),
+            /// Quotient.
+            Div(Child<$wire>, Child<$wire>),
+            /// Sine.
+            Sin(Child<$wire>),
+            /// Cosine.
+            Cos(Child<$wire>),
+            /// Tangent.
+            Tan(Child<$wire>),
+            /// Four-quadrant arctangent (y, x).
+            Atan2(Child<$wire>, Child<$wire>),
+            /// Lattice minimum.
+            Min(Child<$wire>, Child<$wire>),
+            /// Lattice maximum.
+            Max(Child<$wire>, Child<$wire>),
+            /// Explicit Count→Scalar promotion.
+            CountToScalar(Child<$wire>),
+        }
+
+        impl From<&$form> for $wire {
+            fn from(e: &$form) -> Self {
+                let b = |x: &$form| Child::new($wire::from(x));
+                match e.kind() {
+                    ExprKind::Literal(lit) => $wire::Literal {
+                        value: lit.value,
+                        dim: e.dim(),
+                        unit: lit.unit_def().symbol().to_string(),
+                    },
+                    ExprKind::CountLiteral(v) => $wire::Count(*v),
+                    ExprKind::Var(var) => $wire::Var {
+                        var: *var,
+                        dim: e.dim(),
+                    },
+                    ExprKind::Leaf($leaf) => {
+                        let $dim = e.dim();
+                        $to
+                    }
+                    ExprKind::Add(x, y) => $wire::Add(b(x), b(y)),
+                    ExprKind::Sub(x, y) => $wire::Sub(b(x), b(y)),
+                    ExprKind::Neg(x) => $wire::Neg(b(x)),
+                    ExprKind::Mul(x, y) => $wire::Mul(b(x), b(y)),
+                    ExprKind::Div(x, y) => $wire::Div(b(x), b(y)),
+                    ExprKind::Sin(x) => $wire::Sin(b(x)),
+                    ExprKind::Cos(x) => $wire::Cos(b(x)),
+                    ExprKind::Tan(x) => $wire::Tan(b(x)),
+                    ExprKind::Atan2(x, y) => $wire::Atan2(b(x), b(y)),
+                    ExprKind::Min(x, y) => $wire::Min(b(x), b(y)),
+                    ExprKind::Max(x, y) => $wire::Max(b(x), b(y)),
+                    ExprKind::CountToScalar(x) => $wire::CountToScalar(b(x)),
+                }
+            }
+        }
+
+        impl $wire {
+            /// Rebuilds the checked tree, re-running every dimension
+            /// check and the non-finite-literal refusal (load door;
+            /// module docs).
+            pub(crate) fn rebuild(&self) -> Result<$form, DimensionError> {
+                let b = |x: &$wire| x.rebuild();
+                match self {
+                    // Strict door: the symbol must be in quantity's
+                    // closed table and its quantity must match the
+                    // dimension — both re-checked by the same
+                    // constructor authoring uses (never a
+                    // field-by-field trust).
+                    $wire::Literal { value, dim, unit } => match quantity::unit_by_symbol(unit) {
+                        None => Err(DimensionError::UnknownDisplayUnit {
+                            symbol: unit.clone(),
+                        }),
+                        Some(u) => <$form>::literal_leaf_with_unit(*value, *dim, u),
+                    },
+                    $wire::Count(v) => Ok(<$form>::count_leaf(*v)),
+                    $wire::Var { var, dim } => Ok(<$form>::var(*var, *dim)),
+                    $($rebuild)*
+                    $wire::Add(x, y) => <$form>::add(b(x)?, b(y)?),
+                    $wire::Sub(x, y) => <$form>::sub(b(x)?, b(y)?),
+                    $wire::Neg(x) => <$form>::neg(b(x)?),
+                    $wire::Mul(x, y) => <$form>::mul(b(x)?, b(y)?),
+                    $wire::Div(x, y) => <$form>::div(b(x)?, b(y)?),
+                    $wire::Sin(x) => <$form>::sin(b(x)?),
+                    $wire::Cos(x) => <$form>::cos(b(x)?),
+                    $wire::Tan(x) => <$form>::tan(b(x)?),
+                    $wire::Atan2(x, y) => <$form>::atan2(b(x)?, b(y)?),
+                    $wire::Min(x, y) => <$form>::min(b(x)?, b(y)?),
+                    $wire::Max(x, y) => <$form>::max(b(x)?, b(y)?),
+                    $wire::CountToScalar(x) => <$form>::count_to_scalar(b(x)?),
+                }
+            }
+        }
+
+        impl Serialize for $form {
+            fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+                $wire::from(self).serialize(ser)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $form {
+            fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+                let wire = $wire::deserialize(de)?;
+                wire.rebuild().map_err(|e| {
+                    // The typed refusal leaves through the slot; the
+                    // serde message is the human half of the same fact
+                    // (`persist::refusal`).
+                    super::refusal::record(&e);
+                    D::Error::custom(format!("ill-dimensioned expression refused: {e}"))
+                })
+            }
+        }
+
+        impl Wired for $form {
+            type Wire = $wire;
+        }
+    };
 }
 
-impl From<&Expr> for WireExpr {
-    fn from(e: &Expr) -> Self {
-        let b = |x: &Expr| Child::new(WireExpr::from(x));
-        match e.kind() {
-            ExprKind::Literal(lit) => WireExpr::Literal {
-                value: lit.value,
-                dim: e.dim(),
-                unit: lit.unit_def().symbol().to_string(),
-            },
-            ExprKind::CountLiteral(v) => WireExpr::Count(*v),
-            ExprKind::Param(name) => WireExpr::Param {
-                name: name.clone(),
-                dim: e.dim(),
-            },
-            ExprKind::Add(x, y) => WireExpr::Add(b(x), b(y)),
-            ExprKind::Sub(x, y) => WireExpr::Sub(b(x), b(y)),
-            ExprKind::Neg(x) => WireExpr::Neg(b(x)),
-            ExprKind::Mul(x, y) => WireExpr::Mul(b(x), b(y)),
-            ExprKind::Div(x, y) => WireExpr::Div(b(x), b(y)),
-            ExprKind::Sin(x) => WireExpr::Sin(b(x)),
-            ExprKind::Cos(x) => WireExpr::Cos(b(x)),
-            ExprKind::Tan(x) => WireExpr::Tan(b(x)),
-            ExprKind::Atan2(x, y) => WireExpr::Atan2(b(x), b(y)),
-            ExprKind::Min(x, y) => WireExpr::Min(b(x), b(y)),
-            ExprKind::Max(x, y) => WireExpr::Max(b(x), b(y)),
-            ExprKind::CountToScalar(x) => WireExpr::CountToScalar(b(x)),
+/// **A persisted expression form and its wire vocabulary**: what a
+/// tree generic over its form ([`MeasureExpr`]) persists its leaves as.
+pub(crate) trait Wired: Sized {
+    /// The form's wire enum.
+    type Wire: Serialize + for<'de> Deserialize<'de> + for<'a> From<&'a Self> + Rebuild<Self>;
+}
+
+/// A wire value rebuilt through its form's checking constructors.
+pub(crate) trait Rebuild<T> {
+    /// The checked value.
+    fn rebuild_form(&self) -> Result<T, DimensionError>;
+}
+
+impl Rebuild<Expr> for WireExpr {
+    fn rebuild_form(&self) -> Result<Expr, DimensionError> {
+        self.rebuild()
+    }
+}
+
+impl Rebuild<Formula> for WireFormula {
+    fn rebuild_form(&self) -> Result<Formula, DimensionError> {
+        self.rebuild()
+    }
+}
+
+wire_tree! {
+    /// The persisted stored expression (spec D1: the recipe is the
+    /// save; an expression is its constructor calls). It has no name
+    /// leaf, so a snapshot that holds one is unreadable.
+    WireExpr for Expr {}
+    to_wire(leaf, _dim) => match *leaf {};
+    rebuild {}
+}
+
+wire_tree! {
+    /// The persisted authored formula, as an edit log carries it: the
+    /// stored vocabulary plus a variable by name.
+    WireFormula for Formula {
+        /// A variable by name, with the dimension it is read at.
+        Name {
+            /// The name.
+            name: VarName,
+            /// The dimension it is read at.
+            dim: Dimension,
         }
     }
-}
-
-impl WireExpr {
-    /// Rebuilds the checked [`Expr`], re-running every dimension check
-    /// and the non-finite-literal refusal (load door; module docs).
-    pub(crate) fn rebuild(&self) -> Result<Expr, crate::expr::DimensionError> {
-        let b = |x: &WireExpr| x.rebuild();
-        match self {
-            // Strict door: the symbol must be in quantity's closed
-            // table and its quantity must match the dimension — both
-            // re-checked by the same constructor authoring uses (never
-            // a field-by-field trust).
-            WireExpr::Literal { value, dim, unit } => match quantity::unit_by_symbol(unit) {
-                None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
-                    symbol: unit.clone(),
-                }),
-                Some(u) => Expr::literal_with_unit(*value, *dim, u),
-            },
-            WireExpr::Count(v) => Ok(Expr::count(*v)),
-            WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),
-            WireExpr::Add(x, y) => Expr::add(b(x)?, b(y)?),
-            WireExpr::Sub(x, y) => Expr::sub(b(x)?, b(y)?),
-            WireExpr::Neg(x) => Expr::neg(b(x)?),
-            WireExpr::Mul(x, y) => Expr::mul(b(x)?, b(y)?),
-            WireExpr::Div(x, y) => Expr::div(b(x)?, b(y)?),
-            WireExpr::Sin(x) => Expr::sin(b(x)?),
-            WireExpr::Cos(x) => Expr::cos(b(x)?),
-            WireExpr::Tan(x) => Expr::tan(b(x)?),
-            WireExpr::Atan2(x, y) => Expr::atan2(b(x)?, b(y)?),
-            WireExpr::Min(x, y) => Expr::min(b(x)?, b(y)?),
-            WireExpr::Max(x, y) => Expr::max(b(x)?, b(y)?),
-            WireExpr::CountToScalar(x) => Expr::count_to_scalar(b(x)?),
-        }
-    }
-}
-
-impl Serialize for Expr {
-    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        WireExpr::from(self).serialize(ser)
-    }
-}
-
-impl<'de> Deserialize<'de> for Expr {
-    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        let wire = WireExpr::deserialize(de)?;
-        wire.rebuild().map_err(|e| {
-            // The typed refusal leaves through the slot; the serde
-            // message is the human half of the same fact
-            // (`persist::refusal`).
-            super::refusal::record(&e);
-            D::Error::custom(format!("ill-dimensioned expression refused: {e}"))
-        })
+    to_wire(leaf, dim) => match leaf {
+        AuthoredLeaf::Name(name) => WireFormula::Name {
+            name: name.clone(),
+            dim,
+        },
+    };
+    rebuild {
+        WireFormula::Name { name, dim } => Ok(Formula::named(name.clone(), *dim)),
     }
 }
 
@@ -335,33 +430,33 @@ pub(crate) fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId
 /// in an extrude's distance, and the refusal would have to be invented
 /// at every rebuild site instead of being unrepresentable.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) enum WireMeasureExpr {
+pub(crate) enum WireMeasureExpr<W> {
     /// A closed-form measurement leaf.
     Primitive(MeasurePrimitive),
-    /// An ordinary document expression leaf.
-    Value(Box<WireExpr>),
+    /// An ordinary document expression leaf, in the measure's form.
+    Value(Box<W>),
     /// Same-dimension addition.
-    Add(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
+    Add(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
     /// Same-dimension subtraction.
-    Sub(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
+    Sub(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
     /// Negation.
-    Neg(Child<WireMeasureExpr>),
+    Neg(Child<WireMeasureExpr<W>>),
     /// Product (at least one Scalar operand).
-    Mul(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
+    Mul(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
     /// Quotient (Scalar divisor).
-    Div(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
+    Div(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
     /// Same-dimension minimum.
-    Min(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
+    Min(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
     /// Same-dimension maximum.
-    Max(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
+    Max(Child<WireMeasureExpr<W>>, Child<WireMeasureExpr<W>>),
 }
 
-impl From<&MeasureExpr> for WireMeasureExpr {
-    fn from(e: &MeasureExpr) -> Self {
-        let b = |x: &MeasureExpr| Child::new(WireMeasureExpr::from(x));
+impl<S: Slot + Wired> From<&MeasureExpr<S>> for WireMeasureExpr<S::Wire> {
+    fn from(e: &MeasureExpr<S>) -> Self {
+        let b = |x: &MeasureExpr<S>| Child::new(WireMeasureExpr::from(x));
         match e.kind() {
             MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
-            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(WireExpr::from(v))),
+            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(S::Wire::from(v))),
             MeasureKind::Add(x, y) => WireMeasureExpr::Add(b(x), b(y)),
             MeasureKind::Sub(x, y) => WireMeasureExpr::Sub(b(x), b(y)),
             MeasureKind::Neg(x) => WireMeasureExpr::Neg(b(x)),
@@ -373,15 +468,18 @@ impl From<&MeasureExpr> for WireMeasureExpr {
     }
 }
 
-impl WireMeasureExpr {
+impl<W> WireMeasureExpr<W> {
     /// Rebuilds through the DIMENSION-CHECKING constructors — the load
     /// door is the construction door, so a file cannot carry a tree the
     /// authoring API refuses.
-    fn rebuild(&self) -> Result<MeasureExpr, DimensionError> {
-        let b = |x: &WireMeasureExpr| x.rebuild();
+    fn rebuild<S: Slot>(&self) -> Result<MeasureExpr<S>, DimensionError>
+    where
+        W: Rebuild<S>,
+    {
+        let b = |x: &WireMeasureExpr<W>| x.rebuild();
         match self {
             WireMeasureExpr::Primitive(p) => Ok(MeasureExpr::primitive(*p)),
-            WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild()?)),
+            WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild_form()?)),
             WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
             WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
             WireMeasureExpr::Neg(x) => MeasureExpr::neg(b(x)?),
@@ -393,18 +491,25 @@ impl WireMeasureExpr {
     }
 }
 
-impl Serialize for MeasureExpr {
-    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        WireMeasureExpr::from(self).serialize(ser)
-    }
+/// The measure's serde, one text for each slot form.
+macro_rules! measure_serde {
+    ($($form:ty),*) => {$(
+        impl Serialize for MeasureExpr<$form> {
+            fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+                WireMeasureExpr::from(self).serialize(ser)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for MeasureExpr<$form> {
+            fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+                let wire = WireMeasureExpr::<<$form as Wired>::Wire>::deserialize(de)?;
+                wire.rebuild().map_err(|e| {
+                    super::refusal::record(&e);
+                    D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
+                })
+            }
+        }
+    )*};
 }
 
-impl<'de> Deserialize<'de> for MeasureExpr {
-    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        let wire = WireMeasureExpr::deserialize(de)?;
-        wire.rebuild().map_err(|e| {
-            super::refusal::record(&e);
-            D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
-        })
-    }
-}
+measure_serde!(Expr, Formula);

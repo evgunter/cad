@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
@@ -83,7 +84,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, DocEdit, apply};
     use fixture::on_frame;
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
-    let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
+    let insert = |doc: &ProfileDoc, node: AuthoredNode| {
         let a = apply(
             doc,
             &DocEdit::InsertNode {

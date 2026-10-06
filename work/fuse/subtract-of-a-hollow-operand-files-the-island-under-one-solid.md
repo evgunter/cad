@@ -2,11 +2,12 @@
 id: subtract-of-a-hollow-operand-files-the-island-under-one-solid
 kind: issue
 title: subtract(A, hollow B strictly inside A) files B's cavity as a second Outer shell of A's solid instead of a solid of its own
-status: dispatched
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: H
-branch: fuse/hollow-island
+closed: 2026-10-03
+pr: 3891
 ---
 
 
@@ -81,3 +82,33 @@ not land. The rework sorts every `Outer` into its own solid:
 - **Owed with the change:** `rows-do-not-cross-a-boolean-remap` stays
   fenced, because products refuse.
 
+## Closed (FUSE, PR 3891, 2026-10-03)
+
+Built to Ev's ruling (PR 3901): a solid is one piece of material.
+- **The sort.** `crates/topo/src/pieces.rs` sorts every boolean, split
+  and shell result into one `Outer` per solid, with each `Void` under
+  the piece whose material surrounds it. It shares check 10's witness
+  loop. It refuses typed (`PieceSortError`) where ownership cannot be
+  read, and refuses an `Outer` nested in an `Outer` as overlapping
+  material.
+- **Check 10** requires exactly one `Outer` per solid.
+- **Gates.** Booleans, split and shell take bodies, and
+  `graft_disjoint_all_onto_keyed` is gone.
+- **The editor** refuses a product operand (`ProductOperand`, with the
+  explicit union as the recourse) wherever material is fused or
+  reshaped. The part count `NodeValue::parts` is carried through
+  instantiate, transform, pattern and part. A face-frame datum only
+  reads a face and is admitted.
+- **Rows:** `crates/topo/tests/hollow_island.rs`, and the docm6 fence
+  rows.
+- **Review:** dual (kernel; editor and baselines). One MAJOR: the
+  product fence leaked through a nested sub-assembly, a `Transform` and
+  `PlacedUnion`. It was fixed, and the reviewer re-checked it by
+  execution.
+- **Residue:**
+  - `connectedness-counts-outer-shells-where-it-could-count-solids` (P3);
+  - `one-home-for-where-a-shell-stands` (P2);
+  - restfront's `tier-3-admits-two-solids-of-one-body-whose-material-overlaps`
+    (P1);
+  - the STEP `BREP_WITH_VOIDS` writer on export's
+    `step-export-refuses-every-hollow-body`.

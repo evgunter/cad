@@ -2,11 +2,14 @@
 id: mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move
 kind: issue
 title: mef and mfkrh onto a chart of their own, and the loop-moving kills, leave the edges they move described against the chart those edges left
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: M
-refs: [set-face-surface-hands-the-caller-an-ordering-obligation-in-prose, loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, description-staleness-ladder-three-spellings]
+refs: [set-face-surface-hands-the-caller-an-ordering-obligation-in-prose, loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, description-staleness-ladder-three-spellings, kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers]
+pr: 3673
+branch: topo/euler-doors-vouch-their-charts
+closed: 2026-10-03
 ---
 
 ## What
@@ -84,3 +87,26 @@ own plane raised four units (`far`):
 The keys-only answer for each is the one `set_face_surface` now gives:
 refuse typed, before mutating, where a certified edge on the face names
 no key it wears after the move; scaffold and null edges are not asked.
+
+## Measured, and built (PR 3673)
+
+Every door was instrumented first (topo's suite and the `ci` profiles
+of sweep, mesh, step-import and editor-core): per caller, the calls
+that would strand an edge and the calls that would leave a certified
+edge unvouched on the face it lands on.
+
+- **`mef` / `mef_chord` / `mef_lone`, `mfkrh` / `mfkrh_minting` /
+  `mfkrh_plug`, `ring_move` / `ring_move_minting`:** no production
+  caller refuses, except `shell.rs`'s rim promotion (`mfkrh` onto the
+  host's key, then `rename_loop_surface`), which now mints the face on
+  the guest's chart and moves it through `set_face_surfaces_describing`
+  with the same re-descriptions (18 of 18 promotions build a body
+  `Debug`-identical to the old route's). These doors now refuse typed,
+  before mutating, through `Body::vouch_move` (`attach.rs`), the one
+  home `set_face_surface` uses too: `RechartStrandsDescriptions`, then
+  `RechartUnvouched`, each naming its door (`RechartDoor`) and ending
+  in the door's own lever. A certified chord `mef` mints is asked too.
+- **`kef` / `kef_minting`, `kfmrh` / `kfmrh_minting`:** nine and two
+  production call sites rely on the move, so their refusal is not
+  built; the measurement and the design question are filed as
+  `kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`.

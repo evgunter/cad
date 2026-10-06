@@ -102,9 +102,9 @@ fn designate_faces(
     solid: &SolidSpec,
     asm: &Assembled,
 ) -> Result<Vec<FaceKey>, StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     // Normalize: promote every ring-designated realized loop.
     for l in 0..asm.target.loops.len() {
@@ -186,9 +186,9 @@ fn rotate_loop_firsts(
     asm: &Assembled,
     tol: Tol,
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     for seq in &asm.target.loops {
         let t = asm.use_he[seq[0]];
@@ -302,9 +302,9 @@ fn attach_surfaces(
     solid: &SolidSpec,
     face_keys: &[FaceKey],
 ) -> Result<(), StepImportError> {
-    let op_err = |source| StepImportError::Assembly {
+    let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
-        source,
+        source: source.from_driver(),
     };
     let mut seen: std::collections::BTreeMap<Vec<u64>, topo::SurfaceKey> =
         std::collections::BTreeMap::new();
@@ -348,17 +348,12 @@ fn adopt_edges(
             .get_half_edge(he_plus)
             .ok_or(resolve("internal: a realized half-edge does not resolve"))?
             .edge;
-        let sides = topo::readback::edge_sides(body, edge_key).map_err(|what| {
-            resolve(match what {
-                topo::DanglingRef::Entity(topo::EntityId::Loop(_)) => {
-                    "internal: a realized loop does not resolve"
-                }
-                topo::DanglingRef::Entity(topo::EntityId::Face(_)) => {
-                    "internal: a realized face does not resolve"
-                }
-                _ => "internal: a realized half-edge does not resolve",
-            })
-        })?;
+        let sides = topo::readback::edge_sides(body, edge_key).unwrap_or_else(|_| {
+            unreachable!(
+                "{he_plus:?}'s edge names {edge_key:?}, which does not resolve: every public \
+                 door keeps the body tier-1-valid"
+            )
+        });
         // Assembly realizes a file edge's forward use as the edge's
         // `he_plus`; the surface pair below is ordered by the file's uses.
         if (sides.plus.half_edge, sides.minus.half_edge) != (he_plus, he_minus) {
@@ -626,7 +621,10 @@ fn adopt_edges(
                     adopted = true;
                     break;
                 }
-                Err(refusal) => attempts.push(AdoptionAttempt { candidate, refusal }),
+                Err(refusal) => attempts.push(AdoptionAttempt {
+                    candidate,
+                    refusal: refusal.from_driver(),
+                }),
             }
         }
         if !adopted {

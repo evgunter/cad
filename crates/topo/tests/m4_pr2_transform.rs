@@ -7,7 +7,7 @@ use crate::common;
 
 use std::f64::consts::FRAC_PI_2;
 
-use common::brick;
+use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Affine3, Point3, Vec3};
 use topo::{
@@ -83,7 +83,11 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
 fn transformed_tool_subtracts_exactly() {
     // The M3 pocket pattern: translate a dyadic tool onto a face and
     // subtract — the moved body composes with the boolean pipeline.
-    let base = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let base = finished(
+        "base",
+        brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let tool = brick(
         (-0.125, 0.125),
         (-0.125, 0.125),
@@ -94,6 +98,7 @@ fn transformed_tool_subtracts_exactly() {
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
     let placed = transform_rigid(&tool, &map, Tol::witness()).unwrap();
     tiers_ok(&placed);
+    let placed = finished("the placed tool", placed, Tol::witness());
     let out = match topo::subtract_with(
         &base,
         &placed,

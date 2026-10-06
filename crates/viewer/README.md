@@ -899,14 +899,29 @@ that made it keeps the document it is spelled in (`frame::Spelled`),
 and is said by its tags from any other: the held-edge refusal the
 viewport leaves for the next frame's toolbar is one, since an `Open`
 between the two lands another document. `BlendEvent::TargetLost`
-names its node as the document spoke it when the target was picked,
-since no later document holds it.
+names its node by the last label the document gave it, since no later
+document holds it.
 
 **The selection's verdict is spoken from the landed document too.**
 `DocSession::standing` asks a picked entity's resolution of the landed
 run every frame, so `pane::properties::standing_verdict` says its
 `ResolveError`, and its `ResolveIndeterminate` through
-`app::indeterminate_wording`, from that run's document.
+`app::indeterminate_wording`, from that run's document. A node that
+document no longer holds is said as the last document that held it
+spoke it (`DocSession::selection_said`, through `Speaker::or_held`),
+and so is a selected node deleted since, in the pane's heading: the
+selection speaks its nodes when it is made and again from the shown
+document after every operation, so a deleted node keeps the last label
+it had. The face-frame form's held face keeps its own
+(`Drafts::datum_face_said`), since it outlives the selection, and so
+does the open tool for each node it holds (`ViewerApp::respeak_held`
+after every operation): a seat's drop, the blend tool's lost target,
+and the mate tool's drop say a node the document no longer holds by the
+last label it had. The mate tool's instance-pick refusal says the label
+the tool kept even while the landed document it is judged against
+still holds the node, since what the tool kept is never older. A
+document that replaces this one drops what both hold
+(`ViewerApp::document_replaced`): their ids are the old document's.
 So is the Checks window: its report is the landed run's, and
 `ViewerApp::checks_window` hands `frame::check_rows` that run's
 document, from which each finding's root is said on its button and in
@@ -1483,15 +1498,12 @@ a pattern, so each binding's scope is read in order instead.
   owns the failure and its wording. Layer 3 adds nothing but the
   ranking, so it stores the payload and forwards the text.
 - **A flat arm** exists where layer 3 is the only place the fact
-  exists: there is no gesture in flight, this instance is itself, this
-  name is already declared and CREATE is not REPLACE, the seat wanted a
-  different node kind.
+  exists: there is no gesture in flight, this instance is itself, the
+  seat wanted a different node kind.
 
 Each of those examples names a fact `apply` has been read for and does
-not hold — `edit.rs` has no self-instance arm, `write_doc_param` has no
-existence check because `DocEdit::SetDocParam` is create-or-replace,
-and `DocEdit::InsertNode` checks a seat's input for EXISTENCE and not
-for KIND. That reading is what puts an arm in this list; a fact that
+not hold — `edit.rs` has no self-instance arm, and `DocEdit::InsertNode`
+checks a seat's input for EXISTENCE and not for KIND. That reading is what puts an arm in this list; a fact that
 merely feels like layer 3's is how the list acquires a member the door
 already refuses.
 
@@ -2151,7 +2163,7 @@ its shape is not one of these:
 - **A named `&'static str` owned by the layer the fact belongs to and
   spent by more than one door** — `refuse::NO_FACE_PICKED` (spent at
   `FaceFrameFault`'s `NoFace` arm and by `forms`), and
-  `editor_core::edit::UNDECLARED_PARAM_RECOURSE`,
+  `editor_core::edit::UNKNOWN_VAR_RECOURSE`,
   whose home is the crate that owns the fact.
 - **A literal at the chrome site, composed where it is drawn** —
   `pane::create`'s *add a frame datum first*, `pane::profile`'s *its
@@ -2240,7 +2252,7 @@ where, exhaustively:
   that can break one of those fourteen seeds the toolkit and takes the
   all-features pass. **The fifteenth does not.**
   `session::refuse`'s `Refusal::NoSuchParam` doc links
-  `` [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`] ``, and
+  `` [`editor_core::edit::UNKNOWN_VAR_RECOURSE`] ``, and
   `editor-core` is not in the seed set — so a branch that renames or
   deletes that constant reaches `viewer` through the closure, takes
   skip mode, and nothing anywhere reports the break. **The hole this

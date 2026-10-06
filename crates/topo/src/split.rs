@@ -33,6 +33,7 @@ use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey};
+use crate::live::{Arg, dangling_link, link, lookup};
 use crate::provenance::Provenance;
 
 /// Where a crossing lands along its edge, in words: the subject every
@@ -147,13 +148,9 @@ impl<T: Decide> Body<T> {
     ///
     /// # Precondition check order
     ///
-    /// `edge` resolves ([`EulerOpError::StaleKey`]); its halves and
-    /// the two splice neighbours `next(he_plus)` / `prev(he_minus)`
-    /// resolve (`StaleKey`); its curve entry resolves
-    /// ([`EulerOpError::StaleGeometry`]) and is certified
-    /// ([`EulerOpError::NullScaffoldCurve`] — null scaffolding has
-    /// nothing to split); both endpoint vertices and their points
-    /// resolve (`StaleKey`/`StaleGeometry`); the interiority trilean
+    /// `edge` resolves ([`crate::BadArgument::Stale`]); its curve entry
+    /// is certified ([`EulerOpError::NullScaffoldCurve`] — null
+    /// scaffolding has nothing to split); the interiority trilean
     /// (above); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
@@ -219,25 +216,25 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         // ---- Preconditions: no mutation until every check passes. ----
-        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
+        let edge_data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?.clone();
         let (hp, hm) = (edge_data.he_plus, edge_data.he_minus);
-        let (hp, hp_data) = self.resolve_half_edge_live(hp)?;
-        let (hm, hm_data) = self.resolve_half_edge_live(hm)?;
+        let (hp, hp_data) = self.resolve_half_edge_live(hp, link(EntityId::Edge(edge), "he_plus"));
+        let (hm, hm_data) = self.resolve_half_edge_live(hm, link(EntityId::Edge(edge), "he_minus"));
         // The two splices write through `next(hp)` and `prev(hm)` as
         // well as the parent's own halves, whose proofs came out of the
         // resolves above; prove these two now so the mutation below
         // cannot fail midway (atomicity). `prev(hm)` changes
         // under splice 1 — see the splice for the case that moves it,
         // and for why the new value is proven too.
-        let hp_next = self.require_live(hp_data.next)?;
-        let hm_prev = self.require_live(hm_data.prev)?;
-        let entry = self
-            .get_curve_geom(edge_data.curve)
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Curve(edge_data.curve),
-            })?;
+        let hp_next = self.require_live(hp_data.next, link(EntityId::HalfEdge(hp.key()), "next"));
+        let hm_prev = self.require_live(hm_data.prev, link(EntityId::HalfEdge(hm.key()), "prev"));
+        let entry = self.get_curve_geom(edge_data.curve).unwrap_or_else(|| {
+            dangling_link(
+                EntityId::Edge(edge),
+                "curve",
+                GeomRef::Curve(edge_data.curve),
+            )
+        });
         let curve = entry
             .certified()
             .cloned()
@@ -296,8 +293,8 @@ impl<T: Decide> Body<T> {
             }
         }
         let (u, v) = (hp_data.start, hm_data.start);
-        let p_u = self.resolve_vertex_point(u)?;
-        let p_v = self.resolve_vertex_point(v)?;
+        let p_u = self.linked_vertex_point(u, EntityId::HalfEdge(hp.key()), "start");
+        let p_v = self.linked_vertex_point(v, EntityId::HalfEdge(hm.key()), "start");
         let p_new = curve.carrier().eval(t);
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
@@ -310,17 +307,10 @@ impl<T: Decide> Body<T> {
         // leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
             crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
-                |e| match e {
-                    crate::pcurves::SplitRowError::Stale { half_edge } => EulerOpError::StaleKey {
-                        key: EntityId::HalfEdge(half_edge),
-                    },
-                    crate::pcurves::SplitRowError::Certify { half_edge, error } => {
-                        EulerOpError::PcurveSplit {
-                            edge,
-                            half_edge,
-                            error,
-                        }
-                    }
+                |crate::pcurves::SplitRowError { half_edge, error }| EulerOpError::PcurveSplit {
+                    edge,
+                    half_edge,
+                    error,
                 },
             )?;
 
@@ -347,9 +337,20 @@ impl<T: Decide> Body<T> {
             (v, hm_data.parent_loop),
             &provenance,
         );
+        // The joints the splice makes, read before it. Each child pair
+        // joins at the split point with the element the restriction
+        // decided; the joint out of the second child is the parent's old
+        // one, the second child's exit being the parent's. A side the
+        // restriction carried nothing for takes no element.
+        let carried = |rows: &Option<crate::pcurves::CarriedRows<T>>, old: HalfEdgeKey| {
+            rows.as_ref()
+                .map_or((None, None), |rows| (Some(rows.joint), self.joint(old)))
+        };
+        let (into_n_plus, into_hp_next) = carried(&rows_plus, hp_next.key());
+        let (into_hm, into_n_minus) = carried(&rows_minus, hm.key());
         // Splice 1: hp → n⁺ → old next(hp), in hp's loop.
-        self.link_half_edges(hp, n_plus);
-        self.link_half_edges(n_plus, hp_next);
+        self.link_half_edges(hp, n_plus, into_n_plus);
+        self.link_half_edges(n_plus, hp_next, into_hp_next);
         // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. Splice 1
         // moved that prev in the strut case (next(hp) == hm ⇒ prev(hm)
         // is now n⁺), and the two cases are exhaustive: splice 1 writes
@@ -360,8 +361,8 @@ impl<T: Decide> Body<T> {
         // re-reading it keeps both branches proven: the mint above, and
         // the plan phase.
         let hm_prev = if hm == hp_next { n_plus } else { hm_prev };
-        self.link_half_edges(hm_prev, n_minus);
-        self.link_half_edges(n_minus, hm);
+        self.link_half_edges(hm_prev, n_minus, into_n_minus);
+        self.link_half_edges(n_minus, hm, into_hm);
         // The splice is done; past it the new halves are ordinary keys.
         let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
         // The chart rows certified above: the parent halves keep the

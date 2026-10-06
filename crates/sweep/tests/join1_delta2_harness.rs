@@ -27,8 +27,9 @@
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::Body;
+use topo::{AtRestBody, Body};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -36,7 +37,7 @@ fn tol() -> Tol {
 
 /// A z-prism over a bulge loop `(x, y, bulge)`, shifted by `(dx, dy)`,
 /// spanning `z`.
-fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> Body<f64> {
+fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
     let lp = bulge_loop(
         pts.iter()
@@ -44,7 +45,7 @@ fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> Body<f64> {
             .collect(),
     );
     let p = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(
+    let prism = extrude(
         &p,
         Extrusion::Distance {
             depth: z.1 - z.0,
@@ -53,7 +54,8 @@ fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the prism", prism, tol())
 }
 
 /// The loop polygonised (each bulge arc at 4096 chords).
@@ -341,13 +343,17 @@ fn d2_brick_battery() {
             ranges.push((coords[i], coords[j]));
         }
     }
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let a = finished(
+        "the unit brick",
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     let ov = |p: (f64, f64), q: (f64, f64)| (p.1.min(q.1) - p.0.max(q.0)).max(0.0);
     let zs = [(1.0, 2.0), (0.0, 1.0), (0.5, 1.5), (-1.0, 0.0), (0.0, 0.5)];
     for &x in &ranges {
         for &y in &ranges {
             for &z in &zs {
-                let b = brick(x, y, z, tol());
+                let b = finished("the brick", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = ov((0.0, 1.0), x) * ov((0.0, 1.0), y) * ov((0.0, 1.0), z);
                 for decl in [false, true] {
@@ -398,6 +404,7 @@ fn outcome(
         Ok(rr) => match rr.body() {
             Some(bb) => {
                 let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (0.0, 1.0), tol());
+                let far = finished("the far brick", far, tol());
                 match topo::union(&bb.body, &far, tol()) {
                     Ok(_) => " OPERAND=ok".to_string(),
                     Err(e) => {
@@ -413,7 +420,7 @@ fn outcome(
     format!("{}{opnd}", outcome0(r, want, vtol))
 }
 
-fn zprism2(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
+fn zprism2(pts: &[(f64, f64)], z: (f64, f64)) -> AtRestBody<f64> {
     let v: Vec<(f64, f64, f64)> = pts.iter().map(|&(a, b)| (a, b, 0.0)).collect();
     zprism(&v, (0.0, 0.0), z)
 }
@@ -567,7 +574,7 @@ fn d2_r1_hex() {
     for &x in &ranges {
         for &y in &ranges {
             for &z in &zs {
-                let b = brick(x, y, z, tol());
+                let b = finished("the brick", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = clip_rect(&pts, x, y) * ovl(h, z);
                 for (op, wab, wba) in [

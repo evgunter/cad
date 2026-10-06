@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::sync::Arc;
@@ -315,6 +316,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
             placement: None,
@@ -504,7 +506,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         doc,
         Node::Pattern {
             input: body,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -536,7 +538,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         DocEdit::SetStructuralParam {
             node: pattern,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(2),
+            expr: editor_core::Formula::count(2),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -577,7 +579,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         s.doc.clone(),
         Node::Pattern {
             input: s.union,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(5.0),
@@ -1350,7 +1352,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
         doc,
         Node::Pattern {
             input: body,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -1416,7 +1418,7 @@ fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableNam
 
 /// A node with no inputs and no evaluated body, for a doc whose
 /// evaluation is hand-built.
-fn leaf() -> Node<editor_core::ProfileProgram> {
+fn leaf() -> AuthoredNode {
     Node::gauge(
         None,
         editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
@@ -1439,6 +1441,7 @@ fn one_node_eval(
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
             placement: None,

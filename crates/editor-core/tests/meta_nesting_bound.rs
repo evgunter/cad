@@ -64,7 +64,7 @@ fn under_lists(leaf: MetaValue, levels: usize) -> Result<MetaValue, MetaError> {
 /// The D7 convention's map, `{"v": 1, "deep": deep}`.
 fn versioned(deep: MetaValue) -> Result<MetaValue, MetaError> {
     MetaValue::map(BTreeMap::from([
-        ("v".to_owned(), MetaValue::Int(1)),
+        ("v".to_owned(), MetaValue::Int(1.into())),
         ("deep".to_owned(), deep),
     ]))
 }
@@ -272,7 +272,7 @@ fn both_saves(r: &Recorder) -> [(&'static str, String); 2] {
 #[test]
 fn one_past_the_bound_refuses_typed_at_every_door_that_builds_one() {
     on_the_smallest_stack(|| {
-        let below = under_lists(MetaValue::Int(1), BOUND - 1).unwrap();
+        let below = under_lists(MetaValue::Int(1.into()), BOUND - 1).unwrap();
         assert_eq!(below.nesting(), BOUND, "the fixture sits at the bound");
         let error = MetaValue::list(vec![below.clone()]).expect_err("a list one past");
         let line = error.to_string();
@@ -285,7 +285,7 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_builds_one() {
             "a map one past refuses"
         );
         assert_eq!(
-            refused_bound(under_lists(MetaValue::Int(1), FAR)),
+            refused_bound(under_lists(MetaValue::Int(1.into()), FAR)),
             BOUND,
             "a value {FAR} deep stops at the bound"
         );
@@ -346,7 +346,7 @@ fn a_producer_of_any_depth_refuses_typed_on_the_smallest_stack() {
         );
         assert_eq!(
             to_value(&Somes(MAX_PRODUCER_NESTING - 1)),
-            Ok(MetaValue::Int(0)),
+            Ok(MetaValue::Int(0.into())),
             "options to the bound read through to their integer"
         );
         assert_eq!(
@@ -355,17 +355,17 @@ fn a_producer_of_any_depth_refuses_typed_on_the_smallest_stack() {
             "a linked list {FAR} long"
         );
         assert_eq!(
-            refused_read(from_value::<Loop>(&MetaValue::Int(0))),
+            refused_read(from_value::<Loop>(&MetaValue::Int(0.into()))),
             MAX_PRODUCER_NESTING,
             "a newtype that holds itself, read back"
         );
         assert_eq!(
-            refused_read(from_value::<OptLoop>(&MetaValue::Int(0))),
+            refused_read(from_value::<OptLoop>(&MetaValue::Int(0.into()))),
             MAX_PRODUCER_NESTING,
             "an option that holds itself, read back"
         );
         assert_eq!(
-            refused_read(from_value::<Link>(&MetaValue::Int(0))),
+            refused_read(from_value::<Link>(&MetaValue::Int(0.into()))),
             MAX_PRODUCER_NESTING,
             "a linked list read from a present value"
         );

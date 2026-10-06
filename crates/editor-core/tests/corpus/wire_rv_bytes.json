@@ -164,10 +164,20 @@
                 ]
               },
               {
-                "Param": {
-                  "name": "width",
-                  "dim": "Length"
-                }
+                "Add": [
+                  {
+                    "Var": {
+                      "var": 4587410805836808193,
+                      "dim": "Length"
+                    }
+                  },
+                  {
+                    "Name": {
+                      "name": "width",
+                      "dim": "Length"
+                    }
+                  }
+                ]
               }
             ]
           }

@@ -976,8 +976,21 @@ fn trim_polygon(
     let cycle = body
         .loop_cycle(first)
         .ok_or(TessellateError::MissingEntity { what: "loop cycle" })?;
+    // The loop's lift (`topo::Body::loop_lift`), by half-edge: each
+    // image where the loop's chain places it. A loop with no lift reads
+    // as rowless at its every half-edge, and the walk refuses at the
+    // first.
+    let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
+        .loop_lift(lk)
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| (row.half_edge, row.pcurve))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut out = Vec::new();
     for hek in cycle {
+        let image = lifted.remove(&hek);
         let he = body
             .get_half_edge(hek)
             .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
@@ -985,7 +998,7 @@ fn trim_polygon(
             .get_edge(he.edge)
             .ok_or(TessellateError::MissingEntity { what: "edge" })?;
         let forward = edge.he_plus == hek;
-        let Some(cache) = body.pcurve(hek) else {
+        let Some(image) = image else {
             return Err(TessellateError::UnsupportedCurve {
                 edge: he.edge,
                 note: "trimmed face half-edge carries no stored pcurve cache — caches \
@@ -1002,7 +1015,7 @@ fn trim_polygon(
         // every chart rather than silently approximating a spline
         // boundary the chord pass could not have sized
         // (`crate::chords`' boundary-tightening contract).
-        match cache.pcurve() {
+        match &image {
             Pcurve::Harmonic { .. } => {}
             // The spiric's two images are closed forms of the
             // carrier's own parameter on the two charts it lives on,
@@ -1100,7 +1113,7 @@ fn trim_polygon(
         let n = ids.len();
         for k in 0..n - 1 {
             let idx = if forward { k } else { n - 1 - k };
-            let uv = cache.pcurve().eval(ts[idx]);
+            let uv = image.eval(ts[idx]);
             out.push((uv.x, uv.y, ids[idx]));
         }
     }

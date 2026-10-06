@@ -528,7 +528,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         doc,
         Node::Pattern {
             input: bar,
-            count: editor_core::Expr::count(2),
+            count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(2.5),
@@ -539,7 +539,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         doc,
         Node::Part {
             of: pat,
-            select: editor_core::PartSelect::Instance(editor_core::Expr::count(0)),
+            select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
         },
     );
     let (doc, cut) = insert(
@@ -557,7 +557,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         DocEdit::SetStructuralParam {
             node: part,
             slot: SlotId::Instance,
-            expr: editor_core::Expr::count(1),
+            expr: editor_core::Formula::count(1),
         },
     )
     .0;
@@ -662,6 +662,7 @@ fn hand_eval(
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,

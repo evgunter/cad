@@ -9,7 +9,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{ParamName, RecipeNodeId};
+use pncad::document::{RecipeNodeId, SpokenVar, VarId};
 use pncad::prelude::{StableName, attribute};
 use pncad::select::Resolution;
 
@@ -163,7 +163,7 @@ impl Hovered {
 }
 
 /// What the session has selected. A typed layer-3 value: stable
-/// names, recipe node ids and parameter names, never an arena key.
+/// names, recipe node ids and variable ids, never an arena key.
 ///
 /// **Single-select, by ratification** (the GUI plan's rulings): one
 /// selection, and nothing here is shaped to grow a second. Multi-select
@@ -182,8 +182,9 @@ pub enum Selection {
     /// A recipe node, selected in the feature tree.
     Node(RecipeNodeId),
     /// A document parameter, selected in the property panel — where
-    /// the expression-driven refusal's affordance navigates to.
-    Param(ParamName),
+    /// the expression-driven refusal's affordance navigates to. Keyed
+    /// by the variable's id, so a rename keeps it selected.
+    Param(VarId),
     /// A face, picked in the viewport.
     Face(FaceSelection),
     /// An edge, picked in the viewport — what a blend is authored
@@ -254,6 +255,21 @@ impl Selection {
         }
     }
 
+    /// **The nodes this selection names**: the node itself, or for a
+    /// picked entity the node that minted its name, the feature it is
+    /// ([`FaceSelection::feature`]) and the node whose body was hit.
+    /// The session keeps them spoken as the selection is made
+    /// (`DocSession::selection_said`), so a sentence about a selection
+    /// whose node was deleted since says the last label it had.
+    pub fn nodes(&self) -> Vec<RecipeNodeId> {
+        match self {
+            Self::Node(id) => vec![*id],
+            Self::Face(face) => vec![face.name.node, face.feature(), face.node],
+            Self::Edge(edge) => vec![edge.name.node, edge.feature(), edge.node],
+            Self::None | Self::Param(_) => Vec::new(),
+        }
+    }
+
     /// The selected entity's stable name, when the selection is a
     /// picked entity — the one question the resolution check asks that
     /// does not care which kind was picked.
@@ -290,8 +306,8 @@ pub enum Standing {
     /// A parameter selection, and whether the document still declares
     /// it.
     Param {
-        /// The parameter.
-        name: ParamName,
+        /// The parameter, as the document spoke it.
+        var: SpokenVar,
         /// Whether it is still declared.
         present: bool,
     },
@@ -435,7 +451,7 @@ impl Standing {
 
 #[cfg(test)]
 mod tests {
-    use pncad::document::{ParamName, RecipeNodeId};
+    use pncad::document::{RecipeNodeId, SpokenVar, VarId, VarName};
 
     use super::Standing;
     use crate::frame::Tone;
@@ -453,7 +469,7 @@ mod tests {
             present,
         };
         let param = |present| Standing::Param {
-            name: ParamName::from_static("thickness"),
+            var: SpokenVar::new(VarId(7), Some(VarName::from_static("thickness"))),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);

@@ -24,8 +24,9 @@
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::Body;
+use topo::{AtRestBody, Body};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -33,7 +34,7 @@ fn tol() -> Tol {
 
 /// A z-prism over a bulge loop `(x, y, bulge)`, shifted by `(dx, dy)`,
 /// spanning `z`.
-fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> Body<f64> {
+fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
     let lp = bulge_loop(
         pts.iter()
@@ -41,7 +42,7 @@ fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> Body<f64> {
             .collect(),
     );
     let p = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-    extrude(
+    let prism = extrude(
         &p,
         Extrusion::Distance {
             depth: z.1 - z.0,
@@ -50,7 +51,8 @@ fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> Body<f64> {
         tol(),
     )
     .unwrap()
-    .body
+    .body;
+    finished("the prism", prism, tol())
 }
 
 /// The loop polygonised (each bulge arc at 4096 chords).
@@ -338,13 +340,17 @@ fn join1_delta_brick_battery() {
             ranges.push((coords[i], coords[j]));
         }
     }
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let a = finished(
+        "the unit brick",
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     let ov = |p: (f64, f64), q: (f64, f64)| (p.1.min(q.1) - p.0.max(q.0)).max(0.0);
     let zs = [(1.0, 2.0), (0.0, 1.0), (0.5, 1.5), (-1.0, 0.0), (0.0, 0.5)];
     for &x in &ranges {
         for &y in &ranges {
             for &z in &zs {
-                let b = brick(x, y, z, tol());
+                let b = finished("the brick", brick(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = ov((0.0, 1.0), x) * ov((0.0, 1.0), y) * ov((0.0, 1.0), z);
                 for decl in [false, true] {
@@ -432,7 +438,11 @@ fn the_declared_seam_body_is_an_operand() {
         (0.25, -0.5, 0.0),
     ];
     let a = zprism(&hex, (0.0, 0.0), (0.0, 2.0));
-    let b = brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol());
+    let b = finished(
+        "the box",
+        brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
+        tol(),
+    );
     // Fix pass 2: undeclared, the union refuses the continuation it
     // would keep; declared, the merge stage glues it.
     assert!(
@@ -451,7 +461,11 @@ fn the_declared_seam_body_is_an_operand() {
     println!("[seam] hex ∪ box: samekey={sk} coplanar={cp} zero={z}");
     let vr = topo::mass_properties(&r.body, tol()).unwrap().volume;
     assert!((vr - 1.71875).abs() < 1e-9, "{vr}");
-    let c = brick((-0.4, -0.1), (-0.7, -0.3), (0.5, 1.5), tol());
+    let c = finished(
+        "the brick",
+        brick((-0.4, -0.1), (-0.7, -0.3), (0.5, 1.5), tol()),
+        tol(),
+    );
     let lines = [
         (
             "∪",
@@ -485,10 +499,15 @@ fn the_declared_seam_body_is_an_operand() {
 fn the_peg_collar_unions_are_operands() {
     use crate::mate2_common::{collar_at, peg_at, wall_decls};
     use sweep::test_support::brick;
-    let far = brick((5.0, 6.0), (5.0, 6.0), (0.0, 1.0), tol());
+    let far = finished(
+        "the far brick",
+        brick((5.0, 6.0), (5.0, 6.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     let mut lines = Vec::new();
     for (what, h) in [("proud", 1.5), ("flush", 1.0)] {
-        let (c, p) = (collar_at(0.0), peg_at(0.0, 1.0, h));
+        let c = finished("the collar", collar_at(0.0), tol());
+        let p = finished("the peg", peg_at(0.0, 1.0, h), tol());
         let r = match topo::union_with(&c, &p, &wall_decls(&c, &p), tol()).unwrap() {
             topo::BooleanResult::Body(bb) => bb,
             topo::BooleanResult::Empty => panic!("empty"),

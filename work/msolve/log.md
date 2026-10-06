@@ -1045,3 +1045,404 @@ the plan, not only reading it. Three of the rows are now MSOLVE-12
 (plan item 23), dispatched on Opus with a single full review. The
 fourth, the null-payload spelling, is blocked on item 22 (plan item
 24).
+
+## 2026-10-01 — MSOLVE-12 handed back; review dispatched
+
+PR 3698 came back green at `fc5ea8dca`, and the head is frozen.
+
+The lane measured §1 wider than the row: six table shapes reached an
+`Invalid` margin under a membership predicate's name, all through the
+square of a decided sine. The fix is final state (a): closed-form
+solves that divide only by the decided sine. `inverse3` is gone. A
+meeting point beyond the number format refuses
+`MateFault::PoseOutOfRange`, with the range recourse.
+
+The new arm reached outside the fence:
+- `eval/class.rs` and `viewer/src/tree.rs`;
+- three census re-syncs.
+
+The PR declares these for the review to rule on.
+
+Filed:
+- `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2,
+  reachable at ordinary arms; it needs a range statement in
+  geom-core);
+- `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`
+  (P3).
+
+Main carries a stale rustdoc link (`solve_cluster`, renamed by
+`f714adf56` beside MSOLVE-11). It clears when PR 3698 merges. One
+full review (C1–C5) is dispatched on Opus.
+
+MSOLVE-12 review of `fc5ea8dca`: APPROVE-WITH-FIXES, no MAJOR. C1–C5
+hold, checked against exact rationals over about 31,000 poses: the
+closed forms' error is the problem's own conditioning, ε/sine. One
+MINOR. Below the zero band, `parallel` decides everything parallel and
+the stage divides by an exact zero, so a pair meeting at the origin
+refuses `PoseOutOfRange`. That is a false cause through the public
+`intersect`, and the doors may not reach it. The fix pass has nine
+rulings, R1–R9:
+- a typed refusal at an arm at or below the zero band, before any
+  division;
+- the decided divisor given one home, carried from the table;
+- `PoseOutOfRange` naming both mates;
+- an independent C2 reference, with cylinder and skew rows;
+- doc and display truths.
+
+The fix pass went back to the implementer lane.
+
+## 2026-10-03 — resumed after the weekly limit; Ev's three answers
+
+The weekly limit stopped the session on 2026-10-01 at about 15:30Z,
+with MSOLVE-12's fix pass waiting on CI at `c9022ce85`. The limit
+reset on 2026-10-03 at 15:00Z. Main had moved a long way in between:
+- EDIT left the tracker, and PLACE opened.
+- #3676 deleted the cluster maintenance, which made MSOLVE-12's §3
+  moot and left the PR dirty.
+- PLACE's row 53 gave every mate frame a general offset.
+
+The MSOLVE-12 lane was resumed to merge main, with main's deletion
+winning.
+
+Ev's three answers, all from 2026-10-01:
+- **#3679 (item 19):** approved, with a request to update A11 (5) in
+  place. Done in `b79b9b84e`. The appended sentence had also been
+  wrong to say "what the walk reads" is read at the nominal, so the
+  scalar rule now lives in the sentences it qualifies. The decision is
+  in fork-log row 58.
+- **#3695 (item 21):** approved, so the row is closed. Ev ruled the
+  union recourse's `ReadBelowARoot` a defect; it is filed as item 26.
+  The decision is in fork-log row 59.
+- **#3681 (item 22):** approved, and Ev's ±0 point is already met by
+  #2468. The merge is held, though, because PLACE's later row 53
+  collides with it. The same two designers have a round 3 with row 53
+  in hand.
+
+Rows were renumbered at merge: main's fork log runs to 57.
+
+#3679 merged at `a8ba0b451`, after Ev's approval and the in-place
+edit to A11 (5) that Ev asked for. Item 19 becomes an MSOLVE unit
+once MSOLVE-12 is in.
+
+The roll fork's round 3 converged. With PLACE's row 53 ruled, both
+designers recommend dropping the turn: the sides' offsets carry the
+roll, `Coaxial { roll: Free | Pinned }`, and `PlanarRest`'s standoff
+retires. The rider deletions stand. #3681 is updated in place to ask
+the revised question (fork-log row 60, all three rounds). The two
+designers differ only on which side the GUI composes a turn onto,
+which is a convention.
+
+Item 26's designers converged in one reconciliation round. The
+Fable/Opus labels are held off-file, since this fork goes to no
+`[ev]` PR. They agreed on the direction: the gate resolves a mate's
+face at its operand and lifts it up to the product, and the walk
+descends a union by member. They split on two points, and one
+designer moved to the other on both:
+- A transform above the operand refuses `MovedAbove`. The code decides
+  it: the member walk never composes a node above the operand, so
+  verifying the contact at the moved placement is a false refutation.
+- Member identity becomes the instance plus the placing nodes passed.
+  Otherwise a mate spelled at `t1` and one spelled at `U` would not
+  fold.
+
+`git log -S` shows both sentences that move are agent text: A5's from
+MSOLVE-5 and A11 (5)'s from MSOLVE-2. Ev ruled the defect, and both
+designers say no fork remains. So the fix is a unit, MSOLVE-13, and Ev
+is told rather than asked. The spec is on `msolve/13-read-at-operand`,
+and the unit dispatches once MSOLVE-12's lane frees the disk.
+## 2026-10-01 — MSOLVE-12 fix pass
+
+The review of `fc5ea8dca` came back APPROVE-WITH-FIXES, with no MAJOR,
+and C1–C5 held. The fix pass took the nine rulings:
+
+- **R1.** A lever at or below the band's zero threshold decides no
+  angle. It is refused as `LeverRefusal::BelowZeroBand` at `intersect`
+  and at the rider's roll, before any division, with the reviewer's
+  probe pinned as a row. That guard closes
+  `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+- **R2.** The table's verdict hands the translation stage the sine or
+  cosine it decided, and the stage divides by that alone. The shapes a
+  verdict called parallel or perpendicular are solved with no division.
+- **R3.** `PoseOutOfRange` names held and added, and the tree blames
+  both.
+- **R4.** C2 builds every pair around a known point, with cylinders and
+  a skew pair added.
+- **R5–R9.** `unreachable!` for the impossible arm; `undecided`'s prose;
+  the Display's distance sentence; the body's claim about
+  representatives corrected; the harness copy disclosed and the loader's
+  K derived.
+
+Friction: the first round's census missed that a lever below the zero
+band makes `parallel` and `perpendicular` both answer yes. The census
+swept arms from 1 m up, so the bottom of the lever's range was never
+probed. A sweep over a levered decision owes the arms at and under the
+band's own thresholds.
+
+
+## 2026-10-03 — MSOLVE-12 MERGED (PR 3698)
+
+Two decidably non-parallel shapes now meet in closed form. Their only
+divisor is the number the table decided; six shapes used to divide by
+its square, and `inverse3` is gone. A meeting point beyond measurement
+refuses `PoseOutOfRange`, naming both mates. A lever inside the zero
+band refuses `BelowZeroBand` before any angle is decided. A mate's
+`Band` is reached by a loaded snapshot.
+
+The single full review found no MAJOR. Fix pass R1–R9. The main merge
+dropped §3 (overtaken by #3676) and guarded main's new offset check
+with R1. Closes MSOLVE-12,
+`near-parallel-planes-refuse-under-a-false-predicate`,
+`mate-band-fault-unreachable-on-a-mate` and
+`plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+Filed: `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2).
+The spec was deleted, with a note in `docs/doc-ledger/msolve-12-spec.md`.
+
+MSOLVE-12 merged on PR 3698. Its MERGED entry rode the unit branch.
+MSOLVE-13 was dispatched on Opus with a single full review, red rows
+first. Two things the MSOLVE-12 lane noted:
+- The editor-core rustdoc gate trips on two redundant link targets in
+  `meta/ser.rs`, a file identical to main's, so the nightly may be red
+  on main. Unverified here; it is not this program's file.
+- One merge commit on that branch (`84db7bf21`) lacks the trailers. It
+  is merged history now, and merge-only means it stays.
+
+Ev approved the revised roll on #3681 ("the new plan makes sense"),
+and fork-log row 60 carries the decision. The `MateFrame { base,
+offset }` shape from PLACE's row 53 is unbuilt and lives in `mate.rs`,
+so MSOLVE builds it with the roll unit. A note on PLACE's row says so
+and leaves PLACE the crate, the tour gauge and, if it wants it, the
+offset edit.
+
+## 2026-10-03 — MSOLVE-13 handed back; review dispatched
+
+PR 3969 came back green at `3610f0432`, and the head is frozen. None
+of the STOP clause's conditions fired. The `t3` false refutation
+reproduced on main. Every consumer kind classifies without reading a
+slot. The member-identity change, instrumented across the editor-core
+suite, moved one existing tree: `msolve2::a3b`, the two-spellings case
+it was meant to fold. One pinned verdict moved and gets scrutiny:
+`msolve1::a5`'s consistent half used to pass the gate and now refuses
+`MovedAbove`, because its `x2` is a transform of the operand.
+
+Two calls the lane made beyond the spec are with the review: Fillet,
+Chamfer and Shell are classified as carried, and a mixed route mints.
+Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
+One full review (C1–C5) is dispatched on Opus.
+
+MSOLVE-13 review of `3610f0432`: APPROVE-WITH-FIXES, no MAJOR, C1–C5
+hold. `msolve1::a5`'s move is ruled right, not a regression: its old
+consistent pass was a fixture coincidence. Its `x2` is a quarter turn
+about the block's own centre, a symmetry of the footprint, so the
+contact happened to survive while the seat was rotated in the product.
+The calls the lane made beyond the spec stand: Fillet, Chamfer and
+Shell carried (probed), and mixed routes minting.
+
+Fix pass R1–R10, sent back to the implementer lane:
+- `Vanished { by }` prefers the consumer that lost the face;
+- A5's two overstatements corrected;
+- the recourse worded as "re-pick on {by}";
+- `msolve2::a4b` and `msolve1::a5` re-shaped to keep their subjects;
+- stale identity prose in `node.rs` and `refactor.rs`;
+- `lift` without field rests;
+- small nits.
+
+## 2026-10-03 — MSOLVE-13 fix pass (PR 3969)
+
+A single full review of `3610f0432` came back APPROVE-WITH-FIXES with
+no MAJOR, and claims C1–C5 held. The fix pass is R1–R10:
+- `Vanished { by }` names the consumer that lost the face, not a
+  datum reading beside it.
+- `MovedAbove` gains a `copies` field. Its recourse now reads
+  "re-pick the face on {by}", with ", naming the copy" added for a
+  pattern or placed union.
+- A5's sentences match the code: the lift is the identity through
+  `Part`s and split targets, and a placer refuses only when no route
+  carries the face unmoved.
+- `msolve1::a5` was rebuilt as sibling transforms under a union, so
+  the gate verifies the declaring loop again. `msolve2::a4b` keeps
+  its declaring mate by reading through a transform.
+- `names::lift` spells every field.
+- New lift rows for chamfer, shell and the bystander datum, plus a
+  `Part`-above-a-union backstop row.
+- The `msolve5` test files are renamed to what they pin.
+
+## 2026-10-03 — MSOLVE-13 MERGED (PR 3969)
+
+The at-rest gate now reads a mate's face where the mate says it reads
+it, in the operand's table, and lifts it up to the product (`names::lift`,
+exhaustive over node kinds and seats). A placer on the only route
+refuses `MovedAbove { at, by, copies }`, whose recourse is "re-pick
+the face on `by`". A face a consumer merges or cuts refuses `Vanished`
+naming that consumer. The member walk descends a union, and a member
+is its instance plus the placing nodes passed. The gather's
+`PlacedUnderTwoRoots` recourse branches on whether a body or an
+instance is placed twice.
+
+This closes Ev's defect from #3695 and the false geometric refutation
+of a transform above the operand. One existing tree moved:
+`msolve2::a3b`, the two-spellings case. A5's minting sentence and
+A11 (5)'s walk and identity sentences were rewritten; both were agent
+text, so Ev is told, not asked.
+
+Closes MSOLVE-13 and
+`a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`.
+Filed: `split-and-inline-over-a-mate-read-at-a-union-are-unmeasured`.
+The spec is deleted, with a note in `docs/doc-ledger/msolve-13-spec.md`.
+
+MSOLVE-13 merged on PR 3969. Its MERGED entry rode the unit branch.
+MSOLVE-14 (item 19: the solve at the run's scalar) was dispatched on
+Opus, red rows first, with the `f64` bit-fence green on every push. Its
+review tier is dual. One build fits the disk, so if both reviewer arms
+cannot run beside each other the protocol's late-trigger fallback
+applies again.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent-refactor hold, applied
+
+The hold notice on this log is Ev's instruction. I checked it against
+Ev's own words in `5f7a1c71e3`: "hold off on starting any units which
+meaningfully use this stuff (and if that blocks their entire program,
+to switch its state to "blocked" and stop)" and "they CAN finish units
+they've already started even if they collide".
+
+Every live MSOLVE row is mate or solve work, so:
+- MSOLVE-14 finishes, as a started unit.
+- MSOLVE-15 stays unstarted. It is specced only, and PLACE's PR 3961
+  has already built half of it.
+- Eleven rows are parked on `blocked_on: [3990]`. The ruling's item id
+  is not on main yet, so it does not resolve.
+
+Once MSOLVE-14 merges, the program goes `blocked` and the orchestrator
+stops.
+
+New rows this check-in, placed by parking them: PLACE's
+`a-face-base-puts-its-reference-on-local-y` (P3, design) and
+`a-mate-frame-axis-is-decided-against-a-length-band` (P3, design).
+PLACE also widened `a-mate-through-a-parametric-placer…` with the
+frame offset's parameters, which MSOLVE-14's merge of main now has to
+cover.
+
+## 2026-10-03 — MSOLVE-14 handed back; dual review dispatched
+
+PR 3986 came back green at `3053f4254`, and the head is frozen. The
+`f64` fence measured the corpus bit-identical to main's at ε = 1e-9,
+1e-6 and 1e-12, and the STOP clause did not fire. PLACE's parametric
+frame offset is folded at `T` too, with two rows. `Unpinned` is
+deleted.
+
+The dual tier's arm is CONCURRENT (difficulty H, rule 1). The disk
+holds one build: about 18 GB of target against 15 GB free. Sharing
+one target directory across two worktrees already served the lane a
+stale build once. So rule 2's late-trigger fallback applies: R1
+reviews now, and R2 reviews the same frozen head after R1, with an
+identical brief that differs only in its label. Protocol: `7cb05367ef`.
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-04 — MSOLVE-14 MERGED (PR 3986)
+
+The mate solve now runs at the evaluation's own scalar. Frames, placer
+maps, the coset fold, `check_offsets`, PLACE's parametric frame offset
+and the solved poses are all folded at `T`. The structure, the counts
+and the reach stay nominal. The memo key carries the pose at `T` on
+both dual channels. `Unpinned` is deleted. At `f64` the solve is
+bit-identical to main's at ε = 1e-9, 1e-6 and 1e-12, measured against
+main's own digests over a corpus that now holds thirteen documents.
+
+**Dual review**, frozen head `3053f4254`. The arm was CONCURRENT and
+ran under the late-trigger fallback: R2 reviewed the same head after
+R1, with an identical brief. Both verdicts were NOT-MERGEABLE-AS-IS,
+for the same MAJOR, shown by execution in two different documents.
+- **The MAJOR.** A shaft in two coaxial bores puts a pin's axis point
+  on the held axis. `clocking_about` relied on `atan2(0, 0) = 0`, which
+  holds only at `f64`. At `Dual64`, every vertex read a NaN tangent
+  and no node errored. At `Interval`, the group refused
+  (`PoseOutOfRange` in one document, `Indeterminate(Invalid)` in the
+  other).
+- **Blinded coding** (byte 66) found 18 distinct findings and no tally
+  candidate.
+
+**The fix pass** applied rulings F1–F11:
+- The clocking radius is decided before its angle is taken
+  (`mate_clocking_radius`). Coinciding axis lines end the clocking with
+  the identity.
+- The interval `atan2` no longer returns the whole circle across its
+  branch cut.
+- The C5 row compares fault variants against an exact table of the
+  expected escalations, each carrying `MarginDiag::Enclosure`. Every
+  lane asserts finite tangents.
+- An `Under` stays `Under` on every lane.
+- `sensitivities` and `stackup` take the resolver, and
+  `sensitivities_resolved` is gone.
+- The guide states both refusals at the placement door, and the topo
+  row is retitled to cover boxed translations.
+- The A5 clearance row now tells a `T`-solve from a lift of the
+  nominal.
+
+**One CI red on an intermediate head** was the bounds census. A door
+from PR 3978, `centred_box`, had no roster row; the lane added one.
+
+Closes MSOLVE-14. Filed and parked on D10's build:
+- `an-identically-zero-margin-escalates-at-a-fine-eps`: six of the
+  thirteen documents escalate at 1e-12;
+- `a-box-over-a-solved-clocking-widens-thirty-thousandfold`: the
+  interval dependency through the adjugate inverse.
+
+Filed to flux: `the-box-driver-carries-no-part-resolver`. Without it a
+stackup over an assembly cannot produce a verdict.
+`a-box-independent-mate-fault-bisects-the-whole-leaf-budget` is parked
+on D10's build and on that flux row. The spec is deleted, with a note
+in `docs/doc-ledger/msolve-14-spec.md`.
+
+Under the intent-refactor hold, nothing in the program may start now.
+The program goes to `blocked`, and the orchestrator stops.
+
+## 2026-10-04 — the program is blocked; the orchestrator stops
+
+MSOLVE-14 was the last unit already started, and it merged on PR 3986
+with DR-70. The MSOLVE-14 lane had filed
+`the-mate-solve-reads-the-platform-atan2`, a D9 row: the solve's two
+angles read the platform's `atan2`. It is mate-solve ground, so it is
+parked on D10's build with the rest. Every live row is now parked, and
+`work/msolve/program.md` reads `blocked`. Nothing starts until D10 is
+built. When it is, the parked rows are re-cut against D10, MSOLVE-15
+first: its spec on `msolve/15-frame-offset-carries-the-roll` is stale.
+The orchestrator's scheduled check-in is deleted.

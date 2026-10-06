@@ -31,6 +31,6 @@ far-placement rows and the adversary become gating. No decision at
 protocol v7 IN, the full v6 dual. Spec: `docs/SYM-11-SPEC.md`.
 
 The one narrowing SYM-11 left is filed as
-`work/sym/a-dispute-names-no-predicate-on-the-receipt.md`: a dispute is
+`work/rules/a-dispute-names-no-predicate-on-the-receipt.md`: a dispute is
 counted on the receipt and names no predicate (a new `ShapeOutcome`
 row would carry it); cited from `SymCounts::theorems_disputed`'s doc.

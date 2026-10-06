@@ -101,10 +101,12 @@
 //! conventional description at rest is a chart image, which owes the
 //! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface verdicts are decided for
 //! the whole loop — including the wrap pair — before any wall is minted
-//! (the PR 4 SHOULD-1 lesson): a run of collinear segments is ONE wall
-//! (crate README, "Walls: one per run"; a full revolve collapses the run
-//! to one segment before it builds, a partial one keeps each station on
-//! its wedge caps), and same-carrier tangent arcs share one surface key.
+//! (the PR 4 SHOULD-1 lesson): a run of segments on one carrier is ONE
+//! wall (crate README, "Walls: one per run"; a full revolve collapses
+//! the run to one segment before it builds, a partial one keeps each
+//! station on its wedge caps). A partial revolve keeps each arc of a
+//! cocircular run its own wall (`swept::CurvedRuns::Split`), and those
+//! walls share one surface key, as a circle's cut walls do.
 //!
 //! # K-telemetry
 //!
@@ -539,10 +541,11 @@ pub enum RevolveError {
         loop_index: usize,
     },
     /// The void-insertion door refused a hole cavity's insertion
-    /// ([`topo::insert_void`]). The evidence arms are unreachable from
-    /// this construction (every hole shell is certified from the
-    /// profile's own validation before the call); the revert/graft
-    /// arms surface kernel-level corruption typed.
+    /// ([`topo::insert_void`]). The evidence and destination arms are
+    /// unreachable from this construction (every hole shell is
+    /// certified from the profile's own validation before the call, into
+    /// the solid the build minted); the revert arm surfaces a torn
+    /// cavity typed.
     VoidInsertion {
         /// Canonical index of the hole loop whose insertion refused.
         loop_index: usize,
@@ -795,7 +798,9 @@ impl std::error::Error for RevolveError {}
 
 impl From<EulerOpError> for RevolveError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 

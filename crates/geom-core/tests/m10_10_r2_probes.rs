@@ -44,7 +44,7 @@ fn band() -> Band {
 
 /// A parameter at `f64`.
 fn p(name: &str, v: f64) -> Sym<f64> {
-    Sym::param(ParamSymbol::of(name), v)
+    Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
 }
 
 /// How the tier answered the margin `build` makes inside a FRESH
@@ -469,7 +469,12 @@ mod over_boxes {
     use geom_core::{Interval, ParamSymbol, Real, Sym};
 
     fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-        Sym::param_over(ParamSymbol::of(name), Interval::from_bounds(lo, hi), lo, hi)
+        Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id(name)),
+            Interval::from_bounds(lo, hi),
+            lo,
+            hi,
+        )
     }
 
     fn how(build: impl FnOnce() -> Sym<Interval>) -> String {

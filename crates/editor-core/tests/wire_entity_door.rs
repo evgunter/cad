@@ -145,12 +145,12 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
     for (what, node, want) in [
         (
             "fillet",
-            Node::fillet as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
+            Node::fillet as fn(RecipeNodeId, editor_core::Formula, Vec<StableName>) -> _,
             "the fillet selection name minted by node {n} denotes a face, not an edge",
         ),
         (
             "chamfer",
-            Node::chamfer as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
+            Node::chamfer as fn(RecipeNodeId, editor_core::Formula, Vec<StableName>) -> _,
             "the chamfer selection name minted by node {n} denotes a face, not an edge",
         ),
     ] {

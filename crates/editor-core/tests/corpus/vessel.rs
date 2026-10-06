@@ -32,6 +32,7 @@
 //! docs): a dual has no shell door, and registry membership requires
 //! every document green at `Dual64`.
 
+use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band,
@@ -71,7 +72,7 @@ pub const SEG_BELLY: u32 = 2;
 pub const SEG_MOUTH: u32 = 3;
 
 /// The meridian as a program (module docs).
-pub fn meridian() -> LoopProgram {
+pub fn meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, 0.0]))),

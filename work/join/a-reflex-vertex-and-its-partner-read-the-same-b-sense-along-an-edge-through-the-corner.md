@@ -2,11 +2,12 @@
 id: a-reflex-vertex-and-its-partner-read-the-same-b-sense-along-an-edge-through-the-corner
 kind: issue
 title: Along an edge of b through a's reflex corner, both B halves of a matched pair read up (JoinDesync B senses agree)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [reflex-corner-vertex-vertex-sites-refuse-under-a-tilted-cap, locus-matching-moves-frontier-refusals-to-join-desync]
+closed: 2026-10-05
 ---
 
 
@@ -63,3 +64,11 @@ four germs, and `insert` runs one or both of B's null edges the long
 way round in A's germ order. The `b ∖ a` op was not instrumented. A B
 half bound to the wrong run reads the wrong sense, which would give
 this row's symptom.
+
+## Built (branch `join/reflex-corner-vertex-vertex`)
+
+The bar holds there: `join1_r1_reflex_battery` reports no `JoinDesync`.
+`eLeft` at `(−0.5, 0)` and `(−0.25, 0)` builds every op `SOUND`
+(`join1_mechanisms::the_incidence_check_reads_the_whole_site`). That
+row goes red again (`JoinDesync`) when B runs its null edges in A's
+order (`four-germ-vertex-pairs-run-b-in-a-order`).

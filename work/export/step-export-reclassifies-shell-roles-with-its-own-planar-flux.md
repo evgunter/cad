@@ -76,3 +76,22 @@ and the review measured the same for square bosses and for cuts at
 this body would EXPORT, so its pin fails as a success and says to drop it,
 unlike the hollow-body pins (`hollowring`, `hollowtorus`,
 `torusvessel`, `fivewall`), which flip to `VoidShellUnsupported`.
+
+**2026-10-03 — the `projectbox` cut exports another way (FUSE, PR
+3891).** Under Ev's ruling that a solid is one piece of material (PR
+3901), `split` sorts each side into pieces, so the above half is now
+three solids of one shell each and the writer classifies no shell at
+all: it exports. Its `step_at_frontier` pin is dropped
+(`demos/tour/src/cutaway.rs`). The writer's own classification gap this
+item names is untouched; this body just no longer reaches it.
+
+## Evidence from REACH (`reach/check7-interval`)
+
+`classify_shells_of` reads a shell's role off its interval
+re-derivation (`topo::props::rederive`). The `f64` sum is not that
+re-derivation. A shell whose volume is below its own rounding therefore
+refuses typed there instead of reading a sign. The witness is `topo`'s
+`tier3_tests::far_anchored_slab`, where the `f64` sum reads −1.2e-12 m³
+for a +1e-13 m³ slab. `shell_signed_volume`'s raw `volume < 0.0` has no
+such guard. Routing the writer through `classify_shells_of`, as the fix
+above says, closes that too.

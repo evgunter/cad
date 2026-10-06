@@ -96,7 +96,7 @@ impl core::error::Error for UpdateError {}
 /// id, and [`UpdateError::AlreadyPinned`] when every site that does
 /// already names `new_pin`. The two are separate because the recourses
 /// differ: one is a wrong id, the other is a completed update.
-pub fn update_references<P>(
+pub fn update_references<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: DocumentId,
     new_pin: ContentPin,

@@ -32,25 +32,28 @@ struct EdgeData<T: Real> {
     extent: T,
 }
 
-/// A vertex's point, with the kernel read-back door's unresolved
-/// reference renamed into the operator layer's stale-key vocabulary
-/// (total: stale keys surface as operator-layer typed errors).
-pub(super) fn vertex_point<T: Real>(
-    body: &Body<T>,
-    vertex: topo::VertexKey,
-) -> Result<Point3<T>, RevolveError> {
-    topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
+/// The point of `vertex`, read off a live half-edge.
+///
+/// # Panics
+///
+/// If the vertex or its point does not resolve: both are links a
+/// live half-edge holds on a tier-1-valid body.
+#[track_caller]
+fn vertex_point<T: Real>(body: &Body<T>, vertex: topo::VertexKey) -> Point3<T> {
+    topo::readback::vertex_point(body, vertex).unwrap_or_else(|_| {
+        unreachable!("vertex {vertex:?}, held by a live half-edge, does not resolve")
+    })
 }
 
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
-    let edge_rec = body.get_edge(edge).ok_or(EulerOpError::StaleKey {
-        key: topo::EntityId::Edge(edge),
-    })?;
+    let edge_rec = body.get_edge(edge).unwrap_or_else(|| {
+        unreachable!(
+            "edge {edge:?} was minted by this revolve and is upgraded before any kill of it"
+        )
+    });
     let curve = body
         .get_curve_geom(edge_rec.curve)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Curve(edge_rec.curve),
-        })?
+        .unwrap_or_else(|| unreachable!("curve {:?} is held by live edge {edge:?}", edge_rec.curve))
         .certified()
         .ok_or(EulerOpError::NullScaffoldCurve {
             curve: edge_rec.curve,
@@ -61,15 +64,13 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
     let he_plus = edge_rec.he_plus;
     let start = body
         .get_half_edge(he_plus)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::HalfEdge(he_plus),
-        })?
+        .unwrap_or_else(|| unreachable!("half-edge {he_plus:?} is live edge {edge:?}'s plus half"))
         .start;
-    let end = body.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
-        key: topo::EntityId::HalfEdge(he_plus),
-    })?;
-    let p_start = vertex_point(body, start)?;
-    let p_end = vertex_point(body, end)?;
+    let end = body.half_edge_end(he_plus).unwrap_or_else(|| {
+        unreachable!("half-edge {he_plus:?}'s end is its live mate's start on a tier-1-valid body")
+    });
+    let p_start = vertex_point(body, start);
+    let p_end = vertex_point(body, end);
     let extent = edge_extent(&carrier, t0, t1, p_start.distance(p_end));
     Ok(EdgeData {
         carrier,
@@ -104,15 +105,11 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     let surf1 = body
         .get_surface(s1)
         .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(s1),
-        })?;
+        .unwrap_or_else(|| unreachable!("surface {s1:?} was read off a live face of this revolve"));
     let surf2 = body
         .get_surface(s2)
         .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(s2),
-        })?;
+        .unwrap_or_else(|| unreachable!("surface {s2:?} was read off a live face of this revolve"));
     match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
@@ -206,9 +203,9 @@ pub(super) fn upgrade_meridian_seam<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), RevolveError> {
     let is_plane = matches!(
-        body.get_surface(wall).ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(wall),
-        })?,
+        body.get_surface(wall).unwrap_or_else(|| {
+            unreachable!("wall surface {wall:?} was read off a live wall face of this revolve")
+        }),
         geom::Surface::Plane { .. }
     );
     if is_plane {

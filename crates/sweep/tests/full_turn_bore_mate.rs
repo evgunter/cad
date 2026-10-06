@@ -25,7 +25,7 @@
 //!   cross that circle where no other face meets it, and only the
 //!   crossing layer records them.
 //!
-//! Each union runs in both operand orders.
+//! Each op runs in both operand orders.
 //! Every pose of [`crate::common::poses::poses`] moves both operands.
 //! The oracle is closed form: the interiors are disjoint, so the union
 //! is the collar's annulus volume plus the shaft's disc volume, the
@@ -33,12 +33,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::mate2_common::{peg_at, wall_decls};
-use core::f64::consts::{FRAC_PI_2, PI};
-use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanOp, BooleanResult, mass_properties};
+use crate::mate2_common::{full_turn_collar, onto_y, peg_at, wall_decls};
+use core::f64::consts::PI;
+use geom_core::{Affine3, Point3, Tol};
+use sweep::test_support::finished;
+use topo::{AtRestBody, Body, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's bore and outer radii and its span in `y`.
 const BORE: f64 = 0.5;
@@ -46,41 +45,19 @@ const OUTER: f64 = 1.5;
 const COLLAR: (f64, f64) = (1.0, 2.0);
 
 fn collar() -> Body<f64> {
-    let (y0, y1) = COLLAR;
-    let lp = ProfileLoop::polygon([
-        Point2::new(BORE, y0),
-        Point2::new(OUTER, y0),
-        Point2::new(OUTER, y1),
-        Point2::new(BORE, y1),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    full_turn_collar(BORE, OUTER, COLLAR)
 }
 
 /// The three-arc peg, first ruling at azimuth `deg` (from `+x`, the
 /// collar's seam), spanning `y ∈ [y0, y0 + h]`.
 fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
-    // A quarter turn about `x` takes the peg's `z` axis to `y` and its
-    // sketch azimuth `θ` (from `+x` toward `+y`) to the azimuth `θ` from
-    // `+x` toward `−z`, which is the revolve's own sense about `+y`.
-    let up = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        -FRAC_PI_2,
-    );
-    topo::transform_rigid(&peg_at(deg, y0, h), &up, Tol::witness()).unwrap()
+    onto_y(&peg_at(deg, y0, h))
 }
 
-fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, pose, Tol::witness()).unwrap()
+/// `b` moved by `pose`, finished as an operand.
+fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
+    let moved = topo::transform_rigid(b, pose, Tol::witness()).unwrap();
+    finished("the placed operand", moved, Tol::witness())
 }
 
 fn volume(b: &Body<f64>) -> f64 {
@@ -116,7 +93,7 @@ fn agrees(got: f64, want: f64) -> bool {
 /// `c ∪ p` and `p ∪ c`, each with its declarations in its own operand
 /// order: a body, its volume the closed form, one shell, tier 3 and the
 /// pseudomanifold census clean.
-fn unions_both_ways(c: &Body<f64>, p: &Body<f64>, h: f64, tag: &str) {
+fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str) {
     let tol = Tol::witness();
     for (order, a, b) in [("collar ∪ shaft", c, p), ("shaft ∪ collar", p, c)] {
         let tag = format!("{tag}, {order}");
@@ -128,6 +105,11 @@ fn unions_both_ways(c: &Body<f64>, p: &Body<f64>, h: f64, tag: &str) {
         let (got, want) = (volume(&bb.body), collar_volume() + shaft_volume(h));
         assert!(agrees(got, want), "{tag}: union volume {got} vs {want}");
         assert_eq!(bb.body.shells().count(), 1, "{tag}: one shell");
+        assert_eq!(
+            bb.body.outcome(),
+            topo::AtRestOutcome::Validated,
+            "{tag}: the site that built it gated it at tier 3"
+        );
         assert_eq!(
             topo::validate_geometric(&bb.body, tol),
             Ok(()),
@@ -166,6 +148,33 @@ fn a_shaft_off_the_bores_seam_unions() {
 #[test]
 fn a_shaft_a_quarter_turn_off_the_bores_seam_unions() {
     unions_at(&collar(), 90.0, "one-face bore");
+}
+
+/// **Off the seam, the zip builds the mate**: the join's surgery
+/// refuses it, and the declared-REST zip builds it on the join's own
+/// segments.
+#[test]
+fn a_shaft_off_the_bores_seam_is_built_by_the_zip() {
+    let (c, (_, y0, h)) = (collar(), SPANS[0]);
+    let p = shaft(60.0, y0, h);
+    let decls = wall_decls(&c, &p);
+    let join =
+        topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, &decls, Tol::witness());
+    assert!(
+        matches!(
+            join,
+            Ok(Some(topo::BooleanError::Join(
+                topo::SplitJoinError::RingHomingAmbiguous { .. }
+            )))
+        ),
+        "the join refuses the mate, got {join:?}"
+    );
+    let tol = Tol::witness();
+    let (c, p) = (
+        sweep::test_support::finished("the collar", c, tol),
+        sweep::test_support::finished("the shaft", p, tol),
+    );
+    unions_both_ways(&c, &p, h, "the zip's row");
 }
 
 /// The collar with its bore split into two full-turn faces by the
@@ -265,40 +274,55 @@ fn a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth() {
     unions_at(&split_collar(), 0.0, "split bore");
 }
 
-/// **The other three ops refuse typed, never answer wrong.** The
-/// closed forms are `∩` empty and each difference its minuend whole;
-/// what the kernel answers today at azimuths 0°, 60° and 90°, every
-/// span and every pose, is `FallbackExtentUnsupported`
-/// (`work/reach/declared-rest-mate-intersect-and-differences-refuse-at-the-fallback-extent.md`).
-/// A shaft a hair off the bore's seam (1e-7°) answers
-/// `Escalated { Coincidence(Sectors) }` instead; this row does not
-/// cover that pose.
+/// **The other three ops answer the closed form**: `∩` empty in both
+/// operand orders, and each difference its minuend whole, at azimuths
+/// 0°, 60° and 90°, every span and every pose, on the one-face bore and
+/// (at the seam azimuth) the split bore.
 #[test]
-fn intersect_and_differences_refuse_at_the_fallback_extent() {
+fn intersect_and_differences_answer_the_closed_form() {
     let tol = Tol::witness();
     for (pose_name, pose) in crate::common::poses::poses() {
-        let c = placed(&collar(), &pose);
-        for deg in [0.0, 60.0, 90.0] {
-            for (span, y0, h) in SPANS {
-                let p = placed(&shaft(deg, y0, h), &pose);
-                let tag = format!("azimuth {deg}, {span}, pose {pose_name}");
-                let ab = wall_decls(&c, &p);
-                let ba = wall_decls(&p, &c);
-                for (op, a, b, decls) in [
-                    (BooleanOp::Intersect, &c, &p, &ab),
-                    (BooleanOp::Subtract, &c, &p, &ab),
-                    (BooleanOp::Subtract, &p, &c, &ba),
-                ] {
-                    let out =
-                        topo::boolean_op_with(op, a, b, decls, topo::SweepStrategy::Realized, tol);
-                    assert!(
-                        matches!(
-                            out,
-                            Err(topo::BooleanError::FallbackExtentUnsupported { .. })
-                        ),
-                        "{tag}: {op:?}: {:?}",
-                        out.as_ref().err()
-                    );
+        for (bore, collar, degs) in [
+            ("one-face bore", collar(), &[0.0, 60.0, 90.0][..]),
+            ("split bore", split_collar(), &[0.0][..]),
+        ] {
+            let c = placed(&collar, &pose);
+            for &deg in degs {
+                for (span, y0, h) in SPANS {
+                    let p = placed(&shaft(deg, y0, h), &pose);
+                    let tag = format!("{bore}, azimuth {deg}, {span}, pose {pose_name}");
+                    let ab = wall_decls(&c, &p);
+                    let ba = wall_decls(&p, &c);
+                    let run = |op, a, b, decls| {
+                        topo::boolean_op_with(op, a, b, decls, topo::SweepStrategy::Realized, tol)
+                    };
+                    for (order, a, b, decls) in [("c ∩ p", &c, &p, &ab), ("p ∩ c", &p, &c, &ba)]
+                    {
+                        assert!(
+                            matches!(
+                                run(BooleanOp::Intersect, a, b, decls),
+                                Ok(BooleanResult::Empty)
+                            ),
+                            "{tag}: {order} is empty"
+                        );
+                    }
+                    for (order, a, b, decls, want) in [
+                        ("c ∖ p", &c, &p, &ab, collar_volume()),
+                        ("p ∖ c", &p, &c, &ba, shaft_volume(h)),
+                    ] {
+                        let bb = match run(BooleanOp::Subtract, a, b, decls) {
+                            Ok(BooleanResult::Body(bb)) => bb,
+                            other => panic!("{tag}: {order}: {other:?}"),
+                        };
+                        let got = volume(&bb.body);
+                        assert!(agrees(got, want), "{tag}: {order}: volume {got} vs {want}");
+                        assert_eq!(bb.body.shells().count(), 1, "{tag}: {order}: one shell");
+                        assert_eq!(
+                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+                            Ok(()),
+                            "{tag}: {order}: the census"
+                        );
+                    }
                 }
             }
         }
@@ -314,7 +338,11 @@ fn intersect_and_differences_refuse_at_the_fallback_extent() {
 #[test]
 fn a_shaft_through_the_bore_off_its_seam_takes_the_rest_door() {
     let tol = Tol::witness();
-    let (c, p) = (collar(), shaft(60.0, 0.5, 2.0));
+    let identity = Affine3::identity();
+    let (c, p) = (
+        placed(&collar(), &identity),
+        placed(&shaft(60.0, 0.5, 2.0), &identity),
+    );
     let _ = topo::test_support::take_join_routes();
     for (order, a, b) in [("collar ∪ shaft", &c, &p), ("shaft ∪ collar", &p, &c)] {
         let bb = match topo::union_with(a, b, &wall_decls(a, b), tol) {

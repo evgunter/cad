@@ -20,8 +20,8 @@
 //!    face is immediately consumed by a same-shell `kfmrh` demoting the
 //!    disc loop into the bottom cap. Genus rises by one per hole.
 //! 3. **Sweep.** Per loop of the seed face (outer, then rings in
-//!    canonical hole order), one wall per RUN of collinear segments
-//!    (crate README, "Walls: one per run"): one strut `mev` per run's
+//!    canonical hole order), one wall per RUN of segments on one
+//!    carrier (crate README, "Walls: one per run"): one strut `mev` per run's
 //!    leading vertex (the `he1 == he2` case — swept vertex,
 //!    `ExtrudedPoint` description), then per run a `mev` chain laying
 //!    the top rim of every segment but the last (minting each
@@ -554,7 +554,9 @@ impl std::error::Error for ExtrudeError {}
 
 impl From<EulerOpError> for ExtrudeError {
     fn from(source: EulerOpError) -> Self {
-        Self::Op { source }
+        Self::Op {
+            source: source.from_driver(),
+        }
     }
 }
 
@@ -839,7 +841,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     hes.push(close.he_plus);
     let top_face = seed.face;
     let bottom_face = close.face;
-    let bottom_surface = face_surface_key(&body, bottom_face)?;
+    let bottom_surface = face_surface_key(&body, bottom_face);
     let mut bases = Vec::with_capacity(loops.len());
     bases.push(LoopBase { hes });
 
@@ -959,14 +961,17 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         let qs = &points[li];
         let n = segs.len();
         for j in 0..n {
-            let wall = face_surface_key(&body, side_faces[li][j])?;
+            let wall = face_surface_key(&body, side_faces[li][j]);
             let q_from = qs[j];
             let q_to = qs[(j + 1) % n];
             let bottom_rim = body
                 .get_half_edge(base.hes[j])
-                .ok_or(EulerOpError::StaleKey {
-                    key: topo::EntityId::HalfEdge(base.hes[j]),
-                })?
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "base half-edge {:?} was minted by this driver and nothing kills it",
+                        base.hes[j]
+                    )
+                })
                 .edge;
             upgrade_rim(
                 &mut body,
@@ -1048,7 +1053,8 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             source,
         },
     )?;
-    let runs = swept::wall_runs(segs, &pair, |_| true);
+    let joins = swept::joins(segs, &pair, swept::CurvedRuns::Whole);
+    let runs = swept::wall_runs(&joins);
 
     // Struts: one swept vertex per run's leading vertex. A station
     // inside a run has none — its top vertex is minted by the run's
@@ -1089,7 +1095,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         },
         |body, run, faces| {
             let surface = side_surface(
-                body, loop_index, segs, &pair, faces, run, origin, qs, place, normal, w, band, tol,
+                body, loop_index, segs, &joins, faces, run, origin, qs, place, normal, w, band, tol,
             )?;
             let last = (run.first + run.len - 1) % n;
             let end = run.end(n);
@@ -1123,17 +1129,15 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let Some(strut) = struts[j] else { continue };
         let f_prev = faces[(j + n - 1) % n];
         let f_next = faces[j];
-        let k_prev = face_surface_key(body, f_prev)?;
-        let k_next = face_surface_key(body, f_next)?;
+        let k_prev = face_surface_key(body, f_prev);
+        let k_next = face_surface_key(body, f_next);
         let s_prev = body
             .get_surface(k_prev)
             .cloned()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: topo::GeomRef::Surface(k_prev),
-            })?;
+            .unwrap_or_else(|| unreachable!("surface {k_prev:?} is held by live face {f_prev:?}"));
         if k_prev == k_next {
             // ONE surface on both sides: a conventional locus the
-            // surfaces under-determine (a cocircular split, or the
+            // surfaces under-determine (a circle's canonical cut, or the
             // meridian where a closed wall's chart wraps). It was
             // minted through the scaffolding door because the wall did
             // not exist yet; now it does, so the edge is described
@@ -1159,9 +1163,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let s_next = body
             .get_surface(k_next)
             .cloned()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: topo::GeomRef::Surface(k_next),
-            })?;
+            .unwrap_or_else(|| unreachable!("surface {k_next:?} is held by live face {f_next:?}"));
         let mid = qs[j] + w * T::from_f64(0.5);
         match classify_dihedral(&s_prev, &s_next, mid, w_norm, band) {
             Ok(DihedralClass::Transverse) => {
@@ -1302,14 +1304,16 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let bottom_rims = segments
             .iter()
             .map(|&j| {
-                Ok(body
-                    .get_half_edge(hes[j])
-                    .ok_or(EulerOpError::StaleKey {
-                        key: topo::EntityId::HalfEdge(hes[j]),
-                    })?
-                    .edge)
+                body.get_half_edge(hes[j])
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "base half-edge {:?} was minted by this driver and nothing kills it",
+                            hes[j]
+                        )
+                    })
+                    .edge
             })
-            .collect::<Result<_, EulerOpError>>()?;
+            .collect();
         walls.push(SideWall {
             face: faces[run.first],
             strut: lead.edge,
@@ -1335,27 +1339,25 @@ struct LoopSwept {
     top_rims: Vec<EdgeKey>,
 }
 
-/// The surface spec of the wall over `run`, from the precomputed
-/// cosurface verdicts `pair` (see [`sweep_loop`]) and the walls minted
+/// The surface spec of the wall over `run`, from the loop's precomputed
+/// [`swept::Join`]s (see [`sweep_loop`]) and the walls minted
 /// so far (`faces`, per segment; walls are minted in run order from the
 /// run that leads at `origin`). A line run is one wall on a freshly
 /// built plane (Newell over the run's quad corners in loop order —
-/// outward by the orientation contract). An arc's wall is `Shared` with
-/// the previous wall when it continues that wall's carrier, `Shared`
-/// with the first-minted wall when it starts (or continues into) a run
-/// of cocircular arcs that reaches `origin` through the wrap join — so
-/// such a run crossing the start resolves to ONE key, whose `u_ref`
-/// comes from its first segment in sweep order — and otherwise a fresh
-/// cylinder (turn-signed axis, crate docs). Every arm states the run's
-/// [`WallSeg::wall_sense`]: a concave arc's wall has its material
-/// outside the carrier cylinder, against the outward-radial chart
-/// normal.
+/// outward by the orientation contract). An arc run is one wall on a
+/// fresh cylinder (turn-signed axis, crate docs) whose `u_ref` aims at
+/// the run's leading vertex — except across a circle's canonical cut
+/// ([`swept::Join::Cut`]), where each wall after the first shares its
+/// key ([`swept::shared_wall`]). Every arm
+/// states the run's [`WallSeg::wall_sense`]: a concave arc's wall has
+/// its material outside the carrier cylinder, against the
+/// outward-radial chart normal.
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
 fn side_surface<T: Decide>(
     body: &Body<T>,
     loop_index: usize,
     segs: &[WallSeg<T>],
-    pair: &[bool],
+    joins: &[swept::Join],
     faces: &[Option<FaceKey>],
     run: swept::Run,
     origin: usize,
@@ -1369,8 +1371,8 @@ fn side_surface<T: Decide>(
     let n = segs.len();
     let j = run.first;
     let sense = segs[j].wall_sense;
-    if let Some(f) = swept::shared_wall(pair, faces, j, origin) {
-        let key = face_surface_key(body, f)?;
+    if let Some(f) = swept::shared_wall(joins, faces, j, origin) {
+        let key = face_surface_key(body, f);
         return Ok(FaceSurface::Shared { key, sense });
     }
     let end = run.end(n);
@@ -1450,33 +1452,25 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 ) -> Result<(), ExtrudeError> {
     let curve_key = body
         .get_edge(edge)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Edge(edge),
-        })?
+        .unwrap_or_else(|| {
+            unreachable!("rim edge {edge:?} was read off a live half-edge this driver minted")
+        })
         .curve;
     let curve = body
         .get_curve_geom(curve_key)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Curve(curve_key),
-        })?
+        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
         .certified()
         .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
     let witness = carrier.mid_point(t0, t1);
     let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
-    let s_cap = body
-        .get_surface(cap)
-        .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(cap),
-        })?;
-    let s_wall = body
-        .get_surface(wall)
-        .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(wall),
-        })?;
+    let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
+        unreachable!("cap surface {cap:?} is held by a live cap face of this driver")
+    });
+    let s_wall = body.get_surface(wall).cloned().unwrap_or_else(|| {
+        unreachable!("wall surface {wall:?} is held by a live wall face of this driver")
+    });
     match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {

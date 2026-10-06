@@ -189,6 +189,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         },
         E::NoSolid => E::NoSolid,
         E::Roles { error } => E::Roles { error },
+        E::Pieces { error } => E::Pieces { error },
         E::OperandOuterShells { solid, outer } => E::OperandOuterShells { solid, outer },
         E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
@@ -226,7 +227,6 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::OpenFaceRimNotExpressible { face, what } => E::OpenFaceRimNotExpressible { face, what },
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
-        E::Corrupt { key } => E::Corrupt { key },
         E::Pcurve { source } => E::Pcurve { source },
         E::NotValid { errors } => E::NotValid { errors },
     }
@@ -242,7 +242,6 @@ fn fold_replace_face_error<T: Real>(
     match error {
         R::Band { error } => R::Band { error },
         R::StaleFace { face } => R::StaleFace { face },
-        R::Corrupt => R::Corrupt,
         R::Offset { face, error } => R::Offset {
             face,
             error: fold_offset_error(error, end),
