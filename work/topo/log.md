@@ -7408,3 +7408,12 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - The set_edge_curve lane is running its 84-shard batteries; no PR yet.
 - Main carried one new TOPO-dir row from CLEAVE: `...lone-site-placeholder-has-no-type-of-its-own`, filed by PR 4120's lane. Not triaged yet.
 - Nothing new on PR 3970.
+
+## 13:41 (2026-10-06) check-in
+
+- **Triage of** `a-lone-site-placeholder-has-no-type-of-its-own` (P2, M; filed into topo by PR 4120's CLEAVE review).
+  - Owner: TOPO. It concerns the `mef`/`mev`/ring placeholder `self_loop_circle_at` (`geom-brep/src/certify.rs`, `euler.rs`) and its readers in `splitting/` and `chord_join` (CLEAVE ground).
+  - Not under HOLD.
+  - Its direction gives the placeholder a kind of its own, possibly a new `CurveGeom` variant reaching about 25 exhaustive matches. That is a representation change, so design forks go to the designers before dispatch.
+  - Queued behind the two TOPO lanes in flight and PCERT's `pcurves.rs`/`pcurve_cache.rs` re-port.
+- PR 4154's reviewer and the set_edge_curve lane are still running. Nothing new on PR 3970.
