@@ -2567,6 +2567,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
             "its faces are not certainly crossing along it, so they do not fix where it runs"
         }
+        CertifyError::PlaneNurbs(P::TubeNotOneArc { .. }) => {
+            "its curve is not proved to span one arc of its faces' crossing"
+        }
         CertifyError::NurbsLaneNotSupplied => {
             "it lies between a plane and a spline face, and the check that ran was given no \
              plane x NURBS lane, so nothing about it was checked"
@@ -2615,6 +2618,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TransversalityEscalated { .. }
                 | P::Limb { .. }
                 | P::TubeStraddles { .. }
+                | P::TubeNotOneArc { .. }
                 | P::Escalated { .. }
                 | P::ReportedTransversalityPoisoned(_)
                 | P::ChartSpeed(_),

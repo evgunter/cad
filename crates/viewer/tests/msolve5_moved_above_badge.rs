@@ -17,7 +17,7 @@ use crate::common::{ang, insert_into, len, scl};
 
 use common::asm;
 use pncad::document::{
-    AssemblyError, DocumentId, Expr, MateSide, MintRefusal, Node, PatternKind, ProfileDoc,
+    AssemblyError, DocumentId, Formula, MateSide, MintRefusal, Node, PatternKind, ProfileDoc,
     RefusedRef,
 };
 use pncad::geom_core::Tol;
@@ -50,7 +50,7 @@ fn moved_above(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyErr
         &mut asm,
         Node::Pattern {
             input: lifted,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0 * asm::SHELF_LENGTH),

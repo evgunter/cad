@@ -437,7 +437,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         &doc,
         Node::Pattern {
             input: extrude,
-            count: pncad::document::Expr::count(2),
+            count: pncad::document::Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(0.08),

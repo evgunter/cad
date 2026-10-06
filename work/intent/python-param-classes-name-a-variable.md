@@ -2,8 +2,11 @@
 id: python-param-classes-name-a-variable
 kind: issue
 title: Python's ParamName, DocParam and DocParamValue name a variable by the retired word
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-10-05
+pr: 4072
+branch: intent/literals-b
 ---
 
 INTENT-VARS-1 PR 3 gave Python a `Var` handle and the variable doors
@@ -27,3 +30,9 @@ with the stub and the census moving together. The error tag words
 should be decided in the same pass.
 
 Raised by PR 3's dual review (r2 S4).
+
+Closed by INTENT-LITERALS PR B, which renamed the three classes to
+`VarName`, `FreeVar` and `FreeValue` with the stub and the census in the
+same pass. The tag words keep their spelling: they are a separate
+public contract (`crates/pncad-py/src/tests.rs`'s `TAG_INVENTORY`), and
+spec §3 names only the classes.

@@ -37,14 +37,15 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
-    EntityKind, Entry, EvalOptions, Evaluation, Expr, LeverRefusal, MateFault, MateFrame,
+    EntityKind, Entry, EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
-    PartSelect, PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef,
-    RoleSeg, SitedFace, StableName, product,
+    PartSelect, PatternKind, ProductError, ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg,
+    SitedFace, StableName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -174,7 +175,7 @@ fn patterned(s: Scene) -> Scene {
         s.doc,
         Node::Pattern {
             input: s.xf,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(SPACING),
@@ -213,7 +214,7 @@ fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (Stab
 /// A `Rest` mate seating `b`'s bottom cap on `a`'s top cap by frame
 /// coincidence, both frames in their member's own part coordinates
 /// and both axes outward, so the block stands ON the slab.
-fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
         a,
         b,
@@ -241,7 +242,7 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
 }
 
 /// Insert `mate` and answer its id.
-fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = step(
         doc,
         DocEdit::InsertNode {
@@ -346,7 +347,7 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
         s.doc,
         Node::Part {
             of: s.pattern,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
     );
     assert!(
@@ -535,7 +536,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         doc,
         Node::Pattern {
             input: xf,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(SPACING),

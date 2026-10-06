@@ -2,11 +2,12 @@
 id: split-lane-second-chord-recomputes-the-first-chords-arc
 kind: issue
 title: The split lane's second chord recomputes its segment's section arc from another run, and from no run at all after a cross-loop join
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [JOIN-3, pierce-ring-has-no-join-arm]
+branch: cleave/split-segment-curve
 ---
 
 
