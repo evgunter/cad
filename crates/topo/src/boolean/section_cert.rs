@@ -1177,8 +1177,7 @@ fn sphere_cylinder<T: Decide>(
 ) -> Section<T> {
     let w = cs - o;
     let foot = o + d * w.dot(d);
-    let perp = cs - foot;
-    let e = perp.norm();
+    let (perp, e) = square_to(w, d);
     let q_min = (e - rc).abs();
     const REACH: &str = "section_sphere_cylinder_reach";
     let [reach, girdle] = match signs(

@@ -2290,17 +2290,81 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
     }
 }
 
+/// **A ball touching a wall from inside, nearly coaxial, stands its
+/// touch on both carriers** (`Touch::at`'s contract): the ball of
+/// radius `ρc − e` about a centre `e` off the wall's axis, `e` from 10ε
+/// to 1e3ε, about 16 axes spread over the sphere, the wall's origin at
+/// the ball or 1e3 along the axis, at ×1e-3, ×1 and ×1e3, both operand
+/// orders. `at` is read on the ruling through the centre's part square
+/// to the axis, of norm `e`: it stands within ε of each carrier, plus 8
+/// ulps of the coordinates the distances are read in. Mutant: that part
+/// taken as `cs − (o + d·(w·d))`, whose component along the axis is
+/// `w`'s rounding over `e`: at ε = 1e-9 it stands `at` 1.2ε off the
+/// wall at ×1e3, and at 1e-12 4.5e3ε off it at ×1e-3.
+#[test]
+fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
+    let band = band();
+    let eps = band.zero();
+    for scale in [1e-3, 1.0, 1e3] {
+        let rc = scale;
+        let base = Point3::origin() + v(0.3, -0.2, 0.1) * scale;
+        let reach = Reach {
+            centre: base,
+            radius: 2.0 * scale,
+        };
+        let mut touches = 0;
+        for i in 0..16 {
+            let z = 1.0 - (f64::from(i) + 0.5) / 8.0;
+            let phi = 2.4 * f64::from(i);
+            let s = (1.0 - z * z).sqrt();
+            let d = v(s * phi.cos(), s * phi.sin(), z);
+            let (b1, b2) = d.orthonormal_basis();
+            let q = b1 * phi.cos() + b2 * phi.sin();
+            for far in [0.0, 1e3] {
+                let o = base - d * far;
+                let wall = Partner::Wall(o, d, rc);
+                let ulps = 8.0 * f64::EPSILON * (far + 2.0 * scale);
+                for e in [10.0, 100.0, 1e3].map(|k| k * eps) {
+                    let ball = Partner::Sphere(base + q * e, rc - e);
+                    let label = format!("×{scale:e}, axis {i}, origin {far:e} along, e {e:e}");
+                    for section in [
+                        super::classify(&ball.surface(), &wall.surface(), reach, band),
+                        super::classify(&wall.surface(), &ball.surface(), reach, band),
+                    ] {
+                        let Section::Touch(touch) = section else {
+                            panic!("{label}: not a touch: {section:?}");
+                        };
+                        touches += 1;
+                        let (off_b, off_w) = (ball.g(touch.at).abs(), wall.g(touch.at).abs());
+                        assert!(
+                            off_b <= eps + ulps && off_w <= eps + ulps,
+                            "{label}: at {:?} stands {:.3}ε off the ball, {:.3}ε off the wall \
+                             (8 ulps {:.3}ε)",
+                            touch.at,
+                            off_b / eps,
+                            off_w / eps,
+                            ulps / eps
+                        );
+                    }
+                }
+            }
+        }
+        assert_eq!(touches, 192, "×{scale:e}: every pose a touch");
+    }
+}
+
 /// **Every torus touch holds against a sampling oracle** (a bounded cut
 /// of the review's 900-torus fuzz): random ring tori, any axis, `r/R`
 /// from 0.02 to 0.98, at ×1e-3, ×1 and ×1e3, against a plane, three
 /// spheres (outside, inside the tube, about the torus) and three walls
 /// parallel to the axis (beside, about, in the hole), each tangent at a
 /// random point biased to the equators and the top and bottom parallels
-/// and pushed by up to ±100ε. Every `Touch` either operand order
-/// answers passes [`touch_holds`]. Mutants, each red here: the plane's
-/// or the sphere's elliptic margin taken as `abs` (a touch on the
-/// hyperbolic half), the sphere's extreme margin dropped, and
-/// [`super::square_to`] as `v − a·(a·v)`.
+/// and pushed by up to ±100ε; a push that would take a radius to zero
+/// or below, off the carriers' convention, is not drawn. Every `Touch`
+/// either operand order answers passes [`touch_holds`]. Mutants, each
+/// red here: the plane's or the sphere's elliptic margin taken as `abs`
+/// (a touch on the hyperbolic half), the sphere's extreme margin
+/// dropped, and [`super::square_to`] as `v − a·(a·v)`.
 #[test]
 fn every_torus_touch_holds_against_a_sampling_oracle() {
     use super::super::conic_oracle::unit;
@@ -2348,7 +2412,9 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                 (-1.0, rng.range(0.05, 0.99) * t.r),
                 (-1.0, rng.range(1.0, 4.0) * (t.big_r + t.r)),
             ] {
-                partners.push(Partner::Sphere(x + nrm * (side * rho), rho + delta));
+                if rho + delta > 0.0 {
+                    partners.push(Partner::Sphere(x + nrm * (side * rho), rho + delta));
+                }
             }
             for v_eq in [0.0, PI] {
                 let (x, nrm) = (t.at(u, v_eq), t.normal(u, v_eq));
@@ -2358,7 +2424,9 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                     (-1.0, rng.range(0.05, 0.99) * (t.big_r - t.r)),
                 ] {
                     let o = x + nrm * (side * rc) + t.a * (rng.range(-1.0, 1.0) * scale);
-                    partners.push(Partner::Wall(o, t.a, rc + delta));
+                    if rc + delta > 0.0 {
+                        partners.push(Partner::Wall(o, t.a, rc + delta));
+                    }
                 }
             }
             let reach = Reach {

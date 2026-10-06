@@ -263,11 +263,37 @@ fn near_misses_answer_by_the_closed_form_distance() {
 
 /// **The off-face touches build at ×1e-3 and ×1e3**: the brick, the
 /// ball and the rod, every length scaled with the donut's, against the
-/// closed form scaled by `l³`.
+/// closed form scaled by `l³`. Where ε is within 64 ulps of the donut's
+/// largest coordinate (`2.5·l`), its rounding-scale residuals reach the
+/// band and the donut is not a finished body: there it refuses typed,
+/// an escalation, and the pose is read as that refusal.
 #[test]
 fn the_off_face_touches_build_at_every_scale() {
+    let eps = Tol::witness().eps();
     for l in [1e-3, 1e3] {
         let d = donut(l);
+        if eps < 64.0 * f64::EPSILON * 2.5 * l {
+            let refused = topo::validate_geometric(&d, Tol::witness())
+                .expect_err("a donut within 64 ulps of ε refuses");
+            assert!(
+                refused.iter().all(|e| matches!(
+                    e,
+                    topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::Escalated { .. },
+                            ..
+                        },
+                        ..
+                    }
+                )),
+                "donut ×{l:e} at ε {eps:e}: refused by escalation only, got {refused:?}"
+            );
+            test_utils::vacuity::stood_down(
+                &format!("donut ×{l:e} at ε {eps:e}"),
+                "the donut refuses as an operand, so its touches are not built",
+            );
+            continue;
+        }
         for (label, (b, vb)) in [
             ("brick", plane_brick(false, 0.0, l)),
             ("ball", top_ball(false, 0.0, l)),
