@@ -310,8 +310,8 @@ use geom_core::{Decide, Point3, Real, Tol};
 use crate::attach::KillMove;
 use crate::body::Body;
 use crate::entity::{
-    EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
-    VertexKey,
+    EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey,
+    SolidKey, VertexKey,
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
@@ -478,6 +478,33 @@ struct KevPlan {
     /// it starts at `v` once the merge has re-based the fan, or leaves
     /// `v` lone.
     anchor: KillAnchor,
+}
+
+/// What [`Body::kef`]'s plan proves before the door's vouch: the
+/// killed edge and its halves, the dying loop and face and the
+/// surviving loop, and the move that carries the dying loop's remnant
+/// onto the surviving face.
+struct KefPlan {
+    he_data: HalfEdge,
+    edge: EdgeKey,
+    curve: CurveKey,
+    killed_he_plus: HalfEdgeKey,
+    killed_he_minus: HalfEdgeKey,
+    /// `he`'s mate, on the surviving loop.
+    m: HalfEdgeKey,
+    m_data: HalfEdge,
+    /// The dying loop, and the surviving one.
+    l1: LoopKey,
+    l2: LoopKey,
+    /// The dying face, and its record.
+    f1: FaceKey,
+    f1_data: Face,
+    /// `f1`'s shell.
+    shell: ShellKey,
+    /// The dying loop's cycle after `he`, each member proved.
+    remnant: Vec<Live>,
+    /// The remnant's move onto the surviving face.
+    kill: KillMove,
 }
 
 /// How [`Body::kev`]'s unsplice closes the gap the killed halves leave
@@ -1747,54 +1774,7 @@ impl<T: Decide> Body<T> {
         &self,
         he: HalfEdgeKey,
     ) -> Result<Vec<(EdgeKey, EdgeDescriptionSpec<T>)>, EulerOpError> {
-        let ProvenMate {
-            he_data,
-            mate,
-            mate_data,
-            ..
-        } = self.proven_mate(he, Arg("he"))?;
-        let (l1, l2) = (he_data.parent_loop, mate_data.parent_loop);
-        if l1 == l2 {
-            return Err(EulerOpError::SameLoop { r#loop: l1 });
-        }
-        let face_of = |holder: HalfEdgeKey, r#loop: LoopKey| {
-            let l = linked(
-                &self.loops,
-                r#loop,
-                EntityId::Loop,
-                EntityId::HalfEdge(holder),
-                "parent_loop",
-            );
-            let face = linked(
-                &self.faces,
-                l.face,
-                EntityId::Face,
-                EntityId::Loop(r#loop),
-                "face",
-            );
-            (l.face, face)
-        };
-        let ((f1, f1_data), (f2, f2_data)) = (face_of(he, l1), face_of(mate, l2));
-        if f1 == f2 {
-            return Err(EulerOpError::SameFace { face: f1 });
-        }
-        if !f1_data.rings.is_empty() {
-            return Err(EulerOpError::FaceHasRings { face: f1 });
-        }
-        let remnant: Vec<HalfEdgeKey> = self
-            .loop_cycle_live(he)
-            .into_iter()
-            .skip(1)
-            .map(Live::key)
-            .collect();
-        Ok(self.carried_by_kill(KillMove {
-            face: f2,
-            old: f1_data.surface,
-            onto: f2_data.surface,
-            edges: &self.run_edges(&remnant),
-            moving: &remnant,
-            one_payload: self.same_chart(f1_data.surface, f2_data.surface),
-        }))
+        Ok(self.carried_by_kill(&self.kef_plan(he)?.kill))
     }
 
     /// **The rows a kill owes the loops it releases**: where the killed
@@ -1848,16 +1828,10 @@ impl<T: Decide> Body<T> {
         )
     }
 
-    /// [`Body::kef`]'s plan and surgery, with the band its site mint
-    /// runs at, or none for the keys-only door. The door that calls it
-    /// declares the postcondition.
-    fn kef_with(
-        &mut self,
-        he: HalfEdgeKey,
-        tol: Option<Tol>,
-        vouch: impl FnOnce(&Self, KillMove<'_>) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError>,
-    ) -> Result<KefResult, EulerOpError> {
-        // ---- Preconditions: no mutation until every check passes. ----
+    /// [`Body::kef`]'s structural preconditions and the move it makes,
+    /// which [`Body::kef_carried_redescriptions`] states and the doors
+    /// vouch and carry out.
+    fn kef_plan(&self, he: HalfEdgeKey) -> Result<KefPlan, EulerOpError> {
         let ProvenMate {
             he_data,
             edge,
@@ -1898,10 +1872,6 @@ impl<T: Decide> Body<T> {
         let f2 = l2_data.face;
         let f2_surface =
             linked(&self.faces, f2, EntityId::Face, EntityId::Loop(l2), "face").surface;
-        // Decided here, where both keys resolve: the kills below may
-        // reap the dying face's surface, and a decision carried out
-        // of the plan phase has no order to keep against them.
-        let remnant_changes_chart = !self.same_chart(f1_data.surface, f2_surface);
         if !f1_data.rings.is_empty() {
             return Err(EulerOpError::FaceHasRings { face: f1 });
         }
@@ -1918,8 +1888,62 @@ impl<T: Decide> Body<T> {
         // `next` and resolves every member it returns, so it proves
         // them and nothing else — `prev/next` being mutual inverses is
         // a tier-1 fact, not one this call establishes.
-        let cycle = self.loop_cycle_live(he);
-        let remnant: Vec<Live> = cycle.into_iter().skip(1).collect();
+        let remnant: Vec<Live> = self.loop_cycle_live(he).into_iter().skip(1).collect();
+        let kill = KillMove::of(
+            self,
+            f2,
+            (f1_data.surface, f2_surface),
+            remnant.iter().map(|moved| moved.key()).collect(),
+        );
+        Ok(KefPlan {
+            he_data,
+            edge,
+            curve,
+            killed_he_plus,
+            killed_he_minus,
+            m,
+            m_data,
+            l1,
+            l2,
+            f1,
+            f1_data,
+            shell,
+            remnant,
+            kill,
+        })
+    }
+
+    /// [`Body::kef`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn kef_with(
+        &mut self,
+        he: HalfEdgeKey,
+        tol: Option<Tol>,
+        vouch: impl FnOnce(&Self, &KillMove) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError>,
+    ) -> Result<KefResult, EulerOpError> {
+        // ---- Preconditions: no mutation until every check passes. ----
+        let KefPlan {
+            he_data,
+            edge,
+            curve,
+            killed_he_plus,
+            killed_he_minus,
+            m,
+            m_data,
+            l1,
+            l2,
+            f1,
+            f1_data,
+            shell,
+            remnant,
+            kill,
+        } = self.kef_plan(he)?;
+        let f2 = kill.face;
+        // Decided here, where both keys resolve: the kills below may
+        // reap the dying face's surface, and a decision carried out
+        // of the plan phase has no order to keep against them.
+        let remnant_changes_chart = !kill.one_payload;
         // `b = next(he)` is the cycle's second member, so the walk
         // proved it and it wants no check of its own — and it is
         // `Option` rather than a key beside a `he_alone` flag because
@@ -2030,18 +2054,8 @@ impl<T: Decide> Body<T> {
         // The surviving loop as the splice leaves it, from its new
         // anchor: its own members from `next(m)` up to `m`, then the
         // remnant.
-        let remnant_keys: Vec<HalfEdgeKey> = remnant.iter().map(|moved| moved.key()).collect();
-        let described = vouch(
-            self,
-            KillMove {
-                face: f2,
-                old: f1_data.surface,
-                onto: f2_surface,
-                edges: &self.run_edges(&remnant_keys),
-                moving: &remnant_keys,
-                one_payload: !remnant_changes_chart,
-            },
-        )?;
+        let described = vouch(self, &kill)?;
+        let remnant_keys = &kill.moving;
         let surviving = |body: &Self, moved: bool| {
             let own: Vec<HalfEdgeKey> = if d.key() == m {
                 Vec::new()

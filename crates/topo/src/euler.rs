@@ -415,11 +415,13 @@ impl RechartDoor {
                  the stored ones there)",
             ),
             Self::SetFaceSurfacesDescribing | Self::KefDescribing | Self::KfmrhDescribing => {
-                unreachable!(
-                    "RechartStrandsDescriptions is raised only by the keys-only doors \
-                     (`Body::vouch_move`); {name} refuses a stranded edge as \
-                     RechartUndescribed"
-                )
+                return format!(
+                    "{name}: the move would leave edges {edges:?} described against a surface \
+                     their faces no longer wear. Recourse: list a re-description of each on the \
+                     chart it moves onto ({} states the stored ones there), which the door \
+                     certifies under its band",
+                    self.carried()
+                );
             }
         };
         format!(
