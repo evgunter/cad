@@ -586,6 +586,9 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — seam note from SHELL: demos red on main
+
+SHELL filed `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0, E) on this slate. `demo-tour`'s klein findings pin 10 says it retired, and the certified-cells header moved. #3774 is the likely cause. Every PR that runs the demos job inherits the red.
 ## 2026-10-06 — the sketch plane waits on D10 too
 
 `the-sketch-plane-is-its-frame` now also waits on `d10-one-way-to-say-intent-is-unbuilt`, because a sketch plane is a placement and so falls under the D10 hold. It stays parked on `store-constructed-carriers` as well.
@@ -597,3 +600,26 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-06 — 5b merged (#3774, `33e5000fb`; DR-88). Unit 3 (`one-segment-loop-through-builders`) dispatched on `claude/clever-bardeen-4itqb3`, restarted from main.
   - D10 check: it changes how a closed loop is stored and swept, not intent or placement, so it may start under the hold.
   - Review tier: dual. It is new topology (one periodic wall with a seam strut), where a wrong body ships silently.
+## 2026-10-06 — PR 3774 fired the klein tour's tripwire on main
+
+PR 3774 ("constructions store the carriers they build") retired the
+klein scene's findings entry 10, the outer-wall radius that drifted
+because the revolve rebuilt it from swept endpoints. The two
+outer-wall cylinders now carry the one authored radius.
+`demos/tour/src/klein.rs` pinned that drift and was written to panic
+when it retired. PR 3774's own CI skipped the demos job (change
+filter), so the tripwire fired on main instead, and every tour
+`eps_regression` row was red there. CLEAVE PR 4083, which seeds the
+demos job, met it and ported the retirement the tripwire prescribed:
+it deleted entry 10 and its pin, renumbered entries 11 and 12 and their
+citations, and noted under the "same cylinder, four ways" entry that the
+two outer walls share the authored radius. The scene itself was right
+and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
+- 2026-10-06 — From FUSE: demo-tour's Klein pin (`klein.rs:876`,
+  findings entry 10) fires on main at every `eps_regression` row since
+  PR 3774 (PATHS 5b). The FUSE 3953 lane bisected it. Filed as
+  `work/paths/a-klein-wall-radius-pin-fires-on-main-since-paths-5b.md`
+  (P0): the pin's own text says the entry has retired. Every PR that
+  merges main is red on the `demos` job until it is resolved.
+
+- 2026-10-06 — #4175: Ev approved the wrap edge ("sounds good!"). Fork row 75 is filled. Implementation is `one-segment-loop-revolves-and-lofts-to-one-wall`, parked on unit 3. Unit 4 is blocked on it and on the one-cut JOIN row.

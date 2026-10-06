@@ -2,11 +2,11 @@
 id: one-home-for-where-a-shell-stands
 kind: issue
 title: Where a shell stands against another is read three ways: check 10 and the result sort by one vertex, the boolean by a vertex-edge-face ladder; and a shell's role by three readers
-status: dispatched
+status: closed
+closed: 2026-10-06
 opened: 2026-10-03
 priority: P2
 cost: M
-branch: fuse/one-home-shell-stands
 ---
 
 Filed by PR 3891 (the piece rule's sort), from its dual review's
@@ -44,3 +44,12 @@ undecided shell that is really a second piece stays under one solid:
 the sort is silent there by design, as check 10 is, so nothing reads
 the second piece. One reader that decides more often narrows it; it
 cannot close it.
+
+## Closed (PR 4108, 2026-10-06)
+
+Where a shell stands has one home, `crates/topo/src/stands.rs`: the
+vertex → edge midpoint → face interior ladder, generic over the probe
+and the refusal. Check 10 (`stands::witness_insides`), the result sort
+and the boolean's role reader all read it. The serial `role_at_target`
+was kept after the fix pass measured a release-time reversal, and
+timings are back to the base.
