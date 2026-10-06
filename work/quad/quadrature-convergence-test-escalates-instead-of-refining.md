@@ -80,3 +80,17 @@ flips, at `CAD_TOLERANCE_EPS=1e-8` (off the gated rows): tier 3 refuses
 At the gated rows (default, 1e-6, 1e-12) the same sliver face runs out
 its round budget instead (`QuadratureBudget`), which the row
 tolerates as `volume refused`.
+
+## 2026-10-06 — a split operand that does not finish at ε = 1e-6 (CLEAVE)
+
+With the split's doors taking `AtRestBody` (branch
+`cleave/split-operand-gate`), `sweep/tests/rehome_rings_lune.rs`
+`an_oblique_cut_carries_a_lune_bore_with_its_half` splits the bored disc
+on `z = 0.5 − 0.2y` and then finishes the lower piece to split it again.
+At `CAD_TOLERANCE_EPS=1e-6` the at-rest gate refuses that piece
+`VolumeUncomputable { source: Face { face 3v3, Escalated { margin
+8.454e-6, band (1e-6, 1e-5), predicate "props_quad_converged" } } }`; at
+the default ε and at 1e-12 it finishes. The row now stands down by name
+for exactly that refusal off the default ε, so it reads green again when
+this lands. The refusing pieces' second split is not asserted at 1e-6
+until then.

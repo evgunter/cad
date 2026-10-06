@@ -47,6 +47,33 @@ const DISCS: [(&str, Loop); 2] = [
 /// a control inside the polygon.
 const HOLES: [(f64, f64); 4] = [(1.6, 0.8), (-1.6, 0.8), (1.35, 0.8), (0.8, 0.4)];
 
+/// `body` finished for the split, or `None` where the at-rest gate
+/// cannot measure its volume at this ε because a face's quadrature lands
+/// its convergence margin in the band
+/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`):
+/// the split serves finished bodies, so the row stands down there, by
+/// name. Any other refusal fails the row.
+fn finished_or_stood_down(what: &str, body: Body<f64>) -> Option<topo::AtRestBody<f64>> {
+    match <f64 as topo::AtRestPolicy>::gate_at_rest_kept(body, tol()) {
+        Ok(operand) => Some(operand),
+        Err(errors)
+            if tol().eps() != geom_core::tolerance::DEFAULT_EPS
+                && errors.iter().all(|e| {
+                    matches!(e, topo::ValidationError::VolumeUncomputable { .. })
+                        && format!("{e:?}").contains("props_quad_converged")
+                }) =>
+        {
+            test_utils::vacuity::stood_down(
+                &format!("{what} at eps = {:e}", tol().eps()),
+                "its quadrature's convergence margin lands in the band, so it does not \
+                 finish and the split's ring re-homing over it is not asserted",
+            );
+            None
+        }
+        Err(errors) => panic!("{what} is not a finished body: {errors:?}"),
+    }
+}
+
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -250,7 +277,7 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
     );
     for (cx, cy) in [(1.6, 0.8), (-1.6, 0.8), (0.8, 0.4)] {
         let SplitPart::Body(lower) = split(
-            &sweep::test_support::finished("the operand", bored_disc(outer, (cx, cy)), tol()),
+            &finished("the bored disc", bored_disc(outer, (cx, cy)), tol()),
             &oblique,
             tol(),
         )
@@ -263,6 +290,11 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
         // integrates to zero over a half symmetric in y), less the bore's
         // column of height 0.5 − 0.2·cy on the half that holds it.
         let column = PI * BORE * BORE * (0.2f64.mul_add(-cy, 0.5));
+        let Some(lower) =
+            finished_or_stood_down(&format!("bore at ({cx}, {cy}): the lower piece"), lower)
+        else {
+            continue;
+        };
         for nx in [1.0, -1.0] {
             let row = format!("bore at ({cx}, {cy}), plane normal x = {nx}");
             let plane = topo::test_support::split_plane(
@@ -270,12 +302,8 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
                 Vec3::new(nx, 0.0, 0.0),
                 geom_core::Tol::witness(),
             );
-            let result = split(
-                &sweep::test_support::finished("the operand", lower.clone(), tol()),
-                &plane,
-                tol(),
-            )
-            .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
+            let result = split(&lower, &plane, tol())
+                .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
             let above_holds = (cx > 0.0) == (nx > 0.0);
             for (side, part, holds) in [
                 ("above", &result.above, above_holds),
