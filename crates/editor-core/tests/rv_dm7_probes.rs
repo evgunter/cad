@@ -3,7 +3,7 @@
 //! showed the case unpinned and the claim it pins is a residue rather
 //! than a documented contract. A probe that turns out to hold a
 //! documented contract moves into the unit suite instead (that is
-//! where `an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
+//! where `a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset`
 //! went, to `dm7_delete_strands.rs`).
 //!
 //! Two carriers are covered. The payload walk (`review/strands-rv`): a
