@@ -320,6 +320,54 @@ fn cones(p: V3, x: &Pieces, y: &Pieces, op: OpK) -> Result<(usize, usize), &'sta
     Ok((ni + no - 1, flat))
 }
 
+/// A brute-force check of [`cones`]: the link sampled on a lat-long
+/// grid, in and out components flood-filled (longitude wraps, each pole
+/// row one cell), `in + out − 1`.
+fn cones_brute(p: V3, x: &Pieces, y: &Pieces, op: OpK) -> usize {
+    let (lx, ly) = (link_pieces(p, x), link_pieces(p, y));
+    let (nt, np) = (2880usize, 1440usize);
+    let inside = |s: V3| {
+        let (a, b) = (in_link(&lx, s), in_link(&ly, s));
+        match op {
+            OpK::U => a || b,
+            OpK::I => a && b,
+            OpK::S => a && !b,
+        }
+    };
+    let cell: Vec<bool> = (0..np * nt)
+        .map(|i| {
+            let (j, k) = (i / nt, i % nt);
+            let ph = std::f64::consts::PI * (j as f64 + 0.5) / np as f64;
+            let th = std::f64::consts::TAU * (k as f64 + 0.37) / nt as f64;
+            inside([ph.sin() * th.cos(), ph.sin() * th.sin(), ph.cos()])
+        })
+        .collect();
+    let mut seen = vec![false; np * nt];
+    let mut comps = [0usize, 0usize];
+    for start in 0..np * nt {
+        if seen[start] {
+            continue;
+        }
+        let want = cell[start];
+        comps[usize::from(want)] += 1;
+        let mut stack = vec![start];
+        seen[start] = true;
+        while let Some(i) = stack.pop() {
+            let (j, k) = (i / nt, i % nt);
+            let mut nb = vec![j * nt + (k + 1) % nt, j * nt + (k + nt - 1) % nt];
+            if j > 0 { nb.push((j - 1) * nt + k); } else { nb.extend((0..nt).map(|q| q)); }
+            if j + 1 < np { nb.push((j + 1) * nt + k); } else { nb.extend((0..nt).map(|q| (np - 1) * nt + q)); }
+            for q in nb {
+                if !seen[q] && cell[q] == want {
+                    seen[q] = true;
+                    stack.push(q);
+                }
+            }
+        }
+    }
+    if comps[0] == 0 || comps[1] == 0 { 0 } else { comps[0] + comps[1] - 1 }
+}
+
 fn verts_at(body: &Body<f64>, p: V3) -> usize {
     body.vertex_points().filter(|(_, q)| norm(sub([q.x, q.y, q.z], p)) < 1e-9).count()
 }
@@ -510,6 +558,11 @@ fn run_all(tag: &str, x: &Solid, y: &Solid, common: f64, points: &[V3], link_y: 
         ];
         for (op, f, want, k) in ops {
             let line = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if std::env::var("R1_BRUTE").is_ok() {
+                    for &pt in points {
+                        eprintln!("{tag} {order} {op} BRUTE cones={} exact={:?}", cones_brute(pt, lp, lq, k), cones(pt, lp, lq, k));
+                    }
+                }
                 let r = f(&p.body, &q.body, &decls, tol());
                 let extra = match &r {
                     Ok(res) => res
