@@ -7303,3 +7303,8 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 
 - **PR 4091 merged** at `526ab9bf` (work/-only sync of the 03:52 dispatches; CI green).
 - Three lanes working: PR 4080 fix lane, boundary-walk lane, kev_describing lane. Nothing new on PR 3970.
+
+## 04:51 (2026-10-06) check-in
+
+- `work.py incoming --program topo`: 0 new commits. Disk at 35%. Nothing new on PR 3970.
+- PR 4080 fix lane has pushed; CI and its batteries are running. The boundary-walk and kev_describing lanes are finishing their batteries, with no PRs yet.
