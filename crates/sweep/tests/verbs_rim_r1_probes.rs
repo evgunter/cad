@@ -346,9 +346,10 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
 }
 
 /// **A closed one-edge chain mints no junctions** — the structural
-/// fact the wrap-around G1 check rests on: `walk_chains` registers a
-/// self-closed link's one vertex once, so the junction loop has
-/// nothing to walk and predicate 4 reaches that chain only through the
+/// fact the wrap-around G1 check rests on: a self-closed link's one
+/// vertex holds only its own two ends, so the walk finds no unused
+/// link there, the junction loop has nothing to walk, and predicate 4
+/// reaches that chain only through the
 /// explicit wrap-around site on the link's own carrier endpoints. Red
 /// if the walk starts recording a wrap-around junction for a
 /// self-closed single link, which would meter it twice.

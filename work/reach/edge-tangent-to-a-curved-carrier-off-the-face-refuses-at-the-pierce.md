@@ -2,10 +2,13 @@
 id: edge-tangent-to-a-curved-carrier-off-the-face-refuses-at-the-pierce
 kind: issue
 title: An edge tangent to a curved carrier at a point off the face refuses CurvedPierceUnsupported
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 4128
+branch: reach/pierce-tangent-off-face
+closed: 2026-10-06
 ---
 
 
@@ -38,3 +41,17 @@ no edge of the face reaching the ball the decided margin admits about
 it, is no event. Distinct from
 `an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses`,
 whose touch lies ON both faces.
+
+## Closed (2026-10-06)
+
+Merged by PR 4128. A root set whose door cannot settle is read against
+the FACE (`topo::boolean::carrier_touch`): the span is localized into a
+few balls by Lipschitz and second-order bounds, and a ball whose foot is
+placed `Out` of the face, with no face vertex or edge reaching it, is no
+event (`SpanVerdict::OffFace`). Sphere, cylinder and torus carriers;
+line, circle and ellipse edges. Rows:
+`crates/sweep/tests/pierce_tangent_off_face.rs` and
+`carrier_touch_rows`. The review found an ellipse stored minor-first
+cleared real crossings; the speed and annulus bounds now read the
+semi-axes in either order. Verified independently
+(`analysis/reach-verify/4128`).
