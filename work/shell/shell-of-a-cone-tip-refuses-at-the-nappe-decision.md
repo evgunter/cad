@@ -34,3 +34,20 @@ unmeasured. The seamed band (`shell::seamed_band`) is built through a
 pole, and its struts run along each seam's own carrier, which is a
 ruling on a cone where it is a meridian on a sphere; its only measured
 pole so far is a sphere's.
+
+## The lift's cone arm is unreached (PR 4191's review, folded here)
+
+`shell::lift_to` turns the inverse offset distance by the counterpart
+group's nappe (`offset_nappe::group_nappe`) on a cone, and no buildable
+body reaches that arm today. Both reviewers of PR 4191 measured it:
+
+- a full revolve's cone band (a roof, a skirt) cannot be designated
+  without disconnecting the shell (`OpenFacesDisconnect`);
+- a partial-revolve frustum refuses in the sealed door
+  (`Face { TogetherEdgeDisagreement }`);
+- the cone tip refuses here (`NappeStraddles`).
+
+The day this item lands, the cone tip's opened row is the first body
+through the cone arm. It owes an assertion that the lifted cone lands
+on the designated one, on a mirror-nappe face as well as an opening
+one.

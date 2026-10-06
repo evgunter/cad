@@ -831,6 +831,13 @@ fn offset_distance_reads_back_the_minted_distance() {
             );
         }
     }
+    // A NURBS has no offset mint at any distance, so none to invert.
+    assert!(matches!(
+        offset_distance(&Surface::<f64>::nurbs_placeholder(), &kinds[1]),
+        Err(OffsetDistanceError::Offset(
+            OffsetError::NotClosedUnderOffset
+        ))
+    ));
     assert!(matches!(
         offset_distance(&kinds[1], &kinds[2]),
         Err(OffsetDistanceError::KindsDiffer {

@@ -269,7 +269,7 @@
 //! four steps one solid over — the sealed construction has already put
 //! the void and its dilated twin in a solid of their own — with the
 //! glue's ROLES swapped: the counterpart's lifted boundary ENCLOSES the
-//! designated face's (a dilation brought back onto the same plane), so
+//! designated face's (a dilation brought back onto the same surface), so
 //! the counterpart survives as the rim, facing the gap between the
 //! eroded outer wall and itself, and the designated face dies with its
 //! outer loop becoming the ring. The wall around that void becomes a
@@ -932,6 +932,12 @@ pub struct RimNaming {
     /// loops to the document layer, so this is a handle into the
     /// result body, not an emitter target; `ring_edges` is the anchor
     /// a `StableName` can be minted from.
+    ///
+    /// **On a seamed band this key is RETIRED** (it is in `dead.loops`):
+    /// the band's seams absorb the ring into its faces' outer loops, so
+    /// the band carries no ring and this names the loop the glue made
+    /// on the way. `ring_edges` and `ring_vertices` still hold, each row
+    /// now on the outer loop of one of the band's faces.
     pub ring: LoopKey,
     /// Ring edge (result) ← the source boundary edge of the designated
     /// chart it stands for; ring cycle order. With `side` `Outer` the
@@ -1692,11 +1698,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // lines (check 9's banner enumerates the rest). Nothing in
         // this verb relies on that arm; what it buys is the class
         // being loud wherever else it is minted. On a rim outside its
-        // reach — a non-planar rim, or an outer loop carrying a spiric
-        // or spline edge — the assignment here is pinned only
+        // reach — a curved ringed window, or an outer loop carrying a
+        // spiric or spline edge — the assignment here is pinned only
         // structurally: the void-ceiling row asserts the designated
-        // void face DIES, and the pairing row reads each thin solid's
-        // twin through the record.
+        // void face DIES, the pairing row reads each thin solid's twin
+        // through the record, and the record audit reads both sides.
         let (host_surface, host_sense) = {
             let data = proven(&out.faces, host, EntityId::Face);
             (data.surface, data.sense)
@@ -3002,9 +3008,13 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
 ///
 /// One home: [`geom_brep::offset_distance`], the inverse of the mint,
 /// turned by the group's nappe as the doors turn every distance they
-/// are handed (only a cone has two). `from` is the cavity counterpart
-/// of `onto`'s chart, minted from it by the cavity's door and reverted
-/// by the graft, so the two are an offset pair by construction.
+/// are handed (only a cone has two). `from` is one chart group — every
+/// member wears one surface KEY ([`ChartGroups`]) — so the first
+/// member's surface is every member's, and only the nappe, a fact of
+/// each face's own corners, is read over the whole group. `from` is
+/// the cavity counterpart of `onto`'s chart, minted from it by the
+/// cavity's door and reverted by the graft, so the two are an offset
+/// pair by construction.
 fn lift_to<T: Decide>(
     body: &Body<T>,
     from: &[FaceKey],
