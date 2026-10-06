@@ -159,6 +159,10 @@ fn cylinder(v: V3, m: V3, psi: f64) -> AtRestBody<f64> {
     )
 }
 
+/// The poses whose boolean escalates at ε 1e-6, read on `main` at
+/// `cadf2ed188` as well: the join's `bool_join_nearest` in band.
+const REFUSES_AT_1E6: &[&str] = &["notch307 fib117 edge psi=1.9 cp S"];
+
 /// The faces of `body` whose loops pass two distinct vertices at one
 /// point.
 fn faces_through_two_vertices_on_one_point(body: &Body<f64>) -> usize {
@@ -333,6 +337,20 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             "U" => topo::union_with(x, y, &decls, tol()),
             _ => topo::subtract_with(x, y, &decls, tol()),
         };
+        // At ε 1e-6 the join cannot order this pose's partners: two chords
+        // differ by 5.2e-6 m, inside the band
+        // (`work/join/a-pinch-pose-escalates-the-join-order-at-eps-1e-6.md`).
+        if tol().eps() == 1e-6 && REFUSES_AT_1E6.contains(&tag) {
+            assert!(
+                matches!(
+                    &run,
+                    Err(topo::BooleanError::Escalated { diag, .. })
+                        if diag.predicate == Some("bool_join_nearest")
+                ),
+                "{tag}: at ε 1e-6, expected the join's order to escalate, got {run:?}"
+            );
+            continue;
+        }
         let Ok(BooleanResult::Body(bb)) = run else {
             panic!("{tag}: the op builds no body: {run:?}");
         };

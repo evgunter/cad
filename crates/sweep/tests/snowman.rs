@@ -956,19 +956,20 @@ fn a_tilted_slab_against_the_lens_builds_or_refuses_the_trimmed_escape() {
     }
 }
 
-/// **A millimetre lens inside a ball, at the tolerance that cannot
-/// place the section circle.** The lens of [`R1`], [`R2`], [`D`] scaled
-/// by `k = 1e-3`, inside `ball(0.9k)` centred at `(0.1, 1, −0.1)·k`: the
-/// ball's sphere crosses the carriers of both lens spheres off the
-/// lens's faces. At ε 1e-6 the band is a thousandth of the bodies, and
-/// the section certificate's witness on one crossing circle lands in
-/// it: no point placed, so the pair refuses with the certificate's own
-/// reason (R-undec) as `FallbackExtentUnsupported`, never as spheres
-/// that meet, and never as apart. At every other ε the circles are
-/// certified off the faces and every op builds against the caps,
-/// to 1e-9 of the result (the volumes are of order k³).
+/// **A millimetre lens inside a ball builds at every tolerance.** The
+/// lens of [`R1`], [`R2`], [`D`] scaled by `k = 1e-3`, inside `ball(0.9k)`
+/// centred at `(0.1, 1, −0.1)·k`: the ball's sphere crosses the carriers
+/// of both lens spheres off the lens's faces. At ε 1e-6 the band is a
+/// thousandth of the bodies, and the section certificate's witness on
+/// one crossing circle lands in the band of a lens face's boundary
+/// arc's carrier circle, past the arc: that used to place no point, and
+/// the pair refused `FallbackExtentUnsupported` (R-undec). The face's
+/// boundary is read as the distance to the arc
+/// (`topo`'s `ConicArc::hit`), so the witness is placed off the face, the
+/// circles are certified off the faces at every ε, and every op builds
+/// against the caps, to 1e-9 of the result (the volumes are of order k³).
 #[test]
-fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
+fn a_millimetre_lens_inside_a_ball_builds_at_every_tolerance() {
     let k = 1e-3;
     let tol = Tol::witness();
     let lens = run(
@@ -992,18 +993,6 @@ fn a_millimetre_lens_inside_a_ball_refuses_its_unplaced_circle_at_1e_6() {
         (BooleanOp::Subtract, &b, &lens, v_ball - v_lens),
     ] {
         let label = format!("ε {} {op:?}", tol.eps());
-        if tol.eps() == 1e-6 {
-            let e = refusal(op, x, y);
-            assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::FallbackExtentUnsupported { what, .. }
-                        if what.contains("no witness could place")
-                ),
-                "{label}: expected the certificate's undecided refusal, got {e:?}"
-            );
-            continue;
-        }
         match run_or_empty(op, x, y) {
             None => assert!(want == 0.0, "{label}: empty against {want}"),
             Some(out) => {

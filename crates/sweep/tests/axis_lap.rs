@@ -258,10 +258,17 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     assert_sound(&capped, 3.0 * PI * R * R, "the oblique-capped rod");
     let flatted = cut(&capped, ACROSS, (0.2, 1.0), FLAT)
         .unwrap_or_else(|e| panic!("the oblique-capped rod flats: {e:?}"));
-    assert_sound(
-        &flatted,
-        3.0 * (PI * R * R - segment(0.2)),
-        "the oblique-capped rod's flat",
+    topo::validate_geometric_certificate(&flatted, tol())
+        .unwrap_or_else(|e| panic!("the flat does not certify at rest: {e:?}"));
+    // Its wall is trimmed by ellipse arcs, so its volume is a certified
+    // quadrature: the slack is the enclosure's own half-width.
+    let m = topo::mass_properties(&flatted, tol()).unwrap();
+    let expect = 3.0 * (PI * R * R - segment(0.2));
+    assert!(
+        (m.volume - expect).abs() <= m.volume_pad + 1e-12,
+        "the flat: volume {} ± {} against the analytic {expect}",
+        m.volume,
+        m.volume_pad
     );
 }
 
