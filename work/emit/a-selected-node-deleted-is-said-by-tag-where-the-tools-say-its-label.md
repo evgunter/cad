@@ -2,12 +2,13 @@
 id: a-selected-node-deleted-is-said-by-tag-where-the-tools-say-its-label
 kind: unit
 title: A selection whose node is deleted says it by tag, where the seats, mate and blend tools say the label it had when picked
-status: open
+status: review
 opened: 2026-10-02
 priority: P3
 cost: M
 parent: node-labels-are-document-data
 refs: [viewer-panes-speak-the-kernel-refusals-they-draw]
+pr: 4086
 ---
 
 
