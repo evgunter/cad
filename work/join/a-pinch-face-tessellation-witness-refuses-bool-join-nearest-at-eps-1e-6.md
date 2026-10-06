@@ -41,6 +41,16 @@ metres (`a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale`).
 The margin here, 5.2e-6, falls inside the 1e-6 row's escalation band
 [1e-6, 1e-5). Not verified as that row's mechanism.
 
+## Proposed patch (unmeasured)
+
+`join::nearer` (`crates/topo/src/boolean/join.rs`) only orders two
+pairs whose partners [`nearer_along`] has already chosen: "an order
+among pairs rather than a partner". Two chords within the band are a
+tie in that order, not a coincidence of geometry. Read an indeterminate
+`bool_join_nearest` as the tie (keep `best`) instead of escalating, and
+let the join's own checks catch an order that matters. Whether any
+order does matter here is JOIN's to rule.
+
 ## Owed
 
 Build the case at 1e-6, or refuse it typed and pin it at that row.
