@@ -2,11 +2,13 @@
 id: a-cylinder-split-through-its-seam-ruling-refuses-rechart-undescribed
 kind: issue
 title: A solid cylinder split by a plane through its seam ruling (0.4 rad off tangency) refuses Finish(Euler(RechartUndescribed{seam})) with both normals at every eps; off the seam the same pose builds
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: M
 branch: cleave/seam-ruling-split
+closed: 2026-10-06
+pr: 4158
 ---
 
 
@@ -86,3 +88,14 @@ and at t ≤ 1e-4 at ε 1e-9. At 1e-12, every near-tangent wall pose answers, on
 No pose answers wrongly. Where the twin refuses
 `DegenerateSection` (frustum, t ∈ {0.05, 3}), the seam pose answers; that is filed as its own
 row.
+
+## Closed (PR 4158, 2026-10-06)
+
+A plane running along an operand's seam edge reuses it, and the re-chart now restates every edge its
+door would otherwise refuse. The door's own pure query, `Body::stranded_by`, is asked about the real
+move, so there is one reading of the question and no seam special case. Solid cylinders, tubes,
+counterbores and frustums now split through their seam rulings at closed form. Review tier: single
+FULL (APPROVE-WITH-FIXES, no MAJOR), then the orchestrator's read of the fix pass. Filed:
+`a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section` (P1, a top↔top
+crossing pairing when the plane holds the apex) and
+`restating-a-chart-image-across-an-authority-has-several-spellings` (P3).
