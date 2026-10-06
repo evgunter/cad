@@ -2,10 +2,11 @@
 id: carried-rows-say-a-parts-nodes-by-tag
 kind: issue
 title: A carried row from a part says the part's nodes by tag: its route's deeper hops and its mate, group and cause
-status: review
+status: closed
 pr: 4114
 branch: emit/carried-rows-part-labels
 opened: 2026-10-06
+closed: 2026-10-06
 priority: P3
 parent: node-labels-are-document-data
 ---
