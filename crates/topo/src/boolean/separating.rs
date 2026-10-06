@@ -41,16 +41,16 @@ use crate::validate::decide;
 
 /// K name: the offset between two items' anchors (metres), before it
 /// is read as a unit axis.
-const PAIR_AXIS: &str = "bool_pair_axis";
+pub(crate) const PAIR_AXIS: &str = "bool_pair_axis";
 
 /// K name: a planar face's normal, a pure number levered by the face's
 /// reach diagonal ([`UnitVec3::levered`]), before it is read as a unit
 /// axis.
-const PAIR_NORMAL: &str = "bool_pair_normal";
+pub(crate) const PAIR_NORMAL: &str = "bool_pair_normal";
 
 /// K name: two reaches' gap along a candidate direction, less both
 /// items' pads (metres).
-const PAIR_GAP: &str = "bool_pair_gap";
+pub(crate) const PAIR_GAP: &str = "bool_pair_gap";
 
 /// One item a reach is read for: a face, an edge (the sweep's piercing
 /// side), or a full circle no body holds (the extent scan's section of

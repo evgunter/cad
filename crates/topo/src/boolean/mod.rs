@@ -214,8 +214,18 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-        crate::query::DATUM_UNIT_NORM | join::BOOL_GERM_PLANE_NORMAL | boxes::BOX_CYLINDER_AXIS => {
-            geom_core::DIRECTION_LENGTH_SUBJECT
+        crate::query::DATUM_UNIT_NORM
+        | join::BOOL_GERM_PLANE_NORMAL
+        | boxes::BOX_CYLINDER_AXIS
+        | separating::PAIR_AXIS
+        | separating::PAIR_NORMAL => geom_core::DIRECTION_LENGTH_SUBJECT,
+        // `geom_core`'s lever on a dimensionless direction, which the
+        // narrow phase's normals and the cylinder box's axis read.
+        geom_core::UNIT_DIRECTION_ARM => {
+            "whether the reach a direction is read over has any length"
+        }
+        separating::PAIR_GAP => {
+            "how far apart two faces lie along a direction that turns with them"
         }
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
