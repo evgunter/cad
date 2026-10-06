@@ -7,7 +7,8 @@
 //! found the mesher panicking on (`r2_pinch_probes`, `FACE2V`): a prism
 //! corner `v` on, along an edge of, or at a corner of a side-4 cube, or
 //! on a cylinder's wall. Each asserts the shape is there, then that
-//! `tessellate` passes its chord census and `check_mesh` the result.
+//! `tessellate` passes its chord census and `check_mesh` the result,
+//! and on a planar body that the mesh's volume is the body's.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -305,8 +306,9 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             "S",
             0.05,
         ),
-        // On a cylinder's wall: the trimmed lane, at a δ its certificate
-        // meets there.
+        // On a cylinder's wall: the trimmed lane. It meshes at δ = 1,
+        // 0.5 and 0.2, and refuses `CertificateExceeded` at δ ≤ 0.3, as
+        // the same walls without a pinch do.
         (
             "Lbot cyl fib4 psi=0.9 seam cp S",
             LBOT,
@@ -341,5 +343,22 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
         let mesh = mesh::tessellate(&bb.body, delta, tol())
             .unwrap_or_else(|e| panic!("{tag}: tessellate refuses: {e:?}"));
         mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{tag}: check_mesh: {e:?}"));
+        // A planar body's mesh is the body: its volume is exact. A
+        // curved wall's falls short by its chords.
+        if bb.body.faces().all(|(_, f)| {
+            matches!(
+                bb.body.get_surface(f.surface),
+                Some(geom::Surface::Plane { .. })
+            )
+        }) {
+            let (got, want) = (
+                mesh::validate::signed_volume(&mesh),
+                topo::mass_properties(&bb.body, tol()).unwrap().volume,
+            );
+            assert!(
+                (got - want).abs() < 1e-9,
+                "{tag}: the mesh holds {got}, the body {want}"
+            );
+        }
     }
 }

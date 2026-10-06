@@ -299,7 +299,17 @@ pub(crate) fn tessellate_curved(
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
         }
-        Ok(h)
+        // Two vertices at one point would share this handle's one id.
+        // The walk is its own UV box (`require_swept_rectangle`), which
+        // passes no point twice but at a pole, where one id repeats; the
+        // pinch read is `planar::Pinches`, and this lane refuses rather
+        // than mesh the second vertex under the first one's id.
+        match (meta[h.index()].2, id) {
+            (PatchVertex::Shared(was), PatchVertex::Shared(now)) if was != now => {
+                Err(TessellateError::PinchWedge { face: fk })
+            }
+            _ => Ok(h),
+        }
     };
     let mut handles = Vec::with_capacity(polygon.len());
     for e in &polygon {

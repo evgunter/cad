@@ -193,24 +193,27 @@ pub enum TessellateError {
         face: FaceKey,
     },
     /// A trimmed face's boundary polyline passes EXACTLY through
-    /// another boundary chord point of the same loop (a self-touching
-    /// trim loop): the CDT would realise one face's constraint through
-    /// a vertex its neighbour does not share — a 3-D T-junction no
-    /// grid-retry can repair. No at-rest construction mints one (split
-    /// sections and boolean seams are simple loops); the arm is the
-    /// watertightness backstop's tripwire, kept typed rather than
-    /// silent.
+    /// another boundary chord point of the same loop, inside one of its
+    /// segments (a self-touching trim loop): the CDT would realise one
+    /// face's constraint through a vertex its neighbour does not share
+    /// — a 3-D T-junction no grid-retry can repair. A loop through two
+    /// vertices at one point is not this shape ([`Self::PinchWedge`]
+    /// is where that one can refuse). The arm is the watertightness
+    /// backstop's tripwire, kept typed rather than silent.
     SelfTouchingTrimLoop {
         /// The face whose trim loop touches itself.
         face: FaceKey,
     },
-    /// A planar face's loops pass several vertices at one point (a
-    /// pinch, one vertex per cone of the solid), and a triangle at that
-    /// point lies in no one vertex's corner of the face — or one vertex
-    /// meets the point twice there. The corners overlap, so the loops
-    /// cross at the point, which no valid face does.
+    /// A face's boundary passes several vertices at one point (a
+    /// pinch, one vertex per cone of the solid), and a triangle there
+    /// lies in a sector of the point that no single pass of the boundary
+    /// bounds: in the planar and trimmed lanes, the sector's two sides
+    /// belong to two different passes, as where the boundary crosses
+    /// itself at the point or a ring touches its face's outer loop
+    /// there. The curved lane meshes only a walk that is its own UV box,
+    /// and refuses a point any two vertices reach.
     PinchWedge {
-        /// The face whose corners at the pinch overlap.
+        /// The face whose boundary meets the point.
         face: FaceKey,
     },
     /// A curved face's boundary walk does not trace its own UV
@@ -569,15 +572,16 @@ impl core::fmt::Display for TessellateError {
             ),
             Self::SelfTouchingTrimLoop { .. } => f.write_str(
                 "tessellate: a trimmed face's boundary passes exactly through \
-                 another chord point of the same loop, so the neighbouring \
+                 another chord point of its own trim loop, so the neighbouring \
                  faces would disagree about that vertex — a 3-D T-junction no \
-                 grid retry repairs. No at-rest construction mints a \
-                 self-touching trim loop, so this is a kernel bug",
+                 grid retry repairs",
             ),
             Self::PinchWedge { .. } => f.write_str(
-                "tessellate: a planar face passes several vertices at one point, \
-                 and their corners of the face overlap there, so its loops cross \
-                 at that point — a kernel bug",
+                "tessellate: a face's boundary passes several vertices at one \
+                 point, and a triangle there lies in a sector no single pass of \
+                 the boundary bounds: the boundary crosses itself at the point, \
+                 or a ring touches the face's outer loop there (the curved lane \
+                 meshes no such point)",
             ),
             Self::UnsupportedCurvedDomain {
                 off_bbox,

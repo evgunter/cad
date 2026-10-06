@@ -219,7 +219,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         ),
         (
             TessellateError::PinchWedge { face },
-            vec!["one point", "corners", "cross"],
+            vec!["one point", "sector", "single pass", "ring"],
         ),
         (
             TessellateError::UnsupportedCurvedDomain {
