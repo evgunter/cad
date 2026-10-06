@@ -96,10 +96,15 @@ Measured against the tree at `cadf2ed1`:
   out, `fillet_edges` builds the island-in-a-vented-cavity body; with it,
   the request refuses `FaceClearance { bounded: false }` on the island's
   own edge.
-- **The two-solid witness cannot reach the meter through `fillet_edges`
-  on main**: the surgery's body door refuses a body of two solids first
-  (`UnsupportedBody`), and PR 4113's per-shell door is not merged. The
-  row pins it at the meter itself (`test_support::band_reach`).
+- **The two-solid witness reaches the meter through `fillet_edges`**
+  since PR 4113 (each chain carved inside its own shell) merged: the
+  request refuses `FaceClearance { bounded: false }`, and the row also
+  pins it at the meter itself (`test_support::band_reach`).
+- **Two bands of one request.** A support of another chain in the same
+  request is metered by what survives that chain's band (the part outside
+  its strip and corner regions), and the other band's own surface is
+  metered as a face. Without this, every co-requested pair that shares a
+  wall refused (PR 4113's "beside another solid" row among them).
 - **The convex flare is caught by the meter at `r = 1.5` and `1.6`** and
   certified clear at `r = 0.5` and `1.0`; on main predicate 1 refuses
   these radii first, so PR 4092 (sided headroom) is what will carry them
@@ -107,7 +112,7 @@ Measured against the tree at `cadf2ed1`:
 - **Where the meter runs.** It runs in the surgery's pre-mutation phase,
   after the ring carry-through pass, not inside the battery: at the
   battery it pre-empted the surgery's exact ring and boundary meters and
-  the one-solid body door on 26 rows of the existing corpus, each of
+  the then one-solid body door on 26 rows of the existing corpus, each of
   which those meters already refuse for the same physical fact (a ring
   or edge in the band's material, or a body the surgery does not
   carve). It is still before any surface is minted.
