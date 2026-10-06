@@ -17,4 +17,4 @@ Split out of `closed-in-face-section-loop-has-one-site`. That row is parked on D
 
 **Shape of the arm.** The split already handles the analogous case: `d9244fd60` treats a self-loop chord across a full revolve's seam as the whole section conic.
 
-**Who found it.** Both designers on the PATHS one-segment-seam fork (#… `[ev]` PR, `paths/one-segment-wrap-edge`).
+**Who found it.** Both designers on the PATHS one-segment-seam fork (`[ev]` PR #4175).
