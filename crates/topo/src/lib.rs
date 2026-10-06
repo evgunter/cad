@@ -234,6 +234,7 @@ pub mod shell;
 pub mod source;
 pub mod split;
 pub mod splitting;
+pub(crate) mod stands;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
