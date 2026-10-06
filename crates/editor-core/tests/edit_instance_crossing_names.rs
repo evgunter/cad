@@ -28,13 +28,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind,
     FaceName, InterfaceCrossing, InterfaceRecord, Maintenance, MateFrame, MatePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SplitError, StableName, apply, content_pin,
-    inline, split,
+    ProfileDoc, RecipeNodeId, RoleSeg, SplitError, StableName, apply, content_pin, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, on_frame, step, step_with};
@@ -95,7 +95,7 @@ fn crossing(outer: StableName, inner: FaceName) -> InterfaceCrossing {
 
 /// A mate whose two heads are the named faces, read at their own
 /// mints.
-fn mate(a: StableName, b: StableName) -> Node<ProfileProgram> {
+fn mate(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(a),
         b: fixture::head(b),

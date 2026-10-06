@@ -92,7 +92,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: editor_core::Expr::named(VarName::from_static("depth"), Dimension::Length),
+        distance: editor_core::Formula::named(VarName::from_static("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     r.doc

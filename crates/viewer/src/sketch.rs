@@ -49,7 +49,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
     ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
     StepId, ValuePayload, VarEnv, resolve_loops,
 };
@@ -234,7 +234,7 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// come to be minted without its unit.
 fn recorded_notation(
     notation: Notation,
-    program: &LoopProgram,
+    program: &LoopProgram<Formula>,
 ) -> Result<RecordedNotation, DimensionError> {
     let mut recorded = RecordedNotation::new();
     for (step, arg) in program.step_args() {
@@ -273,7 +273,7 @@ fn recorded_notation(
 pub fn loop_program(
     shape: &ProfileShape,
     notation: Notation,
-) -> Result<LoopProgram, RecordedProgramError> {
+) -> Result<LoopProgram<Formula>, RecordedProgramError> {
     match shape {
         ProfileShape::Circle { centre, radius } => loop_program(
             &ProfileShape::Path {
@@ -337,7 +337,7 @@ pub fn authors_same_loops(a: &[ProfileShape], b: &[ProfileShape]) -> bool {
 pub fn loop_programs(
     shapes: &[ProfileShape],
     notation: Notation,
-) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
     shapes
         .iter()
         .map(|shape| loop_program(shape, notation))
@@ -438,16 +438,20 @@ pub fn held_program(
 #[must_use]
 pub fn is_committed(
     base: &ProfileProgram,
-    loops: &[LoopProgram],
+    loops: &[LoopProgram<Formula>],
     ids: &[Vec<Option<StepId>>],
 ) -> bool {
     ids == base.kept_in_place().as_slice()
-        && *base
-            == ProfileProgram {
-                plane: base.plane,
-                loops: loops.to_vec(),
-                ids: base.ids.clone(),
-            }
+        && base.loops.len() == loops.len()
+        && ProfileProgram {
+            plane: base.plane,
+            loops: base.loops.iter().map(LoopProgram::authored).collect(),
+            ids: base.ids.clone(),
+        } == ProfileProgram {
+            plane: base.plane,
+            loops: loops.to_vec(),
+            ids: base.ids.clone(),
+        }
 }
 
 /// Why a committed node cannot be held by the path editor.
@@ -1067,7 +1071,13 @@ pub fn preview(
         // CANONICAL, and it makes no difference which: a display unit
         // is presentation metadata that no evaluation reads, and this
         // program is built to be replayed and drawn, never committed.
-        programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?);
+        let program = loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?;
+        // A form writes numbers, never a name, so its program is
+        // already the stored one.
+        match program.try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula)) {
+            Ok(stored) => programs.push(stored),
+            Err(fault) => unreachable!("a form's program reads no name, yet {fault}"),
+        }
     }
     // Literals only reach this door, so an empty environment binds
     // everything it can be asked about. It is passed rather than

@@ -217,7 +217,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         doc,
         Node::Pattern {
             input: u,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
                 spacing: len(3.0),

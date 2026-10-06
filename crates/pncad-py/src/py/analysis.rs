@@ -7,7 +7,7 @@
 //! evaluation, no content key and no predicate — the kernel and the
 //! geometry lanes never see a probability — and `pncad::analysis` is
 //! its ONE interpreter. So this module holds both halves: the value a
-//! `DocParam` carries, and the doors that read it.
+//! `FreeVar` carries, and the doors that read it.
 //!
 //! # The offsets are typed, and the parameter owns the dimension
 //!
@@ -171,7 +171,7 @@ fn agreed(py: Python<'_>, door: &'static str, parts: &[Offset]) -> PyResult<d::D
 /// The quantity boundary's `DimensionError`, raised for a DOOR whose
 /// arguments must share a dimension rather than for an operator.
 ///
-/// Shared with the `DocParam` constructors, which ask the same
+/// Shared with the `FreeVar` constructors, which ask the same
 /// question one rung up: a parameter's declaration and the annotation
 /// hung on it must agree about what dimension the offsets are in.
 pub(crate) fn dimension_mismatch(
@@ -316,7 +316,7 @@ pub(crate) struct Distribution {
 }
 
 impl Distribution {
-    /// The kernel value with the dimension a `DocParam` declares.
+    /// The kernel value with the dimension a `FreeVar` declares.
     ///
     /// The read direction of the borrow the module header describes:
     /// an annotation off a document has no dimension of its own, and
@@ -467,7 +467,7 @@ impl Distribution {
     /// spellings of zero are the same offset. The dimension is part of
     /// the value: a Length band and a Scalar band of the same numbers
     /// are different annotations, exactly as a Length 1 and a Scalar 1
-    /// are different `DocParam`s.
+    /// are different `FreeVar`s.
     fn __eq__(&self, other: &Self) -> bool {
         self.dim == other.dim && self.inner == other.inner
     }
@@ -630,7 +630,7 @@ pub(crate) struct AnalyzedBox(a::AnalyzedBox);
 
 impl AnalyzedBox {
     /// The axis named `name`, if the box holds one.
-    fn axis(&self, name: &super::doc::ParamName) -> Option<pncad::document::VarId> {
+    fn axis(&self, name: &super::doc::VarName) -> Option<pncad::document::VarId> {
         self.0
             .params()
             .keys()
@@ -639,8 +639,8 @@ impl AnalyzedBox {
     }
 
     /// The name of axis `id`, when its variable has one.
-    fn name_of(&self, id: pncad::document::VarId) -> Option<super::doc::ParamName> {
-        self.0.spoken(id).name().cloned().map(super::doc::ParamName)
+    fn name_of(&self, id: pncad::document::VarId) -> Option<super::doc::VarName> {
+        self.0.spoken(id).name().cloned().map(super::doc::VarName)
     }
 }
 
@@ -649,7 +649,7 @@ impl AnalyzedBox {
     /// Every axis name, in the box's own order — the document's
     /// declaration order.
     #[getter]
-    fn names(&self) -> Vec<super::doc::ParamName> {
+    fn names(&self) -> Vec<super::doc::VarName> {
         self.0
             .in_order()
             .filter_map(|(id, _)| self.name_of(id))
@@ -659,7 +659,7 @@ impl AnalyzedBox {
     /// The names of the axes that actually VARY — the box's
     /// non-degenerate dimensions.
     #[getter]
-    fn varying(&self) -> Vec<super::doc::ParamName> {
+    fn varying(&self) -> Vec<super::doc::VarName> {
         self.0
             .varying()
             .filter_map(|(id, _)| self.name_of(id))
@@ -668,7 +668,7 @@ impl AnalyzedBox {
 
     /// One axis by name, or `None` when the document declares no such
     /// continuous parameter.
-    fn get(&self, name: &super::doc::ParamName) -> Option<AnalyzedParam> {
+    fn get(&self, name: &super::doc::VarName) -> Option<AnalyzedParam> {
         self.0
             .get(self.axis(name)?)
             .map(|inner| AnalyzedParam { inner: *inner })
@@ -684,7 +684,7 @@ impl AnalyzedBox {
     /// Raises `MeasureUnavailable` when the axis carries a band whose
     /// support escapes the interval: how much of it escapes is
     /// precisely what a band does not say.
-    fn tail_mass(&self, py: Python<'_>, name: &super::doc::ParamName) -> PyResult<Option<f64>> {
+    fn tail_mass(&self, py: Python<'_>, name: &super::doc::VarName) -> PyResult<Option<f64>> {
         let Some(axis) = self.axis(name) else {
             return Ok(None);
         };
@@ -710,7 +710,7 @@ impl AnalyzedBox {
     fn box_mass(
         &self,
         py: Python<'_>,
-        name: &super::doc::ParamName,
+        name: &super::doc::VarName,
         lo: &Bound<'_, PyAny>,
         hi: &Bound<'_, PyAny>,
     ) -> PyResult<Option<f64>> {
@@ -1152,7 +1152,7 @@ fn monte_carlo(
 #[pyfunction]
 fn sample_offset(
     py: Python<'_>,
-    param: &super::doc::ParamName,
+    param: &super::doc::VarName,
     dist: &Distribution,
     u: f64,
 ) -> PyResult<Py<PyAny>> {

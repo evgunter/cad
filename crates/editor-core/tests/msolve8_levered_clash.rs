@@ -22,7 +22,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::{
@@ -108,28 +110,28 @@ fn rig(label: &str, n: usize) -> Rig {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
+fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
         .expect("a definite frame")
 }
 
 /// The z-up frame at `o`, referenced along +x.
-fn z_up_at(o: [f64; 3]) -> MateFrame {
+fn z_up_at(o: [f64; 3]) -> MateFrame<Formula> {
     frame(o, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// The x-along frame at `o`, referenced along +z.
-fn x_along_at(o: [f64; 3]) -> MateFrame {
+fn x_along_at(o: [f64; 3]) -> MateFrame<Formula> {
     frame(o, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0])
 }
 
 fn al(
     primitive: MatePrimitive,
     sense: AxisSense,
-    a: MateFrame,
-    b: MateFrame,
+    a: MateFrame<Formula>,
+    b: MateFrame<Formula>,
     clocking: Option<f64>,
-) -> Alignment {
+) -> Alignment<Formula> {
     Alignment {
         a,
         b,
@@ -145,8 +147,8 @@ fn mate(
     body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     Node::Mate {
         a: fixture::head(in_part(a, body, CapEnd::Start)),
         b: fixture::head(in_part(b, body, CapEnd::Start)),
@@ -156,7 +158,7 @@ fn mate(
 }
 
 /// Inserts `node`, unwrapping the id every insert here mints.
-fn add(doc: ProfileDoc, node: Node<editor_core::ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn add(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = step(
         doc,
         DocEdit::InsertNode {
@@ -175,7 +177,7 @@ fn reach_of(r: &Rig) -> f64 {
 
 /// The mate's lever as the solve forms it: both parts' reach plus the
 /// datum's own terms.
-fn lever_of(r: &Rig, a: &Alignment) -> f64 {
+fn lever_of(r: &Rig, a: &Alignment<Formula>) -> f64 {
     reach_of(r)
         + reach_of(r)
         + a.lever_arm(
@@ -187,7 +189,7 @@ fn lever_of(r: &Rig, a: &Alignment) -> f64 {
 /// The representative `mate_coset` forms for an aligned sense: the
 /// primitive's own displacement ridden onto `a`'s placement, times the
 /// inverse of `b`'s.
-fn representative(a: &Alignment) -> Affine3<f64> {
+fn representative(a: &Alignment<Formula>) -> Affine3<f64> {
     let fa = fixture::authored(&a.a).placement();
     let fb = fixture::authored(&a.b).placement();
     let target = match a.primitive {
@@ -214,8 +216,8 @@ fn bits3(v: Vec3<f64>) -> [u64; 3] {
 /// other way round, and the added mate's fault.
 fn two_mates(
     label: &str,
-    first: Alignment,
-    second: Alignment,
+    first: Alignment<Formula>,
+    second: Alignment<Formula>,
     reversed: bool,
 ) -> (Rig, RecipeNodeId, RecipeNodeId, Option<(Site, MateFault)>) {
     let r = rig(label, 2);
@@ -562,7 +564,7 @@ fn c1_length_none_and_roll_arm() {
 /// `axis_fixed` is what measures the disagreement.
 #[test]
 fn the_three_residual_clashes_survive_the_inverted_authored_order() {
-    let rows: [(&str, &str, Alignment, Alignment); 3] = [
+    let rows: [(&str, &str, Alignment<Formula>, Alignment<Formula>); 3] = [
         (
             "msolve8-inverted-rotation-identity",
             "mate_member_rotation_identity",
@@ -967,7 +969,7 @@ fn c2_inverted_coset_never_refuses() {
         ));
     }
     let (mut solved, mut refused_at_the_read) = (0_usize, 0_usize);
-    let frames: Vec<MateFrame> = vectors
+    let frames: Vec<MateFrame<Formula>> = vectors
         .into_iter()
         .filter_map(|(o, a, r)| {
             let built = MateFrame::authored(o, a, r, tol).ok();

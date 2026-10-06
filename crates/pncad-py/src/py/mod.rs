@@ -115,7 +115,7 @@ pyo3::create_exception!(
      DOOR names rather than one type name: `LiteralError` from \
      literal construction, from the measurement constructors and from \
      the recorded-program lift; `ParseError` with `variant == \
-     \"dimension\"` from `Doc.parse_expr`; `EditError` from \
+     \"dimension\"` from `Doc.parse_formula`; `EditError` from \
      `Doc.apply`; and `PersistError` with `variant == \"dimension\"` \
      from `load`. Six doors, four classes — the roster with each \
      one's attribute is on `ErrorClass::DIMENSION_DOORS` in \
@@ -159,7 +159,7 @@ pyo3::create_exception!(
     pncad,
     ParseError,
     PncadError,
-    "`Doc.parse_expr` could not read the source as an expression. \
+    "`Doc.parse_formula` could not read the source as an expression. \
      Carries `variant`, the stable tag of the refusing arm, and \
      `pos`, the byte offset in the source — which for a parser is \
      the recourse, since it says WHERE to edit.\n\n\

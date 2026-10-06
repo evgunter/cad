@@ -58,8 +58,8 @@ its leaves. Annotation is opt-in — a parameter with none is fixed —
 and a `band` states limits with no shape, so it refuses to be priced
 rather than being read as a uniform.
 
-A recipe slot is not always a number. `Doc.parse_expr` reads text as
-a dimension-checked `Expr` against the document's declared
+A recipe slot is not always a number. `Doc.parse_formula` reads text as
+a dimension-checked `Formula` against the document's declared
 parameters, and `Doc.eval` / `Doc.eval_count` answer what one is
 worth right now — which is what a panel showing `width / 2.0 -
 margin` needs and cannot compute for itself. Reading only: putting an
@@ -67,7 +67,7 @@ expression INTO an authoring step is still a named gap.
 
 Text goes the other way too. `Length.format` / `Angle.format` render
 a quantity in a unit — `"25 mm"` — choosing digits so that
-`Doc.parse_expr` reads the text back to the value's exact bits. That
+`Doc.parse_formula` reads the text back to the value's exact bits. That
 pin is the reason to use them rather than an f-string over
 `in_unit`'s bare float, which does not round-trip; the price is that
 a value with no exact spelling in the unit asked for falls back to
@@ -116,7 +116,7 @@ class EditError(PncadError):
       required and what it was offered — under every spelling the
       kernel gives them (`expected`/`found`, `declared`/`referenced`,
       `measured`/`bound`). They are dimension words (`length`,
-      `angle`, `count`, `scalar`), the same alphabet `Expr.dimension`
+      `angle`, `count`, `scalar`), the same alphabet `Formula.dimension`
       answers in.
     - `count` is how many entries a short list would have had. It is
       NOT `found`: a count and a dimension are two types, and one
@@ -352,7 +352,7 @@ class QuantityOpMismatch(PncadError):
     under four DOOR names rather than one type name — LiteralError
     (literal construction, the MeasureExpr arithmetic constructors,
     and the recorded-program lift), ParseError with `variant ==
-    "dimension"` (`Doc.parse_expr`), EditError (`Doc.apply`), and
+    "dimension"` (`Doc.parse_formula`), EditError (`Doc.apply`), and
     PersistError with `variant == "dimension"` (`load`). Each carries
     the failing check's own tag, so which check refused is branchable
     at every one."""
@@ -380,7 +380,7 @@ class FmtQuantityError(PncadError):
     value: float
 
 class LiteralError(PncadError):
-    """A value the expression layer refused (`Expr::literal`'s own
+    """A value the expression layer refused (`Formula::literal`'s own
     curated error). `value` is the offending number.
 
     Not QuantityOpMismatch, which is the quantity boundary's operator
@@ -389,12 +389,12 @@ class LiteralError(PncadError):
     four class names in all: `load` does, from a hand-edited save file,
     and they arrive as PersistError with `variant == "dimension"` and
     the check's own tag as `inner_variant`; `Doc.apply` does, as
-    EditError; `Doc.parse_expr` does, and they
+    EditError; `Doc.parse_formula` does, and they
     arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
     constructors do (`MeasureExpr.add` and its siblings), arriving on
     THIS class with the mismatch's own tag as `kind` — the same kernel
     type refusing at the same layer, because that language asks
-    `Expr`'s own constructors for its dimensions rather than restating
+    `Formula`'s own constructors for its dimensions rather than restating
     the table.
 
     `value` is the offending number where the refusing door had one in
@@ -406,7 +406,7 @@ class LiteralError(PncadError):
     value: Optional[float]
 
 class ParseError(PncadError):
-    """`Doc.parse_expr` could not read the source as an expression.
+    """`Doc.parse_formula` could not read the source as an expression.
 
     `pos` is the byte offset in the source, and for a parser that is
     the recourse: it says where to edit. The rest of the payload is
@@ -442,6 +442,14 @@ class EvalError(PncadError):
     `name` is the parameter at fault, `expected` and `found` are
     dimension tags, `count` the offending integer; each is None where
     the arm does not carry it.
+
+    Two words come from the edit door's lowering of a formula's names,
+    before anything is evaluated: `unlowered_name`, a name no variable
+    holds at the dimension it is read at (the lowering's own refusal,
+    which no evaluation step speaks), and `var_kind_mismatch` where a
+    variable holds it at another kind (the same word the evaluator
+    gives a stored reader of the wrong kind). `GeomPred.datum_distance`
+    raises them too, lowering its comparand with no document in scope.
 
     Numeric domain is deliberately NOT here. Division by zero and
     out-of-domain trig are not refusals in the expression layer — the
@@ -1313,7 +1321,7 @@ class WrittenLength:
     `Length` erases — `25 * mm` is metres and the `mm` is gone at the
     multiply — which is what the kernel below wants and what makes its
     arithmetic closed. This is the record of what was TYPED, so a
-    document reads back the way it was written; `DocParam.written_length`
+    document reads back the way it was written; `FreeVar.written_length`
     is the door it opens.
 
     No arithmetic, deliberately: there is no answer to what notation
@@ -1864,7 +1872,7 @@ class TubeWindow:
     @staticmethod
     def full() -> TubeWindow: ...
     @staticmethod
-    def arc(t0: Expr, t1: Expr) -> TubeWindow: ...
+    def arc(t0: Formula, t1: Formula) -> TubeWindow: ...
     def __repr__(self) -> str: ...
 
 class SketchPlane:
@@ -2008,9 +2016,9 @@ class Placement:
     @staticmethod
     def rigid(
         *,
-        translation: tuple[Expr, Expr, Expr],
-        axis: tuple[Expr, Expr, Expr],
-        angle: Expr,
+        translation: tuple[Formula, Formula, Formula],
+        axis: tuple[Formula, Formula, Formula],
+        angle: Formula,
     ) -> Placement:
         """One rigid step: rotate by `angle` about the axis through the
         origin with direction `axis`, then translate — `Node.transform`'s
@@ -2066,7 +2074,7 @@ class PatternKind:
 
     @staticmethod
     def linear(
-        direction: tuple[Expr, Expr, Expr], spacing: Expr
+        direction: tuple[Formula, Formula, Formula], spacing: Formula
     ) -> PatternKind:
         """Stepped along `direction`, `spacing` apart. The spacing is
         a size: the direction says which way the copies step, so a
@@ -2076,7 +2084,7 @@ class PatternKind:
         it."""
 
     @staticmethod
-    def circular(axis: NodeId, step: Expr) -> PatternKind:
+    def circular(axis: NodeId, step: Formula) -> PatternKind:
         """Stepped around `axis`, an upstream `datum_axis` node. The
         step is signed by the right-hand rule about the axis and lies
         within a turn: zero raises EvaluationError (`degenerate_step`),
@@ -2105,9 +2113,9 @@ class PartSelect:
         with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
-    def instance(index: Expr) -> PartSelect:
+    def instance(index: Formula) -> PartSelect:
         """The `index`-th instance of a `Node.pattern` value, from
-        zero. A count `Expr` — `Expr.count(3)` — and the node's
+        zero. A count `Formula` — `Formula.count(3)` — and the node's
         `Instance` slot, which `DocEdit.bind_instance_param` binds to a
         parameter. Outside `0 .. count`, including a negative, refuses
         at `evaluate` (`instance_out_of_range`); nothing wraps or
@@ -2203,19 +2211,19 @@ class MeasureExpr:
 
     The dimension checker runs at CONSTRUCTION and it is the kernel's
     own — the measurement language builds probe expressions and asks
-    `Expr`'s smart constructors what comes out, so a mis-dimensioned
+    `Formula`'s smart constructors what comes out, so a mis-dimensioned
     tree refuses in the same words a document expression would have
     earned, and it refuses where it is written rather than at the
     `Doc.apply` after it. The refusal is LiteralError, carrying the
     mismatch's own tag as `kind`.
 
     A measurement nests at most 128 levels, the bound it shares with
-    `Expr`, a value leaf counting as the expression it holds; a
+    `Formula`, a value leaf counting as the expression it holds; a
     constructor that would nest deeper refuses (`kind`
     `"nested_too_deep"`), so a flat chain of more than 128 terms
     refuses.
 
-    No `__hash__`, for `Expr`'s reason: equality is an IEEE comparison
+    No `__hash__`, for `Formula`'s reason: equality is an IEEE comparison
     of the literals inside, so `0.0` and `-0.0` are equal trees whose
     bit patterns are not.
     """
@@ -2225,10 +2233,10 @@ class MeasureExpr:
         """A closed-form measurement leaf. Total."""
 
     @staticmethod
-    def value(e: Expr) -> MeasureExpr:
+    def value(e: Formula) -> MeasureExpr:
         """An ordinary document expression as a leaf — a literal
         bound, a parameter, a whole arithmetic subtree of them.
-        `Doc.parse_expr` is where one comes from, and it is the only
+        `Doc.parse_formula` is where one comes from, and it is the only
         door: a second spelling of that grammar is what `py/expr.rs`
         already rules out."""
 
@@ -2275,7 +2283,7 @@ class Node:
     @staticmethod
     def sketch_frame(
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Expr] = None,
+        elevation: Optional[Formula] = None,
     ) -> Node:
         """The sketch frame a profile is drawn on, as a node.
 
@@ -2286,7 +2294,7 @@ class Node:
 
     @staticmethod
     def polygon(
-        points: list[tuple[Expr, Expr]],
+        points: list[tuple[Formula, Formula]],
         plane: NodeId,
     ) -> Node: ...
     @overload
@@ -2297,7 +2305,7 @@ class Node:
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
     def extrude(
-        profile: NodeId, distance: Expr, side: ExtrudeSide = ExtrudeSide.Along
+        profile: NodeId, distance: Formula, side: ExtrudeSide = ExtrudeSide.Along
     ) -> Node:
         """Extrude a profile to one side of its sketch plane.
 
@@ -2311,17 +2319,17 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: Expr) -> Node:
+    def revolve(profile: NodeId, axis: NodeId, angle: Formula) -> Node:
         """Revolve a profile about a datum axis. `angle` mints a
         literal in the node's `revolve_angle` slot, driven afterwards
         by `DocEdit.set_param` as an extrude's `distance` is."""
     @staticmethod
     def tube(
         spine: NodeId,
-        u_ref: tuple[Expr, Expr, Expr],
-        major_radius: Expr,
+        u_ref: tuple[Formula, Formula, Formula],
+        major_radius: Formula,
         window: TubeWindow,
-        minor_radius: Expr,
+        minor_radius: Formula,
     ) -> Node:
         """A solid ring torus, or an elbow of one, from its intent parameters.
 
@@ -2338,11 +2346,11 @@ class Node:
     @staticmethod
     def hollow_tube(
         spine: NodeId,
-        u_ref: tuple[Expr, Expr, Expr],
-        major_radius: Expr,
+        u_ref: tuple[Formula, Formula, Formula],
+        major_radius: Formula,
         window: TubeWindow,
-        minor_radius: Expr,
-        wall: Expr,
+        minor_radius: Formula,
+        wall: Formula,
     ) -> Node:
         """`Node.tube`'s sibling with a WALL, which is REQUIRED.
 
@@ -2356,9 +2364,9 @@ class Node:
         """
 
     @staticmethod
-    def loft(profiles: list[NodeId], v_degree: Expr) -> Node: ...
+    def loft(profiles: list[NodeId], v_degree: Formula) -> Node: ...
     @staticmethod
-    def chamfer(target: NodeId, distance: Expr, selection: list[str]) -> Node:
+    def chamfer(target: NodeId, distance: Formula, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2371,7 +2379,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: NodeId, thickness: Expr, open: list[str]) -> Node:
+    def shell(target: NodeId, thickness: Formula, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2391,14 +2399,14 @@ class Node:
 
     @staticmethod
     def datum_axis(
-        origin: tuple[Expr, Expr, Expr],
-        direction: tuple[Expr, Expr, Expr],
+        origin: tuple[Formula, Formula, Formula],
+        direction: tuple[Formula, Formula, Formula],
     ) -> Node: ...
     @staticmethod
     def datum_axis_in_plane(
         plane: NodeId,
-        origin: tuple[Expr, Expr],
-        direction: tuple[Expr, Expr],
+        origin: tuple[Formula, Formula],
+        direction: tuple[Formula, Formula],
     ) -> Node:
         """An axis written IN a sketch frame — a revolve's axis.
 
@@ -2408,11 +2416,11 @@ class Node:
         """
     @staticmethod
     def datum_plane(
-        origin: tuple[Expr, Expr, Expr],
-        normal: tuple[Expr, Expr, Expr],
+        origin: tuple[Formula, Formula, Formula],
+        normal: tuple[Formula, Formula, Formula],
     ) -> Node: ...
     @staticmethod
-    def datum_point(position: tuple[Expr, Expr, Expr]) -> Node:
+    def datum_point(position: tuple[Formula, Formula, Formula]) -> Node:
         """A datum point: a position, and nothing else.
 
         There is no direction, because a point has none —
@@ -2423,7 +2431,7 @@ class Node:
         non-finite coordinate raises `LiteralError` here.
         """
     @staticmethod
-    def datum_face_frame(at: NodeId, face: str, spin: Expr) -> Node:
+    def datum_face_frame(at: NodeId, face: str, spin: Formula) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
         `at` is the body-denoting node the face is read out of, and a
@@ -2445,9 +2453,9 @@ class Node:
 
     @staticmethod
     def datum_frame(
-        origin: tuple[Expr, Expr, Expr],
-        u: tuple[Expr, Expr, Expr],
-        v: tuple[Expr, Expr, Expr],
+        origin: tuple[Formula, Formula, Formula],
+        u: tuple[Formula, Formula, Formula],
+        v: tuple[Formula, Formula, Formula],
     ) -> Node:
         """An oriented plane — a sketch frame, written as its origin
         and its two in-plane directions.
@@ -2470,7 +2478,7 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: NodeId, radius: Expr, selection: list[str]) -> Node:
+    def fillet(target: NodeId, radius: Formula, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
@@ -2492,9 +2500,9 @@ class Node:
     @staticmethod
     def transform(
         input: NodeId,
-        translation: tuple[Expr, Expr, Expr],
-        rotation_axis: tuple[Expr, Expr, Expr],
-        rotation_angle: Expr,
+        translation: tuple[Formula, Formula, Formula],
+        rotation_axis: tuple[Formula, Formula, Formula],
+        rotation_angle: Formula,
     ) -> Node:
         """A rigid placement: rotate about `rotation_axis` through the
         WORLD ORIGIN by `rotation_angle`, then translate. A pure
@@ -2551,7 +2559,7 @@ class Node:
         question at `evaluate`."""
 
     @staticmethod
-    def pattern(input: NodeId, count: Expr, kind: PatternKind) -> Node:
+    def pattern(input: NodeId, count: Formula, kind: PatternKind) -> Node:
         """One prototype, `count` placements stepped by `kind`, N
         BODIES OUT — the replicated family with nothing fused.
 
@@ -2562,7 +2570,7 @@ class Node:
         seat, so the node that reaches those doors with one copy is
         `Node.part`.
 
-        `count` is a count `Expr` — `Expr.count(4)` — and is the
+        `count` is a count `Formula` — `Formula.count(4)` — and is the
         node's `Count` slot (`DocEdit.bind_count_param`). Below one
         refuses at `evaluate`
         (`non_positive_count`); an `explicit` rule refuses at
@@ -2582,14 +2590,14 @@ class Node:
         `instance_out_of_range`."""
 
     @staticmethod
-    def placed_union(input: NodeId, count: Expr, kind: PatternKind) -> Node:
+    def placed_union(input: NodeId, count: Formula, kind: PatternKind) -> Node:
         """The group boolean over a PARAMETRIC rule: one prototype,
         `count` placements stepped by `kind`, ONE body out.
 
         The value is an ordinary body, so every downstream door
         consumes it with no new arms — which is exactly what a
-        pattern's plural payload cannot do. `count` is a count `Expr`
-        — `Expr.count(4)`, the `Node.loft` `v_degree` precedent: a
+        pattern's plural payload cannot do. `count` is a count `Formula`
+        — `Formula.count(4)`, the `Node.loft` `v_degree` precedent: a
         Count is an integer in the kernel's own expression language,
         not a measurement.
 
@@ -2730,7 +2738,7 @@ class Node:
         `evaluate`."""
 
     @staticmethod
-    def assertion(measure: NodeId, dir: AssertionDir, bound: Expr) -> Node:
+    def assertion(measure: NodeId, dir: AssertionDir, bound: Formula) -> Node:
         """A recorded tolerance requirement: design intent as document
         data, in the versioned recipe rather than in a script beside
         it.
@@ -2739,12 +2747,12 @@ class Node:
         recipe edge, so a failed or poisoned measure poisons the
         assertion rather than producing a verdict about nothing.
 
-        The bound is an `Expr` and not a typed quantity, because its
+        The bound is a `Formula` and not a typed quantity, because its
         DIMENSION is the measure's. Every other node door takes a
         `Length` or an `Angle` because a slot's address fixes what it
         holds; this one's is fixed by the node it points at, and may be
         an angle, a count or a plain scalar as readily as a length.
-        `Doc.parse_expr("0.5 mm")` is the one spelling, and it reaches
+        `Doc.parse_formula("0.5 mm")` is the one spelling, and it reaches
         document parameters (`"min_web"`) in the same call — which is
         what makes an assertion re-decidable by a parameter edit.
 
@@ -2759,24 +2767,25 @@ class Node:
         declaration, and nothing downstream changes shape because one
         is `Violated`. Read it with `Value.assertion`."""
 
-class Expr:
+class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
     value.
 
-    `Doc.parse_expr` and the four literal constructors below are the
+    `Doc.parse_formula` and the four literal constructors below are the
     doors that build one, and the dimension checker runs at every one
     of them, so an ill-dimensioned tree does not exist to be handed
     around. `Doc.eval` and `Doc.eval_count` are what read its value
     back.
 
     It is what every dimensioned slot takes —
-    `Node.extrude(profile, Expr.written_length(w))` — which is the
-    Rust slot's own type reaching Python unchanged. So one seat holds
+    `Node.extrude(profile, Formula.written_length(w))` — which is the
+    Rust edit's own authored type reaching Python unchanged, lowered
+    to the stored `Expr` at the edit door. So one seat takes
     a literal, a literal that remembers its notation, and a parsed
     tree, and a slot is given a number through
-    `Expr.literal(25 * mm)` (canonical `0.025 m`) or
-    `Expr.length_in(25.0, mm)` (`25 mm`, the notation kept — the one
-    call for `Expr.written_length(WrittenLength.in_unit(25.0, mm))`).
+    `Formula.literal(25 * mm)` (canonical `0.025 m`) or
+    `Formula.length_in(25.0, mm)` (`25 mm`, the notation kept — the one
+    call for `Formula.written_length(WrittenLength.in_unit(25.0, mm))`).
 
     `dimension` says what it measures and is the fact that decides
     which evaluator answers. `text` is the source it reads back as —
@@ -2796,16 +2805,16 @@ class Expr:
     respects the first without lying about the second."""
 
     @staticmethod
-    def literal(value: Length | Angle | float) -> Expr:
+    def literal(value: Length | Angle | float) -> Formula:
         """A continuous literal in the CANONICAL unit for its
         dimension. The argument's own type is the dimension, so
-        `Expr.literal(25 * mm)` is a length and reads back `0.025 m`;
-        `Expr.written_length` is the door that keeps the `mm`.
+        `Formula.literal(25 * mm)` is a length and reads back `0.025 m`;
+        `Formula.written_length` is the door that keeps the `mm`.
 
         `LiteralError` for a non-finite value. A count is not
-        reachable here — it is exact, and `Expr.count` is its door."""
+        reachable here — it is exact, and `Formula.count` is its door."""
     @staticmethod
-    def written_length(written: WrittenLength) -> Expr:
+    def written_length(written: WrittenLength) -> Formula:
         """A continuous literal from an AUTHORED length — the value
         and the notation together, so the document reads back `25 mm`
         rather than the canonical `0.025 m`.
@@ -2814,23 +2823,23 @@ class Expr:
         authored length names a length unit, so there is no dimension
         for the notation to disagree with."""
     @staticmethod
-    def written_angle(written: WrittenAngle) -> Expr:
-        """`Expr.written_length`'s mirror for an authored angle."""
+    def written_angle(written: WrittenAngle) -> Formula:
+        """`Formula.written_length`'s mirror for an authored angle."""
     @staticmethod
-    def length_in(value: float, unit: LengthUnit) -> Expr:
+    def length_in(value: float, unit: LengthUnit) -> Formula:
         """A length authored as `value` in `unit`, in ONE call —
-        exactly `Expr.written_length(WrittenLength.in_unit(value,
+        exactly `Formula.written_length(WrittenLength.in_unit(value,
         unit))`, with the same stored notation and the same
         `LiteralError` for a non-finite value.
 
-        The spelling for an authored number; `Expr.written_length`
+        The spelling for an authored number; `Formula.written_length`
         stays the door for a `WrittenLength` already in hand."""
     @staticmethod
-    def angle_in(value: float, unit: AngleUnit) -> Expr:
-        """`Expr.length_in`'s mirror — exactly
-        `Expr.written_angle(WrittenAngle.in_unit(value, unit))`."""
+    def angle_in(value: float, unit: AngleUnit) -> Formula:
+        """`Formula.length_in`'s mirror — exactly
+        `Formula.written_angle(WrittenAngle.in_unit(value, unit))`."""
     @staticmethod
-    def count(value: int) -> Expr:
+    def count(value: int) -> Formula:
         """A `Count` literal — the exact integer a structural slot
         takes. Total: every integer is a count."""
     @property
@@ -2846,12 +2855,35 @@ class Expr:
         since handing a count back as a float is the implicit
         promotion the expression language refuses."""
     @property
-    def params(self) -> list[ParamName]:
+    def params(self) -> list[VarName]:
         """The variable names this reads, sorted and without
         repeats."""
     def __eq__(self, other: object) -> bool: ...
 
-class ParamName:
+class Expr:
+    """A stored expression — what a document holds once the edit door
+    has lowered a `Formula`: every variable it reads, read by id.
+
+    Read-only: a document hands one back (`Doc.definition`), and a
+    caller reads it, or writes it into another formula through its
+    text. `Doc.unparse` reads one; nothing else takes one, for an edit
+    carries a `Formula`. Unhashable, for `Formula`'s reason."""
+
+    @property
+    def dimension(self) -> str:
+        """`"length"`, `"angle"`, `"count"` or `"scalar"`."""
+    @property
+    def text(self) -> str:
+        """The source text this reads back as, a variable written as
+        its full id, `#<16 hex>`; `Doc.unparse` writes the names a
+        document holds."""
+    @property
+    def literal_value(self) -> Optional[float]:
+        """The number a BARE literal carries, in canonical kernel
+        units, or None for anything else."""
+    def __eq__(self, other: object) -> bool: ...
+
+class VarName:
     """A document-level parameter name (guide §3.2): one identifier,
     the same name the recipe's expressions reference. NOT an arena
     key.
@@ -2957,7 +2989,7 @@ class Distribution:
     def __eq__(self, other: object) -> bool: ...
 
     # Equality is IEEE on the offsets and the dimension is part of the
-    # value, exactly as it is for DocParam. No `__hash__`: the kernel's
+    # value, exactly as it is for FreeVar. No `__hash__`: the kernel's
     # `Distribution` derives `PartialEq` and no `Hash`, and this class
     # mirrors its derives.
 
@@ -3012,13 +3044,13 @@ class AnalyzedBox:
     any error analysis."""
 
     @property
-    def names(self) -> list[ParamName]: ...
+    def names(self) -> list[VarName]: ...
     @property
-    def varying(self) -> list[ParamName]:
+    def varying(self) -> list[VarName]:
         """The axes that actually vary — the non-degenerate
         dimensions."""
-    def get(self, name: ParamName) -> Optional[AnalyzedParam]: ...
-    def tail_mass(self, name: ParamName) -> Optional[float]:
+    def get(self, name: VarName) -> Optional[AnalyzedParam]: ...
+    def tail_mass(self, name: VarName) -> Optional[float]:
         """What this box's interval for `name` leaves OUTSIDE.
 
         `None` when the document declares no such continuous
@@ -3032,7 +3064,7 @@ class AnalyzedBox:
         and Python has no compile step that would catch a mispairing,
         which is why only this spelling crosses."""
     def box_mass(
-        self, name: ParamName, lo: _Offset, hi: _Offset
+        self, name: VarName, lo: _Offset, hi: _Offset
     ) -> Optional[float]:
         """What the axis's distribution puts INSIDE the offset interval
         `(lo, hi)` — the leaf-pricing door.
@@ -3184,7 +3216,7 @@ def monte_carlo(
     McRefusal for a varying parameter carrying a band, a zero-sample
     request, or a document that does not build at its nominal."""
 
-def sample_offset(param: ParamName, dist: Distribution, u: float) -> _Offset:
+def sample_offset(param: VarName, dist: Distribution, u: float) -> _Offset:
     """The offset `dist` puts at quantile `u` — inverse-transform
     sampling's one door, and the advisory lane's only way to draw a
     parameter value.
@@ -3203,26 +3235,26 @@ definitions it reads may hold: a definition past it refuses
 
 class VarDecl:
     """A variable's definition as an edit carries it: a free value, or
-    an `Expr` over other variables, which the edit door lowers (its
+    a `Formula` over other variables, which the edit door lowers (its
     names resolved against the document's) and stores."""
 
     @staticmethod
-    def free(value: DocParam) -> VarDecl:
+    def free(value: FreeVar) -> VarDecl:
         """A free variable holding `value`."""
     @staticmethod
-    def defined(expr: Expr) -> VarDecl:
+    def defined(expr: Formula) -> VarDecl:
         """A variable defined by `expr`, of `expr`'s dimension: its
         value is `expr`'s, re-evaluated whenever a variable it reads
         moves, and it takes no value, unit or distribution of its
         own."""
     @property
-    def expr(self) -> Expr | None:
+    def expr(self) -> Formula | None:
         """The defining expression, or None for a free variable."""
     @property
-    def value(self) -> DocParam | None:
+    def value(self) -> FreeVar | None:
         """The free value, or None for a defined variable."""
 
-class DocParam:
+class FreeVar:
     """A named parameter's declared dimension and exact stored value
     (guide §3.2): what `DocEdit.declare_var` writes. Continuous
     values arrive as typed quantities, so the dimension rides the
@@ -3238,13 +3270,13 @@ class DocParam:
     @staticmethod
     def length(
         value: Length, distribution: Optional[Distribution] = None
-    ) -> DocParam: ...
+    ) -> FreeVar: ...
     @staticmethod
     def angle(
         value: Angle, distribution: Optional[Distribution] = None
-    ) -> DocParam: ...
+    ) -> FreeVar: ...
     @staticmethod
-    def written_length(value: WrittenLength) -> DocParam:
+    def written_length(value: WrittenLength) -> FreeVar:
         """A Length parameter that REMEMBERS its notation — `25 mm`
         stays `mm` in the document and in the file, where `length`
         records the canonical metre row.
@@ -3256,15 +3288,15 @@ class DocParam:
         the canonical metre row."""
 
     @staticmethod
-    def written_angle(value: WrittenAngle) -> DocParam:
+    def written_angle(value: WrittenAngle) -> FreeVar:
         """An Angle parameter that remembers its notation."""
 
     @staticmethod
     def scalar(
         value: float, distribution: Optional[Distribution] = None
-    ) -> DocParam: ...
+    ) -> FreeVar: ...
     @staticmethod
-    def count(value: int) -> DocParam: ...
+    def count(value: int) -> FreeVar: ...
     @property
     def dimension(self) -> str: ...
     @property
@@ -3285,7 +3317,7 @@ class DocParam:
     # stored value, NOT `FreeVar::bit_eq`'s. So the two spellings of
     # zero are the same parameter, and the hash folds `-0.0` to match.
 
-class DocParamValue:
+class FreeValue:
     """The VALUE half of a document parameter: what
     `DocEdit.set_var_value` writes into an ALREADY-DECLARED one.
 
@@ -3294,13 +3326,13 @@ class DocParamValue:
     dimension and any distribution a file gave it."""
 
     @staticmethod
-    def length(value: Length) -> DocParamValue: ...
+    def length(value: Length) -> FreeValue: ...
     @staticmethod
-    def angle(value: Angle) -> DocParamValue: ...
+    def angle(value: Angle) -> FreeValue: ...
     @staticmethod
-    def scalar(value: float) -> DocParamValue: ...
+    def scalar(value: float) -> FreeValue: ...
     @staticmethod
-    def count(value: int) -> DocParamValue: ...
+    def count(value: int) -> FreeValue: ...
     def __eq__(self, other: object) -> bool: ...
 
 class DocEdit:
@@ -3357,14 +3389,14 @@ class DocEdit:
         for a name not minted before `node`."""
 
     @staticmethod
-    def set_param(node: NodeId, slot: str, expr: Expr) -> DocEdit:
+    def set_param(node: NodeId, slot: str, expr: Formula) -> DocEdit:
         """Replace a CONTINUOUS slot's expression on a live node — an
         extrude's `distance`, a fillet's `radius`, a revolve's
         `revolve_angle` — after the constructor that minted it.
 
         The constructors take numbers, so a node arrives with its
         slots holding literals. This moves one afterwards, and puts an
-        EXPRESSION there: `Doc.parse_expr("plate_t * 2")` drives the
+        EXPRESSION there: `Doc.parse_formula("plate_t * 2")` drives the
         slot from a document parameter, as `bind_count_param` drives a
         structural one.
 
@@ -3384,7 +3416,7 @@ class DocEdit:
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
-    def declare_var(name: ParamName, value: DocParam | Expr | VarDecl) -> DocEdit:
+    def declare_var(name: VarName, value: FreeVar | Formula | VarDecl) -> DocEdit:
         """Declare a variable: mint its id and hold `name` beside it.
 
         Refuses typed on a name the document already holds
@@ -3393,7 +3425,7 @@ class DocEdit:
         `non_finite_var` for a NaN or infinite nominal or
         offset.
 
-        An `Expr` (or `VarDecl.defined`) declares a DEFINED variable,
+        A `Formula` (or `VarDecl.defined`) declares a DEFINED variable,
         whose value is the expression's over the variables it reads. It
         refuses `definition_unknown_var_name`,
         `definition_unresolved_var` and `definition_var_kind` for a read
@@ -3401,15 +3433,15 @@ class DocEdit:
         reads the variable back, and `definition_too_large` for an
         expansion past the bound."""
     @staticmethod
-    def define_var(var: Var | ParamName, value: DocParam | Expr | VarDecl) -> DocEdit:
+    def define_var(var: Var | VarName, value: FreeVar | Formula | VarDecl) -> DocEdit:
         """Replace a variable's definition, keeping its identity, its
-        name and its kind. An `Expr` (or `VarDecl.defined`) makes it a
-        defined variable; a `DocParam` makes it free again.
+        name and its kind. A `Formula` (or `VarDecl.defined`) makes it a
+        defined variable; a `FreeVar` makes it free again.
 
-        The whole definition is replaced, so a `DocParam` rebuilt from
+        The whole definition is replaced, so a `FreeVar` rebuilt from
         a dimension and a number has no distribution and the annotation
         the old one carried is gone. `Doc.params` reads a definition
-        back and `DocParam.length(value, distribution)` restates it —
+        back and `FreeVar.length(value, distribution)` restates it —
         but moving a NUMBER is `set_var_value`'s job, because that door
         cannot drop what it never takes.
 
@@ -3419,25 +3451,25 @@ class DocEdit:
         declared), and on `declare_var`'s annotation and definition
         faults."""
     @staticmethod
-    def set_var_value(var: Var | ParamName, value: DocParamValue) -> DocEdit:
+    def set_var_value(var: Var | VarName, value: FreeValue) -> DocEdit:
         """Write a new VALUE into a declared variable, keeping its
         definition — dimension and distribution alike.
 
         Prefer this over `define_var` to move a number: that one
-        replaces the whole definition, so rebuilding a `DocParam` to
+        replaces the whole definition, so rebuilding a `FreeVar` to
         move a number DELETES any distribution the variable carried,
         with no refusal. Refuses typed on an undeclared name
         (`unknown_var`) and on a kind mismatch
         (`var_value_kind_mismatch`)."""
     @staticmethod
-    def set_var_unit(var: Var | ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
+    def set_var_unit(var: Var | VarName, unit: LengthUnit | AngleUnit) -> DocEdit:
         """Write a new NOTATION onto a declared variable, keeping its
         definition — dimension, exact value and distribution alike.
 
         `set_var_value`'s mirror over the other field of the same
         definition, and preferable over `define_var` for the same
         reason. A notation change is not a redefinition — the display
-        unit is presentation metadata, excluded from `DocParam.bit_eq`.
+        unit is presentation metadata, excluded from `FreeVar.bit_eq`.
 
         The unit is one of the typed unit objects (`mm`, `deg`, ...),
         so an off-table notation is a `TypeError` here rather than a
@@ -3448,7 +3480,7 @@ class DocEdit:
         measure the declared dimension (`var_unit_mismatch`)."""
     @staticmethod
     def set_var_distribution(
-        var: Var | ParamName, distribution: Distribution | None
+        var: Var | VarName, distribution: Distribution | None
     ) -> DocEdit:
         """Write an E1/E2 ANNOTATION onto a declared variable, keeping
         its definition — dimension, exact value and notation alike.
@@ -3471,7 +3503,7 @@ class DocEdit:
 
         Refuses typed on an undeclared name (`unknown_var`), on a
         `Count` (`var_count_has_no_distribution` — a count takes
-        no annotation, for the reason `DocParam.count` gives) and on a
+        no annotation, for the reason `FreeVar.count` gives) and on a
         broken E2 invariant (`invalid_distribution`,
         `non_finite_var`)."""
     @staticmethod
@@ -3633,7 +3665,7 @@ class DocEdit:
         not document state, and repairing one is re-selecting."""
 
     @staticmethod
-    def rename_var(var: Var | ParamName, name: ParamName | None) -> DocEdit:
+    def rename_var(var: Var | VarName, name: VarName | None) -> DocEdit:
         """Name, rename or unname a variable: writes the name and
         nothing else, so nothing recomputes and a `Var` handle keeps
         naming the same variable. `None` clears the name.
@@ -3644,7 +3676,7 @@ class DocEdit:
         (`var_name_unchanged`), and clearing the name of a variable
         nothing reads (`anonymous_var_unread`)."""
     @staticmethod
-    def delete_var(var: Var | ParamName) -> DocEdit:
+    def delete_var(var: Var | VarName) -> DocEdit:
         """Delete a named variable. Its readers stay, unresolved:
         evaluation refuses at each (`unresolved_var`), and the id is
         never minted again.
@@ -3653,7 +3685,7 @@ class DocEdit:
         (`unknown_var`) and on an anonymous one, whose lifecycle is its
         readers' (`delete_anonymous_var`)."""
     @staticmethod
-    def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
+    def bind_count_param(node: NodeId, name: VarName) -> DocEdit:
         """Bind `node`'s STRUCTURAL count slot to the document
         parameter `name`, so one `set_var_value` re-counts the
         placements and recomputes exactly what is downstream.
@@ -3672,7 +3704,7 @@ class DocEdit:
         extrude."""
 
     @staticmethod
-    def bind_instance_param(node: NodeId, name: ParamName) -> DocEdit:
+    def bind_instance_param(node: NodeId, name: VarName) -> DocEdit:
         """Bind `node`'s STRUCTURAL instance slot to the document
         parameter `name` — a `Node.part`'s index into a pattern as a
         named, editable number.
@@ -3685,7 +3717,7 @@ class DocEdit:
         dimensioned parameter."""
 
     @staticmethod
-    def bind_v_degree_param(node: NodeId, name: ParamName) -> DocEdit:
+    def bind_v_degree_param(node: NodeId, name: VarName) -> DocEdit:
         """Bind `node`'s STRUCTURAL v-degree slot to the document
         parameter `name` — a loft's v-direction interpolation degree
         as a named, editable number.
@@ -3914,7 +3946,7 @@ class Doc:
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Expr] = None,
+        elevation: Optional[Formula] = None,
         *,
         label: Optional[str] = None,
     ) -> NodeId:
@@ -3947,7 +3979,7 @@ class Doc:
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
     @property
-    def params(self) -> dict[ParamName, DocParam]:
+    def params(self) -> dict[VarName, FreeVar]:
         """The document's named free parameters, by name, in
         declaration order. A defined variable is listed by
         `Doc.definitions` instead.
@@ -3957,13 +3989,13 @@ class Doc:
         parameter reference's number with the dimension and the
         authored notation both erased. A snapshot, not a view."""
     @property
-    def definitions(self) -> dict[ParamName, Expr]:
+    def definitions(self) -> dict[VarName, Expr]:
         """The document's named defined variables, by name, in
         declaration order: each one's definition, reading variables by
         id (`Doc.unparse` writes it by name). With `Doc.params` it
         lists every named variable once. A snapshot, not a view."""
     @property
-    def vars(self) -> dict[Var, DocParam]:
+    def vars(self) -> dict[Var, FreeVar]:
         """The document's free variables, by identity, in declaration
         order — the named ones and the anonymous ones. A snapshot, not
         a view. A defined variable's definition is `Doc.definition`."""
@@ -3971,21 +4003,21 @@ class Doc:
         """The expression `var` is defined by, reading variables by id,
         or None for a free variable or one the document does not
         hold."""
-    def var(self, name: ParamName) -> Var | None:
+    def var(self, name: VarName) -> Var | None:
         """The variable this document names `name`, or None."""
-    def var_name(self, var: Var) -> ParamName | None:
+    def var_name(self, var: Var) -> VarName | None:
         """The name this document holds for `var`, or None — for an
         anonymous variable, or one the document no longer holds."""
-    def unparse(self, expr: Expr) -> str:
+    def unparse(self, expr: Formula | Expr) -> str:
         """The text of `expr`, each variable it reads written by the
         name this document holds for it; one with no name here writes
         its full id, `#<16 hex>`."""
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...
-    def parse_expr(self, source: str) -> Expr:
+    def parse_formula(self, source: str) -> Formula:
         """Read `source` as an expression against this document's
-        declared parameters (`parse_expr`).
+        declared parameters (`parse_formula`).
 
         The one door inward, and a CHECKING one: every reduction runs
         the expression layer's smart constructors, so text that
@@ -4012,7 +4044,7 @@ class Doc:
         Raises ParseError, carrying `variant` and the byte offset
         `pos`."""
 
-    def eval(self, expr: Expr) -> Length | Angle | float:
+    def eval(self, expr: Formula) -> Length | Angle | float:
         """This expression's value under the document's current
         parameter values (`eval`).
 
@@ -4026,12 +4058,13 @@ class Doc:
         A `count` expression does not evaluate here — counts are exact
         and promotion is explicit or nothing — so it raises EvalError
         (`count_expr_in_continuous_eval`) and `eval_count` is the
-        door. The names are read against this document. Other
-        refusals: `unlowered_name` (a name no variable holds at the
-        dimension it is read at), `var_kind_mismatch` (one held at
-        another), `unresolved_var`, `non_finite_result`."""
+        door. The names are read against this document, by the edit
+        door's lowering: `unlowered_name` (a name no variable holds at
+        the dimension it is read at) and `var_kind_mismatch` (one held
+        at another) are that lowering's refusals. Other refusals:
+        `unresolved_var`, `non_finite_result`."""
 
-    def eval_count(self, expr: Expr) -> int:
+    def eval_count(self, expr: Formula) -> int:
         """This count expression's exact value (`eval_count`).
 
         Exact integer arithmetic: an overflow raises EvalError
@@ -4490,15 +4523,17 @@ class GeomPred:
         whichever side carries which."""
 
     @staticmethod
-    def datum_distance(datum: NodeId, cmp: Cmp, value: Expr) -> GeomPred:
+    def datum_distance(datum: NodeId, cmp: Cmp, value: Formula) -> GeomPred:
         """DECIDED: the entity's distance to a datum node against a
-        stated length `Expr` — signed to a datum plane, unsigned to an
+        stated length `Formula` — signed to a datum plane, unsigned to an
         axis or point. The datum is a node reference like every other
         input, which keeps the rule equivariant.
 
         The value is not a node slot, so its dimension is checked
         where the predicate is prepared: anything but a length is
-        `SelectRefusal` (`not_a_length`) at `select_where`."""
+        `SelectRefusal` (`not_a_length`) at `select_where`. Nor is
+        there a document to read a name against, so a formula that
+        writes one refuses here: `EvalError`, `unlowered_name`."""
 
 
 # Minting a revolve's role name: the five doors that ANSWER a name

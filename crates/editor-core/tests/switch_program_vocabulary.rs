@@ -114,12 +114,13 @@
 //! keep.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::SlotPayload;
 use std::collections::BTreeSet;
 
 use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
-    Expr, LoopProgram, Node, ProfilePayload, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, SlotId, StepArg, VarEnv, VarName,
+    Formula, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, SlotId,
+    StepArg, VarEnv,
 };
 use profile::{ArcMode, TargetKind, Verb};
 
@@ -128,7 +129,7 @@ use profile::{ArcMode, TargetKind, Verb};
 /// here reads the node it points at.
 const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId(0);
 
-fn point(x: f64, y: f64) -> ProgramTarget {
+fn point(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
 }
 
@@ -145,7 +146,7 @@ fn point(x: f64, y: f64) -> ProgramTarget {
 /// The witnesses spread the forms an arc spec can target across the
 /// modes that take one, so the corpus reaches them without a second
 /// walk.
-fn mode_witness(mode: ArcMode) -> ProgramArcData {
+fn mode_witness(mode: ArcMode) -> ProgramArcData<Formula> {
     match mode {
         ArcMode::Radius => ProgramArcData::Radius {
             r: len(2.0),
@@ -186,7 +187,7 @@ fn mode_witness(mode: ArcMode) -> ProgramArcData {
 /// form too. `mode_witness` above is the same construction one level
 /// up, and `res_target`'s exhaustiveness on `ProgramTarget` is what
 /// carries the addition into every downstream spelling.
-fn target_witness(kind: TargetKind) -> ProgramTarget {
+fn target_witness(kind: TargetKind) -> ProgramTarget<Formula> {
     match kind {
         TargetKind::Point => point(1.0, 0.0),
         TargetKind::Start => ProgramTarget::Start,
@@ -217,7 +218,7 @@ fn target_witness(kind: TargetKind) -> ProgramTarget {
 /// for one role, so it is the pair the bijection census has to walk.
 /// One cross-mode pair is written out beside it, because a generated
 /// same-mode sweep says nothing about a step whose two specs differ.
-fn chain_steps() -> Vec<ProgramStep> {
+fn chain_steps() -> Vec<ProgramStep<Formula>> {
     let mut steps = vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Angle(ang(0.25)),
@@ -303,7 +304,7 @@ fn chain_steps() -> Vec<ProgramStep> {
 /// The corpus: the chain above plus the two complete-loop carrier
 /// forms, which are `LoopProgram` variants rather than steps.
 fn corpus() -> ProfileProgram {
-    ProfileProgram {
+    editor_core::test_support::stored_program(&ProfileProgram {
         // The corpus is resolved and serialized directly, never
         // inserted, so the frame it names is scaffolding: no row here
         // reads what the plane denotes.
@@ -314,7 +315,7 @@ fn corpus() -> ProfileProgram {
             LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
         ],
         ids: Vec::new(),
-    }
+    })
 }
 
 /// The leading identifier of a `Debug` rendering — the variant name.
@@ -354,7 +355,7 @@ struct StepMembers {
 /// Exhaustive rather than swept into a trailing arm, for this file's
 /// standing reason: which modes carry a target is what the census's
 /// target side assumes, so a mode that gains one is adjudicated here.
-fn spec_target(spec: &ProgramArcData) -> Option<&ProgramTarget> {
+fn spec_target<S: std::fmt::Debug>(spec: &ProgramArcData<S>) -> Option<&ProgramTarget<S>> {
     match spec {
         ProgramArcData::Bulge { target, .. }
         | ProgramArcData::Via { target, .. }
@@ -372,8 +373,8 @@ fn spec_target(spec: &ProgramArcData) -> Option<&ProgramTarget> {
 /// A variant name comes from the `Debug` rendering because no document
 /// enum carries a tag door of its own; what forces the SET to be
 /// complete is `ALL_NAMES`, not this.
-fn step_members(step: &ProgramStep) -> StepMembers {
-    let spec_entry = |spec: &ProgramArcData| {
+fn step_members<S: std::fmt::Debug>(step: &ProgramStep<S>) -> StepMembers {
+    let spec_entry = |spec: &ProgramArcData<S>| {
         (
             variant_name(&format!("{spec:?}")),
             spec_target(spec).map(|t| variant_name(&format!("{t:?}"))),
@@ -415,7 +416,7 @@ fn step_members(step: &ProgramStep) -> StepMembers {
 /// `ArcMode::ALL` entry and `LineTo` once per `TargetKind::ALL` entry,
 /// so *"chain step 16 (ArcTo)"* leaves a reader counting
 /// [`chain_steps`] to learn which member's arm is the short one.
-fn step_label(step: &ProgramStep) -> String {
+fn step_label<S: std::fmt::Debug>(step: &ProgramStep<S>) -> String {
     let m = step_members(step);
     let members: Vec<String> = m
         .specs
@@ -436,12 +437,12 @@ fn step_label(step: &ProgramStep) -> String {
 /// **The one position label**, so the verb clause and the slot
 /// localiser below name a chain step the same way — `loop_` and `step`
 /// being exactly what a `SlotId::Profile` carries.
-fn position_label(loop_: usize, step: usize, what: &ProgramStep) -> String {
+fn position_label<S: std::fmt::Debug>(loop_: usize, step: usize, what: &ProgramStep<S>) -> String {
     format!("loop {loop_} chain step {step} ({})", step_label(what))
 }
 
 /// A loop's own label: the chain's length, or the carrier's form.
-fn loop_label(loop_: &LoopProgram) -> String {
+fn loop_label<S: std::fmt::Debug>(loop_: &LoopProgram<S>) -> String {
     match loop_ {
         LoopProgram::Chain(steps) => format!("Chain of {} steps", steps.len()),
         LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {
@@ -552,13 +553,13 @@ fn every_table_verb_is_a_document_program() {
 #[test]
 fn every_target_form_is_a_document_program() {
     for kind in TargetKind::ALL {
-        let program = ProfileProgram {
+        let program = editor_core::test_support::stored_program(&ProfileProgram {
             plane: SCAFFOLD_PLANE,
             loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(
                 target_witness(*kind),
             )])],
             ids: Vec::new(),
-        };
+        });
         let resolved = program
             .resolve(&VarEnv::<f64>::default())
             .expect("a one-step target witness resolves at f64");
@@ -654,13 +655,13 @@ fn every_target_form_is_a_document_program() {
 #[test]
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
-        let program = ProfileProgram {
+        let program = editor_core::test_support::stored_program(&ProfileProgram {
             plane: SCAFFOLD_PLANE,
             loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
                 *mode,
             ))])],
             ids: Vec::new(),
-        };
+        });
         let resolved = program
             .resolve(&VarEnv::<f64>::default())
             .expect("a one-step mode witness resolves at f64");
@@ -1119,12 +1120,12 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
         slots.len(),
         mismatched = positions_whose_slot_count_disagrees(&program),
     );
-    let mut addresses: Vec<(*const Expr, SlotId)> = Vec::new();
+    let mut addresses: Vec<(*const editor_core::Expr, SlotId)> = Vec::new();
     for slot in &slots {
         let Some(expr) = node.expr(*slot) else {
             panic!("{slot:?} is enumerated but addresses nothing");
         };
-        let addr: *const Expr = expr;
+        let addr: *const editor_core::Expr = expr;
         if let Some((_, first)) = addresses.iter().find(|(seen, _)| *seen == addr) {
             panic!("{slot:?} addresses the expression {first:?} already addresses");
         }
@@ -1162,14 +1163,14 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
     let node = Node::Profile(corpus());
     let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
-    let unbound = VarName::from_static("nothing_binds_this");
+    let unbound = editor_core::VarId(u64::MAX);
     let mut misplaced = Vec::new();
     for slot in &slots {
         let mut broken = node.clone();
         let expr = broken
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = Expr::named(unbound.clone(), expr.dim());
+        *expr = editor_core::Expr::var(unbound, expr.dim());
         let Node::Profile(broken) = broken else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };
@@ -1290,7 +1291,9 @@ fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
         let expr = probe
             .expr_mut(*slot)
             .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
-        *expr = Expr::literal(sentinel, expr.dim()).expect("a finite literal");
+        *expr = editor_core::test_support::stored_expr(
+            &Formula::literal(sentinel, expr.dim()).expect("a finite literal"),
+        );
         let Node::Profile(probe) = probe else {
             unreachable!("a profile node written through `expr_mut` is a profile node")
         };

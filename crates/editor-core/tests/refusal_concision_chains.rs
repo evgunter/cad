@@ -233,7 +233,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/CountOverflow",
     "Expr/CountToScalarOutOfRange",
     "Expr/NonFiniteResult",
-    "Expr/UnloweredName",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
     "FaceFrameKind",
@@ -1109,7 +1108,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
-                step: formula("360 deg"),
+                step: stored("360 deg"),
                 evaluated: None,
                 turns: StepTurns::Whole,
             },
@@ -1117,7 +1116,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: formula("720 deg * scalar(blades)"),
+                step: stored("720 deg * scalar(blades)"),
                 evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
                 turns: StepTurns::Whole,
             },
@@ -1125,7 +1124,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within)",
             NodeErrorKind::FullRangeStep {
-                step: formula("760 deg"),
+                step: stored("760 deg"),
                 evaluated: None,
                 turns: StepTurns::Within(formula("40 deg")),
             },
@@ -1133,7 +1132,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: formula("360 deg / scalar(blades) - 400 deg"),
+                step: stored("360 deg / scalar(blades) - 400 deg"),
                 evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
                 turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
             },
@@ -1141,7 +1140,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(unresolved)",
             NodeErrorKind::FullRangeStep {
-                step: formula("1e20 rad"),
+                step: stored("1e20 rad"),
                 evaluated: None,
                 turns: StepTurns::Unresolved,
             },
@@ -2909,12 +2908,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnloweredName",
-            EvalError::UnloweredName {
-                name: VarName::from_static("width"),
-            },
-        ),
-        (
             "CountExprInContinuousEval",
             EvalError::CountExprInContinuousEval,
         ),
@@ -4672,10 +4665,20 @@ fn decode(literal: &str) -> String {
 }
 
 /// `text` parsed as the formula a refusal carries, `blades` a count.
-fn formula(text: &str) -> editor_core::Expr {
+fn formula(text: &str) -> editor_core::Formula {
     let names = std::collections::BTreeMap::from([(
         editor_core::VarName::new("blades").expect("a name"),
         editor_core::Dimension::Count,
     )]);
-    editor_core::parse_expr(text, &names).expect("the formula parses")
+    editor_core::parse_formula(text, &names).expect("the formula parses")
+}
+
+/// [`formula`] as a document stores it, `blades` a count variable.
+fn stored(text: &str) -> editor_core::Expr {
+    formula(text)
+        .lower(&|name| {
+            (name.as_str() == "blades")
+                .then_some((editor_core::VarId(tagged(9)), editor_core::Dimension::Count))
+        })
+        .expect("the formula lowers")
 }

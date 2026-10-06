@@ -37,7 +37,7 @@ use std::time::Instant;
 use crate::corpus::{self, Recorder};
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanOp, Diagnosis, EntityKind, EvalOptions, Evaluation, Expr, ExtrudeSide, FaceName,
+    BooleanOp, Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula,
     HitTestError, InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind,
     PatternKind, PickHit, ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg,
     SelectRefusal, Speaker, StableName,
@@ -556,7 +556,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let row = r.insert(
         Node::placed_union(
             pin,
-            Expr::count(3),
+            Formula::count(3),
             PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(0.75),
@@ -567,7 +567,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let grid = r.insert(
         Node::placed_union(
             row,
-            Expr::count(2),
+            Formula::count(2),
             PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
                 spacing: len(1.0),

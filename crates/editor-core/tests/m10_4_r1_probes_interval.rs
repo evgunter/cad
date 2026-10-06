@@ -23,7 +23,7 @@ use editor_core::stackup::{
     sensitivities, stackup,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Expr, FreeVar,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
     LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, UnitSym,
     ValuePayload, VarName, evaluate, seed_env,
@@ -36,8 +36,8 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str, dim: Dimension) -> Expr {
-    Expr::named(name(n), dim)
+fn param(n: &'static str, dim: Dimension) -> Formula {
+    Formula::named(name(n), dim)
 }
 
 fn eps() -> f64 {
@@ -189,7 +189,7 @@ fn stepped_shaft_sized(
 fn scalar_measure(
     nominal: f64,
     dist: Distribution,
-    build: impl Fn(&dyn Fn() -> MeasureExpr) -> MeasureExpr,
+    build: impl Fn(&dyn Fn() -> MeasureExpr<Formula>) -> MeasureExpr<Formula>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
@@ -219,7 +219,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // ARC's derived centre/radius are parameter-driven through both its
     // via point and its endpoints — a lane the polygon fixtures never
     // touch.
-    let half_w = Expr::mul(param("w", Dimension::Length), scl(0.5)).expect("Length · Scalar");
+    let half_w = Formula::mul(param("w", Dimension::Length), scl(0.5)).expect("Length · Scalar");
     let chain = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::LineTo(ProgramTarget::Point([
@@ -617,10 +617,14 @@ fn r1_another_documents_verdict_certifies_this_one() {
 /// clause is about.
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
-            .expect("Scalar lattice max")
-    });
+    let (doc, m) = scalar_measure(
+        0.0,
+        uniform(eps() / 16.0),
+        |a: &dyn Fn() -> MeasureExpr<Formula>| {
+            MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
+                .expect("Scalar lattice max")
+        },
+    );
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
@@ -644,9 +648,11 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
 #[test]
 fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     // m = a / a at a = 0 → 0/0 in the VALUE channel as well.
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::div(a(), a()).expect("Scalar / Scalar")
-    });
+    let (doc, m) = scalar_measure(
+        0.0,
+        uniform(eps() / 16.0),
+        |a: &dyn Fn() -> MeasureExpr<Formula>| MeasureExpr::div(a(), a()).expect("Scalar / Scalar"),
+    );
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     println!(
@@ -673,7 +679,7 @@ fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
 /// enclosure, its top must exceed the linearized top.
 #[test]
 fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
-    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> MeasureExpr| {
+    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> MeasureExpr<Formula>| {
         MeasureExpr::mul(MeasureExpr::mul(a(), a()).expect("scalar"), a()).expect("scalar")
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());

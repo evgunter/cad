@@ -13,15 +13,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Expr, FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive,
-    Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf, StableName,
-    ValuePayload, VarName, apply, evaluate,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr,
+    MeasurePrimitive, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SplitHalf,
+    StableName, ValuePayload, VarName, apply, evaluate,
 };
 use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::{Point3, Tol};
@@ -53,7 +54,7 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
 /// Inserts a node and returns the document beside the minted id — the
 /// [`push`] shape for a node whose id the caller needs, which a frame
 /// datum's is: every profile drawn on it names it.
-fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -138,7 +139,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                     plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
-                        radius: Expr::named(VarName::from_static(HOLE_R), Dimension::Length),
+                        radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 })),
@@ -355,7 +356,12 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
     assert_eq!(walls.len(), 2, "two holes, one wall reference each");
-    let r = || MeasureExpr::value(Expr::named(VarName::from_static(HOLE_R), Dimension::Length));
+    let r = || {
+        MeasureExpr::value(Formula::named(
+            VarName::from_static(HOLE_R),
+            Dimension::Length,
+        ))
+    };
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -749,7 +755,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
         MeasureExpr::value(len(13.0)),
-        MeasureExpr::value(Expr::named(VarName::from_static("s"), Dimension::Scalar)),
+        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     doc = push(
@@ -825,9 +831,9 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
                 profile: disc,
-                distance: Expr::div(
+                distance: Formula::div(
                     len(13.0),
-                    Expr::named(VarName::from_static("s"), Dimension::Scalar),
+                    Formula::named(VarName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
                 side: ExtrudeSide::Along,
@@ -1199,7 +1205,7 @@ fn the_measurement_nodes_carry_no_slots() {
 /// The lune: the lip between the internally tangent circles (0,1) r 1
 /// and (0,2) r 2, `ProgramStep::Cusp` at the kiss — a crescent whose
 /// extrude sweeps one strut at material wedge 0.
-fn cusp_lune() -> LoopProgram {
+fn cusp_lune() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(4.0)]),
         ProgramStep::Angle(ang(-std::f64::consts::FRAC_PI_2)),
@@ -1377,7 +1383,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
         &doc,
         Node::Loft {
             profiles,
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     );
     let body = gathers(&doc, loft);
@@ -1439,7 +1445,7 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
         &doc,
         Node::Pattern {
             input: ex,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(5.0),

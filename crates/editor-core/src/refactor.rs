@@ -334,7 +334,7 @@ fn carry<E>(
             Err(other) => return Err(miss(old, other)),
         };
         settle(old, &mut carried);
-        let new = target.insert(carried).map_err(&edit)?;
+        let new = target.insert(carried.authored()).map_err(&edit)?;
         node_map.insert(old, new);
         if let Some(Node::InstantiatePart { offset, .. }) = target.doc().node(new) {
             stated.push((new, offset.clone()));
@@ -375,7 +375,10 @@ fn carry<E>(
         };
         if *held != offset {
             target
-                .apply(DocEdit::SetOffset { instance, offset })
+                .apply(DocEdit::SetOffset {
+                    instance,
+                    offset: offset.as_ref().map(crate::placement::Placement::authored),
+                })
                 .map_err(&edit)?;
         }
     }
@@ -1592,7 +1595,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PayloadVarKind { .. }
             | EditError::SlotUnresolvedVar { .. }
             | EditError::PayloadUnresolvedVar { .. }
-            | EditError::NameLeafWritten { .. }
             | EditError::VarNameUnchanged { .. }
             | EditError::AnonymousVarUnread { .. }
             | EditError::DeleteAnonymousVar { .. }
@@ -2264,12 +2266,12 @@ fn node_var_reads(doc: &ProfileDoc, node: &Node<ProfileProgram>) -> BTreeSet<Var
 
 /// `var`'s definition re-authored for another document, its readers
 /// re-pointed through `map`.
-fn carried_decl(var: &crate::var::Var, map: &BTreeMap<VarId, VarId>) -> crate::var::VarDecl {
-    let mut decl = crate::var::VarDecl::from(var.def().clone());
-    if let Some(expr) = decl.defined_mut() {
+fn carried_def(var: &crate::var::Var, map: &BTreeMap<VarId, VarId>) -> crate::var::VarDef {
+    let mut def = var.def().clone();
+    if let crate::var::VarDef::Defined(expr) = &mut def {
         expr.remap_vars(map);
     }
-    decl
+    def
 }
 
 /// Every reader in `node` re-pointed through `map`.
@@ -2827,7 +2829,7 @@ pub fn split(
             });
         };
         let minted = part
-            .declare(name.clone(), carried_decl(var, &var_map))
+            .declare(name.clone(), carried_def(var, &var_map).into())
             .map_err(part_refused)?;
         var_map.insert(id, minted);
     }
@@ -3470,17 +3472,17 @@ pub fn inline(
                 var: part.spoken_var(id),
             });
         };
-        let decl = carried_decl(var, &var_map);
+        let def = carried_def(var, &var_map);
         let held = match doc.var_named(name.as_str()) {
             Some(held)
                 if doc.var(held).is_some_and(|existing| {
-                    existing.bit_eq(&crate::var::Var::new(decl.stored()))
+                    existing.bit_eq(&crate::var::Var::new(def.clone()))
                 }) =>
             {
                 held
             }
             Some(_) => return Err(InlineError::VarNameConflict { name: name.clone() }),
-            None => current.declare(name.clone(), decl).map_err(refused)?,
+            None => current.declare(name.clone(), def.into()).map_err(refused)?,
         };
         var_map.insert(id, held);
     }

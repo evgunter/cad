@@ -731,6 +731,8 @@ mod emit_union_flush_names;
 mod emit_union_rim_piece_ranks;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
+#[path = "intent_literals_b_door.rs"]
+mod intent_literals_b_door;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

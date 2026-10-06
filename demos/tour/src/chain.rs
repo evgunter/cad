@@ -105,11 +105,12 @@
 use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Expr, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
+use pncad::prelude::AuthoredNode;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
 use pncad::topo::{Body, SurfaceKey};
 
@@ -292,15 +293,15 @@ pub fn joint_name(k: usize) -> VarName {
     VarName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("finite length")
 }
 
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -464,7 +465,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     pncad::document::Step::Rigid {
                         translation: [len(step), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: Expr::named(joint_name(j), Dimension::Angle),
+                        angle: Formula::named(joint_name(j), Dimension::Angle),
                     },
                 ),
                 tol,

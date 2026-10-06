@@ -19,7 +19,7 @@ use crate::fixture::{ang, len, scl};
 use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
-    AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Expr, FreeVar,
+    AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula, FreeVar,
     MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId,
     RoleSeg, SitedRef, SnapshotError, StableName, VarName, apply, load, save,
 };
@@ -104,7 +104,7 @@ fn every_form() -> ProfileDoc {
                             prim(MeasurePrimitive::Gap { outer: 1, inner: 0 }),
                         )
                         .expect("Length - Length"),
-                        MeasureExpr::neg(MeasureExpr::value(Expr::named(
+                        MeasureExpr::neg(MeasureExpr::value(Formula::named(
                             VarName::from_static("pad"),
                             Dimension::Length,
                         )))
@@ -310,7 +310,7 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
                 left: Dimension::Angle,
                 right: Dimension::Length,
             },
-            "the measurement language asks `Expr`'s own constructors, so \
+            "the measurement language asks `Formula`'s own constructors, so \
              the refusal is the one an ordinary expression would raise"
         ),
         other => panic!("an ill-dimensioned measure must refuse typed, got {other:?}"),
@@ -320,7 +320,7 @@ fn a_dimension_refusal_in_a_measure_crosses_the_load_door_whole() {
 /// The same fault at the EDIT door, which is where an author meets it.
 #[test]
 fn a_measure_indexing_past_its_refs_refuses_at_the_edit_door() {
-    let err = Node::<editor_core::ProfileProgram>::measure(
+    let err = <editor_core::AuthoredNode>::measure(
         MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 3 }),
         // No document: the node is never looked up.
         vec![name(RecipeNodeId(0))],

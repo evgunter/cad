@@ -1287,7 +1287,7 @@ pub enum StepTurns {
     /// The angle within one turn that lands every copy where the step
     /// does, up to rounding: the authored step less its whole turns,
     /// as a formula the speaker says ([`crate::spoken::Speaker::formula`]).
-    Within(crate::expr::Expr),
+    Within(crate::Formula),
     /// The step holds this many whole turns, and the formula less them
     /// is one the expression bound refuses (it would nest too deep).
     Over(u64),
@@ -1642,7 +1642,7 @@ pub enum NodeErrorKind {
         /// the spacing made positive, it builds the same copies. `None`
         /// for a component whose negation the expression bound refuses
         /// (it would nest too deep).
-        reversed: [Option<crate::expr::Expr>; 3],
+        reversed: [Option<crate::Formula>; 3],
     },
     /// A linear pattern's spacing is zero at tolerance, so every copy
     /// would land on the master.

@@ -750,7 +750,7 @@ const NEST_STEP: f64 = 0.04;
 /// part, outer, loose part)`.
 fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 6]) {
     use pncad::document::{
-        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram,
+        Doc, DocEdit, DocumentId, Formula, Node, PartSelect, PatternKind, ProfileProgram,
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
     let shelf_i = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
@@ -775,7 +775,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Pattern {
             input: post_i,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: rule([1.0, 0.0, 0.0]),
         },
         tol,
@@ -784,7 +784,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Part {
             of: inner,
-            select: PartSelect::Instance(Expr::count(1)),
+            select: PartSelect::Instance(Formula::count(1)),
         },
         tol,
     );
@@ -792,7 +792,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Pattern {
             input: part,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
         tol,
@@ -801,7 +801,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
         &mut doc,
         Node::Part {
             of: inner,
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
         tol,
     );

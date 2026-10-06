@@ -24,8 +24,8 @@ use crate::fixture::digest::digest;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Dimension, DocEdit, EvalOptions, Expr, FreeVar, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, VarName,
+    Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, VarName,
 };
 use geom_core::Tol;
 
@@ -61,7 +61,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
             plane: lower_frame,
             loops: vec![LoopProgram::Circle {
                 centre: [fixture::len(0.0), fixture::len(0.0)],
-                radius: Expr::named(p(), Dimension::Length),
+                radius: Formula::named(p(), Dimension::Length),
             }],
             ids: Vec::new(),
         }),
@@ -85,7 +85,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Loft {
             profiles: vec![lower, upper],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
     )
 }
