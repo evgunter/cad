@@ -159,9 +159,18 @@ fn cylinder(v: V3, m: V3, psi: f64) -> AtRestBody<f64> {
     )
 }
 
-/// The poses whose boolean escalates at ε 1e-6, read on `main` at
-/// `cadf2ed188` as well: the join's `bool_join_nearest` in band.
-const REFUSES_AT_1E6: &[&str] = &["notch307 fib117 edge psi=1.9 cp S"];
+/// The poses whose boolean escalates at ε 1e-6, each on a margin of
+/// its own in band, and the predicate it escalates on
+/// (`work/join/two-pinch-poses-escalate-at-eps-1e-6.md`): the join's
+/// partner order, read on `main` at `cadf2ed188` as well, and a pierce
+/// sector's curvature side, in `sectors`, which no ray walk reaches.
+const REFUSES_AT_1E6: &[(&str, &str)] = &[
+    ("notch307 fib117 edge psi=1.9 cp S", "bool_join_nearest"),
+    (
+        "Lbot cyl fib4 psi=0.9 seam cp S",
+        "bool_pierce_sector_side_curved",
+    ),
+];
 
 /// The faces of `body` whose loops pass two distinct vertices at one
 /// point.
@@ -337,17 +346,18 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             "U" => topo::union_with(x, y, &decls, tol()),
             _ => topo::subtract_with(x, y, &decls, tol()),
         };
-        // At ε 1e-6 the join cannot order this pose's partners: two chords
-        // differ by 5.2e-6 m, inside the band
-        // (`work/join/a-pinch-pose-escalates-the-join-order-at-eps-1e-6.md`).
-        if tol().eps() == 1e-6 && REFUSES_AT_1E6.contains(&tag) {
-            assert!(
-                matches!(
-                    &run,
-                    Err(topo::BooleanError::Escalated { diag, .. })
-                        if diag.predicate == Some("bool_join_nearest")
-                ),
-                "{tag}: at ε 1e-6, expected the join's order to escalate, got {run:?}"
+        // At ε 1e-6 these poses read a margin in band ([`REFUSES_AT_1E6`]).
+        if tol().eps() == 1e-6
+            && let Some(&(_, predicate)) = REFUSES_AT_1E6.iter().find(|(t, _)| *t == tag)
+        {
+            let escalated = match &run {
+                Err(topo::BooleanError::Escalated { diag, .. }) => diag.predicate,
+                _ => None,
+            };
+            assert_eq!(
+                escalated,
+                Some(predicate),
+                "{tag}: at ε 1e-6, expected an escalation on {predicate}, got {run:?}"
             );
             continue;
         }
