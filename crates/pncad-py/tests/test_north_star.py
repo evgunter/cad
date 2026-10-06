@@ -4637,23 +4637,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(ev.select_where(pipped, edges, []), every_edge)
 
         # Structural narrowing: the pocket's own edges came from
-        # operand B of the subtraction — its 4 floor edges whole, and
-        # its 4 wall edges, each cut by the cap and kept as its one
-        # piece below it, named by its ends. The 4 edges of the OPENING
-        # are `Seam` (minted where the cap crosses a pocket wall,
-        # belonging to neither operand alone), and the cube kept its
-        # 12: 8 + 4 + 12 = 24.
+        # operand B of the subtraction — its 4 walls and 4 floor
+        # edges. The 4 edges of the OPENING are `Seam` (minted where
+        # the cap crosses a pocket wall, belonging to neither operand
+        # alone), and the cube kept its 12: 8 + 4 + 12 = 24.
         from_b = Selector.of(
             NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.FromB))
         )
         pocket = ev.select(pipped, from_b)
-        self.assertEqual(len(pocket), 4)
-        cut_walls = Selector.of(
-            NamePat.of_kind(EntityKind.Edge).path(
-                [SegPat.tag(SegTag.FromB), SegPat.tag(SegTag.Fragment)]
-            )
-        )
-        self.assertEqual(len(ev.select(pipped, cut_walls)), 4)
+        self.assertEqual(len(pocket), 8)
         seam = Selector.of(
             NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.Seam))
         )
@@ -4777,10 +4769,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 40)
         self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
         self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 50)
-        # Every piece of an edge the plane cuts is named by its ends, a
-        # lone one included.
-        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 0)
-        self.assertEqual(pieces(EntityKind.Edge, SegTag.SplitFragment), 68)
+        self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 68)
 
     def test_the_rocker_outline_is_authorable(self):
         """G12, CLOSED — the flip of the absence this test used to pin.

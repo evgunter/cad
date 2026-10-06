@@ -120,8 +120,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
     // The ball's names ride the Transform through unchanged, so the
     // `FromB` payloads name the revolve node — recovered here from the
     // target's own table rather than restated.
-    let ev0 = eval(&doc.doc);
-    let ball = edge_names(&ev0, target)
+    let ball = edge_names(&eval(&doc.doc), target)
         .into_iter()
         .find_map(|n| match n.path.first() {
             Some(RoleSeg::FromB(inner)) => Some(inner.node),
@@ -130,7 +129,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         .expect("the cavity contributes FromB edges");
 
     let selection = selection_of(&doc.doc, fillet);
-    for meridian in die_composed::excluded_meridians(&doc.doc, &ev0, ball, target) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, ball, target) {
         // Grown the ONLY way a selection grows: an explicit `Rebind`
         // swapping one selected box edge for the meridian.
         let d = apply(

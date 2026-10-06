@@ -187,35 +187,24 @@ pub fn selector() -> Selector {
 /// The two cavity meridians — the names the selection deliberately
 /// LEAVES OUT (the co-surface seams). Named here so the pin that
 /// checks the exclusion reads the same list the docs above describe.
-/// The cube's face cuts each, so the target publishes each as its one
-/// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
     ball: RecipeNodeId,
     pipped: RecipeNodeId,
 ) -> Vec<StableName> {
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
-        .map(|end| {
-            let head = RoleSeg::FromB(NameRef::new(StableName {
+        .map(|end| StableName {
+            kind: EntityKind::Edge,
+            node: pipped,
+            path: vec![RoleSeg::FromB(NameRef::new(StableName {
                 kind: EntityKind::Edge,
                 node: ball,
                 path: vec![RoleSeg::Meridian(
                     end,
                     crate::fixture::piece(doc, ball, 0, 0).into(),
                 )],
-            }));
-            let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
-                .iter()
-                .map(|(n, _)| n)
-                .filter(|n| n.kind == EntityKind::Edge && n.path.first() == Some(&head))
-                .cloned()
-                .collect();
-            let [piece] = pieces.as_slice() else {
-                panic!("one piece of the {end:?} meridian: {pieces:?}");
-            };
-            piece.clone()
+            }))],
         })
         .collect()
 }

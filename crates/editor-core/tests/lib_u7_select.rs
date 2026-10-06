@@ -324,7 +324,7 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
     let selected = editor_core::select(&ev, pipped, &die_composed::selector());
     let all = editor_core::all_edges(&ev, pipped);
     assert_eq!(all.len(), 16, "the target's edge table");
-    for meridian in die_composed::excluded_meridians(&doc.doc, &ev, ball, pipped) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, ball, pipped) {
         assert!(all.contains(&meridian), "the meridian is a live edge");
         assert!(
             !selected.contains(&meridian),

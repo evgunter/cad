@@ -176,11 +176,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     };
     let mut vanished = 0;
     for name in &names {
-        // The plate's fragments; the bar's edges are lone pieces whose
-        // ends the slide moves.
-        if ev2.value(cut1).unwrap().name_table.lookup(name).is_some()
-            || matches!(name.path.first(), Some(RoleSeg::FromB(_)))
-        {
+        if ev2.value(cut1).unwrap().name_table.lookup(name).is_some() {
             continue;
         }
         vanished += 1;
@@ -251,8 +247,7 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()
         .filter(|n| {
-            matches!(n.path.first(), Some(RoleSeg::FromA(_)))
-                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+            matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
                 && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
         })
         .collect();
