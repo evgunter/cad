@@ -4734,6 +4734,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_arm_unsupported",
             "convexity_sign_flip",
             "escalated",
+            "face_clearance",
             "face_clearance_uncertified",
             "nonpositive_size",
             "op",
