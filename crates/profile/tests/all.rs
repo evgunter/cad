@@ -118,6 +118,8 @@ mod interval_lane;
 mod lift_census;
 #[path = "onarc_probe.rs"]
 mod onarc_probe;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "path_differential.rs"]
 mod path_differential;
 #[path = "path_program.rs"]
