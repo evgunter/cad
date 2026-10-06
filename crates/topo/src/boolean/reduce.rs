@@ -376,6 +376,20 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     declared: &super::DeclaredPairs<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
+    gate_operand_pairs_on(a, b, declared, band, boolean_arm_exists)
+}
+
+/// [`gate_operand_pairs`] on the face-kind roster `roster`: the
+/// production roster is [`boolean_arm_exists`]; the `sweep-testing`
+/// door that reaches the cone's crossing lane adds `Cone` to it
+/// ([`super::sweep_split_admitting_cones`]).
+pub(super) fn gate_operand_pairs_on<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    declared: &super::DeclaredPairs<T>,
+    band: Band,
+    roster: impl Fn(&geom::Surface<T>) -> bool,
+) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         gate_operand(body, operand)?;
     }
@@ -384,7 +398,7 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     // the door verified ONE carrier. A `Tangent` claim covers nothing
     // here: its arms are the witness lane's, whose kinds are all on the
     // roster.
-    if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists, |operand, f, other| {
+    if let Some(p) = first_unsupported_pair(a, b, band, roster, |operand, f, other| {
         declared.verified_one_carrier(operand, f, operand.other(), other)
     })? {
         return Err(BooleanError::CurvedPairUnsupported {
@@ -3445,8 +3459,11 @@ fn line_wall_roots_of<T: Decide>(
 ///   Zero: a tangency, [`CircleRoots::Uncertain`]; Negative: a miss.
 /// - **`bool_line_cone_root_slack`** — each root's arc-length slack: the
 ///   rounding of `G`'s evaluation (charged against its term bound,
-///   `(|w₀| + |dir||t|)²`) over `|G′(t)| = 2√disc`, at the line's speed.
-///   Not definitely inside the band: [`CircleRoots::Uncertain`].
+///   `(|w₀| + |dir||t|)²`) over `|G′(t)| = 2√disc`, at the line's speed,
+///   less the root's distance outside the span. Not definitely inside
+///   the band: [`CircleRoots::Uncertain`]. A root inside the span is
+///   placed within the band; one outside it is placed no nearer the span
+///   than the band, which is all the span decisions read of it.
 fn line_cone_roots<T: Decide>(
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
@@ -3497,10 +3514,16 @@ fn line_cone_roots<T: Decide>(
     let roots = super::solid_contain::quadratic_roots(a2, b2, c2, disc);
     let two = T::from_f64(2.0);
     let speed = dir.norm();
+    let (lo, hi) = (t0.min(t1), t0.max(t1));
     for t in roots {
         let terms = (w0.norm() + speed * t.abs()).powi(2);
         let slack = speed * super::circle_roots::rounding_charge(terms) / (two * disc.sqrt());
-        match decide("bool_line_cone_root_slack", Margin::of(slack), band) {
+        let outside = speed * (lo - t).max(t - hi).max(T::zero());
+        match decide(
+            "bool_line_cone_root_slack",
+            Margin::of(slack - outside),
+            band,
+        ) {
             Ok(Sign::Zero | Sign::Negative) => {}
             Ok(Sign::Positive) | Err(_) => return Ok(CircleRoots::Uncertain),
         }
@@ -5987,6 +6010,118 @@ mod torn_hop_rows {
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| boundary_meets_circle_only_at(b, face, circle, &[], band),
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod line_cone_rows {
+    //! **The line × cone root rungs**, each pose read against the cone's
+    //! quadric form evaluated at the line's points.
+
+    use super::*;
+    use crate::boolean::circle_roots::CircleRoots;
+    use geom_core::{Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The cone about `+z` from the origin, half-angle `π/4`.
+    const APEX: (f64, f64, f64) = (0.0, 0.0, 0.0);
+
+    fn roots(origin: [f64; 3], dir: [f64; 3], span: (f64, f64)) -> CircleRoots<f64> {
+        let tip = Point3::new(APEX.0, APEX.1, APEX.2);
+        line_cone_roots(
+            Point3::from_array(origin),
+            Vec3::from_array(dir),
+            (tip, Vec3::new(0.0, 0.0, 1.0), core::f64::consts::FRAC_PI_4),
+            span,
+            band(),
+        )
+        .unwrap()
+    }
+
+    /// `ρ² − h²` at `origin + dir·t`: the quadric form of the cone.
+    fn form(origin: [f64; 3], dir: [f64; 3], t: f64) -> f64 {
+        let p: Vec<f64> = (0..3).map(|i| origin[i] + dir[i] * t).collect();
+        p[0].powi(2) + p[1].powi(2) - p[2].powi(2)
+    }
+
+    /// **Two crossings, one on each nappe**: a line square to the axis
+    /// beside it crosses one nappe twice; a line steeper than a
+    /// generator, beside the apex, crosses each nappe once. Each root is
+    /// a zero of the quadric form to the scalar's resolution, the two on
+    /// opposite sides of the apex in the second pose.
+    #[test]
+    fn crossings_are_zeros_of_the_quadric_form() {
+        for (label, origin, dir, nappes) in [
+            ("square to the axis", [-2.0, 0.3, 1.0], [1.0, 0.0, 0.0], false),
+            ("steep beside the apex", [0.2, 0.0, -1.0], [0.0, 0.6, 0.8], true),
+        ] {
+            let CircleRoots::Certified { count: 2, thetas } = roots(origin, dir, (0.0, 4.0)) else {
+                panic!("{label}: two roots, got {:?}", roots(origin, dir, (0.0, 4.0)));
+            };
+            for &t in &thetas[..2] {
+                let f = form(origin, dir, t);
+                assert!(f.abs() < 1e-14, "{label}: the form is {f} at the root {t}");
+            }
+            let heights: Vec<f64> = thetas[..2].iter().map(|t| origin[2] + dir[2] * t).collect();
+            assert_eq!(
+                heights[0].signum() != heights[1].signum(),
+                nappes,
+                "{label}: the roots' heights {heights:?}"
+            );
+        }
+    }
+
+    /// **A miss, a graze and a ruling.** A line outside the cone that
+    /// keeps clear of it is a `Miss`. A line tangent to the cone along a
+    /// generator's tangent plane, moved off by a fraction of the zero
+    /// band, is not a miss and not two roots. A line parallel to a
+    /// generator degenerates the quadratic, and the lane does not answer.
+    #[test]
+    fn a_miss_a_graze_and_a_ruling() {
+        let b = band();
+        assert!(
+            matches!(roots([-2.0, 3.0, 1.0], [1.0, 0.0, 0.0], (0.0, 4.0)), CircleRoots::Miss),
+            "a line 3 m off the axis at height 1 misses"
+        );
+        // Along `x` at `y = 1`, height 1: tangent to the cone's circle of
+        // radius 1 there, at `(0, 1, 1)`.
+        let graze = roots([-2.0, 1.0 + 0.1 * b.zero(), 1.0], [1.0, 0.0, 0.0], (0.0, 4.0));
+        assert!(
+            matches!(graze, CircleRoots::Uncertain),
+            "a graze within the band, got {graze:?}"
+        );
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        let ruling = roots([0.5, 0.0, 0.0], [s, 0.0, s], (0.0, 2.0));
+        assert!(
+            matches!(ruling, CircleRoots::Uncertain),
+            "a line parallel to a generator, got {ruling:?}"
+        );
+    }
+
+    /// **An edge reaching the apex refuses**, as one passing within the
+    /// band of it. The apex rung reads the edge's segment, not its line:
+    /// a segment ending half a metre short of the apex is not refused
+    /// there (its line's quadratic has its double root at the apex, which
+    /// the depth rung reads as a tangency).
+    #[test]
+    fn an_edge_at_the_apex_refuses() {
+        let b = band();
+        for (label, origin) in [
+            ("through the apex", [-1.0, 0.0, 0.3]),
+            ("in band of the apex", [-1.0, 0.3 * b.zero(), 0.3]),
+        ] {
+            let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
+            assert!(matches!(got, CircleRoots::AtApex), "{label}: got {got:?}");
+        }
+        let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
+        assert!(
+            matches!(short, CircleRoots::Uncertain),
+            "a segment ending half a metre short of the apex, got {short:?}"
         );
     }
 }

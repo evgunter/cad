@@ -3718,6 +3718,50 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     Ok((ab, ba))
 }
 
+/// **The crossing sweep past the operand gate's cone refusal**: both
+/// sweep directions run with `Cone` on the pair gate's roster, undeclared,
+/// and the split operands they leave with their traces. The boolean does
+/// not admit a cone operand (`work/germ/VERBS-CONE.md`; past the gate its
+/// sector algebra has no cone arm), so this is the one door through which
+/// a finished body reaches the cone's crossing lane — a breakable knob,
+/// `sweep-testing` only, never production surface.
+///
+/// # Errors
+///
+/// [`BooleanError`] as [`sweep_traces`], less the pair gate's refusal of
+/// a cone face.
+#[cfg(feature = "sweep-testing")]
+pub fn sweep_split_admitting_cones(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+    let band = Band::linear(tol)?;
+    let declared = DeclaredPairs::default();
+    reduce::gate_operand_pairs_on(a_operand, b_operand, &declared, band, |s| {
+        reduce::boolean_arm_exists(s) || matches!(s, geom::Surface::Cone { .. })
+    })?;
+    reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
+    reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
+    let mut a = a_operand.clone();
+    let mut b = b_operand.clone();
+    let mut acc = reduce::ContactAcc::default();
+    let (mut ab, mut ba) = (SweepTrace::default(), SweepTrace::default());
+    let knobs = reduce::SweepKnobs::default();
+    reduce::sweep_and_settle(
+        &mut a,
+        &mut b,
+        &declared,
+        &mut acc,
+        band,
+        SweepStrategy::Realized,
+        [&knobs, &knobs],
+        [Some(&mut ab), Some(&mut ba)],
+        tol,
+    )?;
+    Ok((a, b, ab, ba))
+}
+
 /// **The sweep's contact records and the split operands' sizes** under
 /// `strategy`: what both sweep directions recorded, and the
 /// `[A vertices, A edges, B vertices, B edges]` they leave. The pruning

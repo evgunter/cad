@@ -1,7 +1,7 @@
 //! **The conic × quadric root door**: the certified crossings of a
-//! CIRCLE or ELLIPSE carrier with a sphere or a cylinder wall. It owns
-//! no root machinery: it reads the residual's harmonics from their one
-//! home and hands them to one of the shared root cores
+//! CIRCLE or ELLIPSE carrier with a sphere, a cylinder wall or a cone. It
+//! owns no root machinery: it reads the residual's harmonics from their
+//! one home and hands them to one of the shared root cores
 //! ([`super::circle_roots`]), whose answer it gives.
 //!
 //! # The residual is a degree-2 trigonometric polynomial
@@ -70,6 +70,38 @@
 //! reading in the band's gap: the first-harmonic arm's refuse it, the
 //! ladder's pass it (the circle root cores' module docs, "The ladder's
 //! noise meter") — which is why their rows have distinct names.
+//!
+//! # Against a cone
+//!
+//! A cone's residual `ρ cos α − |h| sin α` has no harmonic form, but its
+//! quadric form `Q = cos²α·ρ² − sin²α·h²` does: `ρ²` is a wall's form and
+//! `h` a first harmonic, so `Q` is of degree two along a conic, and its
+//! zero set is the DOUBLE cone the residual states. The door reads
+//! `F = Q/R`, `R` the carrier's reach from the apex
+//! ([`geom_brep::conic_cone_harmonics`]), by the wall's two arms under
+//! the same rows and the [`BooleanDecision::ArcConeRoots`] decision.
+//! `F` is not the residual, and every reading takes that into account:
+//!
+//! - **`|F| ≤ |res|`, with the same sign** (on the near nappe
+//!   `Q = res·(ρ cos α + |h| sin α)`, and that factor is at most `|q|`).
+//!   So a definite sign of `F` is the residual's, a clear margin read
+//!   through the ceiling `1` is a lower bound on `|res|`, and a root's
+//!   slack is charged its own residual reading
+//!   ([`geom_brep::conic_cone_residual`]) under
+//!   `bool_conic_cone_root_slack`. Near the apex `F′` vanishes with the
+//!   gradient, and the slack with it refuses.
+//! - **`|res| ≤ |F| / floor`**, the floor `min(sin α, cos α)·d/R`, `d`
+//!   a lower bound on the carrier's distance from the apex. An
+//!   `OnSurface` from the first-harmonic arm certifies only that `F` is
+//!   in the band; it stands once its whole reach read through the floor
+//!   is too (`bool_conic_cone_on_surface`), and is `Uncertain` otherwise.
+//! - **Every certified root's distance from the apex** is decided
+//!   (`bool_conic_cone_apex`): not definitely positive, and the door
+//!   answers [`CircleRoots::AtApex`] — no material side and no slope can
+//!   be read at a point where the cone has no tangent plane.
+//!
+//! The roots are the double cone's. Which of them a cone FACE holds — the
+//! nappe it lies on, then its trim — is the caller's question.
 
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -86,6 +118,8 @@ use crate::validate::decide;
 mod circle_sphere_rows;
 #[cfg(test)]
 mod circle_wall_rows;
+#[cfg(test)]
+mod cone_rows;
 #[cfg(test)]
 mod ellipse_rows;
 
@@ -128,13 +162,13 @@ const fn ladder_rows(decision: BooleanDecision) -> HalfAngleRows {
 }
 
 /// The certified crossings of the `carrier` circle or ellipse with
-/// `surface`, a sphere or a cylinder wall, reported within `π` of the
-/// midpoint of `[t0, t1]` (module docs).
+/// `surface`, a sphere, a cylinder wall or a cone, reported within `π`
+/// of the midpoint of `[t0, t1]` (module docs).
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] when `carrier` is neither a
-/// circle nor an ellipse or `surface` neither a sphere nor a cylinder —
+/// circle nor an ellipse or `surface` not a sphere, a cylinder or a cone —
 /// the caller dispatched on those kinds, so a mismatch is a desync,
 /// never an answer. An escalation as the surface's arc decision for an
 /// in-band classifying sign: an extreme or constant residual of the
@@ -149,7 +183,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
 ) -> Result<CircleRoots<T>, BooleanError> {
     let desync = || BooleanError::ClassificationInvariant {
         what: "the conic × quadric root door was handed a carrier that is not a circle or an \
-               ellipse or a surface that is not a sphere or a cylinder",
+               ellipse or a surface that is not a sphere, a cylinder or a cone",
     };
     let conic = geom_brep::Conic::of(carrier).ok_or_else(desync)?;
     let (h, decision) = match (carrier, surface) {
