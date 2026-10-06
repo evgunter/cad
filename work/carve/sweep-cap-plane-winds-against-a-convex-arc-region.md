@@ -2,11 +2,12 @@
 id: sweep-cap-plane-winds-against-a-convex-arc-region
 kind: issue
 title: extrude and loft mint a cap plane inside out when a big convex arc makes the profile's inscribed polygon wind against the region
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P0
-cost: D
+cost: M
 refs: [3190]
+branch: carve/cap-winds-with-the-region
 ---
 
 

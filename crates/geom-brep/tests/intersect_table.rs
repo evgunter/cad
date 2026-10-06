@@ -75,7 +75,7 @@ fn route_inventory() {
         // meridian and concentric closed-form Circles
         // (plane_torus_section); tilted configurations still route to
         // the general rung, named at the arm's refusal.
-        (Plane, Torus, Rung::Closed, true),
+        (Plane, Torus, Rung::Conic, true),
         // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
         // PR 7 plus the tensor-composite sup bound for limb 2.
         (Plane, Nurbs, Rung::General, true),
@@ -2123,29 +2123,66 @@ fn plane_torus_cap_gap_trilean_trio() {
     assert_eq!(diag.predicate, Some("pt_cap_gap"));
 }
 
-/// The two general-rung refusals are DIFFERENT decisions and both are
-/// named: an axis-parallel plane OFF the axis (a spiric section — the
-/// gap trilean's definite arm) and generic tilt (naming the Villarceau
-/// bitangent case as deliberately unclassified). The in-band twins of
-/// both routing trileans escalate typed (F6).
+/// An axis-parallel plane OFF the axis cuts the spiric's two ovals:
+/// each sample of each lies on the plane and on the torus, `s1` on the
+/// `+a × n` side of the plane's trace and `s2` on the other, and both
+/// carry the plane's normal (up to sign) and its stand-off.
 #[test]
-fn plane_torus_tilted_and_offset_route_to_rung_3() {
-    use geom_brep::intersect::plane_torus_section;
+fn plane_torus_axis_parallel_off_axis_is_two_spiric_ovals() {
+    use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
     let tor = torus_y(0.75, 0.3);
-    // Axis-parallel, off the axis by 0.1 m.
+    // Off the axis by 0.1 m along `+x`; `a × n = y × x = −z`.
     let off = Surface::Plane {
         origin: Point3::new(1.1, 2.0, 3.0),
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
-    let err = plane_torus_section(&off, &tor, 1.0, band()).expect_err("offset plane");
+    let s = plane_torus_section(&off, &tor, 1.0, band()).expect("the spiric arm");
+    let PlaneTorusSection::SpiricOvals { s1, s2 } = s else {
+        panic!("expected the two spiric ovals, got {s:?}");
+    };
+    for (oval, side) in [(&s1, -1.0), (&s2, 1.0)] {
+        let Curve3::Spiric { offset, u_ref, .. } = *oval else {
+            panic!("a spiric oval, got {oval:?}");
+        };
+        assert!(
+            (offset * u_ref.x - 0.1).abs() < 1e-15,
+            "the stand-off along x"
+        );
+        for k in 0..12 {
+            let p = oval.eval(f64::from(k) * core::f64::consts::TAU / 12.0);
+            assert!((p.x - 1.1).abs() < 1e-14, "on the plane: {p:?}");
+            let (x, y, z) = (p.x - 1.0, p.y - 2.0, p.z - 3.0);
+            let implicit = (x.hypot(z) - 0.75).powi(2) + y * y - 0.09;
+            assert!(implicit.abs() < 1e-14, "on the torus: {implicit:e}");
+            assert!(side * (p.z - 3.0) > 0.0, "on its own side: {p:?}");
+        }
+    }
+}
+
+/// The general-rung refusals are DIFFERENT decisions and each is named:
+/// an axis-parallel plane at or past the inner equator (no two ovals —
+/// `pt_spiric_two_ovals`'s refusing arm) and generic tilt (naming the
+/// Villarceau bitangent case as deliberately unclassified). The in-band
+/// twins of the routing trileans escalate typed (F6).
+#[test]
+fn plane_torus_tilted_and_offset_route_to_rung_3() {
+    use geom_brep::intersect::plane_torus_section;
+    let tor = torus_y(0.75, 0.3);
+    // Axis-parallel, exactly at the inner equator: the node.
+    let off = Surface::Plane {
+        origin: Point3::new(1.45, 2.0, 3.0),
+        normal: Vec3::unit_x(),
+        u_ref: Vec3::unit_y(),
+    };
+    let err = plane_torus_section(&off, &tor, 1.0, band()).expect_err("node plane");
     let SectionError::RoutesToGeneralRung { pair, why } = err else {
         panic!("expected the routing refusal, got {err:?}");
     };
     assert_eq!(pair, "plane×torus");
     assert!(
-        why.contains("spiric"),
-        "the offset refusal names the locus: {why}"
+        why.contains("inner equator"),
+        "the refusal names the regime: {why}"
     );
     // Generic tilt — the Villarceau band's own angle family included.
     let n = Vec3::new(0.6, 0.8, 0.0);

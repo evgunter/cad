@@ -170,6 +170,7 @@ pub(crate) fn resolution(
     py: Python<'_>,
     verdict: &s::Resolution,
     doc: &pncad::document::ProfileDoc,
+    evaluation: &dyn pncad::document::NameTables,
 ) -> PyResult<Resolution> {
     let status = resolution_status_tag(verdict);
     match verdict {
@@ -188,7 +189,7 @@ pub(crate) fn resolution(
             node: None,
             body: None,
             kind: None,
-            detail: Some(failure.error.spoken(doc)),
+            detail: Some(failure.error.spoken(doc, evaluation)),
             offers: Some(
                 failure
                     .offers

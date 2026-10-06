@@ -211,7 +211,11 @@ impl<B: crate::spoken::Say> PartRow<B> {
     /// `doc`'s own row, reached through no instance of `doc`'s, its
     /// nodes as `doc` holds them: the ones the body's own sentence
     /// names, the sentence every carrier says it by.
-    pub(crate) fn own<P>(doc: &Doc<P>, of: crate::ident::DocumentId, body: B) -> Self {
+    pub(crate) fn own<P: crate::program::ProfilePayload>(
+        doc: &Doc<P>,
+        of: crate::ident::DocumentId,
+        body: B,
+    ) -> Self {
         let held = Arc::new(crate::spoken::held_by(&body, doc));
         Self {
             of,
@@ -731,7 +735,7 @@ impl AtRestFinding {
     /// holds it, and the first instance of its route is this
     /// document's.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -823,10 +827,9 @@ impl crate::spoken::Say for MintRefusal {
                 why,
             } => write!(
                 f,
-                "{}'s {} reference ({} {}) does not name a face of the product: {}",
+                "{}'s {} reference ({}) does not name a face of the product: {}",
                 by.node_as(*mate, "mate"),
                 side.name(),
-                name.kind.article(),
                 by.name(name),
                 crate::spoken::Said(why, by)
             ),
@@ -853,7 +856,7 @@ impl MintRefusal {
     /// `doc` holds it now ([`crate::Doc::spoken`]). A row is memoized with
     /// the part that minted it, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -1101,7 +1104,7 @@ impl AssemblyError {
     /// holds it, but for the first instance of its route, which is this
     /// document's.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }

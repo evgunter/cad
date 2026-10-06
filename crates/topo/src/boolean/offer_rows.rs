@@ -2415,6 +2415,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
+    (
+        "carrier_touch.rs",
+        "ball_off_face",
+        "BooleanDecision::Containment",
+        1,
+    ),
     ("circle_torus.rs", "-", "BooleanDecision::ArcTorusRoots", 1),
     (
         "circle_torus.rs",
@@ -2560,12 +2566,17 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
+    ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
+    ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "split_lineage", "BooleanDecision::SelfCheck", 1),
     (
         "ops.rs",
         "split_lineage",
         "BooleanDecision::VertexOnVertex",
         1,
     ),
+    ("ops.rs", "split_lineage", "SelfCheck::CarriedLineage", 1),
     (
         "ops.rs",
         "volume_backstop",

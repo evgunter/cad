@@ -2,10 +2,11 @@
 id: blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex
 kind: issue
 title: A shaft ending inside a full-turn bore refuses in the REST zip - ChordEndpointRevisited (a seam chord's end on the bore's self-mated seam) or ChordBetweenIsolatedPierces
-status: open
+status: parked
 opened: 2026-10-02
 priority: P0
 cost: M
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -63,3 +64,50 @@ rim meets the bore's seam ruling only at the shaft's own rim vertex, so
 both of the chord's ends are lone vertices of the bore face. Both
 sub-frontiers are the same shape — a cap rim floating inside a
 full-turn face — and close together.
+
+## Measured on main (2026-10-06)
+
+Measured on `origin/main` 3f1e3b0d at the six `poses()`, both operand
+orders, and the 1e-9, 1e-6 and 1e-12 rows.
+
+- **Blind from below and blind from above, at 0°, 60° and 90°:** the
+  union builds in the chord join at `2π + π/4` (one shell, tier 3, the
+  census), and the declared-REST zip is not entered. Pinned by
+  `full_turn_bore_mate.rs`'s
+  `a_blind_shaft_unions_on_and_off_the_bores_seam`. Twelve of the
+  eighteen cells in the table above have moved.
+- **Wholly inside (`y ∈ [1.2, 1.8]`), at every azimuth:** the chord
+  join refuses first, with `Join(SectionInvariant { what: "ring
+  re-homing on a chart: the run's azimuth window spans a full period,
+  so a ring vertex has no single branch on it" })`. That is
+  `chord_join::chart_ring_side`, from `ChordJoiner::rehome_rings` after
+  the mef across the bore. The zip then refuses `RestZipUnsupported {
+  what: ChordEndpointRevisited }`, from `mint_chord`'s
+  two-halves-at-one-end arm, on the first span `realize_seam` takes on
+  the collar:
+  - cell `InFace(bore)`; host the bore, a `Cylinder` of radius 0.5;
+  - twin the shaft's rim arc (`Twin::Circle`);
+  - `u` is the collar vertex where the shaft's lower rim crosses the
+    bore's seam ruling, at `(0.5, 1.2, 0)`; it has edges, and the bore's
+    one loop visits it twice;
+  - `v` is a pierce-ring vertex of the bore at one of the shaft's rim
+    vertices; it has no edges, and the bore's loops visit it 0 times.
+
+  At 0° the table above says `ChordBetweenIsolatedPierces`; that cell
+  now refuses `ChordEndpointRevisited` too, on this same span shape.
+- **Undeclared:** every span refuses `CurvedPierceUnsupported` in the
+  reduction's curved crossing (`reduce.rs`, the deferred touch), before
+  the join.
+- **The corner datum.** The chord join chooses the corner of a vertex
+  the loop visits twice at insertion: the germ lies in one sector of
+  `sectors::build_sectors`, each with its own orbit half-edge, and
+  `insert::mint_run` hangs the strut there. The join's chord then
+  starts from that strut's half, `HalfGerm.he`. The zip's
+  `read_segments` keeps each segment's end vertices and loci but not
+  `HalfGerm.he`, and `undo_struts` removes the struts. `mint_chord`
+  then lists the face's halves at `u` (`halves_at`); `u` has two, and
+  nothing it reads tells them apart.
+
+## Parked on the D10 hold (2026-10-06)
+
+This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
