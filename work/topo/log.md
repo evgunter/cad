@@ -7479,3 +7479,15 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - plus `ellipse_torus::certified_torus_answers_hold_against_the_true_distance` in the slow set.
 - They are red on main at 1e-6 too: I reproduced them on `ef8479f2`. CLEAVE and JOIN had filed them, and PR 4083, merged just now, fixes them.
 - I pushed a real main merge to the branch at `bb1b5a92`. The five rows pass at 1e-6 locally, and the revert/review_d18/void filter passes 127/127. Awaiting CI.
+
+## 16:40 (2026-10-06): PR 3970 was waiting on us
+
+Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise to post the round-4 reports. That post was blocked, and my check-ins since then logged "nothing new" as if the PR were waiting on Ev.
+
+- With Ev's OK, I posted the round-4 summary from this log as `#issuecomment-6020810537`. The verbatim reports were scratch files on an earlier container and are lost.
+- Subscribed to PR 3970.
+- Open for Ev:
+  - choice 2: tier 1, which both designers favour;
+  - choice 3: the twin derives (A) or the caller states with `Carry` (B);
+  - whether PR 2527's "no default" ruling reaches derivable key swaps.
+- New-comment check: page 12, perPage 1.
