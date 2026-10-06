@@ -3495,6 +3495,9 @@ MEMBERS_BOUND_AS = {
     # holding the type: the same spelling `Attribution` and
     # `CarriedDeclaration` use.
     "CarriedRefusal::route": "CarriedRefusal.of",
+    # The refusal's nodes as the document below holds them: what the
+    # row's `refusal` says them from (`str(row.refusal)`).
+    "CarriedRefusal::held": "CarriedRefusal.refusal",
     # A VALUE's arms, not a refusal's, and the word is `relation` because
     # what the walk answers is how a declaration stands to the document
     # it was gathered from.
@@ -4116,6 +4119,11 @@ MEMBERS_NOT_BOUND = {
     # itself and renders from it, so there is no second document to
     # check against and no id to read back.
     "McReport::document": SHAPE,
+    # The carried mate as the document below holds it, kept for the
+    # sentence that names it. Python's row is read by its fields and
+    # says no sentence; the finding that names it does
+    # (`str(AtRestFinding)`), from these labels.
+    "CarriedDeclaration::held": SHAPE,
     # The same for the checks report and its refusal: Python's
     # `ChecksReport` holds the evaluated document and speaks from it,
     # and `CheckRefusal` is raised with the message already spoken.
