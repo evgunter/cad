@@ -7372,3 +7372,11 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
 - **For PCERT:** PR 4105 changes only doc text and string literals in `crates/topo/src/pcurves.rs`: the module doc's "Completes the map" paragraph, `staleness_posture::Completes` and its `kev_describing` note, and two `unreachable!` strings in `site_rows`. Its reviewer found no overlap with `pcert/chart-angle-integers`' hunks.
 - PR 4099 fix lane: pushed `f2c43f5f` (CI green); batteries still running.
 - **PR 4105 merged** at `f49b81e3` (head `48f15d7d`, `gate ok` success). Unsubscribed. PR 4099 shares no files with it.
+
+## 09:31 (2026-10-06) check-in
+
+- PR 4099's fix lane is still running batteries; the workspace suite is green, 11939 of 11939. Nothing new on PR 3970.
+- **Dispatched** `set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization` (P3, E) → `session_01VrjLamzpaC8fBt6mkCZyPk`.
+  - It applies PR 4105's predicate and site mint to `set_edge_curve`, then lands the `debug_assert!`.
+  - Files: `attach.rs` and tests. In `pcurves.rs` it changes only the assert and the posture text, flagged for **PCERT**'s re-port of 3945.
+  - Disjoint from PR 4099. No ratified clause names `staleness_posture`; I checked DESIGN.md and the README pages.
