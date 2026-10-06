@@ -389,6 +389,31 @@ pub(crate) fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point
     curvature_lever_arm(s1, p).min(curvature_lever_arm(s2, p))
 }
 
+/// **The largest principal curvature of a surface at a chart jet**, in
+/// reciprocal metres: the shape operator's spectral radius
+/// `|H| + √(H² − K)`, read from the first and second fundamental forms.
+/// It is the surface's, not the chart's: any regular reparameterisation
+/// of the same surface reads the same number, where a parameter line's
+/// own acceleration does not. Its reciprocal is the spline counterpart
+/// of [`curvature_lever_arm`], which has no closed form for a spline.
+/// Zero where the surface is flat at the jet; poison where the jet is,
+/// or where the chart is singular (`S_u × S_v = 0`).
+pub(crate) fn max_principal_curvature<T: Real>(j: &geom::SurfaceJet<T>) -> T {
+    let n = j.du.cross(j.dv);
+    let area = n.norm();
+    let (e, f, g) = (j.du.dot(j.du), j.du.dot(j.dv), j.dv.dot(j.dv));
+    let (l, m, nn) = (
+        n.dot(j.duu) / area,
+        n.dot(j.duv) / area,
+        n.dot(j.dvv) / area,
+    );
+    let det = area * area;
+    let two = T::from_f64(2.0);
+    let gauss = (l * nn - m * m) / det;
+    let mean = (e * nn - two * f * m + g * l) / (two * det);
+    mean.abs() + (mean * mean - gauss).max(T::zero()).sqrt()
+}
+
 /// **`tangent_second_order`** — the must-carry rule's one metered
 /// spelling (D2/OQ7): at a point `p` where the tangent planes already
 /// coincide ([`DihedralClass::Smooth`]), do the two surfaces still

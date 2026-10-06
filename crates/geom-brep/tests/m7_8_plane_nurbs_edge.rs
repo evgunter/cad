@@ -164,6 +164,51 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
     }
 }
 
+/// **A plane near tangent to a tightly curved wall refuses at the
+/// wall's curvature radius.** The quarter cylinder scaled to radius
+/// `ρ` = 1 mm, cut along its `u = 0` ruling by a plane turned from the
+/// tangent plane there by `sin θ = ε/(2ρ)`: the second line it cuts lies
+/// `2ρ·sin θ = ε` away. The per-sample transversality reads
+/// `sin θ · min(ρ, E)` = ε/2, inside the band, so the stated ruling
+/// refuses `NotTransverse`; levered by the edge's extent of 1 m alone it
+/// would read 500ε and clear.
+#[test]
+fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
+    let rho = 1e-3;
+    let eps = band().zero();
+    let unit = quarter_cylinder_wall();
+    let control = unit
+        .control()
+        .iter()
+        .map(|p| Point3::new(rho * p.x, rho * p.y, p.z))
+        .collect();
+    let wall = NurbsSurface::new(
+        unit.knots_u().clone(),
+        unit.knots_v().clone(),
+        control,
+        unit.weights().to_vec(),
+    )
+    .unwrap();
+    let sin = eps / (2.0 * rho);
+    let cos = (1.0 - sin * sin).sqrt();
+    let plane = Surface::Plane {
+        origin: Point3::new(rho, 0.0, 0.0),
+        normal: Vec3::new(cos, sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let carrier = segment(Point3::new(rho, 0.0, 0.0), Point3::new(rho, 0.0, 1.0));
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+        Err(PlaneNurbsRefusal::NotTransverse { verdict, .. }) => {
+            let m = verdict.margin().diagnostic_f64_for_error_text().value();
+            assert!(
+                m.is_some_and(|m| m <= eps),
+                "the margin is sin θ times the wall's radius, ε/2, not the extent's: {m:?}"
+            );
+        }
+        other => panic!("a plane ε from tangent to a 1 mm wall must refuse: {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------
 // The certification DOOR (M7-8 SU3): the same three rows driven
 // through `EdgeCurve::certify_via` with the certified lane, which is

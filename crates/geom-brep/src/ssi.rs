@@ -222,43 +222,58 @@ impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
     }
 }
 
-/// The two lengths a rung-3 certificate is stated over: the lever arm
-/// the transversality margin is levered by, and the feature extent that
-/// sets the tube ladder's widest rung.
-///
-/// **One type rather than two parallel parameters**, for the reason
-/// that made the tolerance one type: at three of the four call sites
-/// they are the same quantity, so as a pair of positional arguments
-/// they are a second copy waiting to drift — the same shape S25 named
-/// for ε, one line below it. [`TubeScale::uniform`] is the common
-/// case; [`TubeScale::split`] is for the caller that genuinely has a
-/// curvature arm narrower than the feature it sits on.
+/// The feature extent a rung-3 certificate is stated over: the length
+/// limb 3's certified transversality clearance is levered by, and the
+/// tube ladder's widest rung. The clearance is a region's, already the
+/// least sine over the tube, so no curvature radius levers it.
 #[derive(Clone, Copy, Debug)]
 pub struct TubeScale<T> {
-    /// The lever arm the transversality margin is stated over, in
-    /// meters.
-    pub(crate) arm: T,
-    /// The feature extent, in meters — the ladder's widest rung.
-    pub(crate) extent: f64,
+    /// The feature extent, in meters.
+    pub(crate) extent: T,
 }
 
 impl<T: geom_core::Bounds> TubeScale<T> {
-    /// One length for both: the caller's named feature, used as the
-    /// transversality lever arm and as the ladder's widest rung.
+    /// The caller's named feature extent.
     #[must_use]
-    pub fn uniform(arm: T) -> Self {
-        Self {
-            arm,
-            extent: geom_core::Bounds::hi(arm),
-        }
+    pub fn uniform(extent: T) -> Self {
+        Self { extent }
     }
 
-    /// A transversality lever arm distinct from the feature extent —
-    /// the ℝ³ analytic arm, where the folded curvature radius is
-    /// genuinely tighter than the domain's named extent.
-    #[must_use]
-    pub fn split(arm: T, extent: f64) -> Self {
-        Self { arm, extent }
+    /// The ladder's widest rung, in meters: the extent's upper end.
+    pub(crate) fn widest(&self) -> f64 {
+        geom_core::Bounds::hi(self.extent)
+    }
+}
+
+/// Which length levers the transversality decision at a point
+/// ([`SsiError::TransversalityBand`]): the shorter of the surfaces'
+/// curvature radius there and the feature extent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PointLever {
+    /// The surfaces' curvature radius at the point: the reciprocal of
+    /// the larger principal curvature of either operand.
+    CurvatureRadius,
+    /// The feature extent, where no curvature radius is shorter.
+    Extent,
+}
+
+impl PointLever {
+    /// The lever of an arm read as `min(radius, extent)`.
+    pub(crate) fn of(radius: f64, extent: f64) -> Self {
+        if radius < extent {
+            Self::CurvatureRadius
+        } else {
+            Self::Extent
+        }
+    }
+}
+
+impl core::fmt::Display for PointLever {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::CurvatureRadius => "the surfaces' curvature radius",
+            Self::Extent => "the feature extent",
+        })
     }
 }
 
@@ -307,6 +322,8 @@ pub enum SsiError {
         sin_theta: f64,
         /// The lever arm folded against it, in meters.
         arm: f64,
+        /// Which length the arm is.
+        lever: PointLever,
         /// Hoffmann's own σ₂ signal at the same state (diagnostic).
         sigma_min: f64,
         /// The verdict on `sin θ · arm`, with the margin it classified.
@@ -484,8 +501,8 @@ pub enum SsiError {
     /// escalate, typed, never retried.
     TubeStraddles {
         /// The verdict on the certified transversality clearance: a
-        /// dimensionless sine-like lower bound levered by the tube
-        /// scale's arm, so a length in metres (zero when the enclosure
+        /// dimensionless sine-like lower bound levered by the feature
+        /// extent, so a length in metres (zero when the enclosure
         /// straddles).
         verdict: crate::recourse::Refused,
         /// Boxes in the chain.
@@ -721,13 +738,14 @@ impl core::fmt::Display for SsiError {
             Self::TransversalityBand {
                 sin_theta,
                 arm,
+                lever,
                 sigma_min,
                 ..
             } => write!(
                 f,
                 "ssi: the surfaces meet nearly tangentially at a state the trace reads, a \
                  marched state or a refined gap's chord midpoint (sin θ = {sin_theta:e}, \
-                 arm = {arm:e} m, σ₂ = {sigma_min:e}): the tangency regime \
+                 arm = {arm:e} m, {lever}, σ₂ = {sigma_min:e}): the tangency regime \
                  (TangentIntersection), not a locus to march"
             ),
             Self::PairTangent { verdict } => write!(
@@ -2405,8 +2423,6 @@ fn finish_r3(
 ) -> Result<SsiBranch, SsiError> {
     use system::LocalSystem as _;
     let march_tol = seam_tol(ctx.tol, band)?;
-    let points = trace_points::<2, 3, _, _>(sys, trace);
-    let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let (carrier, cert) =
         refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
@@ -2417,7 +2433,7 @@ fn finish_r3(
                     pair: (a, b),
                     slab: domain.slab(),
                 },
-                TubeScale::split(arm, domain.extent),
+                TubeScale::uniform(domain.extent),
                 band,
                 limbs,
             )?;
@@ -3057,6 +3073,7 @@ mod ending_tests {
             SsiError::TransversalityBand {
                 sin_theta: 5e-9,
                 arm: 1.0,
+                lever: crate::ssi::PointLever::Extent,
                 sigma_min: 1e-9,
                 verdict: zero,
             },
@@ -3240,6 +3257,7 @@ mod ending_tests {
         let death = SsiError::TransversalityBand {
             sin_theta: 5e-10,
             arm: 1.0,
+            lever: crate::ssi::PointLever::Extent,
             sigma_min: 1e-10,
             verdict: zero,
         };
@@ -3668,6 +3686,7 @@ mod ending_tests {
                 SsiError::TransversalityBand {
                     sin_theta: 5e-10,
                     arm: 1.0,
+                    lever: crate::ssi::PointLever::Extent,
                     sigma_min: 1e-10,
                     verdict: zero,
                 },

@@ -256,8 +256,8 @@ pub struct SsiCertificate<T: Real> {
     pub tube: SsiTube<T>,
     /// Limb 3: the smallest certified transversality margin over the
     /// box chain, in meters — the headroom of the one-arc proof. The
-    /// ring's zero-free lower bound times the caller's lever arm, so it
-    /// carries the arm's scalar.
+    /// ring's zero-free lower bound times the caller's feature extent,
+    /// so it carries the extent's scalar.
     pub tube_transversality: T,
     /// Limb 3: how many boxes the chain has.
     pub tube_boxes: u32,
@@ -1333,10 +1333,8 @@ pub(crate) fn certify_located(
 /// converge, [`SsiError::CertificateEscalated`] naming the limb whose trilean
 /// escalated.
 ///
-/// `scale` carries the two lengths the certificate is stated over: the
-/// folded curvature/extent lever arm the transversality margin is
-/// levered by, and the caller's named feature extent, which sets the
-/// tube ladder's widest rung.
+/// `scale` is the caller's named feature extent, which levers limb 3's
+/// transversality clearance and sets the tube ladder's widest rung.
 ///
 /// The tolerance is `band`'s and only `band`'s. A linear band's
 /// `zero()` **is** the run's ε, and every threshold this function
@@ -1412,7 +1410,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             z: Interval::from_certified(p.z),
         }
     });
-    let TubeScale { arm, extent } = scale;
+    let (arm, extent) = (scale.extent, scale.widest());
     let three = match (a, b) {
         (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
             let chain = box_chain(carrier);

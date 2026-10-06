@@ -278,6 +278,16 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             "SHAPE-IV: {:?}",
             b.certificate
         );
+        // TUBE-LEVER: limb 3's clearance is a least sine over the tube,
+        // levered by the feature extent alone. A sine levered by the
+        // cylinder's radius, the pair's shorter curvature radius, could
+        // not exceed that radius.
+        assert!(
+            b.certificate.tube_transversality > 0.08,
+            "TUBE-LEVER: the tube's clearance {:e} m is no more than the cylinder's \
+             radius, so a curvature radius levered it, not the extent",
+            b.certificate.tube_transversality
+        );
         // MARCH-TOL: the tolerance the carrier was actually GENERATED
         // at, read off the branch the door returned.
         //
@@ -842,7 +852,7 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        TubeScale::split(1.0, 2.0),
+        TubeScale::uniform(2.0),
         band(),
     )
     .expect_err("a tangency cannot certify a uniqueness tube");
@@ -886,7 +896,7 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
         None,
         &SsiOperand::Analytic(&c),
         &SsiOperand::Analytic(&s),
-        TubeScale::split(0.08, 2.0),
+        TubeScale::uniform(2.0),
         band(),
     )
 }
@@ -5251,14 +5261,12 @@ fn warped_flat_wall(alpha: f64, width: f64, kappa: f64) -> NurbsSurface<f64> {
 /// **A flat wall whose chart bends answers as the plane it is.** The
 /// plane `z = 0` cuts [`warped_flat_wall`] in the line `x = z = 0`, from
 /// the `v = 0` side to the `v = 1` side, at the shallow angle `α`. The
-/// march levers `sin θ` by the wall's chart lever arm (chart speed² over
-/// its second derivative), which the uneven `u` lines shrink mid-branch
-/// to where the transversality is too close to call; the line is
-/// straight, so the Hermite candidate is the segment itself, its two
-/// ends' decisions clear, and the certificate takes it, its tube levered
-/// by the extent. Five warps, each one branch on the line, one cubic
-/// span, at ε 1e-9 and 1e-12. At 1e-6 the angle `α` is itself inside the
-/// band.
+/// wall is flat, so the transversality decision at either end of the
+/// Hermite candidate levers `sin θ` by the extent, however the `u` lines
+/// bunch; the line is straight, so the candidate is the segment itself,
+/// and the certificate takes it, its tube levered by the extent. Five
+/// warps, each one branch on the line, one cubic span, at ε 1e-9 and
+/// 1e-12. At 1e-6 the angle `α` is itself inside the band.
 #[test]
 fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();
@@ -5846,6 +5854,109 @@ fn a_branch_straight_then_bending_certifies() {
     let out =
         ssi::plane_nurbs_ssi(&plane, &wall, dom, band()).unwrap_or_else(|e| panic!("{at}: {e}"));
     pairs_as_the_truth(&at, &wall, &tr, &out);
+}
+
+/// The flat wall `z = α·x` over `y ∈ [0, ½]`, its chart bunched in `s`
+/// about the locus and its chart path bent:
+/// `x = X·[(s − ½) − κh(s − ½)² − μh]`, `h = 4t(1 − t)`, biquadratic.
+/// The plane `z = 0` cuts it in the straight line `x = z = 0`, whose
+/// chart path is the parabola `s − ½ − κh(s − ½)² = μh`.
+fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurface<f64> {
+    // Bernstein coefficients: `s − ½` and `(s − ½)²` in `s`, `4t(1 − t)`
+    // in `t`.
+    let lin = [-0.5, 0.0, 0.5];
+    let square = [0.25, -0.25, 0.25];
+    let hump = [0.0, 2.0, 0.0];
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::with_capacity(9);
+    for i in 0..3 {
+        for (j, h) in hump.iter().enumerate() {
+            let x = width * (lin[i] - kappa * square[i] * h - mu * h);
+            control.push(Point3::new(x, 0.25 * j as f64, alpha * x));
+        }
+    }
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap()
+}
+
+/// **A flat wall whose chart path bends answers as the plane it is,
+/// marched.** [`bent_path_flat_wall`] at `α` 1e-6, `X` 1 cm, `κ` 0.8,
+/// cut by `z = 0`. Where the chart path bends (`μ` 0.1 and 0.2) the
+/// Hermite cubic misses the locus in the chart and the branch is
+/// marched, its transversality decided at every state. The wall is
+/// flat, so each state's arm is the extent, and the march answers the
+/// line; a parameter line's own radius, 9 mm here, would put `sin θ`
+/// times it inside the band at ε 1e-9. `μ` 0 is the straight chart path.
+/// One branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is
+/// itself inside the band.
+#[test]
+fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
+    let eps = band().zero();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let alpha = 1e-6;
+    for mu in [0.0, 0.1, 0.2] {
+        let at = format!("μ {mu} at ε {eps:e}");
+        let wall = bent_path_flat_wall(alpha, 0.01, 0.8, mu);
+        let out = match ssi::plane_nurbs_ssi(&plane, &wall, dom, band()) {
+            Ok(out) => out,
+            Err(e) if eps >= 1e-6 => {
+                vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
+                continue;
+            }
+            Err(e) => panic!("{at}: expected the line, got {e}"),
+        };
+        let [b] = out.branches.as_slice() else {
+            panic!("{at}: expected one branch, got {}", out.branches.len());
+        };
+        let BranchEnd::Crossings { from, to } = b.end else {
+            panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
+        };
+        assert!(
+            from.side.fixed == ChartAxis::V
+                && to.side.fixed == ChartAxis::V
+                && from.side != to.side,
+            "{at}: from the v = 0 side to the v = 1: {from:?} → {to:?}"
+        );
+        let sup = b.certificate.hull_sup;
+        for k in 0..=200 {
+            let x = b
+                .carrier
+                .eval(b.params.0 + (b.params.1 - b.params.0) * f64::from(k) / 200.0);
+            assert!(
+                x.z.abs() <= sup && x.x.abs() <= 2.0 * sup / alpha,
+                "{at}: the carrier at {x:?} is off the line x = z = 0 (sup {sup:e})"
+            );
+        }
+    }
+}
+
+/// **The near-degenerate hyperbola answers at ε 1e-6, its tube levered
+/// by the extent.** [`hyperbola_wall`] at `c = 1e-4` on the
+/// near-degenerate chart, whose wall curves with a radius of about
+/// 2.2 mm. Limb 3's clearance there is enclosure slack over the widest
+/// rung (about 1e-4, where the sine on the locus is about 0.4); levered
+/// by the extent it clears the band, and both branches certify paired as
+/// the truth pairs them. A tube levered by the wall's curvature radius
+/// would put that slack inside the band. Run at its own band.
+#[test]
+fn the_near_degenerate_hyperbola_answers_at_a_coarse_eps() {
+    let b = band_at(1e-6);
+    let (plane, dom) = graph_cut();
+    let at = "c = 1e-4 on the near-degenerate chart at ε 1e-6";
+    let wall = hyperbola_wall(1e-4, 0.5, near_degenerate);
+    let tr = chart_truth(&wall);
+    assert_eq!(tr.crossings.len(), 4, "{at}: two branches' crossings");
+    let out = ssi::plane_nurbs_ssi(&plane, &wall, dom, b).unwrap_or_else(|e| panic!("{at}: {e:?}"));
+    pairs_as_the_truth(at, &wall, &tr, &out);
 }
 
 /// **A hyperbola along its asymptote pairs its branches right.** The

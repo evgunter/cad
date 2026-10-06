@@ -706,6 +706,7 @@ mod tests {
         let tangency = SsiError::TransversalityBand {
             sin_theta: 5e-10,
             arm: 1.0,
+            lever: crate::ssi::PointLever::Extent,
             sigma_min: 5e-10,
             verdict: Refused::Zero(Classified {
                 margin: MarginDiag::value(5e-10),

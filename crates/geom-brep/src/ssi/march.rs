@@ -20,7 +20,8 @@
 //!    transversality signal (p. 217), reported as diagnostic.
 //! 2. **`ssi_transversality`**: the *decision* uses the dimensionally
 //!    honest form `sin θ · arm` in meters — θ the angle between the two
-//!    surface normals, `arm` the folded curvature/extent lever arm —
+//!    surface normals, `arm` the shorter of the surfaces' curvature
+//!    radius at the state and the extent —
 //!    exactly `dihedral_wedge`'s shape (D4 ¶1). `Sign::Zero` is the
 //!    **sliver band**: refuse toward C7 (`TangentIntersection`, PR 9).
 //!    We never desingularize; Hoffmann §6.5's quadratic-transformation
@@ -897,11 +898,13 @@ pub(crate) type NormalPair = (Vec3<f64>, Vec3<f64>);
 pub(crate) trait TransversalityData<const N: usize> {
     /// Unit normals of the two operands at the state.
     fn normals(&self, x: &[f64; N]) -> NormalPair;
-    /// The folded curvature lever arm at the state, in meters
-    /// (`f64::MAX` where no curvature bounds it — the plane identity;
-    /// the march clamps it to the run's extent). A poisoned operand
-    /// makes the arm poison, so the arm guard escalates rather than
-    /// levering against the sibling's.
+    /// The surfaces' curvature radius at the state, in meters: the
+    /// reciprocal of the larger principal curvature of either operand,
+    /// a property of the surfaces and not of their charts (`f64::MAX`
+    /// where no curvature bounds it — the plane identity; the march
+    /// clamps it to the run's extent). A poisoned operand makes the arm
+    /// poison, so the arm guard escalates rather than levering against
+    /// the sibling's.
     fn lever_arm(&self, x: &[f64; N]) -> f64;
 }
 
@@ -923,7 +926,8 @@ pub(crate) fn decide_transversality<const N: usize>(
 ) -> Result<(), SsiError> {
     let (n1, n2) = sys.normals(x);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-    let arm = Real::min(sys.lever_arm(x), extent);
+    let radius = sys.lever_arm(x);
+    let arm = Real::min(radius, extent);
     decide_positive("ssi_transversality_arm", Margin::of(arm), band)
         .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
     let transversality = Margin::levered(sin_theta, arm);
@@ -935,6 +939,7 @@ pub(crate) fn decide_transversality<const N: usize>(
         Some(BandVerdict::Refused(verdict)) => Err(SsiError::TransversalityBand {
             sin_theta,
             arm,
+            lever: super::PointLever::of(radius, extent),
             sigma_min: sigma,
             verdict,
         }),

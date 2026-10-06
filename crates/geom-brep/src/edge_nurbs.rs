@@ -545,11 +545,12 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         }
         let jet = wall.ders(T::from_f64(foot.x), T::from_f64(foot.y));
         let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
-        // Metered at the analytic side's lever arm: a plane's own
-        // curvature arm is infinite, so the honest arm is the
-        // edge's spatial extent — the same meter the analytic
-        // `Intersection` arm hands `classify_dihedral`.
-        let margin = geom_core::Margin::levered(sin_theta, extent);
+        // Levered by the shorter of the wall's curvature radius at the
+        // foot and the edge's extent, the plane's radius being infinite:
+        // `min(1/κ, E) = E / max(1, κ·E)`, which a flat foot reads as E.
+        let kappa = crate::dihedral::max_principal_curvature(&jet);
+        let arm = extent / T::one().max(kappa * extent);
+        let margin = geom_core::Margin::levered(sin_theta, arm);
         match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
             Ok(decided) => {
                 if let Some(verdict) = Refused::of(decided, band) {

@@ -391,22 +391,14 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
     }
 
     fn lever_arm(&self, x: &[f64; 4]) -> f64 {
-        // Chart curvature is not bounded in closed form for a NURBS
-        // patch, so the honest arm at this shape is the CHART SPEED
-        // over the second-derivative magnitude — the local radius of
-        // curvature of the two parameter lines, folded min-wins, with
-        // `f64::MAX` where the chart is flat (the plane identity). A
-        // flat line never shrinks the arm; a poisoned one makes it
-        // poison.
+        // The surfaces' curvature radius, read from each chart's shape
+        // operator and folded min-wins: `f64::MAX` where both are flat
+        // (the plane identity), poison where either jet is.
         let mut arm = f64::MAX;
         for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
-            for (speed, second) in [
-                (j.jet.du.norm(), j.jet.duu.norm()),
-                (j.jet.dv.norm(), j.jet.dvv.norm()),
-            ] {
-                if second != 0.0 {
-                    arm = Real::min(arm, speed * speed / second);
-                }
+            let kappa = crate::dihedral::max_principal_curvature(&j.jet);
+            if kappa != 0.0 {
+                arm = Real::min(arm, 1.0 / kappa);
             }
         }
         arm
@@ -492,10 +484,10 @@ mod tests {
     }
 
     /// **The ℝ⁴ arm is poison when either chart's jet is**. The healthy
-    /// bilinear chart bends only along `u`, where at `u = ½` the speed
-    /// is 1 and the second derivative 0.4: an arm of 2.5. A chart
-    /// whose weights underflow to `0/0` at the midpoint has a poisoned
-    /// jet, and the arm is poison rather than its sibling's 2.5.
+    /// bilinear chart is the cylinder `z = 0.2x(1 − x)`, whose principal
+    /// curvature at `x = ½` is 0.4: an arm of 2.5. A chart whose weights
+    /// underflow to `0/0` at the midpoint has a poisoned jet, and the
+    /// arm is poison rather than its sibling's 2.5.
     #[test]
     fn r4_lever_arm_is_poison_when_a_chart_jet_is() {
         use super::super::march::TransversalityData;
@@ -536,6 +528,98 @@ mod tests {
                 "a poisoned chart folded to {arm:e}, not poison"
             );
         }
+    }
+
+    /// A biquadratic patch from its 3×3 control net (row-major in `u`)
+    /// and per-`u`-row weights.
+    fn biquadratic(control: [[Point3<f64>; 3]; 3], w: [f64; 3]) -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let weights = w.iter().flat_map(|&wi| [wi; 3]).collect();
+        NurbsSurface::new(k.clone(), k, control.concat(), weights).unwrap()
+    }
+
+    /// The parameter lines' own radius, speed² over acceleration: what a
+    /// chart reads, folded min-wins over both lines.
+    fn parameter_line_radius(j: &geom::SurfaceJet<f64>) -> f64 {
+        let along = |d: Vec3<f64>, dd: Vec3<f64>| d.dot(d) / dd.norm();
+        along(j.du, j.duu).min(along(j.dv, j.dvv))
+    }
+
+    /// **The ℝ⁴ arm is the surfaces' curvature radius, whatever the
+    /// chart.** A flat wall whose parameter lines bunch and shear reads
+    /// `f64::MAX` (the plane identity), and a cylinder of radius `r`
+    /// reads `r` under two charts of it, the rational quarter circle and
+    /// the same arc with its weights rescaled by powers of 3 (a Möbius
+    /// reparameterisation), each run unevenly along the axis. Every
+    /// chart here has parameter lines whose own radius is not the
+    /// surface's, so a chart's reading would fail the row.
+    #[test]
+    fn r4_lever_arm_is_the_surfaces_curvature_radius_whatever_the_chart() {
+        use super::super::march::TransversalityData;
+        let p = Point3::new;
+        let flat = biquadratic(
+            [
+                [p(0.0, 0.0, 0.0), p(0.05, 0.4, 0.0), p(0.0, 1.0, 0.0)],
+                [p(0.1, 0.0, 0.0), p(0.5, 0.3, 0.0), p(0.2, 0.9, 0.0)],
+                [p(1.0, 0.1, 0.0), p(1.1, 0.6, 0.0), p(0.9, 1.0, 0.0)],
+            ],
+            [1.0; 3],
+        );
+        let r = 0.3;
+        let arc = |z: f64| [p(r, 0.0, z), p(r, r, z), p(0.0, r, z)];
+        let rows = |z: [f64; 3]| {
+            let [a, b, c] = z.map(arc);
+            [0, 1, 2].map(|i| [a[i], b[i], c[i]])
+        };
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let uneven = [0.0, 0.05, 1.0];
+        let cylinders = [
+            biquadratic(rows(uneven), [1.0, h, 1.0]),
+            biquadratic(rows(uneven), [1.0, 3.0 * h, 9.0]),
+        ];
+        let at = [0.13, 0.5, 0.81];
+        let mut chart_reads_r = [true; 2];
+        for u in at {
+            for v in at {
+                let x = [u, v, u, v];
+                let jet = Chart::Nurbs(&flat).jet3(u, v).jet;
+                assert!(
+                    parameter_line_radius(&jet) < 1e3,
+                    "FIXTURE: the flat wall's parameter lines bend at ({u}, {v})"
+                );
+                let arm = ParametricPairR4 {
+                    a: Chart::Nurbs(&flat),
+                    b: Chart::Nurbs(&flat),
+                }
+                .lever_arm(&x);
+                assert_eq!(arm, f64::MAX, "the flat wall at ({u}, {v}): {arm:e}");
+                for (k, cylinder) in cylinders.iter().enumerate() {
+                    let jet = Chart::Nurbs(cylinder).jet3(u, v).jet;
+                    chart_reads_r[k] &= (parameter_line_radius(&jet) - r).abs() <= 1e-2 * r;
+                    for sys in [
+                        ParametricPairR4 {
+                            a: Chart::Nurbs(cylinder),
+                            b: Chart::Nurbs(&flat),
+                        },
+                        ParametricPairR4 {
+                            a: Chart::Nurbs(&flat),
+                            b: Chart::Nurbs(cylinder),
+                        },
+                    ] {
+                        let arm = sys.lever_arm(&x);
+                        assert!(
+                            (arm - r).abs() <= 1e-9 * r,
+                            "cylinder chart {k} at ({u}, {v}): arm {arm:e}, radius {r:e}"
+                        );
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            chart_reads_r,
+            [false; 2],
+            "FIXTURE: each cylinder chart's parameter lines miss the radius somewhere"
+        );
     }
 
     /// The order-2 and order-3 right-hand sides must be exactly the
