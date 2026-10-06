@@ -33,7 +33,10 @@ The boolean's four seam kills onto kept faces (`zip_seam`'s retiring
 kills, `zip_folded`'s two in `boolean/rest.rs`) cannot move to
 `kef_describing` with a key swap: the seam edge's stored description
 names a surface other than the survivor's, so its re-description has
-to be derived, kind included. Until this row's restater exists they
+to be derived, kind included. Nor can the coplanar merge's kill: the
+rest of a shared chain lands with both halves on the kept face, where
+the key-swapped `Intersection(kept, kept)` does not certify and a
+chart image is owed. Until this row's restater exists they
 stay on `kef_minting`, and `kef_minting` cannot be absorbed
 (`kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`,
 "Built, and what waits"). The restater plugs into the twins at

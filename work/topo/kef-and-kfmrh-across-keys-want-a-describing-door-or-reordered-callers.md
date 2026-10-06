@@ -170,14 +170,20 @@ What waits:
   kind, `restatement-derives-each-moved-edges-kind`, held on D10.
   Chartless section faces do not help these four: the survivor is a
   kept face.
+- **The coplanar merge needs it too.** `merge_group` kills one shared
+  edge per absorption; the rest of a shared chain of `k` edges, `k − 1`
+  of them, lands with both halves on the survivor (the duplicates the
+  merge then deletes with `kev`). Each stored `Intersection(absorbed,
+  kept)` key-swaps to `Intersection(kept, kept)`, which does not
+  certify; the coherent statement is a chart image on the kept face,
+  a change of kind. Re-charting the absorbed face onto the kept key
+  first (`set_face_surfaces_describing` with `carried_redescriptions`)
+  meets the same edges.
 - **The rest can move now**: the zip's fuse (`kfmrh_minting` in
   `zip_seam`) and `slit_zip`'s kill onto transient faces made
-  chartless (agreed part 2); the merge by re-charting the absorbed
-  face onto the kept key first (`set_face_surfaces_describing` with
-  `carried_redescriptions`), or `kef_describing`; the chord join by
-  re-charting the null face to the placeholder when it completes; the
-  blend's carve strips chartless, its later band re-chart then taking
-  the describing door.
+  chartless (agreed part 2); the chord join by re-charting the null
+  face to the placeholder when it completes; the blend's carve strips
+  chartless, its later band re-chart then taking the describing door.
 - Field privacy and the vouched-move module, and tier 1's naming check
   with D1's text, need every operator to refuse a strand, so they
   follow the absorption.
