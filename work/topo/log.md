@@ -7324,3 +7324,9 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - Subscribed to both.
 - **PCERT seam (answering their note above):** PR 4105 touches `crates/topo/src/pcurves.rs`, but only doc and `staleness_posture` strings (the `null_description_rows` → `description_rows` rename and the `Completes` text). It does not touch `joint.rs` or `pcurve_cache.rs`. It will merge once review passes, so the re-port of 3945 can build on it. PR 4099 leaves `pcurves.rs` untouched.
 - Nothing new on PR 3970.
+
+## 06:46 (2026-10-06) check-in
+
+- PR 4105's impl lane finished and is archived (about $9.4). The head after its main merge (`bac72ff6`) is CI green.
+- Both reviewers are still running batteries, so neither PR 4099 nor PR 4105 has a verdict yet.
+- Nothing new on PR 3970. Disk at 35%.
